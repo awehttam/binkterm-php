@@ -87,6 +87,7 @@ class AppearanceConfig
             ],
             'message_reader' => [
                 'scrollable_body' => true,
+                'email_link_url' => '',
             ],
         ];
     }
@@ -333,5 +334,11 @@ class AppearanceConfig
     {
         self::load();
         return !empty(self::$config['message_reader']['scrollable_body']);
+    }
+
+    public static function getMessageReaderEmailLinkUrl(): string
+    {
+        self::load();
+        return trim((string)(self::$config['message_reader']['email_link_url'] ?? ''));
     }
 }

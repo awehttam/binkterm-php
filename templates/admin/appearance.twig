@@ -391,6 +391,12 @@
                     {{ t('ui.admin.appearance.message_reader.scrollable_body_help', {}, locale, ['common']) }}
                 </div>
 
+                <div class="mb-3">
+                    <label class="form-label" for="mrEmailLinkUrl">{{ t('ui.admin.appearance.message_reader.email_link_url', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="mrEmailLinkUrl" maxlength="1000" placeholder="{{ t('ui.admin.appearance.message_reader.email_link_url_placeholder', {}, locale, ['common']) }}">
+                    <div class="form-text">{{ t('ui.admin.appearance.message_reader.email_link_url_help', {}, locale, ['common']) }}</div>
+                </div>
+
                 <button type="button" class="btn btn-primary" onclick="saveMessageReader()">
                     <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.message_reader.save', {}, locale, ['common']) }}
                 </button>
@@ -537,6 +543,7 @@ function loadAppearanceConfig() {
             // Message Reader
             const mr = config.message_reader || {};
             $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
+            $('#mrEmailLinkUrl').val(mr.email_link_url || '');
         })
         .fail(function(xhr) {
             showAlert('danger', uiT('ui.admin.appearance.load_failed_prefix', 'Failed to load appearance config: ') + apiError(xhr.responseJSON, uiT('ui.common.unknown_error', 'Unknown error')));
@@ -870,7 +877,8 @@ function showStatus(id, type, msg) {
 function saveMessageReader() {
     const payload = {
         message_reader: {
-            scrollable_body: $('#mrScrollableBody').is(':checked')
+            scrollable_body: $('#mrScrollableBody').is(':checked'),
+            email_link_url: $('#mrEmailLinkUrl').val().trim()
         }
     };
     $.post('/admin/api/appearance/message-reader', JSON.stringify(payload), null, 'json')

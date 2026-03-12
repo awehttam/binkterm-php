@@ -178,6 +178,7 @@ return [
     'ui.base.messaging' => 'Messagerie',
     'ui.base.netmail' => 'Netmail',
     'ui.base.echomail' => 'Echomail',
+    'ui.base.email_link' => 'E-mail',
     'ui.base.local_chat' => 'Chat local',
     'ui.base.mrc_chat' => 'Chat MRC',
     'ui.base.doors_games' => 'Portes',
@@ -2537,4 +2538,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.bbs_directory.tab_map' => 'Carte des systèmes BBS',
     'ui.bbs_directory.map_no_coordinates' => 'Aucun système BBS ne dispose encore de coordonnées cartographiques.',
     'ui.bbs_directory.map_partial_notice' => '{count} systèmes BBS ne sont pas affichés sur la carte car leurs emplacements n\'ont pas encore pu être géocodés.',
+    'ui.admin.appearance.message_reader.email_link_url' => 'URL du lien E-mail',
+    'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
+    'ui.admin.appearance.message_reader.email_link_url_help' => 'Lien optionnel affiche dans le menu Messagerie juste sous Echomail.',
 ];

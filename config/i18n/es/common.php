@@ -189,6 +189,7 @@ return [
     'ui.base.messaging' => 'Mensajeria',
     'ui.base.netmail' => 'Netmail',
     'ui.base.echomail' => 'Echomail',
+    'ui.base.email_link' => 'E-mail',
     'ui.base.local_chat' => 'Chat local',
     'ui.base.mrc_chat' => 'Chat MRC',
     'ui.base.doors_games' => 'Puertas',
@@ -432,6 +433,9 @@ return [
     'ui.admin.appearance.message_reader.layout' => 'Diseno',
     'ui.admin.appearance.message_reader.scrollable_body' => 'Cuerpo de mensaje desplazable',
     'ui.admin.appearance.message_reader.scrollable_body_help' => 'Cuando esta habilitado, el encabezado del mensaje (De, Para, Asunto, Fecha) permanece fijo arriba mientras el cuerpo se desplaza por separado. Cuando esta deshabilitado, todo el modal se desplaza junto (comportamiento predeterminado).',
+    'ui.admin.appearance.message_reader.email_link_url' => 'URL del enlace de E-mail',
+    'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
+    'ui.admin.appearance.message_reader.email_link_url_help' => 'Enlace opcional que se muestra en el menu Mensajeria justo debajo de Echomail.',
     'ui.admin.appearance.message_reader.save' => 'Guardar ajustes del lector de mensajes',
 
     // Admin Binkp Config

@@ -1141,6 +1141,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['message_reader']['scrollable_body'] = !empty($mr['scrollable_body']);
+                $config['message_reader']['email_link_url'] = trim((string)($mr['email_link_url'] ?? ''));
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);

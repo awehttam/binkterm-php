@@ -189,6 +189,7 @@ return [
     'ui.base.messaging' => 'Messaging',
     'ui.base.netmail' => 'Netmail',
     'ui.base.echomail' => 'Echomail',
+    'ui.base.email_link' => 'E-mail',
     'ui.base.local_chat' => 'Local Chat',
     'ui.base.mrc_chat' => 'MRC Chat',
     'ui.base.doors_games' => 'Doors',
@@ -432,6 +433,9 @@ return [
     'ui.admin.appearance.message_reader.layout' => 'Layout',
     'ui.admin.appearance.message_reader.scrollable_body' => 'Scrollable message body',
     'ui.admin.appearance.message_reader.scrollable_body_help' => 'When enabled, the message header (From, To, Subject, Date) remains fixed at the top while the message body scrolls independently. When disabled, the entire modal scrolls together (default behavior).',
+    'ui.admin.appearance.message_reader.email_link_url' => 'E-mail link URL',
+    'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
+    'ui.admin.appearance.message_reader.email_link_url_help' => 'Optional link shown in the Messaging menu directly under Echomail.',
     'ui.admin.appearance.message_reader.save' => 'Save Message Reader Settings',
 
     // Admin Binkp Config
