@@ -132,6 +132,12 @@
     </div>
 
     <div class="example">
+        <h3>Real-World Sample: karma-c.txt</h3>
+        <div class="note">This loads <code>/karma-c.txt</code>, which appears to be Amiga-scene text art rather than ANSI with escape sequences.</div>
+        <div class="output" id="output-karma"></div>
+    </div>
+
+    <div class="example">
         <h3>Custom Sequence</h3>
         <div class="note">Enter text with literal ANSI escapes using <code>\\x1b</code>, <code>\\n</code>, and <code>\\r</code>.</div>
         <textarea id="custom-text">\x1b[96mAMIGA ANSI\x1b[0m\n\x1b[33mTopaz test\x1b[0m\n\u00ab\u00ac\u00ac\u00ac\u00ac\u00bb\n\u00a6  BB \u00a6\n\u00a1\u00af\u00af\u00af\u00af\u00bf</textarea>
@@ -146,6 +152,12 @@
         <h3>Focused Glyph Atlas</h3>
         <div class="note">These are the specific Amiga-mapped characters the current decoder knows about.</div>
         <div class="glyph-grid" id="output-glyph-atlas"></div>
+    </div>
+
+    <div class="example">
+        <h3>Topaz Latin-1 Atlas (160-255)</h3>
+        <div class="note">This isolates the full Topaz Latin-1 block so we can identify the correct line-drawing slots instead of guessing.</div>
+        <div class="glyph-grid" id="output-topaz-atlas"></div>
     </div>
 
     <script src="/js/app.js"></script>
@@ -207,12 +219,32 @@
             document.getElementById('output-glyph-atlas').innerHTML = html;
         }
 
+        function buildTopazAtlas() {
+            let html = '';
+            for (let cp = 160; cp <= 255; cp++) {
+                const ch = String.fromCharCode(cp);
+                html += `<div class="glyph-card"><div class="glyph-code">${cp}<br>U+${cp.toString(16).toUpperCase().padStart(4, '0')}</div><div class="glyph-char">${ch}</div></div>`;
+            }
+            document.getElementById('output-topaz-atlas').innerHTML = html;
+        }
+
         renderAmigaSample('output-colors', colorsSample);
         renderAmigaSample('output-cursor', cursorSample);
         renderAmigaSample('output-glyphs', glyphSample);
         renderAmigaSample('output-box', boxSample);
         renderCustom();
         buildGlyphAtlas();
+        buildTopazAtlas();
+
+        fetch('/karma-c.txt')
+            .then(response => response.ok ? response.text() : Promise.reject(new Error(`HTTP ${response.status}`)))
+            .then(text => {
+                renderAmigaSample('output-karma', text, 100);
+            })
+            .catch(error => {
+                document.getElementById('output-karma').innerHTML =
+                    `<div class="note">Failed to load /karma-c.txt: ${String(error.message || error)}</div>`;
+            });
 
         document.getElementById('render-custom').addEventListener('click', renderCustom);
     </script>

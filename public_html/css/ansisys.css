@@ -25,6 +25,22 @@
     font-display: swap;
 }
 
+@font-face {
+    font-family: 'Topaz Unicode KS13';
+    src: url('/fonts/topaz_unicode_ks13_regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Topaz Unicode KS13';
+    src: url('/fonts/topaz_unicode_ks13_bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
 /* PETSCII / C64-style font for PETSCII message rendering. */
 @font-face {
     font-family: 'Pet Me 64';
@@ -112,7 +128,7 @@
 
 .ansi-art-container.art-format-amiga-ansi pre,
 .ansi-art.art-format-amiga-ansi {
-    font-family: 'Topaz Plus', 'Courier New', monospace;
+    font-family: 'Topaz Unicode KS13', 'Topaz Plus', 'Courier New', monospace;
     letter-spacing: 0.01em;
 }
 
