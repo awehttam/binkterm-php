@@ -300,10 +300,10 @@ function renderEntries(entries, total) {
                     <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="showMergeModal(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.admin.bbs_directory.merge', 'Merge duplicate')}">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showMergeModal(${e.id})" title="${uiT('ui.admin.bbs_directory.merge', 'Merge duplicate')}">
                         <i class="fas fa-compress-arrows-alt"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.common.delete', 'Delete')}">
+                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${e.id})" title="${uiT('ui.common.delete', 'Delete')}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -366,10 +366,10 @@ function renderPending(entries) {
             <td><small>${escapeHtml(e.submitted_by_username || '—')}</small></td>
             <td>
                 <div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-success" onclick="approveEntry(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.admin.bbs_directory.approve', 'Approve')}">
+                    <button class="btn btn-sm btn-success" onclick="approveEntry(${e.id})" title="${uiT('ui.admin.bbs_directory.approve', 'Approve')}">
                         <i class="fas fa-check"></i> ${uiT('ui.admin.bbs_directory.approve', 'Approve')}
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="rejectEntry(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.admin.bbs_directory.reject', 'Reject')}">
+                    <button class="btn btn-sm btn-outline-danger" onclick="rejectEntry(${e.id})" title="${uiT('ui.admin.bbs_directory.reject', 'Reject')}">
                         <i class="fas fa-times"></i> ${uiT('ui.admin.bbs_directory.reject', 'Reject')}
                     </button>
                     <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
@@ -384,20 +384,20 @@ function renderPending(entries) {
     $('#pendingContainer').html(html);
 }
 
-function approveEntry(id, name) {
+function approveEntry(id) {
     $.ajax({ url: `/admin/api/bbs-directory/entries/${id}/approve`, method: 'POST' })
         .done(function() {
-            showSuccess(`${uiT('ui.admin.bbs_directory.approved', 'Entry approved')}: ${escapeHtml(name)}`);
+            showSuccess(uiT('ui.admin.bbs_directory.approved', 'Entry approved'));
             loadPending();
             loadEntries();
         })
         .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Approve failed')); });
 }
 
-function rejectEntry(id, name) {
+function rejectEntry(id) {
     $.ajax({ url: `/admin/api/bbs-directory/entries/${id}/reject`, method: 'POST' })
         .done(function() {
-            showSuccess(`${uiT('ui.admin.bbs_directory.rejected', 'Entry rejected')}: ${escapeHtml(name)}`);
+            showSuccess(uiT('ui.admin.bbs_directory.rejected', 'Entry rejected'));
             loadPending();
         })
         .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Reject failed')); });
@@ -475,16 +475,20 @@ let mergeKeepId   = null;
 let mergeDiscardId = null;
 let mergeSearchTimer = null;
 
-function showMergeModal(id, name) {
+function showMergeModal(id) {
     mergeKeepId    = id;
     mergeDiscardId = null;
-    $('#mergeKeepName').text(name);
-    $('#mergeSearch').val('');
-    $('#mergeSearchResults').empty();
-    $('#mergeSelectedWrap').addClass('d-none');
-    $('#confirmMergeBtn').prop('disabled', true);
-    $('#mergeModal').modal('show');
-    setTimeout(function() { $('#mergeSearch').focus(); }, 300);
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            $('#mergeKeepName').text(data.entry?.name || '');
+            $('#mergeSearch').val('');
+            $('#mergeSearchResults').empty();
+            $('#mergeSelectedWrap').addClass('d-none');
+            $('#confirmMergeBtn').prop('disabled', true);
+            $('#mergeModal').modal('show');
+            setTimeout(function() { $('#mergeSearch').focus(); }, 300);
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Failed to load entry')); });
 }
 
 $('#mergeSearch').on('input', function() {
@@ -498,7 +502,7 @@ $('#mergeSearch').on('input', function() {
                 let html = '';
                 results.forEach(function(e) {
                     const addr = e.telnet_host ? `<small class="text-muted ms-2">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</small>` : '';
-                    html += `<button type="button" class="list-group-item list-group-item-action py-1" onclick="selectMergeDiscard(${e.id}, '${escapeHtml(e.name)}')">
+                    html += `<button type="button" class="list-group-item list-group-item-action py-1" onclick="selectMergeDiscard(${e.id})">
                         ${escapeHtml(e.name)}${addr}
                     </button>`;
                 });
@@ -507,13 +511,18 @@ $('#mergeSearch').on('input', function() {
     }, 300);
 });
 
-function selectMergeDiscard(id, name) {
-    mergeDiscardId = id;
-    $('#mergeDiscardName').text(name);
-    $('#mergeSelectedWrap').removeClass('d-none');
-    $('#confirmMergeBtn').prop('disabled', false);
-    $('#mergeSearchResults').empty();
-    $('#mergeSearch').val(name);
+function selectMergeDiscard(id) {
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            const name = data.entry?.name || '';
+            mergeDiscardId = id;
+            $('#mergeDiscardName').text(name);
+            $('#mergeSelectedWrap').removeClass('d-none');
+            $('#confirmMergeBtn').prop('disabled', false);
+            $('#mergeSearchResults').empty();
+            $('#mergeSearch').val(name);
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Failed to load entry')); });
 }
 
 function confirmMerge() {
@@ -539,10 +548,14 @@ function confirmMerge() {
 
 // ── Delete ──────────────────────────────────────────────────────────────
 
-function showDeleteModal(id, name) {
-    $('#deleteItemName').text(name);
-    $('#deleteModal').modal('show');
-    $('#confirmDeleteBtn').off('click').on('click', function() { deleteEntry(id); });
+function showDeleteModal(id) {
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            $('#deleteItemName').text(data.entry?.name || '');
+            $('#deleteModal').modal('show');
+            $('#confirmDeleteBtn').off('click').on('click', function() { deleteEntry(id); });
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Failed to load entry')); });
 }
 
 function deleteEntry(id) {
