@@ -349,20 +349,20 @@ class BinkdProcessor
         $subjectRaw = $this->readNullStringRaw($handle, 72);
         
         // Read message text until null terminator
-        $messageText = '';
+        $messageTextRaw = '';
         while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
-            $messageText .= $char;
+            $messageTextRaw .= $char;
         }
-        
+
         // Extract CHRS kludge to determine character encoding before conversion
-        $detectedEncoding = $this->extractChrsKludge($messageText);
+        $detectedEncoding = $this->extractChrsKludge($messageTextRaw);
         
         // Convert all strings from detected/default encoding to UTF-8 for database storage
         $dateTime = $this->convertToUtf8($dateTimeRaw, $detectedEncoding);
         $toName = $this->convertToUtf8($toNameRaw, $detectedEncoding);
         $fromName = $this->convertToUtf8($fromNameRaw, $detectedEncoding);
         $subject = $this->convertToUtf8($subjectRaw, $detectedEncoding);
-        $messageText = $this->convertToUtf8($messageText, $detectedEncoding);
+        $messageText = $this->convertToUtf8($messageTextRaw, $detectedEncoding);
 
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
@@ -454,6 +454,8 @@ class BinkdProcessor
             'subject' => trim($subject),
             'dateTime' => trim($dateTime),
             'text' => $messageText,
+            'textRaw' => $messageTextRaw ?? null,
+            'detectedEncoding' => $detectedEncoding,
             'attributes' => $header['attr']
         ];
 
@@ -548,6 +550,35 @@ class BinkdProcessor
         // If all else fails, use mb_convert_encoding with error handling
         // This will convert invalid bytes to ? characters but prevent database errors
         return mb_convert_encoding($string, 'UTF-8', 'UTF-8//IGNORE');
+    }
+
+    private function splitFtnLines(string $text): array
+    {
+        $normalized = str_replace("\r\n", "\n", $text);
+        $normalized = str_replace("\r", "\n", $normalized);
+        return explode("\n", $normalized);
+    }
+
+    private function normalizeDetectedEncoding(?string $encoding, ?string $rawBody = null): ?string
+    {
+        if ($encoding !== null && trim($encoding) !== '') {
+            return strtoupper(trim($encoding));
+        }
+
+        if (is_string($rawBody) && $rawBody !== '' && mb_check_encoding($rawBody, 'UTF-8')) {
+            return 'UTF-8';
+        }
+
+        return null;
+    }
+
+    private function detectArtFormat(?string $rawBody): ?string
+    {
+        if (!is_string($rawBody) || $rawBody === '') {
+            return null;
+        }
+
+        return preg_match('/\x1b\[[0-9;?]*[A-Za-z]/', $rawBody) ? 'ansi' : null;
     }
 
     /**
@@ -722,11 +753,11 @@ class BinkdProcessor
         
         // Parse netmail message text to separate kludges from content
         $messageText = $message['text'];
-        $messageText = str_replace("\r\n", "\n", $messageText); // Normalize line endings
-        $messageText = str_replace("\r", "\n", $messageText);
-        
-        $lines = explode("\n", $messageText);
+        $messageTextRaw = $message['textRaw'] ?? '';
+        $lines = $this->splitFtnLines($messageText);
+        $rawLines = $this->splitFtnLines($messageTextRaw);
         $cleanedLines = [];
+        $cleanedRawLines = [];
         $kludgeLines = [];
         $bottomKludges = [];
         $tzutcOffset = null;
@@ -734,7 +765,8 @@ class BinkdProcessor
         $originalAuthorAddress = null;
         $replyAddress = null;
 
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
+            $rawLine = $rawLines[$index] ?? '';
             // Process kludge lines (lines starting with \x01) in netmail
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
                 // Separate bottom kludges (FTS-4009: Via and PATH go after message text)
@@ -795,12 +827,16 @@ class BinkdProcessor
             
             // Include non-kludge lines in cleaned message text
             $cleanedLines[] = $line;
+            $cleanedRawLines[] = $rawLine;
         }
         
         // Create clean message text without kludges
         $cleanMessageText = implode("\n", $cleanedLines);
+        $cleanMessageRaw = implode("\n", $cleanedRawLines);
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
+        $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $messageTextRaw);
+        $artFormat = $this->detectArtFormat($cleanMessageRaw);
 
         // Use addresses from kludges if available (more reliable than INTL kludge)
         // Priority: REPLYADDR > MSGID original author > message envelope
@@ -821,30 +857,32 @@ class BinkdProcessor
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
 
-        $stmt->execute([
-            $userId,
-            $fromAddr,
-            $message['destAddr'],
-            $message['fromName'],
-            $message['toName'],
-            $message['subject'],
-            $cleanMessageText, // Use cleaned message text without kludges
-            $dateWritten,
-            $message['attributes'],
-            $messageId,
-            $originalAuthorAddress,
-            $replyAddress,
-            $kludgeText, // Store top kludges separately
-            !empty($bottomKludgeText) ? $bottomKludgeText : null, // Store bottom kludges (Via, etc.)
-            $replyToId,
-            $isInsecureSession ? 'true' : 'false' // PostgreSQL boolean
-        ]);
+        $stmt->bindValue(':user_id', $userId);
+        $stmt->bindValue(':from_address', $fromAddr);
+        $stmt->bindValue(':to_address', $message['destAddr']);
+        $stmt->bindValue(':from_name', $message['fromName']);
+        $stmt->bindValue(':to_name', $message['toName']);
+        $stmt->bindValue(':subject', $message['subject']);
+        $stmt->bindValue(':message_text', $cleanMessageText);
+        $stmt->bindValue(':raw_message_bytes', $cleanMessageRaw !== '' ? $cleanMessageRaw : null, $cleanMessageRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $messageCharset);
+        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':date_written', $dateWritten);
+        $stmt->bindValue(':attributes', $message['attributes']);
+        $stmt->bindValue(':message_id', $messageId);
+        $stmt->bindValue(':original_author_address', $originalAuthorAddress);
+        $stmt->bindValue(':reply_address', $replyAddress);
+        $stmt->bindValue(':kludge_lines', $kludgeText);
+        $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
+        $stmt->bindValue(':reply_to_id', $replyToId);
+        $stmt->bindValue(':received_insecure', $isInsecureSession ? 'true' : 'false');
+        $stmt->execute();
 
         $netmailId = $this->db->lastInsertId();
 
@@ -945,13 +983,13 @@ class BinkdProcessor
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
         $messageText = $message['text'];
-        $messageText = str_replace("\r\n", "\n", $messageText); // Normalize \r\n to \n
-        $messageText = str_replace("\r", "\n", $messageText);   // Normalize \r to \n
-        
-        $lines = explode("\n", $messageText);
+        $messageTextRaw = $message['textRaw'] ?? '';
+        $lines = $this->splitFtnLines($messageText);
+        $rawLines = $this->splitFtnLines($messageTextRaw);
         $echoareaTag = 'UNKNOWN';
         $hasAreaLine = false;
         $cleanedLines = [];
+        $cleanedRawLines = [];
         $kludgeLines = [];
         $bottomKludges = [];
         $messageId = null;
@@ -960,6 +998,7 @@ class BinkdProcessor
         $tzutcOffset = null;
 
         foreach ($lines as $i => $line) {
+            $rawLine = $rawLines[$i] ?? '';
             // Extract AREA: tag from first line
             if ($i === 0 && strpos($line, 'AREA:') === 0) {
                 // Extract just the echoarea name, strip any control characters or extra data
@@ -1050,13 +1089,16 @@ class BinkdProcessor
                 }
                 
                 $cleanedLines[] = $line; // Keep origin line in message body
+                $cleanedRawLines[] = $rawLine;
                 continue;
             }
             
             $cleanedLines[] = $line;
+            $cleanedRawLines[] = $rawLine;
         }
         
         $messageText = implode("\n", $cleanedLines);
+        $messageTextRaw = implode("\n", $cleanedRawLines);
 
         // Drop if no valid AREA: line was found — malformed echomail with no area tag
         if (!$hasAreaLine) {
@@ -1067,18 +1109,14 @@ class BinkdProcessor
         // Get or create echoarea
         $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
 
-        // We don't record date_received explictly to allow postgres to use its DEFAULT value
-        $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?)
-        ");
-
         //$this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
         //$this->log("DEBUG: dateWritten is $dateWritten");
         //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
+        $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $message['textRaw'] ?? '');
+        $artFormat = $this->detectArtFormat($messageTextRaw);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
         $replyToId = null;
@@ -1129,20 +1167,26 @@ class BinkdProcessor
                     ', Subject: '.$message['subject']
         );
 
-        $stmt->execute([
-            $echoarea['id'],
-            $fromAddress,
-            $message['fromName'],
-            $message['toName'],
-            $message['subject'],
-            $messageText,
-            $dateWritten,
-            $messageId,
-            $originLine,
-            $kludgeText,
-            !empty($bottomKludgeText) ? $bottomKludgeText : null, // Store bottom kludges (Via, etc.)
-            $replyToId
-        ]);
+        $stmt = $this->db->prepare("
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+        ");
+        $stmt->bindValue(':echoarea_id', $echoarea['id']);
+        $stmt->bindValue(':from_address', $fromAddress);
+        $stmt->bindValue(':from_name', $message['fromName']);
+        $stmt->bindValue(':to_name', $message['toName']);
+        $stmt->bindValue(':subject', $message['subject']);
+        $stmt->bindValue(':message_text', $messageText);
+        $stmt->bindValue(':raw_message_bytes', $messageTextRaw !== '' ? $messageTextRaw : null, $messageTextRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $messageCharset);
+        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':date_written', $dateWritten);
+        $stmt->bindValue(':message_id', $messageId);
+        $stmt->bindValue(':origin_line', $originLine);
+        $stmt->bindValue(':kludge_lines', $kludgeText);
+        $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
+        $stmt->bindValue(':reply_to_id', $replyToId);
+        $stmt->execute();
         
         // Update message count
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")

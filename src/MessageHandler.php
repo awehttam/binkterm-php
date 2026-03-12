@@ -661,6 +661,10 @@ class MessageHandler
                 return null;
             }
 
+            $rawMessageBytes = $message['raw_message_bytes'] ?? null;
+            $rawMessageCharset = $message['message_charset'] ?? null;
+            $rawArtFormat = $message['art_format'] ?? null;
+
             if ($type === 'netmail') {
                 $this->markNetmailAsRead($messageId, $userId);
             } elseif ($type === 'echomail') {
@@ -685,6 +689,7 @@ class MessageHandler
                 }
             }
 
+            $message = $this->appendRawMessagePayload($message, $rawMessageBytes, $rawMessageCharset, $rawArtFormat);
             $message = $this->appendMarkdownRendering($message);
         }
 
@@ -2109,6 +2114,9 @@ class MessageHandler
 
         $cleaned = [];
         foreach ($message as $key => $value) {
+            if ($key === 'raw_message_bytes') {
+                continue;
+            }
             if (is_string($value)) {
                 // Convert to UTF-8 and remove invalid sequences
                 $cleaned[$key] = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
@@ -2133,6 +2141,30 @@ class MessageHandler
         }
 
         return $cleaned;
+    }
+
+    private function appendRawMessagePayload(array $message, $rawBytes, $charset, $artFormat): array
+    {
+        $message['message_bytes_b64'] = null;
+        $message['message_charset'] = is_string($charset) && $charset !== '' ? $charset : null;
+        $message['art_format'] = $artFormat ?: null;
+
+        if (is_resource($rawBytes)) {
+            $rawBytes = stream_get_contents($rawBytes);
+        }
+
+        if (is_string($rawBytes) && str_starts_with($rawBytes, '\\x')) {
+            $decoded = @hex2bin(substr($rawBytes, 2));
+            if ($decoded !== false) {
+                $rawBytes = $decoded;
+            }
+        }
+
+        if (is_string($rawBytes) && $rawBytes !== '') {
+            $message['message_bytes_b64'] = base64_encode($rawBytes);
+        }
+
+        return $message;
     }
 
     /**
