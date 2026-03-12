@@ -292,6 +292,38 @@ function getViewerRenderModeLabel(mode) {
     }
 }
 
+function getMarkupFormatLabel(message) {
+    const markupFormat = String(message?.markup_format || '').toLowerCase();
+    switch (markupFormat) {
+        case 'markdown':
+            return window.t ? window.t('ui.echomail.markup_markdown', {}, 'Markdown') : 'Markdown';
+        case 'stylecodes':
+            return window.t ? window.t('ui.echomail.markup_stylecodes', {}, 'StyleCodes') : 'StyleCodes';
+        default:
+            return '';
+    }
+}
+
+function getViewerModeToastLabel(mode, message = null) {
+    const normalized = normalizeViewerRenderMode(mode);
+    const modeLabel = getViewerRenderModeLabel(normalized);
+    const markupLabel = getMarkupFormatLabel(message);
+
+    if (!markupLabel || !message?.markup_html) {
+        return modeLabel;
+    }
+
+    if (normalized === 'auto') {
+        return window.t
+            ? window.t('ui.echomail.viewer_mode_rendered_markup', { format: markupLabel }, 'Rendered {format}')
+            : `Rendered ${markupLabel}`;
+    }
+
+    return window.t
+        ? window.t('ui.echomail.viewer_mode_markup_source', { format: markupLabel, mode: modeLabel }, '{format} Source ({mode})')
+        : `${markupLabel} Source (${modeLabel})`;
+}
+
 function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
     const text = bodyText || '';
     let forcePlainText = !!forcePlain;

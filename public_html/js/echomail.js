@@ -779,8 +779,8 @@ function showRenderModeToast() {
         existing.remove();
     }
 
-    const modeLabel = window.getViewerRenderModeLabel
-        ? window.getViewerRenderModeLabel(currentRenderMode)
+    const modeLabel = window.getViewerModeToastLabel
+        ? window.getViewerModeToastLabel(currentRenderMode, currentMessageData)
         : currentRenderMode;
 
     const toast = document.createElement('div');
@@ -813,8 +813,8 @@ function updateRenderModeBadge() {
         return;
     }
 
-    const modeLabel = window.getViewerRenderModeLabel
-        ? window.getViewerRenderModeLabel(currentRenderMode)
+    const modeLabel = window.getViewerModeToastLabel
+        ? window.getViewerModeToastLabel(currentRenderMode, currentMessageData)
         : currentRenderMode;
     const prefix = uiT('ui.echomail.viewer_mode_prefix', 'Viewer mode:');
     const suffix = uiT('ui.echomail.press_a_to_cycle', 'press A to cycle');
@@ -843,12 +843,12 @@ function renderCurrentMessageBody() {
     const tmp = document.createElement('div');
     tmp.innerHTML = bodyHtml;
     while (tmp.firstChild) container.appendChild(tmp.firstChild);
+    updateRenderModeBadge();
 }
 
 function cycleRenderMode() {
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
-    showRenderModeToast();
 }
 
 function downloadCurrentMessage() {
@@ -959,7 +959,12 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
         </div>
 
-        <div class="message-text" id="messageTextContainer">${bodyHtml}</div>
+        <div class="message-text">
+            <div id="ansiRenderBadge" style="display:none;" class="mb-2">
+                <span class="badge bg-secondary" id="ansiRenderBadgeText"></span>
+            </div>
+            <div id="messageTextContainer">${bodyHtml}</div>
+        </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;
 
@@ -967,6 +972,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);
+    updateRenderModeBadge();
 
     // Set up reply button
     $('#replyButton').show().off('click').on('click', function() {

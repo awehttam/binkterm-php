@@ -459,8 +459,8 @@ function showRenderModeToast() {
         existing.remove();
     }
 
-    const modeLabel = window.getViewerRenderModeLabel
-        ? window.getViewerRenderModeLabel(currentRenderMode)
+    const modeLabel = window.getViewerModeToastLabel
+        ? window.getViewerModeToastLabel(currentRenderMode, currentMessageData)
         : currentRenderMode;
 
     const toast = document.createElement('div');
@@ -481,6 +481,27 @@ function showRenderModeToast() {
     }, 1200);
 }
 
+function updateRenderModeBadge() {
+    const badge = document.getElementById('ansiRenderBadge');
+    const badgeText = document.getElementById('ansiRenderBadgeText');
+    if (!badge || !badgeText) {
+        return;
+    }
+
+    if (currentRenderMode === 'auto') {
+        badge.style.display = 'none';
+        return;
+    }
+
+    const modeLabel = window.getViewerModeToastLabel
+        ? window.getViewerModeToastLabel(currentRenderMode, currentMessageData)
+        : currentRenderMode;
+    const prefix = uiT('ui.echomail.viewer_mode_prefix', 'Viewer mode:');
+    const suffix = uiT('ui.echomail.press_a_to_cycle', 'press A to cycle');
+    badgeText.textContent = `${prefix} ${modeLabel} - ${suffix}`;
+    badge.style.display = '';
+}
+
 function renderCurrentMessageBody() {
     if (!currentMessageData || !currentParsedMessage) {
         return;
@@ -497,6 +518,7 @@ function renderCurrentMessageBody() {
     if (container) {
         container.innerHTML = bodyHtml;
     }
+    updateRenderModeBadge();
 }
 
 function cycleRenderMode() {
@@ -506,7 +528,6 @@ function cycleRenderMode() {
 
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
-    showRenderModeToast();
 }
 
 function checkAndDisplayMessage(message, parsedMessage, isSent) {
@@ -614,8 +635,13 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         </div>
         ` : ''}
 
-        <div class="message-text" id="messageBodyContainer">
-            ${bodyHtml}
+        <div class="message-text">
+            <div id="ansiRenderBadge" style="display:none;" class="mb-2">
+                <span class="badge bg-secondary" id="ansiRenderBadgeText"></span>
+            </div>
+            <div id="messageBodyContainer">
+                ${bodyHtml}
+            </div>
         </div>
 
         ${message.attachments && message.attachments.length > 0 ? `
