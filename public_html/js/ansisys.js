@@ -583,6 +583,7 @@ class ArtHtmlRenderer {
 
     escapeChar(char) {
         switch (char) {
+            case ' ': return '&nbsp;';
             case '&': return '&amp;';
             case '<': return '&lt;';
             case '>': return '&gt;';
