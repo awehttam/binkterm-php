@@ -86,7 +86,7 @@ class SyncdataProcessor implements MessageProcessorInterface
         }
 
         // Extract JSON block between json-begin and json-end markers
-        if (!preg_match('/^json-begin\s*\n(.*?)\njson-end/si', $body, $matches)) {
+        if (!preg_match('/json-begin\s*\n(.*?)\njson-end/si', $body, $matches)) {
             if ($this->debugCallback) {
                 ($this->debugCallback)("    SKIP: no json-begin/json-end block found");
             }
@@ -152,7 +152,7 @@ class SyncdataProcessor implements MessageProcessorInterface
             'sysop'       => $sysop,
             'location'    => !empty($data['location'])    ? trim($data['location'])    : null,
             'software'    => !empty($data['software'])    ? trim($data['software'])    : null,
-            'website'     => !empty($data['bbs_website']) ? trim($data['bbs_website']) : null,
+            'website'     => !empty($data['bbs_website']) ? trim($data['bbs_website']) : (!empty($data['web_site']) ? trim($data['web_site']) : null),
             'telnet_host' => $telnetHost,
             'telnet_port' => $telnetPort,
             'ssh_port'    => $sshPort,
