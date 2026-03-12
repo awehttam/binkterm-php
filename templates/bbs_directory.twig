@@ -67,6 +67,31 @@
             text-decoration: none;
             background: #fff;
         }
+
+        .bbs-sort-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .bbs-sort-button:hover {
+            color: var(--bs-link-hover-color, inherit);
+        }
+
+        .bbs-sort-icon {
+            display: inline-block;
+            min-width: 0.9rem;
+            color: rgba(148, 163, 184, 0.9);
+            font-size: 0.8rem;
+            line-height: 1;
+        }
     </style>
 {% endblock %}
 
@@ -121,18 +146,56 @@
                     <table class="table table-hover mb-0" id="bbsTable">
                         <thead>
                             <tr>
-                                <th>{{ t('ui.bbs_directory.col_name', {}, 'common') }}</th>
-                                <th>{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</th>
-                                <th>{{ t('ui.bbs_directory.col_location', {}, 'common') }}</th>
-                                <th>{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</th>
-                                <th>{{ t('ui.bbs_directory.col_website', {}, 'common') }}</th>
-                                <th>{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="name">
+                                        {{ t('ui.bbs_directory.col_name', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="sysop">
+                                        {{ t('ui.bbs_directory.col_sysop', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="location">
+                                        {{ t('ui.bbs_directory.col_location', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="telnet">
+                                        {{ t('ui.bbs_directory.col_telnet', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="website">
+                                        {{ t('ui.bbs_directory.col_website', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="last_seen">
+                                        {{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
                                 {% if current_user and current_user.is_admin %}<th></th>{% endif %}
                             </tr>
                         </thead>
                         <tbody id="bbsTableBody">
                             {% for entry in entries %}
-                            <tr data-search="{{ ([entry.name, entry.sysop, entry.location, entry.telnet_host, entry.software] | join(' ') | lower | e) }}">
+                            <tr
+                                data-search="{{ ([entry.name, entry.sysop, entry.location, entry.telnet_host, entry.software] | join(' ') | lower | e) }}"
+                                data-name="{{ (entry.name ?? '')|lower|e }}"
+                                data-sysop="{{ (entry.sysop ?? '')|lower|e }}"
+                                data-location="{{ (entry.location ?? '')|lower|e }}"
+                                data-telnet="{{ (entry.telnet_host ?? '')|lower|e }}"
+                                data-website="{{ (entry.website ?? '')|lower|e }}"
+                                data-last-seen="{{ entry.last_seen ? entry.last_seen|date('U') : 0 }}"
+                            >
                                 <td>
                                     {% if entry.telnet_host %}
                                         <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="fw-semibold">
@@ -271,9 +334,13 @@
     const rows     = document.querySelectorAll('#bbsTableBody tr');
     const noResult = document.getElementById('bbsNoResults');
     const table    = document.getElementById('bbsTable');
+    const tableBody = document.getElementById('bbsTableBody');
+    const sortButtons = document.querySelectorAll('.bbs-sort-button');
     const mapTab   = document.getElementById('bbs-map-tab');
     const mapNotice = document.getElementById('bbsMapNotice');
     const mapShell = document.getElementById('bbsMapShell');
+    let currentSortKey = 'name';
+    let currentSortDirection = 'asc';
     const mapEntries = [
         {% for entry in entries %}
         {
@@ -324,6 +391,61 @@
         });
 
         bbsSystemsMap.addControl(new FullscreenControl());
+    }
+
+    function getSortValue(row, key) {
+        if (key === 'last_seen') {
+            return Number(row.dataset.lastSeen || 0);
+        }
+
+        return (row.dataset[key] || '').toLowerCase();
+    }
+
+    function updateSortIndicators() {
+        sortButtons.forEach(function(button) {
+            const header = button.closest('th');
+            const icon = button.querySelector('.bbs-sort-icon');
+            const isActive = button.dataset.sortKey === currentSortKey;
+
+            if (header) {
+                header.setAttribute('aria-sort', isActive ? (currentSortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
+            }
+
+            if (icon) {
+                icon.textContent = isActive ? (currentSortDirection === 'asc' ? '↑' : '↓') : '↕';
+            }
+        });
+    }
+
+    function sortRows() {
+        if (!tableBody) {
+            return;
+        }
+
+        const sortedRows = Array.from(rows).sort(function(a, b) {
+            const aValue = getSortValue(a, currentSortKey);
+            const bValue = getSortValue(b, currentSortKey);
+
+            if (aValue === bValue) {
+                const aName = (a.dataset.name || '').toLowerCase();
+                const bName = (b.dataset.name || '').toLowerCase();
+                return aName.localeCompare(bName);
+            }
+
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return currentSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+            }
+
+            return currentSortDirection === 'asc'
+                ? String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: 'base' })
+                : String(bValue).localeCompare(String(aValue), undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        sortedRows.forEach(function(row) {
+            tableBody.appendChild(row);
+        });
+
+        updateSortIndicators();
     }
 
     function initMap() {
@@ -420,6 +542,28 @@
             table.style.display  = visible > 0 ? '' : 'none';
             noResult.classList.toggle('d-none', visible > 0);
         });
+    }
+
+    sortButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            const nextKey = button.dataset.sortKey;
+            if (!nextKey) {
+                return;
+            }
+
+            if (currentSortKey === nextKey) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortKey = nextKey;
+                currentSortDirection = nextKey === 'last_seen' ? 'desc' : 'asc';
+            }
+
+            sortRows();
+        });
+    });
+
+    if (tableBody) {
+        sortRows();
     }
 
     if (mapTab) {

@@ -332,12 +332,13 @@ class BbsDirectory
             null,
             true
         );
+        $lastSeen = $this->normalizeLastSeenDate($data['last_seen'] ?? null, true);
 
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, website, notes, latitude, longitude, source, is_active, is_local, created_at, updated_at)
+                (name, sysop, location, os, telnet_host, telnet_port, website, notes, latitude, longitude, source, last_seen, is_active, is_local, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, :latitude, :longitude, 'manual', :is_active, :is_local, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, :latitude, :longitude, 'manual', :last_seen, :is_active, :is_local, NOW(), NOW())
             RETURNING id
         ");
 
@@ -352,6 +353,7 @@ class BbsDirectory
             ':notes'       => $data['notes'] ?? null,
             ':latitude'    => $coords['latitude'],
             ':longitude'   => $coords['longitude'],
+            ':last_seen'   => $lastSeen,
             ':is_active'   => isset($data['is_active']) ? ($data['is_active'] ? 'true' : 'false') : 'true',
             ':is_local'    => !empty($data['is_local']) ? 'true' : 'false',
         ]);
@@ -372,6 +374,7 @@ class BbsDirectory
         $existing = $this->getEntry($id);
         $locationChanged = $this->normalizeLocation($data['location'] ?? null) !== $this->normalizeLocation($existing['location'] ?? null);
         $coords = $this->resolveCoordinates($data['location'] ?? null, $existing, $locationChanged);
+        $lastSeen = $this->normalizeLastSeenDate($data['last_seen'] ?? ($existing['last_seen'] ?? null), true);
 
         $stmt = $this->db->prepare("
             UPDATE bbs_directory SET
@@ -385,6 +388,7 @@ class BbsDirectory
                 notes       = :notes,
                 latitude    = :latitude,
                 longitude   = :longitude,
+                last_seen   = :last_seen,
                 is_active   = :is_active,
                 is_local    = :is_local,
                 updated_at  = NOW()
@@ -402,12 +406,43 @@ class BbsDirectory
             ':notes'       => $data['notes'] ?? null,
             ':latitude'    => $coords['latitude'],
             ':longitude'   => $coords['longitude'],
+            ':last_seen'   => $lastSeen,
             ':is_active'   => isset($data['is_active']) ? ($data['is_active'] ? 'true' : 'false') : 'true',
             ':is_local'    => !empty($data['is_local']) ? 'true' : 'false',
             ':id'          => $id,
         ]);
 
         return $stmt->rowCount() > 0;
+    }
+
+    private function normalizeLastSeenDate($value, bool $defaultToToday = false): ?string
+    {
+        if ($value === null || $value === '') {
+            return $defaultToToday ? gmdate('Y-m-d') : null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        $text = trim((string)$value);
+        if ($text === '') {
+            return $defaultToToday ? gmdate('Y-m-d') : null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $text);
+        $errors = \DateTimeImmutable::getLastErrors();
+
+        if ($date instanceof \DateTimeImmutable && $errors['warning_count'] === 0 && $errors['error_count'] === 0) {
+            return $date->format('Y-m-d');
+        }
+
+        $timestamp = strtotime($text);
+        if ($timestamp !== false) {
+            return gmdate('Y-m-d', $timestamp);
+        }
+
+        return $defaultToToday ? gmdate('Y-m-d') : null;
     }
 
     /**

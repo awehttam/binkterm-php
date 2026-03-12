@@ -120,6 +120,10 @@
                         <input type="url" class="form-control" id="entryWebsite" maxlength="255">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Last Seen</label>
+                        <input type="date" class="form-control" id="entryLastSeen">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Notes</label>
                         <textarea class="form-control" id="entryNotes" rows="3"></textarea>
                     </div>
@@ -215,6 +219,55 @@ function apiErr(payload, fallback) {
     return window.getApiErrorMessage ? window.getApiErrorMessage(payload, fallback) : (payload?.error || fallback);
 }
 
+function todayIsoDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function formatLastSeenDate(value) {
+    if (!value) {
+        return '';
+    }
+
+    const text = String(value);
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    return '';
+}
+
+function normalizeLastSeenForInput(value) {
+    if (!value) {
+        return todayIsoDate();
+    }
+
+    const text = String(value);
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) {
+        return match[1];
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+        return formatLastSeenDate(parsed);
+    }
+
+    return todayIsoDate();
+}
+
 $(document).ready(function() {
     const editId = new URLSearchParams(window.location.search).get('edit');
     const init = function() {
@@ -280,7 +333,7 @@ function renderEntries(entries, total) {
         const statusBadge = e.status === 'pending'
             ? `<span class="badge bg-warning text-dark ms-1">${uiT('ui.bbs_directory.status_pending', 'Pending')}</span>`
             : (e.status === 'rejected' ? `<span class="badge bg-danger ms-1">${uiT('ui.bbs_directory.status_rejected', 'Rejected')}</span>` : '');
-        const lastSeen = e.last_seen ? new Date(e.last_seen).toLocaleDateString() : `<span class="text-muted">—</span>`;
+        const lastSeen = e.last_seen ? escapeHtml(formatLastSeenDate(e.last_seen)) : `<span class="text-muted">-</span>`;
         const activeIcon = (e.is_active == true || e.is_active === 't')
             ? '<i class="fas fa-check-circle text-success"></i>'
             : '<i class="fas fa-times-circle text-danger"></i>';
@@ -411,6 +464,7 @@ function showAddEntryModal() {
     $('#entryForm')[0].reset();
     $('#entryId').val('');
     $('#entryTelnetPort').val(23);
+    $('#entryLastSeen').val(todayIsoDate());
     $('#entryActive').prop('checked', true);
     $('#entryIsLocal').prop('checked', false);
     $('#entryModal').modal('show');
@@ -431,6 +485,7 @@ function editEntry(id) {
             $('#entryTelnetHost').val(entry.telnet_host || '');
             $('#entryTelnetPort').val(entry.telnet_port || 23);
             $('#entryWebsite').val(entry.website || '');
+            $('#entryLastSeen').val(normalizeLastSeenForInput(entry.last_seen));
             $('#entryNotes').val(entry.notes || '');
             $('#entryActive').prop('checked', entry.is_active == true || entry.is_active === 't' || entry.is_active === '1');
             $('#entryIsLocal').prop('checked', entry.is_local == true || entry.is_local === 't' || entry.is_local === '1');
@@ -451,6 +506,7 @@ function saveEntry() {
         telnet_host: $('#entryTelnetHost').val() || null,
         telnet_port: parseInt($('#entryTelnetPort').val()) || 23,
         website:     $('#entryWebsite').val() || null,
+        last_seen:   $('#entryLastSeen').val() || todayIsoDate(),
         notes:       $('#entryNotes').val() || null,
         is_active:   $('#entryActive').is(':checked'),
         is_local:    $('#entryIsLocal').is(':checked'),
