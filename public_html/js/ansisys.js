@@ -1094,7 +1094,11 @@ function getArtProfileClass(format) {
 
 function renderArtMessage(text, options = {}) {
     const format = normalizeArtFormat(options.format || 'auto');
-    const sourceText = options.byteString || text || '';
+    let sourceText = options.byteString || text || '';
+
+    if (format !== 'petscii' && hasPipeCodes(sourceText)) {
+        sourceText = convertPipeCodesToAnsi(sourceText);
+    }
 
     if (format === 'amiga_ansi') {
         return renderAmigaAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
@@ -1380,7 +1384,6 @@ function parsePipeCodes(text) {
 
     // Pipe code pattern: |XX where XX is hex digits
     const pipePattern = /\|([0-9A-Fa-f]{2})/g;
-
     let lastIndex = 0;
     let match;
 
