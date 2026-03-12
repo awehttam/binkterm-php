@@ -273,9 +273,11 @@
             scrollWheelZoom: true
         });
 
-        bbsSystemsMap.addControl(new L.Control.Fullscreen({
-            position: 'topleft'
-        }));
+        if (L.control && typeof L.control.fullscreen === 'function') {
+            bbsSystemsMap.addControl(L.control.fullscreen({
+                position: 'topleft'
+            }));
+        }
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
