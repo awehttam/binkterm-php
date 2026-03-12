@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amiga ANSI Test - BinktermPHP</title>
+    <link rel="stylesheet" href="/css/ansisys.css">
+    <style>
+        body {
+            font-family: monospace;
+            background: #0b1220;
+            color: #dbe4f0;
+            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #f8fafc;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+        .example {
+            margin: 20px 0;
+            padding: 15px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+        }
+        .example h3 {
+            color: #93c5fd;
+            margin-top: 0;
+        }
+        .code, textarea {
+            background: #0f172a;
+            color: #e5e7eb;
+            padding: 10px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: Consolas, "Courier New", monospace;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        .output {
+            padding: 12px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow-x: auto;
+            background: #111827;
+        }
+        .note {
+            color: #fbbf24;
+            margin: 10px 0;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: 0;
+            border-radius: 4px;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .glyph-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .glyph-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 8px 6px;
+            text-align: center;
+        }
+        .glyph-code {
+            color: #93c5fd;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .glyph-char {
+            font-family: 'Topaz Plus', "Courier New", monospace;
+            font-size: 30px;
+            line-height: 1;
+            color: #f8fafc;
+            background: #06090f;
+            border-radius: 3px;
+            padding: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Amiga ANSI Rendering Test</h1>
+    <p>This page exercises the current Amiga ANSI web renderer using the Topaz font and the existing translation map.</p>
+
+    <div class="example">
+        <h3>ANSI Palette</h3>
+        <div class="code">Basic ANSI color sample rendered through the <code>amiga_ansi</code> path.</div>
+        <div class="output" id="output-colors"></div>
+    </div>
+
+    <div class="example">
+        <h3>Cursor Controls</h3>
+        <div class="code">Uses ANSI cursor positioning and movement commands.</div>
+        <div class="output" id="output-cursor"></div>
+    </div>
+
+    <div class="example">
+        <h3>Amiga Glyph Translation</h3>
+        <div class="code">Feeds the decoder bytes/glyphs from the current Amiga translation map: &#172; &#166; &#175; &#169; &#171; &#187; &#161; &#191; &#180; &#181; &#183; &#182; &#184;</div>
+        <div class="output" id="output-glyphs"></div>
+    </div>
+
+    <div class="example">
+        <h3>Box Sample</h3>
+        <div class="code">Simple frame using the current translated Amiga line-drawing characters.</div>
+        <div class="output" id="output-box"></div>
+    </div>
+
+    <div class="example">
+        <h3>Custom Sequence</h3>
+        <div class="note">Enter text with literal ANSI escapes using <code>\\x1b</code>, <code>\\n</code>, and <code>\\r</code>.</div>
+        <textarea id="custom-text">\x1b[96mAMIGA ANSI\x1b[0m\n\x1b[33mTopaz test\x1b[0m\n\u00ab\u00ac\u00ac\u00ac\u00ac\u00bb\n\u00a6  BB \u00a6\n\u00a1\u00af\u00af\u00af\u00af\u00bf</textarea>
+        <div class="controls">
+            <button type="button" id="render-custom">Render</button>
+            <label>Columns <input type="number" id="custom-cols" value="80" min="20" max="132"></label>
+        </div>
+        <div class="output" id="output-custom"></div>
+    </div>
+
+    <div class="example">
+        <h3>Focused Glyph Atlas</h3>
+        <div class="note">These are the specific Amiga-mapped characters the current decoder knows about.</div>
+        <div class="glyph-grid" id="output-glyph-atlas"></div>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/ansisys.js"></script>
+    <script>
+        function decodeEscapes(text) {
+            return String(text || '')
+                .replace(/\\x1b/gi, '\x1b')
+                .replace(/\\u\{([0-9a-fA-F]+)\}/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+                .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '\r');
+        }
+
+        function renderAmigaSample(targetId, text, cols = 80) {
+            const html = renderArtMessage(text, {
+                format: 'amiga_ansi',
+                cols: cols,
+                rows: 200
+            });
+            document.getElementById(targetId).innerHTML =
+                `<div class="ansi-art-container art-format-amiga-ansi"><pre class="ansi-art art-format-amiga-ansi">${html}</pre></div>`;
+        }
+
+        const colorsSample =
+            '\x1b[37mwhite \x1b[31mred \x1b[32mgreen \x1b[34mblue \x1b[35mmagenta \x1b[36mcyan\x1b[0m\n' +
+            '\x1b[1;33mbold yellow\x1b[0m  \x1b[7mreverse\x1b[0m  \x1b[4munderline\x1b[0m';
+
+        const cursorSample =
+            '\x1b[2J' +
+            '\x1b[1;1HA' +
+            '\x1b[2;5HB' +
+            '\x1b[3;9HC' +
+            '\x1b[4;13HD';
+
+        const glyphSample =
+            'Corners: \u00ab \u00bb \u00a1 \u00bf\n' +
+            'Lines: \u00ac \u00a6 \u00af \u00a9\n' +
+            'Junctions: \u00b4 \u00b5 \u00b7 \u00b6 \u00b8\n' +
+            'Blocks: \u00b9 \u00b2 \u00b3 \u00b0 \u00ba';
+
+        const boxSample =
+            '\u00ab\u00ac\u00ac\u00ac\u00ac\u00ac\u00bb\n' +
+            '\u00a6  BB  \u00a6\n' +
+            '\u00a1\u00af\u00af\u00af\u00af\u00af\u00bf';
+
+        function renderCustom() {
+            const text = decodeEscapes(document.getElementById('custom-text').value);
+            const cols = parseInt(document.getElementById('custom-cols').value, 10) || 80;
+            renderAmigaSample('output-custom', text, cols);
+        }
+
+        function buildGlyphAtlas() {
+            const chars = ['\u00ac', '\u00a6', '\u00af', '\u00a9', '\u00ab', '\u00bb', '\u00a1', '\u00bf', '\u00b4', '\u00b5', '\u00b7', '\u00b6', '\u00b8', '\u00b9', '\u00b2', '\u00b3', '\u00b0', '\u00ba'];
+            let html = '';
+            for (const ch of chars) {
+                html += `<div class="glyph-card"><div class="glyph-code">U+${ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}</div><div class="glyph-char">${ch}</div></div>`;
+            }
+            document.getElementById('output-glyph-atlas').innerHTML = html;
+        }
+
+        renderAmigaSample('output-colors', colorsSample);
+        renderAmigaSample('output-cursor', cursorSample);
+        renderAmigaSample('output-glyphs', glyphSample);
+        renderAmigaSample('output-box', boxSample);
+        renderCustom();
+        buildGlyphAtlas();
+
+        document.getElementById('render-custom').addEventListener('click', renderCustom);
+    </script>
+</body>
+</html>
