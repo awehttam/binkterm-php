@@ -188,8 +188,16 @@ class BbsSession
             }
         }
 
-        $peerName = @stream_socket_get_name($conn, true);
-        $peerIp   = $peerName ? explode(':', $peerName)[0] : 'unknown';
+        $rawPeer  = @stream_socket_get_name($conn, true);
+        if (!$rawPeer) {
+            $this->writeLine($conn, "I don't know who you are.");
+            $this->log("Connection with no peer address — dropped");
+            fclose($conn);
+            if ($forked) { exit(0); }
+            return;
+        }
+        $peerName = $rawPeer;
+        $peerIp   = explode(':', $peerName)[0];
 
         if ($this->isRateLimited($peerIp)) {
             $this->writeLine($conn, '');
