@@ -4,6 +4,7 @@ namespace BinktermPHP\Robots;
 
 use BinktermPHP\Robots\Processors\AutoReplyProcessor;
 use BinktermPHP\Robots\Processors\IbbsLastCallProcessor;
+use BinktermPHP\Robots\Processors\SyncdataProcessor;
 
 /**
  * Runs all enabled echomail robot rules and dispatches messages to processors.
@@ -23,6 +24,7 @@ class EchomailRobotRunner
     private const PROCESSORS = [
         'ibbslastcall_rot47' => IbbsLastCallProcessor::class,
         'auto_reply'         => AutoReplyProcessor::class,
+        'syncdata_sbl'       => SyncdataProcessor::class,
     ];
 
     /** Batch size per robot run */
