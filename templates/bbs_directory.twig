@@ -10,19 +10,41 @@
         #bbsSystemsMap {
             height: 540px;
             min-height: 360px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 0.5rem;
+            background: #243241;
         }
 
         .bbs-map-shell {
-            background: rgba(0, 0, 0, 0.18);
+            background: linear-gradient(180deg, #334155 0%, #1f2937 100%);
+            border-color: rgba(148, 163, 184, 0.24);
+            color: #e5edf5;
         }
 
         #bbsMapShell:fullscreen {
             padding: 1rem;
-            background: #111;
+            background: #1f2937;
         }
 
         #bbsMapShell:fullscreen #bbsSystemsMap {
             height: calc(100vh - 5rem);
+        }
+
+        #bbsSystemsMap .leaflet-control-container .leaflet-bar a,
+        #bbsSystemsMap .leaflet-control-zoom a {
+            background: #334155;
+            color: #e5edf5;
+            border-bottom-color: rgba(148, 163, 184, 0.28);
+        }
+
+        #bbsSystemsMap .leaflet-control-container .leaflet-bar a:hover,
+        #bbsSystemsMap .leaflet-control-zoom a:hover {
+            background: #475569;
+            color: #fff;
+        }
+
+        #bbsSystemsMap .leaflet-tile-pane {
+            filter: saturate(0.7) hue-rotate(180deg) brightness(0.72) contrast(1.05);
         }
 
         .bbs-fullscreen-toggle {
@@ -309,12 +331,6 @@
             mapNotice.classList.remove('d-none');
             document.getElementById('bbsSystemsMap').style.display = 'none';
             return;
-        }
-
-        const unmappableCount = mapEntries.length - mappableEntries.length;
-        if (unmappableCount > 0) {
-            mapNotice.textContent = {{ t('ui.bbs_directory.map_partial_notice', {}, 'common')|json_encode|raw }}.replace('{count}', String(unmappableCount));
-            mapNotice.classList.remove('d-none');
         }
 
         bbsSystemsMap = L.map('bbsSystemsMap', {
