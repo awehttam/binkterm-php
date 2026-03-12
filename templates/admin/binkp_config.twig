@@ -84,6 +84,10 @@
                         <input class="form-check-input" type="checkbox" id="binkpPreserveProcessed">
                         <label class="form-check-label" for="binkpPreserveProcessed">{{ t('ui.admin.binkp_config.binkp.preserve_processed_packets', {}, locale, ['common']) }}</label>
                     </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="binkpPreserveSent">
+                        <label class="form-check-label" for="binkpPreserveSent">{{ t('ui.admin.binkp_config.binkp.preserve_sent_packets', {}, locale, ['common']) }}</label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -340,6 +344,7 @@ function populateForm() {
     document.getElementById('binkpMaxConnections').value = binkp.max_connections ?? '';
     document.getElementById('binkpBindAddress').value = binkp.bind_address || '';
     document.getElementById('binkpPreserveProcessed').checked = !!binkp.preserve_processed_packets;
+    document.getElementById('binkpPreserveSent').checked = !!binkp.preserve_sent_packets;
 
     const security = binkpConfig.security || {};
     document.getElementById('securityAllowInsecureInbound').checked = !!security.allow_insecure_inbound;
@@ -375,7 +380,8 @@ function gatherConfig() {
             timeout: parseInt(document.getElementById('binkpTimeout').value, 10),
             max_connections: parseInt(document.getElementById('binkpMaxConnections').value, 10),
             bind_address: document.getElementById('binkpBindAddress').value.trim(),
-            preserve_processed_packets: document.getElementById('binkpPreserveProcessed').checked
+            preserve_processed_packets: document.getElementById('binkpPreserveProcessed').checked,
+            preserve_sent_packets: document.getElementById('binkpPreserveSent').checked
         },
         uplinks: binkpConfig.uplinks || [],
         security: {

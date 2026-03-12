@@ -425,17 +425,10 @@ class BinkpSession
             // that late M_GOT frames (remotes that send M_GOT after M_EOB) have already
             // been processed by handleGotCommand and the files deleted before we get here.
             if (!empty($pendingFiles)) {
-                $outboundPath = $this->config->getOutboundPath();
                 $implicitCount = 0;
                 foreach (array_keys($pendingFiles) as $pendingFile) {
-                    $filepath = $outboundPath . '/' . basename($pendingFile);
-                    if (file_exists($filepath)) {
-                        if (unlink($filepath)) {
-                            $implicitCount++;
-                            $this->log("Deleted sent file (implicit M_EOB confirm): " . basename($pendingFile), 'DEBUG');
-                        } else {
-                            $this->log("Failed to delete sent file: " . basename($pendingFile), 'ERROR');
-                        }
+                    if ($this->handleSentFileConfirmation(basename($pendingFile), true)) {
+                        $implicitCount++;
                     }
                 }
                 if ($implicitCount > 0) {
@@ -1150,17 +1143,45 @@ class BinkpSession
             return;
         }
 
+        $this->handleSentFileConfirmation($filename, false);
+    }
+
+    private function handleSentFileConfirmation(string $filename, bool $implicitConfirm): bool
+    {
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;
-        if (file_exists($filepath)) {
-            if (unlink($filepath)) {
-                $this->log("Deleted sent file: {$filename}", 'DEBUG');
-            } else {
-                $this->log("Failed to delete sent file: {$filename}", 'ERROR');
-            }
-        } else {
+        if (!file_exists($filepath)) {
             $this->log("Sent file not found: {$filepath}", 'WARNING');
+            return false;
         }
+
+        if ($this->config->getPreserveSentPackets()) {
+            $keepDir = $this->config->getPreservedSentPacketsPath();
+            $destPath = $keepDir . '/' . $filename;
+            if (file_exists($destPath)) {
+                $pathInfo = pathinfo($filename);
+                $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+                $destPath = $keepDir . '/' . $pathInfo['filename'] . '_' . time() . $extension;
+            }
+
+            if (rename($filepath, $destPath)) {
+                $prefix = $implicitConfirm ? 'Preserved sent file after implicit M_EOB confirm' : 'Preserved sent file';
+                $this->log($prefix . ': ' . basename($destPath), 'DEBUG');
+                return true;
+            }
+
+            $this->log("Failed to preserve sent file: {$filename}", 'ERROR');
+            return false;
+        }
+
+        if (unlink($filepath)) {
+            $prefix = $implicitConfirm ? 'Deleted sent file (implicit M_EOB confirm)' : 'Deleted sent file';
+            $this->log($prefix . ": {$filename}", 'DEBUG');
+            return true;
+        }
+
+        $this->log("Failed to delete sent file: {$filename}", 'ERROR');
+        return false;
     }
 
     private function handleGetCommand($data)

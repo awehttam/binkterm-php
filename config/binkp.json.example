@@ -16,7 +16,8 @@
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
         "outbound_path": "data/outbound",
-        "preserve_processed_packets": false
+        "preserve_processed_packets": false,
+        "preserve_sent_packets": false
 
     },
     "uplinks": [

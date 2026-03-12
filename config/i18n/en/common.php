@@ -464,6 +464,7 @@ return [
     'ui.admin.binkp_config.binkp.max_connections' => 'Max Connections',
     'ui.admin.binkp_config.binkp.bind_address' => 'Bind Address',
     'ui.admin.binkp_config.binkp.preserve_processed_packets' => 'Preserve Processed Packets',
+    'ui.admin.binkp_config.binkp.preserve_sent_packets' => 'Preserve Sent Packets',
     'ui.admin.binkp_config.security.title' => 'Security',
     'ui.admin.binkp_config.security.allow_insecure_inbound' => 'Allow Insecure Inbound',
     'ui.admin.binkp_config.security.insecure_receive_only' => 'Insecure Receive Only',

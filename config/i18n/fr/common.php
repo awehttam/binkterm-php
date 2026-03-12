@@ -451,6 +451,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.binkp_config.binkp.max_connections' => 'Connexions maximales',
     'ui.admin.binkp_config.binkp.bind_address' => 'Adresse de liaison',
     'ui.admin.binkp_config.binkp.preserve_processed_packets' => 'Conserver les paquets traités',
+    'ui.admin.binkp_config.binkp.preserve_sent_packets' => 'Conserver les paquets envoyés',
     'ui.admin.binkp_config.security.title' => 'Sécurité',
     'ui.admin.binkp_config.security.allow_insecure_inbound' => 'Autoriser les connexions entrantes non sécurisées',
     'ui.admin.binkp_config.security.insecure_receive_only' => 'Réception uniquement en mode non sécurisé',

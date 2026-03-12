@@ -258,7 +258,8 @@ Minimal example:
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
         "outbound_path": "data/outbound",
-        "preserve_processed_packets": false
+        "preserve_processed_packets": false,
+        "preserve_sent_packets": false
     },
     "uplinks": [ ... ],
     "security": { ... },
@@ -294,6 +295,7 @@ When `website` is configured, origin lines include it:
 | `inbound_path` | `data/inbound` | Directory for incoming packets |
 | `outbound_path` | `data/outbound` | Directory for outgoing packets |
 | `preserve_processed_packets` | false | When true, moves processed packets to a `processed/` subdirectory instead of deleting them |
+| `preserve_sent_packets` | false | When true, moves successfully sent outbound packets to `data/outbound/keep/` instead of deleting them |
 
 ### Uplink Configuration
 

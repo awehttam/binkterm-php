@@ -633,7 +633,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `weather_report.php` | Generate weather forecasts for echomail posting |
 | `who.php` | Show currently active users |
 
-Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for complete documentation on all scripts including usage examples, options, and cron job examples.
+Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for documentation on scripts including usage examples, options, and cron job examples.
 
 # Operation
 
@@ -712,13 +712,10 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 # Optional: start DOS door multiplexing bridge on boot
 @reboot /usr/bin/node /path/to/binktest/scripts/dosbox-bridge/multiplexing-server.js --daemon
 
-# Update nodelists daily at 4am
-0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
-
 # Rotate logs weekly
 0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
 
-# Deprecated (still supported): direct cron usage
+# For passive nodes with no binkp_scheduler or binkp_server running (passive node/no incoming connections)
 # */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
 # */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
