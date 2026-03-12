@@ -106,11 +106,22 @@
             border-radius: 3px;
             padding: 8px 0;
         }
+        .glyph-char.petscii-c128 {
+            font-family: 'Pet Me 128', "Courier New", Consolas, monospace;
+        }
     </style>
 </head>
 <body>
     <h1>PETSCII Rendering Test</h1>
     <p>This page exercises the current PETSCII web renderer using canned byte sequences and custom input.</p>
+    <div class="controls" style="margin-bottom: 16px;">
+        <label>Font
+            <select id="petscii-font">
+                <option value="petscii-c64">Pet Me 64</option>
+                <option value="petscii-c128">Pet Me 128</option>
+            </select>
+        </label>
+    </div>
 
     <div class="example">
         <h3>Palette Sample</h3>
@@ -183,8 +194,9 @@
                 cols: cols,
                 rows: 200
             });
+            const fontVariant = document.getElementById('petscii-font')?.value || 'petscii-c64';
             document.getElementById(targetId).innerHTML =
-                `<div class="ansi-art-container art-format-petscii"><pre class="ansi-art art-format-petscii">${html}</pre></div>`;
+                `<div class="ansi-art-container art-format-petscii ${fontVariant}"><pre class="ansi-art art-format-petscii ${fontVariant}">${html}</pre></div>`;
         }
 
         const colorsSample = [
@@ -240,6 +252,7 @@
         }
 
         function buildGlyphAtlas() {
+            const fontVariant = document.getElementById('petscii-font')?.value || 'petscii-c64';
             let html = '<div class="ansi-art-container art-format-petscii"><pre class="ansi-art art-format-petscii">';
             for (let rowStart = 32; rowStart <= 255; rowStart += 16) {
                 const rowLabel = String(rowStart).padStart(3, '0');
@@ -259,37 +272,44 @@
                 }
             }
             html += '</pre></div>';
-            document.getElementById('output-atlas').innerHTML = html;
+            document.getElementById('output-atlas').innerHTML = html.replaceAll('art-format-petscii"', `art-format-petscii ${fontVariant}"`);
         }
 
         function buildFocusedGraphicsAtlas() {
+            const fontVariant = document.getElementById('petscii-font')?.value || 'petscii-c64';
             let html = '';
             for (let cp = 160; cp <= 191; cp++) {
                 const ch = String.fromCharCode(cp);
-                html += `<div class="glyph-card"><div class="glyph-code">${cp}</div><div class="glyph-char">${ch}</div></div>`;
+                html += `<div class="glyph-card"><div class="glyph-code">${cp}</div><div class="glyph-char ${fontVariant}">${ch}</div></div>`;
             }
             document.getElementById('output-graphics-atlas').innerHTML = html;
         }
 
         function buildFocusedGraphicsAtlasLow() {
+            const fontVariant = document.getElementById('petscii-font')?.value || 'petscii-c64';
             let html = '';
             for (let cp = 96; cp <= 127; cp++) {
                 const ch = String.fromCharCode(cp);
-                html += `<div class="glyph-card"><div class="glyph-code">${cp}</div><div class="glyph-char">${ch}</div></div>`;
+                html += `<div class="glyph-card"><div class="glyph-code">${cp}</div><div class="glyph-char ${fontVariant}">${ch}</div></div>`;
             }
             document.getElementById('output-graphics-atlas-low').innerHTML = html;
         }
 
-        renderPetsciiSample('output-colors', colorsSample);
-        renderPetsciiSample('output-reverse', reverseSample);
-        renderPetsciiSample('output-cursor', cursorSample);
-        renderPetsciiSample('output-box', boxSample);
-        renderCustom();
-        buildGlyphAtlas();
-        buildFocusedGraphicsAtlas();
-        buildFocusedGraphicsAtlasLow();
+        function rerenderAll() {
+            renderPetsciiSample('output-colors', colorsSample);
+            renderPetsciiSample('output-reverse', reverseSample);
+            renderPetsciiSample('output-cursor', cursorSample);
+            renderPetsciiSample('output-box', boxSample);
+            renderCustom();
+            buildGlyphAtlas();
+            buildFocusedGraphicsAtlas();
+            buildFocusedGraphicsAtlasLow();
+        }
+
+        rerenderAll();
 
         document.getElementById('render-custom').addEventListener('click', renderCustom);
+        document.getElementById('petscii-font').addEventListener('change', rerenderAll);
     </script>
 </body>
 </html>

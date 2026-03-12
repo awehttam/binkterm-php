@@ -34,6 +34,15 @@
     font-display: swap;
 }
 
+/* PETSCII / C128-style font for alternate PETSCII rendering. */
+@font-face {
+    font-family: 'Pet Me 128';
+    src: url('/fonts/PetMe128.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 /* Container for ANSI art */
 .ansi-art-container {
     overflow-x: auto;
@@ -116,6 +125,11 @@
 .ansi-art-container.art-format-petscii pre,
 .ansi-art.art-format-petscii {
     font-family: 'Pet Me 64', "Courier New", Consolas, monospace;
+}
+
+.ansi-art-container.art-format-petscii.petscii-c128 pre,
+.ansi-art.art-format-petscii.petscii-c128 {
+    font-family: 'Pet Me 128', "Courier New", Consolas, monospace;
 }
 
 /* Standard ANSI foreground colors (0-7) */
