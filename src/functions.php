@@ -243,6 +243,38 @@ function quoteMessageText($messageText, $initials) {
 }
 
 /**
+ * Quote a Markdown message by wrapping the entire original body in a blockquote.
+ * This preserves headings, lists, fenced code blocks, and other block structure.
+ *
+ * The attribution line should remain outside the quoted block.
+ *
+ * @param string $messageText Original markdown source
+ * @return string Markdown-safe quoted body
+ */
+function quoteMarkdownMessage(string $messageText): string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $messageText);
+    $lines = explode("\n", $normalized);
+
+    while (!empty($lines) && trim((string) end($lines)) === '') {
+        array_pop($lines);
+    }
+
+    if (empty($lines)) {
+        return '> ';
+    }
+
+    $quotedLines = array_map(
+        static function (string $line): string {
+            return trim($line) === '' ? '>' : '> ' . $line;
+        },
+        $lines
+    );
+
+    return implode("\n", $quotedLines);
+}
+
+/**
  * Validate if an address is a proper FidoNet address
  * Returns true if address matches FidoNet format: zone:net/node[.point][@domain]
  */

@@ -989,16 +989,21 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
                 $replyToAddress = $templateVars['reply_to_address']; // Use the address we determined above
 
-                // Quote using FSC-0032 style (same as echomail)
-                $initials = generateInitials($originalMessage['from_name']);
-                $quotedText = quoteMessageText($cleanMessageText, $initials);
+                if (($templateVars['reply_markup_type'] ?? '') === 'markdown') {
+                    $quotedText = quoteMarkdownMessage($cleanMessageText);
+                } else {
+                    // Quote using FSC-0032 style for plain/stylecoded messages
+                    $initials = generateInitials($originalMessage['from_name']);
+                    $quotedText = quoteMessageText($cleanMessageText, $initials);
+                }
 
                 $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
                 $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
                     'date' => $replyDate,
                     'name' => $originalMessage['from_name'],
                 ]);
-                $templateVars['reply_text'] = "\n" . $attribution . "\n" . $quotedText;
+                $separator = (($templateVars['reply_markup_type'] ?? '') === 'markdown') ? "\n\n" : "\n";
+                $templateVars['reply_text'] = "\n" . $attribution . $separator . $quotedText;
               } else {
                   $templateVars['reply_to_id'] = $replyId;
                   $templateVars['reply_to_name'] = $originalMessage['from_name'];
@@ -1012,18 +1017,21 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Filter out kludge lines but preserve blank lines so quoted structure is intact
                 $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
 
-                // Generate initials from the original poster's name
-                $initials = generateInitials($originalMessage['from_name']);
-
-                // Quote the message intelligently - only quote original lines, not existing quotes
-                $quotedText = quoteMessageText($cleanMessageText, $initials);
+                if (($templateVars['reply_markup_type'] ?? '') === 'markdown') {
+                    $quotedText = quoteMarkdownMessage($cleanMessageText);
+                } else {
+                    // Quote the message intelligently - only quote original lines, not existing quotes
+                    $initials = generateInitials($originalMessage['from_name']);
+                    $quotedText = quoteMessageText($cleanMessageText, $initials);
+                }
 
                 $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
                 $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
                     'date' => $replyDate,
                     'name' => $originalMessage['from_name'],
                 ]);
-                $templateVars['reply_text'] = "\n" . $attribution . "\n" . $quotedText;
+                $separator = (($templateVars['reply_markup_type'] ?? '') === 'markdown') ? "\n\n" : "\n";
+                $templateVars['reply_text'] = "\n" . $attribution . $separator . $quotedText;
               }
           }
       }
