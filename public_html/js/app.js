@@ -358,16 +358,17 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
-    const explicitArtMode = ['ansi', 'amiga_ansi', 'petscii'].includes(requestedFormat);
+    const explicitBinaryArtMode = ['amiga_ansi', 'petscii'].includes(requestedFormat);
+    const explicitAnsiMode = requestedFormat === 'ansi';
     const shouldRenderAnsiArt = !forcePlainText && (
-        explicitArtMode ||
+        explicitBinaryArtMode ||
         hasCursorAnsi ||
         (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) ||
-        (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30)
+        ((hasLeadingSpaceArt || explicitAnsiMode) && nonEmptyLines >= 4 && maxLineLength >= 30)
     );
 
     if (shouldRenderAnsiArt) {
-        const renderFormat = explicitArtMode ? requestedFormat : 'ansi';
+        const renderFormat = (explicitBinaryArtMode || explicitAnsiMode) ? requestedFormat : 'ansi';
         let rendered = renderArtMessage(text, {
             format: renderFormat,
             bytesBase64: rawBytesB64,
