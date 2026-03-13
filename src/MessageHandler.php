@@ -732,7 +732,7 @@ class MessageHandler
             }
         }
 
-        $messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
+        //$messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
 
         $markupAllowed = null;
         try {
@@ -821,24 +821,30 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
+        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $storage = $this->prepareLocalMessageStorage($finalMessageText);
+
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq)
         ");
 
-        $result = $stmt->execute([
-            $fromUserId,
-            $originAddress,
-            $toAddress,
-            $senderName,
-            $toName,
-            $subject,
-            $messageText,
-            $replyToId,
-            $msgId,
-            $kludgeLines,
-            $isFreq ? 'true' : 'false',
-        ]);
+        $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $originAddress);
+        $stmt->bindValue(':to_address', $toAddress);
+        $stmt->bindValue(':from_name', $senderName);
+        $stmt->bindValue(':to_name', $toName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+        $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
+
+        $result = $stmt->execute();
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
@@ -995,22 +1001,25 @@ class MessageHandler
         // Create local netmail message to sysop — is_sent = FALSE marks it as received
         // (inbox) from the sysop's perspective; no outbound spooling occurs for local delivery.
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL)
         ");
 
-        $result = $stmt->execute([
-            $fromUserId,     // sender owns the record so it appears in their "all" view
-            $systemAddress,
-            $systemAddress,  // Local delivery - same address
-            $senderName,
-            $sysopName,
-            $subject,
-            $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
-            $replyToId,
-            $msgId,
-            $kludgeLines
-        ]);
+        $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $systemAddress);
+        $stmt->bindValue(':to_address', $systemAddress);
+        $stmt->bindValue(':from_name', $senderName);
+        $stmt->bindValue(':to_name', $sysopName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+
+        $result = $stmt->execute();
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
@@ -1107,23 +1116,29 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
+        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $storage = $this->prepareLocalMessageStorage($finalMessageText);
+
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NULL)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
+            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id, :message_id, :origin_line, :kludge_lines, NULL)
         ");
 
-        $result = $stmt->execute([
-            $echoarea['id'],
-            $myAddress,
-            $fromName,
-            $toName,
-            $subject,
-            $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
-            $replyToId,
-            $msgId,
-            null, // origin_line (will be added when packet is created)
-            $kludgeLines  // Store generated kludges
-        ]);
+        $stmt->bindValue(':echoarea_id', $echoarea['id'], \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $myAddress);
+        $stmt->bindValue(':from_name', $fromName);
+        $stmt->bindValue(':to_name', $toName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':origin_line', null, \PDO::PARAM_NULL);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+
+        $result = $stmt->execute();
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
@@ -1183,6 +1198,16 @@ class MessageHandler
         }
 
         return $body;
+    }
+
+    private function prepareLocalMessageStorage(string $messageText): array
+    {
+        return [
+            'message_text' => $messageText,
+            'raw_message_bytes' => $messageText,
+            'message_charset' => 'UTF-8',
+            'art_format' => ArtFormatDetector::detectArtFormat($messageText, 'UTF-8'),
+        ];
     }
 
     private function getCreditsRules(): array
