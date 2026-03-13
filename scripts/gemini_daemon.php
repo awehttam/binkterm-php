@@ -354,6 +354,11 @@ function handleHomePage($socket, string $geminiHost): void
             }
         }
 
+        $lines[] = '';
+        $lines[] = '## Bulletin Board List';
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/bbs-directory/ Browse the bulletin board list";
+
         // Echo areas
         $areaStmt = $db->query(
             'SELECT tag, domain, description FROM echoareas
@@ -759,6 +764,69 @@ function handleEchoMessage($socket, string $tag, string $domain, int $id, string
 // ── Request router ────────────────────────────────────────────────────────────
 
 /**
+ * List active BBS directory entries with location and telnet address.
+ *
+ * @param resource $socket
+ * @param string   $geminiHost
+ */
+function handleBbsDirectoryList($socket, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->query(
+            "SELECT name, location, telnet_host, telnet_port
+             FROM bbs_directory
+             WHERE status = 'active'
+               AND telnet_host IS NOT NULL
+               AND BTRIM(telnet_host) <> ''
+             ORDER BY LOWER(name) ASC"
+        );
+        $entries = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $bbsName = $binkpConfig->getSystemName();
+
+        $lines = [
+            '# Bulletin Board List',
+            '',
+            'Active BBS listings with location and telnet address.',
+            '',
+        ];
+
+        if (empty($entries)) {
+            $lines[] = 'No BBS listings are available.';
+        } else {
+            foreach ($entries as $entry) {
+                $name = trim((string)($entry['name'] ?? 'Unnamed BBS'));
+                $location = trim((string)($entry['location'] ?? ''));
+                $telnetHost = trim((string)($entry['telnet_host'] ?? ''));
+                $telnetPort = (int)($entry['telnet_port'] ?? 23);
+                $telnetLabel = ($telnetPort > 0 && $telnetPort !== 23)
+                    ? "{$telnetHost}:{$telnetPort}"
+                    : $telnetHost;
+
+                $lines[] = "## {$name}";
+                if ($location !== '') {
+                    $lines[] = "Location: {$location}";
+                }
+                $lines[] = "Telnet: {$telnetLabel}";
+                $lines[] = "=> telnet://{$telnetLabel}/ Connect to {$name}";
+                $lines[] = '';
+            }
+            array_pop($lines);
+        }
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/ Return to main index for {$bbsName}";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
  * Handle a single Gemini connection: read request, route, respond, close.
  * The socket is already TLS-encrypted (handshake completed by ssl:// accept).
  *
@@ -807,6 +875,8 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
     // Route
     if ($path === '/' || $path === '') {
         handleHomePage($socket, $geminiHost);
+    } elseif ($path === '/bbs-directory/' || $path === '/bbs-directory') {
+        handleBbsDirectoryList($socket, $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/$#', $path, $m)) {
         handleUserIndex($socket, $m[1], $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/([^/]+)$#', $path, $m)) {
