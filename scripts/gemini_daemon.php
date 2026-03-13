@@ -776,7 +776,7 @@ function handleEchoMessage($socket, string $tag, string $domain, int $id, string
 // ── Request router ────────────────────────────────────────────────────────────
 
 /**
- * List active BBS directory entries with location and telnet address.
+ * List active BBS directory entries with location, telnet address, and website.
  *
  * @param resource $socket
  * @param string   $geminiHost
@@ -787,7 +787,7 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
         $db = Database::getInstance()->getPdo();
 
         $stmt = $db->query(
-            "SELECT name, location, telnet_host, telnet_port
+            "SELECT name, location, telnet_host, telnet_port, website
              FROM bbs_directory
              WHERE status = 'active'
                AND telnet_host IS NOT NULL
@@ -802,7 +802,7 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
         $lines = [
             '# Bulletin Board List',
             '',
-            'Active BBS listings with location and telnet address.',
+            'Active BBS listings with location, telnet address, and website.',
             '',
         ];
 
@@ -814,6 +814,7 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
                 $location = trim((string)($entry['location'] ?? ''));
                 $telnetHost = trim((string)($entry['telnet_host'] ?? ''));
                 $telnetPort = (int)($entry['telnet_port'] ?? 23);
+                $website = trim((string)($entry['website'] ?? ''));
                 $telnetLabel = ($telnetPort > 0 && $telnetPort !== 23)
                     ? "{$telnetHost}:{$telnetPort}"
                     : $telnetHost;
@@ -824,6 +825,10 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
                 }
                 $lines[] = "Telnet: {$telnetLabel}";
                 $lines[] = "=> telnet://{$telnetLabel}/ Connect to {$name}";
+                if ($website !== '') {
+                    $lines[] = "Website: {$website}";
+                    $lines[] = "=> {$website} Visit {$name} on the web";
+                }
                 $lines[] = '';
             }
             array_pop($lines);
