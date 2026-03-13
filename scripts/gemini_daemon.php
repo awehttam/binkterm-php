@@ -31,6 +31,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\AppearanceConfig;
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -325,6 +326,7 @@ function handleHomePage($socket, string $geminiHost): void
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $bbsName = $binkpConfig->getSystemName();
         $siteUrl = Config::getSiteUrl();
+        $siteDescription = trim(AppearanceConfig::getSeoDescription());
 
         $stmt = $db->query(
             'SELECT DISTINCT u.username
@@ -338,13 +340,21 @@ function handleHomePage($socket, string $geminiHost): void
         $lines = [
             "# {$bbsName}",
             '',
+        ];
+
+        if ($siteDescription !== '') {
+            $lines[] = $siteDescription;
+            $lines[] = '';
+        }
+
+        $lines = array_merge($lines, [
             "=> {$siteUrl}/ Visit {$bbsName} on the web",
             '',
             '## Gemini Capsule Directory',
             '',
             'These BBS users have published their Gemini capsules here.',
             '',
-        ];
+        ]);
 
         if (empty($users)) {
             $lines[] = 'No capsules have been published yet.';
@@ -356,6 +366,8 @@ function handleHomePage($socket, string $geminiHost): void
 
         $lines[] = '';
         $lines[] = '## Bulletin Board List';
+        $lines[] = '';
+        $lines[] = 'Browse active bulletin board systems, including their names, locations, and telnet addresses.';
         $lines[] = '';
         $lines[] = "=> gemini://{$geminiHost}/bbs-directory/ Browse the bulletin board list";
 
