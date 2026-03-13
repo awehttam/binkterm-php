@@ -823,12 +823,17 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
                 if ($location !== '') {
                     $lines[] = "Location: {$location}";
                 }
+
                 $lines[] = "Telnet: {$telnetLabel}";
-                $lines[] = "=> telnet://{$telnetLabel}/ Connect to {$name}";
                 if ($website !== '') {
                     $lines[] = "Website: {$website}";
+                }
+
+                $lines[] = "=> telnet://{$telnetLabel}/ Connect to {$name}";
+                if ($website !== '') {
                     $lines[] = "=> {$website} Visit {$name} on the web";
                 }
+
                 $lines[] = '';
             }
             array_pop($lines);
