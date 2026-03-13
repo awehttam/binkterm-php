@@ -171,6 +171,27 @@ class TerminalMarkupRenderer
             }
 
             // Block quote (FidoNet-style "> " quoted text — plain DIM, no inline markup)
+            if (
+                preg_match('/^\|.+\|/', $line) &&
+                isset($lines[$i + 1]) &&
+                preg_match('/^\|[\s\-:|]+\|/', $lines[$i + 1])
+            ) {
+                $headers = self::parseTableRow($line);
+                $rows = [];
+                $i += 2;
+
+                while ($i < $total && preg_match('/^\|.+\|/', $lines[$i])) {
+                    $rows[] = self::parseTableRow($lines[$i]);
+                    $i++;
+                }
+
+                foreach (self::renderMarkdownTable($headers, $rows, $width) as $tableLine) {
+                    $output[] = $tableLine;
+                }
+                $output[] = '';
+                continue;
+            }
+
             if (preg_match('/^>\s?(.*)$/', $line, $m)) {
                 $quoteLines = [$m[1]];
                 $i++;
@@ -218,7 +239,7 @@ class TerminalMarkupRenderer
             while (
                 $i < $total &&
                 trim($lines[$i]) !== '' &&
-                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\>)/', $lines[$i])
+                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\>|^\|.+\|)/', $lines[$i])
             ) {
                 $para[] = $lines[$i];
                 $i++;
@@ -281,6 +302,61 @@ class TerminalMarkupRenderer
         }
 
         return $text;
+    }
+
+    /**
+     * Render a markdown table as an ASCII table sized to the terminal width.
+     *
+     * @param string[] $headers
+     * @param string[][] $rows
+     * @param int $width
+     * @return string[]
+     */
+    private static function renderMarkdownTable(array $headers, array $rows, int $width): array
+    {
+        if (empty($headers)) {
+            return [];
+        }
+
+        $columnCount = count($headers);
+        $headers = self::normalizeTableRow($headers, $columnCount);
+        $rows = array_map(
+            static fn(array $row) => self::normalizeTableRow($row, $columnCount),
+            $rows
+        );
+
+        $widths = array_fill(0, $columnCount, 3);
+        foreach (array_merge([$headers], $rows) as $row) {
+            foreach ($row as $index => $cell) {
+                $widths[$index] = max($widths[$index], self::textLength(trim((string) $cell)));
+            }
+        }
+
+        $borderOverhead = ($columnCount * 3) + 1;
+        $availableCellWidth = max($columnCount * 3, max(10, $width) - $borderOverhead);
+        while (array_sum($widths) > $availableCellWidth) {
+            $largestIndex = array_keys($widths, max($widths), true)[0];
+            if ($widths[$largestIndex] <= 3) {
+                break;
+            }
+            $widths[$largestIndex]--;
+        }
+
+        $output = [];
+        $border = self::DIM . self::buildTableBorder($widths) . self::R;
+        $output[] = $border;
+        foreach (self::renderTableLogicalRow($headers, $widths, true) as $line) {
+            $output[] = $line;
+        }
+        $output[] = $border;
+        foreach ($rows as $row) {
+            foreach (self::renderTableLogicalRow($row, $widths, false) as $line) {
+                $output[] = $line;
+            }
+        }
+        $output[] = $border;
+
+        return $output;
     }
 
     // -------------------------------------------------------------------------
@@ -371,5 +447,112 @@ class TerminalMarkupRenderer
     private static function stripAnsi(string $text): string
     {
         return preg_replace('/\033\[[0-9;]*m/', '', $text);
+    }
+
+    /**
+     * Split a markdown table row into trimmed cell strings.
+     *
+     * @param string $row
+     * @return string[]
+     */
+    private static function parseTableRow(string $row): array
+    {
+        $row = trim($row, " \t|");
+        $cells = explode('|', $row);
+        return array_map('trim', $cells);
+    }
+
+    /**
+     * Normalize a parsed table row to the required column count.
+     *
+     * @param string[] $row
+     * @param int $columnCount
+     * @return string[]
+     */
+    private static function normalizeTableRow(array $row, int $columnCount): array
+    {
+        $row = array_slice(array_values($row), 0, $columnCount);
+        while (count($row) < $columnCount) {
+            $row[] = '';
+        }
+        return $row;
+    }
+
+    /**
+     * Render a logical table row into one or more physical terminal lines.
+     *
+     * @param string[] $row
+     * @param int[] $widths
+     * @param bool $header
+     * @return string[]
+     */
+    private static function renderTableLogicalRow(array $row, array $widths, bool $header): array
+    {
+        $wrappedCells = [];
+        $lineCount = 1;
+
+        foreach ($widths as $index => $colWidth) {
+            $cellLines = self::wrapRaw((string) ($row[$index] ?? ''), max(1, $colWidth));
+            $wrappedCells[$index] = $cellLines;
+            $lineCount = max($lineCount, count($cellLines));
+        }
+
+        $lines = [];
+        for ($lineIndex = 0; $lineIndex < $lineCount; $lineIndex++) {
+            $parts = ['|'];
+            foreach ($widths as $index => $colWidth) {
+                $rawCell = $wrappedCells[$index][$lineIndex] ?? '';
+                $formatted = self::inlineMarkdown($rawCell);
+                if ($header) {
+                    $formatted = self::BOLD . $formatted . self::BOLD_OFF;
+                }
+                $parts[] = ' ' . self::padAnsiRight($formatted, $colWidth) . ' |';
+            }
+            $lines[] = implode('', $parts);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Build a +----+ table border line.
+     *
+     * @param int[] $widths
+     * @return string
+     */
+    private static function buildTableBorder(array $widths): string
+    {
+        $parts = ['+'];
+        foreach ($widths as $width) {
+            $parts[] = str_repeat('-', $width + 2) . '+';
+        }
+        return implode('', $parts);
+    }
+
+    /**
+     * Pad an ANSI-formatted string to a target visible width.
+     *
+     * @param string $text
+     * @param int $width
+     * @return string
+     */
+    private static function padAnsiRight(string $text, int $width): string
+    {
+        $visible = self::textLength(self::stripAnsi($text));
+        if ($visible >= $width) {
+            return $text;
+        }
+        return $text . str_repeat(' ', $width - $visible);
+    }
+
+    /**
+     * Return visible text length for terminal layout.
+     *
+     * @param string $text
+     * @return int
+     */
+    private static function textLength(string $text): int
+    {
+        return function_exists('mb_strlen') ? mb_strlen($text) : strlen($text);
     }
 }
