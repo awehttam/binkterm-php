@@ -225,16 +225,31 @@
                     </div>
                     <div class="col-md-8">
                         <label class="form-label" for="uplinkPassword">{{ t('ui.admin.binkp_config.uplinks.modal.binkp_session_password', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="uplinkPassword">
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="uplinkPassword">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="uplinkPktPassword">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
-                        <input type="text" class="form-control" id="uplinkPktPassword" maxlength="8">
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="uplinkPktPassword" maxlength="8">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkPktPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                         <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password_help', {}, locale, ['common']) }}</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="uplinkTicPassword">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
-                        <input type="text" class="form-control" id="uplinkTicPassword">
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="uplinkTicPassword">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkTicPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                         <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password_help', {}, locale, ['common']) }}</div>
                     </div>
                     <div class="col-md-12">
@@ -526,6 +541,52 @@ function apiMessage(payload, fallback) {
     return fallback;
 }
 
+function toggleUplinkPasswordVisibility(inputId, button) {
+    const input = document.getElementById(inputId);
+    if (!input || !button) {
+        return;
+    }
+
+    const icon = button.querySelector('i');
+    const isHidden = input.type === 'password';
+    const nextLabel = isHidden
+        ? uiT('ui.common.hide_password', 'Hide password')
+        : uiT('ui.common.show_password', 'Show password');
+
+    input.type = isHidden ? 'text' : 'password';
+    button.setAttribute('title', nextLabel);
+    button.setAttribute('aria-label', nextLabel);
+
+    if (icon) {
+        icon.classList.toggle('fa-eye', !isHidden);
+        icon.classList.toggle('fa-eye-slash', isHidden);
+    }
+}
+
+function resetUplinkPasswordVisibility() {
+    ['uplinkPassword', 'uplinkPktPassword', 'uplinkTicPassword'].forEach(function(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) {
+            return;
+        }
+
+        input.type = 'password';
+        const button = input.parentElement ? input.parentElement.querySelector('button') : null;
+        const icon = button ? button.querySelector('i') : null;
+        const label = uiT('ui.common.show_password', 'Show password');
+
+        if (button) {
+            button.setAttribute('title', label);
+            button.setAttribute('aria-label', label);
+        }
+
+        if (icon) {
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+}
+
 function openUplinkModal(index = null) {
     document.getElementById('uplinkModalAlert').innerHTML = '';
     if (index === null) {
@@ -574,6 +635,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkDefault').checked = !!uplink.default;
     }
 
+    resetUplinkPasswordVisibility();
     uplinkModal.show();
 }
 

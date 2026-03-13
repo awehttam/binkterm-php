@@ -55,6 +55,8 @@ return [
     'ui.common.hostname' => 'Hostname',
     'ui.common.port' => 'Puerto',
     'ui.common.password' => 'Contrasena',
+    'ui.common.show_password' => 'Mostrar contrasena',
+    'ui.common.hide_password' => 'Ocultar contrasena',
     'ui.common.reply' => 'Responder',
     'ui.common.username' => 'Usuario',
     'ui.common.real_name' => 'Nombre real',

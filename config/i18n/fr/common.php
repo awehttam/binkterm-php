@@ -52,6 +52,8 @@ return [
     'ui.common.hostname' => 'Nom d\'hôte',
     'ui.common.port' => 'Port',
     'ui.common.password' => 'Mot de passe',
+    'ui.common.show_password' => 'Afficher le mot de passe',
+    'ui.common.hide_password' => 'Masquer le mot de passe',
     'ui.common.reply' => 'Répondre',
     'ui.common.username' => 'Nom d\'utilisateur',
     'ui.common.real_name' => 'Nom réel',
