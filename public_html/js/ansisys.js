@@ -1189,10 +1189,18 @@ function parseAnsi(text) {
         return escapeHtml(text);
     }
 
+    const hasPipes = hasPipeCodes(text);
+    const hasAnsi = hasAnsiCodes(text);
+
+    if (!hasPipes && !hasAnsi) {
+        return escapeHtml(text);
+    }
+
     // Convert pipe codes to ANSI first if present
-    if (hasPipeCodes(text)) {
+    if (hasPipes) {
         text = convertPipeCodesToAnsi(text);
     }
+
     return renderAnsiSgrOnly(text);
 }
 
