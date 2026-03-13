@@ -33,6 +33,12 @@ class MarkdownRenderer
 
             // --- Fenced code block ---
             if (preg_match('/^```(.*)$/', $line, $m)) {
+                if (!self::hasClosingFenceAhead($lines, $i + 1, $total)) {
+                    $output[] = '<p>' . self::inlineHtml($line) . '</p>';
+                    $i++;
+                    continue;
+                }
+
                 $lang  = trim($m[1]);
                 $code  = [];
                 $i++;
@@ -221,6 +227,25 @@ class MarkdownRenderer
         $row   = trim($row, " \t|");
         $cells = explode('|', $row);
         return array_map('trim', $cells);
+    }
+
+    /**
+     * Check whether a fenced code block has a closing fence later in this parse chunk.
+     *
+     * @param string[] $lines
+     * @param int $start
+     * @param int $total
+     * @return bool
+     */
+    private static function hasClosingFenceAhead(array $lines, int $start, int $total): bool
+    {
+        for ($j = $start; $j < $total; $j++) {
+            if (preg_match('/^```$/', $lines[$j])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

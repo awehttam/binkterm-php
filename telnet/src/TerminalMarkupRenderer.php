@@ -129,6 +129,12 @@ class TerminalMarkupRenderer
 
             // Fenced code block
             if (preg_match('/^```/', $line)) {
+                if (!self::hasClosingFenceAhead($lines, $i + 1, $total)) {
+                    $output[] = self::inlineMarkdown($line);
+                    $i++;
+                    continue;
+                }
+
                 $i++;
                 while ($i < $total && !preg_match('/^```$/', $lines[$i])) {
                     $codeLine = $lines[$i];
@@ -554,5 +560,24 @@ class TerminalMarkupRenderer
     private static function textLength(string $text): int
     {
         return function_exists('mb_strlen') ? mb_strlen($text) : strlen($text);
+    }
+
+    /**
+     * Check whether a fenced code block has a closing fence later in this parse chunk.
+     *
+     * @param string[] $lines
+     * @param int $start
+     * @param int $total
+     * @return bool
+     */
+    private static function hasClosingFenceAhead(array $lines, int $start, int $total): bool
+    {
+        for ($j = $start; $j < $total; $j++) {
+            if (preg_match('/^```$/', $lines[$j])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
