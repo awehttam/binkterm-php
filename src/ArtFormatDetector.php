@@ -41,11 +41,20 @@ class ArtFormatDetector
             return 'ansi';
         }
 
-        if (self::looksLikePetscii($rawBody)) {
+        if (self::shouldUsePetsciiHeuristics($normalizedEncoding) && self::looksLikePetscii($rawBody)) {
             return 'petscii';
         }
 
         return null;
+    }
+
+    private static function shouldUsePetsciiHeuristics(string $encoding): bool
+    {
+        if ($encoding === '') {
+            return true;
+        }
+
+        return $encoding !== 'UTF-8';
     }
 
     private static function isPetsciiEncoding(string $encoding): bool
