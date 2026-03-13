@@ -583,7 +583,7 @@ class ArtHtmlRenderer {
 
     escapeChar(char) {
         switch (char) {
-            case ' ': return '&nbsp;';
+            case ' ': return ' ';
             case '&': return '&amp;';
             case '<': return '&lt;';
             case '>': return '&gt;';
@@ -1019,6 +1019,7 @@ function renderAnsiBuffer(text, cols = 80, rows = 500) {
     return renderer.render(buffer);
 }
 
+
 function renderAmigaAnsiBuffer(text, cols = 80, rows = 500) {
     const buffer = new ArtScreenBuffer(cols, rows);
     const decoder = new ArtAmigaAnsiDecoder(buffer);
@@ -1193,6 +1194,9 @@ function parseAnsi(text) {
     const hasAnsi = hasAnsiCodes(text);
 
     if (!hasPipes && !hasAnsi) {
+        if (looksLikeAnsiArtText(text)) {
+            return renderAnsiSgrOnly(text);
+        }
         return escapeHtml(text);
     }
 
@@ -1202,6 +1206,24 @@ function parseAnsi(text) {
     }
 
     return renderAnsiSgrOnly(text);
+}
+
+function looksLikeAnsiArtText(text) {
+    if (!text) {
+        return false;
+    }
+
+    const lines = text.split(/\r\n|\r|\n/);
+    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+    if (nonEmptyLines < 3) {
+        return false;
+    }
+
+    const hasUnicodeBoxChars = /[\u2500-\u257F\u2580-\u259F]/.test(text);
+    const hasHighBitChars = /[\u0080-\u00FF]/.test(text);
+    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+
+    return (hasUnicodeBoxChars || hasHighBitChars) && maxLineLength >= 20;
 }
 
 /**
