@@ -52,7 +52,8 @@ class TicFileProcessor
     private function log(string $message): void
     {
         $timestamp = date('Y-m-d H:i:s');
-        $logLine = "[$timestamp] [TIC] $message\n";
+        $pid = getmypid();
+        $logLine = "[$timestamp] [{$pid}] [TIC] $message\n";
         @file_put_contents($this->logFile, $logLine, FILE_APPEND | LOCK_EX);
     }
 
@@ -842,4 +843,3 @@ class TicFileProcessor
         return $hash;
     }
 }
-
