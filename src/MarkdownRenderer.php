@@ -86,6 +86,14 @@ class MarkdownRenderer
                 continue;
             }
 
+            // --- Pipe-delimited text that is not a valid table ---
+            // Treat it as plain text so malformed tables cannot stall the parser.
+            if (preg_match('/^\|.+\|/', $line)) {
+                $output[] = '<p>' . self::inlineHtml($line) . '</p>';
+                $i++;
+                continue;
+            }
+
             // --- Block quote ---
             if (preg_match('/^>\s?(.*)$/', $line, $m)) {
                 $quoteLines = [$m[1]];
