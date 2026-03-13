@@ -9,13 +9,16 @@ namespace BinktermPHP;
  */
 class MarkdownRenderer
 {
+    private const MAX_BLOCKQUOTE_DEPTH = 8;
+
     /**
      * Convert a Markdown string to an HTML string.
      *
      * @param string $markdown Raw Markdown content
+     * @param int $blockquoteDepth Current recursive blockquote depth
      * @return string HTML output
      */
-    public static function toHtml(string $markdown): string
+    public static function toHtml(string $markdown, int $blockquoteDepth = 0): string
     {
         // Normalise line endings
         $text = str_replace(["\r\n", "\r"], "\n", $markdown);
@@ -91,7 +94,17 @@ class MarkdownRenderer
                     $quoteLines[] = $qm[1];
                     $i++;
                 }
-                $inner = self::toHtml(implode("\n", $quoteLines));
+
+                if ($blockquoteDepth >= self::MAX_BLOCKQUOTE_DEPTH) {
+                    $escapedLines = array_map(
+                        static fn(string $quoteLine): string => htmlspecialchars($quoteLine, ENT_QUOTES, 'UTF-8'),
+                        $quoteLines
+                    );
+                    $inner = '<p>' . implode('<br>', $escapedLines) . '</p>';
+                } else {
+                    $inner = self::toHtml(implode("\n", $quoteLines), $blockquoteDepth + 1);
+                }
+
                 $output[] = '<blockquote class="border-start border-3 ps-3 text-muted">' . $inner . '</blockquote>';
                 continue;
             }
