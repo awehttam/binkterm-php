@@ -199,21 +199,28 @@ class BinkpConfig
     public function getProcessedPacketsPath()
     {
         $inboundPath = $this->getInboundPath();
-        $processedPath = $inboundPath . DIRECTORY_SEPARATOR . 'processed';
-        if (!is_dir($processedPath)) {
-            mkdir($processedPath, 0755, true);
-        }
-        return $processedPath;
+        return $this->getDatedKeepPath($inboundPath);
     }
 
     public function getPreservedSentPacketsPath()
     {
         $outboundPath = $this->getOutboundPath();
-        $keepPath = $outboundPath . DIRECTORY_SEPARATOR . 'keep';
+        return $this->getDatedKeepPath($outboundPath);
+    }
+
+    private function getDatedKeepPath(string $basePath): string
+    {
+        $keepPath = $basePath . DIRECTORY_SEPARATOR . 'keep';
         if (!is_dir($keepPath)) {
             mkdir($keepPath, 0755, true);
         }
-        return $keepPath;
+
+        $datedPath = $keepPath . DIRECTORY_SEPARATOR . date('M-d-Y');
+        if (!is_dir($datedPath)) {
+            mkdir($datedPath, 0755, true);
+        }
+
+        return $datedPath;
     }
 
     public function getRoutingTable()

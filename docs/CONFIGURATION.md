@@ -307,8 +307,8 @@ When `website` is configured, origin lines include it:
 | `bind_address` | `0.0.0.0` | IP address to bind to (`0.0.0.0` = all interfaces) |
 | `inbound_path` | `data/inbound` | Directory for incoming packets |
 | `outbound_path` | `data/outbound` | Directory for outgoing packets |
-| `preserve_processed_packets` | false | When true, moves processed packets to a `processed/` subdirectory instead of deleting them |
-| `preserve_sent_packets` | false | When true, moves successfully sent outbound packets to `data/outbound/keep/` instead of deleting them |
+| `preserve_processed_packets` | false | When true, moves processed packets to `data/inbound/keep/<Mon-DD-YYYY>/` instead of deleting them |
+| `preserve_sent_packets` | false | When true, moves successfully sent outbound packets to `data/outbound/keep/<Mon-DD-YYYY>/` instead of deleting them |
 
 ### Uplink Configuration
 
