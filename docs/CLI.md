@@ -17,6 +17,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Admin Daemon](#admin-daemon)
 - [Admin Client](#admin-client)
 - [Nodelist Updates](#nodelist-updates)
+- [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
 - [Echomail Robots](#echomail-robots)
@@ -424,6 +425,69 @@ php scripts/update_nodelists.php --force
 # Show help and available macros
 php scripts/update_nodelists.php --help
 ```
+
+## Geocoding
+
+Both the BBS Directory and the Nodelist map use coordinates resolved from location strings via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API. Results are permanently cached in the `bbs_directory_geocode_cache` table, so a given location string is only ever looked up once regardless of which script processed it first.
+
+The Nominatim API is rate-limited to **one request per second**. Scripts enforce this automatically.
+
+Environment variables (all optional):
+
+| Variable | Default | Description |
+|---|---|---|
+| `BBS_DIRECTORY_GEOCODING_ENABLED` | `true` | Set to `false` to disable all geocoding |
+| `BBS_DIRECTORY_GEOCODER_EMAIL` | _(none)_ | Contact email sent in API requests (good practice) |
+| `BBS_DIRECTORY_GEOCODER_URL` | Nominatim endpoint | Override with a self-hosted instance |
+| `BBS_DIRECTORY_GEOCODER_USER_AGENT` | Auto-generated | Custom `User-Agent` header |
+
+### Geocode Nodelist
+
+Populates `latitude`/`longitude` on nodelist entries that have a `location` field but no coordinates yet.
+
+```bash
+# Geocode all pending nodelist entries
+php scripts/geocode_nodelist.php
+
+# Limit to 100 entries per run (good for cron)
+php scripts/geocode_nodelist.php --limit=100
+
+# Re-geocode entries that already have coordinates
+php scripts/geocode_nodelist.php --force
+
+# Preview without writing changes
+php scripts/geocode_nodelist.php --dry-run
+```
+
+Options:
+- `--limit=N` — Process at most N nodes (default: all pending)
+- `--force` — Re-geocode nodes that already have coordinates
+- `--dry-run` — Show what would be processed without making changes
+
+Cron example (nightly, 100 nodes at a time):
+
+```
+0 3 * * * /usr/bin/php /path/to/binkterm/scripts/geocode_nodelist.php --limit=100
+```
+
+### Geocode BBS Directory
+
+Backfills coordinates for BBS Directory entries that have a location set but no coordinates.
+
+```bash
+# Geocode all pending BBS directory entries
+php scripts/backfill_bbs_directory_geocoding.php
+
+# Limit to N entries
+php scripts/backfill_bbs_directory_geocoding.php --limit=50
+
+# Preview without writing changes
+php scripts/backfill_bbs_directory_geocoding.php --dry-run
+```
+
+Options:
+- `--limit=N` — Process at most N entries
+- `--dry-run` — Show how many rows would be updated without writing changes
 
 ## Database Backup
 
