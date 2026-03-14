@@ -284,6 +284,9 @@
                         <i class="fas fa-pencil-alt"></i>
                     </button>
                     {% endif %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleHeaders" onclick="toggleKludgeLines()" title="{{ t('ui.common.show_kludge_lines', {}, locale, ['common']) }}">
+                        <i class="fas fa-code" id="toggleIcon"></i>
+                    </button>
                 </div>
                 <h5 class="modal-title" id="messageSubject">{{ t('ui.common.message', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="{{ t('ui.common.toggle_fullscreen', {}, locale, ['common']) }}">

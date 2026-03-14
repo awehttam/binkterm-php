@@ -16,6 +16,7 @@
 - [Credits System Updates](#credits-system-updates)
 - [Database Performance Improvements](#database-performance-improvements)
 - [Nodelist Map](#nodelist-map)
+- [Message Reader Improvements](#message-reader-improvements)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -41,6 +42,8 @@
   `shared_messages`, and `saved_messages` eliminate millions of unnecessary
   sequential scans. Chat notification polling rewritten to use primary key
   index instead of full table count.
+- Kludge lines in the echomail and netmail message readers are now hidden by
+  default and toggled via a small icon button in the modal header toolbar.
 - New interactive nodelist map tab powered by Leaflet. Nodes are geocoded from
   their location field and grouped by system name, with zone colour coding and
   per-network popup detail. A CLI geocoding script (`scripts/geocode_nodelist.php`)
@@ -304,6 +307,15 @@ to be `true` (the default). See `.env.example` for optional tuning variables
 
 A new database migration (`v1.11.0.18`) adds `latitude` and `longitude` columns
 to the `nodelist` table. This is applied automatically by `setup.php`.
+
+## Message Reader Improvements
+
+The kludge lines panel in the echomail and netmail message readers is now
+hidden by default. A small **`</>`** icon button in the modal header toolbar
+toggles it open and closed — the button highlights when the panel is visible.
+
+The previous "Show Kludge Lines" button that appeared inside the message body
+has been removed.
 
 ## Upgrade Instructions
 

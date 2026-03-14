@@ -947,17 +947,8 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
         </div>
 
-        <div class="message-headers mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">${uiT('ui.common.kludge_lines', 'Kludge Lines')}</h6>
-                <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
-                    <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">${uiT('ui.common.show_kludge_lines', 'Show Kludge Lines')}</span>
-                </button>
-            </div>
-            <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
-            </div>
+        <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
+            <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
         </div>
 
         <div class="message-text">

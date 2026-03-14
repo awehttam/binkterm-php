@@ -557,17 +557,14 @@ function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
 
 function toggleKludgeLines() {
     const container = $('#kludgeContainer');
-    const icon = $('#toggleIcon');
-    const text = $('#toggleText');
-    
+    const btn = $('#toggleHeaders');
+
     if (container.is(':visible')) {
         container.slideUp();
-        icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text(window.t ? window.t('ui.common.show_kludge_lines', {}, 'Show Kludge Lines') : 'Show Kludge Lines');
+        btn.removeClass('active');
     } else {
         container.slideDown();
-        icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text(window.t ? window.t('ui.common.hide_kludge_lines', {}, 'Hide Kludge Lines') : 'Hide Kludge Lines');
+        btn.addClass('active');
     }
 }
 
