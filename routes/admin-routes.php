@@ -109,6 +109,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'replication' => $dbStats->getReplication(),
             'maintenance' => $dbStats->getMaintenanceHealth(),
             'indexes'     => $dbStats->getIndexHealth(),
+            'i18n_catalogs' => $dbStats->getI18nCatalogStats(),
         ]);
     });
 

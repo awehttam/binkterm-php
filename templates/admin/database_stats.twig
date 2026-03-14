@@ -11,7 +11,7 @@
                 <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
             </a>
             <a href="/admin/" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.common.back', {}, locale, ['common']) }}
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.common.go_back', {}, locale, ['common']) }}
             </a>
         </div>
     </div>
@@ -46,6 +46,11 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-indexes" data-bs-toggle="tab" data-bs-target="#pane-indexes" type="button" role="tab">
                 <i class="fas fa-list-ol me-1"></i>{{ t('ui.admin.db_stats.tab.index_health', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-i18n" data-bs-toggle="tab" data-bs-target="#pane-i18n" type="button" role="tab">
+                <i class="fas fa-language me-1"></i>{{ t('ui.admin.db_stats.tab.i18n_catalogs', {}, locale, ['common']) }}
             </button>
         </li>
     </ul>
@@ -643,6 +648,78 @@
             </div>
 
         </div>
+        <!-- ===================== I18N CATALOGS ===================== -->
+        <div class="tab-pane fade" id="pane-i18n" role="tabpanel">
+
+            {% if i18n_catalogs|length == 0 %}
+            <p class="text-muted">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+            {% else %}
+
+            {# Summary row — one card per locale #}
+            <div class="row mb-4">
+                {% for loc in i18n_catalogs %}
+                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+                    <div class="card border-left-{{ loop.index is odd ? 'primary' : 'info' }} shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 {{ loop.index is odd ? 'text-primary' : 'text-info' }}">
+                                {{ loc.locale }}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold">{{ loc.total_keys|number_format }}</div>
+                            <small class="text-muted">{{ t('ui.admin.db_stats.i18n.keys', {}, locale, ['common']) }}</small><br>
+                            <small class="text-muted">{{ (loc.total_memory / 1024)|round(1) }} KB {{ t('ui.admin.db_stats.i18n.memory', {}, locale, ['common']) }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {# Detail table #}
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.i18n.detail', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.db_stats.i18n.col.locale', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.db_stats.i18n.col.file', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.db_stats.i18n.col.keys', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.db_stats.i18n.col.file_size', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.db_stats.i18n.col.memory', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for loc in i18n_catalogs %}
+                                    {% for file in loc.files %}
+                                    <tr>
+                                        {% if loop.first %}
+                                        <td rowspan="{{ loc.files|length }}" class="align-middle fw-bold">{{ loc.locale }}</td>
+                                        {% endif %}
+                                        <td><code>{{ file.filename }}</code></td>
+                                        <td class="text-end">{{ file.key_count|number_format }}</td>
+                                        <td class="text-end">{{ (file.file_bytes / 1024)|round(1) }} KB</td>
+                                        <td class="text-end">{{ (file.memory_bytes / 1024)|round(1) }} KB</td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="table-secondary fw-bold">
+                                        <td></td>
+                                        <td class="text-muted small">{{ t('ui.admin.db_stats.i18n.total', {}, locale, ['common']) }}</td>
+                                        <td class="text-end">{{ loc.total_keys|number_format }}</td>
+                                        <td class="text-end">{{ (loc.total_bytes / 1024)|round(1) }} KB</td>
+                                        <td class="text-end">{{ (loc.total_memory / 1024)|round(1) }} KB</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {% endif %}
+        </div>
+
     </div><!-- /tab-content -->
 
 </div>

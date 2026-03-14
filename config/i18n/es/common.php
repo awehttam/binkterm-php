@@ -674,6 +674,16 @@ return [
     'ui.admin.db_stats.col.seq_scans' => 'Escaneos sec.',
     'ui.admin.db_stats.col.idx_scans' => 'Escaneos idx.',
     'ui.admin.db_stats.col.idx_pct' => 'Idx %',
+    'ui.admin.db_stats.tab.i18n_catalogs' => 'Catálogos i18n',
+    'ui.admin.db_stats.i18n.keys' => 'claves',
+    'ui.admin.db_stats.i18n.memory' => 'memoria',
+    'ui.admin.db_stats.i18n.detail' => 'Detalle de catálogos',
+    'ui.admin.db_stats.i18n.total' => 'Total',
+    'ui.admin.db_stats.i18n.col.locale' => 'Idioma',
+    'ui.admin.db_stats.i18n.col.file' => 'Archivo',
+    'ui.admin.db_stats.i18n.col.keys' => 'Claves',
+    'ui.admin.db_stats.i18n.col.file_size' => 'Tamaño',
+    'ui.admin.db_stats.i18n.col.memory' => 'Memoria',
 
     // Admin Users (legacy users page)
     'ui.admin.users.load_failed' => 'Error al cargar usuarios',

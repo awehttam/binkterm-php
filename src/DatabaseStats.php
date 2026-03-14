@@ -450,6 +450,69 @@ class DatabaseStats
     }
 
     /**
+     * i18n catalog stats: file sizes, key counts, and serialized memory footprint
+     * for each locale and namespace file under config/i18n/.
+     *
+     * @return array List of per-locale entries, each with a 'files' sub-array.
+     */
+    public function getI18nCatalogStats(): array
+    {
+        $i18nDir = dirname(__DIR__) . '/config/i18n';
+        $locales = [];
+
+        if (!is_dir($i18nDir)) {
+            return $locales;
+        }
+
+        foreach (scandir($i18nDir) as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $localeDir = $i18nDir . '/' . $entry;
+            if (!is_dir($localeDir)) {
+                continue;
+            }
+
+            $files = [];
+            $totalKeys   = 0;
+            $totalBytes  = 0;
+            $totalMemory = 0;
+
+            foreach (glob($localeDir . '/*.php') as $filePath) {
+                $fileBytes = (int)filesize($filePath);
+                $catalog   = include $filePath;
+                $keyCount  = is_array($catalog) ? count($catalog) : 0;
+                $memBytes  = strlen(serialize($catalog));
+
+                $files[] = [
+                    'filename'     => basename($filePath),
+                    'file_bytes'   => $fileBytes,
+                    'key_count'    => $keyCount,
+                    'memory_bytes' => $memBytes,
+                ];
+
+                $totalKeys   += $keyCount;
+                $totalBytes  += $fileBytes;
+                $totalMemory += $memBytes;
+            }
+
+            usort($files, fn($a, $b) => strcmp($a['filename'], $b['filename']));
+
+            $locales[] = [
+                'locale'        => $entry,
+                'files'         => $files,
+                'total_keys'    => $totalKeys,
+                'total_bytes'   => $totalBytes,
+                'total_memory'  => $totalMemory,
+            ];
+        }
+
+        usort($locales, fn($a, $b) => strcmp($a['locale'], $b['locale']));
+
+        return $locales;
+    }
+
+    /**
      * Returns the PostgreSQL server version number (e.g. 140005).
      */
     private function pgVersion(): int
