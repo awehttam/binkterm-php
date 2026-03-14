@@ -14,6 +14,7 @@
   - [Notes](#notes)
 - [Database Statistics Page](#database-statistics-page)
 - [Credits System Updates](#credits-system-updates)
+- [Database Performance Improvements](#database-performance-improvements)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -35,6 +36,10 @@
   health, and index health.
 - Added configurable file upload and file download credit costs/rewards in the
   **Credits System Configuration** page.
+- Database performance improvements: new indexes on `mrc_outbound`, `users`,
+  `shared_messages`, and `saved_messages` eliminate millions of unnecessary
+  sequential scans. Chat notification polling rewritten to use primary key
+  index instead of full table count.
 
 ## Enhanced Message Search
 
@@ -215,6 +220,37 @@ section:
 "file_download_cost": 0,
 "file_download_reward": 0
 ```
+
+## Database Performance Improvements
+
+Several tables that were generating excessive sequential scans have been
+addressed with new indexes and one query change. These are applied automatically
+by `setup.php` via five new migrations (v1.11.0.13 – v1.11.0.17).
+
+**Index changes:**
+
+- `mrc_outbound` — replaced `(sent_at, priority)` with a partial index
+  `(priority DESC, created_at ASC) WHERE sent_at IS NULL`. The MRC daemon polls
+  this table every 100 ms; the old index did not match the query's `ORDER BY`
+  so the planner seq-scanned a near-empty table millions of times.
+- `users` — added `UNIQUE INDEX ON users(LOWER(username))`. Login queries and
+  name-matching in mail delivery used `LOWER(username)` comparisons with no
+  supporting index, causing a seq scan on every authentication request.
+- `shared_messages` — replaced `(message_id, message_type)` with a partial
+  composite index `(message_id, message_type, shared_by_user_id) WHERE is_active = TRUE`,
+  matching the LEFT JOIN condition used in every echomail listing page load.
+- `saved_messages` — replaced `(message_id, message_type)` with
+  `(message_id, message_type, user_id)`. The previous index had the wrong column
+  order for joins driven from the echomail side.
+
+**Query change — chat notification polling:**
+
+The `/api/dashboard/stats` endpoint previously counted all chat messages on
+every 30-second poll using a query with an un-indexable OR condition across
+three columns. It now queries only messages newer than the last seen message ID
+(`WHERE m.id > ?`), using the primary key index. The last seen position is
+stored as `last_chat_max_id` in user meta. Existing users will have this
+initialized silently on first poll with no false notification badge.
 
 ## Upgrade Instructions
 
