@@ -121,6 +121,11 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
     <td align="center"><b>Admin Menu</b><br><img src="docs/screenshots/adminmenu.png" width="260"></td>
     <td align="center"><b>Telnet Server</b><br><img src="docs/screenshots/telnetserver.png" width="260"></td>
   </tr>
+  <tr>
+    <td align="center"><b>Activity Stats</b><br><img src="docs/screenshots/activitystats.png" width="260"></td>
+    <td align="center"><b>Gemini Home</b><br><img src="docs/screenshots/geminihome.png" width="260"></td>
+    <td align="center"><b>Markdown</b><br><img src="docs/screenshots/markdown.png" width="260"></td>
+  </tr>
 </table>
 
 
