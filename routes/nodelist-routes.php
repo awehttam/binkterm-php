@@ -64,4 +64,9 @@ SimpleRouter::group(['prefix' => '/api/nodelist'], function() {
         $controller = new BinktermPHP\Web\NodelistController();
         $controller->api('stats');
     });
+
+    SimpleRouter::get('/map-data', function() {
+        $controller = new BinktermPHP\Web\NodelistController();
+        $controller->api('map-data');
+    });
 });
