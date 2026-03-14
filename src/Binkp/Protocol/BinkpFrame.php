@@ -181,29 +181,44 @@ class BinkpFrame
         if ($this->isCommand) {
             $lengthAndFlags |= self::COMMAND_FRAME;
         }
-        
-        $header = pack('n', $lengthAndFlags);
-        $written = @fwrite($socket, $header);
-        if ($written === false) {
-            return;
+
+        $buffer = pack('n', $lengthAndFlags);
+
+        if ($this->isCommand) {
+            $buffer .= chr($this->command);
         }
-        
-        if ($this->isCommand && $this->length > 0) {
-            if (@fwrite($socket, chr($this->command)) === false) {
-                return;
-            }
-            if (strlen($this->data) > 0) {
-                if (@fwrite($socket, $this->data) === false) {
-                    return;
-                }
-            }
-        } elseif (!$this->isCommand && $this->length > 0) {
-            @fwrite($socket, $this->data);
+
+        if ($this->length > 0 && $this->data !== '') {
+            $buffer .= $this->data;
         }
+
+        self::writeAll($socket, $buffer);
         
         // Force immediate transmission of frames
         if (is_resource($socket)) {
             fflush($socket);
+        }
+    }
+
+    private static function writeAll($socket, string $buffer): void
+    {
+        $offset = 0;
+        $length = strlen($buffer);
+
+        while ($offset < $length) {
+            $written = @fwrite($socket, substr($buffer, $offset));
+            if ($written === false || $written === 0) {
+                $meta = stream_get_meta_data($socket);
+                $timedOut = !empty($meta['timed_out']);
+                $eof = !empty($meta['eof']);
+                throw new \Exception(
+                    'Failed to write complete frame'
+                    . ' (written=' . $offset . '/' . $length
+                    . ', timed_out=' . ($timedOut ? 'yes' : 'no')
+                    . ', eof=' . ($eof ? 'yes' : 'no') . ')'
+                );
+            }
+            $offset += $written;
         }
     }
     
