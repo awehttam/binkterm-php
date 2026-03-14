@@ -1074,7 +1074,8 @@ function searchMessages() {
             $('#mobileSearchCollapse').collapse('hide');
         })
         .fail(function() {
-            showError(uiT('ui.echomail.search.failed', 'Search failed'));
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.echomail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
         });
 }
 
@@ -1083,6 +1084,96 @@ function searchMessagesFromMobile() {
     const query = $('#mobileSearchInput').val().trim();
     $('#searchInput').val(query);
     searchMessages();
+}
+
+function openAdvancedSearch() {
+    $('#advSearchFromName').val('');
+    $('#advSearchSubject').val('');
+    $('#advSearchBody').val('');
+    $('#advSearchDateFrom').val('');
+    $('#advSearchDateTo').val('');
+    $('#advSearchError').addClass('d-none').text('');
+    $('#advancedSearchModal').modal('show');
+}
+
+function runAdvancedSearch() {
+    const fromName = $('#advSearchFromName').val().trim();
+    const subject = $('#advSearchSubject').val().trim();
+    const body = $('#advSearchBody').val().trim();
+    const dateFrom = $('#advSearchDateFrom').val();
+    const dateTo = $('#advSearchDateTo').val();
+
+    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const hasDate = dateFrom || dateTo;
+
+    // Validate: at least one field filled, and text fields must be 2+ chars each
+    if (textFields.length === 0 && !hasDate) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+    if (textFields.some(v => v.length < 2)) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+
+    $('#advSearchError').addClass('d-none');
+    $('#advancedSearchModal').modal('hide');
+    showLoading('#messagesContainer');
+
+    // Collect text search terms for highlighting
+    currentSearchTerms = [fromName, subject, body]
+        .filter(v => v.length > 0)
+        .join(' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(term => term.length > 1);
+
+    const params = new URLSearchParams({ type: 'echomail' });
+    if (fromName) params.set('from_name', fromName);
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (currentEchoarea) params.set('echoarea', currentEchoarea);
+
+    $.get('/api/messages/search?' + params.toString())
+        .done(function(data) {
+            displayMessages(data.messages);
+            $('#pagination').empty();
+
+            if (!originalFilterCounts) {
+                originalFilterCounts = {
+                    all: parseInt($('#allCount').text()) || 0,
+                    unread: parseInt($('#unreadCount').text()) || 0,
+                    read: parseInt($('#readCount').text()) || 0,
+                    tome: parseInt($('#toMeCount').text()) || 0,
+                    saved: parseInt($('#savedCount').text()) || 0,
+                    drafts: parseInt($('#draftsCount').text()) || 0
+                };
+            }
+
+            if (data.echoarea_counts) {
+                searchResultCounts = data.echoarea_counts;
+                isSearchActive = true;
+                updateEchoareaCountsWithSearchResults();
+                showClearSearchButton();
+            }
+
+            if (data.filter_counts) {
+                searchFilterCounts = data.filter_counts;
+                updateFilterCounts(data.filter_counts);
+            }
+
+            $('#mobileSearchCollapse').collapse('hide');
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.echomail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
+        });
 }
 
 function updateEchoareaCountsWithSearchResults() {

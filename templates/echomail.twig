@@ -224,10 +224,15 @@
                 <div class="mb-3">
                     <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="{{ t('ui.common.search_placeholder', {}, locale, ['common']) }}">
                 </div>
-                <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
-                    <i class="fas fa-search"></i>
-                    {{ t('ui.common.search', {}, locale, ['common']) }}
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm flex-fill" onclick="searchMessages()">
+                        <i class="fas fa-search"></i>
+                        {{ t('ui.common.search', {}, locale, ['common']) }}
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="openAdvancedSearch()" title="{{ t('ui.common.advanced_search', {}, locale, ['common']) }}">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -435,6 +440,48 @@
                 <button type="button" class="btn btn-danger d-none" id="revokeShareBtn">
                     <i class="fas fa-trash"></i>
                     {{ t('ui.echomail.revoke_share', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Advanced Search Modal -->
+<div class="modal fade" id="advancedSearchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-sliders-h me-2"></i>{{ t('ui.common.advanced_search.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">{{ t('ui.common.advanced_search.help', {}, locale, ['common']) }}</p>
+                <div class="mb-3">
+                    <label for="advSearchFromName" class="form-label">{{ t('ui.common.advanced_search.from_name', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchFromName" placeholder="{{ t('ui.common.advanced_search.from_name_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label for="advSearchSubject" class="form-label">{{ t('ui.common.advanced_search.subject', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchSubject" placeholder="{{ t('ui.common.advanced_search.subject_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label for="advSearchBody" class="form-label">{{ t('ui.common.advanced_search.body', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchBody" placeholder="{{ t('ui.common.advanced_search.body_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ t('ui.common.advanced_search.date_range', {}, locale, ['common']) }}</label>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="date" class="form-control" id="advSearchDateFrom">
+                        <span class="text-muted flex-shrink-0">–</span>
+                        <input type="date" class="form-control" id="advSearchDateTo">
+                    </div>
+                </div>
+                <div id="advSearchError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="runAdvancedSearch()">
+                    <i class="fas fa-search me-1"></i>{{ t('ui.common.search', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>

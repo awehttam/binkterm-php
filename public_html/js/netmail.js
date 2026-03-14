@@ -788,7 +788,72 @@ function searchMessages() {
             $('#pagination').empty();
         })
         .fail(function() {
-            showError(uiT('ui.netmail.search.failed', 'Search failed'));
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.netmail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
+        });
+}
+
+function openAdvancedSearch() {
+    $('#advSearchFromName').val('');
+    $('#advSearchSubject').val('');
+    $('#advSearchBody').val('');
+    $('#advSearchDateFrom').val('');
+    $('#advSearchDateTo').val('');
+    $('#advSearchError').addClass('d-none').text('');
+    $('#advancedSearchModal').modal('show');
+}
+
+function runAdvancedSearch() {
+    const fromName = $('#advSearchFromName').val().trim();
+    const subject = $('#advSearchSubject').val().trim();
+    const body = $('#advSearchBody').val().trim();
+    const dateFrom = $('#advSearchDateFrom').val();
+    const dateTo = $('#advSearchDateTo').val();
+
+    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const hasDate = dateFrom || dateTo;
+
+    // Validate: at least one field filled, and text fields must be 2+ chars each
+    if (textFields.length === 0 && !hasDate) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+    if (textFields.some(v => v.length < 2)) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+
+    $('#advSearchError').addClass('d-none');
+    $('#advancedSearchModal').modal('hide');
+    showLoading('#messagesContainer');
+
+    // Collect text search terms for highlighting
+    currentSearchTerms = [fromName, subject, body]
+        .filter(v => v.length > 0)
+        .join(' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(term => term.length > 1);
+
+    const params = new URLSearchParams({ type: 'netmail' });
+    if (fromName) params.set('from_name', fromName);
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+
+    $.get('/api/messages/search?' + params.toString())
+        .done(function(data) {
+            displayMessages(data.messages);
+            $('#pagination').empty();
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.netmail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
         });
 }
 

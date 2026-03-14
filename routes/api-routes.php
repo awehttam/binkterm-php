@@ -4053,6 +4053,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        try {
+
         $query = $_GET['q'] ?? '';
         $type = $_GET['type'] ?? null;
         $echoarea = $_GET['echoarea'] ?? null;
@@ -4062,7 +4064,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea = urldecode($echoarea);
         }
 
-        if (strlen($query) < 2) {
+        // Collect field-specific search params
+        $searchParams = [];
+        if (!empty($_GET['from_name'])) {
+            $searchParams['from_name'] = $_GET['from_name'];
+        }
+        if (!empty($_GET['subject'])) {
+            $searchParams['subject'] = $_GET['subject'];
+        }
+        if (!empty($_GET['body'])) {
+            $searchParams['body'] = $_GET['body'];
+        }
+        // Date range params — validate YYYY-MM-DD format
+        foreach (['date_from', 'date_to'] as $dateKey) {
+            if (!empty($_GET[$dateKey])) {
+                $val = $_GET[$dateKey];
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $val)) {
+                    $searchParams[$dateKey] = $val;
+                }
+            }
+        }
+
+        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasDateParams = !empty($searchParams['date_from']) || !empty($searchParams['date_to']);
+        $hasAdvancedParams = $hasTextParams || $hasDateParams;
+
+        // Validate: need a general query of 2+ chars, or at least one valid text/date field
+        if ($hasTextParams) {
+            foreach (['from_name', 'subject', 'body'] as $textKey) {
+                if (isset($searchParams[$textKey]) && strlen($searchParams[$textKey]) < 2) {
+                    http_response_code(400);
+                    apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
+                    return;
+                }
+            }
+        } elseif (!$hasDateParams && strlen($query) < 2) {
             http_response_code(400);
             apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
             return;
@@ -4073,21 +4109,47 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams);
 
-        // For echomail searches, also get per-echo-area counts and filter counts
+        // For echomail searches, derive per-echo-area counts from already-fetched results
+        // and compute filter counts by PK lookup — avoids re-running the expensive search query.
         $echoareaCounts = [];
         $filterCounts = [];
         if ($type === 'echomail' || $type === null) {
-            $echoareaCounts = $handler->getSearchResultCounts($query, $echoarea, $userId);
-            $filterCounts = $handler->getSearchFilterCounts($query, $echoarea, $userId);
+            $countMap = [];
+            foreach ($messages as $msg) {
+                $tag = $msg['echoarea'] ?? '';
+                $domain = $msg['echoarea_domain'] ?? '';
+                $key = "{$tag}@{$domain}";
+                if (!isset($countMap[$key])) {
+                    $countMap[$key] = ['tag' => $tag, 'domain' => $domain, 'message_count' => 0];
+                }
+                $countMap[$key]['message_count']++;
+            }
+            $echoareaCounts = array_values($countMap);
+
+            $messageIds = array_column($messages, 'id');
+            $filterCounts = $handler->getSearchFilterCountsByIds($messageIds, $userId);
         }
 
-        echo json_encode([
+        $json = json_encode([
             'messages' => $messages,
             'echoarea_counts' => $echoareaCounts,
             'filter_counts' => $filterCounts
-        ]);
+        ], JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($json === false) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to encode results: ' . json_last_error_msg()]);
+            return;
+        }
+
+        echo $json;
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage(), 'trace' => $e->getFile() . ':' . $e->getLine()]);
+        }
     });
 
     // Mark message as read

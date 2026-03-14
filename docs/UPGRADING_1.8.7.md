@@ -5,6 +5,8 @@
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Enhanced Message Search](#enhanced-message-search)
+  - [Search Reindexing](#search-reindexing)
 - [Message Artwork Encoding Editor](#message-artwork-encoding-editor)
 - [Echomail Art Format Detection](#echomail-art-format-detection)
   - [Existing Misdetected Messages](#existing-misdetected-messages)
@@ -16,12 +18,38 @@
 
 ## Summary of Changes
 
+- Added advanced message search with per-field filtering (poster name, subject,
+  message body) and date range support for both echomail and netmail.
+- Search performance significantly improved via trigram GIN indexes on subject
+  and message body columns.
 - Sysops can now edit artwork encoding metadata on any echomail message directly
   from the message reader — no more manual SQL updates for misdetected art format
   or encoding.
 - Netmail senders and receivers can similarly correct artwork encoding on their
   own messages.
 - Fixed a false-positive PETSCII detection bug on import.
+
+## Enhanced Message Search
+
+The search sidebar now includes an **Advanced Search** button (sliders icon)
+that opens a modal with individual fields for poster name, subject, message body,
+and a date range picker. Fields are combined with AND logic — fill in only the
+ones you need.
+
+The simple search bar continues to work as before (searches across all fields at
+once).
+
+### Search Reindexing
+
+This release adds trigram GIN indexes (`pg_trgm`) on the `subject` and
+`message_text` columns of both `echomail` and `netmail`. These indexes make
+`ILIKE '%term%'` searches fast regardless of table size.
+
+**`setup.php` will build these indexes automatically, but on large message
+databases the process may take a few minutes.** The upgrade will appear to pause
+at the migration step — this is normal. Do not interrupt it.
+
+A date range index on `echomail(date_received)` is also added in this release.
 
 ## Message Artwork Encoding Editor
 
