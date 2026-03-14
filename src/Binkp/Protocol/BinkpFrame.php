@@ -38,6 +38,7 @@ class BinkpFrame
     private $isCommand;
     private $command;
     private $data;
+    private static $lastReadDiagnostics = null;
     
     public function __construct($length = 0, $isCommand = false, $command = 0, $data = '')
     {
@@ -61,6 +62,8 @@ class BinkpFrame
     
     public static function parseFromSocket($socket, $nonBlocking = false)
     {
+        self::$lastReadDiagnostics = null;
+
         if ($nonBlocking) {
             // Check if data is available before attempting to read
             $read = [$socket];
@@ -73,7 +76,7 @@ class BinkpFrame
             }
         }
 
-        $header = self::readExactly($socket, 2);
+        $header = self::readExactly($socket, 2, 'header');
         if (strlen($header) < 2) {
             return null;
         }
@@ -89,7 +92,7 @@ class BinkpFrame
         $payload = '';
         if ($length > 0) {
             if ($isCommand) {
-                $commandByte = self::readExactly($socket, 1);
+                $commandByte = self::readExactly($socket, 1, 'command');
                 if (strlen($commandByte) < 1) {
                     return null;
                 }
@@ -97,7 +100,7 @@ class BinkpFrame
                 $length--;
                 
                 if ($length > 0) {
-                    $payload = self::readExactly($socket, $length);
+                    $payload = self::readExactly($socket, $length, 'payload');
                     if (strlen($payload) < $length) {
                         return null;
                     }
@@ -105,7 +108,7 @@ class BinkpFrame
                 
                 return new self($length + 1, true, $command, $payload);
             } else {
-                $payload = self::readExactly($socket, $length);
+                $payload = self::readExactly($socket, $length, 'payload');
                 if (strlen($payload) < $length) {
                     return null;
                 }
@@ -114,7 +117,7 @@ class BinkpFrame
         }
         
         if ($isCommand) {
-            $commandByte = self::readExactly($socket, 1);
+            $commandByte = self::readExactly($socket, 1, 'command');
             if (strlen($commandByte) < 1) {
                 return null;
             }
@@ -124,7 +127,7 @@ class BinkpFrame
         return new self($length, $isCommand, 0, '');
     }
     
-    private static function readExactly($socket, $length)
+    private static function readExactly($socket, $length, string $phase = 'read')
     {
         $data = '';
         $remaining = $length;
@@ -137,6 +140,7 @@ class BinkpFrame
             // Check for stream errors or EOF
             if ($chunk === false) {
                 // Actual error occurred
+                self::$lastReadDiagnostics = self::buildReadDiagnostics($socket, $phase, $length, strlen($data), 'read_error');
                 break;
             }
 
@@ -146,16 +150,19 @@ class BinkpFrame
                 $meta = stream_get_meta_data($socket);
                 if ($meta['timed_out']) {
                     // Stream timed out - this is a real timeout
+                    self::$lastReadDiagnostics = self::buildReadDiagnostics($socket, $phase, $length, strlen($data), 'timeout');
                     break;
                 }
                 if ($meta['eof']) {
                     // Connection closed
+                    self::$lastReadDiagnostics = self::buildReadDiagnostics($socket, $phase, $length, strlen($data), 'eof');
                     break;
                 }
 
                 // Temporary empty read - retry a few times
                 $retries++;
                 if ($retries >= $maxRetries) {
+                    self::$lastReadDiagnostics = self::buildReadDiagnostics($socket, $phase, $length, strlen($data), 'empty_read_retries_exhausted');
                     break;
                 }
                 usleep(10000); // 10ms delay before retry
@@ -169,6 +176,26 @@ class BinkpFrame
         }
 
         return $data;
+    }
+
+    private static function buildReadDiagnostics($socket, string $phase, int $requested, int $received, string $reason): array
+    {
+        $meta = is_resource($socket) ? stream_get_meta_data($socket) : [];
+
+        return [
+            'phase' => $phase,
+            'requested' => $requested,
+            'received' => $received,
+            'reason' => $reason,
+            'timed_out' => !empty($meta['timed_out']),
+            'eof' => !empty($meta['eof']),
+            'blocked' => !empty($meta['blocked']),
+        ];
+    }
+
+    public static function getLastReadDiagnostics(): ?array
+    {
+        return self::$lastReadDiagnostics;
     }
     
     public function writeToSocket($socket)

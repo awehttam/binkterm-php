@@ -148,7 +148,11 @@ class BinkpSession
 
         } catch (\Exception $e) {
             $this->log("Handshake failed: " . $e->getMessage(), 'ERROR');
-            $this->sendError($e->getMessage());
+            if ($this->shouldSendHandshakeError()) {
+                $this->sendError($e->getMessage());
+            } else {
+                $this->log("Skipping handshake M_ERR because remote side already closed the connection", 'DEBUG');
+            }
             // Re-throw with the actual error message so caller can see it
             throw new \Exception('Handshake failed: ' . $e->getMessage(), 0, $e);
         }
@@ -189,8 +193,9 @@ class BinkpSession
         $eof = !empty($meta['eof']) ? 'yes' : 'no';
         $blocked = !empty($meta['blocked']) ? 'yes' : 'no';
         $preview = $this->getHandshakeSocketPreview();
+        $read = $this->formatLastReadDiagnostics();
 
-        return "(timed_out={$timedOut}, eof={$eof}, blocked={$blocked}, {$preview})";
+        return "(timed_out={$timedOut}, eof={$eof}, blocked={$blocked}, {$preview}, {$read})";
     }
 
     private function getHandshakeSocketPreview(int $maxBytes = 24): string
@@ -209,6 +214,32 @@ class BinkpSession
         $ascii = preg_replace('/[^\x20-\x7E]/', '.', $peeked);
 
         return 'preview_hex=' . $hex . ', preview_ascii="' . $ascii . '"';
+    }
+
+    private function formatLastReadDiagnostics(): string
+    {
+        $diag = BinkpFrame::getLastReadDiagnostics();
+        if (!is_array($diag)) {
+            return 'read_diag=none';
+        }
+
+        return sprintf(
+            'read_diag_phase=%s, read_diag_reason=%s, read_diag_received=%d/%d',
+            $diag['phase'] ?? 'unknown',
+            $diag['reason'] ?? 'unknown',
+            (int)($diag['received'] ?? 0),
+            (int)($diag['requested'] ?? 0)
+        );
+    }
+
+    private function shouldSendHandshakeError(): bool
+    {
+        if (!is_resource($this->socket)) {
+            return false;
+        }
+
+        $meta = stream_get_meta_data($this->socket);
+        return empty($meta['eof']);
     }
 
     public function processSession()

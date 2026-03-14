@@ -17,6 +17,7 @@
 namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Config;
 
 class BinkpClient
 {
@@ -67,6 +68,7 @@ class BinkpClient
 
         socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
         socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
+        $this->configureTcpNoDelay($socket);
 
         $result = socket_connect($socket, $hostname, $port);
         if ($result === false) {
@@ -185,6 +187,7 @@ class BinkpClient
         
         socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $timeout, 'usec' => 0]);
         socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $timeout, 'usec' => 0]);
+        $this->configureTcpNoDelay($socket);
         
         $startTime = microtime(true);
         $result = socket_connect($socket, $hostname, $port);
@@ -228,6 +231,17 @@ class BinkpClient
         stream_set_blocking($socketResource, true);
 
         return $socketResource;
+    }
+
+    private function configureTcpNoDelay($socket): void
+    {
+        if (!defined('TCP_NODELAY')) {
+            return;
+        }
+
+        $raw = strtolower(trim((string)Config::env('BINKP_TCP_NODELAY', 'true')));
+        $enabled = !in_array($raw, ['0', 'false', 'no', 'off'], true);
+        @socket_set_option($socket, SOL_TCP, TCP_NODELAY, $enabled ? 1 : 0);
     }
     
     public function sendFile($address, $filePath)
