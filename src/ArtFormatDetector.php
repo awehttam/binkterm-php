@@ -7,6 +7,11 @@ namespace BinktermPHP;
  */
 class ArtFormatDetector
 {
+    private const PETSCII_HEURISTIC_MIN_CONTROL_HITS = 4;
+    private const PETSCII_HEURISTIC_MIN_UNIQUE_CONTROLS = 2;
+    private const PETSCII_HEURISTIC_MIN_TEXT_RATIO = 0.70;
+    private const PETSCII_HEURISTIC_MAX_HIGH_BYTE_RATIO = 0.15;
+
     public static function normalizeDetectedEncoding(?string $encoding, ?string $rawBody = null): ?string
     {
         if ($encoding !== null && trim($encoding) !== '') {
@@ -125,16 +130,55 @@ class ArtFormatDetector
         ];
 
         $controlHits = 0;
+        $uniqueControls = [];
         $length = strlen($rawBody);
+        if ($length === 0) {
+            return false;
+        }
+
+        $textishBytes = 0;
+        $highBytes = 0;
+
         for ($i = 0; $i < $length; $i++) {
-            if (in_array(ord($rawBody[$i]), $petsciiControlBytes, true)) {
+            $byte = ord($rawBody[$i]);
+
+            if (in_array($byte, $petsciiControlBytes, true)) {
                 $controlHits++;
-                if ($controlHits >= 2) {
-                    return true;
-                }
+                $uniqueControls[$byte] = true;
+            }
+
+            if (
+                $byte === 0x09 ||
+                $byte === 0x0a ||
+                $byte === 0x0d ||
+                ($byte >= 0x20 && $byte <= 0x7e)
+            ) {
+                $textishBytes++;
+            }
+
+            if ($byte >= 0x80) {
+                $highBytes++;
             }
         }
 
-        return false;
+        if ($controlHits < self::PETSCII_HEURISTIC_MIN_CONTROL_HITS) {
+            return false;
+        }
+
+        if (count($uniqueControls) < self::PETSCII_HEURISTIC_MIN_UNIQUE_CONTROLS) {
+            return false;
+        }
+
+        $textRatio = $textishBytes / $length;
+        if ($textRatio < self::PETSCII_HEURISTIC_MIN_TEXT_RATIO) {
+            return false;
+        }
+
+        $highByteRatio = $highBytes / $length;
+        if ($highByteRatio > self::PETSCII_HEURISTIC_MAX_HIGH_BYTE_RATIO) {
+            return false;
+        }
+
+        return true;
     }
 }
