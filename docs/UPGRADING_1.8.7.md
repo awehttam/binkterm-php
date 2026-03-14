@@ -44,6 +44,8 @@
   index instead of full table count.
 - Kludge lines in the echomail and netmail message readers are now hidden by
   default and toggled via a small icon button in the modal header toolbar.
+- A print button in the message reader opens the message in a clean popup
+  window for printing, with no modal chrome or page background.
 - New interactive nodelist map tab powered by Leaflet. Nodes are geocoded from
   their location field and grouped by system name, with zone colour coding and
   per-network popup detail. A CLI geocoding script (`scripts/geocode_nodelist.php`)
@@ -316,6 +318,10 @@ toggles it open and closed — the button highlights when the panel is visible.
 
 The previous "Show Kludge Lines" button that appeared inside the message body
 has been removed.
+
+A **print button** (printer icon) is also in the toolbar. Clicking it opens
+the message in a minimal popup window and triggers the browser print dialog.
+The popup closes automatically after printing or cancelling.
 
 ## Upgrade Instructions
 
