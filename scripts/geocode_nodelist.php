@@ -29,7 +29,7 @@ if (isset($options['help'])) {
     echo "Usage: php scripts/geocode_nodelist.php [--limit=N] [--force] [--dry-run]\n";
     echo "\n";
     echo "Geocodes nodelist entries that have a location string but no coordinates.\n";
-    echo "Uses the shared bbs_directory_geocode_cache table so cached locations\n";
+    echo "Uses the shared geocode_cache table so cached locations\n";
     echo "are resolved instantly without hitting the Nominatim API.\n";
     echo "\n";
     echo "Options:\n";

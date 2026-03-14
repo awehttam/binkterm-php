@@ -428,7 +428,7 @@ php scripts/update_nodelists.php --help
 
 ## Geocoding
 
-Both the BBS Directory and the Nodelist map use coordinates resolved from location strings via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API. Results are permanently cached in the `bbs_directory_geocode_cache` table, so a given location string is only ever looked up once regardless of which script processed it first.
+Both the BBS Directory and the Nodelist map use coordinates resolved from location strings via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API. Results are permanently cached in the `geocode_cache` table, so a given location string is only ever looked up once regardless of which script processed it first.
 
 The Nominatim API is rate-limited to **one request per second**. Scripts enforce this automatically.
 
@@ -476,13 +476,13 @@ Backfills coordinates for BBS Directory entries that have a location set but no 
 
 ```bash
 # Geocode all pending BBS directory entries
-php scripts/backfill_bbs_directory_geocoding.php
+php scripts/geocode_bbs_directory.php
 
 # Limit to N entries
-php scripts/backfill_bbs_directory_geocoding.php --limit=50
+php scripts/geocode_bbs_directory.php --limit=50
 
 # Preview without writing changes
-php scripts/backfill_bbs_directory_geocoding.php --dry-run
+php scripts/geocode_bbs_directory.php --dry-run
 ```
 
 Options:

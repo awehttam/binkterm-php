@@ -287,7 +287,7 @@ Options:
 - `--dry-run` — show what would be geocoded without making any changes
 
 The script calls the Nominatim geocoding API (rate-limited to one request per
-second) and caches results permanently in the `bbs_directory_geocode_cache`
+second) and caches results permanently in the `geocode_cache`
 table so the same location string is never looked up twice.
 
 Run it once after upgrading to seed initial coordinates, then add it to cron

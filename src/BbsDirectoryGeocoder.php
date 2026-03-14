@@ -68,7 +68,7 @@ class BbsDirectoryGeocoder
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
                 SELECT latitude, longitude
-                FROM bbs_directory_geocode_cache
+                FROM geocode_cache
                 WHERE location_key = ?
                 LIMIT 1
             ");
@@ -96,7 +96,7 @@ class BbsDirectoryGeocoder
         try {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
-                INSERT INTO bbs_directory_geocode_cache (location_key, normalized_location, latitude, longitude, cached_at)
+                INSERT INTO geocode_cache (location_key, normalized_location, latitude, longitude, cached_at)
                 VALUES (:location_key, :normalized_location, :latitude, :longitude, NOW())
                 ON CONFLICT (location_key) DO UPDATE
                 SET normalized_location = EXCLUDED.normalized_location,
