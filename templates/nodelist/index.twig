@@ -58,28 +58,16 @@
             </div>
 
             {% if activeNodelists|length > 0 %}
-                <div class="alert alert-info mb-4 text-center">
-                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }},
-                    <strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }},
-                    <strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
-                    <br>
-                    <small class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }}<br>
-                    {% for nodelist in activeNodelists %}
-                        {{ nodelist.domain|default(t('ui.common.unknown', {}, locale, ['common'])) }}: {{ nodelist.imported_at|date('F d, Y') }}{% if not loop.last %}<br>{% endif %}
-                    {% endfor %}
-                    </small>
+                <div class="alert alert-info py-2 mb-3 text-center small">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
+                    <br><span class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }}
+                    {% for nodelist in activeNodelists %}<span class="badge bg-secondary fw-normal ms-1">{{ nodelist.domain|default(t('ui.common.unknown', {}, locale, ['common'])) }} {{ nodelist.imported_at|date('M d, Y') }}</span>{% endfor %}
+                    </span>
                 </div>
             {% elseif activeNodelist %}
-                <div class="alert alert-info mb-4 text-center">
-                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }},
-                    <strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }},
-                    <strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
-                    <br>
-                    <small class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }} {{ activeNodelist.imported_at|date('F d, Y') }}</small>
+                <div class="alert alert-info py-2 mb-3 text-center small">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
+                    <br><span class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }} {{ activeNodelist.imported_at|date('M d, Y') }}</span>
                 </div>
             {% endif %}
 

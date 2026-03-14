@@ -15,6 +15,7 @@
 - [Database Statistics Page](#database-statistics-page)
 - [Credits System Updates](#credits-system-updates)
 - [Database Performance Improvements](#database-performance-improvements)
+- [Nodelist Map](#nodelist-map)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -40,6 +41,10 @@
   `shared_messages`, and `saved_messages` eliminate millions of unnecessary
   sequential scans. Chat notification polling rewritten to use primary key
   index instead of full table count.
+- New interactive nodelist map tab powered by Leaflet. Nodes are geocoded from
+  their location field and grouped by system name, with zone colour coding and
+  per-network popup detail. A CLI geocoding script (`scripts/geocode_nodelist.php`)
+  can be run manually or via cron to populate coordinates.
 
 ## Enhanced Message Search
 
@@ -251,6 +256,54 @@ three columns. It now queries only messages newer than the last seen message ID
 (`WHERE m.id > ?`), using the primary key index. The last seen position is
 stored as `last_chat_max_id` in user meta. Existing users will have this
 initialized silently on first poll with no false notification badge.
+
+## Nodelist Map
+
+The nodelist page now includes a **Map** tab alongside the existing list view.
+Nodes are plotted on an interactive Leaflet map with marker clustering to keep
+dense areas readable.
+
+**Key features:**
+
+- Nodes with the same system name (across multiple networks) are grouped into a
+  single marker. The popup shows all networks the system belongs to, including
+  the FTN address and a "Send Netmail" link.
+- Markers are colour coded by zone (Z1 = blue, Z2 = green, Z3 = amber,
+  Z4 = red, Z5 = purple, Z6 = teal). Systems on multiple zones use gold.
+  A legend is displayed in the bottom-right corner of the map.
+- Map data loads lazily — only fetched when the Map tab is first opened.
+
+**Geocoding:**
+
+Coordinates are populated by a new CLI script:
+
+```bash
+php scripts/geocode_nodelist.php
+```
+
+Options:
+- `--limit=N` — process at most N nodes (default: 100 per run)
+- `--force` — re-geocode nodes that already have coordinates
+- `--dry-run` — show what would be geocoded without making any changes
+
+The script calls the Nominatim geocoding API (rate-limited to one request per
+second) and caches results permanently in the `bbs_directory_geocode_cache`
+table so the same location string is never looked up twice.
+
+Run it once after upgrading to seed initial coordinates, then add it to cron
+to pick up newly imported nodes:
+
+```
+0 3 * * * php /path/to/scripts/geocode_nodelist.php --limit=200
+```
+
+Geocoding requires the `BBS_DIRECTORY_GEOCODING_ENABLED` environment variable
+to be `true` (the default). See `.env.example` for optional tuning variables
+(`BBS_DIRECTORY_GEOCODER_EMAIL`, `BBS_DIRECTORY_GEOCODER_URL`,
+`BBS_DIRECTORY_GEOCODER_USER_AGENT`).
+
+A new database migration (`v1.11.0.18`) adds `latitude` and `longitude` columns
+to the `nodelist` table. This is applied automatically by `setup.php`.
 
 ## Upgrade Instructions
 
