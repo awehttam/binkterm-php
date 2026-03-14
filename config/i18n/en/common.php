@@ -2571,6 +2571,18 @@ return [
     'ui.echomail.shortcuts.help' => 'Show / hide keyboard shortcuts',
     'ui.echomail.shortcuts.close' => 'Close message',
     'ui.echomail.shortcuts.dismiss' => 'Press ? or H to close this help',
+    'ui.echomail.edit_message' => 'Edit Message',
+    'ui.echomail.edit_message_saved' => 'Changes saved.',
+    'ui.echomail.art_format' => 'Art Format',
+    'ui.echomail.art_format_auto' => 'Auto-detect',
+    'ui.echomail.art_format_plain' => 'Plain text',
+    'ui.echomail.art_format_ansi' => 'ANSI',
+    'ui.echomail.art_format_amiga_ansi' => 'Amiga ANSI',
+    'ui.echomail.art_format_petscii' => 'PETSCII / C64',
+    'ui.echomail.message_charset' => 'Art Encoding',
+    'ui.echomail.message_charset_help' => 'Character encoding of the raw art bytes. Only affects rendering of ANSI/PETSCII art. Leave blank to clear.',
+    'ui.common.db_id' => 'DB ID',
+    'ui.common.message_id' => 'Message ID',
 
     // Admin subscriptions
     'ui.admin_subscriptions.page_title' => 'Admin: Manage Subscriptions',

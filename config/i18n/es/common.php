@@ -2571,6 +2571,18 @@ return [
     'ui.echomail.shortcuts.help' => 'Mostrar / ocultar atajos de teclado',
     'ui.echomail.shortcuts.close' => 'Cerrar mensaje',
     'ui.echomail.shortcuts.dismiss' => 'Presione ? o H para cerrar esta ayuda',
+    'ui.echomail.edit_message' => 'Editar mensaje',
+    'ui.echomail.edit_message_saved' => 'Cambios guardados.',
+    'ui.echomail.art_format' => 'Formato de arte',
+    'ui.echomail.art_format_auto' => 'Deteccion automatica',
+    'ui.echomail.art_format_plain' => 'Texto plano',
+    'ui.echomail.art_format_ansi' => 'ANSI',
+    'ui.echomail.art_format_amiga_ansi' => 'ANSI Amiga',
+    'ui.echomail.art_format_petscii' => 'PETSCII / C64',
+    'ui.echomail.message_charset' => 'Codificacion de arte',
+    'ui.echomail.message_charset_help' => 'Codificacion de caracteres de los bytes de arte sin procesar. Solo afecta la representacion de arte ANSI/PETSCII. Dejar en blanco para borrar.',
+    'ui.common.db_id' => 'ID de base de datos',
+    'ui.common.message_id' => 'ID de mensaje',
 
     // Admin subscriptions
     'ui.admin_subscriptions.page_title' => 'Admin: Gestionar suscripciones',

@@ -2884,6 +2884,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $message['attachments'] = [];
             }
 
+            $message['can_edit'] = ((int)($message['user_id'] ?? 0) === (int)$userId);
             echo json_encode($message);
         } else {
             http_response_code(404);
@@ -2958,6 +2959,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo $content;
         exit;
+    })->where(['id' => '[0-9]+']);
+
+    // Netmail message meta edit endpoint (sender or receiver only)
+    SimpleRouter::post('/messages/netmail/{id}/edit', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db = Database::getInstance()->getPdo();
+
+        // Verify the message exists and belongs to the current user
+        $stmt = $db->prepare('SELECT user_id FROM netmail WHERE id = ?');
+        $stmt->execute([(int)$id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            http_response_code(404);
+            apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        if ((int)$row['user_id'] !== (int)$userId && empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.netmail.edit.forbidden', apiLocalizedText('errors.messages.netmail.edit.forbidden', 'You do not have permission to edit this message', $user));
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $validArtFormats = ['', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+        $artFormat = isset($input['art_format']) ? strtolower(trim((string)$input['art_format'])) : null;
+        $charset   = isset($input['message_charset']) ? strtoupper(trim((string)$input['message_charset'])) : null;
+
+        if ($artFormat !== null && !in_array($artFormat, $validArtFormats, true)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_art_format', apiLocalizedText('errors.messages.echomail.edit.invalid_art_format', 'Invalid art format', $user));
+            return;
+        }
+
+        $setClauses = [];
+        $params     = [];
+
+        if ($artFormat !== null) {
+            $setClauses[] = 'art_format = ?';
+            $params[]     = $artFormat === '' ? null : $artFormat;
+        }
+        if ($charset !== null) {
+            $setClauses[] = 'message_charset = ?';
+            $params[]     = $charset === '' ? null : $charset;
+        }
+
+        if (empty($setClauses)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.nothing_to_update', apiLocalizedText('errors.messages.echomail.edit.nothing_to_update', 'No fields to update', $user));
+            return;
+        }
+
+        $params[] = (int)$id;
+        $stmt = $db->prepare('UPDATE netmail SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+        $stmt->execute($params);
+
+        echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/netmail/bulk-delete', function() {
@@ -3428,6 +3492,63 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
         header('X-Content-Type-Options: nosniff');
         echo $content;
+    })->where(['id' => '[0-9]+']);
+
+    // Echomail message meta edit endpoint (admin only)
+    SimpleRouter::post('/messages/echomail/{id}/edit', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.echomail.edit.admin_required', apiLocalizedText('errors.messages.echomail.edit.admin_required', 'Admin access required', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $validArtFormats = ['', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+        $artFormat = isset($input['art_format']) ? strtolower(trim((string)$input['art_format'])) : null;
+        $charset   = isset($input['message_charset']) ? strtoupper(trim((string)$input['message_charset'])) : null;
+
+        if ($artFormat !== null && !in_array($artFormat, $validArtFormats, true)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_art_format', apiLocalizedText('errors.messages.echomail.edit.invalid_art_format', 'Invalid art format', $user));
+            return;
+        }
+
+        // Build update
+        $setClauses = [];
+        $params     = [];
+
+        if ($artFormat !== null) {
+            $setClauses[] = 'art_format = ?';
+            $params[]     = $artFormat === '' ? null : $artFormat;
+        }
+        if ($charset !== null) {
+            $setClauses[] = 'message_charset = ?';
+            $params[]     = $charset === '' ? null : $charset;
+        }
+
+        if (empty($setClauses)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.nothing_to_update', apiLocalizedText('errors.messages.echomail.edit.nothing_to_update', 'No fields to update', $user));
+            return;
+        }
+
+        $params[] = (int)$id;
+        $stmt = $db->prepare('UPDATE echomail SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+        $stmt->execute($params);
+
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {

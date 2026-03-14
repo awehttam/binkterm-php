@@ -5,6 +5,7 @@
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Message Artwork Encoding Editor](#message-artwork-encoding-editor)
 - [Echomail Art Format Detection](#echomail-art-format-detection)
   - [Existing Misdetected Messages](#existing-misdetected-messages)
   - [psql Instructions](#psql-instructions)
@@ -15,7 +16,33 @@
 
 ## Summary of Changes
 
-1.8.7 is a maintenance release.
+- Sysops can now edit artwork encoding metadata on any echomail message directly
+  from the message reader — no more manual SQL updates for misdetected art format
+  or encoding.
+- Netmail senders and receivers can similarly correct artwork encoding on their
+  own messages.
+- Fixed a false-positive PETSCII detection bug on import.
+
+## Message Artwork Encoding Editor
+
+The message reader now includes an **Edit** button (pencil icon) in the message
+header toolbar. This lets you correct artwork rendering metadata that was
+auto-detected incorrectly at import time, without touching the database manually.
+
+**Who can use it:**
+- **Echomail** — sysops (admin users) only.
+- **Netmail** — the sender or receiver of the message.
+
+**What you can change:**
+- **Art Format** — override the detected artwork type (`Auto`, `Plain Text`,
+  `ANSI`, `Amiga ANSI`, or `PETSCII / C64`). Setting it to `Auto` clears the
+  stored override and lets the renderer decide.
+- **Art Encoding** — the raw byte encoding used when rendering artwork
+  (e.g. `CP437`, `PETSCII`, `UTF-8`). Leave blank for the default.
+
+This is the **preferred way** to fix misdetected messages going forward. The SQL
+approach below remains available for bulk corrections or when direct database
+access is more convenient.
 
 ## Echomail Art Format Detection
 
@@ -97,6 +124,8 @@ Then exit `psql`:
 - This release does not add a schema migration.
 - Resetting these columns only affects rendering hints stored in the database.
 - It does not alter the message body text itself.
+- For individual messages the in-browser editor (see above) is easier and safer
+  than direct SQL. Use the SQL approach for bulk resets or scripted corrections.
 
 ## Upgrade Instructions
 

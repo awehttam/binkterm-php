@@ -1835,6 +1835,61 @@ function navigateMessage(direction) {
 }
 
 
+// Edit message (admin)
+function openEditMessage() {
+    if (!window.isAdmin || !currentMessageData) return;
+    const msg = currentMessageData;
+
+    const dbId = currentMessageId || msg.id;
+    $('#editMessageModalTitle').html(`<i class="fas fa-pencil-alt me-2"></i>${uiT('ui.echomail.edit_message', 'Edit Message')} #${dbId}`);
+    $('#editMsgDbId').text(dbId);
+    $('#editMsgId').text(msg.message_id || '');
+    $('#editMsgDate').text(formatFullDate(msg.date_written));
+    $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
+    $('#editMsgSubject').text(msg.subject || '');
+    $('#editArtFormat').val(msg.art_format || '');
+    $('#editCharset').val(msg.message_charset || '');
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', false);
+
+    $('#editMessageModal').modal('show');
+}
+
+function saveEditMessage() {
+    if (!window.isAdmin || !currentMessageData) return;
+
+    const artFormat = $('#editArtFormat').val();
+    const charset   = $('#editCharset').val().trim();
+
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/edit`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ art_format: artFormat, message_charset: charset }),
+    }).done(function() {
+        // Update local cached data so the list badge reflects the change immediately
+        currentMessageData.art_format     = artFormat || null;
+        currentMessageData.message_charset = charset || null;
+        const listMsg = currentMessages.find(m => m.id == currentMessageId);
+        if (listMsg) {
+            listMsg.art_format = artFormat || null;
+        }
+        // Refresh the list row
+        displayMessages(currentMessages, currentMessages.some(m => m.thread_level > 0));
+        $('#editMessageSuccess').removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    }).fail(function(xhr) {
+        const payload = xhr.responseJSON || {};
+        $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    });
+}
+
 // Sharing functionality
 function showShareDialog(messageId) {
     currentMessageId = messageId;

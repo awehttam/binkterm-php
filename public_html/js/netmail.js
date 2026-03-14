@@ -695,8 +695,59 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     $('#deleteButton').show().off('click').on('click', function() {
         deleteMessage(currentMessageId);
     });
+
+    // Edit button is always shown — getMessage already enforces sender/receiver access
 }
 
+function openEditMessage() {
+    if (!currentMessageData) return;
+    const msg = currentMessageData;
+
+    $('#editMessageModalTitle').html(`<i class="fas fa-pencil-alt me-2"></i>${uiT('ui.echomail.edit_message', 'Edit Message')} #${currentMessageId}`);
+    $('#editMsgDbId').text(currentMessageId);
+    $('#editMsgId').text(msg.message_id || '');
+    $('#editMsgDate').text(formatFullDate(msg.date_written));
+    $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
+    $('#editMsgSubject').text(msg.subject || '');
+    $('#editArtFormat').val(msg.art_format || '');
+    $('#editCharset').val(msg.message_charset || '');
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', false);
+
+    $('#editMessageModal').modal('show');
+}
+
+function saveEditMessage() {
+    if (!currentMessageData) return;
+
+    const artFormat = $('#editArtFormat').val();
+    const charset   = $('#editCharset').val().trim();
+
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/messages/netmail/${currentMessageId}/edit`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ art_format: artFormat, message_charset: charset }),
+    }).done(function() {
+        currentMessageData.art_format      = artFormat || null;
+        currentMessageData.message_charset = charset || null;
+        const listMsg = currentMessages.find(m => m.id == currentMessageId);
+        if (listMsg) {
+            listMsg.art_format = artFormat || null;
+        }
+        $('#editMessageSuccess').removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    }).fail(function(xhr) {
+        const payload = xhr.responseJSON || {};
+        $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    });
+}
 
 function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
