@@ -153,7 +153,9 @@ return [
     'errors.files.upload.read_only' => 'This file area is read-only',
     'errors.files.upload.admin_only' => 'Only administrators can upload files to this area',
     'errors.files.upload.virus_detected' => 'File rejected: virus detected',
+    'errors.files.upload.insufficient_credits' => 'Insufficient credits to upload this file',
     'errors.files.upload.failed' => 'Failed to upload file',
+    'errors.files.download.insufficient_credits' => 'Insufficient credits to download this file',
 
     // Admin Users
     'errors.admin.users.not_found' => 'User not found',

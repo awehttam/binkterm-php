@@ -7,16 +7,18 @@
  * Performs routine cleanup and maintenance on various database tables.
  * Run this script periodically (e.g., daily via cron) to keep the database clean.
  *
- * Usage: php scripts/database_maintenance.php [--verbose] [--dry-run]
+ * Usage: php scripts/database_maintenance.php [--verbose] [--dry-run] [-r|--registration-attempts]
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
 
 // Parse command line arguments
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $dryRun = in_array('--dry-run', $argv);
+$cleanRegistrationAttempts = in_array('--registration-attempts', $argv) || in_array('-r', $argv);
 
 if ($dryRun) {
     echo "DRY RUN MODE - No changes will be made\n";
@@ -37,35 +39,39 @@ try {
     // ========================================================================
     echo "[1] Cleaning old registration attempts...\n";
 
-    // Check if table exists first
-    $tableCheck = $db->query("
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_name = 'registration_attempts'
-        )
-    ");
-
-    if ($tableCheck->fetchColumn()) {
-        if ($dryRun) {
-            $stmt = $db->query("
-                SELECT COUNT(*) as count
-                FROM registration_attempts
-                WHERE attempt_time < NOW() - INTERVAL '30 days'
-            ");
-            $result = $stmt->fetch();
-            echo "    Would delete {$result['count']} registration attempts older than 30 days\n";
-        } else {
-            $stmt = $db->prepare("
-                DELETE FROM registration_attempts
-                WHERE attempt_time < NOW() - INTERVAL '30 days'
-            ");
-            $stmt->execute();
-            $deleted = $stmt->rowCount();
-            $totalCleaned += $deleted;
-            echo "    Deleted $deleted old registration attempts\n";
-        }
+    if (!$cleanRegistrationAttempts) {
+        echo "    Skipping by default; pass -r or --registration-attempts to enable\n";
     } else {
-        echo "    Table 'registration_attempts' does not exist, skipping\n";
+        // Check if table exists first
+        $tableCheck = $db->query("
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'registration_attempts'
+            )
+        ");
+
+        if ($tableCheck->fetchColumn()) {
+            if ($dryRun) {
+                $stmt = $db->query("
+                    SELECT COUNT(*) as count
+                    FROM registration_attempts
+                    WHERE attempt_time < NOW() - INTERVAL '30 days'
+                ");
+                $result = $stmt->fetch();
+                echo "    Would delete {$result['count']} registration attempts older than 30 days\n";
+            } else {
+                $stmt = $db->prepare("
+                    DELETE FROM registration_attempts
+                    WHERE attempt_time < NOW() - INTERVAL '30 days'
+                ");
+                $stmt->execute();
+                $deleted = $stmt->rowCount();
+                $totalCleaned += $deleted;
+                echo "    Deleted $deleted old registration attempts\n";
+            }
+        } else {
+            echo "    Table 'registration_attempts' does not exist, skipping\n";
+        }
     }
 
     // ========================================================================
@@ -153,15 +159,15 @@ try {
     }
 
     // ========================================================================
-    // 5. Clean up expired webshare links
+    // 5. Clean up expired shared message links
     // ========================================================================
-    echo "\n[5] Cleaning expired webshare links...\n";
+    echo "\n[5] Cleaning expired shared message links...\n";
 
     // Check if table exists first
     $tableCheck = $db->query("
         SELECT EXISTS (
             SELECT FROM information_schema.tables
-            WHERE table_name = 'webshare'
+            WHERE table_name = 'shared_messages'
         )
     ");
 
@@ -169,31 +175,69 @@ try {
         if ($dryRun) {
             $stmt = $db->query("
                 SELECT COUNT(*) as count
-                FROM webshare
+                FROM shared_messages
                 WHERE expires_at IS NOT NULL AND expires_at < NOW()
             ");
             $result = $stmt->fetch();
-            echo "    Would delete {$result['count']} expired webshare links\n";
+            echo "    Would delete {$result['count']} expired shared message links\n";
         } else {
             $stmt = $db->prepare("
-                DELETE FROM webshare
+                DELETE FROM shared_messages
                 WHERE expires_at IS NOT NULL AND expires_at < NOW()
             ");
             $stmt->execute();
             $deleted = $stmt->rowCount();
             $totalCleaned += $deleted;
-            echo "    Deleted $deleted expired webshare links\n";
+            echo "    Deleted $deleted expired shared message links\n";
         }
     } else {
-        echo "    Table 'webshare' does not exist, skipping\n";
+        echo "    Table 'shared_messages' does not exist, skipping\n";
+    }
+
+    // ========================================================================
+    // 6. Clean up expired shared file links
+    // ========================================================================
+    echo "\n[6] Cleaning expired shared file links...\n";
+
+    $tableCheck = $db->query("
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'shared_files'
+        )
+    ");
+
+    if ($tableCheck->fetchColumn()) {
+        if ($dryRun) {
+            $stmt = $db->query("
+                SELECT COUNT(*) as count
+                FROM shared_files
+                WHERE expires_at IS NOT NULL AND expires_at < NOW()
+            ");
+            $result = $stmt->fetch();
+            echo "    Would deactivate {$result['count']} expired shared file links\n";
+        } else {
+            $stmt = $db->prepare("
+                UPDATE shared_files
+                SET is_active = FALSE
+                WHERE is_active = TRUE
+                    AND expires_at IS NOT NULL
+                    AND expires_at < NOW()
+            ");
+            $stmt->execute();
+            $deactivated = $stmt->rowCount();
+            $totalCleaned += $deactivated;
+            echo "    Deactivated $deactivated expired shared file links\n";
+        }
+    } else {
+        echo "    Table 'shared_files' does not exist, skipping\n";
     }
 
 
     // ========================================================================
-    // 6. Clean up old rejected pending users (older than 90 days)
+    // 7. Clean up old rejected pending users (older than 90 days)
     // ========================================================================
     if(0) { // TODO: Check if .env variable is set and use for number of days
-        echo "\n[6] Cleaning old rejected pending users...\n";
+        echo "\n[7] Cleaning old rejected pending users...\n";
 
         if ($dryRun) {
             $stmt = $db->query("
@@ -216,42 +260,6 @@ try {
             echo "    Deleted $deleted old rejected pending users\n";
         }
     }
-    // ========================================================================
-    // 7. Clean up old login attempts (older than 30 days)
-    // ========================================================================
-    echo "\n[7] Cleaning old login attempts...\n";
-
-    // Check if table exists first
-    $tableCheck = $db->query("
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_name = 'login_attempts'
-        )
-    ");
-
-    if ($tableCheck->fetchColumn()) {
-        if ($dryRun) {
-            $stmt = $db->query("
-                SELECT COUNT(*) as count
-                FROM login_attempts
-                WHERE attempt_time < NOW() - INTERVAL '30 days'
-            ");
-            $result = $stmt->fetch();
-            echo "    Would delete {$result['count']} old login attempts\n";
-        } else {
-            $stmt = $db->prepare("
-                DELETE FROM login_attempts
-                WHERE attempt_time < NOW() - INTERVAL '30 days'
-            ");
-            $stmt->execute();
-            $deleted = $stmt->rowCount();
-            $totalCleaned += $deleted;
-            echo "    Deleted $deleted old login attempts\n";
-        }
-    } else {
-        echo "    Table 'login_attempts' does not exist, skipping\n";
-    }
-
     // ========================================================================
     // 8. PostgreSQL VACUUM and ANALYZE (if not dry run)
     // ========================================================================

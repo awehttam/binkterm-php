@@ -153,7 +153,9 @@ return [
     'errors.files.upload.read_only' => 'Esta area de archivos es de solo lectura',
     'errors.files.upload.admin_only' => 'Solo los administradores pueden subir archivos a esta area',
     'errors.files.upload.virus_detected' => 'Archivo rechazado: virus detectado',
+    'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
+    'errors.files.download.insufficient_credits' => 'No tiene creditos suficientes para descargar este archivo',
 
     // Admin Users
     'errors.admin.users.not_found' => 'Usuario no encontrado',

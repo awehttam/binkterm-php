@@ -2280,6 +2280,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Properly encode filename for Content-Disposition header (RFC 6266 & RFC 5987)
         $filename = basename($file['filename']);
         $encodedFilename = rawurlencode($filename);
+        $downloadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
+        $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
+
+        if ($downloadCost > 0) {
+            $debitSuccess = UserCredit::debit(
+                (int)$userId,
+                $downloadCost,
+                "Downloaded file: {$filename}",
+                null,
+                UserCredit::TYPE_PAYMENT
+            );
+            if (!$debitSuccess) {
+                http_response_code(402);
+                echo apiLocalizedText('errors.files.download.insufficient_credits', 'Insufficient credits to download this file', $user);
+                return;
+            }
+        }
+
+        if ($downloadReward > 0) {
+            $creditSuccess = UserCredit::credit(
+                (int)$userId,
+                $downloadReward,
+                "Download reward: {$filename}",
+                null,
+                UserCredit::TYPE_SYSTEM_REWARD
+            );
+            if (!$creditSuccess) {
+                error_log("Failed to award file download credits for user {$userId} and file {$id}");
+            }
+        }
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
 
@@ -2438,6 +2468,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $uploadCostCharged = false;
+        $uploadCost = 0;
+
         try {
             if (!isset($_FILES['file'])) {
                 throw new \Exception('No file uploaded');
@@ -2475,7 +2509,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Get user's FidoNet address or username
             $uploadedBy = $user['username'] ?? 'Unknown';
-            $ownerId = $user['user_id'] ?? $user['id'] ?? null;
+            $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $uploadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
+            $uploadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+
+            if ($uploadCost > 0) {
+                $uploadCostCharged = UserCredit::debit(
+                    $ownerId,
+                    $uploadCost,
+                    "Uploaded file cost: " . ($_FILES['file']['name'] ?? 'unknown'),
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$uploadCostCharged) {
+                    throw new \Exception('Insufficient credits for file upload');
+                }
+            }
+
             $fileId = $manager->uploadFile(
                 $fileAreaId,
                 $_FILES['file'],
@@ -2484,6 +2534,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $uploadedBy,
                 $ownerId
             );
+
+            if ($uploadReward > 0) {
+                $creditSuccess = UserCredit::credit(
+                    $ownerId,
+                    $uploadReward,
+                    "Upload reward: " . ($_FILES['file']['name'] ?? 'unknown'),
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    error_log("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
+                }
+            }
 
             ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $_FILES['file']['name'] ?? null, ['file_area_id' => $fileAreaId]);
 
@@ -2494,6 +2557,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
+            if ($uploadCostCharged && $uploadCost > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $uploadCost,
+                    'Refund: File upload failed',
+                    null,
+                    UserCredit::TYPE_REFUND
+                );
+            }
+
             http_response_code(400);
             $message = $e->getMessage();
             if ($message === 'No file uploaded') {
@@ -2508,6 +2581,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
             } elseif ($message === 'Only administrators can upload files to this area.') {
                 apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Insufficient credits for file upload') {
+                apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
             } elseif ($message === 'File rejected: virus detected.') {
                 \BinktermPHP\Admin\AdminDaemonClient::log('WARNING', 'Infected file upload rejected', [
                     'username'  => $user['username'] ?? 'unknown',

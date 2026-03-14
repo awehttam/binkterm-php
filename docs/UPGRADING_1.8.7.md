@@ -13,6 +13,7 @@
   - [psql Instructions](#psql-instructions)
   - [Notes](#notes)
 - [Database Statistics Page](#database-statistics-page)
+- [Credits System Updates](#credits-system-updates)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -32,6 +33,8 @@
 - New admin **Database Statistics** page (`/admin/database-stats`) showing size
   and growth, activity metrics, query performance, replication status, maintenance
   health, and index health.
+- Added configurable file upload and file download credit costs/rewards in the
+  **Credits System Configuration** page.
 
 ## Enhanced Message Search
 
@@ -188,6 +191,30 @@ CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 Then add it to `shared_preload_libraries` in `postgresql.conf` and restart
 PostgreSQL. The statistics page works without it but the slow/frequent query
 tabs will be empty.
+
+## Credits System Updates
+
+This release adds four new optional credits settings:
+
+- `file_upload_cost`
+- `file_upload_reward`
+- `file_download_cost`
+- `file_download_reward`
+
+These settings are available in **Admin -> BBS Settings -> Credits System Configuration**.
+
+No database migration is required for these options. They are configuration-only
+settings and default to `0` if not present in an older `config/bbs.json`.
+
+If you manage `config/bbs.json` manually, you can add them under the `credits`
+section:
+
+```json
+"file_upload_cost": 0,
+"file_upload_reward": 0,
+"file_download_cost": 0,
+"file_download_reward": 0
+```
 
 ## Upgrade Instructions
 

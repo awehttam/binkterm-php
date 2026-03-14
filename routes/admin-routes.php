@@ -842,6 +842,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['poll_creation_cost'] ?? null) || (int)$credits['poll_creation_cost'] < 0) {
                         throw new Exception('Poll creation cost must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['file_upload_cost'] ?? 0) || (int)($credits['file_upload_cost'] ?? 0) < 0) {
+                        throw new Exception('File upload cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_upload_reward'] ?? 0) || (int)($credits['file_upload_reward'] ?? 0) < 0) {
+                        throw new Exception('File upload reward must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_download_cost'] ?? 0) || (int)($credits['file_download_cost'] ?? 0) < 0) {
+                        throw new Exception('File download cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_download_reward'] ?? 0) || (int)($credits['file_download_reward'] ?? 0) < 0) {
+                        throw new Exception('File download reward must be a non-negative integer');
+                    }
                     if (!is_numeric($credits['return_14days'] ?? null) || (int)$credits['return_14days'] < 0) {
                         throw new Exception('14-day return bonus must be a non-negative integer');
                     }
@@ -861,6 +873,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'echomail_reward' => (int)$credits['echomail_reward'],
                         'crashmail_cost' => (int)$credits['crashmail_cost'],
                         'poll_creation_cost' => (int)$credits['poll_creation_cost'],
+                        'file_upload_cost' => (int)($credits['file_upload_cost'] ?? 0),
+                        'file_upload_reward' => (int)($credits['file_upload_reward'] ?? 0),
+                        'file_download_cost' => (int)($credits['file_download_cost'] ?? 0),
+                        'file_download_reward' => (int)($credits['file_download_reward'] ?? 0),
                         'return_14days' => (int)$credits['return_14days'],
                         'transfer_fee_percent' => (float)$credits['transfer_fee_percent'],
                         'referral_enabled' => !empty($credits['referral_enabled']),
