@@ -8,21 +8,38 @@
 <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.Default.css">
 <style>
     .nodelist-map-shell {
-        border-radius: var(--bs-card-border-radius, 0.375rem);
-        overflow: hidden;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border-color: rgba(148, 163, 184, 0.18);
+        color: #e2e8f0;
     }
     #nodelistMap {
         height: 520px;
         width: 100%;
-        background: #e8e0d8;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 0.5rem;
+        background: #111827;
+    }
+    #nodelistMap .leaflet-tile-pane {
+        filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+    }
+    #nodelistMap .leaflet-control-container .leaflet-bar a,
+    #nodelistMap .leaflet-control-zoom a {
+        background: rgba(15, 23, 42, 0.92);
+        color: #e2e8f0;
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+    #nodelistMap .leaflet-control-container .leaflet-bar a:hover,
+    #nodelistMap .leaflet-control-zoom a:hover {
+        background: rgba(30, 41, 59, 0.98);
+        color: #fff;
     }
     #nodelistMap .leaflet-popup-content-wrapper,
     #nodelistMap .leaflet-popup-tip {
-        background: var(--bs-body-bg, #fff);
-        color: var(--bs-body-color, #212529);
+        background: #111827;
+        color: #e2e8f0;
     }
     #nodelistMap .leaflet-popup-content a {
-        color: var(--bs-link-color, #0d6efd);
+        color: #93c5fd;
     }
     .context-menu {
         background-color: var(--bs-body-bg, #fff);
