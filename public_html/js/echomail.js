@@ -852,6 +852,31 @@ function cycleRenderMode() {
     renderCurrentMessageBody();
 }
 
+function printMessage() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    win.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title>'
+        + '<style>'
+        + 'body{font-family:sans-serif;font-size:11pt;padding:1.5cm;color:#000;background:#fff}'
+        + '.message-header-full{border-bottom:1px solid #ccc;margin-bottom:1em;padding-bottom:.5em}'
+        + '.message-header-full strong{color:#333}'
+        + 'pre{white-space:pre-wrap;word-break:break-word;font-size:10pt;background:#f8f9fa;border:1px solid #dee2e6;padding:.75em;border-radius:4px}'
+        + '.message-origin{border-top:1px solid #ccc;margin-top:1em;padding-top:.5em;font-size:9pt;color:#666}'
+        + 'a{color:#000;text-decoration:none}'
+        + 'button,i.fas,i.far,.badge,.btn,#ansiRenderBadge,.modal-header-save-icon{display:none!important}'
+        + '</style>'
+        + '</head><body>'
+        + content.innerHTML
+        + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.onafterprint = function() { win.close(); };
+    win.print();
+}
+
 function downloadCurrentMessage() {
     if (!currentMessageId || !currentMessageData) {
         return;

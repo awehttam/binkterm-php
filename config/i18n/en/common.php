@@ -100,6 +100,7 @@ return [
     'ui.common.previous_message' => 'Previous message',
     'ui.common.next_message' => 'Next message',
     'ui.common.toggle_fullscreen' => 'Toggle fullscreen',
+    'ui.common.print' => 'Print message',
     'ui.common.cancel' => 'Cancel',
     'ui.common.clear_search' => 'Clear Search',
     'ui.common.save' => 'Save',

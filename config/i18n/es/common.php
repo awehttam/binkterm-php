@@ -100,6 +100,7 @@ return [
     'ui.common.previous_message' => 'Mensaje anterior',
     'ui.common.next_message' => 'Mensaje siguiente',
     'ui.common.toggle_fullscreen' => 'Alternar pantalla completa',
+    'ui.common.print' => 'Imprimir mensaje',
     'ui.common.cancel' => 'Cancelar',
     'ui.common.clear_search' => 'Limpiar busqueda',
     'ui.common.save' => 'Guardar',
