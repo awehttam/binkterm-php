@@ -270,22 +270,44 @@
     let nodelistMap = null;
     let mapLoaded   = false;
 
-    // Zone colour palette. Zone 0 / unknown = grey. Multi-zone = gold.
-    const ZONE_COLOURS = {
-        1: '#4a90d9', // North America — blue
-        2: '#5cb85c', // Europe — green
-        3: '#e8a838', // Australasia — amber
-        4: '#d9534f', // Latin America — red
-        5: '#9b59b6', // Africa — purple
-        6: '#1abc9c', // Asia/Pacific — teal
-    };
-    const COLOUR_MULTI   = '#f39c12'; // gold — multiple zones
-    const COLOUR_UNKNOWN = '#95a5a6'; // grey — zone 0 or unrecognised
+    // Network domain colour palette — assigned dynamically as domains are encountered.
+    const DOMAIN_PALETTE = [
+        '#4a90d9', // blue
+        '#5cb85c', // green
+        '#d9534f', // red
+        '#9b59b6', // purple
+        '#1abc9c', // teal
+        '#e8a838', // amber
+        '#e67e22', // orange
+        '#e91e8c', // pink
+        '#00bcd4', // cyan
+        '#8bc34a', // lime
+    ];
+    const COLOUR_MULTI   = '#f39c12'; // gold — node on multiple networks
+    const COLOUR_UNKNOWN = '#95a5a6'; // grey — no network info
 
-    function zoneColour(zones) {
-        if (!zones || zones.length === 0) return COLOUR_UNKNOWN;
-        if (zones.length > 1) return COLOUR_MULTI;
-        return ZONE_COLOURS[zones[0]] || COLOUR_UNKNOWN;
+    // Built during initMap from the data.
+    const domainColourMap = {};
+
+    function assignDomainColours(nodes) {
+        let idx = 0;
+        nodes.forEach(function(node) {
+            (node.networks || []).forEach(function(net) {
+                const d = (net.domain || '').toLowerCase();
+                if (d && !domainColourMap[d]) {
+                    domainColourMap[d] = DOMAIN_PALETTE[idx % DOMAIN_PALETTE.length];
+                    idx++;
+                }
+            });
+        });
+    }
+
+    function domainColour(networks) {
+        if (!networks || networks.length === 0) return COLOUR_UNKNOWN;
+        const domains = [...new Set(networks.map(function(n) { return (n.domain || '').toLowerCase(); }).filter(Boolean))];
+        if (domains.length === 0) return COLOUR_UNKNOWN;
+        if (domains.length > 1)   return COLOUR_MULTI;
+        return domainColourMap[domains[0]] || COLOUR_UNKNOWN;
     }
 
     function makeIcon(colour) {
@@ -335,24 +357,21 @@
             options: { position: 'bottomright' },
             onAdd: function() {
                 const div = L.DomUtil.create('div');
-                div.style.cssText = 'background:var(--bs-body-bg,#fff);padding:6px 9px;border-radius:4px;'
-                    + 'border:1px solid var(--bs-border-color,#ccc);font-size:12px;line-height:1.7;'
-                    + 'color:var(--bs-body-color,#212529)';
-                const entries = [
-                    [ZONE_COLOURS[1], 'Zone 1 — North America'],
-                    [ZONE_COLOURS[2], 'Zone 2 — Europe'],
-                    [ZONE_COLOURS[3], 'Zone 3 — Australasia'],
-                    [ZONE_COLOURS[4], 'Zone 4 — Latin America'],
-                    [ZONE_COLOURS[5], 'Zone 5 — Africa'],
-                    [ZONE_COLOURS[6], 'Zone 6 — Asia/Pacific'],
-                    [COLOUR_MULTI,    'Multiple networks'],
-                    [COLOUR_UNKNOWN,  'Unknown zone'],
-                ];
-                div.innerHTML = entries.map(function(e) {
+                div.style.cssText = 'background:rgba(17,24,39,0.92);padding:6px 9px;border-radius:4px;'
+                    + 'border:1px solid rgba(148,163,184,0.2);font-size:12px;line-height:1.9;'
+                    + 'color:#e2e8f0';
+                const dot = function(colour) {
                     return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'
-                        + 'background:' + e[0] + ';border:1px solid rgba(0,0,0,0.3);margin-right:5px;vertical-align:middle"></span>'
-                        + escapeHtml(e[1]);
-                }).join('<br>');
+                        + 'background:' + colour + ';border:1px solid rgba(0,0,0,0.3);margin-right:5px;vertical-align:middle"></span>';
+                };
+                const entries = Object.keys(domainColourMap).sort().map(function(d) {
+                    return dot(domainColourMap[d]) + escapeHtml(d);
+                });
+                if (Object.keys(domainColourMap).length > 1) {
+                    entries.push(dot(COLOUR_MULTI) + 'Multiple networks');
+                }
+                entries.push(dot(COLOUR_UNKNOWN) + 'Unknown');
+                div.innerHTML = entries.join('<br>');
                 return div;
             }
         });
@@ -371,6 +390,8 @@
             document.getElementById('nodelistMap').style.display = 'none';
             return;
         }
+
+        assignDomainColours(nodes);
 
         nodelistMap = L.map('nodelistMap', { scrollWheelZoom: true });
         addFullscreenControl();
@@ -396,7 +417,7 @@
             const lon = Number(node.longitude);
             if (!isFinite(lat) || !isFinite(lon)) return;
 
-            const colour = zoneColour(node.zones);
+            const colour = domainColour(node.networks);
             const parts  = ['<div style="min-width:180px;max-width:260px">'];
 
             parts.push('<strong>' + escapeHtml(node.system_name || '(unnamed)') + '</strong>');
@@ -407,7 +428,7 @@
             parts.push('<hr style="margin:4px 0">');
             (node.networks || []).forEach(function(net) {
                 const dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
-                    + 'background:' + (ZONE_COLOURS[net.zone] || COLOUR_UNKNOWN) + ';border:1px solid rgba(0,0,0,0.3);'
+                    + 'background:' + (domainColourMap[(net.domain || '').toLowerCase()] || COLOUR_UNKNOWN) + ';border:1px solid rgba(0,0,0,0.3);'
                     + 'margin-right:4px;vertical-align:middle"></span>';
                 let row = dot + '<code style="font-size:11px">' + escapeHtml(net.address) + '</code>';
                 if (net.inet_host) {
