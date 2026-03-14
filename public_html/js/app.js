@@ -98,7 +98,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null, storedBotto
 }
 
 // Smart text processing for mobile-friendly rendering
-function formatMessageText(messageText, searchTerms = []) {
+function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     if (!messageText || messageText.trim() === '') {
         return '';
     }
@@ -120,7 +120,7 @@ function formatMessageText(messageText, searchTerms = []) {
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
 
-    const shouldRenderAnsiArt = hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30));
     const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : '';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
@@ -230,6 +230,159 @@ function formatMessageText(messageText, searchTerms = []) {
     }
 
     return `<div class="message-formatted">${formattedLines.join('')}</div>`;
+}
+
+function formatPlainMessageText(messageText, searchTerms = []) {
+    if (!messageText || messageText.trim() === '') {
+        return '';
+    }
+
+    if (!searchTerms || searchTerms.length === 0) {
+        searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
+    let plainText = messageText;
+    if (window.hasPipeCodes && window.hasPipeCodes(plainText) && window.convertPipeCodesToAnsi) {
+        plainText = window.convertPipeCodesToAnsi(plainText);
+    }
+    if (window.stripAllAnsi) {
+        plainText = window.stripAllAnsi(plainText);
+    }
+
+    let escaped = escapeHtml(plainText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    escaped = linkifyUrls(escaped);
+    if (searchTerms && searchTerms.length > 0) {
+        escaped = highlightSearchTerms(escaped, searchTerms);
+    }
+
+    return `<div class="message-formatted"><pre class="mb-0" style="white-space: pre-wrap;">${escaped}</pre></div>`;
+}
+
+function normalizeViewerRenderMode(mode) {
+    const normalized = String(mode || 'auto').toLowerCase();
+    if (normalized === 'plain') {
+        return 'plain';
+    }
+    if (window.normalizeArtFormat) {
+        return window.normalizeArtFormat(normalized);
+    }
+    return normalized || 'auto';
+}
+
+function getNextViewerRenderMode(mode) {
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const normalized = normalizeViewerRenderMode(mode);
+    const currentIndex = modes.indexOf(normalized);
+    return modes[(currentIndex + 1 + modes.length) % modes.length];
+}
+
+function getViewerRenderModeLabel(mode) {
+    const normalized = normalizeViewerRenderMode(mode);
+    switch (normalized) {
+        case 'ansi':
+            return window.t ? window.t('ui.echomail.viewer_mode_ansi', {}, 'ANSI') : 'ANSI';
+        case 'amiga_ansi':
+            return window.t ? window.t('ui.echomail.viewer_mode_amiga_ansi', {}, 'Amiga ANSI') : 'Amiga ANSI';
+        case 'petscii':
+            return window.t ? window.t('ui.echomail.viewer_mode_petscii', {}, 'PETSCII') : 'PETSCII';
+        case 'plain':
+            return window.t ? window.t('ui.echomail.viewer_mode_plain', {}, 'Plain Text') : 'Plain Text';
+        default:
+            return window.t ? window.t('ui.echomail.viewer_mode_auto', {}, 'Auto') : 'Auto';
+    }
+}
+
+function getMarkupFormatLabel(message) {
+    const markupFormat = String(message?.markup_format || '').toLowerCase();
+    switch (markupFormat) {
+        case 'markdown':
+            return window.t ? window.t('ui.echomail.markup_markdown', {}, 'Markdown') : 'Markdown';
+        case 'stylecodes':
+            return window.t ? window.t('ui.echomail.markup_stylecodes', {}, 'StyleCodes') : 'StyleCodes';
+        default:
+            return '';
+    }
+}
+
+function getViewerModeToastLabel(mode, message = null) {
+    const normalized = normalizeViewerRenderMode(mode);
+    const modeLabel = getViewerRenderModeLabel(normalized);
+    const markupLabel = getMarkupFormatLabel(message);
+
+    if (!markupLabel || !message?.markup_html) {
+        return modeLabel;
+    }
+
+    if (normalized === 'auto') {
+        return window.t
+            ? window.t('ui.echomail.viewer_mode_rendered_markup', { format: markupLabel }, 'Rendered {format}')
+            : `Rendered ${markupLabel}`;
+    }
+
+    return window.t
+        ? window.t('ui.echomail.viewer_mode_markup_source', { format: markupLabel, mode: modeLabel }, '{format} Source ({mode})')
+        : `${markupLabel} Source (${modeLabel})`;
+}
+
+function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
+    const text = bodyText || '';
+    let forcePlainText = !!forcePlain;
+    let formatOverride = null;
+    if (typeof forcePlain === 'object' && forcePlain !== null) {
+        forcePlainText = !!forcePlain.forcePlain;
+        formatOverride = forcePlain.formatOverride || null;
+    }
+
+    const messageArtFormat = window.normalizeArtFormat ? window.normalizeArtFormat(message?.art_format || 'auto') : (message?.art_format || 'auto');
+    const requestedFormat = normalizeViewerRenderMode(formatOverride || messageArtFormat || 'auto');
+    const rawBytesB64 = message?.message_bytes_b64 || null;
+
+    if (!text || text.trim() === '') {
+        return '';
+    }
+
+    if (!searchTerms || searchTerms.length === 0) {
+        searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
+    if (forcePlainText || requestedFormat === 'plain') {
+        return formatPlainMessageText(text, searchTerms);
+    }
+
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(text);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
+    const hasColorCodes = hasAnsi || hasPipes;
+    const lines = text.split(/\r?\n/);
+    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
+    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
+    const explicitBinaryArtMode = ['amiga_ansi', 'petscii'].includes(requestedFormat);
+    const shouldRenderAnsiArt = !forcePlainText && (
+        explicitBinaryArtMode ||
+        hasCursorAnsi ||
+        (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) ||
+        (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30)
+    );
+
+    if (shouldRenderAnsiArt) {
+        const renderFormat = explicitBinaryArtMode ? requestedFormat : 'ansi';
+        let rendered = renderArtMessage(text, {
+            format: renderFormat,
+            bytesBase64: rawBytesB64,
+            cols: renderFormat === 'petscii' ? 40 : 80,
+            rows: 500
+        });
+        rendered = linkifyUrls(rendered);
+        if (searchTerms && searchTerms.length > 0) {
+            rendered = highlightSearchTerms(rendered, searchTerms);
+        }
+        const profileClass = window.getArtProfileClass ? window.getArtProfileClass(renderFormat) : 'art-format-ansi';
+        return `<div class="ansi-art-container ${profileClass}"><pre class="ansi-art ${profileClass}">${rendered}</pre></div>`;
+    }
+
+    return formatMessageText(text, searchTerms, false);
 }
 
 // Helper function to highlight search terms in escaped HTML text
@@ -393,7 +546,13 @@ function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
         output += bottomKludges.map(line => formatSingleKludgeLine(line)).join('\n');
     }
 
-    return output || 'No kludge lines found';
+    if (output) {
+        return output;
+    }
+    if (window.t) {
+        return window.t('ui.common.no_kludge_lines_found', {}, 'No kludge lines found');
+    }
+    return 'No kludge lines found';
 }
 
 function toggleKludgeLines() {
@@ -404,16 +563,145 @@ function toggleKludgeLines() {
     if (container.is(':visible')) {
         container.slideUp();
         icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text('Show Kludge Lines');
+        text.text(window.t ? window.t('ui.common.show_kludge_lines', {}, 'Show Kludge Lines') : 'Show Kludge Lines');
     } else {
         container.slideDown();
         icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text('Hide Kludge Lines');
+        text.text(window.t ? window.t('ui.common.hide_kludge_lines', {}, 'Hide Kludge Lines') : 'Hide Kludge Lines');
     }
 }
 
 // Global user settings object
 window.userSettings = {};
+
+// Lightweight i18n client state with lazy namespace loading.
+window.i18n = window.i18n || {
+    locale: window.appLocale || 'en',
+    defaultLocale: window.appDefaultLocale || 'en',
+    catalogs: {},
+    loadedNamespaces: {}
+};
+
+function i18nInterpolate(template, params = {}) {
+    let output = String(template || '');
+    Object.keys(params || {}).forEach(function(key) {
+        const token = new RegExp(`\\{${key}\\}`, 'g');
+        output = output.replace(token, String(params[key]));
+    });
+    return output;
+}
+
+function i18nLookup(key) {
+    const catalogs = window.i18n?.catalogs || {};
+    for (const ns of Object.keys(catalogs)) {
+        if (Object.prototype.hasOwnProperty.call(catalogs[ns], key)) {
+            return catalogs[ns][key];
+        }
+    }
+    return null;
+}
+
+function t(key, params = {}, fallback = '') {
+    const value = i18nLookup(key);
+    if (typeof value === 'string') {
+        return i18nInterpolate(value, params);
+    }
+    if (fallback) {
+        return i18nInterpolate(fallback, params);
+    }
+    return key;
+}
+
+window.t = t;
+
+function getApiErrorMessage(payload, fallback = 'An unexpected error occurred.') {
+    if (!payload || typeof payload !== 'object') {
+        return fallback;
+    }
+    if (payload.error_code) {
+        const params = payload.error_params && typeof payload.error_params === 'object'
+            ? payload.error_params
+            : {};
+        return t(payload.error_code, params, payload.error || fallback);
+    }
+    if (payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
+window.getApiErrorMessage = getApiErrorMessage;
+
+function getApiMessage(payload, fallback = '') {
+    if (!payload || typeof payload !== 'object') {
+        return fallback;
+    }
+    if (payload.message_code) {
+        const params = payload.message_params && typeof payload.message_params === 'object'
+            ? payload.message_params
+            : {};
+        return t(payload.message_code, params, payload.message || fallback);
+    }
+    if (payload.message) {
+        return String(payload.message);
+    }
+    return fallback;
+}
+
+window.getApiMessage = getApiMessage;
+
+function mergeCatalogs(catalogs) {
+    if (!catalogs || typeof catalogs !== 'object') {
+        return;
+    }
+    Object.keys(catalogs).forEach(function(ns) {
+        if (!window.i18n.catalogs[ns]) {
+            window.i18n.catalogs[ns] = {};
+        }
+        Object.assign(window.i18n.catalogs[ns], catalogs[ns] || {});
+        window.i18n.loadedNamespaces[ns] = true;
+    });
+}
+
+function loadI18nNamespaces(namespaces = []) {
+    const normalized = (namespaces || [])
+        .map(ns => String(ns || '').trim())
+        .filter(ns => ns.length > 0);
+    if (normalized.length === 0) {
+        return Promise.resolve();
+    }
+
+    const missing = normalized.filter(ns => !window.i18n.loadedNamespaces[ns]);
+    if (missing.length === 0) {
+        return Promise.resolve();
+    }
+
+    const nsParam = encodeURIComponent(missing.join(','));
+    const localeParam = encodeURIComponent(window.i18n.locale || window.appLocale || 'en');
+
+    return fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('i18n catalog load failed');
+            }
+            return response.json();
+        })
+        .then(function(payload) {
+            if (!payload || !payload.success) {
+                throw new Error('invalid i18n payload');
+            }
+            if (payload.locale) {
+                window.i18n.locale = payload.locale;
+            }
+            if (payload.default_locale) {
+                window.i18n.defaultLocale = payload.default_locale;
+            }
+            mergeCatalogs(payload.catalogs || {});
+        })
+        .catch(function() {
+            // Non-fatal in Phase 0: app keeps English literals as fallback.
+        });
+}
 
 $(document).ready(function() {
     // Load user settings on page load
@@ -464,7 +752,11 @@ $(document).ready(function() {
 
 // Unified user settings management
 function loadUserSettings() {
-    return new Promise(function(resolve, reject) {
+    if (window.__userSettingsPromise) {
+        return window.__userSettingsPromise;
+    }
+
+    window.__userSettingsPromise = new Promise(function(resolve, reject) {
         $.get('/api/user/settings')
             .done(function(response) {
                 if (response.success && response.settings) {
@@ -476,10 +768,14 @@ function loadUserSettings() {
                     window.userSettings = response;
                     console.log('Loaded user settings (legacy format):', window.userSettings);
                 }
-                
-                // Apply font settings after loading
-                applyFontSettings();
-                resolve(window.userSettings);
+
+                window.i18n.locale = window.userSettings.locale || window.appLocale || window.i18n.locale || 'en';
+
+                loadI18nNamespaces(window.appI18nNamespaces || ['common']).finally(function() {
+                    // Apply font settings after loading
+                    applyFontSettings();
+                    resolve(window.userSettings);
+                });
             })
             .fail(function() {
                 console.log('Failed to load user settings, using defaults');
@@ -491,16 +787,22 @@ function loadUserSettings() {
                     quote_coloring: true,
                     default_sort: 'date_desc',
                     timezone: 'America/Los_Angeles',
+                    locale: window.appLocale || 'en',
                     font_family: 'Courier New, Monaco, Consolas, monospace',
                     font_size: 16,
                     signature_text: ''
                 };
-                
-                // Apply font settings after loading defaults
-                applyFontSettings();
-                resolve(window.userSettings);
+
+                window.i18n.locale = window.userSettings.locale || window.appLocale || 'en';
+                loadI18nNamespaces(window.appI18nNamespaces || ['common']).finally(function() {
+                    // Apply font settings after loading defaults
+                    applyFontSettings();
+                    resolve(window.userSettings);
+                });
             });
     });
+
+    return window.__userSettingsPromise;
 }
 
 function saveUserSetting(key, value) {
@@ -638,26 +940,34 @@ function formatDate(dateString) {
         const absDays = Math.abs(diffDays);
         const absHours = Math.abs(diffHours);
         if (absDays === 0 && absHours === 0) {
-            return 'Soon';
+            return t('time.soon', {}, 'Soon');
         } else if (absDays === 0) {
-            return `In ${absHours} hour${absHours !== 1 ? 's' : ''}`;
+            return t('time.in_hours', {
+                count: absHours,
+                suffix: absHours !== 1 ? t('time.suffix_plural', {}, 's') : t('time.suffix_singular', {}, '')
+            }, `In ${absHours} hour${absHours !== 1 ? 's' : ''}`);
         } else if (absDays === 1) {
-            return 'Tomorrow';
+            return t('time.tomorrow', {}, 'Tomorrow');
         } else {
-            return `In ${absDays} days`;
+            return t('time.in_days', { count: absDays }, `In ${absDays} days`);
         }
     }
     
     if (diffDays === 0) {
         if (diffHours === 0) {
             const diffMins = Math.floor(diffMs / (1000 * 60));
-            return diffMins <= 1 ? 'Just now' : `${diffMins} minutes ago`;
+            return diffMins <= 1
+                ? t('time.just_now', {}, 'Just now')
+                : t('time.minutes_ago', { count: diffMins }, `${diffMins} minutes ago`);
         }
-        return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+        return t('time.hours_ago', {
+            count: diffHours,
+            suffix: diffHours !== 1 ? t('time.suffix_plural', {}, 's') : t('time.suffix_singular', {}, '')
+        }, `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`);
     } else if (diffDays === 1) {
-        return 'Yesterday';
+        return t('time.yesterday', {}, 'Yesterday');
     } else if (diffDays < 7) {
-        return `${diffDays} days ago`;
+        return t('time.days_ago', { count: diffDays }, `${diffDays} days ago`);
     } else {
         // Use user's preferred date format for older dates
         const userDateFormat = window.userSettings?.date_format || 'en-US';
@@ -711,7 +1021,7 @@ function loadMessages(type, area = null, page = 1) {
             updatePagination(data.pagination);
         })
         .fail(function() {
-            showError('Failed to load messages');
+            showError(t('errors.failed_load_messages', {}, 'Failed to load messages'));
         });
 }
 
@@ -720,7 +1030,7 @@ function displayMessages(messages, type) {
     let html = '';
     
     if (messages.length === 0) {
-        html = '<div class="text-center text-muted py-4">No messages found</div>';
+        html = `<div class="text-center text-muted py-4">${t('messages.none_found', {}, 'No messages found')}</div>`;
     } else {
         messages.forEach(function(msg) {
             html += `
@@ -733,7 +1043,7 @@ function displayMessages(messages, type) {
                         </div>
                         <small class="message-date">${type === 'echomail' ? formatFullDate(msg.date_written) : formatDate(msg.date_written)}</small>
                     </div>
-                    <div class="message-subject">${escapeHtml(msg.subject || '(No Subject)')}</div>
+                    <div class="message-subject">${escapeHtml(msg.subject || t('messages.no_subject', {}, '(No Subject)'))}</div>
                     ${msg.to_name ? `<small class="text-muted">To: ${escapeHtml(msg.to_name)}</small>` : ''}
                     ${!msg.is_read && type === 'netmail' ? '<span class="badge bg-primary ms-2">NEW</span>' : ''}
                 </div>
@@ -821,7 +1131,7 @@ function showLoading(container) {
     $(container).html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading...
+            ${window.t ? window.t('ui.common.loading', {}, 'Loading...') : 'Loading...'}
         </div>
     `);
 }

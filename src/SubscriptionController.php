@@ -53,22 +53,28 @@ class SubscriptionController
             $echoareaId = $input['echoarea_id'] ?? null;
             
             if (!$echoareaId) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Echoarea ID required']);
+                $this->respondApiError('errors.subscriptions.echoarea_id_required', 'Echoarea ID required', 400, $user);
                 return;
             }
             
             if ($action === 'subscribe') {
                 $success = $this->subscriptionManager->subscribeUser($userId, $echoareaId);
-                echo json_encode(['success' => $success]);
+                $response = ['success' => $success];
+                if ($success) {
+                    $response['message_code'] = 'ui.user_subscriptions.subscribed_success';
+                }
+                echo json_encode($response);
                 
             } elseif ($action === 'unsubscribe') {
                 $success = $this->subscriptionManager->unsubscribeUser($userId, $echoareaId);
-                echo json_encode(['success' => $success]);
+                $response = ['success' => $success];
+                if ($success) {
+                    $response['message_code'] = 'ui.user_subscriptions.unsubscribed_success';
+                }
+                echo json_encode($response);
                 
             } else {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid action']);
+                $this->respondApiError('errors.subscriptions.invalid_action', 'Invalid action', 400, $user);
             }
         }
     }
@@ -87,8 +93,7 @@ class SubscriptionController
         $userId = $user['user_id'] ?? $user['id'];
         
         if (!$this->isUserAdmin($userId)) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            $this->respondApiError('errors.subscriptions.admin_required', 'Admin access required', 403, $user);
             return;
         }
 
@@ -110,8 +115,7 @@ class SubscriptionController
             $echoareaId = $input['echoarea_id'] ?? null;
             
             if (!$echoareaId) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Echoarea ID required']);
+                $this->respondApiError('errors.subscriptions.echoarea_id_required', 'Echoarea ID required', 400, $user);
                 return;
             }
             
@@ -125,11 +129,16 @@ class SubscriptionController
                 error_log("DEBUG: isDefault after conversion: " . var_export($isDefault, true));
 
                 $success = $this->subscriptionManager->setEchoareaAsDefault($echoareaId, $isDefault);
-                echo json_encode(['success' => $success]);
+                $response = ['success' => $success];
+                if ($success) {
+                    $response['message_code'] = $isDefault
+                        ? 'ui.admin_subscriptions.default_enabled_success'
+                        : 'ui.admin_subscriptions.default_disabled_success';
+                }
+                echo json_encode($response);
                 
             } else {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid action']);
+                $this->respondApiError('errors.subscriptions.invalid_action', 'Invalid action', 400, $user);
             }
         }
     }
@@ -146,7 +155,7 @@ class SubscriptionController
         
         return [
             'echoareas' => $echoareas,
-            'page_title' => 'Manage Subscriptions'
+            'page_title_code' => 'ui.user_subscriptions.page_title'
         ];
     }
 
@@ -161,7 +170,7 @@ class SubscriptionController
         return [
             'echoareas' => $echoareas,
             'stats' => $stats,
-            'page_title' => 'Admin: Manage Subscriptions'
+            'page_title_code' => 'ui.admin_subscriptions.page_title'
         ];
     }
 
@@ -178,5 +187,33 @@ class SubscriptionController
         // This integrates with the existing Template system
         // The calling code will handle the actual rendering
         return $data;
+    }
+
+    private function respondApiError(string $errorCode, string $fallbackMessage, int $statusCode = 400, ?array $user = null): void
+    {
+        http_response_code($statusCode);
+        $localized = $this->localizedErrorText($errorCode, $fallbackMessage, $user);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $localized
+        ]);
+    }
+
+    private function localizedErrorText(string $errorCode, string $fallbackMessage, ?array $user = null): string
+    {
+        static $translator = null;
+        static $localeResolver = null;
+
+        if ($translator === null) {
+            $translator = new \BinktermPHP\I18n\Translator();
+            $localeResolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        }
+
+        $preferredLocale = is_array($user) ? (string)($user['locale'] ?? '') : '';
+        $resolvedLocale = $localeResolver->resolveLocale($preferredLocale !== '' ? $preferredLocale : null, $user);
+        $translated = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+
+        return $translated === $errorCode ? $fallbackMessage : $translated;
     }
 }

@@ -65,9 +65,32 @@ class MailUtils
 
         $quoted[] = "On {$dateStr}, {$author} wrote:";
         $quoted[] = '';
-        foreach ($lines as $line) {
-            $quoted[] = '> ' . $line;
+
+        // Derive FSC-0032 initials from author name (up to 2 chars)
+        $nameParts = array_values(array_filter(explode(' ', trim($author))));
+        if (count($nameParts) >= 2) {
+            $initials = strtoupper(substr($nameParts[0], 0, 1) . substr(end($nameParts), 0, 1));
+        } elseif (count($nameParts) === 1) {
+            $initials = strtoupper(substr($nameParts[0], 0, min(2, strlen($nameParts[0]))));
+        } else {
+            $initials = '??';
         }
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                $quoted[] = '';
+                continue;
+            }
+            // Bump existing FSC-0032 quoted lines: add an extra > after the initials prefix
+            if (preg_match('/^\s*[A-Za-z]{0,2}>+/', $trimmed)) {
+                $quoted[] = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', $trimmed);
+            } else {
+                // New quote: " XX> text" per FSC-0032
+                $quoted[] = ' ' . $initials . '> ' . $trimmed;
+            }
+        }
+
         $quoted[] = '';
         $quoted[] = '';
         return implode("\n", $quoted);

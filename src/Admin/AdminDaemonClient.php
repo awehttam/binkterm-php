@@ -201,6 +201,30 @@ class AdminDaemonClient
         ]);
     }
 
+    /**
+     * Returns the base catalog keys and current overlay overrides for a locale/namespace.
+     *
+     * @return array{base: array<string,string>, overrides: array<string,string>}
+     */
+    public function getI18nOverlay(string $locale, string $namespace): array
+    {
+        return $this->sendCommand('get_i18n_overlay', ['locale' => $locale, 'ns' => $namespace]);
+    }
+
+    /**
+     * Saves an overlay for a locale/namespace. Pass an empty array to clear all overrides.
+     *
+     * @param array<string,string> $overrides
+     */
+    public function saveI18nOverlay(string $locale, string $namespace, array $overrides): array
+    {
+        return $this->sendCommand('save_i18n_overlay', [
+            'locale'    => $locale,
+            'ns'        => $namespace,
+            'overrides' => $overrides,
+        ]);
+    }
+
     public function getAppearanceConfig(): array
     {
         return $this->sendCommand('get_appearance_config');
@@ -245,6 +269,61 @@ class AdminDaemonClient
         return $this->sendCommand('stop_services');
     }
 
+    /**
+     * Request an on-demand virus scan for a specific file.
+     *
+     * @param int $fileId Database ID of the file to scan
+     */
+    public function scanFile(int $fileId): array
+    {
+        return $this->sendCommand('scan_file', ['file_id' => $fileId]);
+    }
+
+    /**
+     * Write an entry to data/logs/server.log via the admin daemon.
+     *
+     * This is the correct way for web routes to log application-level events
+     * (e.g. "user sent netmail, packet ID xyz") without writing to local files
+     * directly, since the daemon owns the log directory exclusively.
+     *
+     * @param string               $level   Log level string: INFO, WARNING, ERROR, DEBUG
+     * @param string               $message Human-readable message
+     * @param array<string,scalar> $context Optional structured context (username, packet_id, …)
+     */
+    public function serverLog(string $level, string $message, array $context = []): array
+    {
+        if (!isset($context['remote_addr']) && !empty($_SERVER['REMOTE_ADDR'])) {
+            $context['remote_addr'] = $_SERVER['REMOTE_ADDR'];
+        }
+
+        return $this->sendCommand('server_log', [
+            'level'   => strtoupper($level),
+            'message' => $message,
+            'context' => $context,
+        ]);
+    }
+
+    /**
+     * Convenience static method for one-shot logging via the admin daemon.
+     *
+     * Constructs a client, sends the log entry, and closes the connection.
+     * Falls back to error_log() if the daemon is unreachable.
+     *
+     * @param string $level   Log level: INFO, WARNING, ERROR, DEBUG
+     * @param string $message Message to log
+     * @param array<string,scalar> $context Optional structured context
+     */
+    public static function log(string $level, string $message, array $context = []): void
+    {
+        try {
+            $client = new self();
+            $client->serverLog($level, $message, $context);
+            $client->close();
+        } catch (\Exception $e) {
+            error_log('FALLBACK [' . strtoupper($level) . '] ' . $message);
+        }
+    }
+
     public function getMrcConfig(): array
     {
         return $this->sendCommand('get_mrc_config');
@@ -258,6 +337,18 @@ class AdminDaemonClient
     public function restartMrcDaemon(): array
     {
         return $this->sendCommand('restart_mrc_daemon');
+    }
+
+    /**
+     * Run a specific echomail robot by ID via the admin daemon.
+     * Runs with --debug so output includes per-message decode details.
+     *
+     * @param int $robotId
+     * @return array ['exit_code' => int, 'stdout' => string, 'stderr' => string]
+     */
+    public function runEchomailRobot(int $robotId): array
+    {
+        return $this->sendCommand('run_echomail_robot', ['robot_id' => $robotId]);
     }
 
 

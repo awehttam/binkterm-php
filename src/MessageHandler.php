@@ -19,8 +19,8 @@ namespace BinktermPHP;
 class MessageHandler
 {
     // Configuration: which date field to use for echomail sorting
-    // Options: 'date_received' or 'date_written'
-    private const ECHOMAIL_DATE_FIELD = 'date_received';    // Related to USE_DATE_FIELD in echomail.js
+    // .env ECHOMAIL_ORDER_DATE options: 'received' or 'written'
+    private const ECHOMAIL_DATE_FIELD_DEFAULT = 'date_received';
 
     private $db;
     private $pendingImmediateOutboundPolls = [];
@@ -28,6 +28,18 @@ class MessageHandler
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
+    }
+
+    private function getEchomailDateField(): string
+    {
+        $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+        if ($raw === 'written' || $raw === 'date_written') {
+            return 'date_written';
+        }
+        if ($raw === 'received' || $raw === 'date_received') {
+            return 'date_received';
+        }
+        return self::ECHOMAIL_DATE_FIELD_DEFAULT;
     }
 
     public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
@@ -110,8 +122,9 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
-                   n.attributes, n.is_sent, n.reply_to_id,
-                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
+                   n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
@@ -225,7 +238,8 @@ class MessageHandler
                         'has_next' => false,
                         'has_prev' => false
                     ],
-                    'error' => 'You are not subscribed to this echoarea.'
+                    'error_code' => 'errors.messages.echomail.stats.subscription_required',
+                    'error' => 'Subscription required for this echo area'
                 ];
             }
         }
@@ -263,7 +277,7 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -466,7 +480,7 @@ class MessageHandler
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
 
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -628,7 +642,9 @@ class MessageHandler
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
+                SELECT em.*,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                       ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
@@ -646,6 +662,10 @@ class MessageHandler
             if ($type === 'echomail' && !empty($message['is_sysop_only']) && !$isAdmin) {
                 return null;
             }
+
+            $rawMessageBytes = $message['raw_message_bytes'] ?? null;
+            $rawMessageCharset = $message['message_charset'] ?? null;
+            $rawArtFormat = $message['art_format'] ?? null;
 
             if ($type === 'netmail') {
                 $this->markNetmailAsRead($messageId, $userId);
@@ -671,6 +691,7 @@ class MessageHandler
                 }
             }
 
+            $message = $this->appendRawMessagePayload($message, $rawMessageBytes, $rawMessageCharset, $rawArtFormat);
             $message = $this->appendMarkdownRendering($message);
         }
 
@@ -689,7 +710,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -711,7 +732,7 @@ class MessageHandler
             }
         }
 
-        $messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
+        //$messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
 
         $markupAllowed = null;
         try {
@@ -729,7 +750,7 @@ class MessageHandler
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 // Only route locally if destination is one of our addresses (or no address specified)
                 if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
-                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markupAllowed);
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markupAllowed, $attachment);
                 }
             } catch (\Exception $e) {
                 // If we can't get config, fall through to normal send
@@ -765,18 +786,13 @@ class MessageHandler
             }
         }
 
-        // Attachment requires crashmail (direct delivery to ensure the file arrives with the message)
-        if ($attachment !== null && !$crashmail) {
+        // Attachment to a remote node requires crashmail (direct delivery ensures the file
+        // arrives with the message).  Local delivery handles attachments differently — the
+        // file is stored directly into the recipient's private file area, so crashmail is
+        // not required or meaningful.
+        if ($attachment !== null && $toAddress !== $originAddress && !$crashmail) {
             @unlink($attachment['file_path'] ?? '');
             throw new \Exception('File attachments require crashmail (direct delivery) to be enabled.');
-        }
-
-        // Attachments can only be delivered to remote nodes via crashmail.
-        // All users on this system share the same FTN address, so local delivery
-        // (self or any same-system user) is not supported for attachments.
-        if ($attachment !== null && $toAddress === $originAddress) {
-            @unlink($attachment['file_path'] ?? '');
-            throw new \Exception('File attachments can only be sent to remote nodes. Sending to a local address (including yourself or other users on this system) is not supported.');
         }
 
         // For file attachments, the FidoNet convention is that the subject IS the filename
@@ -805,37 +821,92 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
+        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $storage = $this->prepareLocalMessageStorage($finalMessageText);
+
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq)
         ");
 
-        $result = $stmt->execute([
-            $fromUserId,
-            $originAddress,
-            $toAddress,
-            $senderName,
-            $toName,
-            $subject,
-            $messageText,
-            $replyToId,
-            $msgId,
-            $kludgeLines
-        ]);
+        $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $originAddress);
+        $stmt->bindValue(':to_address', $toAddress);
+        $stmt->bindValue(':from_name', $senderName);
+        $stmt->bindValue(':to_name', $toName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+        $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
+
+        $result = $stmt->execute();
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
 
             // Store attachment path and set FILE_ATTACH attribute when a file is attached
             if ($attachment !== null) {
-                $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
-                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
-                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
-                $attStmt = $this->db->prepare("
-                    UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
-                    WHERE id = ?
-                ");
-                $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+                if ($toAddress === $originAddress) {
+                    // Local delivery: store directly into the recipient's private file area.
+                    // Look up recipient by to_name; fall back to sysop if not found.
+                    $recipientStmt = $this->db->prepare("
+                        SELECT id FROM users
+                        WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $recipientStmt->execute([$toName, $toName]);
+                    $recipientUser = $recipientStmt->fetch();
+
+                    if (!$recipientUser) {
+                        // Fall back to sysop
+                        try {
+                            $sysopName = $binkpConfig->getSystemSysop();
+                            $sysopStmt = $this->db->prepare("
+                                SELECT id FROM users
+                                WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                                LIMIT 1
+                            ");
+                            $sysopStmt->execute([$sysopName, $sysopName]);
+                            $recipientUser = $sysopStmt->fetch();
+                        } catch (\Exception $e) {
+                            $recipientUser = null;
+                        }
+                    }
+
+                    if ($recipientUser) {
+                        try {
+                            $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                            $fileAreaManager->storeNetmailAttachment(
+                                (int)$recipientUser['id'],
+                                $attachment['file_path'],
+                                $attachment['filename'],
+                                $messageId,
+                                $originAddress
+                            );
+                        } catch (\Exception $e) {
+                            error_log("[NETMAIL] Failed to store local attachment for message {$messageId}: " . $e->getMessage());
+                            @unlink($attachment['file_path']);
+                        }
+                    } else {
+                        error_log("[NETMAIL] Could not find recipient '{$toName}' for local attachment on message {$messageId}; file dropped.");
+                        @unlink($attachment['file_path']);
+                    }
+                } else {
+                    // Remote delivery: record outbound attachment path and FILE_ATTACH attribute
+                    $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                        | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                        | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+                    $attStmt = $this->db->prepare("
+                        UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
+                        WHERE id = ?
+                    ");
+                    $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+                }
             }
 
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
@@ -879,7 +950,7 @@ class MessageHandler
         return $result;
     }
 
-    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null)
+    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null, $attachment = null)
     {
         // Get sysop name from config
         try {
@@ -927,27 +998,49 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
-        // Create local netmail message to sysop
+        // Create local netmail message to sysop — is_sent = FALSE marks it as received
+        // (inbox) from the sysop's perspective; no outbound spooling occurs for local delivery.
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?, NULL)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL)
         ");
 
-        $result = $stmt->execute([
-            $sysopUser['id'],
-            $systemAddress,
-            $systemAddress,  // Local delivery - same address
-            $senderName,
-            $sysopName,
-            $subject,
-            $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
-            $replyToId,
-            $msgId,
-            $kludgeLines
-        ]);
+        $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $systemAddress);
+        $stmt->bindValue(':to_address', $systemAddress);
+        $stmt->bindValue(':from_name', $senderName);
+        $stmt->bindValue(':to_name', $sysopName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+
+        $result = $stmt->execute();
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+
+            // Store attachment into sysop's private file area if provided
+            if ($attachment !== null) {
+                try {
+                    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                    $fileAreaManager->storeNetmailAttachment(
+                        (int)$sysopUser['id'],
+                        $attachment['file_path'],
+                        $attachment['filename'],
+                        $messageId,
+                        $systemAddress
+                    );
+                } catch (\Exception $e) {
+                    error_log("[NETMAIL] Failed to store local sysop attachment for message {$messageId}: " . $e->getMessage());
+                    @unlink($attachment['file_path']);
+                }
+            }
+
             $creditsRules = $this->getCreditsRules();
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
                 $charged = UserCredit::debit(
@@ -1023,23 +1116,29 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
+        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $storage = $this->prepareLocalMessageStorage($finalMessageText);
+
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NULL)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
+            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id, :message_id, :origin_line, :kludge_lines, NULL)
         ");
 
-        $result = $stmt->execute([
-            $echoarea['id'],
-            $myAddress,
-            $fromName,
-            $toName,
-            $subject,
-            $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
-            $replyToId,
-            $msgId,
-            null, // origin_line (will be added when packet is created)
-            $kludgeLines  // Store generated kludges
-        ]);
+        $stmt->bindValue(':echoarea_id', $echoarea['id'], \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $myAddress);
+        $stmt->bindValue(':from_name', $fromName);
+        $stmt->bindValue(':to_name', $toName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':origin_line', null, \PDO::PARAM_NULL);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+
+        $result = $stmt->execute();
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
@@ -1099,6 +1198,16 @@ class MessageHandler
         }
 
         return $body;
+    }
+
+    private function prepareLocalMessageStorage(string $messageText): array
+    {
+        return [
+            'message_text' => $messageText,
+            'raw_message_bytes' => $messageText,
+            'message_charset' => 'UTF-8',
+            'art_format' => ArtFormatDetector::detectArtFormat($messageText, 'UTF-8'),
+        ];
     }
 
     private function getCreditsRules(): array
@@ -1176,7 +1285,7 @@ class MessageHandler
             ");
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
-            $dateField = self::ECHOMAIL_DATE_FIELD;
+            $dateField = $this->getEchomailDateField();
             $isAdmin = false;
             if ($userId) {
                 $user = $this->getUserById($userId);
@@ -1527,8 +1636,11 @@ class MessageHandler
         try {
             $binkdProcessor = new BinkdProcessor();
 
-            // Set netmail attributes (private flag)
+            // Set netmail attributes: PRIVATE always set; FILE_REQUEST (0x0800) for FREQs
             $message['attributes'] = 0x0001;
+            if (!empty($message['is_freq'])) {
+                $message['attributes'] |= 0x0800;
+            }
 
             // Get the uplink that handles routing for this destination
             // The packet must be addressed to the hub/uplink, not the final destination
@@ -1557,6 +1669,14 @@ class MessageHandler
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
 
+            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'netmail sent', [
+                'from'    => "{$fromName} <{$fromAddr}>",
+                'to'      => "{$toName} <{$toAddr}>",
+                'subject' => $subject,
+                'msgid'   => $message['message_id'] ?? '',
+                'packet'  => $packetName,
+            ]);
+
             //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
@@ -1584,6 +1704,16 @@ class MessageHandler
         // Check if this is a local-only echoarea
         if (!empty($message['is_local'])) {
             //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            $fromName = $message['from_name'] ?? 'unknown';
+            $fromAddr = $message['from_address'] ?? 'unknown';
+            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (local area)', [
+                'area'    => $echoareaTag,
+                'from'    => "{$fromName} <{$fromAddr}>",
+                'to'      => $message['to_name'] ?? 'All',
+                'subject' => $message['subject'] ?? '(no subject)',
+                'msgid'   => $message['message_id'] ?? '',
+                'packet'  => '(local)',
+            ]);
             return true; // Success - message stored locally, no upstream transmission needed
         }
 
@@ -1614,6 +1744,16 @@ class MessageHandler
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
                 $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
+
+                \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted', [
+                    'area'    => $areaTag,
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => $message['to_name'] ?? 'All',
+                    'subject' => $subject,
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => $packetName,
+                ]);
+
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
@@ -1697,11 +1837,11 @@ class MessageHandler
             $client = new \BinktermPHP\Admin\AdminDaemonClient();
 
             foreach (array_keys($this->pendingImmediateOutboundPolls) as $uplinkAddress) {
-                $pollResult = $client->binkPoll($uplinkAddress);
-
-                if (($pollResult['exit_code'] ?? 1) === 0) {
-                    $client->processPackets();
-                }
+                // binkp_poll now runs in the background; the admin daemon spawns it
+                // asynchronously so the HTTP response is not held open waiting for
+                // the network connection to the uplink.  processPackets() is not
+                // called here since it would run before the poll has received mail.
+                $client->binkPoll($uplinkAddress);
             }
         } catch (\Throwable $e) {
             $contexts = [];
@@ -1730,7 +1870,11 @@ class MessageHandler
         // Validate input
         if (empty($messageIds) || !is_array($messageIds)) {
             error_log("MessageHandler::deleteEchomail - Invalid input");
-            return ['success' => false, 'error' => 'No messages selected'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.echomail.bulk_delete.invalid_input',
+                'error' => 'A non-empty message ID list is required'
+            ];
         }
 
         // Get user info for permission checking
@@ -1738,7 +1882,11 @@ class MessageHandler
         //error_log("MessageHandler::deleteEchomail - Retrieved user: " . print_r($user, true));
         if (!$user) {
             error_log("MessageHandler::deleteEchomail - User not found for ID: $userId");
-            return ['success' => false, 'error' => 'User not found'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.echomail.bulk_delete.user_not_found',
+                'error' => 'User not found'
+            ];
         }
 
         $deletedCount = 0;
@@ -1822,8 +1970,8 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, default_tagline)
-                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', NULL)
+                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, locale, default_tagline)
+                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', 'en', NULL)
                 ON CONFLICT (user_id) DO UPDATE SET
                     messages_per_page = COALESCE(user_settings.messages_per_page, 25),
                     threaded_view = COALESCE(user_settings.threaded_view, FALSE),
@@ -1832,6 +1980,7 @@ class MessageHandler
                     font_family = COALESCE(user_settings.font_family, 'Courier New, Monaco, Consolas, monospace'),
                     font_size = COALESCE(user_settings.font_size, 16),
                     date_format = COALESCE(user_settings.date_format, 'en-US'),
+                    locale = COALESCE(user_settings.locale, 'en'),
                     default_tagline = COALESCE(user_settings.default_tagline, NULL)
             ");
             $insertStmt->execute([$userId]);
@@ -1844,9 +1993,14 @@ class MessageHandler
                 'font_family' => 'Courier New, Monaco, Consolas, monospace',
                 'font_size' => 16,
                 'date_format' => 'en-US',
+                'locale' => 'en',
                 'signature_text' => '',
                 'default_tagline' => ''
             ];
+        }
+
+        if (empty($settings['locale'])) {
+            $settings['locale'] = 'en';
         }
 
         return $settings;
@@ -1876,6 +2030,7 @@ class MessageHandler
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
             'date_format' => 'STRING',
+            'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE'
         ];
@@ -1921,6 +2076,13 @@ class MessageHandler
                         $taglines = $this->getTaglinesList();
                     }
                     $params[] = in_array($tagline, $taglines, true) ? $tagline : null;
+                    break;
+                case 'LOCALE':
+                    $locale = str_replace('_', '-', trim((string)$value));
+                    if (!preg_match('/^[a-z]{2,3}(?:-[A-Z]{2})?$/', $locale)) {
+                        $locale = 'en';
+                    }
+                    $params[] = $locale;
                     break;
                 default:
                     $params[] = $value;
@@ -1979,6 +2141,9 @@ class MessageHandler
 
         $cleaned = [];
         foreach ($message as $key => $value) {
+            if ($key === 'raw_message_bytes') {
+                continue;
+            }
             if (is_string($value)) {
                 // Convert to UTF-8 and remove invalid sequences
                 $cleaned[$key] = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
@@ -2003,6 +2168,30 @@ class MessageHandler
         }
 
         return $cleaned;
+    }
+
+    private function appendRawMessagePayload(array $message, $rawBytes, $charset, $artFormat): array
+    {
+        $message['message_bytes_b64'] = null;
+        $message['message_charset'] = is_string($charset) && $charset !== '' ? $charset : null;
+        $message['art_format'] = $artFormat ?: null;
+
+        if (is_resource($rawBytes)) {
+            $rawBytes = stream_get_contents($rawBytes);
+        }
+
+        if (is_string($rawBytes) && str_starts_with($rawBytes, '\\x')) {
+            $decoded = @hex2bin(substr($rawBytes, 2));
+            if ($decoded !== false) {
+                $rawBytes = $decoded;
+            }
+        }
+
+        if (is_string($rawBytes) && $rawBytes !== '') {
+            $message['message_bytes_b64'] = base64_encode($rawBytes);
+        }
+
+        return $message;
     }
 
     /**
@@ -2433,20 +2622,32 @@ class MessageHandler
         }
         
         if (!$message) {
-            return ['success' => false, 'error' => 'Message not found or access denied'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.access_denied',
+                'error' => 'Message not found or access denied'
+            ];
         }
 
         // Check user's sharing settings
         $userSettings = $this->getUserSettings($userId);
         if (isset($userSettings['allow_sharing']) && !$userSettings['allow_sharing']) {
-            return ['success' => false, 'error' => 'Sharing is disabled for your account'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.sharing_disabled',
+                'error' => 'Sharing is disabled for your account'
+            ];
         }
 
         // Check if user has reached their share limit
         $shareCount = $this->getUserActiveShareCount($userId);
         $maxShares = $userSettings['max_shares_per_user'] ?? 50;
         if ($shareCount >= $maxShares) {
-            return ['success' => false, 'error' => "Maximum number of active shares ($maxShares) reached"];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.max_active_reached',
+                'error' => 'Maximum number of active shares reached'
+            ];
         }
 
         // Check if message is already shared by this user
@@ -2519,7 +2720,11 @@ class MessageHandler
             ];
         }
 
-        return ['success' => false, 'error' => 'Failed to create share link'];
+        return [
+            'success' => false,
+            'error_code' => 'errors.messages.share_create_failed',
+            'error' => 'Failed to create share link'
+        ];
     }
 
     /**
@@ -2543,7 +2748,11 @@ class MessageHandler
         $share = $stmt->fetch();
 
         if (!$share) {
-            return ['success' => false, 'error' => 'Share not found or expired'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.not_found_or_expired',
+                'error' => 'Share not found or expired'
+            ];
         }
 
         // Check access permissions - ensure proper boolean conversion
@@ -2551,7 +2760,11 @@ class MessageHandler
         //error_log("Share access check - raw is_public: " . var_export($share['is_public'], true) . ", converted: " . var_export($isPublic, true) . ", requestingUserId: " . var_export($requestingUserId, true));
         
         if (!$isPublic && !$requestingUserId) {
-            return ['success' => false, 'error' => 'Login required to access this share'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.login_required',
+                'error' => 'Login required to access this share'
+            ];
         }
 
         // Get the actual message
@@ -2572,7 +2785,11 @@ class MessageHandler
         }
 
         if (!$message) {
-            return ['success' => false, 'error' => 'Original message not found'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.original_not_found',
+                'error' => 'Original message not found'
+            ];
         }
 
         // Update access statistics
@@ -2608,10 +2825,14 @@ class MessageHandler
     {
         $share = $this->getExistingShare($messageId, $messageType, $userId);
         if (!$share) {
-            return ['success' => false, 'error' => 'Share not found'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.not_found',
+                'error' => 'Share not found'
+            ];
         }
 
-        // Already has a slug — just return the current friendly URL
+        // Already has a slug - just return the current friendly URL
         if (!empty($share['area_identifier']) && !empty($share['slug'])) {
             return [
                 'success'   => true,
@@ -2626,7 +2847,11 @@ class MessageHandler
 
         // Only echomail has area context for slug generation
         if ($messageType !== 'echomail') {
-            return ['success' => false, 'error' => 'Friendly URLs are only available for echomail shares'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.friendly_url_only_echomail',
+                'error' => 'Friendly URLs are only available for echomail shares'
+            ];
         }
 
         // Load the message to get subject and echoarea
@@ -2640,7 +2865,11 @@ class MessageHandler
         $msg = $stmt->fetch();
 
         if (!$msg || empty($msg['subject'])) {
-            return ['success' => false, 'error' => 'Cannot generate slug: message not found or has no subject'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.slug_generation_failed',
+                'error' => 'Cannot generate share slug for this message'
+            ];
         }
 
         $tag            = $msg['tag']    ?? '';
@@ -2686,7 +2915,11 @@ class MessageHandler
         $share = $stmt->fetch();
 
         if (!$share) {
-            return ['success' => false, 'error' => 'Share not found or expired'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.not_found_or_expired',
+                'error' => 'Share not found or expired'
+            ];
         }
 
         // Delegate to the core lookup logic via share_key
@@ -2740,10 +2973,17 @@ class MessageHandler
         $result = $stmt->execute([$messageId, $messageType, $userId]);
         
         if ($result && $stmt->rowCount() > 0) {
-            return ['success' => true, 'message' => 'Share link revoked'];
+            return [
+                'success' => true,
+                'message_code' => 'ui.api.messages.share_revoked'
+            ];
         }
 
-        return ['success' => false, 'error' => 'Share not found or already revoked'];
+        return [
+            'success' => false,
+            'error_code' => 'errors.messages.share_revoke_failed',
+            'error' => 'Failed to revoke share link'
+        ];
     }
 
     /**
@@ -2829,7 +3069,7 @@ class MessageHandler
     }
 
     /**
-     * Build share URL — prefers the friendly /shared/{area}/{slug} form when available.
+     * Build share URL - prefers the friendly /shared/{area}/{slug} form when available.
      *
      * @param string      $shareKey
      * @param string|null $areaIdentifier  e.g. "test@lovlynet"
@@ -2978,7 +3218,7 @@ class MessageHandler
         }
         
         // Add INTL kludge for zone routing (required for inter-zone mail).
-        // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+        // Per FTS-0001 INTL addresses must be zone:net/node only - no point suffix.
         // Points are conveyed separately via FMPT/TOPT kludges below.
         list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
         list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
@@ -3300,7 +3540,7 @@ class MessageHandler
      *
      * Recognises:
      *   ^AMARKUP: <format> <version>  (LSC-001 Draft 2)
-     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge → treated as Markdown)
+     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge -> treated as Markdown)
      *
      * @param array $message
      * @return array{format: string, version: string}|null
@@ -3334,8 +3574,8 @@ class MessageHandler
      * for backwards compatibility with any consumers that predate the general markup system.
      *
      * Supported formats:
-     *   markdown   — rendered by MarkdownRenderer
-     *   stylecodes — rendered by StyleCodesRenderer (MARKUP: StyleCodes 1.0)
+     *   markdown   - rendered by MarkdownRenderer
+     *   stylecodes - rendered by StyleCodesRenderer (MARKUP: StyleCodes 1.0)
      *
      * @param array $message
      * @return array
@@ -3370,7 +3610,7 @@ class MessageHandler
                 break;
 
             default:
-                // Unknown format — do not attempt rendering; display as plain text
+                // Unknown format - do not attempt rendering; display as plain text
                 $message['is_markdown'] = 0;
                 break;
         }
@@ -3430,7 +3670,7 @@ class MessageHandler
 
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -3485,10 +3725,10 @@ class MessageHandler
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
             };
         });
 
@@ -3620,7 +3860,7 @@ class MessageHandler
 
         // Get root messages for the current page
         $rootOffset = ($page - 1) * $limit;
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -3700,10 +3940,10 @@ class MessageHandler
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
             };
         });
 
@@ -3861,7 +4101,7 @@ class MessageHandler
 
             // Sort replies by date
             usort($thread['replies'], function($a, $b) {
-                return strtotime($a['message']['date_received']) - strtotime($b['message']['date_received']);
+                return $this->getMessageDateTimestamp($a['message']) - $this->getMessageDateTimestamp($b['message']);
             });
         }
 
@@ -3907,12 +4147,31 @@ class MessageHandler
         
         foreach ($thread['replies'] as $reply) {
             $replyLatest = $this->getLatestMessageInThread($reply);
-            if (strtotime($replyLatest['date_received']) > strtotime($latest['date_received'])) {
+            if ($this->getMessageDateTimestamp($replyLatest) > $this->getMessageDateTimestamp($latest)) {
                 $latest = $replyLatest;
             }
         }
         
         return $latest;
+    }
+
+    private function getMessageDateTimestamp(array $message): int
+    {
+        $dateField = $this->getEchomailDateField();
+        $primary = (string)($message[$dateField] ?? '');
+        $fallbackField = ($dateField === 'date_written') ? 'date_received' : 'date_written';
+        $fallback = (string)($message[$fallbackField] ?? '');
+
+        $ts = strtotime($primary);
+        if ($ts === false) {
+            $ts = strtotime($fallback);
+        }
+        return ($ts === false) ? 0 : $ts;
+    }
+
+    private function getThreadSortTimestamp(array $thread): int
+    {
+        return $this->getMessageDateTimestamp($this->getLatestMessageInThread($thread));
     }
     
     /**
@@ -4039,8 +4298,9 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
-                   n.attributes, n.is_sent, n.reply_to_id,
-                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
+                   n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
@@ -4269,7 +4529,11 @@ class MessageHandler
         $user = $stmt->fetch();
         
         if (!$user) {
-            return ['success' => false, 'error' => 'User not found or already logged in'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.reminder.user_not_found_or_logged_in',
+                'error' => 'User not found or already logged in'
+            ];
         }
 
         try {
@@ -4353,7 +4617,7 @@ class MessageHandler
 
         return [
             'success' => true, 
-            'message' => 'Account reminder sent successfully',
+            'message_code' => 'ui.api.reminder.sent',
             'email_sent' => $emailSent
         ];
     }
@@ -4498,7 +4762,11 @@ class MessageHandler
             }
         } catch (\Exception $e) {
             error_log("Error saving draft: " . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.drafts.save_failed',
+                'error' => 'Failed to save draft'
+            ];
         }
     }
 
@@ -4586,8 +4854,11 @@ class MessageHandler
             return ['success' => true];
         } catch (\Exception $e) {
             error_log("Error deleting draft: " . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.drafts.delete_failed',
+                'error' => 'Failed to delete draft'
+            ];
         }
     }
 }
-

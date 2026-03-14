@@ -11,5 +11,8 @@ cleanup() {
 
 trap cleanup EXIT
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 set_title "BinktermPHP - Live Logs"
-tail -F data/logs/*.log
+tail -F "${PROJECT_ROOT}"/data/logs/*.log

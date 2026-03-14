@@ -19,14 +19,14 @@ use BinktermPHP\NativeDoorManager;
  */
 class DoorHandler
 {
-    private TelnetServer $server;
+    private BbsSession $server;
     private string $apiBase;
 
     /**
-     * @param TelnetServer $server Telnet server instance for I/O operations
+     * @param BbsSession $server Telnet server instance for I/O operations
      * @param string $apiBase Base URL for API requests
      */
-    public function __construct(TelnetServer $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase)
     {
         $this->server = $server;
         $this->apiBase = $apiBase;
@@ -54,9 +54,9 @@ class DoorHandler
 
         if (empty($allDoors)) {
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('No doors are currently available.', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             $this->server->readKeyWithIdleCheck($conn, $state);
             return;
         }
@@ -83,7 +83,7 @@ class DoorHandler
                 return;
             }
 
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Invalid selection.', TelnetUtils::ANSI_RED));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.invalid', 'Invalid selection.', [], $state['locale']), TelnetUtils::ANSI_RED));
             sleep(1);
         }
     }
@@ -100,7 +100,7 @@ class DoorHandler
         $cols = $state['cols'] ?? 80;
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('=== Door Games ===', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, '');
 
         foreach ($doorList as $i => $entry) {
@@ -135,7 +135,7 @@ class DoorHandler
             }
         }
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Enter number to play, or Q to return: ', TelnetUtils::ANSI_DIM));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.enter_choice', 'Enter number to play, or Q to return: ', [], $state['locale']), TelnetUtils::ANSI_DIM));
     }
 
     /**
@@ -151,16 +151,16 @@ class DoorHandler
     private function launchDoor($conn, array &$state, string $session, string $doorId, string $doorName): void
     {
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize("Launching {$doorName}...", TelnetUtils::ANSI_CYAN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.launching', 'Launching {name}...', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
         TelnetUtils::writeLine($conn, '');
 
         $apiResult = $this->callDoorLaunchApi($session, $doorId, $state['csrf_token'] ?? null);
 
         if (empty($apiResult['success'])) {
             $msg = $apiResult['message'] ?? $apiResult['error'] ?? 'Failed to start door session';
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Error: ' . $msg, TelnetUtils::ANSI_RED));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.launch_error', 'Error: {error}', ['error' => $msg], $state['locale']), TelnetUtils::ANSI_RED));
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             $this->server->readKeyWithIdleCheck($conn, $state);
             return;
         }
@@ -174,21 +174,21 @@ class DoorHandler
         $wsHost = Config::env('DOSDOOR_WS_BIND_HOST', '127.0.0.1');
         $wsPort = (int) Config::env('DOSDOOR_WS_PORT', '6001');
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Connecting to game server...', TelnetUtils::ANSI_DIM));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.connecting', 'Connecting to game server...', [], $state['locale']), TelnetUtils::ANSI_DIM));
 
         $wsSock = $this->wsConnect($wsHost, $wsPort, $wsToken);
         if ($wsSock === null) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                'Could not connect to game bridge. Is the DOS door bridge running?',
+                $this->server->t('ui.terminalserver.doors.connect_failed', 'Could not connect to game bridge. Is the DOS door bridge running?', [], $state['locale']),
                 TelnetUtils::ANSI_RED
             ));
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             $this->server->readKeyWithIdleCheck($conn, $state);
             return;
         }
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Connected! Starting game...', TelnetUtils::ANSI_GREEN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.connected', 'Connected! Starting game...', [], $state['locale']), TelnetUtils::ANSI_GREEN));
         sleep(1);
 
         // Suppress daemon-layer echo — the door game drives all display output
@@ -210,8 +210,8 @@ class DoorHandler
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize("Returned from {$doorName}.", TelnetUtils::ANSI_CYAN));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to continue...', TelnetUtils::ANSI_YELLOW));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.returned', 'Returned from {name}.', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
         $this->server->readKeyWithIdleCheck($conn, $state);
     }
 
@@ -743,3 +743,4 @@ class DoorHandler
         curl_close($ch);
     }
 }
+

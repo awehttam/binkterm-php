@@ -1,0 +1,427 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.echomail_robots.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-robot"></i>
+        {{ t('ui.admin.echomail_robots.heading', {}, 'common') }}
+    </h2>
+    <button class="btn btn-fidonet" onclick="showAddRobotModal()">
+        <i class="fas fa-plus"></i>
+        {{ t('ui.admin.bbs_directory.add_robot', {}, 'common') }}
+    </button>
+</div>
+
+<div class="row">
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-body p-0">
+                <div id="robotsContainer">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.echomail_robots.about_title', {}, 'common') }}</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    {{ t('ui.admin.echomail_robots.about_text', {}, 'common') }}
+                </p>
+                <p class="small text-muted mb-0">
+                    {{ t('ui.admin.echomail_robots.cron_hint', {}, 'common') }} <code>php scripts/echomail_robots.php</code>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Robot Add/Edit Modal ──────────────────────────────────────────────── #}
+<div class="modal fade" id="robotModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="robotModalTitle">{{ t('ui.admin.bbs_directory.add_robot', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="robotForm">
+                    <input type="hidden" id="robotId">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="robotName" maxlength="100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Echo Area <span class="text-danger">*</span></label>
+                        <select class="form-select" id="robotEchoarea" required>
+                            <option value="">Select echo area...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject Pattern</label>
+                        <input type="text" class="form-control" id="robotSubjectPattern" maxlength="255" placeholder="e.g. ibbslastcall-data">
+                        <div class="form-text">Substring match (case-insensitive). Leave blank to process all messages in the area.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Processor Type <span class="text-danger">*</span></label>
+                        <select class="form-select" id="robotProcessorType" required>
+                            <option value="">Loading...</option>
+                        </select>
+                        <div class="form-text" id="processorDescription"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.admin.echomail_robots.processor_config_label', {}, 'common') }}</label>
+                        <textarea class="form-control font-monospace" id="robotProcessorConfig" rows="6" placeholder="{}"></textarea>
+                        <div class="form-text" id="processorConfigHint"></div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="robotEnabled" checked>
+                        <label class="form-check-label" for="robotEnabled">Enabled</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-fidonet" onclick="saveRobot()">
+                    <i class="fas fa-save"></i> {{ t('ui.common.save', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Run Output Modal ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="runOutputModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-terminal me-2"></i>
+                    <span id="runOutputTitle">Robot Output</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="runOutputStatus" class="px-3 pt-3 pb-2"></div>
+                <pre id="runOutputContent" class="m-0 px-3 pb-3" style="background:#1e1e1e;color:#d4d4d4;max-height:60vh;overflow-y:auto;font-size:0.8rem;white-space:pre-wrap;word-break:break-all;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Delete Confirmation Modal ─────────────────────────────────────────── #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Delete robot rule <strong id="deleteRobotName"></strong>?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash"></i> {{ t('ui.common.delete', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentRobotId = null;
+let processorTypes = [];
+
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+
+function apiErr(payload, fallback) {
+    return window.getApiErrorMessage ? window.getApiErrorMessage(payload, fallback) : (payload?.error || fallback);
+}
+
+$(document).ready(function() {
+    const init = function() {
+        loadRobots();
+        loadEchoareas();
+        loadProcessorTypes();
+    };
+    if (typeof loadUserSettings === 'function') {
+        loadUserSettings().finally(init);
+    } else {
+        init();
+    }
+
+    $('#robotProcessorType').on('change', function() {
+        const type = $(this).val();
+        const proc = processorTypes.find(p => p.type === type);
+        $('#processorDescription').text(proc ? proc.description : '');
+        updateProcessorConfigHint(type);
+    });
+});
+
+function loadRobots() {
+    $('#robotsContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Loading...</div>');
+
+    $.get('/admin/api/bbs-directory/robots')
+        .done(function(data) { renderRobots(data.robots); })
+        .fail(function(xhr) {
+            $('#robotsContainer').html(`<div class="text-center text-danger py-4">${apiErr(xhr.responseJSON, 'Failed to load robots')}</div>`);
+        });
+}
+
+function renderRobots(robots) {
+    const container = $('#robotsContainer');
+
+    if (!robots || robots.length === 0) {
+        container.html(`<div class="text-center text-muted py-4">${uiT('ui.admin.bbs_directory.no_robots', 'No robot rules configured.')}</div>`);
+        return;
+    }
+
+    let html = `<div class="table-responsive"><table class="table table-hover mb-0">
+        <thead><tr>
+            <th>${uiT('ui.admin.bbs_directory.col_name', 'Name')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_echo_area', 'Echo Area')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_subject_pattern', 'Subject Pattern')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_processor', 'Processor')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_enabled', 'Enabled')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_last_run', 'Last Run')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_messages_processed', 'Msg Processed')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_actions', 'Actions')}</th>
+        </tr></thead><tbody>`;
+
+    robots.forEach(function(r) {
+        const enabledIcon = (r.enabled == true || r.enabled === 't')
+            ? '<i class="fas fa-check-circle text-success"></i>'
+            : '<i class="fas fa-pause-circle text-warning"></i>';
+        const lastRun = r.last_run_at
+            ? new Date(r.last_run_at).toLocaleString()
+            : `<span class="text-muted">${uiT('ui.admin.bbs_directory.never', 'Never')}</span>`;
+        const echoArea = r.echoarea_tag
+            ? `<span class="font-monospace small">${escapeHtml(r.echoarea_tag)}</span>`
+            : `<span class="text-muted">#${r.echoarea_id}</span>`;
+        const lastErr = r.last_error
+            ? ` <i class="fas fa-exclamation-triangle text-danger" title="${escapeHtml(r.last_error)}"></i>`
+            : '';
+
+        html += `<tr>
+            <td><strong>${escapeHtml(r.name)}</strong>${lastErr}</td>
+            <td>${echoArea}</td>
+            <td><small class="font-monospace">${escapeHtml(r.subject_pattern || '(all)')}</small></td>
+            <td><small>${escapeHtml(r.processor_type)}</small></td>
+            <td class="text-center">${enabledIcon}</td>
+            <td><small>${lastRun}</small></td>
+            <td><span class="badge bg-secondary">${r.messages_processed || 0}</span></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-success" onclick="runRobotNow(${r.id}, '${escapeHtml(r.name)}')" title="${uiT('ui.admin.bbs_directory.run_now', 'Run Now')}">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="editRobot(${r.id})" title="${uiT('ui.common.edit', 'Edit')}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${r.id}, '${escapeHtml(r.name)}')" title="${uiT('ui.common.delete', 'Delete')}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.html(html);
+}
+
+// Processor-type-specific config hints and default templates
+const PROCESSOR_CONFIG_HINTS = {
+    auto_reply: {
+        hint: 'sender_username (required), reply_text, quote_kludges (bool), skip_from_names (array)',
+        template: JSON.stringify({
+            sender_username: '',
+            reply_text: 'This is an automated reply to your test message.',
+            quote_kludges: true,
+            skip_from_names: []
+        }, null, 2)
+    }
+};
+
+function updateProcessorConfigHint(type) {
+    const info = PROCESSOR_CONFIG_HINTS[type];
+    if (info) {
+        $('#processorConfigHint').text(info.hint);
+        // Only set template if field is empty or contains just {}
+        const current = $('#robotProcessorConfig').val().trim();
+        if (current === '' || current === '{}') {
+            $('#robotProcessorConfig').val(info.template);
+        }
+    } else {
+        $('#processorConfigHint').text('');
+        // No config for this processor — clear the box so a previous
+        // processor's config doesn't carry over
+        $('#robotProcessorConfig').val('{}');
+    }
+}
+
+function showAddRobotModal() {
+    currentRobotId = null;
+    $('#robotModalTitle').text(uiT('ui.admin.bbs_directory.add_robot', 'Add Robot'));
+    $('#robotForm')[0].reset();
+    $('#robotId').val('');
+    $('#robotEnabled').prop('checked', true);
+    $('#processorDescription').text('');
+    $('#processorConfigHint').text('');
+    $('#robotProcessorConfig').val('{}');
+    $('#robotModal').modal('show');
+}
+
+function editRobot(id) {
+    currentRobotId = id;
+    $('#robotModalTitle').text(uiT('ui.common.edit', 'Edit') + ' Robot');
+
+    $.get('/admin/api/bbs-directory/robots')
+        .done(function(data) {
+            const robot = data.robots.find(r => r.id == id);
+            if (!robot) { showError(uiT('errors.admin.bbs_directory.robot_not_found', 'Robot rule not found')); return; }
+
+            $('#robotId').val(robot.id);
+            $('#robotName').val(robot.name || '');
+            $('#robotEchoarea').val(robot.echoarea_id);
+            $('#robotSubjectPattern').val(robot.subject_pattern || '');
+            $('#robotProcessorType').val(robot.processor_type);
+            $('#robotEnabled').prop('checked', robot.enabled == true || robot.enabled === 't');
+
+            // Load processor_config JSON
+            let configObj = {};
+            try { configObj = JSON.parse(robot.processor_config || '{}'); } catch(e) {}
+            $('#robotProcessorConfig').val(JSON.stringify(configObj, null, 2));
+
+            $('#robotProcessorType').trigger('change');
+            $('#robotModal').modal('show');
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, uiT('errors.admin.bbs_directory.robot_not_found', 'Robot rule not found'))); });
+}
+
+function saveRobot() {
+    const form = $('#robotForm')[0];
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    let processorConfig = {};
+    const configRaw = $('#robotProcessorConfig').val().trim();
+    if (configRaw && configRaw !== '{}') {
+        try {
+            processorConfig = JSON.parse(configRaw);
+        } catch(e) {
+            showError(uiT('errors.admin.echomail_robots.invalid_config_json', 'Processor config is not valid JSON') + ': ' + e.message);
+            return;
+        }
+    }
+
+    const data = {
+        name:             $('#robotName').val(),
+        echoarea_id:      parseInt($('#robotEchoarea').val()),
+        subject_pattern:  $('#robotSubjectPattern').val() || null,
+        processor_type:   $('#robotProcessorType').val(),
+        processor_config: processorConfig,
+        enabled:          $('#robotEnabled').is(':checked'),
+    };
+
+    const url    = currentRobotId ? `/admin/api/bbs-directory/robots/${currentRobotId}` : '/admin/api/bbs-directory/robots';
+    const method = currentRobotId ? 'PUT' : 'POST';
+
+    $.ajax({ url, method, contentType: 'application/json', data: JSON.stringify(data) })
+        .done(function() {
+            $('#robotModal').modal('hide');
+            showSuccess(uiT('ui.admin.bbs_directory.robot_saved', 'Robot rule saved successfully'));
+            loadRobots();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Save failed')); });
+}
+
+function runRobotNow(id, name) {
+    $('#runOutputTitle').text(uiT('ui.admin.echomail_robots.run_output_title', 'Robot Output') + ': ' + name);
+    $('#runOutputStatus').html('<i class="fas fa-spinner fa-spin me-2"></i> Running...');
+    $('#runOutputContent').text('');
+    $('#runOutputModal').modal('show');
+
+    $.post(`/admin/api/bbs-directory/robots/${id}/run`)
+        .done(function(data) {
+            const exitOk = data.exit_code === 0;
+            const badge = exitOk
+                ? '<span class="badge bg-success">Exit 0</span>'
+                : `<span class="badge bg-danger">Exit ${data.exit_code}</span>`;
+            $('#runOutputStatus').html(badge + (data.stderr ? ' <span class="text-warning small ms-2"><i class="fas fa-exclamation-triangle"></i> stderr below</span>' : ''));
+
+            let output = data.output || '';
+            if (data.stderr) {
+                output += (output ? '\n\n' : '') + '--- STDERR ---\n' + data.stderr;
+            }
+            $('#runOutputContent').text(output || '(no output)');
+            loadRobots();
+        })
+        .fail(function(xhr) {
+            $('#runOutputStatus').html('<span class="badge bg-danger">Error</span>');
+            $('#runOutputContent').text(apiErr(xhr.responseJSON, 'Run failed'));
+        });
+}
+
+function showDeleteModal(id, name) {
+    $('#deleteRobotName').text(name);
+    $('#deleteModal').modal('show');
+    $('#confirmDeleteBtn').off('click').on('click', function() {
+        deleteRobot(id);
+    });
+}
+
+function deleteRobot(id) {
+    $.ajax({ url: `/admin/api/bbs-directory/robots/${id}`, method: 'DELETE' })
+        .done(function() {
+            $('#deleteModal').modal('hide');
+            showSuccess(uiT('ui.admin.bbs_directory.robot_deleted', 'Robot rule deleted successfully'));
+            loadRobots();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Delete failed')); });
+}
+
+function loadEchoareas() {
+    $.get('/api/echoareas')
+        .done(function(data) {
+            const select = $('#robotEchoarea');
+            select.empty();
+            select.append('<option value="">Select echo area...</option>');
+            (data.echoareas || []).forEach(function(area) {
+                const label = `${area.tag} @ ${area.domain}${area.description ? ' - ' + area.description : ''}`;
+                select.append(`<option value="${area.id}">${escapeHtml(label)}</option>`);
+            });
+        });
+}
+
+function loadProcessorTypes() {
+    $.get('/admin/api/bbs-directory/processor-types')
+        .done(function(data) {
+            processorTypes = data.processors || [];
+            const select = $('#robotProcessorType');
+            select.empty();
+            select.append('<option value="">Select processor...</option>');
+            processorTypes.forEach(function(p) {
+                select.append(`<option value="${escapeHtml(p.type)}">${escapeHtml(p.display_name)}</option>`);
+            });
+        });
+}
+</script>
+{% endblock %}

@@ -27,11 +27,11 @@ class AppearanceConfig
 
     /** Default BBS menu items used when none are configured */
     private const DEFAULT_MENU_ITEMS = [
-        ['key' => 'M', 'label' => 'Messages', 'icon' => 'envelope', 'url' => '/echomail'],
-        ['key' => 'N', 'label' => 'Netmail', 'icon' => 'at', 'url' => '/netmail'],
-        ['key' => 'F', 'label' => 'Files', 'icon' => 'folder', 'url' => '/files'],
-        ['key' => 'G', 'label' => 'Games & Doors', 'icon' => 'gamepad', 'url' => '/games'],
-        ['key' => 'S', 'label' => 'Settings', 'icon' => 'cog', 'url' => '/settings'],
+        ['key' => 'M', 'label' => 'Messages', 'label_key' => 'ui.admin.appearance.default_menu.messages', 'icon' => 'envelope', 'url' => '/echomail'],
+        ['key' => 'N', 'label' => 'Netmail', 'label_key' => 'ui.admin.appearance.default_menu.netmail', 'icon' => 'at', 'url' => '/netmail'],
+        ['key' => 'F', 'label' => 'Files', 'label_key' => 'ui.admin.appearance.default_menu.files', 'icon' => 'folder', 'url' => '/files'],
+        ['key' => 'G', 'label' => 'Games & Doors', 'label_key' => 'ui.admin.appearance.default_menu.games_doors', 'icon' => 'gamepad', 'url' => '/games'],
+        ['key' => 'S', 'label' => 'Settings', 'label_key' => 'ui.admin.appearance.default_menu.settings', 'icon' => 'cog', 'url' => '/settings'],
     ];
 
     private static function getConfigPath(): string
@@ -87,6 +87,7 @@ class AppearanceConfig
             ],
             'message_reader' => [
                 'scrollable_body' => true,
+                'email_link_url' => '',
             ],
         ];
     }
@@ -333,5 +334,11 @@ class AppearanceConfig
     {
         self::load();
         return !empty(self::$config['message_reader']['scrollable_body']);
+    }
+
+    public static function getMessageReaderEmailLinkUrl(): string
+    {
+        self::load();
+        return trim((string)(self::$config['message_reader']['email_link_url'] ?? ''));
     }
 }

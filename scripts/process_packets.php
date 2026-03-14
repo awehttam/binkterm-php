@@ -6,18 +6,39 @@ chdir(__DIR__);
 // Packet processing script - run this via cron or as a service
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\BinkdProcessor;
+use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\TicFileProcessor;
 
 // Initialize database
 Database::getInstance();
 
+$logger = new Logger(
+    Config::getLogPath('packets.log'),
+    Config::env('PROCESS_PACKETS_LOG_LEVEL', 'INFO'),
+    true
+);
+
+// Ensure only one instance runs at a time
+$lockFile = __DIR__ . '/../data/run/process_packets.lock';
+if (!is_dir(dirname($lockFile))) {
+    mkdir(dirname($lockFile), 0755, true);
+}
+$lockFh = fopen($lockFile, 'c');
+if (!$lockFh || !flock($lockFh, LOCK_EX | LOCK_NB)) {
+    $logger->warning('Another instance of process_packets.php is already running. Exiting.');
+    exit(0);
+}
+
 /**
- * Process TIC files from inbound directory
+ * Process TIC files from inbound directory.
  */
-function processInboundTicFiles($ticProcessor) {
+function processInboundTicFiles(TicFileProcessor $ticProcessor, Logger $logger): int
+{
     $inboundPath = __DIR__ . '/../data/inbound';
     $processedCount = 0;
 
@@ -42,22 +63,25 @@ function processInboundTicFiles($ticProcessor) {
 
             if (file_exists($dataPath)) {
                 // Both TIC and data file exist - process them
-                echo "Processing TIC: $ticFilename -> $dataFilename\n";
+                $logger->info("Processing TIC: $ticFilename -> $dataFilename");
 
                 $result = $ticProcessor->processTicFile($ticPath, $dataPath);
 
                 if ($result['success']) {
-                    echo "  ✓ Stored in area: {$result['area']} (file_id={$result['file_id']})\n";
+                    $logger->info("  OK Stored in area: {$result['area']} (file_id={$result['file_id']})");
 
                     if (isset($result['duplicate']) && $result['duplicate']) {
-                        echo "  ⚠ Duplicate file (skipped)\n";
+                        $logger->warning("  WARN Duplicate file (skipped)");
                     }
 
                     // Clean up TIC file (data file was cleaned up by processor)
                     unlink($ticPath);
                     $processedCount++;
                 } else {
-                    echo "  ✗ Error: {$result['error']}\n";
+                    $errMsg  = $result['error']      ?? 'unknown error';
+                    $errCode = $result['error_code'] ?? '';
+                    $logger->error("[TIC] FAILED {$ticFilename}/{$dataFilename}: [{$errCode}] {$errMsg}");
+
                     // Move failed TIC to .failed directory for manual review
                     $failedDir = $inboundPath . '/.failed';
                     if (!is_dir($failedDir)) {
@@ -69,11 +93,11 @@ function processInboundTicFiles($ticProcessor) {
                     }
                 }
             } else {
-                // TIC exists but data file missing - log warning
-                echo "  ⚠ TIC file without data file: $ticFilename (waiting for $dataFilename)\n";
+                // TIC exists but data file missing - will be retried next run
+                $logger->warning("TIC file without data file: $ticFilename (waiting for $dataFilename)");
             }
         } else {
-            echo "  ✗ Invalid TIC file (no File field): $ticFilename\n";
+            $logger->error("Invalid TIC file (no File field): $ticFilename");
             unlink($ticPath);
         }
     }
@@ -82,34 +106,84 @@ function processInboundTicFiles($ticProcessor) {
 }
 
 // Create processors
-$processor = new BinkdProcessor();
+$processor    = new BinkdProcessor();
 $ticProcessor = new TicFileProcessor();
 
 try {
-    echo "Starting packet processing...\n";
+    $logger->info('Starting packet processing...');
 
     // Process inbound packets
     $processed = $processor->processInboundPackets();
-    echo "Processed {$processed} inbound packets\n";
+    $logger->info("Processed {$processed} inbound packets");
 
     // Process TIC files (if feature is enabled)
     if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
-        $ticProcessed = processInboundTicFiles($ticProcessor);
+        $ticProcessed = processInboundTicFiles($ticProcessor, $logger);
         if ($ticProcessed > 0) {
-            echo "Processed {$ticProcessed} TIC files\n";
+            $logger->info("Processed {$ticProcessed} TIC files");
         }
     }
 
     // Clean up old packet records (older than 6 months)
     $cleaned = $processor->cleanupOldPackets();
-    if($cleaned)
-        echo "Cleaned up {$cleaned} old packet records\n";
+    if ($cleaned) {
+        $logger->info("Cleaned up {$cleaned} old packet records");
+    }
+
+    // Delete stale unprocessed files only when explicitly enabled in .env.
+    // Default behavior is to quarantine them in data/inbound/unprocessed/.
+    $deleteUnprocessedFiles = filter_var(
+        (string) Config::env('BINKP_DELETE_UNPROCESSED_FILES', 'false'),
+        FILTER_VALIDATE_BOOLEAN
+    );
+
+    // Handle stale unrecognized/unprocessed files in inbound.
+    // TIC files are left in place because they may still be waiting for their data file.
+    $inboundPath    = __DIR__ . '/../data/inbound';
+    $unprocessedDir = $inboundPath . '/unprocessed';
+    $leftover       = array_filter(glob($inboundPath . '/*') ?: [], 'is_file');
+    $staleCutoff    = time() - 86400;
+
+    if (!$deleteUnprocessedFiles && !is_dir($unprocessedDir)) {
+        mkdir($unprocessedDir, 0755, true);
+    }
+
+    foreach ($leftover as $file) {
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($ext === 'tic') {
+            continue; // Leave TIC files — they may still be waiting for their data file
+        }
+        if ($ext === 'tmp') {
+            continue; // Leave .tmp files — they are being actively received by the binkp session
+        }
+
+        $mtime = @filemtime($file);
+        if ($mtime === false || $mtime > $staleCutoff) {
+            continue;
+        }
+
+        if (!$deleteUnprocessedFiles) {
+            $dest = $unprocessedDir . '/' . basename($file);
+            if (rename($file, $dest)) {
+                $logger->info('Moved stale unprocessed file to unprocessed/: ' . basename($file));
+            }
+            continue;
+        }
+
+        if (unlink($file)) {
+            $logger->info('Deleted stale unprocessed file: ' . basename($file));
+        }
+    }
 
     // TODO: Process outbound queue (send pending messages)
 
-    echo "Packet processing completed\n";
-    
+    $logger->info('Packet processing completed');
 } catch (Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
+    $logger->error('Error: ' . $e->getMessage());
+    flock($lockFh, LOCK_UN);
+    fclose($lockFh);
     exit(1);
 }
+
+flock($lockFh, LOCK_UN);
+fclose($lockFh);

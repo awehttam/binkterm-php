@@ -1,16 +1,16 @@
 {% extends "base.twig" %}
 
-{% block title %}Netmail - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.netmail.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-envelope"></i>
-        Netmail
+        {{ t('ui.netmail.title', {}, locale, ['common']) }}
     </h2>
     <button class="btn btn-fidonet" onclick="composeMessage('netmail')">
         <i class="fas fa-plus"></i>
-        Compose
+        {{ t('ui.netmail.compose', {}, locale, ['common']) }}
     </button>
 </div>
 
@@ -19,47 +19,47 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
-                    <h6 class="mb-0 d-none d-sm-block">Messages</h6>
+                    <h6 class="mb-0 d-none d-sm-block">{{ t('ui.netmail.messages', {}, locale, ['common']) }}</h6>
                     <div class="d-flex align-items-center gap-2">
                         <div id="bulkActions" class="d-none">
                             <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedMessages()" disabled>
                                 <i class="fas fa-trash"></i>
-                                Delete Selected (<span id="selectedCount">0</span>)
+                                {{ t('ui.netmail.delete_selected', {}, locale, ['common']) }} (<span id="selectedCount">0</span>)
                             </button>
                         </div>
                         <div class="d-flex gap-2 filter-controls">
                         <div class="btn-group btn-group-sm flex-nowrap" role="group">
                             <input type="radio" class="btn-check" name="filter" id="all" value="all" checked>
-                            <label class="btn btn-outline-secondary" for="all">All</label>
+                            <label class="btn btn-outline-secondary" for="all">{{ t('ui.common.all', {}, locale, ['common']) }}</label>
 
                             <input type="radio" class="btn-check" name="filter" id="unread" value="unread">
-                            <label class="btn btn-outline-secondary" for="unread">Unread</label>
+                            <label class="btn btn-outline-secondary" for="unread">{{ t('ui.common.unread', {}, locale, ['common']) }}</label>
 
                             <input type="radio" class="btn-check" name="filter" id="sent" value="sent">
-                            <label class="btn btn-outline-secondary" for="sent">Sent</label>
+                            <label class="btn btn-outline-secondary" for="sent">{{ t('ui.common.sent', {}, locale, ['common']) }}</label>
 
                             <input type="radio" class="btn-check" name="filter" id="drafts" value="drafts">
-                            <label class="btn btn-outline-secondary" for="drafts">Drafts</label>
+                            <label class="btn btn-outline-secondary" for="drafts">{{ t('ui.common.drafts', {}, locale, ['common']) }}</label>
                         </div>
                         <div class="dropdown">
                             <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
                                 <i class="fas fa-sort"></i>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">Newest First</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">Oldest First</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">By Subject</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">By Author</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">{{ t('ui.common.sort.newest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">{{ t('ui.common.sort.oldest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">{{ t('ui.common.sort.by_subject', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">{{ t('ui.common.sort.by_author', {}, locale, ['common']) }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="toggleThreading()">
                                     <i class="fas fa-project-diagram"></i>
-                                    <span id="threadingToggleText">Show Threaded</span>
+                                    <span id="threadingToggleText">{{ t('ui.common.threading.show_threaded', {}, locale, ['common']) }}</span>
                                 </a></li>
                             </ul>
                         </div>
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleSelectMode()" id="selectModeBtn">
                             <i class="fas fa-check-square"></i>
-                            Select
+                            {{ t('ui.common.select', {}, locale, ['common']) }}
                         </button>
                     </div>
                     </div>
@@ -69,7 +69,7 @@
                 <div id="messagesContainer">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading messages...
+                        {{ t('ui.common.loading_messages', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -84,15 +84,15 @@
     <div class="col-lg-3">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Search</h6>
+                <h6 class="mb-0">{{ t('ui.common.search', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control" id="searchInput" placeholder="Search messages...">
+                    <input type="text" class="form-control" id="searchInput" placeholder="{{ t('ui.common.search_messages_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
                     <i class="fas fa-search"></i>
-                    Search
+                    {{ t('ui.common.search', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -100,7 +100,7 @@
         <div class="card mt-3">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">Address Book</h6>
+                    <h6 class="mb-0">{{ t('ui.address_book.title', {}, locale, ['common']) }}</h6>
                     <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()">
                         <i class="fas fa-plus"></i>
                     </button>
@@ -108,32 +108,32 @@
             </div>
             <div class="card-body">
                 <div class="mb-2">
-                    <input type="text" class="form-control form-control-sm" id="addressBookSearch" placeholder="Search addresses...">
+                    <input type="text" class="form-control form-control-sm" id="addressBookSearch" placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <div id="addressBookList" style="max-height: 200px; overflow-y: auto;">
                     <div class="text-center text-muted py-2">
-                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                        <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
                     </div>
                 </div>
                 <div class="mt-2">
-                    <small class="text-muted" id="addressBookStats">0 entries</small>
+                    <small class="text-muted" id="addressBookStats">0 {{ t('ui.address_book.entries', {}, locale, ['common']) }}</small>
                 </div>
             </div>
         </div>
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Quick Stats</h6>
+                <h6 class="mb-0">{{ t('ui.netmail.quick_stats', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-6">Total:</dt>
+                    <dt class="col-6">{{ t('ui.common.total', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="totalCount">-</dd>
                     
-                    <dt class="col-6">Unread:</dt>
+                    <dt class="col-6">{{ t('ui.common.unread', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="unreadCount">-</dd>
                     
-                    <dt class="col-6">Sent:</dt>
+                    <dt class="col-6">{{ t('ui.common.sent', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="sentCount">-</dd>
                 </dl>
             </div>
@@ -147,15 +147,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="Previous message (←)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="{{ t('ui.common.previous_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="Next message (→)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="{{ t('ui.common.next_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
-                <h5 class="modal-title" id="messageSubject">Message</h5>
-                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                <h5 class="modal-title" id="messageSubject">{{ t('ui.common.message', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="{{ t('ui.common.toggle_fullscreen', {}, locale, ['common']) }}">
                     <i class="fas fa-expand"></i>
                 </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -164,20 +164,58 @@
                 <div id="messageContent">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading message...
+                        {{ t('ui.common.loading_message', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-danger" id="deleteButton">
                     <i class="fas fa-trash"></i>
-                    Delete
+                    {{ t('ui.common.delete', {}, locale, ['common']) }}
                 </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-fidonet" id="replyButton">
                     <i class="fas fa-reply"></i>
-                    Reply
+                    {{ t('ui.common.reply', {}, locale, ['common']) }}
                 </button>
+            </div>
+
+            {# Keyboard shortcuts help overlay #}
+            <div id="keyboardHelpOverlay" style="display:none; position:absolute; inset:0; z-index:20; background:rgba(0,0,0,0.82); padding:2rem; overflow-y:auto;">
+                <div class="mx-auto" style="max-width:480px;">
+                    <h5 class="text-white mb-3"><i class="fas fa-keyboard me-2"></i>{{ t('ui.echomail.shortcuts.title', {}, locale, ['common']) }}</h5>
+                    <table class="table table-sm table-dark table-borderless mb-3">
+                        <tbody>
+                            <tr>
+                                <td class="text-center" style="width:120px;">
+                                    <kbd>&larr;</kbd> <kbd>&rarr;</kbd>
+                                </td>
+                                <td>{{ t('ui.echomail.shortcuts.prev_next', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>A</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.cycle_viewer_mode', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>D</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.download', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>F</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.fullscreen', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>?</kbd> <kbd>H</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.help', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>Esc</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.close', {}, locale, ['common']) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="text-muted small mb-0">{{ t('ui.echomail.shortcuts.dismiss', {}, locale, ['common']) }}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -188,46 +226,47 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addressBookModalTitle">Add Address Book Entry</h5>
+                <h5 class="modal-title" id="addressBookModalTitle">{{ t('ui.address_book.add_entry', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="addressBookModalError" class="alert alert-danger d-none" role="alert"></div>
                 <form id="addressBookForm">
                     <input type="hidden" id="addressBookEntryId">
                     
                     <div class="mb-3">
-                        <label for="addressBookName" class="form-label">Name</label>
+                        <label for="addressBookName" class="form-label">{{ t('ui.common.name', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookName" required 
-                               placeholder="Enter a descriptive name (e.g., John Smith)">
-                        <div class="form-text">Descriptive name for this contact</div>
+                               placeholder="{{ t('ui.address_book.name_placeholder', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.name_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookUserId" class="form-label">User ID</label>
+                        <label for="addressBookUserId" class="form-label">{{ t('ui.address_book.user_id', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookUserId" required 
-                               placeholder="Enter the user ID for messaging">
-                        <div class="form-text">User ID/handle to use when sending messages</div>
+                               placeholder="{{ t('ui.address_book.user_id_placeholder', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.user_id_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookNodeAddress" class="form-label">Node Address</label>
+                        <label for="addressBookNodeAddress" class="form-label">{{ t('ui.address_book.node_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookNodeAddress" required 
-                               placeholder="1:234/567" pattern="^\d+:\d+\/\d+(\.\d+)?$"
-                               title="Enter a valid Fidonet address (e.g., 1:234/567 or 1:234/567.0)">
-                        <div class="form-text">Format: zone:net/node or zone:net/node.point</div>
+                               placeholder="{{ t('ui.address_book.node_address_placeholder', {}, locale, ['common']) }}" pattern="^\d+:\d+\/\d+(\.\d+)?$"
+                               title="{{ t('ui.address_book.node_address_title', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.node_address_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookEmail" class="form-label">Email Address <small class="text-muted">(optional)</small></label>
+                        <label for="addressBookEmail" class="form-label">{{ t('ui.address_book.email_address', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <input type="email" class="form-control" id="addressBookEmail" 
                                placeholder="email@example.com">
-                        <div class="form-text">For your reference only - not used for messaging</div>
+                        <div class="form-text">{{ t('ui.address_book.email_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookDescription" class="form-label">Description <small class="text-muted">(optional)</small></label>
+                        <label for="addressBookDescription" class="form-label">{{ t('ui.common.description', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <textarea class="form-control" id="addressBookDescription" rows="3"
-                                  placeholder="Notes about this contact..."></textarea>
+                                  placeholder="{{ t('ui.address_book.description_placeholder', {}, locale, ['common']) }}"></textarea>
                     </div>
 
                     {% if crashmail_enabled %}
@@ -235,18 +274,18 @@
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="addressBookAlwaysCrashmail" name="always_crashmail">
                             <label class="form-check-label" for="addressBookAlwaysCrashmail">
-                                <i class="fas fa-bolt text-warning me-1"></i>Always use crashmail for this Recipient
+                                <i class="fas fa-bolt text-warning me-1"></i>{{ t('ui.address_book.always_crashmail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Automatically enable crashmail when composing messages to this contact.</div>
+                            <div class="form-text">{{ t('ui.address_book.always_crashmail_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                     {% endif %}
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveAddressBookEntry()">
-                    <i class="fas fa-save"></i> Save
+                    <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -274,10 +313,6 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
     background-color: rgba(13, 110, 253, 0.05);
 }
 
-.thread-reply {
-    position: relative;
-}
-
 .thread-level-1 {
     border-left: 2px solid #6c757d;
     background-color: rgba(108, 117, 125, 0.05);
@@ -296,17 +331,6 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
 .thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
     border-left: 2px solid #dc3545;
     background-color: rgba(220, 53, 69, 0.05);
-}
-
-/* Threading connection lines */
-.thread-reply::before {
-    content: '';
-    position: absolute;
-    left: -1px;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background-color: #dee2e6;
 }
 
 /* Thread root styling enhancement */
@@ -496,3 +520,4 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
 }
 </style>
 {% endblock %}
+

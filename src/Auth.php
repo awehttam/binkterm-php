@@ -158,7 +158,12 @@ class Auth
         if (!$user) {
             header('HTTP/1.1 401 Unauthorized');
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Authentication required']);
+            $errorCode = 'errors.auth.authentication_required';
+            echo json_encode([
+                'success' => false,
+                'error_code' => $errorCode,
+                'error' => $this->localizedErrorText($errorCode, 'Authentication required', null)
+            ]);
             exit;
         }
 
@@ -175,7 +180,12 @@ class Auth
             if ($expected === null || $token === '' || !hash_equals($expected, $token)) {
                 http_response_code(403);
                 header('Content-Type: application/json');
-                echo json_encode(['error' => 'Invalid CSRF token']);
+                $errorCode = 'errors.auth.invalid_csrf_token';
+                echo json_encode([
+                    'success' => false,
+                    'error_code' => $errorCode,
+                    'error' => $this->localizedErrorText($errorCode, 'Invalid CSRF token', $user)
+                ]);
                 exit;
             }
         }
@@ -187,6 +197,23 @@ class Auth
     {
         $stmt = $this->db->prepare('DELETE FROM user_sessions WHERE expires_at < NOW()');
         $stmt->execute();
+    }
+
+    private function localizedErrorText(string $errorCode, string $fallbackMessage, ?array $user = null): string
+    {
+        static $translator = null;
+        static $localeResolver = null;
+
+        if ($translator === null) {
+            $translator = new \BinktermPHP\I18n\Translator();
+            $localeResolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        }
+
+        $preferredLocale = is_array($user) ? (string)($user['locale'] ?? '') : '';
+        $resolvedLocale = $localeResolver->resolveLocale($preferredLocale !== '' ? $preferredLocale : null, $user);
+        $translated = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+
+        return $translated === $errorCode ? $fallbackMessage : $translated;
     }
 
     /**

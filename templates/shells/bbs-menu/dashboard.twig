@@ -1,7 +1,7 @@
 {% extends "base.twig" %}
 
-{% block title %}Main Menu - {{ parent() }}{% endblock %}
-{% block section_title %}Main Menu{% endblock %}
+{% block title %}{{ t('ui.bbs_menu.main_menu', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+{% block section_title %}{{ t('ui.bbs_menu.main_menu', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="py-2">

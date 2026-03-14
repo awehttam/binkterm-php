@@ -216,7 +216,7 @@ class FileAreaRuleProcessor
         $context = $this->buildContext($filepath, $areatag);
         $command = $this->substituteMacros($scriptTemplate, $context);
 
-        $this->logDebug("Executing rule '{$ruleName}' for {$filename} (area {$areatag}) with command: {$command}");
+        $this->logDebug("Executing rule '{$ruleName}' for " . basename($filepath) . " (area {$areatag}) with command: {$command}");
         $result = $this->executeScript($command, $timeout);
         $success = !$result['timed_out'] && $result['exit_code'] === 0;
 
@@ -308,18 +308,18 @@ class FileAreaRuleProcessor
         bool $success,
         string $action
     ): void {
-        $logPath = Config::env('FILEAREA_RULE_ACTION_LOG', Config::getLogPath('filearea_rules.log'));
-        $logDir = dirname($logPath);
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
-
-        $result = $success ? 'success' : 'fail';
-        $postAction = $action === '' ? 'none' : $action;
-        $timestamp = date('Y-m-d H:i:s');
+        $result      = $success ? 'success' : 'fail';
+        $postAction  = $action === '' ? 'none' : $action;
         $domainLabel = $domain !== '' ? $domain : 'unknown';
-        $entry = "[{$timestamp}] AREATAG: {$areatag} | DOMAIN: {$domainLabel} | FILE: {$filename} | RULE: {$ruleName} | ACTION: script | EXIT: {$exitCode} | RESULT: {$result} | POST-ACTION: {$postAction}\n";
-        file_put_contents($logPath, $entry, FILE_APPEND | LOCK_EX);
+
+        \BinktermPHP\Admin\AdminDaemonClient::log('info', "File area rule executed: {$ruleName}", [
+            'areatag'     => $areatag,
+            'domain'      => $domainLabel,
+            'file'        => $filename,
+            'exit_code'   => $exitCode,
+            'result'      => $result,
+            'post_action' => $postAction,
+        ]);
     }
 
     /**

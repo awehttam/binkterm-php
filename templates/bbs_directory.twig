@@ -1,0 +1,645 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+    <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.css">
+    <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.Default.css">
+    <style>
+        #bbsSystemsMap {
+            height: 540px;
+            min-height: 360px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 0.5rem;
+            background: #111827;
+        }
+
+        .bbs-map-shell {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-color: rgba(148, 163, 184, 0.18);
+            color: #e2e8f0;
+        }
+
+        #bbsMapShell:fullscreen {
+            padding: 0.9rem;
+            background: #020617;
+        }
+
+        #bbsMapShell:fullscreen #bbsSystemsMap {
+            height: calc(100vh - 5rem);
+        }
+
+        #bbsSystemsMap .leaflet-control-container .leaflet-bar a,
+        #bbsSystemsMap .leaflet-control-zoom a {
+            background: rgba(15, 23, 42, 0.92);
+            color: #e2e8f0;
+            border-bottom-color: rgba(148, 163, 184, 0.18);
+        }
+
+        #bbsSystemsMap .leaflet-control-container .leaflet-bar a:hover,
+        #bbsSystemsMap .leaflet-control-zoom a:hover {
+            background: rgba(30, 41, 59, 0.98);
+            color: #fff;
+        }
+
+        #bbsSystemsMap .leaflet-tile-pane {
+            filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+        }
+
+        #bbsSystemsMap .leaflet-popup-content-wrapper,
+        #bbsSystemsMap .leaflet-popup-tip {
+            background: #111827;
+            color: #e2e8f0;
+        }
+
+        #bbsSystemsMap .leaflet-popup-content a {
+            color: #93c5fd;
+        }
+
+        .bbs-fullscreen-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            color: inherit;
+            text-decoration: none;
+            background: #fff;
+        }
+
+        .bbs-sort-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .bbs-sort-button:hover {
+            color: var(--bs-link-hover-color, inherit);
+        }
+
+        .bbs-sort-icon {
+            display: inline-block;
+            min-width: 0.9rem;
+            color: rgba(148, 163, 184, 0.9);
+            font-size: 0.8rem;
+            line-height: 1;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2>
+            <i class="fas fa-server"></i>
+            {{ t('ui.bbs_directory.heading', {}, 'common') }}
+        </h2>
+        <p class="text-muted mb-0">{{ t('ui.bbs_directory.description', {}, 'common') }}</p>
+    </div>
+    {% if current_user %}
+    <button class="btn btn-fidonet ms-3 flex-shrink-0" onclick="showSubmitModal()">
+        <i class="fas fa-plus"></i>
+        {{ t('ui.bbs_directory.add_listing', {}, 'common') }}
+    </button>
+    {% endif %}
+</div>
+
+<ul class="nav nav-tabs mb-3" id="bbsDirectoryTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="bbs-list-tab" data-bs-toggle="tab" data-bs-target="#bbs-list-pane" type="button" role="tab">
+            {{ t('ui.bbs_directory.tab_list', {}, 'common') }}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="bbs-map-tab" data-bs-toggle="tab" data-bs-target="#bbs-map-pane" type="button" role="tab">
+            {{ t('ui.bbs_directory.tab_map', {}, 'common') }}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="bbs-list-pane" role="tabpanel" aria-labelledby="bbs-list-tab">
+        {% if entries | length == 0 %}
+        <div class="card">
+            <div class="card-body text-center text-muted py-5">
+                <i class="fas fa-server fa-3x mb-3 d-block"></i>
+                {{ t('ui.bbs_directory.no_entries', {}, 'common') }}
+            </div>
+        </div>
+        {% else %}
+        <div class="mb-3">
+            <input type="search" id="bbsSearch" class="form-control"
+                   placeholder="{{ t('ui.bbs_directory.search_placeholder', {}, 'common') }}"
+                   autocomplete="off">
+        </div>
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="bbsTable">
+                        <thead>
+                            <tr>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="name">
+                                        {{ t('ui.bbs_directory.col_name', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="sysop">
+                                        {{ t('ui.bbs_directory.col_sysop', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="location">
+                                        {{ t('ui.bbs_directory.col_location', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="telnet">
+                                        {{ t('ui.bbs_directory.col_telnet', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="website">
+                                        {{ t('ui.bbs_directory.col_website', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th scope="col" aria-sort="none">
+                                    <button type="button" class="bbs-sort-button" data-sort-key="last_seen">
+                                        {{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}
+                                        <span class="bbs-sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                {% if current_user and current_user.is_admin %}<th></th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="bbsTableBody">
+                            {% for entry in entries %}
+                            <tr
+                                data-search="{{ ([entry.name, entry.sysop, entry.location, entry.telnet_host, entry.software] | join(' ') | lower | e) }}"
+                                data-name="{{ (entry.name ?? '')|lower|e }}"
+                                data-sysop="{{ (entry.sysop ?? '')|lower|e }}"
+                                data-location="{{ (entry.location ?? '')|lower|e }}"
+                                data-telnet="{{ (entry.telnet_host ?? '')|lower|e }}"
+                                data-website="{{ (entry.website ?? '')|lower|e }}"
+                                data-last-seen="{{ entry.last_seen ? entry.last_seen|date('U') : 0 }}"
+                            >
+                                <td>
+                                    {% if entry.telnet_host %}
+                                        <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="fw-semibold">
+                                            {{ entry.name | e }}
+                                        </a>
+                                    {% else %}
+                                        <span class="fw-semibold">{{ entry.name | e }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ entry.sysop | e | default('') }}</td>
+                                <td>{{ entry.location | e | default('') }}</td>
+                                <td>
+                                    {% if entry.telnet_host %}
+                                        <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="font-monospace small">
+                                            {{ entry.telnet_host | e }}{% if entry.telnet_port != 23 %}:{{ entry.telnet_port }}{% endif %}
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.website %}
+                                        <a href="{{ entry.website | e }}" target="_blank" rel="noopener noreferrer" title="{{ entry.website | e }}">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td class="text-nowrap">
+                                    {% if entry.last_seen %}
+                                        <small class="text-muted" title="{{ entry.last_seen }}">{{ entry.last_seen | date('Y-m-d') }}</small>
+                                    {% endif %}
+                                </td>
+                                {% if current_user and current_user.is_admin %}
+                                <td>
+                                    <a href="/admin/bbs-directory?edit={{ entry.id }}" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.common.edit', {}, 'common') }}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="bbsNoResults" class="text-center text-muted py-4 d-none">
+                    {{ t('ui.bbs_directory.no_results', {}, 'common') }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="tab-pane fade" id="bbs-map-pane" role="tabpanel" aria-labelledby="bbs-map-tab">
+        <div class="card bbs-map-shell" id="bbsMapShell">
+            <div class="card-body">
+                <div id="bbsMapNotice" class="alert alert-secondary mb-3 d-none"></div>
+                <div id="bbsSystemsMap"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user %}
+{# ── Submit BBS Modal ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="submitBbsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-server me-2"></i>
+                    {{ t('ui.bbs_directory.submit_title', {}, 'common') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{{ t('ui.bbs_directory.submit_description', {}, 'common') }}</p>
+                <div id="submitAlert" class="alert d-none"></div>
+                <form id="submitBbsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_name', {}, 'common') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="submitName" maxlength="100" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_os', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitOs" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitSysop" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_location', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitLocation" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitTelnetHost" maxlength="255" placeholder="bbs.example.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_telnet_port', {}, 'common') }}</label>
+                            <input type="number" class="form-control" id="submitTelnetPort" value="23" min="1" max="65535">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.bbs_directory.col_website', {}, 'common') }}</label>
+                        <input type="url" class="form-control" id="submitWebsite" maxlength="255" placeholder="https://">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.bbs_directory.col_notes', {}, 'common') }}</label>
+                        <textarea class="form-control" id="submitNotes" rows="2" maxlength="1000"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-fidonet" id="submitBbsBtn" onclick="submitBbs()">
+                    <i class="fas fa-paper-plane"></i>
+                    {{ t('ui.bbs_directory.submit_btn', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/leaflet/leaflet.js"></script>
+<script src="/assets/leaflet/leaflet.markercluster.js"></script>
+<script>
+(function() {
+    const input    = document.getElementById('bbsSearch');
+    const rows     = document.querySelectorAll('#bbsTableBody tr');
+    const noResult = document.getElementById('bbsNoResults');
+    const table    = document.getElementById('bbsTable');
+    const tableBody = document.getElementById('bbsTableBody');
+    const sortButtons = document.querySelectorAll('.bbs-sort-button');
+    const mapTab   = document.getElementById('bbs-map-tab');
+    const mapNotice = document.getElementById('bbsMapNotice');
+    const mapShell = document.getElementById('bbsMapShell');
+    let currentSortKey = 'name';
+    let currentSortDirection = 'asc';
+    const mapEntries = [
+        {% for entry in entries %}
+        {
+            name: {{ entry.name|json_encode|raw }},
+            sysop: {{ (entry.sysop ?? '')|json_encode|raw }},
+            location: {{ (entry.location ?? '')|json_encode|raw }},
+            telnet_host: {{ (entry.telnet_host ?? '')|json_encode|raw }},
+            telnet_port: {{ (entry.telnet_port ?? 23)|json_encode|raw }},
+            website: {{ (entry.website ?? '')|json_encode|raw }},
+            last_seen: {{ (entry.last_seen ? entry.last_seen|date('Y-m-d') : null)|json_encode|raw }},
+            latitude: {{ entry.latitude is not null ? entry.latitude : 'null' }},
+            longitude: {{ entry.longitude is not null ? entry.longitude : 'null' }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    let bbsSystemsMap = null;
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function addFullscreenControl() {
+        const FullscreenControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const container = L.DomUtil.create('div', 'leaflet-bar');
+                const link = L.DomUtil.create('a', 'bbs-fullscreen-toggle', container);
+                link.href = '#';
+                link.title = 'Toggle fullscreen';
+                link.innerHTML = '<i class="fas fa-expand"></i>';
+
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.on(link, 'click', function(event) {
+                    L.DomEvent.stop(event);
+                    if (!document.fullscreenElement) {
+                        if (mapShell && typeof mapShell.requestFullscreen === 'function') {
+                            mapShell.requestFullscreen();
+                        }
+                    } else if (typeof document.exitFullscreen === 'function') {
+                        document.exitFullscreen();
+                    }
+                });
+
+                return container;
+            }
+        });
+
+        bbsSystemsMap.addControl(new FullscreenControl());
+    }
+
+    function getSortValue(row, key) {
+        if (key === 'last_seen') {
+            return Number(row.dataset.lastSeen || 0);
+        }
+
+        return (row.dataset[key] || '').toLowerCase();
+    }
+
+    function updateSortIndicators() {
+        sortButtons.forEach(function(button) {
+            const header = button.closest('th');
+            const icon = button.querySelector('.bbs-sort-icon');
+            const isActive = button.dataset.sortKey === currentSortKey;
+
+            if (header) {
+                header.setAttribute('aria-sort', isActive ? (currentSortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
+            }
+
+            if (icon) {
+                icon.textContent = isActive ? (currentSortDirection === 'asc' ? '↑' : '↓') : '↕';
+            }
+        });
+    }
+
+    function sortRows() {
+        if (!tableBody) {
+            return;
+        }
+
+        const sortedRows = Array.from(rows).sort(function(a, b) {
+            const aValue = getSortValue(a, currentSortKey);
+            const bValue = getSortValue(b, currentSortKey);
+
+            if (aValue === bValue) {
+                const aName = (a.dataset.name || '').toLowerCase();
+                const bName = (b.dataset.name || '').toLowerCase();
+                return aName.localeCompare(bName);
+            }
+
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return currentSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+            }
+
+            return currentSortDirection === 'asc'
+                ? String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: 'base' })
+                : String(bValue).localeCompare(String(aValue), undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        sortedRows.forEach(function(row) {
+            tableBody.appendChild(row);
+        });
+
+        updateSortIndicators();
+    }
+
+    function initMap() {
+        if (bbsSystemsMap) {
+            bbsSystemsMap.invalidateSize();
+            return;
+        }
+
+        const mappableEntries = mapEntries.filter(function(entry) {
+            return entry.latitude !== null && entry.longitude !== null;
+        });
+
+        if (mappableEntries.length === 0) {
+            mapNotice.textContent = {{ t('ui.bbs_directory.map_no_coordinates', {}, 'common')|json_encode|raw }};
+            mapNotice.classList.remove('d-none');
+            document.getElementById('bbsSystemsMap').style.display = 'none';
+            return;
+        }
+
+        bbsSystemsMap = L.map('bbsSystemsMap', {
+            scrollWheelZoom: true
+        });
+
+        addFullscreenControl();
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(bbsSystemsMap);
+
+        const bounds = [];
+        const markerClusterGroup = L.markerClusterGroup({
+            showCoverageOnHover: false,
+            spiderfyOnMaxZoom: true,
+            maxClusterRadius: 40
+        });
+
+        mappableEntries.forEach(function(entry) {
+            const lat = Number(entry.latitude);
+            const lon = Number(entry.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                return;
+            }
+
+            const popupParts = [
+                '<div class="bbs-map-popup">',
+                '<strong>' + escapeHtml(entry.name) + '</strong>'
+            ];
+
+            if (entry.location) {
+                popupParts.push('<div>' + escapeHtml(entry.location) + '</div>');
+            }
+            if (entry.sysop) {
+                popupParts.push('<div>{{ t('ui.bbs_directory.col_sysop', {}, 'common')|escape('js') }}: ' + escapeHtml(entry.sysop) + '</div>');
+            }
+            if (entry.telnet_host) {
+                const portText = entry.telnet_port && Number(entry.telnet_port) !== 23 ? ':' + Number(entry.telnet_port) : '';
+                popupParts.push('<div><a href="telnet://' + encodeURI(entry.telnet_host) + portText + '">' + escapeHtml(entry.telnet_host + portText) + '</a></div>');
+            }
+            if (entry.website) {
+                popupParts.push('<div><a href="' + encodeURI(entry.website) + '" target="_blank" rel="noopener noreferrer">{{ t('ui.bbs_directory.col_website', {}, 'common')|escape('js') }}</a></div>');
+            }
+            if (entry.last_seen) {
+                popupParts.push('<div>{{ t('ui.bbs_directory.col_last_seen', {}, 'common')|escape('js') }}: ' + escapeHtml(entry.last_seen) + '</div>');
+            }
+            popupParts.push('</div>');
+
+            markerClusterGroup.addLayer(
+                L.marker([lat, lon]).bindPopup(popupParts.join(''))
+            );
+            bounds.push([lat, lon]);
+        });
+
+        bbsSystemsMap.addLayer(markerClusterGroup);
+
+        if (bounds.length === 1) {
+            bbsSystemsMap.setView(bounds[0], 6);
+        } else {
+            bbsSystemsMap.fitBounds(bounds, { padding: [30, 30] });
+        }
+    }
+
+    if (input) {
+        input.addEventListener('input', function() {
+            const q = this.value.trim().toLowerCase();
+            let visible = 0;
+
+            rows.forEach(function(row) {
+                const match = !q || row.dataset.search.indexOf(q) !== -1;
+                row.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+
+            table.style.display  = visible > 0 ? '' : 'none';
+            noResult.classList.toggle('d-none', visible > 0);
+        });
+    }
+
+    sortButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            const nextKey = button.dataset.sortKey;
+            if (!nextKey) {
+                return;
+            }
+
+            if (currentSortKey === nextKey) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortKey = nextKey;
+                currentSortDirection = nextKey === 'last_seen' ? 'desc' : 'asc';
+            }
+
+            sortRows();
+        });
+    });
+
+    if (tableBody) {
+        sortRows();
+    }
+
+    if (mapTab) {
+        mapTab.addEventListener('shown.bs.tab', function() {
+            initMap();
+            if (bbsSystemsMap) {
+                bbsSystemsMap.invalidateSize();
+            }
+        });
+    }
+
+    document.addEventListener('fullscreenchange', function() {
+        if (!bbsSystemsMap) {
+            return;
+        }
+
+        const icon = document.querySelector('.bbs-fullscreen-toggle i');
+        if (icon) {
+            icon.className = document.fullscreenElement ? 'fas fa-compress' : 'fas fa-expand';
+        }
+
+        setTimeout(function() {
+            bbsSystemsMap.invalidateSize();
+        }, 100);
+    });
+})();
+</script>
+{% if current_user %}
+<script>
+function showSubmitModal() {
+    $('#submitBbsForm')[0].reset();
+    $('#submitTelnetPort').val(23);
+    $('#submitAlert').addClass('d-none').text('');
+    $('#submitBbsBtn').prop('disabled', false);
+    $('#submitBbsModal').modal('show');
+}
+
+function submitBbs() {
+    const form = $('#submitBbsForm')[0];
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const data = {
+        name:        $('#submitName').val().trim(),
+        sysop:       $('#submitSysop').val().trim() || null,
+        location:    $('#submitLocation').val().trim() || null,
+        os:          $('#submitOs').val().trim() || null,
+        telnet_host: $('#submitTelnetHost').val().trim() || null,
+        telnet_port: parseInt($('#submitTelnetPort').val()) || 23,
+        website:     $('#submitWebsite').val().trim() || null,
+        notes:       $('#submitNotes').val().trim() || null,
+    };
+
+    $('#submitBbsBtn').prop('disabled', true);
+
+    $.ajax({
+        url: '/api/bbs-directory/submit',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+    })
+    .done(function() {
+        const msg = window.t
+            ? window.t('ui.bbs_directory.submit_success', {}, '{{ t('ui.bbs_directory.submit_success', {}, 'common') | escape('js') }}')
+            : '{{ t('ui.bbs_directory.submit_success', {}, 'common') | escape('js') }}';
+        $('#submitAlert').removeClass('d-none alert-danger').addClass('alert-success').text(msg);
+        $('#submitBbsForm').addClass('d-none');
+        $('#submitBbsBtn').addClass('d-none');
+    })
+    .fail(function(xhr) {
+        const msg = window.getApiErrorMessage
+            ? window.getApiErrorMessage(xhr.responseJSON, 'Submission failed')
+            : (xhr.responseJSON?.error || 'Submission failed');
+        $('#submitAlert').removeClass('d-none alert-success').addClass('alert-danger').text(msg);
+        $('#submitBbsBtn').prop('disabled', false);
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

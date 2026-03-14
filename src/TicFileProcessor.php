@@ -52,7 +52,8 @@ class TicFileProcessor
     private function log(string $message): void
     {
         $timestamp = date('Y-m-d H:i:s');
-        $logLine = "[$timestamp] [TIC] $message\n";
+        $pid = getmypid();
+        $logLine = "[$timestamp] [{$pid}] [TIC] $message\n";
         @file_put_contents($this->logFile, $logLine, FILE_APPEND | LOCK_EX);
     }
 
@@ -65,52 +66,73 @@ class TicFileProcessor
      */
     public function processTicFile(string $ticPath, string $filePath): array
     {
+        $ticFilename = basename($ticPath);
+        $dataFilename = basename($filePath);
+        $this->log("BEGIN processTicFile: tic={$ticFilename} data={$dataFilename}");
+
         try {
             // Parse TIC file
             $ticData = $this->parseTicFile($ticPath);
+            $this->log("Parsed TIC: Area={$ticData['Area']} File={$ticData['File']} From=" . ($ticData['From'] ?? '(none)') .
+                " Size=" . ($ticData['Size'] ?? '(none)') . " Crc=" . ($ticData['Crc'] ?? '(none)') .
+                " Pw=" . (isset($ticData['Pw']) ? '(set)' : '(not set)'));
 
             // Supplement missing descriptions from FILE_ID.DIZ inside the archive
             $this->enrichFromFileIdDiz($ticData, $filePath);
 
             // Determine domain for this TIC (based on From address)
             $domain = $this->getDomainFromTicData($ticData);
+            $this->log("Resolved domain: " . ($domain ?: '(none)'));
 
             // Check if we have this file area, auto-create if not
             $fileArea = $this->getFileArea($ticData['Area'], $domain);
             if (!$fileArea) {
+                $this->log("File area not found: tag={$ticData['Area']} domain=" . ($domain ?: '(any)') . " — attempting auto-create");
                 // Auto-create file area from TIC
                 $fileAreaId = $this->autoCreateFileArea($ticData['Area'], $ticData, $domain);
                 $fileArea = $this->getFileArea($ticData['Area'], $domain);
 
                 if (!$fileArea) {
+                    $this->log("ERROR: Auto-create of file area {$ticData['Area']} failed — area still not found after insert");
                     return [
                         'success' => false,
-                        'error' => "Failed to create file area: {$ticData['Area']}"
+                        'error_code' => 'errors.tic.file_area_create_failed',
+                        'error' => 'Failed to create file area from TIC metadata'
                     ];
                 }
 
                 $this->log("Auto-created file area: {$ticData['Area']} (id={$fileArea['id']})");
+            } else {
+                $this->log("File area found: tag={$fileArea['tag']} id={$fileArea['id']} is_active=" . ($fileArea['is_active'] ? 'true' : 'false'));
             }
 
             // Validate TIC password — area password takes precedence, uplink tic_password is the fallback
+            $this->log("Validating TIC password for area={$fileArea['tag']} from=" . ($ticData['From'] ?? '(none)'));
             $this->validateTicPassword($ticData, $fileArea, $ticData['From'] ?? '');
+            $this->log("TIC password OK");
 
             // Validate file
+            $this->log("Validating file: {$dataFilename}");
             if (!$this->validateFile($ticData, $filePath)) {
+                $this->log("ERROR: File validation failed for {$dataFilename} (see above for details)");
                 return [
                     'success' => false,
-                    'error' => 'File validation failed (size/CRC mismatch)'
+                    'error_code' => 'errors.tic.validation_failed',
+                    'error' => 'TIC file validation failed'
                 ];
             }
+            $this->log("File validation passed: {$dataFilename}");
 
             // Calculate hash before any storage operations
             $contentHash = hash_file('sha256', $filePath);
             $fileHash = $contentHash;
+            $this->log("SHA-256: {$contentHash}");
 
             // Check for duplicates (same content in same area)
             $allowDuplicate = !empty($fileArea['allow_duplicate_hash']);
             if ($allowDuplicate) {
                 $fileHash = $this->makeUniqueHash($fileArea['id'], $fileHash);
+                $this->log("Duplicate hashes allowed — using unique hash");
             } else {
                 $existingFile = $this->checkDuplicate($fileArea['id'], $fileHash);
 
@@ -131,19 +153,27 @@ class TicFileProcessor
                         'duplicate' => true
                     ];
                 }
+                $this->log("No duplicate found in area {$fileArea['tag']}");
             }
 
             // Store file (will copy, not move)
+            $this->log("Storing file to file area id={$fileArea['id']}");
             $stored = $this->storeFile($ticData, $filePath, $fileArea, $contentHash, $fileHash);
             $fileId = $stored['id'];
             $storagePath = $stored['storage_path'];
+            $this->log("File stored: file_id={$fileId} path={$storagePath}");
 
             // Scan for viruses if enabled for this file area
             $scanResult = $this->scanFileForViruses($fileId, $fileArea);
-            if (($scanResult['result'] ?? '') === 'infected') {
+            $scanResultStr = $scanResult['result'] ?? 'skipped';
+            $this->log("Virus scan result: {$scanResultStr}" . ($scanResult['signature'] ?? ''));
+            if ($scanResultStr === 'infected' && \BinktermPHP\Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
+                $sig = $scanResult['signature'] ?? 'unknown';
+                $this->log("ERROR: File rejected due to virus detection: {$sig}");
                 return [
                     'success' => false,
-                    'error' => 'File rejected: virus detected.'
+                    'error_code' => 'errors.tic.virus_detected',
+                    'error' => 'File rejected: virus detected'
                 ];
             }
 
@@ -166,7 +196,6 @@ class TicFileProcessor
                 unlink($filePath);
             }
 
-            // Log successful TIC processing
             $this->log("TIC file processed successfully: {$ticData['File']} -> area {$ticData['Area']} (file_id={$fileId})");
 
             return [
@@ -178,9 +207,11 @@ class TicFileProcessor
             ];
 
         } catch (\Exception $e) {
-            $this->log("TIC processing error: " . $e->getMessage());
+            $this->log("ERROR: TIC processing exception: " . $e->getMessage() .
+                " in " . $e->getFile() . ":" . $e->getLine());
             return [
                 'success' => false,
+                'error_code' => 'errors.tic.processing_failed',
                 'error' => $e->getMessage()
             ];
         }
@@ -228,6 +259,7 @@ class TicFileProcessor
             return;
         }
 
+        $dizContent = $this->sanitizeToUtf8($dizContent);
         $dizContent = str_replace(["\r\n", "\r"], "\n", $dizContent);
         $lines = array_values(array_filter(array_map('rtrim', explode("\n", $dizContent)), fn($l) => $l !== ''));
 
@@ -330,10 +362,13 @@ class TicFileProcessor
         }
 
         // Validate CRC32
+        // Normalize both values to 8 uppercase hex digits before comparing — TIC files
+        // sometimes omit leading zeros (e.g. "A85C382" instead of "0A85C382").
         if (isset($ticData['Crc'])) {
-            $actualCrc = $this->calculateCrc32($filePath);
-            if (strtoupper($actualCrc) !== strtoupper($ticData['Crc'])) {
-                $this->log("TIC CRC mismatch: expected {$ticData['Crc']}, got $actualCrc");
+            $actualCrc   = $this->calculateCrc32($filePath);
+            $expectedCrc = sprintf('%08X', hexdec($ticData['Crc']));
+            if ($actualCrc !== $expectedCrc) {
+                $this->log("TIC CRC mismatch: expected {$expectedCrc}, got {$actualCrc}");
                 return false;
             }
         }
@@ -352,17 +387,21 @@ class TicFileProcessor
     {
         // Per-area password takes precedence; fall back to uplink-level tic_password
         $expected = $fileArea['password'] ?? '';
+        $source = 'area';
         if ($expected === '' && $fromAddress !== '') {
             $expected = BinkpConfig::getInstance()->getTicPasswordForAddress($fromAddress);
+            $source = 'uplink';
         }
 
         if ($expected === '') {
-            return; // No password required
+            $this->log("TIC password: none required");
+            return;
         }
 
         $provided = $ticData['Pw'] ?? '';
+        $this->log("TIC password: checking ({$source}-level password set, provided=" . ($provided !== '' ? '(set)' : '(not set)') . ")");
         if (!hash_equals(strtolower($expected), strtolower($provided))) {
-            throw new \Exception('TIC password rejected for file area');
+            throw new \Exception("TIC password rejected for file area (source={$source}, provided=" . ($provided !== '' ? '(set)' : '(not set)') . ")");
         }
     }
 
@@ -404,6 +443,16 @@ class TicFileProcessor
             $stmt->execute([$tag, $domain]);
         }
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$result) {
+            // Check if the area exists but is inactive — helps diagnose "not found" failures
+            $chk = $this->db->prepare("SELECT id, is_active FROM file_areas WHERE tag = ?" . ($domain ? " AND domain = ?" : ""));
+            $chk->execute($domain ? [$tag, $domain] : [$tag]);
+            $inactive = $chk->fetch(PDO::FETCH_ASSOC);
+            if ($inactive) {
+                $this->log("File area tag={$tag} exists (id={$inactive['id']}) but is_active=false — treating as not found");
+            }
+        }
 
         return $result ?: null;
     }
@@ -593,13 +642,13 @@ class TicFileProcessor
         $fileSize = filesize($storagePath);
 
         // Build descriptions
-        $shortDesc = $ticData['Desc'] ?? '';
-        $longDesc = !empty($ticData['LDesc']) ? implode("\n", $ticData['LDesc']) : '';
+        $shortDesc = $this->sanitizeToUtf8($ticData['Desc'] ?? '');
+        $longDesc = !empty($ticData['LDesc']) ? $this->sanitizeToUtf8(implode("\n", $ticData['LDesc'])) : '';
 
         // Truncate fields to fit database constraints (VARCHAR 255)
         $filename = mb_substr($filename, 0, 255);
         $shortDesc = mb_substr($shortDesc, 0, 255);
-        $fromAddress = mb_substr($ticData['From'] ?? '', 0, 255);
+        $fromAddress = mb_substr($this->sanitizeToUtf8($ticData['From'] ?? ''), 0, 255);
 
         // Store in database
         $stmt = $this->db->prepare("
@@ -670,13 +719,19 @@ class TicFileProcessor
      */
     protected function scanFileForViruses(int $fileId, array $fileArea): array
     {
+        if (\BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true' ||
+            \BinktermPHP\Config::env('VIRUS_SCAN_NOAUTO', 'false') === 'true') {
+            return ['scanned' => false, 'result' => 'skipped', 'signature' => null, 'error_code' => '', 'error' => null];
+        }
+
         // Check if virus scanning is enabled for this area
         if (empty($fileArea['scan_virus'])) {
             return [
                 'scanned' => false,
                 'result' => 'skipped',
                 'signature' => null,
-                'error' => 'Virus scanning not enabled'
+                'error_code' => 'errors.virus_scanner.not_available',
+                'error' => 'Virus scanning not available'
             ];
         }
 
@@ -691,7 +746,8 @@ class TicFileProcessor
                 'scanned' => false,
                 'result' => 'error',
                 'signature' => null,
-                'error' => 'File not found'
+                'error_code' => 'errors.virus_scanner.file_not_found',
+                'error' => 'File not found for virus scan'
             ];
         }
 
@@ -720,22 +776,52 @@ class TicFileProcessor
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}");
+            $allowInfected = \BinktermPHP\Config::env('FILES_ALLOW_INFECTED', 'false') === 'true';
+            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (FILES_ALLOW_INFECTED: keeping file)' : ''));
 
-            // Delete infected file immediately
-            if (file_exists($filePath)) {
-                unlink($filePath);
-                $this->log("Deleted infected TIC file: {$filePath}");
+            if (!$allowInfected) {
+                // Delete infected file immediately
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                    $this->log("Deleted infected TIC file: {$filePath}");
+                }
+
+                // Mark file record as rejected
+                $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
+                $stmt->execute([$fileId]);
             }
-
-            // Mark file record as rejected
-            $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
-            $stmt->execute([$fileId]);
         } elseif ($result['result'] === 'error') {
             $this->log("Virus scan error for TIC file ID {$fileId}: {$result['error']}");
         }
 
         return $result;
+    }
+
+    /**
+     * Convert a string to valid UTF-8, trying CP437 first (common FidoNet/DOS encoding).
+     * Invalid bytes are dropped rather than causing a PostgreSQL encoding error.
+     *
+     * @param string $text Raw input that may be CP437, ISO-8859-1, or already UTF-8
+     * @return string Valid UTF-8 string
+     */
+    private function sanitizeToUtf8(string $text): string
+    {
+        if (mb_check_encoding($text, 'UTF-8')) {
+            return $text;
+        }
+
+        if (function_exists('iconv')) {
+            $converted = @iconv('CP437', 'UTF-8//IGNORE', $text);
+            if ($converted !== false) {
+                return $converted;
+            }
+            $converted = @iconv('ISO-8859-1', 'UTF-8//IGNORE', $text);
+            if ($converted !== false) {
+                return $converted;
+            }
+        }
+
+        return mb_convert_encoding($text, 'UTF-8', 'CP437');
     }
 
     /**
@@ -757,4 +843,3 @@ class TicFileProcessor
         return $hash;
     }
 }
-

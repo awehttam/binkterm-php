@@ -1108,10 +1108,6 @@ input:focus, textarea:focus {
     background-color: rgba(51, 255, 51, 0.1) !important;
 }
 
-.thread-reply {
-    position: relative;
-}
-
 .thread-level-1 {
     border-left: 2px solid var(--term-green-dim) !important;
     background-color: rgba(34, 170, 34, 0.05) !important;
@@ -1132,9 +1128,6 @@ input:focus, textarea:focus {
     background-color: rgba(255, 51, 51, 0.05) !important;
 }
 
-.thread-reply::before {
-    background-color: var(--term-green-dark) !important;
-}
 
 .thread-root:hover {
     background-color: rgba(51, 255, 51, 0.15) !important;

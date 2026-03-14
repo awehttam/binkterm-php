@@ -181,8 +181,27 @@ function generateInitials($name) {
 }
 
 /**
- * Quote message text intelligently - only quote original lines, not existing quotes
- * Preserves existing quote attribution while adding new quotes with current author's initials
+ * Wrap a single quoted line so that the total width stays within $maxWidth.
+ * The prefix (e.g. " MA> ") is prepended to every wrapped segment.
+ *
+ * @param string $prefix  The quote prefix including trailing space, e.g. " MA> "
+ * @param string $content The text content (no prefix)
+ * @param int    $maxWidth Maximum total line width (default 79)
+ * @return array Array of prefixed lines
+ */
+function wrapQuotedLine(string $prefix, string $content, int $maxWidth = 75): array
+{
+    $available = $maxWidth - strlen($prefix);
+    if ($available <= 0 || strlen($content) <= $available) {
+        return [$prefix . $content];
+    }
+    $wrapped = wordwrap($content, $available, "\n", true);
+    return array_map(fn($l) => $prefix . $l, explode("\n", $wrapped));
+}
+
+/**
+ * Quote message text intelligently - only quote original lines, not existing quotes.
+ * Preserves blank lines as bare '>' and wraps all lines to 79 characters.
  */
 function quoteMessageText($messageText, $initials) {
     $lines = explode("\n", $messageText);
@@ -191,21 +210,66 @@ function quoteMessageText($messageText, $initials) {
     foreach ($lines as $line) {
         $trimmed = trim($line);
 
-        // Skip completely empty lines
+        // Blank lines: pass through as empty lines (no > prefix — standard FTN practice)
         if ($trimmed === '') {
-            $quotedLines[] = $line;
+            $quotedLines[] = '';
             continue;
         }
 
-        // Check if line is already quoted (starts with initials> pattern or >)
-        if (preg_match('/^[A-Z]{1,3}>\s/', $trimmed) || preg_match('/^>\s/', $trimmed)) {
-            // This is already a quoted line, keep it as-is without adding new quote
-            $quotedLines[] = $line;
+        // Check if line is already quoted (FSC-0032 style: optional initials + one or more >)
+        // e.g. " RW> text", "RW> text", "> text", " RW>> text"
+        if (preg_match('/^\s*[A-Za-z]{0,2}>/', $trimmed)) {
+            // Bump existing quote depth by inserting an extra > after the initials.
+            // Prepend a space to $trimmed so the leading space is always present.
+            $bumped = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', ' ' . $trimmed);
+
+            // Split bumped line into prefix (everything up to and including "> ") and content
+            if (preg_match('/^(\s*[A-Za-z]{0,2}>+\s*)(.*)$/', $bumped, $m)) {
+                foreach (wrapQuotedLine($m[1], $m[2]) as $wrapped) {
+                    $quotedLines[] = $wrapped;
+                }
+            } else {
+                $quotedLines[] = $bumped;
+            }
         } else {
-            // This is an original line from the current author, quote it
-            $quotedLines[] = $initials . "> " . $line;
+            // Original (unquoted) line — apply FSC-0032 attribution prefix: " XX> "
+            foreach (wrapQuotedLine(' ' . $initials . '> ', $trimmed) as $wrapped) {
+                $quotedLines[] = $wrapped;
+            }
         }
     }
+
+    return implode("\n", $quotedLines);
+}
+
+/**
+ * Quote a Markdown message by wrapping the entire original body in a blockquote.
+ * This preserves headings, lists, fenced code blocks, and other block structure.
+ *
+ * The attribution line should remain outside the quoted block.
+ *
+ * @param string $messageText Original markdown source
+ * @return string Markdown-safe quoted body
+ */
+function quoteMarkdownMessage(string $messageText): string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $messageText);
+    $lines = explode("\n", $normalized);
+
+    while (!empty($lines) && trim((string) end($lines)) === '') {
+        array_pop($lines);
+    }
+
+    if (empty($lines)) {
+        return '> ';
+    }
+
+    $quotedLines = array_map(
+        static function (string $line): string {
+            return trim($line) === '' ? '>' : '> ' . $line;
+        },
+        $lines
+    );
 
     return implode("\n", $quotedLines);
 }
@@ -264,9 +328,22 @@ function requireBinkpAdmin() {
     $user = $auth->requireAuth();
 
     if (!$user['is_admin']) {
+        $errorCode = 'errors.binkp.admin_required';
+        $fallback = 'Admin access required';
+        $translator = new \BinktermPHP\I18n\Translator();
+        $resolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+        $localized = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+        if ($localized === $errorCode) {
+            $localized = $fallback;
+        }
         http_response_code(403);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Admin access required for BinkP functionality']);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $localized
+        ]);
         exit;
     }
 

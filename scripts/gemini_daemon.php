@@ -31,6 +31,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\AppearanceConfig;
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ $externalCert = Config::env('GEMINI_CERT_PATH', '') !== '';
 
 function logMsg(string $level, string $message, string $logFile): void
 {
-    $line = '[' . date('Y-m-d H:i:s') . '] [' . $level . '] ' . $message . "\n";
+    $line = '[' . date('Y-m-d H:i:s') . '] [' . getmypid() . '] [' . $level . '] ' . $message . "\n";
     file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
     if (!defined('DAEMON_MODE')) {
         echo $line;
@@ -325,6 +326,7 @@ function handleHomePage($socket, string $geminiHost): void
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $bbsName = $binkpConfig->getSystemName();
         $siteUrl = Config::getSiteUrl();
+        $siteDescription = trim(AppearanceConfig::getSeoDescription());
 
         $stmt = $db->query(
             'SELECT DISTINCT u.username
@@ -338,13 +340,21 @@ function handleHomePage($socket, string $geminiHost): void
         $lines = [
             "# {$bbsName}",
             '',
+        ];
+
+        if ($siteDescription !== '') {
+            $lines[] = $siteDescription;
+            $lines[] = '';
+        }
+
+        $lines = array_merge($lines, [
             "=> {$siteUrl}/ Visit {$bbsName} on the web",
             '',
             '## Gemini Capsule Directory',
             '',
             'These BBS users have published their Gemini capsules here.',
             '',
-        ];
+        ]);
 
         if (empty($users)) {
             $lines[] = 'No capsules have been published yet.';
@@ -353,6 +363,13 @@ function handleHomePage($socket, string $geminiHost): void
                 $lines[] = "=> gemini://{$geminiHost}/home/{$username}/ {$username}";
             }
         }
+
+        $lines[] = '';
+        $lines[] = '## Bulletin Board List';
+        $lines[] = '';
+        $lines[] = 'Browse active bulletin board systems, including their names, locations, and telnet addresses.';
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/bbs-directory/ Browse the bulletin board list";
 
         // Echo areas
         $areaStmt = $db->query(
@@ -372,6 +389,60 @@ function handleHomePage($socket, string $geminiHost): void
             foreach ($areas as $area) {
                 $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
                 $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/ {$identifier} — {$area['description']}";
+            }
+        }
+
+        // Echo area stats by network (all active areas)
+        $statsStmt = $db->query(
+            "SELECT
+                CASE
+                    WHEN is_local = TRUE OR domain IS NULL OR TRIM(domain) = '' THEN 'local'
+                    ELSE LOWER(TRIM(domain))
+                END AS network,
+                COUNT(*) AS area_count,
+                COALESCE(SUM(message_count), 0) AS message_count
+             FROM echoareas
+             WHERE is_active = TRUE
+             GROUP BY 1"
+        );
+        $networkStats = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (!empty($networkStats)) {
+            usort($networkStats, function (array $a, array $b): int {
+                $rank = function (string $network): int {
+                    if ($network === 'local') {
+                        return 0;
+                    }
+                    if ($network === 'lovlynet' || $network === 'lovelynet') {
+                        return 1;
+                    }
+                    return 2;
+                };
+
+                $aNet = (string)$a['network'];
+                $bNet = (string)$b['network'];
+                $aRank = $rank($aNet);
+                $bRank = $rank($bNet);
+                if ($aRank !== $bRank) {
+                    return $aRank <=> $bRank;
+                }
+                return strcmp($aNet, $bNet);
+            });
+
+            $lines[] = '';
+            $lines[] = '## Echo Message area stats by network';
+            $lines[] = '';
+            foreach ($networkStats as $row) {
+                $network = (string)$row['network'];
+                $areaCount = (int)$row['area_count'];
+                $messageCount = (int)$row['message_count'];
+                $label = ($network === 'local') ? 'Local' : strtoupper($network);
+                if ($network === 'lovlynet') {
+                    $label = 'LOVLYNET';
+                } elseif ($network === 'lovelynet') {
+                    $label = 'LOVELYNET';
+                }
+                $lines[] = "* {$label}: {$areaCount} message areas, {$messageCount} messages";
             }
         }
 
@@ -705,6 +776,79 @@ function handleEchoMessage($socket, string $tag, string $domain, int $id, string
 // ── Request router ────────────────────────────────────────────────────────────
 
 /**
+ * List active BBS directory entries with location, telnet address, and website.
+ *
+ * @param resource $socket
+ * @param string   $geminiHost
+ */
+function handleBbsDirectoryList($socket, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->query(
+            "SELECT name, location, telnet_host, telnet_port, website
+             FROM bbs_directory
+             WHERE status = 'active'
+               AND telnet_host IS NOT NULL
+               AND BTRIM(telnet_host) <> ''
+             ORDER BY LOWER(name) ASC"
+        );
+        $entries = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $bbsName = $binkpConfig->getSystemName();
+
+        $lines = [
+            '# Bulletin Board List',
+            '',
+            'Active BBS listings with location, telnet address, and website.',
+            '',
+        ];
+
+        if (empty($entries)) {
+            $lines[] = 'No BBS listings are available.';
+        } else {
+            foreach ($entries as $entry) {
+                $name = trim((string)($entry['name'] ?? 'Unnamed BBS'));
+                $location = trim((string)($entry['location'] ?? ''));
+                $telnetHost = trim((string)($entry['telnet_host'] ?? ''));
+                $telnetPort = (int)($entry['telnet_port'] ?? 23);
+                $website = trim((string)($entry['website'] ?? ''));
+                $telnetLabel = ($telnetPort > 0 && $telnetPort !== 23)
+                    ? "{$telnetHost}:{$telnetPort}"
+                    : $telnetHost;
+
+                $lines[] = "## {$name}";
+                if ($location !== '') {
+                    $lines[] = "Location: {$location}";
+                }
+
+                $lines[] = "Telnet: {$telnetLabel}";
+                if ($website !== '') {
+                    $lines[] = "Website: {$website}";
+                }
+
+                $lines[] = "=> telnet://{$telnetLabel}/ Connect to {$name}";
+                if ($website !== '') {
+                    $lines[] = "=> {$website} Visit {$name} on the web";
+                }
+
+                $lines[] = '';
+            }
+            array_pop($lines);
+        }
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/ Return to main index for {$bbsName}";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
  * Handle a single Gemini connection: read request, route, respond, close.
  * The socket is already TLS-encrypted (handshake completed by ssl:// accept).
  *
@@ -753,6 +897,8 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
     // Route
     if ($path === '/' || $path === '') {
         handleHomePage($socket, $geminiHost);
+    } elseif ($path === '/bbs-directory/' || $path === '/bbs-directory') {
+        handleBbsDirectoryList($socket, $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/$#', $path, $m)) {
         handleUserIndex($socket, $m[1], $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/([^/]+)$#', $path, $m)) {

@@ -161,6 +161,7 @@ class NativeDoorManifest
             // Door technical info
             'executable' => $data['door']['executable'],
             'launch_command' => $data['door']['launch_command'] ?? null,
+            'launch_command_windows' => $data['door']['launch_command_windows'] ?? null,
             'directory' => 'native-doors/doors/' . $doorId,
             'dropfile_format' => $data['door']['dropfile_format'] ?? 'DOOR.SYS',
             'output_encoding' => $data['door']['output_encoding'] ?? 'utf8',
@@ -172,6 +173,7 @@ class NativeDoorManifest
             // Requirements
             'requirements' => $data['requirements'] ?? [],
             'admin_only' => !empty($data['requirements']['admin_only']),
+            'platform' => $data['requirements']['platform'] ?? [],
 
             // Default config (can be overridden via nativedoors.json)
             'config' => [
@@ -179,6 +181,8 @@ class NativeDoorManifest
                 'credit_cost' => $data['config']['credit_cost'] ?? 0,
                 'max_time_minutes' => $data['config']['max_time_minutes'] ?? 30,
                 'max_sessions' => $data['config']['max_sessions'] ?? 10,
+                'allow_anonymous' => $data['config']['allow_anonymous'] ?? false,
+                'guest_max_sessions' => $data['config']['guest_max_sessions'] ?? 2,
             ],
         ];
     }

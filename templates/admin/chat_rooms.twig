@@ -1,13 +1,13 @@
 {% extends "base.twig" %}
 
-{% block title %}Chat Rooms{% endblock %}
+{% block title %}{{ t('ui.admin.chat_rooms.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Chat Rooms</h1>
+        <h1 class="h2">{{ t('ui.admin.chat_rooms.heading', {}, locale, ['common']) }}</h1>
         <button type="button" class="btn btn-primary" onclick="showCreateRoomModal()">
-            <i class="fas fa-plus me-2"></i>Add Room
+            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.chat_rooms.add_room', {}, locale, ['common']) }}
         </button>
     </div>
 
@@ -17,12 +17,12 @@
                 <table class="table table-hover" id="chatRoomsTable">
                     <thead class="table-dark">
                         <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Description</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.name', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.description', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.created', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="chatRoomsTableBody">
@@ -38,39 +38,57 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="chatRoomModalLabel">Add Chat Room</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="chatRoomModalLabel">{{ t('ui.admin.chat_rooms.add_chat_room', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
                 <form id="chatRoomForm">
                     <input type="hidden" id="chatRoomId" name="chatRoomId">
                     <div class="mb-3">
-                        <label for="chatRoomName" class="form-label">Name <span class="text-danger">*</span></label>
+                        <label for="chatRoomName" class="form-label">{{ t('ui.common.name', {}, locale, ['common']) }} <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="chatRoomName" name="name" required>
                     </div>
                     <div class="mb-3">
-                        <label for="chatRoomDescription" class="form-label">Description</label>
+                        <label for="chatRoomDescription" class="form-label">{{ t('ui.common.description', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="chatRoomDescription" name="description">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="chatRoomActive" name="is_active" checked>
                         <label class="form-check-label" for="chatRoomActive">
-                            Active room
+                            {{ t('ui.admin.chat_rooms.active_room', {}, locale, ['common']) }}
                         </label>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveChatRoom()">Save Room</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveChatRoom()">{{ t('ui.admin.chat_rooms.save_room', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 document.addEventListener('DOMContentLoaded', function() {
-    loadChatRooms();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadChatRooms();
+    });
 });
 
 function loadChatRooms() {
@@ -80,8 +98,8 @@ function loadChatRooms() {
             displayChatRooms(data.rooms || []);
         })
         .catch(error => {
-            console.error('Error loading chat rooms:', error);
-            showAlert('Error loading chat rooms', 'danger');
+            console.error(uiT('ui.admin.chat_rooms.load_failed', 'Error loading chat rooms') + ':', error);
+            showAlert(uiT('ui.admin.chat_rooms.load_failed', 'Error loading chat rooms'), 'danger');
         });
 }
 
@@ -95,19 +113,19 @@ function displayChatRooms(rooms) {
         row.innerHTML = `
             <td>${room.id}</td>
             <td>${room.name}</td>
-            <td>${room.description || '-'}</td>
+            <td>${room.description || uiT('ui.admin.chat_rooms.no_description', '-')}</td>
             <td>
                 <span class="badge bg-${room.is_active ? 'success' : 'secondary'}">
-                    ${room.is_active ? 'Active' : 'Inactive'}
+                    ${room.is_active ? uiT('ui.admin.chat_rooms.active', 'Active') : uiT('ui.admin.chat_rooms.inactive', 'Inactive')}
                 </span>
             </td>
             <td>${new Date(room.created_at).toLocaleDateString()}</td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-primary" onclick="editChatRoom(${room.id})" title="Edit">
+                    <button type="button" class="btn btn-outline-primary" onclick="editChatRoom(${room.id})" title="${uiT('ui.common.edit', 'Edit')}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-danger" onclick="deleteChatRoom(${room.id})" title="Delete" ${isLobby ? 'disabled' : ''}>
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteChatRoom(${room.id})" title="${uiT('ui.common.delete', 'Delete')}" ${isLobby ? 'disabled' : ''}>
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -118,7 +136,7 @@ function displayChatRooms(rooms) {
 }
 
 function showCreateRoomModal() {
-    document.getElementById('chatRoomModalLabel').textContent = 'Add Chat Room';
+    document.getElementById('chatRoomModalLabel').textContent = uiT('ui.admin.chat_rooms.add_chat_room', 'Add Chat Room');
     document.getElementById('chatRoomForm').reset();
     document.getElementById('chatRoomId').value = '';
     document.getElementById('chatRoomName').disabled = false;
@@ -132,11 +150,11 @@ function editChatRoom(roomId) {
         .then(data => {
             const room = (data.rooms || []).find(item => item.id === roomId);
             if (!room) {
-                showAlert('Chat room not found', 'danger');
+                showAlert(uiT('ui.admin.chat_rooms.not_found', 'Chat room not found'), 'danger');
                 return;
             }
 
-            document.getElementById('chatRoomModalLabel').textContent = 'Edit Chat Room';
+            document.getElementById('chatRoomModalLabel').textContent = uiT('ui.admin.chat_rooms.edit_chat_room', 'Edit Chat Room');
             document.getElementById('chatRoomId').value = room.id;
             document.getElementById('chatRoomName').value = room.name;
             document.getElementById('chatRoomName').disabled = room.name === 'Lobby';
@@ -146,8 +164,8 @@ function editChatRoom(roomId) {
             new bootstrap.Modal(document.getElementById('chatRoomModal')).show();
         })
         .catch(error => {
-            console.error('Error loading chat room:', error);
-            showAlert('Error loading chat room', 'danger');
+            console.error(uiT('ui.admin.chat_rooms.load_single_failed', 'Error loading chat room') + ':', error);
+            showAlert(uiT('ui.admin.chat_rooms.load_single_failed', 'Error loading chat room'), 'danger');
         });
 }
 
@@ -173,21 +191,31 @@ function saveChatRoom() {
     .then(response => response.json())
     .then(data => {
         if (data.success || data.id) {
-            showAlert(roomId ? 'Room updated successfully' : 'Room created successfully', 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(
+                    data,
+                    roomId
+                        ? uiT('ui.admin.chat_rooms.updated_success', 'Room updated successfully')
+                        : uiT('ui.admin.chat_rooms.created_success', 'Room created successfully')
+                )
+                : (roomId
+                    ? uiT('ui.admin.chat_rooms.updated_success', 'Room updated successfully')
+                    : uiT('ui.admin.chat_rooms.created_success', 'Room created successfully'));
+            showAlert(successMessage, 'success');
             bootstrap.Modal.getInstance(document.getElementById('chatRoomModal')).hide();
             loadChatRooms();
         } else {
-            showAlert(data.error || 'Error saving room', 'danger');
+            showAlert(apiError(data, uiT('ui.admin.chat_rooms.save_failed', 'Error saving room')), 'danger');
         }
     })
     .catch(error => {
-        console.error('Error saving chat room:', error);
-        showAlert('Error saving room', 'danger');
+        console.error(uiT('ui.admin.chat_rooms.save_failed', 'Error saving room') + ':', error);
+        showAlert(uiT('ui.admin.chat_rooms.save_failed', 'Error saving room'), 'danger');
     });
 }
 
 function deleteChatRoom(roomId) {
-    if (!confirm('Delete this chat room? This cannot be undone.')) {
+    if (!confirm(uiT('ui.admin.chat_rooms.delete_confirm', 'Delete this chat room? This cannot be undone.'))) {
         return;
     }
 
@@ -195,15 +223,18 @@ function deleteChatRoom(roomId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Room deleted successfully', 'success');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(data, uiT('ui.admin.chat_rooms.deleted_success', 'Room deleted successfully'))
+                    : uiT('ui.admin.chat_rooms.deleted_success', 'Room deleted successfully');
+                showAlert(successMessage, 'success');
                 loadChatRooms();
             } else {
-                showAlert(data.error || 'Error deleting room', 'danger');
+                showAlert(apiError(data, uiT('ui.admin.chat_rooms.delete_failed', 'Error deleting room')), 'danger');
             }
         })
         .catch(error => {
-            console.error('Error deleting chat room:', error);
-            showAlert('Error deleting room', 'danger');
+            console.error(uiT('ui.admin.chat_rooms.delete_failed', 'Error deleting room') + ':', error);
+            showAlert(uiT('ui.admin.chat_rooms.delete_failed', 'Error deleting room'), 'danger');
         });
 }
 

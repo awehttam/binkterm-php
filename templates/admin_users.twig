@@ -1,26 +1,26 @@
 {% extends "base.twig" %}
 
-{% block title %}User Management{% endblock %}
+{% block title %}{{ t('ui.admin_users.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-users me-2"></i>User Management</h2>
+                <h2><i class="fas fa-users me-2"></i>{{ t('ui.admin_users.heading', {}, locale, ['common']) }}</h2>
                 <div>
                     <button class="btn btn-success me-2" onclick="createNewUser()">
-                        <i class="fas fa-user-plus me-2"></i>Create New User
+                        <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-info me-2" onclick="showUsersNeedingReminders()">
-                        <i class="fas fa-bell me-2"></i>Need Reminders
+                        <i class="fas fa-bell me-2"></i>{{ t('ui.admin_users.need_reminders', {}, locale, ['common']) }}
                         <span id="reminders-count" class="badge bg-light text-dark ms-1" style="display: none;">0</span>
                     </button>
                     <button class="btn btn-warning me-2" onclick="cleanupRegistrations()">
-                        <i class="fas fa-broom me-2"></i>Cleanup
+                        <i class="fas fa-broom me-2"></i>{{ t('ui.admin_users.cleanup', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-primary" onclick="refreshData()">
-                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                        <i class="fas fa-sync-alt me-2"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -29,7 +29,7 @@
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-user-clock me-2"></i>Pending Registrations
+                        <i class="fas fa-user-clock me-2"></i>{{ t('ui.admin_users.pending_registrations', {}, locale, ['common']) }}
                         <span id="pending-count" class="badge bg-warning ms-2">0</span>
                     </h5>
                 </div>
@@ -37,9 +37,9 @@
                     <div id="pending-users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                                <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                             </div>
-                            <p class="mt-2">Loading pending registrations...</p>
+                            <p class="mt-2">{{ t('ui.admin_users.loading_pending_registrations', {}, locale, ['common']) }}</p>
                         </div>
                     </div>
                 </div>
@@ -49,7 +49,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-users me-2"></i>All Users
+                        <i class="fas fa-users me-2"></i>{{ t('ui.admin_users.all_users', {}, locale, ['common']) }}
                         <span id="users-count" class="badge bg-info ms-2">0</span>
                     </h5>
                 </div>
@@ -58,7 +58,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="input-group">
-                                <input type="text" class="form-control" id="user-search" placeholder="Search users...">
+                                <input type="text" class="form-control" id="user-search" placeholder="{{ t('ui.admin_users.search_users_placeholder', {}, locale, ['common']) }}">
                                 <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
                                     <i class="fas fa-search"></i>
                                 </button>
@@ -67,9 +67,9 @@
                         <div class="col-md-6">
                             <div class="d-flex justify-content-end">
                                 <select class="form-select" id="users-per-page" onchange="changeUsersPerPage()" style="width: auto;">
-                                    <option value="25">25 per page</option>
-                                    <option value="50">50 per page</option>
-                                    <option value="100">100 per page</option>
+                                    <option value="25">{{ t('ui.admin_users.per_page_25', {}, locale, ['common']) }}</option>
+                                    <option value="50">{{ t('ui.admin_users.per_page_50', {}, locale, ['common']) }}</option>
+                                    <option value="100">{{ t('ui.admin_users.per_page_100', {}, locale, ['common']) }}</option>
                                 </select>
                             </div>
                         </div>
@@ -78,9 +78,9 @@
                     <div id="users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                                <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                             </div>
-                            <p class="mt-2">Loading users...</p>
+                            <p class="mt-2">{{ t('ui.admin_users.loading_users', {}, locale, ['common']) }}</p>
                         </div>
                     </div>
                     
@@ -101,7 +101,7 @@
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="fas fa-user-check me-2"></i>
-                    <span id="approval-action-title">Approve User</span>
+                    <span id="approval-action-title">{{ t('ui.admin_users.approve_user', {}, locale, ['common']) }}</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -109,18 +109,18 @@
                 <div id="user-details"></div>
                 
                 <div class="mt-4">
-                    <label for="admin-notes" class="form-label">Admin Notes</label>
+                    <label for="admin-notes" class="form-label">{{ t('ui.admin_users.admin_notes', {}, locale, ['common']) }}</label>
                     <textarea class="form-control" id="admin-notes" rows="3" 
-                              placeholder="Optional notes about this decision..."></textarea>
+                              placeholder="{{ t('ui.admin_users.optional_notes_placeholder', {}, locale, ['common']) }}"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-success" id="approve-btn" onclick="processUser('approve')">
-                    <i class="fas fa-check me-2"></i>Approve
+                    <i class="fas fa-check me-2"></i>{{ t('ui.admin_users.approve', {}, locale, ['common']) }}
                 </button>
                 <button type="button" class="btn btn-danger" id="reject-btn" onclick="processUser('reject')">
-                    <i class="fas fa-times me-2"></i>Reject
+                    <i class="fas fa-times me-2"></i>{{ t('ui.admin_users.reject', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -133,7 +133,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user-plus me-2"></i>Create New User
+                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, locale, ['common']) }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -142,34 +142,34 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="create-username" class="form-label">Username</label>
+                                <label for="create-username" class="form-label">{{ t('ui.common.username', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="create-username" required
-                                       pattern="[a-zA-Z0-9_]{3,20}" title="3-20 characters, letters, numbers, and underscores only">
-                                <div class="form-text">3-20 characters, letters, numbers, and underscores only</div>
+                                       pattern="[a-zA-Z0-9_]{3,20}" title="{{ t('ui.admin_users.username_validation', {}, locale, ['common']) }}">
+                                <div class="form-text">{{ t('ui.admin_users.username_validation', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="create-real-name" class="form-label">Real Name</label>
+                                <label for="create-real-name" class="form-label">{{ t('ui.common.real_name', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="create-real-name" required>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-email" class="form-label">Email Address</label>
+                        <label for="create-email" class="form-label">{{ t('ui.common.email_address', {}, locale, ['common']) }}</label>
                         <input type="email" class="form-control" id="create-email">
-                        <div class="form-text">Optional - for account recovery and notifications</div>
+                        <div class="form-text">{{ t('ui.admin_users.email_optional_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-password" class="form-label">Password</label>
+                        <label for="create-password" class="form-label">{{ t('ui.common.password', {}, locale, ['common']) }}</label>
                         <input type="password" class="form-control" id="create-password" required minlength="8">
-                        <div class="form-text">Minimum 8 characters</div>
+                        <div class="form-text">{{ t('ui.admin_users.min_8_characters', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-confirm-password" class="form-label">Confirm Password</label>
+                        <label for="create-confirm-password" class="form-label">{{ t('ui.register.confirm_password', {}, locale, ['common']) }}</label>
                         <input type="password" class="form-control" id="create-confirm-password" required>
                     </div>
                     
@@ -178,27 +178,27 @@
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="create-is-active" checked>
                                 <label class="form-check-label" for="create-is-active">
-                                    Account is active
+                                    {{ t('ui.admin_users.account_is_active', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">Inactive users cannot log in</div>
+                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="create-is-admin">
                                 <label class="form-check-label" for="create-is-admin">
-                                    Administrator privileges
+                                    {{ t('ui.admin_users.admin_privileges', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">Admins can manage users and system settings</div>
+                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-success" onclick="saveNewUser()">
-                    <i class="fas fa-user-plus me-2"></i>Create User
+                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_user', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -211,7 +211,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user-edit me-2"></i>Edit User
+                    <i class="fas fa-user-edit me-2"></i>{{ t('ui.admin_users.edit_user', {}, locale, ['common']) }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -222,22 +222,22 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="edit-username" class="form-label">Username</label>
+                                <label for="edit-username" class="form-label">{{ t('ui.common.username', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="edit-username" readonly>
-                                <div class="form-text">Username cannot be changed</div>
+                                <div class="form-text">{{ t('ui.admin_users.username_cannot_change', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="edit-real-name" class="form-label">Real Name</label>
+                                <label for="edit-real-name" class="form-label">{{ t('ui.common.real_name', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="edit-real-name" readonly>
-                                <div class="form-text">Real name cannot be changed</div>
+                                <div class="form-text">{{ t('ui.admin_users.real_name_cannot_change', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="edit-email" class="form-label">Email Address</label>
+                        <label for="edit-email" class="form-label">{{ t('ui.common.email_address', {}, locale, ['common']) }}</label>
                         <input type="email" class="form-control" id="edit-email">
                     </div>
                     
@@ -246,33 +246,33 @@
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-active">
                                 <label class="form-check-label" for="edit-is-active">
-                                    Account is active
+                                    {{ t('ui.admin_users.account_is_active', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">Inactive users cannot log in</div>
+                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-admin">
                                 <label class="form-check-label" for="edit-is-admin">
-                                    Administrator privileges
+                                    {{ t('ui.admin_users.admin_privileges', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">Admins can manage users and system settings</div>
+                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="edit-new-password" class="form-label">New Password</label>
+                        <label for="edit-new-password" class="form-label">{{ t('ui.admin_users.new_password', {}, locale, ['common']) }}</label>
                         <input type="password" class="form-control" id="edit-new-password" minlength="8">
-                        <div class="form-text">Leave blank to keep current password. Minimum 8 characters if changing.</div>
+                        <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, locale, ['common']) }}</div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveUserChanges()">
-                    <i class="fas fa-save me-2"></i>Save Changes
+                    <i class="fas fa-save me-2"></i>{{ t('ui.common.save_changes', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -289,11 +289,27 @@ let currentLimit = 25;
 let currentSearch = '';
 let totalUsers = 0;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
-    loadPendingUsers();
-    loadAllUsers();
-    loadUsersNeedingReminders();
-    
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadPendingUsers();
+        loadAllUsers();
+        loadUsersNeedingReminders();
+    });
+
     // Setup search on enter key
     $('#user-search').on('keypress', function(e) {
         if (e.which === 13) {
@@ -319,13 +335,13 @@ function loadPendingUsers() {
             if (response.success) {
                 renderPendingUsers(response.users);
             } else {
-                console.error('Pending users error:', response.error);
-                showError('Failed to load pending users: ' + (response.error || 'Unknown error'));
+                console.error(uiT('ui.admin_users.pending_users_error', 'Pending users error:'), apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
+                showError(uiT('ui.admin_users.pending_users_load_failed_prefix', 'Failed to load pending users: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for pending users:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load pending users: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.pending_users_load_failed_prefix', 'Failed to load pending users: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -353,13 +369,13 @@ function loadAllUsers(page = 1) {
                     totalUsers = response.pagination.total;
                 }
             } else {
-                console.error('All users error:', response.error);
-                showError('Failed to load users: ' + (response.error || 'Unknown error'));
+                console.error(uiT('ui.admin_users.all_users_error', 'All users error:'), apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
+                showError(uiT('ui.admin_users.users_load_failed_prefix', 'Failed to load users: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for all users:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load users: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.users_load_failed_prefix', 'Failed to load users: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -372,7 +388,7 @@ function renderPendingUsers(users) {
         container.html(`
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-inbox fa-3x mb-3"></i>
-                <p>No pending registrations</p>
+                <p>${uiT('ui.admin_users.no_pending_registrations', 'No pending registrations')}</p>
             </div>
         `);
         return;
@@ -382,12 +398,12 @@ function renderPendingUsers(users) {
     html += `
         <thead>
             <tr>
-                <th>Username</th>
-                <th>Real Name</th>
-                <th>Email</th>
-                <th>Requested</th>
-                <th>IP Address</th>
-                <th>Actions</th>
+                <th>${uiT('ui.common.username', 'Username')}</th>
+                <th>${uiT('ui.common.real_name', 'Real Name')}</th>
+                <th>${uiT('ui.common.email', 'Email')}</th>
+                <th>${uiT('ui.admin_users.requested', 'Requested')}</th>
+                <th>${uiT('ui.common.ip_address', 'IP Address')}</th>
+                <th>${uiT('ui.common.actions', 'Actions')}</th>
             </tr>
         </thead>
         <tbody>
@@ -399,18 +415,18 @@ function renderPendingUsers(users) {
             <tr>
                 <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${escapeHtml(user.real_name || '')}</td>
-                <td>${escapeHtml(user.email || 'Not provided')}</td>
+                <td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td>
                 <td>${requestedDate}</td>
                 <td><code>${escapeHtml(user.ip_address || '')}</code></td>
                 <td>
                     <button class="btn btn-sm btn-info me-1" onclick="viewUser(${user.id})">
-                        <i class="fas fa-eye"></i> View
+                        <i class="fas fa-eye"></i> ${uiT('ui.common.view', 'View')}
                     </button>
                     <button class="btn btn-sm btn-success me-1" onclick="approveUserModal(${user.id}, 'approve')">
-                        <i class="fas fa-check"></i> Approve
+                        <i class="fas fa-check"></i> ${uiT('ui.admin_users.approve', 'Approve')}
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="approveUserModal(${user.id}, 'reject')">
-                        <i class="fas fa-times"></i> Reject
+                        <i class="fas fa-times"></i> ${uiT('ui.admin_users.reject', 'Reject')}
                     </button>
                 </td>
             </tr>
@@ -430,41 +446,41 @@ function renderAllUsers(users) {
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Real Name</th>
-                <th>Status</th>
-                <th>Admin</th>
-                <th>Created</th>
-                <th>Last Login</th>
-                <th>Last Reminded</th>
-                <th>Actions</th>
+                <th>${uiT('ui.common.username', 'Username')}</th>
+                <th>${uiT('ui.common.real_name', 'Real Name')}</th>
+                <th>${uiT('ui.common.status', 'Status')}</th>
+                <th>${uiT('ui.common.admin', 'Admin')}</th>
+                <th>${uiT('ui.common.created', 'Created')}</th>
+                <th>${uiT('ui.common.last_login', 'Last Login')}</th>
+                <th>${uiT('ui.admin_users.last_reminded', 'Last Reminded')}</th>
+                <th>${uiT('ui.common.actions', 'Actions')}</th>
             </tr>
         </thead>
         <tbody>
     `;
     
     users.forEach(user => {
-        const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
-        const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
-        let lastReminded = 'Never';
+        const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : uiT('ui.common.unknown', 'Unknown');
+        const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : uiT('ui.common.never', 'Never');
+        let lastReminded = uiT('ui.common.never', 'Never');
         if (user.days_since_reminder !== null && user.days_since_reminder !== undefined) {
             if (user.days_since_reminder === 0) {
-                lastReminded = 'Today';
+                lastReminded = uiT('ui.common.today', 'Today');
             } else if (user.days_since_reminder === 1) {
-                lastReminded = '1 day ago';
+                lastReminded = uiT('ui.common.one_day_ago', '1 day ago');
             } else {
-                lastReminded = `${user.days_since_reminder} days ago`;
+                lastReminded = uiT('ui.common.days_ago', '{count} days ago', { count: user.days_since_reminder });
             }
         }
         
         // Debug logging
         console.log('User:', user.username, 'days_since_reminder:', user.days_since_reminder, 'display:', lastReminded);
         const statusBadge = user.is_active ? 
-            '<span class="badge bg-success">Active</span>' : 
-            '<span class="badge bg-danger">Inactive</span>';
+            `<span class="badge bg-success">${uiT('ui.common.active', 'Active')}</span>` :
+            `<span class="badge bg-danger">${uiT('ui.common.inactive', 'Inactive')}</span>`;
         const adminBadge = user.is_admin ? 
-            '<span class="badge bg-warning">Admin</span>' : 
-            '<span class="badge bg-secondary">User</span>';
+            `<span class="badge bg-warning">${uiT('ui.common.admin', 'Admin')}</span>` :
+            `<span class="badge bg-secondary">${uiT('ui.common.user', 'User')}</span>`;
             
         html += `
             <tr>
@@ -477,21 +493,21 @@ function renderAllUsers(users) {
                 <td>${lastLogin}</td>
                 <td>${lastReminded}</td>
                 <td>
-                    <a href="/profile/${encodeURIComponent(user.username)}" class="btn btn-sm btn-secondary me-1" target="_blank" title="View Profile">
-                        <i class="fas fa-user"></i> View Profile
+                    <a href="/profile/${encodeURIComponent(user.username)}" class="btn btn-sm btn-secondary me-1" target="_blank" title="${uiT('ui.admin_users.view_profile', 'View Profile')}">
+                        <i class="fas fa-user"></i> ${uiT('ui.admin_users.view_profile', 'View Profile')}
                     </a>
                     <button class="btn btn-sm btn-primary me-1" onclick="editUser(${user.id})">
-                        <i class="fas fa-edit"></i> Edit
+                        <i class="fas fa-edit"></i> ${uiT('ui.common.edit', 'Edit')}
                     </button>
                     <button class="btn btn-sm btn-${user.is_active ? 'warning' : 'success'} me-1" onclick="toggleUserStatus(${user.id}, ${user.is_active ? 'false' : 'true'})">
-                        <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i> ${user.is_active ? 'Disable' : 'Enable'}
+                        <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i> ${user.is_active ? uiT('ui.common.disable', 'Disable') : uiT('ui.common.enable', 'Enable')}
                     </button>`;
         
         // Add reminder button if user hasn't logged in yet
         if (!user.last_login && user.is_active) {
             html += `
-                    <button class="btn btn-sm btn-info me-1" onclick="sendAccountReminder(${user.id}, '${escapeHtml(user.username)}')" title="Send account reminder">
-                        <i class="fas fa-bell"></i> Remind
+                    <button class="btn btn-sm btn-info me-1" onclick="sendAccountReminder(${user.id}, '${escapeHtml(user.username)}')" title="${uiT('ui.admin_users.send_account_reminder', 'Send account reminder')}">
+                        <i class="fas fa-bell"></i> ${uiT('ui.admin_users.remind', 'Remind')}
                     </button>`;
         }
         
@@ -518,38 +534,38 @@ function viewUser(userId) {
                 
                 let referrerInfo = '';
                 if (user.referrer_username) {
-                    referrerInfo = `<tr><th>Referred By:</th><td><strong>${escapeHtml(user.referrer_username)}</strong> (${escapeHtml(user.referrer_real_name || '')})</td></tr>`;
+                    referrerInfo = `<tr><th>${uiT('ui.admin_users.referred_by', 'Referred By:')}</th><td><strong>${escapeHtml(user.referrer_username)}</strong> (${escapeHtml(user.referrer_real_name || '')})</td></tr>`;
                 }
 
                 let details = `
                     <div class="row">
                         <div class="col-md-6">
-                            <h6>Basic Information</h6>
+                            <h6>${uiT('ui.admin_users.basic_information', 'Basic Information')}</h6>
                             <table class="table table-sm">
-                                <tr><th>Username:</th><td>${escapeHtml(user.username)}</td></tr>
-                                <tr><th>Real Name:</th><td>${escapeHtml(user.real_name || 'Not provided')}</td></tr>
-                                <tr><th>Email:</th><td>${escapeHtml(user.email || 'Not provided')}</td></tr>
-                                <tr><th>Location:</th><td>${escapeHtml(user.location || 'Not provided')}</td></tr>
-                                <tr><th>Requested:</th><td>${requestedDate}</td></tr>
-                                <tr><th>IP Address:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
+                                <tr><th>${uiT('ui.common.username', 'Username')}:</th><td>${escapeHtml(user.username)}</td></tr>
+                                <tr><th>${uiT('ui.common.real_name', 'Real Name')}:</th><td>${escapeHtml(user.real_name || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
+                                <tr><th>${uiT('ui.common.email', 'Email')}:</th><td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
+                                <tr><th>${uiT('ui.common.location', 'Location')}:</th><td>${escapeHtml(user.location || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
+                                <tr><th>${uiT('ui.admin_users.requested', 'Requested')}:</th><td>${requestedDate}</td></tr>
+                                <tr><th>${uiT('ui.common.ip_address', 'IP Address')}:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
                                 ${referrerInfo}
                             </table>
                         </div>
                         <div class="col-md-6">
-                            <h6>Request Details</h6>
-                            <p><strong>Reason for joining:</strong></p>
+                            <h6>${uiT('ui.admin_users.request_details', 'Request Details')}</h6>
+                            <p><strong>${uiT('ui.admin_users.reason_for_joining', 'Reason for joining:')}</strong></p>
                             <div class="border p-2 bg-light">
-                                ${escapeHtml(user.reason || 'No reason provided').replace(/\n/g, '<br>')}
+                                ${escapeHtml(user.reason || uiT('ui.admin_users.no_reason_provided', 'No reason provided')).replace(/\n/g, '<br>')}
                             </div>
-                            <p class="mt-2"><strong>User Agent:</strong></p>
-                            <small class="text-muted">${escapeHtml(user.user_agent || 'Not available')}</small>
+                            <p class="mt-2"><strong>${uiT('ui.admin_users.user_agent', 'User Agent:')}</strong></p>
+                            <small class="text-muted">${escapeHtml(user.user_agent || uiT('ui.admin_users.not_available', 'Not available'))}</small>
                         </div>
                     </div>
                 `;
                 
                 $('#user-details').html(details);
                 currentPendingUserId = userId;
-                $('#approval-action-title').text('User Details');
+                $('#approval-action-title').text(uiT('ui.admin_users.user_details', 'User Details'));
                 $('#approve-btn, #reject-btn').hide();
                 new bootstrap.Modal(document.getElementById('approvalModal')).show();
             }
@@ -562,11 +578,11 @@ function approveUserModal(userId, action) {
     // Show appropriate buttons after user details are loaded
     setTimeout(() => {
         if (action === 'approve') {
-            $('#approval-action-title').text('Approve User Registration');
+            $('#approval-action-title').text(uiT('ui.admin_users.approve_user_registration', 'Approve User Registration'));
             $('#approve-btn').show();
             $('#reject-btn').hide();
         } else {
-            $('#approval-action-title').text('Reject User Registration');
+            $('#approval-action-title').text(uiT('ui.admin_users.reject_user_registration', 'Reject User Registration'));
             $('#approve-btn').hide();
             $('#reject-btn').show();
         }
@@ -580,7 +596,7 @@ function processUser(action) {
     const btn = action === 'approve' ? $('#approve-btn') : $('#reject-btn');
     const originalText = btn.html();
     
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.admin_users.processing', 'Processing...'));
     
     $.ajax({
         url: '/api/admin/pending-users/' + currentPendingUserId + '/' + action,
@@ -589,16 +605,22 @@ function processUser(action) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(action === 'approve' ? 'User approved successfully!' : 'User rejected successfully!');
+                const fallbackMessage = action === 'approve'
+                    ? uiT('ui.admin_users.user_approved_success', 'User approved successfully!')
+                    : uiT('ui.admin_users.user_rejected_success', 'User rejected successfully!');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, fallbackMessage)
+                    : fallbackMessage;
+                showSuccess(successMessage);
                 $('#approvalModal').modal('hide');
                 refreshData();
                 $('#admin-notes').val('');
             } else {
-                showError('Failed to ' + action + ' user: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
-            showError('Failed to ' + action + ' user');
+            showError(uiT('ui.admin_users.user_action_failed_short', 'Failed to {action} user', { action }));
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -618,12 +640,12 @@ function escapeHtml(text) {
 
 function showSuccess(message) {
     // Simple success notification - could be enhanced with toast/alert system
-    alert('Success: ' + message);
+    alert(uiT('ui.admin_users.success_prefix', 'Success: ') + message);
 }
 
 function showError(message) {
     // Simple error notification - could be enhanced with toast/alert system
-    alert('Error: ' + message);
+    alert(uiT('ui.admin_users.error_prefix', 'Error: ') + message);
 }
 
 function editUser(userId) {
@@ -650,12 +672,12 @@ function editUser(userId) {
                 // Show modal
                 new bootstrap.Modal(document.getElementById('editUserModal')).show();
             } else {
-                showError('Failed to load user data: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.user_data_load_failed_prefix', 'Failed to load user data: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for edit user:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load user data: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.user_data_load_failed_prefix', 'Failed to load user data: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -666,7 +688,7 @@ function saveUserChanges() {
     
     // Validate password if provided
     if (newPassword && newPassword.length < 8) {
-        showError('Password must be at least 8 characters long');
+        showError(uiT('ui.admin_users.password_min_length', 'Password must be at least 8 characters long'));
         return;
     }
     
@@ -684,7 +706,7 @@ function saveUserChanges() {
     
     const btn = $('button[onclick="saveUserChanges()"]');
     const originalText = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.common.saving', 'Saving...'));
     
     $.ajax({
         url: '/api/admin/users/' + userId,
@@ -693,16 +715,19 @@ function saveUserChanges() {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess('User updated successfully!');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin_users.user_updated_success', 'User updated successfully!'))
+                    : uiT('ui.admin_users.user_updated_success', 'User updated successfully!');
+                showSuccess(successMessage);
                 $('#editUserModal').modal('hide');
                 refreshData();
             } else {
-                showError('Failed to update user: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.user_update_failed_prefix', 'Failed to update user: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for save user:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to update user: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.user_update_failed_prefix', 'Failed to update user: ') + xhr.status + ' ' + xhr.statusText);
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -713,7 +738,7 @@ function saveUserChanges() {
 function toggleUserStatus(userId, newStatus) {
     const action = newStatus === 'true' ? 'enable' : 'disable';
     
-    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+    if (!confirm(uiT('ui.admin_users.user_toggle_confirm', 'Are you sure you want to {action} this user?', { action }))) {
         return;
     }
     
@@ -724,15 +749,18 @@ function toggleUserStatus(userId, newStatus) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(`User ${action}d successfully!`);
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin_users.user_toggled_success', 'User {action}d successfully!', { action }))
+                    : uiT('ui.admin_users.user_toggled_success', 'User {action}d successfully!', { action });
+                showSuccess(successMessage);
                 refreshData();
             } else {
-                showError(`Failed to ${action} user: ` + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for toggle status:', xhr.status, xhr.statusText, xhr.responseText);
-            showError(`Failed to ${action} user: ` + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -762,25 +790,25 @@ function saveNewUser() {
     
     // Validate required fields
     if (!username || !realName || !password) {
-        showError('Username, real name, and password are required');
+        showError(uiT('ui.admin_users.required_fields', 'Username, real name, and password are required'));
         return;
     }
     
     // Validate username format
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-        showError('Username must be 3-20 characters, letters, numbers, and underscores only');
+        showError(uiT('ui.admin_users.username_validation', 'Username must be 3-20 characters, letters, numbers, and underscores only'));
         return;
     }
     
     // Validate password
     if (password.length < 8) {
-        showError('Password must be at least 8 characters long');
+        showError(uiT('ui.admin_users.password_min_length', 'Password must be at least 8 characters long'));
         return;
     }
     
     // Validate passwords match
     if (password !== confirmPassword) {
-        showError('Passwords do not match');
+        showError(uiT('ui.register.passwords_do_not_match', 'Passwords do not match'));
         return;
     }
     
@@ -795,7 +823,7 @@ function saveNewUser() {
     
     const btn = $('button[onclick="saveNewUser()"]');
     const originalText = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Creating...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.admin_users.creating', 'Creating...'));
     
     $.ajax({
         url: '/api/admin/users/create',
@@ -804,18 +832,21 @@ function saveNewUser() {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess('User created successfully!');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin_users.user_created_success', 'User created successfully!'))
+                    : uiT('ui.admin_users.user_created_success', 'User created successfully!');
+                showSuccess(successMessage);
                 $('#createUserModal').modal('hide');
                 refreshData();
             } else {
-                showError('Failed to create user: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.user_create_failed_prefix', 'Failed to create user: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for create user:', xhr.status, xhr.statusText, xhr.responseText);
-            let errorMsg = 'Failed to create user';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMsg += ': ' + xhr.responseJSON.error;
+            let errorMsg = uiT('ui.admin_users.user_create_failed', 'Failed to create user');
+            if (xhr && xhr.responseJSON) {
+                errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText);
             } else {
                 errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
             }
@@ -828,13 +859,13 @@ function saveNewUser() {
 }
 
 function cleanupRegistrations() {
-    if (!confirm('This will remove all approved registration records and old rejected registrations (30+ days). Are you sure?')) {
+    if (!confirm(uiT('ui.admin_users.cleanup_confirm', 'This will remove all approved registration records and old rejected registrations (30+ days). Are you sure?'))) {
         return;
     }
     
     const btn = $('button[onclick="cleanupRegistrations()"]');
     const originalText = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Cleaning...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.admin_users.cleaning', 'Cleaning...'));
     
     $.ajax({
         url: '/api/admin/users/cleanup',
@@ -843,15 +874,23 @@ function cleanupRegistrations() {
         success: function(response) {
             if (response.success) {
                 const result = response.result;
-                showSuccess(`Cleanup completed! Removed ${result.approved_removed} approved and ${result.old_rejected_removed} old rejected registrations (${result.total_cleaned} total).`);
+                const fallbackMessage = uiT('ui.admin_users.cleanup_success', 'Cleanup completed! Removed {approved} approved and {rejected} old rejected registrations ({total} total).', {
+                    approved: result.approved_removed,
+                    rejected: result.old_rejected_removed,
+                    total: result.total_cleaned
+                });
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, fallbackMessage)
+                    : fallbackMessage;
+                showSuccess(successMessage);
                 refreshData();
             } else {
-                showError('Failed to cleanup registrations: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.cleanup_failed_prefix', 'Failed to cleanup registrations: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for cleanup:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to cleanup registrations: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.cleanup_failed_prefix', 'Failed to cleanup registrations: ') + xhr.status + ' ' + xhr.statusText);
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -860,33 +899,35 @@ function cleanupRegistrations() {
 }
 
 function sendAccountReminder(userId, username) {
-    if (!confirm(`Send account reminder to ${username}? This will send a reminder message via netmail and email (if available).`)) {
+    if (!confirm(uiT('ui.admin_users.send_reminder_confirm', 'Send account reminder to {username}? This will send a reminder message via netmail and email (if available).', { username }))) {
         return;
     }
-    
+
     $.ajax({
         url: '/api/admin/users/' + userId + '/send-reminder',
         method: 'POST',
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                let message = response.message;
+                let message = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.api.reminder.sent', 'Account reminder sent successfully'))
+                    : uiT('ui.api.reminder.sent', 'Account reminder sent successfully');
                 if (response.email_sent) {
-                    message += ' (sent via netmail and email)';
+                    message += uiT('ui.admin_users.reminder_sent_netmail_email_suffix', ' (sent via netmail and email)');
                 } else {
-                    message += ' (sent via netmail only)';
+                    message += uiT('ui.admin_users.reminder_sent_netmail_only_suffix', ' (sent via netmail only)');
                 }
                 showSuccess(message);
                 refreshData(); // Refresh to update any status changes
             } else {
-                showError('Failed to send reminder: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.send_reminder_failed_prefix', 'Failed to send reminder: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for send reminder:', xhr.status, xhr.statusText, xhr.responseText);
-            let errorMsg = 'Failed to send reminder';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMsg += ': ' + xhr.responseJSON.error;
+            let errorMsg = uiT('ui.admin_users.send_reminder_failed', 'Failed to send reminder');
+            if (xhr && xhr.responseJSON) {
+                errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText);
             } else {
                 errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
             }
@@ -894,7 +935,6 @@ function sendAccountReminder(userId, username) {
         }
     });
 }
-
 function loadUsersNeedingReminders() {
     $.ajax({
         url: '/api/admin/users/need-reminders',
@@ -930,29 +970,32 @@ function showUsersNeedingReminders() {
         success: function(response) {
             if (response.success) {
                 if (response.users.length === 0) {
-                    showSuccess('No users currently need account reminders. All users have logged in!');
+                    showSuccess(uiT('ui.admin_users.no_reminders_needed', 'No users currently need account reminders. All users have logged in!'));
                     return;
                 }
-                
-                let message = `Found ${response.users.length} user(s) who haven't logged in yet:\n\n`;
+
+                let message = uiT('ui.admin_users.reminders_found_header', `Found ${response.users.length} user(s) who haven't logged in yet:\n\n`, { count: response.users.length });
                 response.users.forEach(user => {
                     const createdDate = new Date(user.created_at).toLocaleDateString();
-                    message += `• ${user.username} (${user.real_name || 'No real name'}) - created ${createdDate}\n`;
+                    message += uiT('ui.admin_users.reminder_user_line', '- {username} ({real_name}) - created {created_date}\n', {
+                        username: user.username,
+                        real_name: user.real_name || uiT('ui.admin_users.no_real_name', 'No real name'),
+                        created_date: createdDate
+                    });
                 });
-                message += `\nYou can send individual reminders using the "Remind" buttons in the user list below.`;
-                
+                message += uiT('ui.admin_users.reminders_found_footer', '\nYou can send individual reminders using the "Remind" buttons in the user list below.');
+
                 alert(message);
             } else {
-                showError('Failed to load users needing reminders: ' + (response.error || 'Unknown error'));
+                showError(uiT('ui.admin_users.reminders_load_failed_prefix', 'Failed to load users needing reminders: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for show users needing reminders:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load users needing reminders: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.reminders_load_failed_prefix', 'Failed to load users needing reminders: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
-
 function searchUsers() {
     currentSearch = $('#user-search').val();
     currentPage = 1; // Reset to first page
@@ -973,13 +1016,13 @@ function renderUsersPagination(pagination) {
         return;
     }
     
-    let html = '<nav aria-label="Users pagination"><ul class="pagination">';
+    let html = `<nav aria-label="${uiT('ui.admin_users.users_pagination_aria', 'Users pagination')}"><ul class="pagination">`;
     
     // Previous button
     if (pagination.page > 1) {
         html += `<li class="page-item">
             <a class="page-link" href="#" onclick="loadAllUsers(${pagination.page - 1}); return false;">
-                <i class="fas fa-chevron-left"></i> Previous
+                <i class="fas fa-chevron-left"></i> ${uiT('ui.common.previous', 'Previous')}
             </a>
         </li>`;
     }
@@ -1016,7 +1059,7 @@ function renderUsersPagination(pagination) {
     if (pagination.page < pagination.pages) {
         html += `<li class="page-item">
             <a class="page-link" href="#" onclick="loadAllUsers(${pagination.page + 1}); return false;">
-                Next <i class="fas fa-chevron-right"></i>
+                ${uiT('ui.common.next', 'Next')} <i class="fas fa-chevron-right"></i>
             </a>
         </li>`;
     }
@@ -1027,10 +1070,11 @@ function renderUsersPagination(pagination) {
     const start = (pagination.page - 1) * pagination.limit + 1;
     const end = Math.min(pagination.page * pagination.limit, pagination.total);
     html += `<small class="text-muted ms-3">
-        Showing ${start}-${end} of ${pagination.total} users
+        ${uiT('ui.admin_users.showing_users_range', 'Showing {start}-{end} of {total} users', { start, end, total: pagination.total })}
     </small>`;
     
     container.html(html).show();
 }
 </script>
 {% endblock %}
+

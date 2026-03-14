@@ -1,17 +1,17 @@
 {% extends "base.twig" %}
 
-{% block title %}MRC Settings{% endblock %}
+{% block title %}{{ t('ui.admin.mrc_settings.page_title') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">MRC Chat Settings</h1>
+        <h1 class="h2">{{ t('ui.admin.mrc_settings.heading') }}</h1>
         <div></div>
     </div>
 
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> <strong>Note:</strong> MRC (Multi Relay Chat) is available as a WebDoor.
-        Configure daemon settings here, then enable the door in the <a href="/admin/webdoors" class="alert-link">WebDoors admin</a>.
+        <i class="bi bi-info-circle"></i> <strong>{{ t('ui.admin.mrc_settings.note_label') }}:</strong> {{ t('ui.admin.mrc_settings.note_text') }}
+        {{ t('ui.admin.mrc_settings.note_enable_text') }} <a href="/admin/webdoors" class="alert-link">{{ t('ui.admin.mrc_settings.webdoors_admin') }}</a>.
     </div>
 
     <div class="row g-4">
@@ -19,47 +19,47 @@
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">General Settings</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.mrc_settings.general_settings') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="mrcGeneralAlert"></div>
                     <form id="mrcGeneralForm">
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="mrcEnabled">
-                            <label class="form-check-label" for="mrcEnabled">Enable MRC Daemon</label>
+                            <label class="form-check-label" for="mrcEnabled">{{ t('ui.admin.mrc_settings.enable_daemon') }}</label>
                             <small class="form-text d-block text-muted">
                             </small>
                         </div>
 
                         <hr>
 
-                        <h6 class="mb-3">Server Connection</h6>
+                        <h6 class="mb-3">{{ t('ui.admin.mrc_settings.server_connection') }}</h6>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcServerHost">MRC Server Host</label>
-                            <input type="text" class="form-control" id="mrcServerHost" placeholder="mrc.bottomlessabyss.net">
+                            <label class="form-label" for="mrcServerHost">{{ t('ui.admin.mrc_settings.server_host') }}</label>
+                            <input type="text" class="form-control" id="mrcServerHost" placeholder="{{ t('ui.admin.mrc_settings.placeholder.server_host', {}, locale, ['common']) }}">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcServerPort">Server Port (Non-SSL)</label>
+                            <label class="form-label" for="mrcServerPort">{{ t('ui.admin.mrc_settings.server_port_non_ssl') }}</label>
                             <input type="number" class="form-control" id="mrcServerPort" min="1" max="65535" value="50000">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcServerSslPort">Server Port (SSL)</label>
+                            <label class="form-label" for="mrcServerSslPort">{{ t('ui.admin.mrc_settings.server_port_ssl') }}</label>
                             <input type="number" class="form-control" id="mrcServerSslPort" min="1" max="65535" value="50001">
                         </div>
 
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="mrcUseSsl" checked>
-                            <label class="form-check-label" for="mrcUseSsl">Use SSL Connection</label>
+                            <label class="form-check-label" for="mrcUseSsl">{{ t('ui.admin.mrc_settings.use_ssl_connection') }}</label>
                             <small class="form-text d-block text-muted">
-                                Recommended for secure communication
+                                {{ t('ui.admin.mrc_settings.use_ssl_help') }}
                             </small>
                         </div>
 
                         <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
-                            Save General Settings
+                            {{ t('ui.admin.mrc_settings.save_general_settings') }}
                         </button>
                     </form>
                 </div>
@@ -70,51 +70,51 @@
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">BBS Identity</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.mrc_settings.bbs_identity') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="mrcIdentityAlert"></div>
                     <form id="mrcIdentityForm">
                         <div class="mb-3">
-                            <label class="form-label" for="mrcBbsName">BBS Name</label>
-                            <input type="text" class="form-control" id="mrcBbsName" maxlength="64" placeholder="BinktermPHP BBS">
-                            <small class="form-text text-muted">Maximum 64 characters</small>
+                            <label class="form-label" for="mrcBbsName">{{ t('ui.admin.mrc_settings.bbs_name') }}</label>
+                            <input type="text" class="form-control" id="mrcBbsName" maxlength="64" placeholder="{{ t('ui.admin.mrc_settings.placeholder.bbs_name', {}, locale, ['common']) }}">
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.bbs_name_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcPlatform">Platform Info</label>
-                            <input type="text" class="form-control" id="mrcPlatform" placeholder="BINKTERMPHP/Linux64/1.0.0">
-                            <small class="form-text text-muted">Software and platform identifier</small>
+                            <label class="form-label" for="mrcPlatform">{{ t('ui.admin.mrc_settings.platform_info') }}</label>
+                            <input type="text" class="form-control" id="mrcPlatform" placeholder="{{ t('ui.admin.mrc_settings.placeholder.platform', {}, locale, ['common']) }}">
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.platform_info_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcSysop">Sysop Name</label>
-                            <input type="text" class="form-control" id="mrcSysop" placeholder="Sysop">
+                            <label class="form-label" for="mrcSysop">{{ t('ui.admin.mrc_settings.sysop_name') }}</label>
+                            <input type="text" class="form-control" id="mrcSysop" placeholder="{{ t('ui.admin.mrc_settings.placeholder.sysop', {}, locale, ['common']) }}">
                         </div>
 
                         <hr>
 
-                        <h6 class="mb-3">BBS Information</h6>
+                        <h6 class="mb-3">{{ t('ui.admin.mrc_settings.bbs_information') }}</h6>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcWebsite">Website URL</label>
-                            <input type="url" class="form-control" id="mrcWebsite" placeholder="https://example.com">
-                            <small class="form-text text-muted">Optional - for INFO command</small>
+                            <label class="form-label" for="mrcWebsite">{{ t('ui.admin.mrc_settings.website_url') }}</label>
+                            <input type="url" class="form-control" id="mrcWebsite" placeholder="{{ t('ui.admin.mrc_settings.placeholder.website', {}, locale, ['common']) }}">
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.info_optional_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcTelnet">Telnet Address</label>
-                            <input type="text" class="form-control" id="mrcTelnet" placeholder="telnet://bbs.example.com:23">
-                            <small class="form-text text-muted">Optional - for INFO command</small>
+                            <label class="form-label" for="mrcTelnet">{{ t('ui.admin.mrc_settings.telnet_address') }}</label>
+                            <input type="text" class="form-control" id="mrcTelnet" placeholder="{{ t('ui.admin.mrc_settings.placeholder.telnet', {}, locale, ['common']) }}">
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.info_optional_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcDescription">BBS Description</label>
-                            <textarea class="form-control" id="mrcDescription" rows="3" placeholder="A modern BBS..."></textarea>
+                            <label class="form-label" for="mrcDescription">{{ t('ui.admin.mrc_settings.bbs_description') }}</label>
+                            <textarea class="form-control" id="mrcDescription" rows="3" placeholder="{{ t('ui.admin.mrc_settings.placeholder.description', {}, locale, ['common']) }}"></textarea>
                         </div>
 
                         <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
-                            Save Identity Settings
+                            {{ t('ui.admin.mrc_settings.save_identity_settings') }}
                         </button>
                     </form>
                 </div>
@@ -125,39 +125,39 @@
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">Connection Settings</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.mrc_settings.connection_settings') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="mrcConnectionAlert"></div>
                     <form id="mrcConnectionForm">
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="mrcAutoReconnect" checked>
-                            <label class="form-check-label" for="mrcAutoReconnect">Auto-Reconnect</label>
+                            <label class="form-check-label" for="mrcAutoReconnect">{{ t('ui.admin.mrc_settings.auto_reconnect') }}</label>
                             <small class="form-text d-block text-muted">
-                                Automatically reconnect if connection is lost
+                                {{ t('ui.admin.mrc_settings.auto_reconnect_help') }}
                             </small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcReconnectDelay">Reconnect Delay (seconds)</label>
+                            <label class="form-label" for="mrcReconnectDelay">{{ t('ui.admin.mrc_settings.reconnect_delay') }}</label>
                             <input type="number" class="form-control" id="mrcReconnectDelay" min="5" max="300" value="30">
-                            <small class="form-text text-muted">Wait time before reconnecting (5-300 seconds)</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.reconnect_delay_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcPingInterval">Ping Interval (seconds)</label>
+                            <label class="form-label" for="mrcPingInterval">{{ t('ui.admin.mrc_settings.ping_interval') }}</label>
                             <input type="number" class="form-control" id="mrcPingInterval" min="30" max="300" value="60">
-                            <small class="form-text text-muted">Expected PING interval from server (30-300 seconds)</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.ping_interval_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcKeepaliveTimeout">Keepalive Timeout (seconds)</label>
+                            <label class="form-label" for="mrcKeepaliveTimeout">{{ t('ui.admin.mrc_settings.keepalive_timeout') }}</label>
                             <input type="number" class="form-control" id="mrcKeepaliveTimeout" min="60" max="600" value="125">
-                            <small class="form-text text-muted">Disconnect if no PING received (60-600 seconds)</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.keepalive_timeout_help') }}</small>
                         </div>
 
                         <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
-                            Save Connection Settings
+                            {{ t('ui.admin.mrc_settings.save_connection_settings') }}
                         </button>
                     </form>
                 </div>
@@ -168,47 +168,47 @@
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">Room Settings</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.mrc_settings.room_settings') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="mrcRoomAlert"></div>
                     <form id="mrcRoomForm">
                         <div class="mb-3">
-                            <label class="form-label" for="mrcDefaultRoom">Default Room</label>
+                            <label class="form-label" for="mrcDefaultRoom">{{ t('ui.admin.mrc_settings.default_room') }}</label>
                             <input type="text" class="form-control" id="mrcDefaultRoom" value="lobby">
-                            <small class="form-text text-muted">Default room for new connections</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.default_room_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcAutoJoinRooms">Auto-Join Rooms</label>
+                            <label class="form-label" for="mrcAutoJoinRooms">{{ t('ui.admin.mrc_settings.auto_join_rooms') }}</label>
                             <input type="text" class="form-control" id="mrcAutoJoinRooms" value="lobby">
-                            <small class="form-text text-muted">Comma-separated list of rooms to join automatically</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.auto_join_rooms_help') }}</small>
                         </div>
 
                         <hr>
 
-                        <h6 class="mb-3">Message Settings</h6>
+                        <h6 class="mb-3">{{ t('ui.admin.mrc_settings.message_settings') }}</h6>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcMaxMessageLength">Max Message Length</label>
+                            <label class="form-label" for="mrcMaxMessageLength">{{ t('ui.admin.mrc_settings.max_message_length') }}</label>
                             <input type="number" class="form-control" id="mrcMaxMessageLength" min="80" max="255" value="140">
-                            <small class="form-text text-muted">Maximum characters per message (80-255)</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.max_message_length_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcHistoryLimit">History Limit</label>
+                            <label class="form-label" for="mrcHistoryLimit">{{ t('ui.admin.mrc_settings.history_limit') }}</label>
                             <input type="number" class="form-control" id="mrcHistoryLimit" min="100" max="10000" value="1000">
-                            <small class="form-text text-muted">Messages to keep per room (100-10000)</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.history_limit_help') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="mrcPruneAfterDays">Prune After (days)</label>
+                            <label class="form-label" for="mrcPruneAfterDays">{{ t('ui.admin.mrc_settings.prune_after_days') }}</label>
                             <input type="number" class="form-control" id="mrcPruneAfterDays" min="1" max="365" value="30">
-                            <small class="form-text text-muted">Delete messages older than this (1-365 days)</small>
+                            <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.prune_after_days_help') }}</small>
                         </div>
 
                         <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
-                            Save Room Settings
+                            {{ t('ui.admin.mrc_settings.save_room_settings') }}
                         </button>
                     </form>
                 </div>
@@ -220,6 +220,13 @@
 <script>
 // Global config variable
 let mrcConfig = {};
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 
 // Load MRC configuration on page load
 $(document).ready(function() {
@@ -241,11 +248,11 @@ async function loadMrcSettings() {
             mrcConfig = response.config;
             populateMrcForm();
         } else {
-            showAlert('mrcGeneralAlert', 'danger', 'Failed to load MRC settings');
+            showAlert('mrcGeneralAlert', 'danger', uiT('ui.admin.mrc_settings.load_failed', 'Failed to load MRC settings'));
         }
     } catch (error) {
         console.error('Failed to load MRC settings:', error);
-        showAlert('mrcGeneralAlert', 'danger', 'Error loading MRC settings');
+        showAlert('mrcGeneralAlert', 'danger', uiT('ui.admin.mrc_settings.load_error', 'Error loading MRC settings'));
     }
 }
 
@@ -338,19 +345,22 @@ async function saveMrcSettings() {
         });
 
         if (response.success) {
-            showAlert('mrcGeneralAlert', 'success', 'MRC settings saved successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.admin.mrc_settings.saved_success', 'MRC settings saved successfully'))
+                : uiT('ui.admin.mrc_settings.saved_success', 'MRC settings saved successfully');
+            showAlert('mrcGeneralAlert', 'success', successMessage);
             mrcConfig = response.config;
 
             // If enabled status changed, suggest daemon restart
             if (config.enabled !== mrcConfig.enabled) {
-                showAlert('mrcGeneralAlert', 'warning', 'Settings saved. Restart the daemon to apply changes.');
+                showAlert('mrcGeneralAlert', 'warning', uiT('ui.admin.mrc_settings.restart_required', 'Settings saved. Restart the daemon to apply changes.'));
             }
         } else {
-            showAlert('mrcGeneralAlert', 'danger', 'Failed to save MRC settings');
+            showAlert('mrcGeneralAlert', 'danger', uiT('ui.admin.mrc_settings.save_failed', 'Failed to save MRC settings'));
         }
     } catch (error) {
         console.error('Failed to save MRC settings:', error);
-        showAlert('mrcGeneralAlert', 'danger', 'Error saving MRC settings');
+        showAlert('mrcGeneralAlert', 'danger', uiT('ui.admin.mrc_settings.save_error', 'Error saving MRC settings'));
     }
 }
 
@@ -370,7 +380,15 @@ function showAlert(containerId, type, message) {
 
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
-        $(`#${containerId} .alert`).alert('close');
+        const alertEl = document.querySelector(`#${containerId} .alert`);
+        if (!alertEl) {
+            return;
+        }
+        if (window.bootstrap && window.bootstrap.Alert) {
+            window.bootstrap.Alert.getOrCreateInstance(alertEl).close();
+            return;
+        }
+        alertEl.remove();
     }, 5000);
 }
 </script>

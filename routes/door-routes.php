@@ -10,8 +10,47 @@ use BinktermPHP\DoorSessionManager;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
 use BinktermPHP\Database;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use BinktermPHP\RouteHelper;
 use Pecee\SimpleRouter\SimpleRouter;
+
+function doorApiError(string $errorCode, string $message, int $status = 400, array $extra = []): void
+{
+    http_response_code($status);
+    $localized = doorLocalizedText($errorCode, $message);
+    echo json_encode(array_merge([
+        'success' => false,
+        'error_code' => $errorCode,
+        'error' => $localized,
+    ], $extra));
+}
+
+function doorLocalizedText(string $key, string $fallback, array $params = [], ?array $user = null): string
+{
+    static $translator = null;
+    static $resolver = null;
+    if ($translator === null || $resolver === null) {
+        $translator = new Translator();
+        $resolver = new LocaleResolver($translator);
+    }
+
+    if ($user === null) {
+        try {
+            $auth = new \BinktermPHP\Auth();
+            $resolvedUser = $auth->getCurrentUser();
+            if (is_array($resolvedUser)) {
+                $user = $resolvedUser;
+            }
+        } catch (\Throwable $e) {
+            // Fall back to default locale when no user context is available.
+        }
+    }
+
+    $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+    $translated = $translator->translate($key, $params, $resolvedLocale, ['errors']);
+    return $translated === $key ? $fallback : $translated;
+}
 
 // Launch a door game session
 SimpleRouter::post('/api/door/launch', function() {
@@ -25,8 +64,7 @@ SimpleRouter::post('/api/door/launch', function() {
     error_log("DOSDOOR: [API] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: $doorName");
 
     if (!$doorName) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Door name required']);
+        doorApiError('errors.door.door_name_required', 'Door name required', 400);
         return;
     }
 
@@ -85,7 +123,7 @@ SimpleRouter::post('/api/door/launch', function() {
                     'ws_token' => $existingSession['ws_token'],
                     'ws_url' => $wsUrl,
                 ],
-                'message' => 'Resuming existing session'
+                'message_code' => 'ui.api.door.session_resumed'
             ]);
             return;
         }
@@ -120,8 +158,7 @@ SimpleRouter::post('/api/door/launch', function() {
         // Block admin-only doors for non-admins
         $doorManifestCheck = $activeDoorManager->getDoor($doorName);
         if ($doorManifestCheck && !empty($doorManifestCheck['admin_only']) && empty($user['is_admin'])) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Access denied', 'message' => 'This door is restricted to administrators.']);
+            doorApiError('errors.door.admin_only', 'This door is restricted to administrators', 403);
             return;
         }
 
@@ -144,11 +181,7 @@ SimpleRouter::post('/api/door/launch', function() {
 
                     if ($currentBalance < $creditCost) {
                         error_log("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
-                        http_response_code(402); // Payment Required
-                        echo json_encode([
-                            'success' => false,
-                            'error' => 'Insufficient credits',
-                            'message' => "This door costs $creditCost credits. You have $currentBalance credits.",
+                        doorApiError('errors.door.insufficient_credits_detail', 'Insufficient credits', 402, [
                             'required' => $creditCost,
                             'balance' => $currentBalance
                         ]);
@@ -183,11 +216,7 @@ SimpleRouter::post('/api/door/launch', function() {
 
             if ($activeSessions >= $maxNodes) {
                 error_log("DOSDOOR: [API] Door '$doorName' at max capacity - Active: $activeSessions, Max: $maxNodes");
-                http_response_code(503); // Service Unavailable
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Door at capacity',
-                    'message' => "This door is currently in use. Only $maxNodes player(s) allowed at a time. Please try again later.",
+                doorApiError('errors.door.capacity_reached_detail', 'Door at capacity', 503, [
                     'active_sessions' => $activeSessions,
                     'max_nodes' => $maxNodes
                 ]);
@@ -225,10 +254,141 @@ SimpleRouter::post('/api/door/launch', function() {
         ]);
 
     } catch (Exception $e) {
+        doorApiError('errors.door.launch_failed', 'Failed to start door session', 500);
+    }
+});
+
+// Launch a native door session as an anonymous guest (no authentication required)
+SimpleRouter::post('/api/door/guest/launch', function() {
+    header('Content-Type: application/json');
+
+    $doorName = $_POST['door'] ?? null;
+
+    if (!$doorName) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Door name required']);
+        return;
+    }
+
+    try {
+        // Only native doors support anonymous access
+        $nativeDoorManager = new NativeDoorManager();
+        $nativeDoor = $nativeDoorManager->getDoor($doorName);
+
+        if (!$nativeDoor) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Door not found']);
+            return;
+        }
+
+        if (empty($nativeDoor['config']['enabled'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Door is not available']);
+            return;
+        }
+
+        if (!\BinktermPHP\NativeDoorConfig::isAnonymousAllowed($doorName)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'This door does not allow anonymous access']);
+            return;
+        }
+
+        // Anonymous sessions must always be free
+        if ((int)($nativeDoor['config']['credit_cost'] ?? 0) > 0) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Doors with a credit cost cannot be accessed anonymously']);
+            return;
+        }
+
+        $guestUserId = \BinktermPHP\GuestUser::getId();
+        if (!$guestUserId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Guest user not configured. Run php scripts/setup.php.']);
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Check guest concurrency limit for this door
+        $guestMax = \BinktermPHP\NativeDoorConfig::getGuestMaxSessions($doorName);
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count FROM door_sessions
+            WHERE door_id = ? AND user_id = ? AND ended_at IS NULL
+        ");
+        $stmt->execute([$doorName, $guestUserId]);
+        if ((int)$stmt->fetch(\PDO::FETCH_ASSOC)['count'] >= $guestMax) {
+            http_response_code(503);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Guest sessions at capacity',
+                'message' => "This door currently has $guestMax guest session(s) active. Please try again later.",
+            ]);
+            return;
+        }
+
+        // Check overall door max_nodes
+        $maxNodes = (int)($nativeDoor['max_nodes'] ?? 10);
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count FROM door_sessions WHERE door_id = ? AND ended_at IS NULL
+        ");
+        $stmt->execute([$doorName]);
+        if ((int)$stmt->fetch(\PDO::FETCH_ASSOC)['count'] >= $maxNodes) {
+            http_response_code(503);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Door at capacity',
+                'message' => "This door is currently full ($maxNodes player(s) maximum). Please try again later.",
+            ]);
+            return;
+        }
+
+        // Build guest user data for drop file
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $systemName = $binkpConfig->getSystemName();
+        $sysopName  = $binkpConfig->getSystemSysop();
+        $sysopParts = explode(' ', $sysopName, 2);
+
+        $userData = [
+            'id'            => $guestUserId,
+            'real_name'     => 'Guest',
+            'location'      => 'Anonymous',
+            'security_level' => 5,
+            'total_logins'  => 0,
+            'last_login'    => date('Y-m-d H:i:s'),
+            'ansi_enabled'  => true,
+            'bbs_name'      => $systemName,
+            'sysop_name'    => $sysopName,
+            'sysop_first'   => $sysopParts[0] ?? 'Sysop',
+            'sysop_last'    => $sysopParts[1] ?? '',
+        ];
+
+        $sessionManager = new DoorSessionManager(null, true);
+        $session = $sessionManager->startSession($guestUserId, $doorName, $userData, 'native');
+
+        $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
+        if (empty($wsUrl)) {
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'wss' : 'ws';
+            $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
+            $wsUrl = "{$protocol}://{$host}:{$session['ws_port']}";
+        }
+
+        echo json_encode([
+            'success' => true,
+            'session' => [
+                'session_id' => $session['session_id'],
+                'door_name'  => $session['door_name'],
+                'node'       => $session['node'],
+                'ws_port'    => $session['ws_port'],
+                'ws_token'   => $session['ws_token'],
+                'ws_url'     => $wsUrl,
+            ],
+        ]);
+
+    } catch (Exception $e) {
         http_response_code(500);
         echo json_encode([
-            'error' => 'Failed to start door session',
-            'message' => $e->getMessage()
+            'error'   => 'Failed to start guest door session',
+            'message' => $e->getMessage(),
         ]);
     }
 });
@@ -243,8 +403,7 @@ SimpleRouter::post('/api/door/end', function() {
     $sessionId = $_POST['session_id'] ?? null;
 
     if (!$sessionId) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Session ID required']);
+        doorApiError('errors.door.session_id_required', 'Session ID required', 400);
         return;
     }
 
@@ -255,8 +414,7 @@ SimpleRouter::post('/api/door/end', function() {
         // Verify session belongs to current user
         $userId = $user['user_id'] ?? $user['id'];
         if (!$session || $session['user_id'] !== $userId) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Unauthorized']);
+            doorApiError('errors.door.session_unauthorized', 'Unauthorized', 403);
             return;
         }
 
@@ -268,11 +426,7 @@ SimpleRouter::post('/api/door/end', function() {
         ]);
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to end session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError('errors.door.session_end_failed', 'Failed to end session', 500);
     }
 });
 
@@ -329,12 +483,69 @@ SimpleRouter::get('/api/door/session', function() {
         }
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to get session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError('errors.door.session_get_failed', 'Failed to get session', 500);
     }
+});
+
+// Public guest doors listing page
+// GET /guest-doors — lists all anonymous-accessible native doors
+SimpleRouter::get('/guest-doors', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('guest_doors_page')) {
+        http_response_code(404);
+        $template = new \BinktermPHP\Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $nativeDoorManager = new NativeDoorManager();
+    $allDoors = $nativeDoorManager->getAllDoors();
+
+    $guestDoors = [];
+    foreach ($allDoors as $doorId => $door) {
+        if (!empty($door['config']['enabled']) && !empty($door['config']['allow_anonymous'])) {
+            $guestDoors[] = $door;
+        }
+    }
+
+    $template = new \BinktermPHP\Template();
+    $template->renderResponse('guest_doors.twig', ['doors' => $guestDoors]);
+});
+
+// Public guest door player page
+// GET /play/{doorid} — serves the xterm.js player for anonymous-accessible native doors
+SimpleRouter::get('/play/{doorid}', function($doorid) {
+    // Sanitize door ID
+    $doorId = preg_replace('/[^a-zA-Z0-9_-]/', '', $doorid);
+
+    if (empty($doorId)) {
+        http_response_code(404);
+        echo "Door not found";
+        return;
+    }
+
+    // Verify door exists and allows anonymous access
+    $nativeDoorManager = new NativeDoorManager();
+    $door = $nativeDoorManager->getDoor($doorId);
+
+    if (!$door) {
+        http_response_code(404);
+        echo "Door not found";
+        return;
+    }
+
+    if (!$nativeDoorManager->isDoorAvailable($doorId)) {
+        http_response_code(403);
+        echo "This door is currently disabled";
+        return;
+    }
+
+    if (!\BinktermPHP\NativeDoorConfig::isAnonymousAllowed($doorId)) {
+        http_response_code(403);
+        echo "This door does not allow guest access";
+        return;
+    }
+
+    require __DIR__ . '/../public_html/guest-door-player.php';
 });
 
 // Serve door assets (icons, screenshots, etc.)
@@ -347,7 +558,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
     $allowedAssets = ['icon', 'screenshot'];
     if (!in_array($asset, $allowedAssets)) {
         http_response_code(404);
-        echo "Invalid asset type";
+        echo doorLocalizedText('errors.door.asset.invalid_type', 'Invalid asset type');
         return;
     }
 
@@ -364,7 +575,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     if (!$door) {
         http_response_code(404);
-        echo "Door not found";
+        echo doorLocalizedText('errors.door.asset.door_not_found', 'Door not found');
         return;
     }
 
@@ -373,7 +584,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     if (!$filename) {
         http_response_code(404);
-        echo "Asset not defined in manifest";
+        echo doorLocalizedText('errors.door.asset.not_defined', 'Asset not defined in manifest');
         return;
     }
 
@@ -384,7 +595,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
     // Verify file exists
     if (!file_exists($doorPath) || !is_file($doorPath)) {
         http_response_code(404);
-        echo "Asset file not found";
+        echo doorLocalizedText('errors.door.asset.file_not_found', 'Asset file not found');
         return;
     }
 
@@ -393,7 +604,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
     $allowedBase = realpath($doorBasePath);
     if ($allowedBase === false || strpos($realPath, $allowedBase) !== 0) {
         http_response_code(403);
-        echo "Access denied";
+        echo doorLocalizedText('errors.door.asset.access_denied', 'Access denied');
         return;
     }
 

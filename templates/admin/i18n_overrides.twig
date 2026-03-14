@@ -1,0 +1,307 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.i18n_overrides.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>
+        <i class="fas fa-language"></i>
+        {{ t('ui.admin.i18n_overrides.heading', {}, 'common') }}
+    </h2>
+</div>
+
+<p class="text-muted">{{ t('ui.admin.i18n_overrides.description', {}, 'common') }}</p>
+
+{# Selector bar #}
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-1">{{ t('ui.admin.i18n_overrides.locale_label', {}, 'common') }}</label>
+                <select id="localeSelect" class="form-select form-select-sm">
+                    {% for loc in supported_locales %}
+                        <option value="{{ loc }}">{{ loc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1">{{ t('ui.admin.i18n_overrides.catalog_label', {}, 'common') }}</label>
+                <select id="nsSelect" class="form-select form-select-sm">
+                    <option value="">—</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" onclick="loadCatalog()">
+                    <i class="fas fa-download"></i> {{ t('ui.admin.i18n_overrides.load_btn', {}, 'common') }}
+                </button>
+            </div>
+            <div class="col">
+                <input type="text" id="filterInput" class="form-control form-control-sm"
+                       placeholder="{{ t('ui.admin.i18n_overrides.search_placeholder', {}, 'common') }}"
+                       oninput="applyFilter()" disabled>
+            </div>
+            <div class="col-auto">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="showOverridesOnly" onchange="applyFilter()" disabled>
+                    <label class="form-check-label" for="showOverridesOnly">
+                        {{ t('ui.admin.i18n_overrides.show_overrides_only', {}, 'common') }}
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Status message #}
+<div id="statusMsg" class="alert d-none mb-3"></div>
+
+{# Table area #}
+<div id="tableArea">
+    <p class="text-muted">{{ t('ui.admin.i18n_overrides.select_locale_catalog', {}, 'common') }}</p>
+</div>
+
+{# Save bar — shown after catalog loads #}
+<div id="saveBar" class="d-none position-sticky bottom-0 bg-dark border-top border-secondary py-2 mt-3">
+    <button class="btn btn-success" onclick="saveOverrides()">
+        <i class="fas fa-save"></i> {{ t('ui.admin.i18n_overrides.save_btn', {}, 'common') }}
+    </button>
+    <span id="overrideCount" class="ms-3 text-muted small"></span>
+</div>
+
+<script>
+(function() {
+    const uiT = (key, params, fb) => window.t ? window.t(key, params, fb) : (fb || key);
+
+    let currentLocale = null;
+    let currentNs     = null;
+    let baseData      = {};
+    let enBaseData    = {};
+    let overrideData  = {};
+
+    // ── Locale change: reload namespace list ──────────────────────────────────
+    document.getElementById('localeSelect').addEventListener('change', function() {
+        loadNamespaces(this.value);
+    });
+
+    async function loadNamespaces(locale) {
+        const nsSelect = document.getElementById('nsSelect');
+        nsSelect.innerHTML = '<option value="">—</option>';
+        if (!locale) return;
+
+        try {
+            const r    = await fetch(`/admin/api/i18n-overrides/namespaces?locale=${encodeURIComponent(locale)}`);
+            const json = await r.json();
+            if (json.success && Array.isArray(json.namespaces)) {
+                json.namespaces.forEach(ns => {
+                    const opt = document.createElement('option');
+                    opt.value       = ns;
+                    opt.textContent = ns;
+                    nsSelect.appendChild(opt);
+                });
+            }
+        } catch (e) {
+            console.error('Failed to load namespaces', e);
+        }
+    }
+
+    // ── Load catalog + overlays ───────────────────────────────────────────────
+    window.loadCatalog = async function() {
+        const locale = document.getElementById('localeSelect').value;
+        const ns     = document.getElementById('nsSelect').value;
+        if (!locale || !ns) return;
+
+        setStatus('', '');
+        document.getElementById('tableArea').innerHTML =
+            '<p class="text-muted">' + uiT('ui.admin.i18n_overrides.loading', {}, 'Loading...') + '</p>';
+
+        try {
+            const r    = await fetch(`/admin/api/i18n-overrides?locale=${encodeURIComponent(locale)}&ns=${encodeURIComponent(ns)}`);
+            const json = await r.json();
+            if (!json.success) throw new Error(json.error || 'Load failed');
+
+            currentLocale = locale;
+            currentNs     = ns;
+            baseData      = json.base     || {};
+            enBaseData    = json.en_base  || {};
+            overrideData  = Object.assign({}, json.overrides || {});
+
+            renderTable();
+            document.getElementById('filterInput').disabled        = false;
+            document.getElementById('showOverridesOnly').disabled  = false;
+            document.getElementById('saveBar').classList.remove('d-none');
+            updateOverrideCount();
+        } catch (e) {
+            document.getElementById('tableArea').innerHTML = '';
+            setStatus('danger', uiT('ui.admin.i18n_overrides.load_failed', {}, 'Failed to load catalog.'));
+        }
+    };
+
+    // ── Render the key table ──────────────────────────────────────────────────
+    function renderTable() {
+        const keys      = Object.keys(baseData).sort();
+        const filterVal = document.getElementById('filterInput').value.trim().toLowerCase();
+        const onlyOver  = document.getElementById('showOverridesOnly').checked;
+
+        const filtered = keys.filter(k => {
+            if (onlyOver && !overrideData[k]) return false;
+            if (filterVal && !k.toLowerCase().includes(filterVal) &&
+                !(baseData[k] || '').toLowerCase().includes(filterVal) &&
+                !(overrideData[k] || '').toLowerCase().includes(filterVal)) return false;
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            document.getElementById('tableArea').innerHTML =
+                '<p class="text-muted">' + uiT('ui.admin.i18n_overrides.no_keys', {}, 'No keys found.') + '</p>';
+            return;
+        }
+
+        let html = `<div class="table-responsive">
+            <table class="table table-sm table-bordered align-top" id="overrideTable">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width:30%">{{ t('ui.admin.i18n_overrides.col_key', {}, 'common') }}</th>
+                    <th style="width:33%">{{ t('ui.admin.i18n_overrides.col_base', {}, 'common') }}</th>
+                    <th style="width:33%">{{ t('ui.admin.i18n_overrides.col_override', {}, 'common') }}</th>
+                    <th style="width:4%"></th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+        filtered.forEach(key => {
+            const base     = escHtml(baseData[key] || '');
+            const enVal    = enBaseData[key] !== undefined ? enBaseData[key] : null;
+            const override = overrideData[key] || '';
+            const isOver   = !!override;
+            const badge    = isOver
+                ? `<span class="badge bg-warning text-dark ms-1">{{ t('ui.admin.i18n_overrides.overridden_badge', {}, 'common') }}</span>`
+                : '';
+            const rowClass = isOver ? 'table-warning' : '';
+            const enSnippet = (enVal !== null && currentLocale !== 'en')
+                ? `<div class="text-muted small mt-1" style="font-family:inherit;white-space:pre-wrap">&ldquo;${escHtml(enVal)}&rdquo;</div>`
+                : '';
+
+            html += `<tr class="${rowClass}" data-key="${escAttr(key)}" data-overridden="${isOver ? '1' : '0'}">
+                <td class="font-monospace small text-break">${escHtml(key)}${badge}${enSnippet}</td>
+                <td class="small text-muted text-break" style="white-space:pre-wrap">${base}</td>
+                <td>
+                    <textarea class="form-control form-control-sm override-input font-monospace"
+                        rows="2" data-key="${escAttr(key)}"
+                        placeholder="${base}"
+                        oninput="onOverrideInput(this)">${escHtml(override)}</textarea>
+                </td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1 clear-btn ${isOver ? '' : 'd-none'}"
+                        title="{{ t('ui.admin.i18n_overrides.clear_btn', {}, 'common') }}"
+                        onclick="clearOverride('${escAttr(key)}', this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        document.getElementById('tableArea').innerHTML = html;
+    }
+
+    window.onOverrideInput = function(textarea) {
+        const key     = textarea.dataset.key;
+        const val     = textarea.value;
+        const row     = textarea.closest('tr');
+        const clearBtn = row.querySelector('.clear-btn');
+
+        if (val.trim() !== '') {
+            overrideData[key] = val;
+            row.classList.add('table-warning');
+            row.dataset.overridden = '1';
+            clearBtn.classList.remove('d-none');
+        } else {
+            delete overrideData[key];
+            row.classList.remove('table-warning');
+            row.dataset.overridden = '0';
+            clearBtn.classList.add('d-none');
+        }
+        updateBadge(row, val.trim() !== '');
+        updateOverrideCount();
+    };
+
+    window.clearOverride = function(key, btn) {
+        const row      = btn.closest('tr');
+        const textarea = row.querySelector('textarea');
+        textarea.value = '';
+        delete overrideData[key];
+        row.classList.remove('table-warning');
+        row.dataset.overridden = '0';
+        btn.classList.add('d-none');
+        updateBadge(row, false);
+        updateOverrideCount();
+        if (document.getElementById('showOverridesOnly').checked) {
+            row.classList.add('d-none');
+        }
+    };
+
+    function updateBadge(row, isOverridden) {
+        const keyCell = row.querySelector('td:first-child');
+        let badge = keyCell.querySelector('.badge');
+        if (isOverridden && !badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge bg-warning text-dark ms-1';
+            badge.textContent = uiT('ui.admin.i18n_overrides.overridden_badge', {}, 'Overridden');
+            keyCell.appendChild(badge);
+        } else if (!isOverridden && badge) {
+            badge.remove();
+        }
+    }
+
+    window.applyFilter = function() {
+        renderTable();
+    };
+
+    function updateOverrideCount() {
+        const count = Object.keys(overrideData).length;
+        const el = document.getElementById('overrideCount');
+        el.textContent = count > 0 ? `(${count} override${count !== 1 ? 's' : ''} active)` : '';
+    }
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+    window.saveOverrides = async function() {
+        if (!currentLocale || !currentNs) return;
+        setStatus('', '');
+
+        try {
+            const r = await fetch('/admin/api/i18n-overrides', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    locale:    currentLocale,
+                    ns:        currentNs,
+                    overrides: overrideData,
+                }),
+            });
+            const json = await r.json();
+            if (!json.success) throw new Error(json.error || 'Save failed');
+            setStatus('success', uiT('ui.admin.i18n_overrides.saved', {}, 'Overrides saved.'));
+        } catch (e) {
+            setStatus('danger', uiT('ui.admin.i18n_overrides.save_failed', {}, 'Failed to save overrides.'));
+        }
+    };
+
+    function setStatus(type, msg) {
+        const el = document.getElementById('statusMsg');
+        if (!msg) { el.classList.add('d-none'); return; }
+        el.className = `alert alert-${type} mb-3`;
+        el.textContent = msg;
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escAttr(s) {
+        return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // Kick off namespace load for the default locale on page load
+    loadNamespaces(document.getElementById('localeSelect').value);
+})();
+</script>
+{% endblock %}

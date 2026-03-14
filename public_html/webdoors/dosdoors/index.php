@@ -8,6 +8,8 @@
 
 use BinktermPHP\RouteHelper;
 use BinktermPHP\UserMeta;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 
 $user = RouteHelper::requireAuth();
 $csrfUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -18,6 +20,15 @@ if ($csrfUserId > 0) {
         $csrfToken = $meta->getValue($csrfUserId, 'csrf_token') ?? '';
     } catch (\Throwable $e) {}
 }
+
+$translator = new Translator();
+$localeResolver = new LocaleResolver($translator);
+$locale = $localeResolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+$localeResolver->persistLocale($locale);
+$t = static function (string $key, string $fallback, array $params = [], string $namespace = 'common') use ($translator, $locale): string {
+    $translated = $translator->translate($key, $params, $locale, [$namespace]);
+    return $translated === $key ? $fallback : $translated;
+};
 
 // If accessed directly, try to extract door ID from URL
 if (!isset($doorId)) {
@@ -32,17 +43,17 @@ if (!isset($doorId)) {
 
 if (empty($doorId)) {
     http_response_code(404);
-    echo "Error: No door specified";
+    echo htmlspecialchars($t('ui.dosdoor_player.error_no_door_specified', 'Error: No door ID specified'), ENT_QUOTES);
     exit;
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($locale, ENT_QUOTES) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken, ENT_QUOTES) ?>">
-    <title>DOS Door Player</title>
+    <title><?= htmlspecialchars($t('ui.dosdoor_player.page_title', 'DOS Door Player'), ENT_QUOTES) ?></title>
     <link rel="stylesheet" href="/webdoors/terminal/assets/xterm.css">
     <style>
         * {
@@ -183,11 +194,11 @@ if (empty($doorId)) {
 </head>
 <body>
     <div class="terminal-controls">
-        <h5 class="door-header" id="doorTitle">DOS Door Player</h5>
+        <h5 class="door-header" id="doorTitle"><?= htmlspecialchars($t('ui.dosdoor_player.page_title', 'DOS Door Player'), ENT_QUOTES) ?></h5>
         <div id="connectionStatus" class="connection-status status-disconnected">
-            Status: Disconnected
+            <?= htmlspecialchars($t('ui.dosdoor_player.status_prefix', 'Status:'), ENT_QUOTES) ?> <?= htmlspecialchars($t('ui.dosdoor_player.status_disconnected', 'Disconnected'), ENT_QUOTES) ?>
         </div>
-        <button id="endSessionBtn">End Session</button>
+        <button id="endSessionBtn"><?= htmlspecialchars($t('ui.dosdoor_player.end_session', 'End Session'), ENT_QUOTES) ?></button>
     </div>
     <div id="terminal-container"></div>
 
@@ -201,6 +212,63 @@ if (empty($doorId)) {
         let wsPort = null;
         let wsToken = null;
         const doorId = <?php echo json_encode($doorId); ?>;
+        const I18N = <?php echo json_encode([
+            'statusPrefix' => $t('ui.dosdoor_player.status_prefix', 'Status:'),
+            'statusDisconnected' => $t('ui.dosdoor_player.status_disconnected', 'Disconnected'),
+            'statusLaunching' => $t('ui.dosdoor_player.status_launching', 'Launching...'),
+            'statusLaunchFailed' => $t('ui.dosdoor_player.status_launch_failed', 'Launch failed'),
+            'statusConnecting' => $t('ui.dosdoor_player.status_connecting', 'Connecting...'),
+            'statusConnected' => $t('ui.dosdoor_player.status_connected', 'Connected'),
+            'statusConnectionError' => $t('ui.dosdoor_player.status_connection_error', 'Connection error'),
+            'statusError' => $t('ui.dosdoor_player.status_error', 'Error'),
+            'launchingDoorLine' => $t('ui.dosdoor_player.launching_door_line', 'Launching door game...'),
+            'failedLaunchLine' => $t('ui.dosdoor_player.failed_launch_line', 'Failed to launch door session.'),
+            'connectingToPrefix' => $t('ui.dosdoor_player.connecting_to_prefix', 'Connecting to'),
+            'connectedLine' => $t('ui.dosdoor_player.connected_line', 'Connected!'),
+            'connectionClosedLine' => $t('ui.dosdoor_player.connection_closed_line', '[Connection closed]'),
+            'connectionErrorLine' => $t('ui.dosdoor_player.connection_error_line', '[Connection error]'),
+            'failedToConnectPrefix' => $t('ui.dosdoor_player.failed_to_connect_prefix', 'Failed to connect:'),
+            'confirmEndSession' => $t('ui.dosdoor_player.confirm_end_session', 'Are you sure you want to end this door session?'),
+            'failedEndSession' => $t('ui.dosdoor_player.failed_end_session', 'Failed to end session'),
+            'errorEndingSession' => $t('ui.dosdoor_player.error_ending_session', 'Error ending session'),
+            'errorNoDoorSpecified' => $t('ui.dosdoor_player.error_no_door_specified', 'Error: No door ID specified'),
+            'failedLaunchDoor' => $t('ui.dosdoor_player.failed_launch_door', 'Failed to launch door'),
+            'documentTitleSuffix' => $t('ui.dosdoor_player.document_title_suffix', 'DOS Door'),
+            'apiErrors' => [
+                'errors.door.door_name_required' => $t('errors.door.door_name_required', 'Door name required', [], 'errors'),
+                'errors.door.admin_only' => $t('errors.door.admin_only', 'This door is restricted to administrators', [], 'errors'),
+                'errors.door.insufficient_credits' => $t('errors.door.insufficient_credits', 'Insufficient credits', [], 'errors'),
+                'errors.door.insufficient_credits_detail' => $t('errors.door.insufficient_credits_detail', 'This door costs {required} credits. You have {balance} credits.', [], 'errors'),
+                'errors.door.capacity_reached' => $t('errors.door.capacity_reached', 'Door is at capacity', [], 'errors'),
+                'errors.door.capacity_reached_detail' => $t('errors.door.capacity_reached_detail', 'This door is currently in use. Only {max_nodes} player(s) allowed at a time. Please try again later.', [], 'errors'),
+                'errors.door.launch_failed' => $t('errors.door.launch_failed', 'Failed to start door session', [], 'errors'),
+                'errors.door.session_id_required' => $t('errors.door.session_id_required', 'Session ID required', [], 'errors'),
+                'errors.door.session_unauthorized' => $t('errors.door.session_unauthorized', 'Unauthorized', [], 'errors'),
+                'errors.door.session_end_failed' => $t('errors.door.session_end_failed', 'Failed to end session', [], 'errors'),
+                'errors.door.session_get_failed' => $t('errors.door.session_get_failed', 'Failed to get session', [], 'errors'),
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+        function interpolateTemplate(template, params) {
+            if (!template || !params || typeof params !== 'object') {
+                return template;
+            }
+            return String(template).replace(/\{(\w+)\}/g, (_, key) => {
+                return Object.prototype.hasOwnProperty.call(params, key)
+                    ? String(params[key])
+                    : `{${key}}`;
+            });
+        }
+
+        function resolveApiError(payload, fallback) {
+            if (payload && payload.error_code && I18N.apiErrors[payload.error_code]) {
+                return interpolateTemplate(I18N.apiErrors[payload.error_code], payload);
+            }
+            if (payload && payload.error) {
+                return String(payload.error);
+            }
+            return fallback;
+        }
 
         // Initialize terminal
         function initTerminal() {
@@ -308,7 +376,7 @@ if (empty($doorId)) {
 
         function updateStatus(message, state) {
             const statusDiv = document.getElementById('connectionStatus');
-            statusDiv.textContent = 'Status: ' + message;
+            statusDiv.textContent = I18N.statusPrefix + ' ' + message;
             statusDiv.className = 'connection-status status-' + state;
         }
 
@@ -322,8 +390,8 @@ if (empty($doorId)) {
 
         function launchDoorSession() {
             console.log('[LAUNCH] Launching door session for:', doorId);
-            updateStatus('Launching...', 'connecting');
-            term.writeln('\x1b[1;33mLaunching door game...\x1b[0m');
+            updateStatus(I18N.statusLaunching, 'connecting');
+            term.writeln('\x1b[1;33m' + I18N.launchingDoorLine + '\x1b[0m');
 
             const formData = new FormData();
             formData.append('door', doorId);
@@ -338,7 +406,7 @@ if (empty($doorId)) {
             .then(data => {
                 console.log('[LAUNCH] Launch response:', data);
                 if (!data.success) {
-                    throw new Error(data.message || data.error || 'Failed to launch door');
+                    throw new Error(resolveApiError(data, I18N.failedLaunchDoor));
                 }
                 return data.session;
             });
@@ -365,9 +433,9 @@ if (empty($doorId)) {
                 })
                 .then(data => {
                     if (!data.session) {
-                        updateStatus('Launch failed', 'disconnected');
+                        updateStatus(I18N.statusLaunchFailed, 'disconnected');
                         term.clear();
-                        term.writeln('\x1b[1;31mFailed to launch door session.\x1b[0m');
+                        term.writeln('\x1b[1;31m' + I18N.failedLaunchLine + '\x1b[0m');
                         return;
                     }
 
@@ -379,7 +447,7 @@ if (empty($doorId)) {
                     const doorTitle = document.getElementById('doorTitle');
                     if (doorTitle && data.session.door_name) {
                         doorTitle.textContent = data.session.door_name;
-                        document.title = data.session.door_name + ' - DOS Door';
+                        document.title = data.session.door_name + ' - ' + I18N.documentTitleSuffix;
                     }
 
                     // Clear terminal initialization artifacts
@@ -387,8 +455,8 @@ if (empty($doorId)) {
                     term.clear();
 
                     // Connect to WebSocket with authentication token
-                    updateStatus('Connecting...', 'connecting');
-                    term.writeln('\x1b[1;33mConnecting to ' + data.session.door_name + '...\x1b[0m');
+                    updateStatus(I18N.statusConnecting, 'connecting');
+                    term.writeln('\x1b[1;33m' + I18N.connectingToPrefix + ' ' + data.session.door_name + '...\x1b[0m');
 
                     // Use WebSocket URL from server (configured or auto-detected)
                     const wsBaseUrl = data.session.ws_url || ('ws://' + window.location.hostname + ':' + wsPort);
@@ -397,8 +465,8 @@ if (empty($doorId)) {
                     socket = new WebSocket(wsUrl);
 
                     socket.onopen = () => {
-                        updateStatus('Connected', 'connected');
-                        term.writeln('\x1b[1;32mConnected!\x1b[0m');
+                        updateStatus(I18N.statusConnected, 'connected');
+                        term.writeln('\x1b[1;32m' + I18N.connectedLine + '\x1b[0m');
                         term.writeln('');
                         term.focus();
                     };
@@ -408,21 +476,21 @@ if (empty($doorId)) {
                     };
 
                     socket.onclose = (event) => {
-                        updateStatus('Disconnected', 'disconnected');
+                        updateStatus(I18N.statusDisconnected, 'disconnected');
                         term.writeln('');
-                        term.writeln('\x1b[1;31m[Connection closed]\x1b[0m');
+                        term.writeln('\x1b[1;31m' + I18N.connectionClosedLine + '\x1b[0m');
                     };
 
                     socket.onerror = (error) => {
-                        updateStatus('Connection error', 'disconnected');
-                        term.writeln('\x1b[1;31m[Connection error]\x1b[0m');
+                        updateStatus(I18N.statusConnectionError, 'disconnected');
+                        term.writeln('\x1b[1;31m' + I18N.connectionErrorLine + '\x1b[0m');
                         console.error('WebSocket error:', error);
                     };
                 })
                 .catch(error => {
                     console.error('Failed to get session:', error);
-                    updateStatus('Error', 'disconnected');
-                    term.writeln('\x1b[1;31mFailed to connect: ' + error.message + '\x1b[0m');
+                    updateStatus(I18N.statusError, 'disconnected');
+                    term.writeln('\x1b[1;31m' + I18N.failedToConnectPrefix + ' ' + error.message + '\x1b[0m');
                 });
         }
 
@@ -431,7 +499,7 @@ if (empty($doorId)) {
                 return;
             }
 
-            if (!confirm('Are you sure you want to end this door session?')) {
+            if (!confirm(I18N.confirmEndSession)) {
                 return;
             }
 
@@ -452,12 +520,12 @@ if (empty($doorId)) {
                     }
                     window.top.location.href = '/games';
                 } else {
-                    alert('Failed to end session');
+                    alert(resolveApiError(data, I18N.failedEndSession));
                 }
             })
             .catch(error => {
                 console.error('Failed to end session:', error);
-                alert('Error ending session');
+                alert(I18N.errorEndingSession);
             });
         }
 
@@ -490,8 +558,8 @@ if (empty($doorId)) {
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', () => {
             if (!doorId) {
-                showError('Error: No door ID specified');
-                updateStatus('Error', 'disconnected');
+                showError(I18N.errorNoDoorSpecified);
+                updateStatus(I18N.statusError, 'disconnected');
                 return;
             }
 

@@ -16,6 +16,7 @@ BinktermPHP is designed to be customized without touching core files, so your ch
   - [House Rules](#house-rules)
   - [Navigation Links](#navigation-links)
   - [SEO Settings](#seo-settings)
+  - [Message Reader](#message-reader)
 - [Themes](#themes)
 - [Template Overrides](#template-overrides)
 - [Template Resolution Order](#template-resolution-order)
@@ -166,6 +167,25 @@ Links are appended after the built-in navigation items and stored in `data/appea
 | Site description | Meta description tag used by search engines. |
 | OG image URL | Open Graph image for social sharing previews. |
 | About page enabled | Enable the `/about` page, which displays the site description publicly. |
+
+---
+
+### Message Reader
+
+The **Admin → Appearance → Message Reader** tab controls a small set of message-reading and messaging-menu behaviours.
+
+| Setting | Description |
+|---------|-------------|
+| Scrollable message body | Keeps the message header fixed while the message body scrolls independently. |
+| E-mail link URL | Optional webmail/external mail URL added to the **Messaging** dropdown directly under **Echomail**. Leave blank to hide the link. |
+
+To add a webmail link:
+
+1. Go to **Admin → Appearance → Message Reader**.
+2. Enter the destination in **E-mail link URL**. This can be an absolute URL such as `https://mail.example.com/` or another valid destination you want exposed from the Messaging menu.
+3. Click **Save Message Reader Settings**.
+
+When set, logged-in users will see an **E-mail** item in the **Messaging** menu, directly below **Echomail**.
 
 ---
 
@@ -369,6 +389,10 @@ Full schema with defaults:
     "description": "",
     "og_image_url": "",
     "about_page_enabled": false
+  },
+  "message_reader": {
+    "scrollable_body": true,
+    "email_link_url": ""
   }
 }
 ```

@@ -1,15 +1,15 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ title }} - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.nodelist.node_details', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-server"></i> Node Details</h2>
+                <h2><i class="fas fa-server"></i> {{ t('ui.nodelist.node_details') }}</h2>
                 <a href="/nodelist" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to List
+                    <i class="fas fa-arrow-left"></i> {{ t('ui.nodelist.back_to_list') }}
                 </a>
             </div>
 
@@ -27,27 +27,27 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-6">
-                                    <h6>System Information</h6>
+                                    <h6>{{ t('ui.nodelist.system_information') }}</h6>
                                     <table class="table table-sm">
                                         <tr>
-                                            <th width="120">System Name:</th>
-                                            <td>{{ node.system_name|default('Not specified') }}</td>
+                                            <th width="120">{{ t('ui.nodelist.system_name') }}:</th>
+                                            <td>{{ node.system_name|default(t('ui.nodelist.not_specified')) }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Sysop:</th>
-                                            <td>{{ node.sysop_name|default('Not specified') }}</td>
+                                            <th>{{ t('ui.nodelist.sysop') }}:</th>
+                                            <td>{{ node.sysop_name|default(t('ui.nodelist.not_specified')) }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Location:</th>
-                                            <td>{{ node.location|default('Not specified') }}</td>
+                                            <th>{{ t('ui.nodelist.location') }}:</th>
+                                            <td>{{ node.location|default(t('ui.nodelist.not_specified')) }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Phone:</th>
+                                            <th>{{ t('ui.nodelist.phone') }}:</th>
                                             <td>
                                                 {% if node.phone and node.phone != '-Unpublished-' %}
                                                     {{ node.phone }}
                                                 {% else %}
-                                                    <span class="text-muted">Unpublished</span>
+                                                    <span class="text-muted">{{ t('ui.nodelist.unpublished') }}</span>
                                                 {% endif %}
                                                 {% if node.flags['INA'] is defined %}
                                                     <br><a href="telnet://{{ node.flags['INA'] }}" class="host-link" data-hostname="{{ node.flags['INA'] }}">{{ node.flags['INA'] }}</a>
@@ -55,38 +55,38 @@
                                             </td>
                                         </tr>
                                         <tr>
-                                            <th>Baud Rate:</th>
+                                            <th>{{ t('ui.nodelist.baud_rate') }}:</th>
                                             <td>
                                                 {% if node.baud_rate > 0 %}
                                                     {{ node.baud_rate }}
                                                 {% else %}
-                                                    <span class="text-muted">Not specified</span>
+                                                    <span class="text-muted">{{ t('ui.nodelist.not_specified') }}</span>
                                                 {% endif %}
                                             </td>
                                         </tr>
                                     </table>
                                 </div>
                                 <div class="col-md-6">
-                                    <h6>Address Components</h6>
+                                    <h6>{{ t('ui.nodelist.address_components') }}</h6>
                                     <table class="table table-sm">
                                         <tr>
-                                            <th width="80">Zone:</th>
+                                            <th width="80">{{ t('ui.nodelist.zone') }}:</th>
                                             <td>{{ node.zone }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Net:</th>
+                                            <th>{{ t('ui.nodelist.net') }}:</th>
                                             <td>{{ node.net }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Node:</th>
+                                            <th>{{ t('ui.nodelist.node') }}:</th>
                                             <td>{{ node.node }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Point:</th>
+                                            <th>{{ t('ui.nodelist.point') }}:</th>
                                             <td>{{ node.point }}</td>
                                         </tr>
                                         <tr>
-                                            <th>Full:</th>
+                                            <th>{{ t('ui.nodelist.full') }}:</th>
                                             <td><strong>{{ node.full_address }}</strong></td>
                                         </tr>
                                     </table>
@@ -95,7 +95,7 @@
 
                             {% if node.flags and node.flags|length > 0 %}
                                 <hr>
-                                <h6>Node Capabilities & Flags</h6>
+                                <h6>{{ t('ui.nodelist.capabilities_flags') }}</h6>
                                 <div class="row">
                                     {% for flag_name, flag_value in node.flags %}
                                         <div class="col-md-4 mb-2">
@@ -114,23 +114,23 @@
                 <div class="col-lg-4">
                     <!-- Actions Card -->
                     <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0">Quick Actions</h6>
+                            <div class="card-header">
+                            <h6 class="mb-0">{{ t('ui.nodelist.quick_actions') }}</h6>
                         </div>
                         <div class="card-body">
                             <div class="d-grid gap-2">
                                 {% if user %}
                                 <a href="/compose/netmail?to={{ node.full_address|url_encode }}&to_name={{ node.sysop_name|url_encode }}" class="btn btn-success">
-                                    <i class="fas fa-envelope"></i> Send Netmail
+                                    <i class="fas fa-envelope"></i> {{ t('ui.nodelist.send_netmail') }}
                                 </a>
                                 {% else %}
                                 <a href="/login" class="btn btn-outline-primary">
-                                    <i class="fas fa-sign-in-alt"></i> Login to Send Netmail
+                                    <i class="fas fa-sign-in-alt"></i> {{ t('ui.nodelist.login_to_send_netmail') }}
                                 </a>
                                 {% endif %}
                                 {% if node.flags and node.flags['FREQ'] is defined %}
-                                    <button class="btn btn-info" onclick="alert('File request feature coming soon!')">
-                                        <i class="fas fa-download"></i> File Request
+                                    <button class="btn btn-info" onclick="alert('{{ t('ui.nodelist.file_request_coming_soon')|e('js') }}')">
+                                        <i class="fas fa-download"></i> {{ t('ui.nodelist.file_request') }}
                                     </button>
                                 {% endif %}
                             </div>
@@ -141,25 +141,25 @@
                     {% if node.flags and node.flags|length > 0 %}
                         <div class="card">
                             <div class="card-header">
-                                <h6 class="mb-0">Connection Information</h6>
+                                <h6 class="mb-0">{{ t('ui.nodelist.connection_information') }}</h6>
                             </div>
                             <div class="card-body">
                                 {% set connection_info = [] %}
                                 
                                 {% if node.flags['IBN'] is defined %}
-                                    {% set connection_info = connection_info|merge(['Internet (BinkP)']) %}
+                                    {% set connection_info = connection_info|merge([t('ui.nodelist.internet_binkp')]) %}
                                 {% endif %}
                                 
                                 {% if node.flags['INA'] is defined %}
-                                    {% set connection_info = connection_info|merge(['Internet (Telnet)']) %}
+                                    {% set connection_info = connection_info|merge([t('ui.nodelist.internet_telnet')]) %}
                                 {% endif %}
                                 
                                 {% if node.flags['ITN'] is defined %}
-                                    {% set connection_info = connection_info|merge(['Internet (Telnet)']) %}
+                                    {% set connection_info = connection_info|merge([t('ui.nodelist.internet_telnet')]) %}
                                 {% endif %}
                                 
                                 {% if node.phone and node.phone != '-Unpublished-' %}
-                                    {% set connection_info = connection_info|merge(['Dialup (POTS)']) %}
+                                    {% set connection_info = connection_info|merge([t('ui.nodelist.dialup_pots')]) %}
                                 {% endif %}
 
                                 {% if connection_info|length > 0 %}
@@ -169,24 +169,24 @@
                                         {% endfor %}
                                     </ul>
                                 {% else %}
-                                    <p class="text-muted mb-0">No connection information available</p>
+                                    <p class="text-muted mb-0">{{ t('ui.nodelist.no_connection_info') }}</p>
                                 {% endif %}
 
                                 {% if node.flags['CM'] is defined %}
                                     <div class="alert alert-info mt-2 mb-0 py-2">
-                                        <small><i class="fas fa-clock"></i> Continuous Mail (24/7)</small>
+                                        <small><i class="fas fa-clock"></i> {{ t('ui.nodelist.continuous_mail') }}</small>
                                     </div>
                                 {% endif %}
 
                                 {% if node.flags['HOLD'] is defined %}
                                     <div class="alert alert-warning mt-2 mb-0 py-2">
-                                        <small><i class="fas fa-pause"></i> Mail on Hold</small>
+                                        <small><i class="fas fa-pause"></i> {{ t('ui.nodelist.mail_on_hold') }}</small>
                                     </div>
                                 {% endif %}
 
                                 {% if node.flags['DOWN'] is defined %}
                                     <div class="alert alert-danger mt-2 mb-0 py-2">
-                                        <small><i class="fas fa-times"></i> System Down</small>
+                                        <small><i class="fas fa-times"></i> {{ t('ui.nodelist.system_down') }}</small>
                                     </div>
                                 {% endif %}
                             </div>
@@ -201,9 +201,9 @@
 <!-- Context Menu for Host Links -->
 <div id="hostContextMenu" class="context-menu" style="display: none; position: absolute; z-index: 9999;">
     <ul class="list-unstyled mb-0">
-        <li><a href="#" id="menuHttp" class="context-menu-item"><i class="fas fa-globe"></i> HTTP</a></li>
-        <li><a href="#" id="menuTelnet" class="context-menu-item"><i class="fas fa-terminal"></i> Telnet</a></li>
-        <li><a href="#" id="menuSsh" class="context-menu-item"><i class="fas fa-lock"></i> SSH</a></li>
+        <li><a href="#" id="menuHttp" class="context-menu-item"><i class="fas fa-globe"></i> {{ t('ui.nodelist.http') }}</a></li>
+        <li><a href="#" id="menuTelnet" class="context-menu-item"><i class="fas fa-terminal"></i> {{ t('ui.nodelist.telnet') }}</a></li>
+        <li><a href="#" id="menuSsh" class="context-menu-item"><i class="fas fa-lock"></i> {{ t('ui.nodelist.ssh') }}</a></li>
     </ul>
 </div>
 

@@ -1,0 +1,658 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-server"></i>
+        {{ t('ui.admin.bbs_directory.heading', {}, 'common') }}
+    </h2>
+    <a href="/admin/echomail-robots" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-robot"></i>
+        {{ t('ui.base.admin.echomail_robots', {}, 'common') }}
+    </a>
+</div>
+
+{# ── Tabs ──────────────────────────────────────────────────────────────── #}
+<ul class="nav nav-tabs mb-3" id="dirTabs">
+    <li class="nav-item">
+        <a class="nav-link active" id="tab-all" data-bs-toggle="tab" href="#pane-all">
+            {{ t('ui.admin.bbs_directory.tab_all', {}, 'common') }}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="tab-pending" data-bs-toggle="tab" href="#pane-pending">
+            {{ t('ui.admin.bbs_directory.tab_pending', {}, 'common') }}
+            <span class="badge bg-warning text-dark ms-1 d-none" id="pendingBadge"></span>
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+{# ── All Entries tab ───────────────────────────────────────────────────── #}
+<div class="tab-pane fade show active" id="pane-all">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="input-group" style="max-width:320px">
+            <input type="text" class="form-control" id="entrySearch" placeholder="Search...">
+            <button class="btn btn-outline-secondary" onclick="loadEntries()">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        <button class="btn btn-fidonet" onclick="showAddEntryModal()">
+            <i class="fas fa-plus"></i>
+            {{ t('ui.admin.bbs_directory.add_entry', {}, 'common') }}
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div id="entriesContainer">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="entriesPagination" class="mt-3 d-flex justify-content-center"></div>
+</div>
+
+{# ── Pending Review tab ────────────────────────────────────────────────── #}
+<div class="tab-pane fade" id="pane-pending">
+    <div class="card mt-2">
+        <div class="card-body p-0">
+            <div id="pendingContainer">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>{# /tab-content #}
+
+{# ── Entry Add/Edit Modal ──────────────────────────────────────────────── #}
+<div class="modal fade" id="entryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="entryModalTitle">{{ t('ui.admin.bbs_directory.add_entry', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="entryForm">
+                    <input type="hidden" id="entryId">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">BBS Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="entryName" maxlength="100" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">OS</label>
+                            <input type="text" class="form-control" id="entryOs" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Sysop</label>
+                            <input type="text" class="form-control" id="entrySysop" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" id="entryLocation" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Telnet Host</label>
+                            <input type="text" class="form-control" id="entryTelnetHost" maxlength="255">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Telnet Port</label>
+                            <input type="number" class="form-control" id="entryTelnetPort" value="23" min="1" max="65535">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Website</label>
+                        <input type="url" class="form-control" id="entryWebsite" maxlength="255">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Last Seen</label>
+                        <input type="date" class="form-control" id="entryLastSeen">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="entryNotes" rows="3"></textarea>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="entryActive" checked>
+                        <label class="form-check-label" for="entryActive">Active</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="entryIsLocal">
+                        <label class="form-check-label" for="entryIsLocal">
+                            <i class="fas fa-lock text-warning"></i>
+                            {{ t('ui.admin.bbs_directory.is_local_label', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.admin.bbs_directory.is_local_help', {}, 'common') }}</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-fidonet" onclick="saveEntry()">
+                    <i class="fas fa-save"></i> {{ t('ui.common.save', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Merge Modal ───────────────────────────────────────────────────────── #}
+<div class="modal fade" id="mergeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.bbs_directory.merge_title', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>{{ t('ui.admin.bbs_directory.merge_keep_label', {}, 'common') }} <strong id="mergeKeepName"></strong></p>
+                <p class="text-muted small">{{ t('ui.admin.bbs_directory.merge_help', {}, 'common') }}</p>
+                <label class="form-label">{{ t('ui.admin.bbs_directory.merge_discard_label', {}, 'common') }}</label>
+                <input type="text" class="form-control mb-2" id="mergeSearch" placeholder="{{ t('ui.admin.bbs_directory.merge_search_placeholder', {}, 'common') }}" autocomplete="off">
+                <div id="mergeSearchResults" class="list-group" style="max-height:220px;overflow-y:auto"></div>
+                <div id="mergeSelectedWrap" class="mt-2 d-none">
+                    <div class="alert alert-warning py-2 mb-0">
+                        <i class="fas fa-trash me-1"></i>
+                        {{ t('ui.admin.bbs_directory.merge_will_delete', {}, 'common') }} <strong id="mergeDiscardName"></strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-warning" id="confirmMergeBtn" disabled onclick="confirmMerge()">
+                    <i class="fas fa-compress-arrows-alt me-1"></i>{{ t('ui.admin.bbs_directory.merge_confirm', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Delete Confirmation Modal ─────────────────────────────────────────── #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Delete <strong id="deleteItemName"></strong>?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash"></i> {{ t('ui.common.delete', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentEntryId = null;
+let currentPage    = 1;
+const perPage      = 25;
+
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+
+function apiErr(payload, fallback) {
+    return window.getApiErrorMessage ? window.getApiErrorMessage(payload, fallback) : (payload?.error || fallback);
+}
+
+function todayIsoDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function formatLastSeenDate(value) {
+    if (!value) {
+        return '';
+    }
+
+    const text = String(value);
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    return '';
+}
+
+function normalizeLastSeenForInput(value) {
+    if (!value) {
+        return todayIsoDate();
+    }
+
+    const text = String(value);
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) {
+        return match[1];
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+        return formatLastSeenDate(parsed);
+    }
+
+    return todayIsoDate();
+}
+
+$(document).ready(function() {
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    const init = function() {
+        loadEntries();
+        loadPending();
+        if (editId) { editEntry(parseInt(editId, 10)); }
+    };
+    if (typeof loadUserSettings === 'function') {
+        loadUserSettings().finally(init);
+    } else {
+        init();
+    }
+
+    $('#entrySearch').on('keydown', function(e) {
+        if (e.key === 'Enter') { currentPage = 1; loadEntries(); }
+    });
+
+    // Reload pending tab when it becomes visible
+    $('#tab-pending').on('shown.bs.tab', function() { loadPending(); });
+});
+
+// ── All Entries ─────────────────────────────────────────────────────────
+
+function loadEntries() {
+    const search = $('#entrySearch').val().trim();
+    $('#entriesContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Loading...</div>');
+
+    $.get('/admin/api/bbs-directory/entries', { page: currentPage, per_page: perPage, search: search })
+        .done(function(data) { renderEntries(data.entries, data.total); })
+        .fail(function(xhr) {
+            $('#entriesContainer').html(`<div class="text-center text-danger py-4">${apiErr(xhr.responseJSON, 'Failed to load entries')}</div>`);
+        });
+}
+
+function renderEntries(entries, total) {
+    const container = $('#entriesContainer');
+
+    if (!entries || entries.length === 0) {
+        container.html(`<div class="text-center text-muted py-4">${uiT('ui.admin.bbs_directory.no_entries', 'No entries yet.')}</div>`);
+        $('#entriesPagination').empty();
+        return;
+    }
+
+    let html = `<div class="table-responsive"><table class="table table-hover mb-0">
+        <thead><tr>
+            <th>${uiT('ui.admin.bbs_directory.col_name', 'Name')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_sysop', 'Sysop')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_location', 'Location')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_telnet', 'Telnet')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_source', 'Source')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_last_seen', 'Last Seen')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_actions', 'Actions')}</th>
+        </tr></thead><tbody>`;
+
+    entries.forEach(function(e) {
+        const telnet = e.telnet_host
+            ? `<span class="font-monospace small">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</span>`
+            : '';
+        const sourceClass = e.source === 'auto' ? 'bg-info' : 'bg-secondary';
+        const sourceLabel = e.source === 'auto'
+            ? uiT('ui.bbs_directory.source_auto', 'Auto')
+            : uiT('ui.bbs_directory.source_manual', 'Manual');
+        const statusBadge = e.status === 'pending'
+            ? `<span class="badge bg-warning text-dark ms-1">${uiT('ui.bbs_directory.status_pending', 'Pending')}</span>`
+            : (e.status === 'rejected' ? `<span class="badge bg-danger ms-1">${uiT('ui.bbs_directory.status_rejected', 'Rejected')}</span>` : '');
+        const lastSeen = e.last_seen ? escapeHtml(formatLastSeenDate(e.last_seen)) : `<span class="text-muted">-</span>`;
+        const activeIcon = (e.is_active == true || e.is_active === 't')
+            ? '<i class="fas fa-check-circle text-success"></i>'
+            : '<i class="fas fa-times-circle text-danger"></i>';
+        const lockIcon = (e.is_local == true || e.is_local === 't')
+            ? ` <i class="fas fa-lock text-warning ms-1" title="${uiT('ui.admin.bbs_directory.is_local_label', 'Our BBS')}"></i>`
+            : '';
+
+        html += `<tr>
+            <td>${activeIcon} <strong>${escapeHtml(e.name)}</strong>${lockIcon}${statusBadge}</td>
+            <td>${escapeHtml(e.sysop || '')}</td>
+            <td>${escapeHtml(e.location || '')}</td>
+            <td>${telnet}</td>
+            <td><span class="badge ${sourceClass}">${sourceLabel}</span></td>
+            <td class="text-nowrap"><small>${lastSeen}</small></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showMergeModal(${e.id})" title="${uiT('ui.admin.bbs_directory.merge', 'Merge duplicate')}">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${e.id})" title="${uiT('ui.common.delete', 'Delete')}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.html(html);
+
+    const totalPages = Math.ceil(total / perPage);
+    renderPagination('#entriesPagination', currentPage, totalPages, function(p) {
+        currentPage = p;
+        loadEntries();
+    });
+}
+
+// ── Pending Review ──────────────────────────────────────────────────────
+
+function loadPending() {
+    $('#pendingContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Loading...</div>');
+
+    $.get('/admin/api/bbs-directory/entries/pending')
+        .done(function(data) { renderPending(data.entries); })
+        .fail(function(xhr) {
+            $('#pendingContainer').html(`<div class="text-center text-danger py-4">${apiErr(xhr.responseJSON, 'Failed to load pending entries')}</div>`);
+        });
+}
+
+function renderPending(entries) {
+    const badge = $('#pendingBadge');
+    if (!entries || entries.length === 0) {
+        badge.addClass('d-none');
+        $('#pendingContainer').html(`<div class="text-center text-muted py-4">${uiT('ui.admin.bbs_directory.no_pending', 'No pending listings.')}</div>`);
+        return;
+    }
+
+    badge.text(entries.length).removeClass('d-none');
+
+    let html = `<div class="table-responsive"><table class="table table-hover mb-0">
+        <thead><tr>
+            <th>${uiT('ui.admin.bbs_directory.col_name', 'Name')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_sysop', 'Sysop')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_location', 'Location')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_telnet', 'Telnet')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_submitted_by', 'Submitted By')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_actions', 'Actions')}</th>
+        </tr></thead><tbody>`;
+
+    entries.forEach(function(e) {
+        const telnet = e.telnet_host
+            ? `<span class="font-monospace small">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</span>`
+            : '';
+
+        html += `<tr>
+            <td><strong>${escapeHtml(e.name)}</strong></td>
+            <td>${escapeHtml(e.sysop || '')}</td>
+            <td>${escapeHtml(e.location || '')}</td>
+            <td>${telnet}</td>
+            <td><small>${escapeHtml(e.submitted_by_username || '—')}</small></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-success" onclick="approveEntry(${e.id})" title="${uiT('ui.admin.bbs_directory.approve', 'Approve')}">
+                        <i class="fas fa-check"></i> ${uiT('ui.admin.bbs_directory.approve', 'Approve')}
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="rejectEntry(${e.id})" title="${uiT('ui.admin.bbs_directory.reject', 'Reject')}">
+                        <i class="fas fa-times"></i> ${uiT('ui.admin.bbs_directory.reject', 'Reject')}
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    $('#pendingContainer').html(html);
+}
+
+function approveEntry(id) {
+    $.ajax({ url: `/admin/api/bbs-directory/entries/${id}/approve`, method: 'POST' })
+        .done(function() {
+            showSuccess(uiT('ui.admin.bbs_directory.approved', 'Entry approved'));
+            loadPending();
+            loadEntries();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Approve failed')); });
+}
+
+function rejectEntry(id) {
+    $.ajax({ url: `/admin/api/bbs-directory/entries/${id}/reject`, method: 'POST' })
+        .done(function() {
+            showSuccess(uiT('ui.admin.bbs_directory.rejected', 'Entry rejected'));
+            loadPending();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Reject failed')); });
+}
+
+// ── Add / Edit ──────────────────────────────────────────────────────────
+
+function showAddEntryModal() {
+    currentEntryId = null;
+    $('#entryModalTitle').text(uiT('ui.admin.bbs_directory.add_entry', 'Add Entry'));
+    $('#entryForm')[0].reset();
+    $('#entryId').val('');
+    $('#entryTelnetPort').val(23);
+    $('#entryLastSeen').val(todayIsoDate());
+    $('#entryActive').prop('checked', true);
+    $('#entryIsLocal').prop('checked', false);
+    $('#entryModal').modal('show');
+}
+
+function editEntry(id) {
+    currentEntryId = id;
+    $('#entryModalTitle').text(uiT('ui.common.edit', 'Edit') + ' Entry');
+
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            const entry = data.entry;
+            $('#entryId').val(entry.id);
+            $('#entryName').val(entry.name || '');
+            $('#entrySysop').val(entry.sysop || '');
+            $('#entryLocation').val(entry.location || '');
+            $('#entryOs').val(entry.os || '');
+            $('#entryTelnetHost').val(entry.telnet_host || '');
+            $('#entryTelnetPort').val(entry.telnet_port || 23);
+            $('#entryWebsite').val(entry.website || '');
+            $('#entryLastSeen').val(normalizeLastSeenForInput(entry.last_seen));
+            $('#entryNotes').val(entry.notes || '');
+            $('#entryActive').prop('checked', entry.is_active == true || entry.is_active === 't' || entry.is_active === '1');
+            $('#entryIsLocal').prop('checked', entry.is_local == true || entry.is_local === 't' || entry.is_local === '1');
+            $('#entryModal').modal('show');
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, uiT('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'))); });
+}
+
+function saveEntry() {
+    const form = $('#entryForm')[0];
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const data = {
+        name:        $('#entryName').val(),
+        sysop:       $('#entrySysop').val() || null,
+        location:    $('#entryLocation').val() || null,
+        os:          $('#entryOs').val() || null,
+        telnet_host: $('#entryTelnetHost').val() || null,
+        telnet_port: parseInt($('#entryTelnetPort').val()) || 23,
+        website:     $('#entryWebsite').val() || null,
+        last_seen:   $('#entryLastSeen').val() || todayIsoDate(),
+        notes:       $('#entryNotes').val() || null,
+        is_active:   $('#entryActive').is(':checked'),
+        is_local:    $('#entryIsLocal').is(':checked'),
+    };
+
+    const url    = currentEntryId ? `/admin/api/bbs-directory/entries/${currentEntryId}` : '/admin/api/bbs-directory/entries';
+    const method = currentEntryId ? 'PUT' : 'POST';
+
+    $.ajax({ url, method, contentType: 'application/json', data: JSON.stringify(data) })
+        .done(function() {
+            $('#entryModal').modal('hide');
+            showSuccess(uiT('ui.admin.bbs_directory.entry_saved', 'Entry saved successfully'));
+            loadEntries();
+            loadPending();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Save failed')); });
+}
+
+// ── Merge ───────────────────────────────────────────────────────────────
+
+let mergeKeepId   = null;
+let mergeDiscardId = null;
+let mergeSearchTimer = null;
+
+function showMergeModal(id) {
+    mergeKeepId    = id;
+    mergeDiscardId = null;
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            $('#mergeKeepName').text(data.entry?.name || '');
+            $('#mergeSearch').val('');
+            $('#mergeSearchResults').empty();
+            $('#mergeSelectedWrap').addClass('d-none');
+            $('#confirmMergeBtn').prop('disabled', true);
+            $('#mergeModal').modal('show');
+            setTimeout(function() { $('#mergeSearch').focus(); }, 300);
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Failed to load entry')); });
+}
+
+$('#mergeSearch').on('input', function() {
+    clearTimeout(mergeSearchTimer);
+    const q = $(this).val().trim();
+    if (q.length < 2) { $('#mergeSearchResults').empty(); return; }
+    mergeSearchTimer = setTimeout(function() {
+        $.get('/admin/api/bbs-directory/entries', { page: 1, per_page: 20, search: q })
+            .done(function(data) {
+                const results = (data.entries || []).filter(e => e.id !== mergeKeepId);
+                let html = '';
+                results.forEach(function(e) {
+                    const addr = e.telnet_host ? `<small class="text-muted ms-2">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</small>` : '';
+                    html += `<button type="button" class="list-group-item list-group-item-action py-1" onclick="selectMergeDiscard(${e.id})">
+                        ${escapeHtml(e.name)}${addr}
+                    </button>`;
+                });
+                $('#mergeSearchResults').html(html || `<div class="list-group-item text-muted">${uiT('ui.admin.bbs_directory.no_entries', 'No entries found')}</div>`);
+            });
+    }, 300);
+});
+
+function selectMergeDiscard(id) {
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            const name = data.entry?.name || '';
+            mergeDiscardId = id;
+            $('#mergeDiscardName').text(name);
+            $('#mergeSelectedWrap').removeClass('d-none');
+            $('#confirmMergeBtn').prop('disabled', false);
+            $('#mergeSearchResults').empty();
+            $('#mergeSearch').val(name);
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Failed to load entry')); });
+}
+
+function confirmMerge() {
+    if (!mergeKeepId || !mergeDiscardId) return;
+    $('#confirmMergeBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/admin/api/bbs-directory/entries/${mergeKeepId}/merge`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ discard_id: mergeDiscardId }),
+    })
+    .done(function() {
+        $('#mergeModal').modal('hide');
+        showSuccess(uiT('ui.admin.bbs_directory.merge_success', 'Entries merged successfully'));
+        loadEntries();
+    })
+    .fail(function(xhr) {
+        showError(apiErr(xhr.responseJSON, 'Merge failed'));
+        $('#confirmMergeBtn').prop('disabled', false);
+    });
+}
+
+// ── Delete ──────────────────────────────────────────────────────────────
+
+function showDeleteModal(id) {
+    $.get(`/admin/api/bbs-directory/entries/${id}`)
+        .done(function(data) {
+            $('#deleteItemName').text(data.entry?.name || '');
+            $('#deleteModal').modal('show');
+            $('#confirmDeleteBtn').off('click').on('click', function() { deleteEntry(id); });
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Failed to load entry')); });
+}
+
+function deleteEntry(id) {
+    $.ajax({ url: `/admin/api/bbs-directory/entries/${id}`, method: 'DELETE' })
+        .done(function() {
+            $('#deleteModal').modal('hide');
+            showSuccess(uiT('ui.admin.bbs_directory.entry_deleted', 'Entry deleted successfully'));
+            loadEntries();
+            loadPending();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Delete failed')); });
+}
+
+// ── Pagination ──────────────────────────────────────────────────────────
+
+function renderPagination(selector, currentPage, totalPages, callback) {
+    const container = $(selector);
+    if (totalPages <= 1) { container.empty(); return; }
+
+    let html = '<nav><ul class="pagination pagination-sm">';
+    html += `<li class="page-item${currentPage === 1 ? ' disabled' : ''}">
+        <a class="page-link" href="#" onclick="return false;" data-page="${currentPage - 1}">&laquo;</a></li>`;
+
+    for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+            html += `<li class="page-item${p === currentPage ? ' active' : ''}">
+                <a class="page-link" href="#" onclick="return false;" data-page="${p}">${p}</a></li>`;
+        } else if (p === currentPage - 3 || p === currentPage + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+    }
+
+    html += `<li class="page-item${currentPage === totalPages ? ' disabled' : ''}">
+        <a class="page-link" href="#" onclick="return false;" data-page="${currentPage + 1}">&raquo;</a></li>`;
+    html += '</ul></nav>';
+
+    container.html(html);
+    container.find('[data-page]').on('click', function() {
+        const p = parseInt($(this).data('page'));
+        if (p >= 1 && p <= totalPages && p !== currentPage) { callback(p); }
+    });
+}
+</script>
+{% endblock %}

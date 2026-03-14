@@ -1,6 +1,15 @@
 # Telnet Daemon
 
-This directory contains a telnet daemon for BinktermPHP. It provides a classic BBS terminal interface with message browsing, reading, and composition capabilities that reuses the existing web API endpoints for netmail and echomail.
+This directory contains the Telnet daemon for BinktermPHP.
+
+Telnet is one access method for the shared BinktermPHP Terminal Server. The
+post-login feature set (netmail, echomail, file areas, doors, polls, shoutbox,
+editor behavior, and menu flow) is documented in:
+
+- [BinktermPHP Terminal Server](../docs/TerminalServer.md)
+
+This document focuses on Telnet-specific transport setup, daemon operation, and
+troubleshooting.
 
 ## Status
 
@@ -407,6 +416,10 @@ When contributing to the telnet daemon:
 4. Follow existing code conventions
 5. Add debug logging for new features
 6. Update this documentation
+
+## See Also
+
+- [SSH Server](../docs/SSHServer.md) — encrypted SSH-2 alternative to Telnet
 
 ## License
 

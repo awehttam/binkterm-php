@@ -6,6 +6,8 @@ use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\RouteHelper;
 use BinktermPHP\UserCredit;
@@ -40,6 +42,59 @@ function sanitizeFilenameForWindows(string $name, string $fallback = 'message'):
     return $safe;
 }
 
+if (!function_exists('apiError')) {
+    function apiError(string $errorCode, string $message, ?int $status = null, array $extra = []): void
+    {
+        if ($status !== null) {
+            http_response_code($status);
+        }
+        echo json_encode(array_merge([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $message,
+        ], $extra));
+        exit;
+    }
+}
+
+if (!function_exists('apiLocalizedText')) {
+    function apiLocalizedText(string $key, string $fallback, ?array $user = null, array $params = [], string $namespace = 'errors'): string
+    {
+        static $translator = null;
+        static $resolver = null;
+        if ($translator === null || $resolver === null) {
+            $translator = new Translator();
+            $resolver = new LocaleResolver($translator);
+        }
+
+        if ($user === null) {
+            try {
+                $auth = new Auth();
+                $resolvedUser = $auth->getCurrentUser();
+                if (is_array($resolvedUser)) {
+                    $user = $resolvedUser;
+                }
+            } catch (\Throwable $e) {
+                // Fall back to default locale when no user context is available.
+            }
+        }
+
+        $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+        $translated = $translator->translate($key, $params, $resolvedLocale, [$namespace]);
+        return $translated === $key ? $fallback : $translated;
+    }
+}
+
+if (!function_exists('apiLocalizeErrorPayload')) {
+    function apiLocalizeErrorPayload(array $payload, ?array $user = null): array
+    {
+        if (!empty($payload['error_code'])) {
+            $payload['error'] = apiLocalizedText((string)$payload['error_code'], (string)($payload['error'] ?? ''), $user);
+        }
+        return $payload;
+    }
+}
+
 SimpleRouter::group(['prefix' => '/api'], function() {
 
     /**
@@ -67,8 +122,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $service = $input['service'] ?? 'web';
 
         if (empty($username) || empty($password)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username and password required']);
+            apiError('errors.auth.missing_credentials', apiLocalizedText('errors.auth.missing_credentials', 'Username and password required'), 400);
             return;
         }
 
@@ -100,8 +154,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
             echo json_encode(['success' => true, 'csrf_token' => $csrfToken]);
         } else {
-            http_response_code(401);
-            echo json_encode(['error' => 'Invalid credentials']);
+            apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
         }
     });
 
@@ -128,8 +181,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (empty($expectedKey) || $apiKey !== $expectedKey) {
             //error_log($expectedKey." != ".$apiKey);
-            http_response_code(401);
-            echo json_encode(['valid' => false, 'error' => 'Invalid API key']);
+            apiError('errors.auth.invalid_api_key', apiLocalizedText('errors.auth.invalid_api_key', 'Invalid API key'), 401, ['valid' => false]);
             return;
         }
 
@@ -138,8 +190,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $token = $input['token'] ?? '';
 
         if (empty($userId) || empty($token)) {
-            http_response_code(400);
-            echo json_encode(['valid' => false, 'error' => 'userid and token are required']);
+            apiError('errors.auth.gateway_token_missing_fields', apiLocalizedText('errors.auth.gateway_token_missing_fields', 'userid and token are required'), 400, ['valid' => false]);
             return;
         }
 
@@ -154,10 +205,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
         } else {
             //error_log("Invalid or expired token userId=$userId, token=$token" );
-            echo json_encode([
-                'valid' => false,
-                'error' => 'Invalid or expired token'
-            ]);
+            apiError('errors.auth.invalid_or_expired_gateway_token', apiLocalizedText('errors.auth.invalid_or_expired_gateway_token', 'Invalid or expired token'), 400, ['valid' => false]);
         }
     });
 
@@ -191,13 +239,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $usernameOrEmail = $input['usernameOrEmail'] ?? '';
 
         if (empty($usernameOrEmail)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username or email is required']);
+            apiError('errors.auth.username_or_email_required', apiLocalizedText('errors.auth.username_or_email_required', 'Username or email is required'), 400);
             return;
         }
 
         $controller = new \BinktermPHP\PasswordResetController();
         $result = $controller->requestPasswordReset($usernameOrEmail);
+        $result = apiLocalizeErrorPayload($result);
 
         echo json_encode($result);
     });
@@ -209,8 +257,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $token = $input['token'] ?? '';
 
         if (empty($token)) {
-            http_response_code(400);
-            echo json_encode(['valid' => false, 'error' => 'Token is required']);
+            apiError('errors.auth.token_required', apiLocalizedText('errors.auth.token_required', 'Token is required'), 400, ['valid' => false]);
             return;
         }
 
@@ -220,7 +267,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if ($tokenData) {
             echo json_encode(['valid' => true]);
         } else {
-            echo json_encode(['valid' => false, 'error' => 'Invalid or expired token']);
+            apiError('errors.auth.invalid_or_expired_token', apiLocalizedText('errors.auth.invalid_or_expired_token', 'Invalid or expired token'), 400, ['valid' => false]);
         }
     });
 
@@ -232,13 +279,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $newPassword = $input['newPassword'] ?? '';
 
         if (empty($token) || empty($newPassword)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Token and new password are required']);
+            apiError('errors.auth.token_and_password_required', apiLocalizedText('errors.auth.token_and_password_required', 'Token and new password are required'), 400);
             return;
         }
 
         $controller = new \BinktermPHP\PasswordResetController();
         $result = $controller->resetPassword($token, $newPassword);
+        $result = apiLocalizeErrorPayload($result);
 
         if (!$result['success']) {
             http_response_code(400);
@@ -271,8 +318,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Anti-spam validation 1: Honeypot field (skip for telnet)
         if (!$isTelnetRegistration && !empty($data['website'])) {
             // Silent rejection - don't tell bots why they failed
-            http_response_code(400);
-            echo json_encode(['error' => 'Invalid submission']);
+            apiError('errors.register.invalid_submission', apiLocalizedText('errors.register.invalid_submission', 'Invalid submission'), 400);
             return;
         }
 
@@ -284,15 +330,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if ($timeTaken < 3) {
                 // Too fast - likely a bot
-                http_response_code(400);
-                echo json_encode(['error' => 'Please take your time filling out the form.']);
+                apiError('errors.register.too_fast', apiLocalizedText('errors.register.too_fast', 'Please take your time filling out the form.'), 400);
                 return;
             }
 
             if ($timeTaken > 1800) {
                 // 30 minutes - session likely expired
-                http_response_code(400);
-                echo json_encode(['error' => 'Session expired. Please refresh the page and try again.']);
+                apiError('errors.register.session_expired', apiLocalizedText('errors.register.session_expired', 'Session expired. Please refresh the page and try again.'), 400);
                 return;
             }
         }
@@ -313,8 +357,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $rateLimitResult = $rateLimitStmt->fetch();
 
             if ($rateLimitResult && $rateLimitResult['attempt_count'] >= 3) {
-                http_response_code(429);
-                echo json_encode(['error' => 'Too many registration attempts. Please try again later.']);
+                apiError('errors.register.rate_limited', apiLocalizedText('errors.register.rate_limited', 'Too many registration attempts. Please try again later.'), 429);
                 return;
             }
 
@@ -342,29 +385,25 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Validate required fields
         if (empty($username) || empty($password) || empty($realName)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username, password, and real name are required']);
+            apiError('errors.register.required_fields', apiLocalizedText('errors.register.required_fields', 'Username, password, and real name are required'), 400);
             return;
         }
 
         // Validate username format
         if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username must be 3-20 characters, letters, numbers, and underscores only']);
+            apiError('errors.register.invalid_username_format', apiLocalizedText('errors.register.invalid_username_format', 'Username must be 3-20 characters, letters, numbers, and underscores only'), 400);
             return;
         }
 
         if (\BinktermPHP\UserRestrictions::isRestrictedUsername($username)
             || \BinktermPHP\UserRestrictions::isRestrictedRealName($realName)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'This username or real name is not allowed']);
+            apiError('errors.register.restricted_name', apiLocalizedText('errors.register.restricted_name', 'This username or real name is not allowed'), 400);
             return;
         }
 
         // Validate password length
         if (strlen($password) < 8) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Password must be at least 8 characters long']);
+            apiError('errors.register.weak_password', apiLocalizedText('errors.register.weak_password', 'Password must be at least 8 characters long'), 400);
             return;
         }
 
@@ -382,8 +421,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $checkStmt->execute([$username, $realName, $username, $realName, $username, $realName, $username, $realName]);
 
             if ($checkStmt->fetch()) {
-                http_response_code(409);
-                echo json_encode(['error' => 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.']);
+                apiError('errors.register.user_exists', apiLocalizedText('errors.register.user_exists', 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.'), 409);
                 return;
             }
 
@@ -461,12 +499,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 error_log("Failed to update registration attempt: " . $e->getMessage());
             }
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.register.submitted_success'
+            ]);
 
         } catch (Exception $e) {
             error_log("Registration error: " . $e->getMessage());
-            http_response_code(500);
-            echo json_encode(['error' => 'Registration failed. Please try again later.']);
+            apiError('errors.register.failed', apiLocalizedText('errors.register.failed', 'Registration failed. Please try again later.'), 500);
         }
     });
 
@@ -478,8 +518,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Validate required fields
         if (empty($username)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username is required']);
+            apiError('errors.reminder.username_required', apiLocalizedText('errors.reminder.username_required', 'Username is required'), 400);
             return;
         }
 
@@ -488,8 +527,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Check if user exists and hasn't logged in
             if (!$handler->canSendReminder($username)) {
-                http_response_code(404);
-                echo json_encode(['error' => 'User not found or already logged in']);
+                apiError('errors.reminder.user_not_found_or_logged_in', apiLocalizedText('errors.reminder.user_not_found_or_logged_in', 'User not found or already logged in'), 404);
                 return;
             }
 
@@ -499,18 +537,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result['success']) {
                 echo json_encode([
                     'success' => true,
-                    'message' => 'Account reminder sent successfully',
+                    'message_code' => 'ui.api.reminder.sent',
                     'email_sent' => $result['email_sent'] ?? false
                 ]);
             } else {
-                http_response_code(400);
-                echo json_encode(['error' => $result['error']]);
+                apiError('errors.reminder.send_failed', apiLocalizedText('errors.reminder.send_failed', 'Failed to send reminder. Please try again later.'), 400);
             }
 
         } catch (Exception $e) {
             error_log("Account reminder error: " . $e->getMessage());
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to send reminder. Please try again later.']);
+            apiError('errors.reminder.send_failed', apiLocalizedText('errors.reminder.send_failed', 'Failed to send reminder. Please try again later.'), 500);
         }
     });
 
@@ -522,7 +558,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid user']);
+            apiError('errors.notify.user_id_missing', apiLocalizedText('errors.notify.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
@@ -554,7 +590,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid user']);
+            apiError('errors.notify.user_id_missing', apiLocalizedText('errors.notify.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
@@ -562,7 +598,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $state = $input['state'] ?? null;
         if (!is_array($state)) {
             http_response_code(400);
-            echo json_encode(['error' => 'State payload required']);
+            apiError('errors.notify.invalid_state', apiLocalizedText('errors.notify.invalid_state', 'Invalid notification state payload', $user));
             return;
         }
 
@@ -594,7 +630,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $isAdmin = !empty($user['is_admin']);
         if (!$userId) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid user']);
+            apiError('errors.notify.user_id_missing', apiLocalizedText('errors.notify.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
@@ -602,7 +638,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $target = strtolower((string)($input['target'] ?? ''));
         if (!in_array($target, ['netmail', 'echomail', 'chat'], true)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid target']);
+            apiError('errors.notify.invalid_target', apiLocalizedText('errors.notify.invalid_target', 'Invalid notification target', $user));
             return;
         }
 
@@ -827,7 +863,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $optionId = isset($payload['option_id']) ? (int)$payload['option_id'] : 0;
         if ($optionId <= 0) {
             http_response_code(400);
-            echo json_encode(['error' => 'Option is required']);
+            apiError('errors.polls.option_required', apiLocalizedText('errors.polls.option_required', 'A poll option is required', $user));
             return;
         }
 
@@ -837,7 +873,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $poll = $pollStmt->fetch();
         if (!$poll) {
             http_response_code(404);
-            echo json_encode(['error' => 'Poll not found']);
+            apiError('errors.polls.not_found', apiLocalizedText('errors.polls.not_found', 'Poll not found', $user));
             return;
         }
 
@@ -845,7 +881,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $optionStmt->execute([$optionId, $id]);
         if (!$optionStmt->fetch()) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid option']);
+            apiError('errors.polls.invalid_option', apiLocalizedText('errors.polls.invalid_option', 'Invalid poll option', $user));
             return;
         }
 
@@ -857,7 +893,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $insertStmt->execute([$id, $optionId, $userId]);
         } catch (Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => 'You have already voted in this poll.']);
+            apiError('errors.polls.vote_failed', apiLocalizedText('errors.polls.vote_failed', 'Failed to record vote', $user));
             return;
         }
 
@@ -878,19 +914,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (empty($question)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Question is required']);
+            apiError('errors.polls.question_required', apiLocalizedText('errors.polls.question_required', 'Poll question is required', $user));
             return;
         }
 
         if (strlen($question) < 10 || strlen($question) > 500) {
             http_response_code(400);
-            echo json_encode(['error' => 'Question must be 10-500 characters']);
+            apiError('errors.polls.question_length_invalid', apiLocalizedText('errors.polls.question_length_invalid', 'Poll question must be between 10 and 500 characters', $user));
             return;
         }
 
         if (!is_array($options) || count($options) < 2 || count($options) > 10) {
             http_response_code(400);
-            echo json_encode(['error' => 'Must provide 2-10 options']);
+            apiError('errors.polls.options_count_invalid', apiLocalizedText('errors.polls.options_count_invalid', 'Poll must include between 2 and 10 options', $user));
             return;
         }
 
@@ -900,12 +936,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $trimmed = trim($option);
             if (empty($trimmed)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'All options must have text']);
+                apiError('errors.polls.option_empty', apiLocalizedText('errors.polls.option_empty', 'Poll options cannot be empty', $user));
                 return;
             }
             if (strlen($trimmed) > 200) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Options must be under 200 characters']);
+                apiError('errors.polls.option_length_invalid', apiLocalizedText('errors.polls.option_length_invalid', 'Poll options must be 200 characters or fewer', $user));
                 return;
             }
             $cleanOptions[] = $trimmed;
@@ -914,7 +950,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Check for duplicate options
         if (count($cleanOptions) !== count(array_unique($cleanOptions))) {
             http_response_code(400);
-            echo json_encode(['error' => 'Options must be unique']);
+            apiError('errors.polls.options_duplicate', apiLocalizedText('errors.polls.options_duplicate', 'Poll options must be unique', $user));
             return;
         }
 
@@ -932,10 +968,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$debitSuccess) {
             http_response_code(400);
-            echo json_encode([
-                'error' => "Failed to deduct credits. You may have insufficient balance.",
-                'cost' => $cost
-            ]);
+            apiError(
+                'errors.polls.insufficient_credits',
+                apiLocalizedText('errors.polls.insufficient_credits', 'Failed to deduct credits. You may have insufficient balance.', $user),
+                null,
+                ['cost' => $cost]
+            );
             return;
         }
 
@@ -963,7 +1001,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'poll_id' => $pollId,
-                'credits_spent' => $cost
+                'credits_spent' => $cost,
+                'message_code' => 'ui.polls.create.created_success_spent',
+                'message_params' => [
+                    'spent' => $cost
+                ]
             ]);
         } catch (Exception $e) {
             // Refund credits if poll creation failed
@@ -976,7 +1018,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             );
 
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to create poll: ' . $e->getMessage()]);
+            apiError('errors.polls.create_failed', apiLocalizedText('errors.polls.create_failed', 'Failed to create poll', $user));
         }
     });
 
@@ -1019,13 +1061,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if ($message === '') {
             http_response_code(400);
-            echo json_encode(['error' => 'Message is required']);
+            apiError('errors.shoutbox.message_required', apiLocalizedText('errors.shoutbox.message_required', 'Message is required', $user));
             return;
         }
 
         if (mb_strlen($message) > 280) {
             http_response_code(400);
-            echo json_encode(['error' => 'Message too long']);
+            apiError('errors.shoutbox.message_too_long', apiLocalizedText('errors.shoutbox.message_too_long', 'Message cannot exceed 280 characters', $user));
             return;
         }
 
@@ -1072,7 +1114,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
             http_response_code(403);
-            echo json_encode(['error' => 'Chat is disabled']);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
             return;
         }
 
@@ -1096,7 +1138,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
             http_response_code(403);
-            echo json_encode(['error' => 'Chat is disabled']);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
             return;
         }
         $auth = new Auth();
@@ -1126,7 +1168,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
             http_response_code(403);
-            echo json_encode(['error' => 'Chat is disabled']);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
             return;
         }
 
@@ -1139,7 +1181,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$userId || ($roomId && $dmUserId) || (!$roomId && !$dmUserId)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid chat target']);
+            apiError('errors.chat.invalid_message_query', apiLocalizedText('errors.chat.invalid_message_query', 'Invalid chat message query', $user));
             return;
         }
 
@@ -1210,7 +1252,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
             http_response_code(403);
-            echo json_encode(['error' => 'Chat is disabled']);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
             return;
         }
 
@@ -1222,13 +1264,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$userId || ($roomId && $toUserId) || (!$roomId && !$toUserId)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid chat target']);
+            apiError('errors.chat.invalid_send_target', apiLocalizedText('errors.chat.invalid_send_target', 'Invalid chat target', $user));
             return;
         }
 
         if ($body === '' || strlen($body) > 1000) {
             http_response_code(400);
-            echo json_encode(['error' => 'Message must be between 1 and 1000 characters']);
+            apiError('errors.chat.message_length_invalid', apiLocalizedText('errors.chat.message_length_invalid', 'Message must be between 1 and 1000 characters', $user));
             return;
         }
 
@@ -1388,7 +1430,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $roomStmt->execute([$roomId]);
             if (!$roomStmt->fetch()) {
                 http_response_code(404);
-                echo json_encode(['error' => 'Chat room not found']);
+                apiError('errors.chat.room_not_found', apiLocalizedText('errors.chat.room_not_found', 'Chat room not found', $user));
                 return;
             }
 
@@ -1402,7 +1444,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             error_log('[CHAT SEND] ban_hit=' . ($banHit ? '1' : '0'));
             if ($banHit) {
                 http_response_code(403);
-                echo json_encode(['error' => 'You are banned from this room']);
+                apiError('errors.chat.user_banned', apiLocalizedText('errors.chat.user_banned', 'You are banned from this room', $user));
                 return;
             }
         } else {
@@ -1410,7 +1452,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $userStmt->execute([$toUserId]);
             if (!$userStmt->fetch()) {
                 http_response_code(404);
-                echo json_encode(['error' => 'User not found']);
+                apiError('errors.chat.recipient_not_found', apiLocalizedText('errors.chat.recipient_not_found', 'Recipient not found', $user));
                 return;
             }
         }
@@ -1439,7 +1481,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (!$result) {
             error_log('[CHAT SEND] insert blocked by ban');
             http_response_code(403);
-            echo json_encode(['error' => 'You are banned from this room']);
+            apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
             return;
         }
 
@@ -1459,13 +1501,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
             http_response_code(403);
-            echo json_encode(['error' => 'Chat is disabled']);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
             return;
         }
 
         if (empty($user['is_admin'])) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.chat.admin_required', apiLocalizedText('errors.chat.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -1476,7 +1518,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$roomId || !$targetUserId || !in_array($action, ['kick', 'ban'], true)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid moderation request']);
+            apiError('errors.chat.invalid_moderation_request', apiLocalizedText('errors.chat.invalid_moderation_request', 'Invalid moderation request', $user));
             return;
         }
 
@@ -1485,7 +1527,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $roomStmt->execute([$roomId]);
         if (!$roomStmt->fetch()) {
             http_response_code(404);
-            echo json_encode(['error' => 'Chat room not found']);
+            apiError('errors.chat.room_not_found', apiLocalizedText('errors.chat.room_not_found', 'Chat room not found', $user));
             return;
         }
 
@@ -1493,7 +1535,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userStmt->execute([$targetUserId]);
         if (!$userStmt->fetch()) {
             http_response_code(404);
-            echo json_encode(['error' => 'User not found']);
+            apiError('errors.chat.user_not_found', apiLocalizedText('errors.chat.user_not_found', 'User not found', $user));
             return;
         }
 
@@ -1544,7 +1586,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
             http_response_code(403);
-            echo json_encode(['error' => 'Chat is disabled']);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
             return;
         }
 
@@ -1736,7 +1778,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -1751,7 +1793,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['echoarea' => $echoarea]);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'Echo area not found']);
+            apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -1760,7 +1802,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -1780,6 +1822,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
+            $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
@@ -1787,12 +1830,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid posting name policy');
             }
 
+            if ($artFormatHint === '' || $artFormatHint === 'auto' || $artFormatHint === 'inherit') {
+                $artFormatHint = null;
+            } elseif (!in_array($artFormatHint, ['ansi', 'amiga_ansi', 'petscii'], true)) {
+                throw new \Exception('Invalid art format hint');
+            }
+
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._-]+$/', $tag)) {
-                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, and hyphens');
+            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -1802,20 +1851,39 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, color, is_active, is_local, is_sysop_only, domain, gemini_public)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
 
             if ($result) {
-                echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+                echo json_encode([
+                    'success' => true,
+                    'id' => $db->lastInsertId(),
+                    'message_code' => 'ui.echoareas.created_success'
+                ]);
             } else {
                 throw new \Exception('Failed to create echo area');
             }
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            if ($message === 'Invalid posting name policy') {
+                apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
+            } elseif ($message === 'Invalid art format hint') {
+                apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
+            } elseif ($message === 'Tag and description are required') {
+                apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
+            } elseif (str_starts_with($message, 'Invalid tag format')) {
+                apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
+            } elseif ($message === 'Invalid color format') {
+                apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
+                apiError('errors.echoareas.tag_already_exists', apiLocalizedText('errors.echoareas.tag_already_exists', 'An echo area with that tag already exists', $user));
+            } else {
+                apiError('errors.echoareas.create_failed', apiLocalizedText('errors.echoareas.create_failed', 'Failed to create echo area', $user));
+            }
         }
     });
 
@@ -1824,7 +1892,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -1844,6 +1912,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
+            $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
@@ -1851,12 +1920,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid posting name policy');
             }
 
+            if ($artFormatHint === '' || $artFormatHint === 'auto' || $artFormatHint === 'inherit') {
+                $artFormatHint = null;
+            } elseif (!in_array($artFormatHint, ['ansi', 'amiga_ansi', 'petscii'], true)) {
+                throw new \Exception('Invalid art format hint');
+            }
+
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._-]+$/', $tag)) {
-                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, and hyphens');
+            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -1867,20 +1942,40 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
 
             if ($result && $stmt->rowCount() > 0) {
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.echoareas.updated_success'
+                ]);
             } else {
                 throw new \Exception('Echo area not found or no changes made');
             }
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            if ($message === 'Invalid posting name policy') {
+                apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
+            } elseif ($message === 'Invalid art format hint') {
+                apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
+            } elseif ($message === 'Tag and description are required') {
+                apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
+            } elseif (str_starts_with($message, 'Invalid tag format')) {
+                apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
+            } elseif ($message === 'Invalid color format') {
+                apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($message === 'Echo area not found or no changes made') {
+                apiError('errors.echoareas.not_found_or_unchanged', apiLocalizedText('errors.echoareas.not_found_or_unchanged', 'Echo area not found or no changes made', $user));
+            } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
+                apiError('errors.echoareas.tag_already_exists', apiLocalizedText('errors.echoareas.tag_already_exists', 'An echo area with that tag already exists', $user));
+            } else {
+                apiError('errors.echoareas.update_failed', apiLocalizedText('errors.echoareas.update_failed', 'Failed to update echo area', $user));
+            }
         }
     })->where(['id' => '[0-9]+']);
 
@@ -1889,7 +1984,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -1911,13 +2006,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $stmt->execute([$id]);
 
             if ($result && $stmt->rowCount() > 0) {
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.echoareas.deleted_success'
+                ]);
             } else {
                 throw new \Exception('Echo area not found');
             }
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            if (str_starts_with($message, 'Cannot delete echo area with existing messages')) {
+                apiError('errors.echoareas.delete_blocked_has_messages', apiLocalizedText('errors.echoareas.delete_blocked_has_messages', 'Cannot delete echo area with existing messages', $user));
+            } elseif ($message === 'Echo area not found') {
+                apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
+            } else {
+                apiError('errors.echoareas.delete_failed', apiLocalizedText('errors.echoareas.delete_failed', 'Failed to delete echo area', $user));
+            }
         }
     })->where(['id' => '[0-9]+']);
 
@@ -1956,7 +2061,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/fileareas/{id}', function($id) {
-        RouteHelper::requireAdmin();
+        $user = RouteHelper::requireAdmin();
 
         header('Content-Type: application/json');
 
@@ -1967,12 +2072,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['filearea' => $filearea]);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'File area not found']);
+            apiError('errors.fileareas.not_found', apiLocalizedText('errors.fileareas.not_found', 'File area not found', $user));
         }
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/fileareas', function() {
-        RouteHelper::requireAdmin();
+        $user = RouteHelper::requireAdmin();
 
         header('Content-Type: application/json');
 
@@ -1981,16 +2086,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $manager = new \BinktermPHP\FileAreaManager();
             $id = $manager->createFileArea($data);
 
-            echo json_encode(['success' => true, 'id' => $id]);
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'message_code' => 'ui.fileareas.created_success'
+            ]);
 
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.fileareas.create_failed', apiLocalizedText('errors.fileareas.create_failed', 'Failed to create file area', $user));
         }
     });
 
     SimpleRouter::put('/fileareas/{id}', function($id) {
-        RouteHelper::requireAdmin();
+        $user = RouteHelper::requireAdmin();
 
         header('Content-Type: application/json');
 
@@ -1999,16 +2108,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $manager = new \BinktermPHP\FileAreaManager();
             $manager->updateFileArea((int)$id, $data);
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.fileareas.updated_success'
+            ]);
 
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.fileareas.update_failed', apiLocalizedText('errors.fileareas.update_failed', 'Failed to update file area', $user));
         }
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::delete('/fileareas/{id}', function($id) {
-        RouteHelper::requireAdmin();
+        $user = RouteHelper::requireAdmin();
 
         header('Content-Type: application/json');
 
@@ -2016,11 +2128,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $manager = new \BinktermPHP\FileAreaManager();
             $manager->deleteFileArea((int)$id);
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.fileareas.deleted_success'
+            ]);
 
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.fileareas.delete_failed', apiLocalizedText('errors.fileareas.delete_failed', 'Failed to delete file area', $user));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -2041,7 +2156,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2050,7 +2165,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $areaId = $_GET['area_id'] ?? null;
         if (!$areaId) {
             http_response_code(400);
-            echo json_encode(['error' => 'area_id parameter required']);
+            apiError('errors.files.area_id_required', apiLocalizedText('errors.files.area_id_required', 'File area ID is required', $user));
             return;
         }
 
@@ -2061,7 +2176,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Check if user has access to this file area
         if (!$manager->canAccessFileArea((int)$areaId, $userId, $isAdmin)) {
             http_response_code(403);
-            echo json_encode(['error' => 'Access denied to this file area']);
+            apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user));
             return;
         }
 
@@ -2073,11 +2188,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/files/recent', function() {
-        RouteHelper::requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2091,11 +2206,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/files/{id}', function($id) {
-        RouteHelper::requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2108,7 +2223,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['file' => $file]);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'File not found']);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -2117,7 +2232,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo 'File areas feature is disabled';
+            echo apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user);
             return;
         }
 
@@ -2126,7 +2241,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$file || $file['status'] !== 'approved') {
             http_response_code(404);
-            echo 'File not found';
+            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
             return;
         }
 
@@ -2134,16 +2249,30 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
 
-        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+        $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+
+        // Senders of netmail attachments can always download what they sent, even though
+        // the file lives in the recipient's private area.
+        if (!$hasAccess && $file['source_type'] === 'netmail_attachment' && $file['message_id'] !== null) {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $nmStmt = $db->prepare("SELECT user_id FROM netmail WHERE id = ? LIMIT 1");
+            $nmStmt->execute([$file['message_id']]);
+            $nm = $nmStmt->fetch();
+            if ($nm && (int)$nm['user_id'] === (int)$userId) {
+                $hasAccess = true;
+            }
+        }
+
+        if (!$hasAccess) {
             http_response_code(403);
-            echo 'Access denied to this file';
+            echo apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user);
             return;
         }
 
         $storagePath = $file['storage_path'];
         if (!file_exists($storagePath)) {
             http_response_code(404);
-            echo 'File not found on disk';
+            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
             return;
         }
 
@@ -2175,7 +2304,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2187,6 +2316,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $manager = new \BinktermPHP\FileAreaManager();
         $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours);
+        $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
             http_response_code(400);
@@ -2205,7 +2335,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2232,7 +2362,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'can_revoke' => $isAdmin || (int)$share['shared_by_user_id'] === (int)$userId,
             ]);
         } else {
-            echo json_encode(['success' => false]);
+            echo json_encode([
+                'success' => true,
+                'exists' => false
+            ]);
         }
     })->where(['fileId' => '[0-9]+']);
 
@@ -2242,19 +2375,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      */
     SimpleRouter::get('/files/shared/{area}/{filename}', function($area, $filename) {
         header('Content-Type: application/json');
+        $auth = new \BinktermPHP\Auth();
+        $currentUser = $auth->getCurrentUser();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $currentUser));
             return;
         }
 
-        $auth = new \BinktermPHP\Auth();
-        $currentUser = $auth->getCurrentUser();
         $requestingUserId = $currentUser ? ($currentUser['user_id'] ?? $currentUser['id'] ?? null) : null;
 
         $manager = new \BinktermPHP\FileAreaManager();
         $result  = $manager->getSharedFile($area, $filename, $requestingUserId);
+        $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
             http_response_code(404);
@@ -2272,7 +2406,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2284,10 +2418,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$revoked) {
             http_response_code(404);
-            echo json_encode(['error' => 'Share not found or access denied']);
+            apiError('errors.files.share_not_found_or_forbidden', apiLocalizedText('errors.files.share_not_found_or_forbidden', 'Share link not found or not permitted', $user));
             return;
         }
-        echo json_encode(['success' => true]);
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.files.share_revoked'
+        ]);
     })->where(['shareId' => '[0-9]+']);
 
     SimpleRouter::post('/files/upload', function() {
@@ -2295,7 +2432,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2353,12 +2490,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'file_id' => $fileId,
-                'message' => 'File uploaded successfully'
+                'message_code' => 'ui.api.files.uploaded'
             ]);
 
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            if ($message === 'No file uploaded') {
+                apiError('errors.files.upload.no_file', apiLocalizedText('errors.files.upload.no_file', 'No file uploaded', $user));
+            } elseif ($message === 'File area ID is required') {
+                apiError('errors.files.upload.area_id_required', apiLocalizedText('errors.files.upload.area_id_required', 'File area ID is required', $user));
+            } elseif ($message === 'Short description is required') {
+                apiError('errors.files.upload.short_description_required', apiLocalizedText('errors.files.upload.short_description_required', 'Short description is required', $user));
+            } elseif ($message === 'File area not found') {
+                apiError('errors.files.upload.area_not_found', apiLocalizedText('errors.files.upload.area_not_found', 'File area not found', $user));
+            } elseif ($message === 'This file area is read-only. Uploads are not permitted.') {
+                apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
+            } elseif ($message === 'Only administrators can upload files to this area.') {
+                apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'File rejected: virus detected.') {
+                \BinktermPHP\Admin\AdminDaemonClient::log('WARNING', 'Infected file upload rejected', [
+                    'username'  => $user['username'] ?? 'unknown',
+                    'filename'  => $_FILES['file']['name'] ?? 'unknown',
+                    'file_area' => $_POST['file_area_id'] ?? 'unknown',
+                ]);
+                http_response_code(422);
+                apiError('errors.files.upload.virus_detected', apiLocalizedText('errors.files.upload.virus_detected', 'File rejected: virus detected', $user));
+            } else {
+                error_log("File upload error: " . $message);
+                apiError('errors.files.upload.failed', apiLocalizedText('errors.files.upload.failed', 'Failed to upload file', $user));
+            }
         }
     });
 
@@ -2367,7 +2528,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo json_encode(['error' => 'File areas feature is disabled']);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
             return;
         }
 
@@ -2382,13 +2543,211 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode([
                 'success' => true,
-                'message' => 'File deleted successfully'
+                'message_code' => 'ui.api.files.deleted'
             ]);
 
         } catch (\Exception $e) {
             http_response_code(403);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.files.delete_failed', apiLocalizedText('errors.files.delete_failed', 'Failed to delete file', $user));
         }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * PUT /api/files/{id}/rename
+     * Edit a file's name and/or description (auth required, owner or admin).
+     * filename is optional — omit or send unchanged to skip rename.
+     * short_description and long_description are optional; if short_description
+     * is present it will be updated (and is required to be non-empty).
+     */
+    SimpleRouter::put('/files/{id}/rename', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $body         = json_decode(file_get_contents('php://input'), true) ?? [];
+        $newFilename   = isset($body['filename']) ? trim($body['filename']) : null;
+        $shortDesc     = isset($body['short_description']) ? trim($body['short_description']) : null;
+        $longDesc      = isset($body['long_description'])  ? (trim($body['long_description']) ?: null) : null;
+        $targetAreaId  = isset($body['file_area_id']) ? (int)$body['file_area_id'] : null;
+
+        // Validate: filename must not be blank if provided
+        if ($newFilename !== null && $newFilename === '') {
+            http_response_code(400);
+            apiError('errors.files.rename_filename_required', apiLocalizedText('errors.files.rename_filename_required', 'New filename is required', $user));
+            return;
+        }
+
+        // Validate: short_description must not be blank if provided
+        if ($shortDesc !== null && $shortDesc === '') {
+            http_response_code(400);
+            apiError('errors.files.short_description_required', apiLocalizedText('errors.files.short_description_required', 'Short description is required', $user));
+            return;
+        }
+
+        // Validate: only admins may move files
+        $isAdmin = !empty($user['is_admin']);
+        if ($targetAreaId !== null && !$isAdmin) {
+            http_response_code(403);
+            apiError('errors.files.move_forbidden', apiLocalizedText('errors.files.move_forbidden', 'Only administrators can move files between areas', $user));
+            return;
+        }
+
+        try {
+            $userId   = $user['user_id'] ?? $user['id'] ?? 0;
+            $manager  = new \BinktermPHP\FileAreaManager();
+            $response = ['success' => true];
+
+            if ($newFilename !== null) {
+                $manager->renameFile((int)$id, $newFilename, $userId, $isAdmin);
+                $response['filename'] = basename($newFilename);
+            }
+
+            if ($shortDesc !== null) {
+                $manager->updateFileDescription((int)$id, $shortDesc, $longDesc, $userId, $isAdmin);
+                $response['short_description'] = $shortDesc;
+                $response['long_description']  = $longDesc;
+            }
+
+            if ($targetAreaId !== null) {
+                $manager->moveFile((int)$id, $targetAreaId, $isAdmin);
+                $response['file_area_id'] = $targetAreaId;
+            }
+
+            echo json_encode($response);
+
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'permission')) {
+                http_response_code(403);
+                apiError('errors.files.edit_forbidden', apiLocalizedText('errors.files.edit_forbidden', 'You do not have permission to edit this file', $user));
+            } elseif (str_contains($msg, 'already exists in the target')) {
+                http_response_code(409);
+                apiError('errors.files.move_conflict', apiLocalizedText('errors.files.move_conflict', 'A file with that name already exists in the target area', $user));
+            } elseif (str_contains($msg, 'already exists')) {
+                http_response_code(409);
+                apiError('errors.files.rename_conflict', apiLocalizedText('errors.files.rename_conflict', 'A file with that name already exists in this area', $user));
+            } else {
+                http_response_code(400);
+                apiError('errors.files.edit_failed', apiLocalizedText('errors.files.edit_failed', 'Failed to update file', $user));
+            }
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/files/{id}/scan
+     * Trigger an on-demand ClamAV virus scan for a file. Admin only.
+     */
+    SimpleRouter::post('/files/{id}/scan', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.files.scan_forbidden', apiLocalizedText('errors.files.scan_forbidden', 'Admin access required to scan files', $user));
+            return;
+        }
+
+        if (\BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true') {
+            http_response_code(403);
+            apiError('errors.files.scan_disabled', apiLocalizedText('errors.files.scan_disabled', 'Virus scanning is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->scanFile((int)$id);
+            $client->close();
+
+            echo json_encode([
+                'success'   => true,
+                'result'    => $result['result'] ?? null,
+                'signature' => $result['signature'] ?? null,
+                'scanned'   => $result['scanned'] ?? false,
+            ]);
+        } catch (\Exception $e) {
+            error_log('[FileScan] Exception: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.files.scan_failed', apiLocalizedText('errors.files.scan_failed', 'Virus scan failed', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * PUT /api/files/{id}/scan-status
+     * Manually override the virus scan status for a file. Admin only.
+     * Body: { status: 'not_scanned'|'clean'|'infected', signature?: string }
+     */
+    SimpleRouter::put('/files/{id}/scan-status', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            return;
+        }
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.files.scan_forbidden', apiLocalizedText('errors.files.scan_forbidden', 'Admin access required', $user));
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $status = $input['status'] ?? '';
+        $allowed = ['not_scanned', 'clean', 'infected'];
+        if (!in_array($status, $allowed, true)) {
+            http_response_code(400);
+            apiError('errors.files.invalid_scan_status', apiLocalizedText('errors.files.invalid_scan_status', 'Invalid scan status', $user));
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Verify file exists
+        $stmt = $db->prepare("SELECT id FROM files WHERE id = ?");
+        $stmt->execute([(int)$id]);
+        if (!$stmt->fetch()) {
+            http_response_code(404);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
+        }
+
+        if ($status === 'not_scanned') {
+            $stmt = $db->prepare("
+                UPDATE files SET virus_scanned = FALSE, virus_scan_result = NULL,
+                                 virus_signature = NULL, virus_scanned_at = NULL
+                WHERE id = ?
+            ");
+            $stmt->execute([(int)$id]);
+        } else {
+            $signature = ($status === 'infected') ? (trim($input['signature'] ?? '') ?: null) : null;
+            $stmt = $db->prepare("
+                UPDATE files SET virus_scanned = TRUE, virus_scan_result = ?,
+                                 virus_signature = ?, virus_scanned_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$status, $signature, (int)$id]);
+        }
+
+        \BinktermPHP\Admin\AdminDaemonClient::log('INFO', "Admin manually set scan status for file {$id} to {$status}", [
+            'user_id' => $user['user_id'],
+            'file_id' => (int)$id,
+            'status'  => $status,
+        ]);
+
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
     // Message API routes
@@ -2402,6 +2761,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
         $result = $handler->getNetmail($user['user_id'], $page, null, $filter, $threaded);
+        $result = apiLocalizeErrorPayload($result, $user);
         echo json_encode($result);
     });
 
@@ -2527,7 +2887,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode($message);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'Message not found']);
+            apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
         }
     });
 
@@ -2540,10 +2900,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $result = $handler->deleteNetmail($id, $user['user_id']);
 
         if ($result) {
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.netmail.message_deleted_success'
+            ]);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'Message not found or access denied']);
+            apiError('errors.messages.netmail.delete_failed', apiLocalizedText('errors.messages.netmail.delete_failed', 'Failed to delete message', $user));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -2556,7 +2919,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$message) {
             http_response_code(404);
-            echo 'Message not found';
+            echo apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user);
             return;
         }
 
@@ -2607,7 +2970,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (empty($messageIds) || !is_array($messageIds)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid message IDs']);
+            apiError('errors.messages.netmail.bulk_delete.invalid_input', apiLocalizedText('errors.messages.netmail.bulk_delete.invalid_input', 'A non-empty message ID list is required', $user));
             return;
         }
 
@@ -2622,6 +2985,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'success' => true,
+            'message_code' => 'ui.netmail.bulk_delete.success',
+            'message_params' => ['count' => $deleted],
             'deleted' => $deleted,
             'total' => count($messageIds)
         ]);
@@ -2644,6 +3009,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Get messages from subscribed echoareas only
         $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort);
+        $result = apiLocalizeErrorPayload($result, $user);
         echo json_encode($result);
     });
 
@@ -2658,7 +3024,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (empty($messageIds) || !is_array($messageIds)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid message IDs']);
+            apiError('errors.messages.echomail.bulk_read.invalid_input', apiLocalizedText('errors.messages.echomail.bulk_read.invalid_input', 'A non-empty message ID list is required', $user));
             return;
         }
 
@@ -2686,13 +3052,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $db->rollBack();
             }
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to mark messages as read']);
+            apiError('errors.messages.echomail.bulk_read.failed', apiLocalizedText('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read', $user));
             return;
         }
 
         echo json_encode([
             'success' => true,
-            'message' => "Marked $marked message" . ($marked !== 1 ? 's' : '') . " as read",
+            'message_code' => 'ui.echomail.bulk_mark_read_success',
+            'message_params' => ['count' => $marked],
             'marked' => $marked,
             'total' => count($messageIds)
         ]);
@@ -2704,7 +3071,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (empty($user['is_admin'])) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin privileges required']);
+            apiError('errors.messages.echomail.bulk_delete.admin_required', apiLocalizedText('errors.messages.echomail.bulk_delete.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -2715,7 +3082,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (empty($messageIds) || !is_array($messageIds)) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid message IDs']);
+            apiError('errors.messages.echomail.bulk_delete.invalid_input', apiLocalizedText('errors.messages.echomail.bulk_delete.invalid_input', 'A non-empty message ID list is required', $user));
             return;
         }
 
@@ -2731,7 +3098,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'success' => true,
-            'message' => "Deleted $deleted message" . ($deleted !== 1 ? 's' : ''),
+            'message_code' => 'ui.echomail.bulk_delete.success',
+            'message_params' => ['count' => $deleted],
             'deleted' => $deleted,
             'total' => count($messageIds)
         ]);
@@ -2871,7 +3239,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (!$echoareaRow || !$subscriptionManager->isUserSubscribed($userId, $echoareaRow['id'])) {
                 http_response_code(403);
-                echo json_encode(['error' => 'Access denied']);
+                apiError('errors.messages.echomail.stats.subscription_required', apiLocalizedText('errors.messages.echomail.stats.subscription_required', 'Subscription required for this echo area', $user));
                 return;
             }
         }
@@ -3004,7 +3372,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode($message);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'Message not found']);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -3017,7 +3385,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$message) {
             http_response_code(404);
-            echo 'Message not found';
+            echo apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user);
             return;
         }
 
@@ -3084,6 +3452,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
         $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
         $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false, $sort);
+        $result = apiLocalizeErrorPayload($result, $user);
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
@@ -3126,7 +3495,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode($message);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'Message not found']);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
@@ -3139,23 +3508,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         if (empty($_FILES['file'])) {
+            error_log('[netmail/attachment/upload] No file in $_FILES');
             http_response_code(400);
-            echo json_encode(['error' => 'No file uploaded']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
         $file = $_FILES['file'];
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
+            error_log('[netmail/attachment/upload] PHP upload error code: ' . $file['error']);
             http_response_code(400);
-            echo json_encode(['error' => 'Upload error: ' . $file['error']]);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
         $maxBytes = (int)\BinktermPHP\Config::env('NETMAIL_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024);
         if ($file['size'] > $maxBytes) {
+            error_log('[netmail/attachment/upload] File too large: ' . $file['size'] . ' bytes (max ' . $maxBytes . ')');
             http_response_code(400);
-            echo json_encode(['error' => 'File exceeds maximum size of ' . round($maxBytes / 1048576) . ' MB']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -3169,13 +3541,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $token = bin2hex(random_bytes(16));
         $destDir = __DIR__ . '/../data/netmail_attachments';
         if (!is_dir($destDir)) {
-            mkdir($destDir, 0777, true);
+            if (!mkdir($destDir, 0777, true)) {
+                error_log('[netmail/attachment/upload] Failed to create directory: ' . $destDir);
+                http_response_code(500);
+                apiError('', apiLocalizedText('', ''));
+                return;
+            }
         }
         $destPath = $destDir . '/' . $token . '_' . $safeName;
 
         if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            error_log('[netmail/attachment/upload] move_uploaded_file failed: tmp=' . $file['tmp_name'] . ' dest=' . $destPath . ' dir_writable=' . (is_writable($destDir) ? 'yes' : 'no'));
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to store uploaded file']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -3220,6 +3598,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 }
 
                 $crashmailFlag = !empty($input['crashmail']);
+                $isFreq = !empty($input['is_freq']);
                 $result = $handler->sendNetmail(
                     $user['user_id'],
                     $input['to_address'],
@@ -3231,7 +3610,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $crashmailFlag,
                     $input['tagline'] ?? null,
                     $attachment,
-                    $markupType
+                    $markupType,
+                    $isFreq
                 );
             } elseif ($type === 'echomail') {
                 $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);
@@ -3297,7 +3677,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 }
             } else {
                 http_response_code(400);
-                echo json_encode(['error' => 'Invalid message type']);
+                apiError('errors.messages.send.invalid_type', apiLocalizedText('errors.messages.send.invalid_type', 'Invalid message type', $user));
                 return;
             }
 
@@ -3308,7 +3688,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 } elseif ($type === 'echomail') {
                     ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
                 }
-                echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.messages.sent',
+                    'areas_posted' => $totalAreas
+                ]);
 
                 if (function_exists('session_write_close')) {
                     session_write_close();
@@ -3320,11 +3704,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $handler->flushImmediateOutboundPolls();
             } else {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to send message']);
+                apiError('errors.messages.send.failed', apiLocalizedText('errors.messages.send.failed', 'Failed to send message', $user));
             }
         } catch (Exception $e) {
+            error_log('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.messages.send.exception', apiLocalizedText('errors.messages.send.exception', 'Failed to send message', $user));
         }
     });
 
@@ -3339,6 +3724,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $area    = $_GET['area']    ?? null;  // full tag@domain string for echomail
         $allowed = false;
         $postingNamePolicy = 'real_name';
+        $isLocalAddress = false;
 
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -3381,6 +3767,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } elseif (!empty($address)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
                 $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDestination((string)$address);
+                $systemAddress = $binkpConfig->getSystemAddress();
+                $isLocalAddress = (trim((string)$address) === trim((string)$systemAddress));
             }
         } catch (\Exception $e) {
             $allowed = false;
@@ -3388,8 +3776,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         echo json_encode([
-            'allowed' => $allowed,
-            'posting_name_policy' => $postingNamePolicy
+            'allowed'            => $allowed,
+            'posting_name_policy' => $postingNamePolicy,
+            'is_local_address'   => $isLocalAddress,
         ]);
     });
 
@@ -3420,7 +3809,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $input = json_decode(file_get_contents('php://input'), true);
         if (!$input) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid JSON input']);
+            apiError('errors.messages.drafts.invalid_input', apiLocalizedText('errors.messages.drafts.invalid_input', 'Invalid draft payload', $user));
             return;
         }
 
@@ -3430,7 +3819,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.drafts.user_id_missing', apiLocalizedText('errors.messages.drafts.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
@@ -3438,14 +3827,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $handler->saveDraft($userId, $input);
 
             if ($result['success']) {
+                if (!isset($result['message_code'])) {
+                    $result['message_code'] = 'ui.compose.draft.saved_success';
+                }
                 echo json_encode($result);
             } else {
                 http_response_code(500);
-                echo json_encode(['error' => $result['error'] ?? 'Failed to save draft']);
+                apiError('errors.messages.drafts.save_failed', apiLocalizedText('errors.messages.drafts.save_failed', 'Failed to save draft', $user));
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.messages.drafts.save_failed', apiLocalizedText('errors.messages.drafts.save_failed', 'Failed to save draft', $user));
         }
     });
 
@@ -3463,7 +3855,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.drafts.user_id_missing', apiLocalizedText('errors.messages.drafts.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
@@ -3472,7 +3864,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'drafts' => $drafts]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.messages.drafts.list_failed', apiLocalizedText('errors.messages.drafts.list_failed', 'Failed to load drafts', $user));
         }
     });
 
@@ -3488,7 +3880,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.drafts.user_id_missing', apiLocalizedText('errors.messages.drafts.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
@@ -3498,11 +3890,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode(['success' => true, 'draft' => $draft]);
             } else {
                 http_response_code(404);
-                echo json_encode(['error' => 'Draft not found']);
+                apiError('errors.messages.drafts.not_found', apiLocalizedText('errors.messages.drafts.not_found', 'Draft not found', $user));
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.messages.drafts.get_failed', apiLocalizedText('errors.messages.drafts.get_failed', 'Failed to load draft', $user));
         }
     });
 
@@ -3518,16 +3910,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.drafts.user_id_missing', apiLocalizedText('errors.messages.drafts.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
         try {
             $result = $handler->deleteDraft($userId, $id);
+            $result = apiLocalizeErrorPayload($result, $user);
+            if (!empty($result['success']) && !isset($result['message_code'])) {
+                $result['message_code'] = 'ui.drafts.deleted_success';
+            }
             echo json_encode($result);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.messages.drafts.delete_failed', apiLocalizedText('errors.messages.drafts.delete_failed', 'Failed to delete draft', $user));
         }
     });
 
@@ -3547,7 +3943,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (strlen($query) < 2) {
             http_response_code(400);
-            echo json_encode(['error' => 'Query too short']);
+            apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
             return;
         }
 
@@ -3583,13 +3979,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.read.user_id_missing', apiLocalizedText('errors.messages.read.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
         if (!in_array($type, ['echomail', 'netmail'])) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid message type']);
+            apiError('errors.messages.read.invalid_type', apiLocalizedText('errors.messages.read.invalid_type', 'Invalid message type', $user));
             return;
         }
 
@@ -3610,12 +4006,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode(['success' => true]);
             } else {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to mark message as read']);
+                apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
             }
 
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+            apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
         }
     });
 
@@ -3629,13 +4025,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.save.user_id_missing', apiLocalizedText('errors.messages.save.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
         if (!in_array($type, ['echomail', 'netmail'])) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid message type']);
+            apiError('errors.messages.save.invalid_type', apiLocalizedText('errors.messages.save.invalid_type', 'Invalid message type', $user));
             return;
         }
 
@@ -3652,15 +4048,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $stmt->execute([$userId, (int)$id, $type]);
 
             if ($result) {
-                echo json_encode(['success' => true, 'message' => 'Message saved']);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.messages.saved'
+                ]);
             } else {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to save message']);
+                apiError('errors.messages.save.failed', apiLocalizedText('errors.messages.save.failed', 'Failed to save message', $user));
             }
 
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+            apiError('errors.messages.save.failed', apiLocalizedText('errors.messages.save.failed', 'Failed to save message', $user));
         }
     });
 
@@ -3674,13 +4073,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         if (!$userId) {
             http_response_code(500);
-            echo json_encode(['error' => 'User ID not found in session']);
+            apiError('errors.messages.unsave.user_id_missing', apiLocalizedText('errors.messages.unsave.user_id_missing', 'Unable to resolve user session', $user));
             return;
         }
 
         if (!in_array($type, ['echomail', 'netmail'])) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid message type']);
+            apiError('errors.messages.unsave.invalid_type', apiLocalizedText('errors.messages.unsave.invalid_type', 'Invalid message type', $user));
             return;
         }
 
@@ -3696,14 +4095,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $stmt->execute([$userId, (int)$id, $type]);
 
             if ($result && $stmt->rowCount() > 0) {
-                echo json_encode(['success' => true, 'message' => 'Message unsaved']);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.messages.unsaved'
+                ]);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Message was not saved or already removed']);
+                echo json_encode([
+                    'success' => false,
+                    'error_code' => 'errors.messages.unsave.not_saved',
+                    'error' => apiLocalizedText('errors.messages.unsave.not_saved', 'Message was not saved or already removed', $user)
+                ]);
             }
 
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+            apiError('errors.messages.unsave.failed', apiLocalizedText('errors.messages.unsave.failed', 'Failed to unsave message', $user));
         }
     });
 
@@ -3751,10 +4157,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $stmt->execute([$newPasswordHash, $user['user_id']]);
             }
 
-            echo json_encode(['success' => true, 'real_name' => $realName]);
+            echo json_encode([
+                'success' => true,
+                'real_name' => $realName,
+                'message_code' => 'ui.profile.updated_successfully'
+            ]);
         } catch (\Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            if ($message === 'Current password is incorrect') {
+                apiError('errors.user.profile.current_password_incorrect', apiLocalizedText('errors.user.profile.current_password_incorrect', 'Current password is incorrect', $user));
+            } elseif ($message === 'New password must be at least 6 characters long') {
+                apiError('errors.user.profile.new_password_too_short', apiLocalizedText('errors.user.profile.new_password_too_short', 'New password must be at least 6 characters long', $user));
+            } else {
+                apiError('errors.user.profile.update_failed', apiLocalizedText('errors.user.profile.update_failed', 'Failed to update profile', $user));
+            }
         }
     });
 
@@ -3796,7 +4213,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (empty($user['is_admin'])) {
             http_response_code(403);
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.user.stats.admin_required', apiLocalizedText('errors.user.stats.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -3809,7 +4226,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userStmt->execute([$userId]);
         if (!$userStmt->fetch()) {
             http_response_code(404);
-            echo json_encode(['error' => 'User not found']);
+            apiError('errors.user.stats.user_not_found', apiLocalizedText('errors.user.stats.user_not_found', 'User not found', $user));
             return;
         }
 
@@ -3845,7 +4262,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (empty($user['is_admin'])) {
             http_response_code(403);
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('errors.user.transactions.admin_required', apiLocalizedText('errors.user.transactions.admin_required', 'Admin privileges are required', $user));
             return;
         }
 
@@ -3858,7 +4275,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userStmt->execute([$userId]);
         if (!$userStmt->fetch()) {
             http_response_code(404);
-            echo json_encode(['error' => 'User not found']);
+            apiError('errors.user.transactions.user_not_found', apiLocalizedText('errors.user.transactions.user_not_found', 'User not found', $user));
             return;
         }
 
@@ -3889,7 +4306,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
         } catch (\Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to fetch transactions']);
+            apiError('errors.user.transactions.list_failed', apiLocalizedText('errors.user.transactions.list_failed', 'Failed to load transactions', $user));
         }
     });
 
@@ -3899,7 +4316,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!UserCredit::isEnabled()) {
             http_response_code(400);
-            echo json_encode(['error' => 'Credits system is disabled']);
+            apiError('errors.credits.feature_disabled', apiLocalizedText('errors.credits.feature_disabled', 'Credits feature is disabled', $user));
             return;
         }
 
@@ -3913,14 +4330,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Validate amount
         if ($amount < 1 || $amount > 200) {
             http_response_code(400);
-            echo json_encode(['error' => 'Amount must be between 1 and 200 credits']);
+            apiError('errors.credits.send.invalid_amount', apiLocalizedText('errors.credits.send.invalid_amount', 'Amount must be between 1 and 200', $user));
             return;
         }
 
         // Can't send to yourself
         if ($senderId === $recipientId) {
             http_response_code(400);
-            echo json_encode(['error' => 'Cannot send credits to yourself']);
+            apiError('errors.credits.send.self_transfer_forbidden', apiLocalizedText('errors.credits.send.self_transfer_forbidden', 'You cannot send credits to yourself', $user));
             return;
         }
 
@@ -3934,7 +4351,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (!$recipient) {
                 http_response_code(404);
-                echo json_encode(['error' => 'Recipient not found']);
+                apiError('errors.credits.send.recipient_not_found', apiLocalizedText('errors.credits.send.recipient_not_found', 'Recipient not found', $user));
                 return;
             }
 
@@ -3942,7 +4359,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $senderBalance = UserCredit::getBalance($senderId);
             if ($senderBalance < $amount) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Insufficient credits']);
+                apiError('errors.credits.send.insufficient_balance', apiLocalizedText('errors.credits.send.insufficient_balance', 'Insufficient balance', $user));
                 return;
             }
 
@@ -3978,7 +4395,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (!$debitSuccess) {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to debit sender']);
+                apiError('errors.credits.send.debit_failed', apiLocalizedText('errors.credits.send.debit_failed', 'Failed to debit sender account', $user));
                 return;
             }
 
@@ -4002,7 +4419,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     UserCredit::TYPE_REFUND
                 );
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to credit recipient']);
+                apiError('errors.credits.send.credit_failed', apiLocalizedText('errors.credits.send.credit_failed', 'Failed to credit recipient account', $user));
                 return;
             }
 
@@ -4034,12 +4451,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'success' => true,
                 'fee' => $fee,
                 'amount_received' => $amountToRecipient,
-                'message' => 'Credits sent successfully'
+                'message_code' => 'ui.user_profile.send_credits_success',
+                'message_params' => [
+                    'symbol' => UserCredit::getCurrencySymbol(),
+                    'amount' => $amount,
+                    'username' => $recipient['username'],
+                    'fee' => $fee,
+                    'received' => $amountToRecipient
+                ]
             ]);
 
         } catch (\Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('errors.credits.send.failed', apiLocalizedText('errors.credits.send.failed', 'Credit transfer failed', $user));
         }
     });
 
@@ -4091,10 +4515,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $result = $stmt->execute([$sessionId, $user['user_id']]);
 
         if ($result) {
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.sessions.revoked_success'
+            ]);
         } else {
             http_response_code(404);
-            echo json_encode(['error' => 'Session not found']);
+            apiError('errors.user.sessions.revoke_failed', apiLocalizedText('errors.user.sessions.revoke_failed', 'Failed to revoke session', $user));
         }
     });
 
@@ -4112,10 +4539,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if ($result) {
             // Clear the current session cookie
             setcookie('binktermphp_session', '', time() - 3600, '/');
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.sessions.logged_out_all_success'
+            ]);
         } else {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to logout all sessions']);
+            apiError('errors.user.sessions.revoke_all_failed', apiLocalizedText('errors.user.sessions.revoke_all_failed', 'Failed to revoke sessions', $user));
         }
     });
 
@@ -4208,7 +4638,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$sessionId) {
             http_response_code(400);
-            echo json_encode(['error' => 'Session not found']);
+            apiError('errors.user.activity.session_missing', apiLocalizedText('errors.user.activity.session_missing', 'Active session is required', $user));
             return;
         }
         $auth = new Auth();
@@ -4248,7 +4678,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(403);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Admin access required']);
+            apiError('errors.binkp.admin_required', apiLocalizedText('errors.binkp.admin_required', 'Admin access required'), 403);
             return;
         }
 
@@ -4265,7 +4695,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -4287,12 +4717,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.api.binkp.poll_triggered',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.poll_failed', apiLocalizedText('errors.binkp.poll_failed', 'Failed to poll BinkP uplink'), 500);
         }
     });
 
@@ -4307,12 +4741,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.api.binkp.poll_all_triggered',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.poll_all_failed', apiLocalizedText('errors.binkp.poll_all_failed', 'Failed to poll all BinkP uplinks'), 500);
         }
     });
 
@@ -4327,12 +4765,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.api.binkp.process_packets_started',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.process_packets_failed', apiLocalizedText('errors.binkp.process_packets_failed', 'Failed to process packets'), 500);
         }
     });
 
@@ -4352,7 +4794,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -4402,7 +4844,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -4423,7 +4865,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -4439,12 +4881,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.binkp.inbound_processing_completed',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.process_packets_failed', apiLocalizedText('errors.binkp.process_packets_failed', 'Failed to process packets'), 500);
         }
     });
 
@@ -4460,12 +4906,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.binkp.outbound_processing_completed',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.process_outbound_failed', apiLocalizedText('errors.binkp.process_outbound_failed', 'Failed to process outbound queue'), 500);
         }
     });
 
@@ -4483,7 +4933,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     // Test endpoint to verify delete endpoint is accessible
     SimpleRouter::get('/messages/echomail/delete-test', function() {
         header('Content-Type: application/json');
-        echo json_encode(['success' => true, 'message' => 'Delete endpoint is accessible']);
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.api.debug.delete_endpoint_accessible'
+        ]);
     });
 
     // Message sharing API endpoints
@@ -4521,11 +4974,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode($result);
             } else {
                 http_response_code(400);
+                $result = apiLocalizeErrorPayload($result, $user);
                 echo json_encode($result);
             }
         } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.share_create_failed', apiLocalizedText('errors.messages.share_create_failed', 'Failed to create share link'), 500);
         }
     });
 
@@ -4538,10 +4991,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $result = $handler->getMessageShares($id, 'echomail', $userId);
+            $result = apiLocalizeErrorPayload($result, $user);
             echo json_encode($result);
         } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.share_lookup_failed', apiLocalizedText('errors.messages.share_lookup_failed', 'Failed to load share links'), 500);
         }
     });
 
@@ -4559,11 +5012,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode($result);
             } else {
                 http_response_code(404);
+                $result = apiLocalizeErrorPayload($result, $user);
                 echo json_encode($result);
             }
         } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.share_revoke_failed', apiLocalizedText('errors.messages.share_revoke_failed', 'Failed to revoke share link'), 500);
         }
     });
 
@@ -4581,11 +5034,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode($result);
             } else {
                 http_response_code(404);
+                $result = apiLocalizeErrorPayload($result, $user);
                 echo json_encode($result);
             }
         } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.slug_generation_failed', apiLocalizedText('errors.messages.shared.slug_generation_failed', 'Cannot generate share slug for this message'), 500);
         }
     });
 
@@ -4603,13 +5056,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result['success']) {
                 echo json_encode($result);
             } else {
-                $statusCode = ($result['error'] === 'Login required to access this share') ? 401 : 404;
+                $result = apiLocalizeErrorPayload($result, $user);
+                $statusCode = (($result['error_code'] ?? '') === 'errors.messages.shared.login_required') ? 401 : 404;
                 http_response_code($statusCode);
                 echo json_encode($result);
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.lookup_failed', apiLocalizedText('errors.messages.shared.lookup_failed', 'Failed to load shared message'), 500);
         }
     })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -4628,13 +5082,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result['success']) {
                 echo json_encode($result);
             } else {
-                $statusCode = ($result['error'] === 'Login required to access this share') ? 401 : 404;
+                $result = apiLocalizeErrorPayload($result, $user);
+                $statusCode = (($result['error_code'] ?? '') === 'errors.messages.shared.login_required') ? 401 : 404;
                 http_response_code($statusCode);
                 echo json_encode($result);
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.lookup_failed', apiLocalizedText('errors.messages.shared.lookup_failed', 'Failed to load shared message'), 500);
         }
     });
 
@@ -4650,7 +5105,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'shares' => $shares]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.user_shares_failed', apiLocalizedText('errors.messages.shared.user_shares_failed', 'Failed to load user shares'), 500);
         }
     });
 
@@ -4677,8 +5132,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'taglines' => $taglines]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.taglines.load_failed', apiLocalizedText('errors.taglines.load_failed', 'Failed to load taglines'), 500);
         }
+    });
+
+    // Client-side i18n catalog endpoint (supports lazy namespace loading)
+    SimpleRouter::get('/i18n/catalog', function() {
+        header('Content-Type: application/json');
+
+        $translator = new Translator();
+        $resolver = new LocaleResolver($translator);
+        $auth = new Auth();
+        $currentUser = $auth->getCurrentUser();
+
+        $requestedLocale = isset($_GET['locale']) ? (string)$_GET['locale'] : null;
+        $resolvedLocale = $resolver->resolveLocale($requestedLocale, $currentUser);
+
+        $nsRaw = trim((string)($_GET['ns'] ?? 'common'));
+        $namespaces = preg_split('/\s*,\s*/', $nsRaw) ?: ['common'];
+        $namespaces = array_values(array_filter(array_map('trim', $namespaces), static function ($ns) {
+            return $ns !== '';
+        }));
+        if (empty($namespaces)) {
+            $namespaces = ['common'];
+        }
+
+        $catalogs = [];
+        foreach ($namespaces as $namespace) {
+            $catalogs[$namespace] = $translator->getCatalog($resolvedLocale, $namespace);
+        }
+
+        $resolver->persistLocale($resolvedLocale);
+
+        echo json_encode([
+            'success' => true,
+            'locale' => $resolvedLocale,
+            'default_locale' => $translator->getDefaultLocale(),
+            'catalogs' => $catalogs
+        ]);
     });
 
     // User settings API endpoints
@@ -4692,6 +5183,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $handler = new MessageHandler();
             $settings = $handler->getUserSettings($userId);
 
+            $translator = new Translator();
+            $resolver = new LocaleResolver($translator);
+            $settings['locale'] = $resolver->resolveLocale((string)($settings['locale'] ?? ''), $settings);
+            $resolver->persistLocale($settings['locale']);
+
             // Append shell preference from UserMeta
             if ($userId) {
                 $meta = new \BinktermPHP\UserMeta();
@@ -4701,7 +5197,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.settings.load_failed', apiLocalizedText('errors.settings.load_failed', 'Failed to load user settings'), 500);
         }
     });
 
@@ -4713,13 +5209,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (!$input || !isset($input['settings'])) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Invalid input']);
+            apiError('errors.settings.invalid_input', apiLocalizedText('errors.settings.invalid_input', 'Invalid input'), 400);
             return;
         }
 
         try {
             $settings = $input['settings'];
+
+            if (isset($settings['locale'])) {
+                $translator = new Translator();
+                $resolver = new LocaleResolver($translator);
+                $settings['locale'] = $resolver->resolveLocale((string)$settings['locale']);
+                $resolver->persistLocale($settings['locale']);
+            }
 
             // Handle shell preference separately (stored in UserMeta, not user_settings table)
             if (isset($settings['shell']) && $userId && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
@@ -4735,15 +5237,160 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $handler->updateUserSettings($userId, $settings);
 
             if ($result) {
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.settings.saved_successfully'
+                ]);
             } else {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Failed to update settings']);
+                apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to update settings'), 400);
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to update settings'), 500);
         }
+    });
+
+    // Terminal settings API endpoints
+    SimpleRouter::get('/user/terminal-settings', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $meta = new \BinktermPHP\UserMeta();
+        $settings = [
+            'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
+            'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+        ];
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    });
+
+    SimpleRouter::post('/user/terminal-settings', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = $body['settings'] ?? $body; // accept both wrapped and flat
+        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no']];
+        $meta     = new \BinktermPHP\UserMeta();
+        foreach ($allowed as $key => $validValues) {
+            if (isset($settings[$key])) {
+                if (!in_array($settings[$key], $validValues, true)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => "Invalid value for $key"]);
+                    return;
+                }
+                $meta->setValue((int)$userId, $key, $settings[$key]);
+            }
+        }
+        echo json_encode(['success' => true]);
+    });
+
+    // Terminal mail state API endpoints
+    SimpleRouter::get('/user/terminal-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $meta = new \BinktermPHP\UserMeta();
+
+        $settings = [
+            'terminal_netmail_page' => $meta->getValue((int)$userId, 'terminal_netmail_page'),
+            'terminal_netmail_selected_message_id' => $meta->getValue((int)$userId, 'terminal_netmail_selected_message_id'),
+            'terminal_echomail_areas_page' => $meta->getValue((int)$userId, 'terminal_echomail_areas_page'),
+            'terminal_echomail_positions' => $meta->getValue((int)$userId, 'terminal_echomail_positions'),
+        ];
+
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    });
+
+    SimpleRouter::post('/user/terminal-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = $body['settings'] ?? $body; // accept both wrapped and flat
+        $meta = new \BinktermPHP\UserMeta();
+
+        $intKeys = [
+            'terminal_netmail_page',
+            'terminal_netmail_selected_message_id',
+            'terminal_echomail_areas_page',
+        ];
+
+        foreach ($intKeys as $key) {
+            if (!array_key_exists($key, $settings)) {
+                continue;
+            }
+
+            $value = $settings[$key];
+            if ($value === null || $value === '') {
+                $meta->setValue((int)$userId, $key, null);
+                continue;
+            }
+
+            if (!is_numeric($value) || (int)$value < 1) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => "Invalid value for $key"]);
+                return;
+            }
+
+            $meta->setValue((int)$userId, $key, (string)((int)$value));
+        }
+
+        if (array_key_exists('terminal_echomail_positions', $settings)) {
+            $positions = $settings['terminal_echomail_positions'];
+            if (is_string($positions)) {
+                $decoded = json_decode($positions, true);
+                if (!is_array($decoded)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_positions']);
+                    return;
+                }
+                $positions = $decoded;
+            }
+
+            if (!is_array($positions)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_positions']);
+                return;
+            }
+
+            $clean = [];
+            foreach ($positions as $area => $entry) {
+                if (!is_string($area) || trim($area) === '' || strlen($area) > 128 || !is_array($entry)) {
+                    continue;
+                }
+                $page = (int)($entry['page'] ?? 1);
+                if ($page < 1) {
+                    $page = 1;
+                }
+                $selected = $entry['selected_message_id'] ?? null;
+                if ($selected !== null) {
+                    if (!is_numeric($selected) || (int)$selected < 1) {
+                        $selected = null;
+                    } else {
+                        $selected = (int)$selected;
+                    }
+                }
+                $clean[$area] = [
+                    'page' => $page,
+                    'selected_message_id' => $selected,
+                ];
+            }
+
+            $encoded = json_encode($clean);
+            if ($encoded === false || strlen($encoded) > 64000) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_positions']);
+                return;
+            }
+            $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
+        }
+
+        echo json_encode(['success' => true]);
     });
 
     // Admin API endpoints for user management
@@ -4752,7 +5399,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4764,7 +5411,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'users' => $users]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -4773,7 +5420,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4792,14 +5439,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (!$pendingUser) {
                 http_response_code(404);
-                echo json_encode(['error' => 'Pending user not found']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
             echo json_encode(['success' => true, 'user' => $pendingUser]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -4808,7 +5455,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4819,10 +5466,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $newUserId = $handler->approveUserRegistration($id, $user['user_id'], $notes);
-            echo json_encode(['success' => true, 'new_user_id' => $newUserId]);
+            echo json_encode([
+                'success' => true,
+                'new_user_id' => $newUserId,
+                'message_code' => 'ui.admin_users.user_approved_success'
+            ]);
         } catch (Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -4831,7 +5482,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4842,10 +5493,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $handler->rejectUserRegistration($id, $user['user_id'], $notes);
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin_users.user_rejected_success'
+            ]);
         } catch (Exception $e) {
             http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -4854,7 +5508,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4871,7 +5525,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'users' => $result['users'], 'pagination' => $result['pagination']]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -4881,7 +5535,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4895,14 +5549,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (!$userData) {
                 http_response_code(404);
-                echo json_encode(['error' => 'User not found']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
             echo json_encode(['success' => true, 'user' => $userData]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -4912,7 +5566,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -4926,7 +5580,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $checkStmt->execute([$id]);
             if (!$checkStmt->fetch()) {
                 http_response_code(404);
-                echo json_encode(['error' => 'User not found']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
@@ -4938,7 +5592,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (empty($realName)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Real name is required']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
@@ -4955,7 +5609,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($password) {
                 if (strlen($password) < 8) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'Password must be at least 8 characters long']);
+                    apiError('', apiLocalizedText('', ''));
                     return;
                 }
                 $updateFields[] = 'password_hash = ?';
@@ -4972,11 +5626,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $updateStmt->execute($updateParams);
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin_users.user_updated_success'
+            ]);
 
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -4986,7 +5643,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -5002,15 +5659,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if ($updateStmt->rowCount() === 0) {
                 http_response_code(404);
-                echo json_encode(['error' => 'User not found']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin_users.user_toggled_success',
+                'message_params' => [
+                    'action' => $isActive ? 'enable' : 'disable'
+                ]
+            ]);
 
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -5020,7 +5683,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -5037,28 +5700,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Validate required fields
             if (empty($username) || empty($realName) || empty($password)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Username, real name, and password are required']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
             // Validate username format
             if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Username must be 3-20 characters, letters, numbers, and underscores only']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
             if (\BinktermPHP\UserRestrictions::isRestrictedUsername($username)
                 || \BinktermPHP\UserRestrictions::isRestrictedRealName($realName)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'This username or real name is not allowed']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
             // Validate password length
             if (strlen($password) < 8) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Password must be at least 8 characters long']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
@@ -5070,7 +5733,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if ($checkStmt->fetch()) {
                 http_response_code(409);
-                echo json_encode(['error' => 'Username already exists']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
@@ -5101,11 +5764,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
             $settingsStmt->execute([$newUserId]);
 
-            echo json_encode(['success' => true, 'user_id' => $newUserId]);
+            echo json_encode([
+                'success' => true,
+                'user_id' => $newUserId,
+                'message_code' => 'ui.admin_users.user_created_success'
+            ]);
 
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -5115,7 +5782,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -5124,10 +5791,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $result = $handler->performFullCleanup();
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'result' => $result,
+                'message_code' => 'ui.admin_users.cleanup_success',
+                'message_params' => [
+                    'approved' => $result['approved_removed'] ?? 0,
+                    'rejected' => $result['old_rejected_removed'] ?? 0,
+                    'total' => $result['total_cleaned'] ?? 0
+                ]
+            ]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -5137,7 +5813,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -5150,7 +5826,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if (!$targetUser) {
                 http_response_code(404);
-                echo json_encode(['error' => 'User not found']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
@@ -5159,7 +5835,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Check if user can receive reminder
             if (!$handler->canSendReminder($targetUser['username'])) {
                 http_response_code(400);
-                echo json_encode(['error' => 'User has already logged in or is not eligible for reminders']);
+                apiError('', apiLocalizedText('', ''));
                 return;
             }
 
@@ -5169,18 +5845,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result['success']) {
                 echo json_encode([
                     'success' => true,
-                    'message' => 'Account reminder sent successfully',
+                    'message_code' => 'ui.api.reminder.sent',
                     'email_sent' => $result['email_sent'] ?? false
                 ]);
             } else {
                 http_response_code(400);
-                echo json_encode(['error' => $result['error']]);
+                apiError('', apiLocalizedText('', ''));
             }
 
         } catch (Exception $e) {
             error_log("Admin reminder error: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -5190,7 +5866,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if (!$user['is_admin']) {
             http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            apiError('', apiLocalizedText('', ''));
             return;
         }
 
@@ -5203,7 +5879,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'users' => $usersNeedingReminder]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -5224,7 +5900,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode($response);
         } catch (Exception $e) {
-            echo json_encode(['error' => $e->getMessage()]);
+            apiError('', apiLocalizedText('', ''));
         }
     });
 
@@ -5246,8 +5922,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.list_failed',
+                    apiLocalizedText('errors.address_book.list_failed', 'Failed to load address book entries', $user, [], 'errors')
+                );
+                return;
             }
         });
 
@@ -5266,12 +5945,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 if ($entry) {
                     echo json_encode(['success' => true, 'entry' => $entry]);
                 } else {
-                    http_response_code(404);
-                    echo json_encode(['success' => false, 'error' => 'Entry not found']);
+                    apiError(
+                        'errors.address_book.not_found',
+                        apiLocalizedText('errors.address_book.not_found', 'Entry not found', $user, [], 'errors'),
+                        404
+                    );
+                    return;
                 }
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.get_failed',
+                    apiLocalizedText('errors.address_book.get_failed', 'Failed to load address book entry', $user, [], 'errors')
+                );
+                return;
             }
         })->where(['id' => '[0-9]+']);
 
@@ -5291,17 +5977,37 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 if (!$user || !$userId) {
-                    throw new Exception('User ID not found in authentication data');
+                    apiError(
+                        'errors.address_book.user_not_found',
+                        apiLocalizedText('errors.address_book.user_not_found', 'User ID not found in authentication data', $user, [], 'errors'),
+                        400
+                    );
+                    return;
                 }
 
                 $addressBook = new AddressBookController();
                 $entryId = $addressBook->createEntry($userId, $data);
 
-                echo json_encode(['success' => true, 'entry_id' => $entryId]);
+                echo json_encode([
+                    'success' => true,
+                    'entry_id' => $entryId,
+                    'message_code' => 'ui.compose.address_book.entry_added'
+                ]);
+            } catch (\BinktermPHP\AddressBookException $e) {
+                $errorCode = $e->getErrorCode();
+                apiError(
+                    $errorCode,
+                    apiLocalizedText($errorCode, $e->getMessage(), $user, [], 'errors'),
+                    $e->getHttpStatus()
+                );
+                return;
             } catch (Exception $e) {
-                //error_log("[ADDRESS_BOOK] Error creating entry: " . $e->getMessage());
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.create_failed',
+                    apiLocalizedText('errors.address_book.create_failed', 'Failed to create address book entry', $user, [], 'errors'),
+                    400
+                );
+                return;
             }
         });
 
@@ -5319,14 +6025,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $success = $addressBook->updateEntry($id, $userId, $data);
 
                 if ($success) {
-                    echo json_encode(['success' => true]);
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.address_book.entry_updated'
+                    ]);
                 } else {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Failed to update entry']);
+                    apiError(
+                        'errors.address_book.update_failed',
+                        apiLocalizedText('errors.address_book.update_failed', 'Failed to update address book entry', $user, [], 'errors'),
+                        400
+                    );
+                    return;
                 }
+            } catch (\BinktermPHP\AddressBookException $e) {
+                $errorCode = $e->getErrorCode();
+                apiError(
+                    $errorCode,
+                    apiLocalizedText($errorCode, $e->getMessage(), $user, [], 'errors'),
+                    $e->getHttpStatus()
+                );
+                return;
             } catch (Exception $e) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.update_failed',
+                    apiLocalizedText('errors.address_book.update_failed', 'Failed to update address book entry', $user, [], 'errors'),
+                    400
+                );
+                return;
             }
         })->where(['id' => '[0-9]+']);
 
@@ -5343,14 +6068,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $success = $addressBook->deleteEntry($id, $userId);
 
                 if ($success) {
-                    echo json_encode(['success' => true]);
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.address_book.entry_deleted'
+                    ]);
                 } else {
-                    http_response_code(404);
-                    echo json_encode(['success' => false, 'error' => 'Entry not found']);
+                    apiError(
+                        'errors.address_book.not_found',
+                        apiLocalizedText('errors.address_book.not_found', 'Entry not found', $user, [], 'errors'),
+                        404
+                    );
+                    return;
                 }
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.delete_failed',
+                    apiLocalizedText('errors.address_book.delete_failed', 'Failed to delete address book entry', $user, [], 'errors')
+                );
+                return;
             }
         })->where(['id' => '[0-9]+']);
 
@@ -5369,8 +6104,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.search_failed',
+                    apiLocalizedText('errors.address_book.search_failed', 'Failed to search address book entries', $user, [], 'errors')
+                );
+                return;
             }
         });
 
@@ -5388,8 +6126,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'stats' => $stats]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError(
+                    'errors.address_book.stats_failed',
+                    apiLocalizedText('errors.address_book.stats_failed', 'Failed to load address book statistics', $user, [], 'errors')
+                );
+                return;
             }
         });
     });
@@ -5448,7 +6189,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
 
             if (!$user || !$user['referral_code']) {
                 http_response_code(404);
-                echo json_encode(['error' => 'Referral code not found']);
+                apiError('errors.referrals.code_not_found', apiLocalizedText('errors.referrals.code_not_found', 'Referral code not found'));
                 return;
             }
 
@@ -5487,7 +6228,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
         } catch (Exception $e) {
             error_log("Referral stats error: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to retrieve referral statistics']);
+            apiError('errors.referrals.stats_failed', apiLocalizedText('errors.referrals.stats_failed', 'Failed to load referral statistics'));
         }
     });
 
@@ -5546,7 +6287,8 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
         } catch (Exception $e) {
             error_log("Admin referral stats error: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to retrieve referral statistics']);
+            apiError('errors.referrals.admin_stats_failed', apiLocalizedText('errors.referrals.admin_stats_failed', 'Failed to load admin referral statistics', $user));
         }
     });
 });
+

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 196 40" width="196" height="40" role="img" aria-label="BinktermPHP">
+  <title>BinktermPHP</title>
+
+  <!-- Cat mascot — scaled 1.25× from the 32×32 favicon -->
+  <g transform="scale(1.25)">
+
+    <!-- Head -->
+    <circle cx="16" cy="17" r="10" fill="#ff8c42" stroke="#c05810" stroke-width="0.8"/>
+
+    <!-- Ears -->
+    <polygon points="8,11 12,7 16,11"  fill="#ff8c42" stroke="#c05810" stroke-width="0.8"/>
+    <polygon points="16,11 20,7 24,11" fill="#ff8c42" stroke="#c05810" stroke-width="0.8"/>
+    <polygon points="9.5,10.5 11.5,8.5 14,10.5"  fill="#d05010"/>
+    <polygon points="18,10.5 20.5,8.5 22.5,10.5" fill="#d05010"/>
+
+    <!-- Eyes: slit pupils, terminal-green iris -->
+    <ellipse cx="12" cy="15.5" rx="1.7" ry="2.2" fill="#0a0a0a"/>
+    <ellipse cx="20" cy="15.5" rx="1.7" ry="2.2" fill="#0a0a0a"/>
+    <ellipse cx="12" cy="15.5" rx="1.1" ry="1.6" fill="#00cc44"/>
+    <ellipse cx="20" cy="15.5" rx="1.1" ry="1.6" fill="#00cc44"/>
+    <ellipse cx="12" cy="15.5" rx="0.35" ry="1.3" fill="#0a0a0a"/>
+    <ellipse cx="20" cy="15.5" rx="0.35" ry="1.3" fill="#0a0a0a"/>
+    <circle cx="12.65" cy="14.3" r="0.45" fill="rgba(255,255,255,0.75)"/>
+    <circle cx="20.65" cy="14.3" r="0.45" fill="rgba(255,255,255,0.75)"/>
+
+    <!-- Nose -->
+    <polygon points="16,18.5 14.7,20 17.3,20" fill="#ff3d99"/>
+
+    <!-- Mouth -->
+    <path d="M16,20 Q13.5,21.5 12.5,21.3" stroke="#c05810" stroke-width="0.5" fill="none"/>
+    <path d="M16,20 Q18.5,21.5 19.5,21.3" stroke="#c05810" stroke-width="0.5" fill="none"/>
+
+    <!-- Floppy disk -->
+    <rect x="12" y="21.5" width="8" height="6" rx="0.6" fill="#1c1e3e" stroke="#4e50a0" stroke-width="0.5"/>
+    <rect x="12.5" y="22"  width="7" height="5" rx="0.3" fill="#262850"/>
+    <rect x="13"   y="22.8" width="6" height="1.2" fill="#5558bb"/>
+    <rect x="15"   y="24.5" width="2" height="1.8" fill="#10122a"/>
+    <circle cx="18.3" cy="23.4" r="0.5" fill="#7878cc"/>
+
+    <!-- Whiskers -->
+    <line x1="5"   y1="16.5" x2="9.8" y2="16.9" stroke="#ccbb88" stroke-width="0.45"/>
+    <line x1="5"   y1="18.4" x2="9.8" y2="18"   stroke="#ccbb88" stroke-width="0.45"/>
+    <line x1="22.2" y1="16.9" x2="27" y2="16.5"  stroke="#ccbb88" stroke-width="0.45"/>
+    <line x1="22.2" y1="18"   x2="27" y2="18.4"  stroke="#ccbb88" stroke-width="0.45"/>
+
+  </g>
+
+  <!-- "BinktermPHP" — monospace, Binkterm light / PHP cyan -->
+  <text x="47" y="27"
+        font-family="'Courier New', Courier, monospace"
+        font-size="20"
+        font-weight="bold"
+        letter-spacing="0">
+    <tspan fill="#ddeeff">Binkterm</tspan><tspan fill="#00ceff">PHP</tspan>
+  </text>
+
+  <!-- Subtle accent line under the text -->
+  <line x1="47" y1="30" x2="193" y2="30" stroke="#00ceff" stroke-width="0.8" opacity="0.35"/>
+
+</svg>

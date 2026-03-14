@@ -1,6 +1,7 @@
 composer.lock
 config/*.json
 !config/*.example
+config/i18n/overrides/
 config/*.json.*
 config/taglines.txt
 config/welcome.txt
@@ -28,12 +29,17 @@ backups/*
 *~
 .env
 .env.local
+tests/.env.test
 bbs_ads/*
 !bbs_ads/claudes1.ans
 
 # Windows utility scripts
 delnul.cmd
 node_modules/
+tests/playwright/.auth-state.json
+tests/playwright/.csrf-token.json
+tests/playwright-report/
+test-results/
 scripts/dosbox-bridge/package-lock.json
 
 # DOS Door files - only track manifests

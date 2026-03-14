@@ -1,16 +1,16 @@
 {% extends "base.twig" %}
 
-{% block title %}File Areas - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.fileareas.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-folder-open"></i>
-        File Areas Management
+        {{ t('ui.fileareas.heading', {}, locale, ['common']) }}
     </h2>
     <button class="btn btn-fidonet" onclick="showAddFileareaModal()">
         <i class="fas fa-plus"></i>
-        Add File Area
+        {{ t('ui.fileareas.add_file_area', {}, locale, ['common']) }}
     </button>
 </div>
 
@@ -19,16 +19,16 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">File Areas</h6>
+                    <h6 class="mb-0">{{ t('ui.fileareas.list_title', {}, locale, ['common']) }}</h6>
                     <div class="btn-group btn-group-sm" role="group">
                         <input type="radio" class="btn-check" name="filter" id="active" value="active" checked>
-                        <label class="btn btn-outline-secondary" for="active">Active</label>
+                        <label class="btn btn-outline-secondary" for="active">{{ t('ui.common.active', {}, locale, ['common']) }}</label>
 
                         <input type="radio" class="btn-check" name="filter" id="all" value="all">
-                        <label class="btn btn-outline-secondary" for="all">All</label>
+                        <label class="btn btn-outline-secondary" for="all">{{ t('ui.common.all', {}, locale, ['common']) }}</label>
 
                         <input type="radio" class="btn-check" name="filter" id="inactive" value="inactive">
-                        <label class="btn btn-outline-secondary" for="inactive">Inactive</label>
+                        <label class="btn btn-outline-secondary" for="inactive">{{ t('ui.common.inactive', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
             </div>
@@ -36,7 +36,7 @@
                 <div id="fileareasContainer">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading file areas...
+                        {{ t('ui.fileareas.loading_file_areas', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -46,17 +46,17 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Statistics</h6>
+                <h6 class="mb-0">{{ t('ui.common.statistics', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-8">Active Areas:</dt>
+                    <dt class="col-8">{{ t('ui.fileareas.active_areas', {}, locale, ['common']) }}</dt>
                     <dd class="col-4" id="activeCount">-</dd>
 
-                    <dt class="col-8">Total Files:</dt>
+                    <dt class="col-8">{{ t('ui.fileareas.total_files', {}, locale, ['common']) }}</dt>
                     <dd class="col-4" id="totalFiles">-</dd>
 
-                    <dt class="col-8">Total Size:</dt>
+                    <dt class="col-8">{{ t('ui.fileareas.total_size', {}, locale, ['common']) }}</dt>
                     <dd class="col-4" id="totalSize">-</dd>
                 </dl>
             </div>
@@ -64,13 +64,13 @@
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">File Area Settings</h6>
+                <h6 class="mb-0">{{ t('ui.fileareas.settings_title', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <small class="text-muted">
-                    <strong>Replace Existing:</strong> When enabled, new files with the same name replace old ones (useful for NODELIST, etc.)
+                    <strong>{{ t('ui.fileareas.replace_existing_label', {}, locale, ['common']) }}</strong> {{ t('ui.fileareas.replace_existing_help', {}, locale, ['common']) }}
                     <br><br>
-                    <strong>Versioning:</strong> When disabled, files with duplicate names get version suffixes (_1, _2, etc.)
+                    <strong>{{ t('ui.fileareas.versioning_label', {}, locale, ['common']) }}</strong> {{ t('ui.fileareas.versioning_help', {}, locale, ['common']) }}
                 </small>
             </div>
         </div>
@@ -79,114 +79,124 @@
 
 <!-- Add/Edit Filearea Modal -->
 <div class="modal fade" id="fileareaModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="fileareaModalTitle">Add File Area</h5>
+                <h5 class="modal-title" id="fileareaModalTitle">{{ t('ui.fileareas.add_file_area', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="fileareaForm">
                     <input type="hidden" id="fileareaId">
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="mb-3">
+                                <label for="fileareaTag" class="form-label">{{ t('ui.fileareas.tag_required', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control text-uppercase" id="fileareaTag" name="tag" required maxlength="255">
+                                <div class="form-text">{{ t('ui.fileareas.tag_help', {}, locale, ['common']) }}</div>
+                            </div>
 
-                    <div class="mb-3">
-                        <label for="fileareaTag" class="form-label">Tag *</label>
-                        <input type="text" class="form-control text-uppercase" id="fileareaTag" name="tag" required maxlength="255">
-                        <div class="form-text">File area tag (e.g., NODELIST, GENERAL_FILES)</div>
-                    </div>
+                            <div class="mb-3">
+                                <label for="fileareaDescription" class="form-label">{{ t('ui.fileareas.description_required', {}, locale, ['common']) }}</label>
+                                <textarea class="form-control" id="fileareaDescription" name="description" rows="2" required></textarea>
+                                <div class="form-text">{{ t('ui.fileareas.description_help', {}, locale, ['common']) }}</div>
+                            </div>
 
-                    <div class="mb-3">
-                        <label for="fileareaDescription" class="form-label">Description *</label>
-                        <textarea class="form-control" id="fileareaDescription" name="description" rows="2" required></textarea>
-                        <div class="form-text">Brief description of the file area</div>
-                    </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="fileareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="fileareaDomain" name="domain" maxlength="255">
+                                    <div class="form-text">{{ t('ui.fileareas.network_domain', {}, locale, ['common']) }}</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="fileareaMaxSize" class="form-label">{{ t('ui.fileareas.max_file_size_mb', {}, locale, ['common']) }}</label>
+                                    <input type="number" class="form-control" id="fileareaMaxSize" name="max_file_size" value="10" min="1" max="1024">
+                                    <div class="form-text">{{ t('ui.fileareas.maximum_file_size', {}, locale, ['common']) }}</div>
+                                </div>
+                            </div>
 
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="fileareaDomain" class="form-label">Domain</label>
-                            <input type="text" class="form-control" id="fileareaDomain" name="domain" maxlength="255">
-                            <div class="form-text">Network domain</div>
+                            <div class="mb-3">
+                                <label for="fileareaPassword" class="form-label">{{ t('ui.fileareas.tic_password_optional', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="fileareaPassword" name="password" maxlength="255" autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleFileareaPasswordVisibility(this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.fileareas.tic_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="fileareaAllowedExt" class="form-label">{{ t('ui.fileareas.allowed_extensions', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="fileareaAllowedExt" name="allowed_extensions" placeholder="{{ t('ui.fileareas.extensions_placeholder_allowed', {}, locale, ['common']) }}">
+                                <div class="form-text">{{ t('ui.fileareas.allowed_extensions_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="mb-0">
+                                <label for="fileareaBlockedExt" class="form-label">{{ t('ui.fileareas.blocked_extensions', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="fileareaBlockedExt" name="blocked_extensions" placeholder="{{ t('ui.fileareas.extensions_placeholder_blocked', {}, locale, ['common']) }}">
+                                <div class="form-text">{{ t('ui.fileareas.blocked_extensions_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="fileareaMaxSize" class="form-label">Max File Size (MB)</label>
-                            <input type="number" class="form-control" id="fileareaMaxSize" name="max_file_size" value="10" min="1" max="1024">
-                            <div class="form-text">Maximum file size</div>
+
+                        <div class="col-lg-5">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaReplaceExisting" name="replace_existing">
+                                <label class="form-check-label" for="fileareaReplaceExisting">
+                                    {{ t('ui.fileareas.replace_existing_files', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.replace_existing_files_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaAllowDuplicateHash" name="allow_duplicate_hash">
+                                <label class="form-check-label" for="fileareaAllowDuplicateHash">
+                                    {{ t('ui.fileareas.allow_duplicate_content', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.allow_duplicate_content_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaIsLocal" name="is_local">
+                                <label class="form-check-label" for="fileareaIsLocal">
+                                    {{ t('ui.fileareas.local_only', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.local_only_help', {}, "Don't forward files to uplinks") }}</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="fileareaUploadPermission" class="form-label">{{ t('ui.fileareas.upload_permission', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="fileareaUploadPermission" name="upload_permission">
+                                    <option value="1">{{ t('ui.fileareas.upload_users_can_upload', {}, locale, ['common']) }}</option>
+                                    <option value="0">{{ t('ui.fileareas.upload_admin_only', {}, locale, ['common']) }}</option>
+                                    <option value="2">{{ t('ui.fileareas.upload_read_only', {}, locale, ['common']) }}</option>
+                                </select>
+                                <div class="form-text">{{ t('ui.fileareas.upload_permission_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaScanVirus" name="scan_virus" checked>
+                                <label class="form-check-label" for="fileareaScanVirus">
+                                    {{ t('ui.fileareas.virus_scanning', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.virus_scanning_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="fileareaIsActive" name="is_active" checked>
+                                <label class="form-check-label" for="fileareaIsActive">
+                                    {{ t('ui.common.active', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.file_area_is_active', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="fileareaPassword" class="form-label">TIC Password (Optional)</label>
-                        <input type="password" class="form-control" id="fileareaPassword" name="password" maxlength="255" autocomplete="new-password">
-                        <div class="form-text">File echo password for TIC files (FSC-87 Pw field)</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="fileareaAllowedExt" class="form-label">Allowed Extensions</label>
-                        <input type="text" class="form-control" id="fileareaAllowedExt" name="allowed_extensions" placeholder="e.g., zip,txt,pdf">
-                        <div class="form-text">Comma-separated list (leave empty for all)</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="fileareaBlockedExt" class="form-label">Blocked Extensions</label>
-                        <input type="text" class="form-control" id="fileareaBlockedExt" name="blocked_extensions" placeholder="e.g., exe,bat,sh">
-                        <div class="form-text">Comma-separated list</div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="fileareaReplaceExisting" name="replace_existing">
-                        <label class="form-check-label" for="fileareaReplaceExisting">
-                            Replace Existing Files
-                        </label>
-                        <div class="form-text">Replace files with same name instead of versioning</div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="fileareaAllowDuplicateHash" name="allow_duplicate_hash">
-                        <label class="form-check-label" for="fileareaAllowDuplicateHash">
-                            Allow Duplicate Content
-                        </label>
-                        <div class="form-text">Allow same file content (hash) with different filenames</div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="fileareaIsLocal" name="is_local">
-                        <label class="form-check-label" for="fileareaIsLocal">
-                            Local Only
-                        </label>
-                        <div class="form-text">Don't forward files to uplinks</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="fileareaUploadPermission" class="form-label">Upload Permission</label>
-                        <select class="form-select" id="fileareaUploadPermission" name="upload_permission">
-                            <option value="1">Users Can Upload</option>
-                            <option value="0">Admin Only</option>
-                            <option value="2">Read-Only (No Uploads)</option>
-                        </select>
-                        <div class="form-text">Control who can upload files to this area</div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="fileareaScanVirus" name="scan_virus" checked>
-                        <label class="form-check-label" for="fileareaScanVirus">
-                            Virus Scanning
-                        </label>
-                        <div class="form-text">Scan uploaded files for viruses (requires ClamAV)</div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="fileareaIsActive" name="is_active" checked>
-                        <label class="form-check-label" for="fileareaIsActive">
-                            Active
-                        </label>
-                        <div class="form-text">File area is active</div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <a href="/admin/filearea-rules" class="btn btn-outline-secondary me-auto">Edit Rules</a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveFilearea()">Save</button>
+                <a href="/admin/filearea-rules" class="btn btn-outline-secondary me-auto">{{ t('ui.fileareas.edit_rules', {}, locale, ['common']) }}</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveFilearea()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>
@@ -197,16 +207,16 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
+                <h5 class="modal-title">{{ t('ui.common.confirm_delete', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete this file area: <strong id="deleteFileareaTag"></strong>?</p>
-                <p class="text-danger">This will also delete all files in this area!</p>
+                <p>{{ t('ui.fileareas.delete_confirm_prefix', {}, locale, ['common']) }} <strong id="deleteFileareaTag"></strong>?</p>
+                <p class="text-danger">{{ t('ui.fileareas.delete_confirm_warning', {}, locale, ['common']) }}</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">{{ t('ui.common.delete', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>
@@ -217,9 +227,25 @@
 <script>
 let currentFileareaId = null;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
-    loadFileareas();
-    loadStats();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadFileareas();
+        loadStats();
+    });
 
     $('input[name="filter"]').change(function() {
         loadFileareas();
@@ -231,7 +257,7 @@ $(document).ready(function() {
 });
 
 function loadFileareas() {
-    $('#fileareasContainer').html('<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>Loading...</div>');
+    $('#fileareasContainer').html(`<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}</div>`);
 
     let filter = $('input[name="filter"]:checked').val();
     let url = '/api/fileareas?filter=' + filter;
@@ -241,13 +267,13 @@ function loadFileareas() {
             displayFileareas(data.fileareas);
         })
         .fail(function() {
-            $('#fileareasContainer').html('<div class="alert alert-danger m-3">Failed to load file areas</div>');
+            $('#fileareasContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.fileareas.load_failed', 'Failed to load file areas')}</div>`);
         });
 }
 
 function displayFileareas(fileareas) {
     if (fileareas.length === 0) {
-        $('#fileareasContainer').html('<div class="alert alert-info m-3">No file areas found</div>');
+        $('#fileareasContainer').html(`<div class="alert alert-info m-3">${uiT('ui.fileareas.no_file_areas_found', 'No file areas found')}</div>`);
         return;
     }
 
@@ -256,13 +282,13 @@ function displayFileareas(fileareas) {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="18%">Tag</th>
-                        <th width="18%">Domain</th>
-                        <th width="29%">Description</th>
-                        <th width="10%">Files</th>
-                        <th width="10%">Size</th>
-                        <th width="10%">Status</th>
-                        <th width="15%">Actions</th>
+                        <th width="18%">${uiT('ui.fileareas.tag', 'Tag')}</th>
+                        <th width="18%">${uiT('ui.common.domain', 'Domain')}</th>
+                        <th width="29%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="10%">${uiT('ui.fileareas.files', 'Files')}</th>
+                        <th width="10%">${uiT('ui.fileareas.size', 'Size')}</th>
+                        <th width="10%">${uiT('ui.common.status', 'Status')}</th>
+                        <th width="15%">${uiT('ui.common.actions', 'Actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -270,15 +296,15 @@ function displayFileareas(fileareas) {
 
     fileareas.forEach(function(area) {
         const statusBadge = area.is_active
-            ? '<span class="badge bg-success">Active</span>'
-            : '<span class="badge bg-secondary">Inactive</span>';
+            ? `<span class="badge bg-success">${uiT('ui.common.active', 'Active')}</span>`
+            : `<span class="badge bg-secondary">${uiT('ui.common.inactive', 'Inactive')}</span>`;
 
         const localBadge = area.is_local
-            ? '<span class="badge bg-info ms-1">Local</span>'
+            ? `<span class="badge bg-info ms-1">${uiT('ui.fileareas.local', 'Local')}</span>`
             : '';
 
         const replaceBadge = area.replace_existing
-            ? '<span class="badge bg-warning ms-1">Replace</span>'
+            ? `<span class="badge bg-warning ms-1">${uiT('ui.fileareas.replace', 'Replace')}</span>`
             : '';
 
         const fileSize = formatBytes(area.total_size || 0);
@@ -307,20 +333,65 @@ function displayFileareas(fileareas) {
     $('#fileareasContainer').html(html);
 }
 
+function toggleFileareaPasswordVisibility(button) {
+    const input = document.getElementById('fileareaPassword');
+    if (!input || !button) {
+        return;
+    }
+
+    const icon = button.querySelector('i');
+    const isHidden = input.type === 'password';
+    const nextLabel = isHidden
+        ? uiT('ui.common.hide_password', 'Hide password')
+        : uiT('ui.common.show_password', 'Show password');
+
+    input.type = isHidden ? 'text' : 'password';
+    button.setAttribute('title', nextLabel);
+    button.setAttribute('aria-label', nextLabel);
+
+    if (icon) {
+        icon.classList.toggle('fa-eye', !isHidden);
+        icon.classList.toggle('fa-eye-slash', isHidden);
+    }
+}
+
+function resetFileareaPasswordVisibility() {
+    const input = document.getElementById('fileareaPassword');
+    if (!input) {
+        return;
+    }
+
+    input.type = 'password';
+    const button = input.parentElement ? input.parentElement.querySelector('button') : null;
+    const icon = button ? button.querySelector('i') : null;
+    const label = uiT('ui.common.show_password', 'Show password');
+
+    if (button) {
+        button.setAttribute('title', label);
+        button.setAttribute('aria-label', label);
+    }
+
+    if (icon) {
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
 function showAddFileareaModal() {
     currentFileareaId = null;
-    $('#fileareaModalTitle').text('Add File Area');
+    $('#fileareaModalTitle').text(uiT('ui.fileareas.add_file_area', 'Add File Area'));
     $('#fileareaForm')[0].reset();
     $('#fileareaIsActive').prop('checked', true);
     $('#fileareaDomain').val('');
     $('#fileareaPassword').val('');
     $('#fileareaMaxSize').val(10);
+    resetFileareaPasswordVisibility();
     new bootstrap.Modal('#fileareaModal').show();
 }
 
 function editFilearea(id) {
     currentFileareaId = id;
-    $('#fileareaModalTitle').text('Edit File Area');
+    $('#fileareaModalTitle').text(uiT('ui.fileareas.edit_file_area', 'Edit File Area'));
 
     $.get(`/api/fileareas/${id}`)
         .done(function(data) {
@@ -339,10 +410,11 @@ function editFilearea(id) {
             $('#fileareaUploadPermission').val(area.upload_permission !== undefined ? area.upload_permission : 1);
             $('#fileareaScanVirus').prop('checked', area.scan_virus !== false);
             $('#fileareaIsActive').prop('checked', area.is_active);
+            resetFileareaPasswordVisibility();
             new bootstrap.Modal('#fileareaModal').show();
         })
         .fail(function() {
-            showError('Failed to load file area details');
+            showError(uiT('ui.fileareas.load_details_failed', 'Failed to load file area details'));
         });
 }
 
@@ -374,14 +446,25 @@ function saveFilearea() {
         method: method,
         contentType: 'application/json',
         data: JSON.stringify(data),
-        success: function() {
+        success: function(response) {
             bootstrap.Modal.getInstance('#fileareaModal').hide();
-            showSuccess(currentFileareaId ? 'File area updated' : 'File area created');
+            const fallbackMessage = currentFileareaId
+                ? uiT('ui.fileareas.updated_success', 'File area updated')
+                : uiT('ui.fileareas.created_success', 'File area created');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallbackMessage)
+                : fallbackMessage;
+            showSuccess(successMessage);
             loadFileareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to save file area';
+            const error = apiError(
+                xhr.responseJSON,
+                currentFileareaId
+                    ? uiT('errors.fileareas.update_failed', 'Failed to update file area')
+                    : uiT('errors.fileareas.create_failed', 'Failed to create file area')
+            );
             showError(error);
         }
     });
@@ -401,14 +484,17 @@ function deleteFilearea() {
     $.ajax({
         url: `/api/fileareas/${currentFileareaId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             bootstrap.Modal.getInstance('#deleteModal').hide();
-            showSuccess('File area deleted');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.fileareas.deleted_success', 'File area deleted'))
+                : uiT('ui.fileareas.deleted_success', 'File area deleted');
+            showSuccess(successMessage);
             loadFileareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to delete file area';
+            const error = apiError(xhr.responseJSON, uiT('errors.fileareas.delete_failed', 'Failed to delete file area'));
             showError(error);
         }
     });

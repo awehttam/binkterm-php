@@ -385,14 +385,169 @@ class FileAreaManager
     public function getFileById(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag, fa.domain
+            SELECT f.*, fa.tag as area_tag, fa.domain,
+                   u.username as owner_username,
+                   COALESCE(
+                       NULLIF(TRIM(f.uploaded_from_address), ''),
+                       u.username
+                   ) as display_from
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN users u ON f.owner_id = u.id
             WHERE f.id = ?
         ");
         $stmt->execute([$id]);
         $result = $stmt->fetch();
         return $result ?: null;
+    }
+
+    /**
+     * Upload a file to a file area from an existing filesystem path.
+     *
+     * Identical to uploadFile() but accepts a pre-existing file path (e.g. a
+     * ZMODEM receive temp file) instead of a $_FILES entry.  The source file
+     * is moved into the area storage directory; callers must not rely on the
+     * source path remaining valid after this call.
+     *
+     * @param int    $fileAreaId       File area ID
+     * @param string $sourcePath       Absolute path to the source file
+     * @param string $shortDescription Short description
+     * @param string $longDescription  Long description (optional)
+     * @param string $uploadedBy       Username or FidoNet address of uploader
+     * @param int|null $ownerId        User ID of file owner
+     * @return int File ID
+     * @throws \Exception If upload fails
+     */
+    public function uploadFileFromPath(int $fileAreaId, string $sourcePath, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null): int
+    {
+        $fileArea = $this->getFileAreaById($fileAreaId);
+        if (!$fileArea || !$fileArea['is_active']) {
+            throw new \Exception('File area not found or inactive');
+        }
+
+        if (!is_file($sourcePath) || !is_readable($sourcePath)) {
+            throw new \Exception('Source file not found or not readable');
+        }
+
+        $filename = basename($sourcePath);
+        $fileSize = filesize($sourcePath);
+
+        if ($fileSize > $fileArea['max_file_size']) {
+            $maxMB = round($fileArea['max_file_size'] / 1048576, 2);
+            throw new \Exception("File size exceeds maximum allowed size of {$maxMB} MB");
+        }
+
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if (!empty($fileArea['blocked_extensions'])) {
+            $blockedExts = array_map('trim', explode(',', strtolower($fileArea['blocked_extensions'])));
+            if (in_array($ext, $blockedExts)) {
+                throw new \Exception("File type .{$ext} is not allowed");
+            }
+        }
+
+        if (!empty($fileArea['allowed_extensions'])) {
+            $allowedExts = array_map('trim', explode(',', strtolower($fileArea['allowed_extensions'])));
+            if (!in_array($ext, $allowedExts)) {
+                throw new \Exception("File type .{$ext} is not allowed. Allowed types: " . $fileArea['allowed_extensions']);
+            }
+        }
+
+        $fileHash = hash_file('sha256', $sourcePath);
+
+        $allowDuplicate = !empty($fileArea['allow_duplicate_hash']);
+        if ($allowDuplicate) {
+            $fileHash = $this->makeUniqueHash($fileAreaId, $fileHash);
+        } else {
+            $existingFile = $this->checkDuplicate($fileAreaId, $fileHash);
+            if ($existingFile) {
+                throw new \Exception('This file already exists in this area');
+            }
+        }
+
+        $areaDir     = $this->getAreaStorageDir($fileArea);
+        self::ensureDirectoryExists($areaDir);
+        $storagePath = $areaDir . '/' . $filename;
+
+        if (file_exists($storagePath)) {
+            if ($fileArea['replace_existing']) {
+                $oldFile = $this->getFileByPath($storagePath);
+                if ($oldFile) {
+                    $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
+                    $stmt->execute([$oldFile['id']]);
+                }
+                unlink($storagePath);
+            } else {
+                $counter = 1;
+                while (file_exists($storagePath)) {
+                    $pathInfo    = pathinfo($filename);
+                    $newFilename = $pathInfo['filename'] . '_' . $counter;
+                    if (isset($pathInfo['extension'])) {
+                        $newFilename .= '.' . $pathInfo['extension'];
+                    }
+                    $storagePath = $areaDir . '/' . $newFilename;
+                    $filename    = $newFilename;
+                    $counter++;
+                }
+            }
+        }
+
+        if (!rename($sourcePath, $storagePath)) {
+            throw new \Exception('Failed to move uploaded file into storage');
+        }
+
+        chmod($storagePath, 0664);
+        $storagePath = realpath($storagePath);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO files (
+                file_area_id, filename, filesize, file_hash, storage_path,
+                uploaded_from_address, source_type,
+                short_description, long_description,
+                owner_id, status, created_at
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, 'user_upload',
+                ?, ?,
+                ?, 'approved', NOW()
+            ) RETURNING id
+        ");
+
+        $stmt->execute([
+            $fileAreaId,
+            $filename,
+            $fileSize,
+            $fileHash,
+            $storagePath,
+            $uploadedBy,
+            $shortDescription,
+            $longDescription,
+            $ownerId,
+        ]);
+
+        $result = $stmt->fetch();
+        $fileId = $result['id'];
+
+        $this->updateFileAreaStats($fileAreaId);
+
+        if (!empty($fileArea['scan_virus'])) {
+            $scanResult = $this->scanFileForViruses($fileId, $storagePath);
+            if (($scanResult['result'] ?? '') === 'infected' && Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
+                throw new \Exception('File rejected: virus detected.');
+            }
+        }
+
+        try {
+            $ruleProcessor = new FileAreaRuleProcessor();
+            $ruleResult    = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
+            if (!empty($ruleResult['output'])) {
+                error_log("File area rules output for {$filename}: " . $ruleResult['output']);
+            }
+        } catch (\Exception $e) {
+            error_log("File area rules error for {$filename}: " . $e->getMessage());
+        }
+
+        return $fileId;
     }
 
     /**
@@ -538,7 +693,7 @@ class FileAreaManager
         // Scan for viruses if enabled for this file area
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
-            if (($scanResult['result'] ?? '') === 'infected') {
+            if (($scanResult['result'] ?? '') === 'infected' && Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
                 throw new \Exception('File rejected: virus detected.');
             }
         }
@@ -587,6 +742,11 @@ class FileAreaManager
      */
     private function scanFileForViruses(int $fileId, string $filePath): array
     {
+        if (Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true' ||
+            Config::env('VIRUS_SCAN_NOAUTO', 'false') === 'true') {
+            return ['scanned' => false, 'result' => 'skipped', 'signature' => null, 'error_code' => '', 'error' => null];
+        }
+
         $scanner = new VirusScanner();
         $result = $scanner->scanFile($filePath);
 
@@ -609,23 +769,35 @@ class FileAreaManager
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}");
+            $allowInfected = Config::env('FILES_ALLOW_INFECTED', 'false') === 'true';
+            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (FILES_ALLOW_INFECTED: keeping file)' : ''));
 
-            // Delete infected file immediately
-            if (file_exists($filePath)) {
-                unlink($filePath);
-                error_log("Deleted infected file: {$filePath}");
-            }
+            \BinktermPHP\Admin\AdminDaemonClient::log('WARNING', 'Virus detected in uploaded file', [
+                'file_id'   => $fileId,
+                'signature' => $result['signature'] ?? 'unknown',
+                'file_path' => $filePath,
+                'allowed'   => $allowInfected,
+            ]);
 
-            // Mark file record as rejected and update area stats
-            $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
-            $stmt->execute([$fileId]);
+            if ($allowInfected) {
+                // Keep the file but leave its scan result recorded as infected
+            } else {
+                // Delete infected file immediately
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                    error_log("Deleted infected file: {$filePath}");
+                }
 
-            $areaStmt = $this->db->prepare("SELECT file_area_id FROM files WHERE id = ?");
-            $areaStmt->execute([$fileId]);
-            $areaRow = $areaStmt->fetch();
-            if ($areaRow) {
-                $this->updateFileAreaStats((int)$areaRow['file_area_id']);
+                // Mark file record as rejected and update area stats
+                $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
+                $stmt->execute([$fileId]);
+
+                $areaStmt = $this->db->prepare("SELECT file_area_id FROM files WHERE id = ?");
+                $areaStmt->execute([$fileId]);
+                $areaRow = $areaStmt->fetch();
+                if ($areaRow) {
+                    $this->updateFileAreaStats((int)$areaRow['file_area_id']);
+                }
             }
         } elseif ($result['result'] === 'error') {
             error_log("Virus scan error for file ID {$fileId}: {$result['error']}");
@@ -671,6 +843,165 @@ class FileAreaManager
         }
 
         throw new \Exception('Failed to delete file');
+    }
+
+    /**
+     * Rename a file (on disk and in the database).
+     *
+     * @param int    $fileId      ID of the file to rename
+     * @param string $newFilename New filename (basename only; no path components)
+     * @param int    $userId      Requesting user ID
+     * @param bool   $isAdmin     Whether the requesting user is an admin
+     * @return bool
+     * @throws \Exception If not found, no permission, invalid name, or name collision
+     */
+    public function renameFile(int $fileId, string $newFilename, int $userId, bool $isAdmin): bool
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        // Only owner or admin may rename
+        if (!$isAdmin && ($file['owner_id'] === null || $file['owner_id'] != $userId)) {
+            throw new \Exception('You do not have permission to rename this file');
+        }
+
+        // Sanitize: strip any directory component
+        $newFilename = basename(trim($newFilename));
+        if ($newFilename === '' || $newFilename === '.' || $newFilename === '..') {
+            throw new \Exception('Invalid filename');
+        }
+        if (strlen($newFilename) > 255) {
+            throw new \Exception('Filename too long');
+        }
+
+        // No change?
+        if ($newFilename === $file['filename']) {
+            return true;
+        }
+
+        // Check for collision in the same area directory
+        $newPath = dirname($file['storage_path']) . DIRECTORY_SEPARATOR . $newFilename;
+        if (file_exists($newPath)) {
+            throw new \Exception('A file with that name already exists in this area');
+        }
+
+        // Rename on disk
+        if (file_exists($file['storage_path'])) {
+            if (!rename($file['storage_path'], $newPath)) {
+                throw new \Exception('Failed to rename file on disk');
+            }
+        } else {
+            // File missing on disk — update DB record only
+            $newPath = $file['storage_path'];
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE files SET filename = ?, storage_path = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $stmt->execute([$newFilename, $newPath, $fileId]);
+
+        return true;
+    }
+
+    /**
+     * Update a file's description fields.
+     *
+     * @param int    $fileId           File ID
+     * @param string $shortDescription Short description (required, max 255 chars)
+     * @param string|null $longDescription  Optional extended description
+     * @param int    $userId           Requesting user ID
+     * @param bool   $isAdmin          Whether the user is an admin
+     * @return bool
+     * @throws \Exception If not found, no permission, or validation fails
+     */
+    public function updateFileDescription(int $fileId, string $shortDescription, ?string $longDescription, int $userId, bool $isAdmin): bool
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        if (!$isAdmin && ($file['owner_id'] === null || $file['owner_id'] != $userId)) {
+            throw new \Exception('You do not have permission to edit this file');
+        }
+
+        $shortDescription = trim($shortDescription);
+        if ($shortDescription === '') {
+            throw new \Exception('Short description is required');
+        }
+        if (strlen($shortDescription) > 255) {
+            throw new \Exception('Short description is too long');
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE files SET short_description = ?, long_description = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $stmt->execute([$shortDescription, $longDescription ?: null, $fileId]);
+
+        return true;
+    }
+
+    /**
+     * Move a file to a different file area (admin only).
+     *
+     * Moves the physical file to the target area's storage directory and
+     * updates the database record. Throws if the filename already exists
+     * in the target area.
+     *
+     * @param int  $fileId       File ID
+     * @param int  $targetAreaId Target file area ID
+     * @param bool $isAdmin      Must be true; only admins may move files
+     * @return bool
+     * @throws \Exception If not admin, file/area not found, collision, or move fails
+     */
+    public function moveFile(int $fileId, int $targetAreaId, bool $isAdmin): bool
+    {
+        if (!$isAdmin) {
+            throw new \Exception('You do not have permission to move files');
+        }
+
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        if ((int)$file['file_area_id'] === $targetAreaId) {
+            return true; // already in the target area — nothing to do
+        }
+
+        $targetArea = $this->getFileAreaById($targetAreaId);
+        if (!$targetArea) {
+            throw new \Exception('Target file area not found');
+        }
+
+        $targetDir  = $this->getAreaStorageDir($targetArea);
+        self::ensureDirectoryExists($targetDir);
+
+        $filename   = $file['filename'];
+        $targetPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+
+        if (file_exists($targetPath)) {
+            throw new \Exception('A file with that name already exists in the target area');
+        }
+
+        if (file_exists($file['storage_path'])) {
+            if (!rename($file['storage_path'], $targetPath)) {
+                throw new \Exception('Failed to move file on disk');
+            }
+            $newPath = realpath($targetPath);
+        } else {
+            // File missing on disk — update DB to new expected path
+            $newPath = $targetPath;
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE files SET file_area_id = ?, storage_path = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $stmt->execute([$targetAreaId, $newPath, $fileId]);
+
+        return true;
     }
 
     /**
@@ -1132,11 +1463,19 @@ class FileAreaManager
     {
         $file = $this->getFileById($fileId);
         if (!$file || $file['status'] !== 'approved') {
-            return ['success' => false, 'error' => 'File not found or not available'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.files.not_found',
+                'error' => 'File not found'
+            ];
         }
 
         if (!$this->canAccessFileArea($file['file_area_id'], $userId)) {
-            return ['success' => false, 'error' => 'Access denied'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.files.access_denied',
+                'error' => 'Access denied to this file area'
+            ];
         }
 
         $shareUrl = $this->buildFileShareUrl($file['area_tag'], $file['filename']);
@@ -1189,7 +1528,8 @@ class FileAreaManager
      * @param string $areaTag File area tag (e.g. "SOFTDIST")
      * @param string $filename Filename (e.g. "DOOM11.ZIP")
      * @param int|null $requestingUserId Logged-in user ID (null = anonymous)
-     * @return array ['success'=>bool, 'file'=>array, 'share_info'=>array] or ['success'=>false, 'error'=>string]
+     * @return array ['success'=>bool, 'file'=>array, 'share_info'=>array]
+     *               or ['success'=>false, 'error_code'=>string, 'error'=>string]
      */
     public function getSharedFile(string $areaTag, string $filename, ?int $requestingUserId = null): array
     {
@@ -1231,7 +1571,11 @@ class FileAreaManager
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$row) {
-            return ['success' => false, 'error' => 'Share not found or has expired'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.files.share_not_found_or_forbidden',
+                'error' => 'Share link not found or not permitted'
+            ];
         }
 
         // Update access statistics

@@ -14,7 +14,7 @@ use BinktermPHP\TelnetServer\TelnetServer;
 class ShoutboxHandler
 {
     /** @var TelnetServer The telnet server instance */
-    private TelnetServer $server;
+    private BbsSession $server;
 
     /** @var string Base URL for API requests */
     private string $apiBase;
@@ -22,10 +22,10 @@ class ShoutboxHandler
     /**
      * Create a new ShoutboxHandler instance
      *
-     * @param TelnetServer $server The telnet server instance for I/O operations
+     * @param BbsSession $server The telnet server instance for I/O operations
      * @param string $apiBase Base URL for API requests
      */
-    public function __construct(TelnetServer $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase)
     {
         $this->server = $server;
         $this->apiBase = $apiBase;
@@ -61,11 +61,11 @@ class ShoutboxHandler
             $innerWidth = max(20, min($cols - 2, 78));
 
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Shoutbox', TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']), TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
             TelnetUtils::writeLine($conn, '');
 
             if (!$messages) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('No shoutbox messages.', TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.no_messages', 'No shoutbox messages.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             } else {
                 $lineIndex = 0;
                 foreach ($messages as $msg) {
@@ -86,7 +86,7 @@ class ShoutboxHandler
             }
 
             TelnetUtils::writeLine($conn, '');
-            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize('[P]ost  [R]efresh  [Q]uit: ', TelnetUtils::ANSI_YELLOW), true);
+            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.menu', '[P]ost  [R]efresh  [Q]uit: ', [], $state['locale']), TelnetUtils::ANSI_YELLOW), true);
             if ($choice === null) {
                 return;
             }
@@ -102,7 +102,7 @@ class ShoutboxHandler
                 continue;
             }
 
-            $message = $this->server->prompt($conn, $state, TelnetUtils::colorize('New shout (blank to cancel): ', TelnetUtils::ANSI_CYAN), true);
+            $message = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.new_shout', 'New shout (blank to cancel): ', [], $state['locale']), TelnetUtils::ANSI_CYAN), true);
             if ($message === null) {
                 return;
             }
@@ -124,11 +124,11 @@ class ShoutboxHandler
 
             TelnetUtils::writeLine($conn, '');
             if (($response['data']['success'] ?? false) === true) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Shout posted.', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.posted', 'Shout posted.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
             } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? 'Failed to post shout.'), TelnetUtils::ANSI_RED));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? $this->server->t('ui.terminalserver.shoutbox.post_failed', 'Failed to post shout.', [], $state['locale'])), TelnetUtils::ANSI_RED));
             }
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to continue...', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             $this->server->readKeyWithIdleCheck($conn, $state);
         }
     }
@@ -139,10 +139,10 @@ class ShoutboxHandler
         $cols = (int)($state['cols'] ?? 80);
         $innerWidth = max(20, min($cols - 2, 78));
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Recent Shoutbox', TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.recent_title', 'Recent Shoutbox', [], $state['locale']), TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
 
         if (!$messages) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('No shoutbox messages.', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.no_messages', 'No shoutbox messages.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
         } else {
             $lineIndex = 0;
             foreach ($messages as $msg) {
@@ -163,7 +163,7 @@ class ShoutboxHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to continue...', TelnetUtils::ANSI_YELLOW));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
         $this->server->readKeyWithIdleCheck($conn, $state);
     }
 
@@ -180,3 +180,4 @@ class ShoutboxHandler
         return $response['data']['messages'] ?? [];
     }
 }
+

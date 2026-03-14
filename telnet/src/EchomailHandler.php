@@ -14,7 +14,7 @@ use BinktermPHP\TelnetServer\TelnetServer;
 class EchomailHandler
 {
     /** @var TelnetServer The telnet server instance */
-    private TelnetServer $server;
+    private BbsSession $server;
 
     /** @var string Base URL for API requests */
     private string $apiBase;
@@ -22,10 +22,10 @@ class EchomailHandler
     /**
      * Create a new EchomailHandler instance
      *
-     * @param TelnetServer $server The telnet server instance for I/O operations
+     * @param BbsSession $server The telnet server instance for I/O operations
      * @param string $apiBase Base URL for API requests
      */
-    public function __construct(TelnetServer $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase)
     {
         $this->server = $server;
         $this->apiBase = $apiBase;
@@ -46,7 +46,8 @@ class EchomailHandler
      */
     public function showEchoareas($conn, array &$state, string $session): void
     {
-        $page = 1;
+        $savedState = $this->loadSavedListState($session);
+        $page = $savedState['areas_page'];
         $perPage = MailUtils::getMessagesPerPage($state);
 
         while (true) {
@@ -60,7 +61,7 @@ class EchomailHandler
             $allAreas = $response['data']['echoareas'] ?? [];
 
             if (!$allAreas) {
-                TelnetUtils::writeLine($conn, 'No echoareas available.');
+                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.no_areas', 'No echoareas available.', [], $state['locale']));
                 return;
             }
 
@@ -72,16 +73,24 @@ class EchomailHandler
             // Clear screen before displaying
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
 
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize("Echoareas (page {$page}/{$totalPages}):", TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.areas_header', 'Echoareas (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
             foreach ($areas as $idx => $area) {
                 $num = $idx + 1;
                 $tag = $area['tag'] ?? '';
                 $domain = $area['domain'] ?? '';
                 $desc = $area['description'] ?? '';
-                TelnetUtils::writeLine($conn, sprintf(' %2d) %-20s %-10s %s', $num, substr($tag, 0, 20), substr($domain, 0, 10), substr($desc, 0, 40)));
+                TelnetUtils::writeLine(
+                    $conn,
+                    $this->renderEchoAreaSelectionLine(
+                        $num,
+                        (string)substr($tag, 0, 20),
+                        (string)substr($domain, 0, 10),
+                        (string)substr($desc, 0, 40)
+                    )
+                );
             }
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, 'Enter #, n/p (next/prev), q (quit)');
+            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $state['locale']));
 
             $buffer = '';
             while (true) {
@@ -97,12 +106,14 @@ class EchomailHandler
                     if ($input === 'n') {
                         if ($page < $totalPages) {
                             $page++;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
                     if ($input === 'p') {
                         if ($page > 1) {
                             $page--;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
@@ -131,12 +142,14 @@ class EchomailHandler
                     if ($lower === 'n') {
                         if ($page < $totalPages) {
                             $page++;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
                     if ($lower === 'p') {
                         if ($page > 1) {
                             $page--;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
@@ -171,186 +184,74 @@ class EchomailHandler
      */
     public function showMessages($conn, array &$state, string $session, string $tag, string $domain): void
     {
-        $page = 1;
-        $area = $tag . '@' . $domain;
-        $perPage = MailUtils::getMessagesPerPage($state);
-
+        $area          = $tag . '@' . $domain;
+        $savedState    = $this->loadSavedListState($session);
+        $positions     = $savedState['positions'];
+        $areaPosition  = $positions[$area] ?? null;
+        $page          = max(1, (int)($areaPosition['page'] ?? 1));
+        $perPage       = MailUtils::getMessagesPerPage($state);
         $selectedIndex = 0;
+        $selectedMessageId = isset($areaPosition['selected_message_id'])
+            ? (int)$areaPosition['selected_message_id']
+            : null;
+        if ($selectedMessageId !== null && $selectedMessageId < 1) {
+            $selectedMessageId = null;
+        }
+
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
 
             if (!$messages) {
-                TelnetUtils::writeLine($conn, 'No echomail messages.');
+                if ($page > 1 && $totalPages > 0) {
+                    $page = min($page, $totalPages);
+                    $selectedIndex = 0;
+                    $selectedMessageId = null;
+                    continue;
+                }
+                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.no_messages', 'No echomail messages.', [], $state['locale']));
                 return;
             }
 
-            // Clear screen before displaying
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize("Echomail: {$area} (page {$page}/{$totalPages})", TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-            $listStartRow = 2;
-            $cols = $state['cols'] ?? 80;
-            $rows = $state['rows'] ?? 24;
-            foreach ($messages as $idx => $msg) {
-                $num = $idx + 1;
-                $from = $msg['from_name'] ?? 'Unknown';
-                $subject = $msg['subject'] ?? '(no subject)';
-                $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
-                $line = TelnetUtils::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
-                if ($idx === $selectedIndex) {
-                    $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
+            if ($selectedMessageId !== null) {
+                $restoredIndex = $this->findMessageIndexById($messages, $selectedMessageId);
+                if ($restoredIndex !== null) {
+                    $selectedIndex = $restoredIndex;
                 }
-                TelnetUtils::writeLine($conn, $line);
+                $selectedMessageId = null;
             }
-            $inputRow = max(1, $rows - 1);
-            $inputColStart = 1;
 
-            // Build status bar with menu options
-            $statusLine = TelnetUtils::buildStatusBar([
-                ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Move  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'L/R', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Page  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'C', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Compose  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'Enter', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Read  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE],
-            ], $cols);
+            if ($selectedIndex < 0 || $selectedIndex >= count($messages)) {
+                $selectedIndex = 0;
+            }
 
-            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-            TelnetUtils::safeWrite($conn, $statusLine . "\r");
-            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H");
+            $title  = TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.echomail.messages_header', 'Echomail: {area} (page {page}/{total})', ['area' => $area, 'page' => $page, 'total' => $totalPages], $state['locale']),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            );
+            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex);
+            $selectedIndex = $result['selectedIndex'];
+            $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
+            $this->saveEchomailState($session, $positions, $area, $page, $currentSelectedId, $state['csrf_token'] ?? null);
 
-            $buffer = '';
-            while (true) {
-                $key = $this->server->readKeyWithIdleCheck($conn, $state);
-                if ($key === null) {
+            switch ($result['action']) {
+                case 'disconnect':
                     return;
-                }
-                if ($key === 'LEFT') {
-                    if ($page > 1) {
-                        $page--;
-                        $selectedIndex = 0;
-                        break;
-                    }
-                    continue;
-                }
-                if ($key === 'RIGHT') {
-                    if ($page < $totalPages) {
-                        $page++;
-                        $selectedIndex = 0;
-                        break;
-                    }
-                    continue;
-                }
-                if ($key === 'UP') {
-                    if ($selectedIndex > 0) {
-                        $prevIndex = $selectedIndex;
-                        $selectedIndex--;
-                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols, $state);
-                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols, $state);
-                    }
-                    TelnetUtils::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
-                    continue;
-                }
-                if ($key === 'DOWN') {
-                    if ($selectedIndex < count($messages) - 1) {
-                        $prevIndex = $selectedIndex;
-                        $selectedIndex++;
-                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols, $state);
-                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols, $state);
-                    }
-                    TelnetUtils::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
-                    continue;
-                }
-                if ($key === 'ENTER') {
-                    $input = trim($buffer);
-                    if ($input === '') {
-                        $msg = $messages[$selectedIndex] ?? null;
-                        $id = $msg['id'] ?? null;
-                        if ($msg && $id) {
-                            [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $selectedIndex);
-                        }
-                        break;
-                    }
-                    if ($input === 'q') {
-                        return;
-                    }
-                    if ($input === 'c') {
-                        $this->compose($conn, $state, $session, $area, null);
-                        break;
-                    }
-                    if ($input === 'n') {
-                        if ($page < $totalPages) {
-                            $page++;
-                            $selectedIndex = 0;
-                        }
-                        break;
-                    }
-                    if ($input === 'p') {
-                        if ($page > 1) {
-                            $page--;
-                            $selectedIndex = 0;
-                        }
-                        break;
-                    }
-                    $choice = (int)$input;
-                    if ($choice > 0 && $choice <= count($messages)) {
-                        $msg = $messages[$choice - 1];
-                        $id = $msg['id'] ?? null;
-                        if ($id) {
-                            [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $choice - 1);
-                        }
-                    }
+                case 'quit':
+                    return;
+                case 'prev':
+                    $page--;
+                    $selectedIndex = 0;
                     break;
-                }
-                if ($key === 'BACKSPACE') {
-                    if ($buffer !== '') {
-                        $buffer = substr($buffer, 0, -1);
-                        TelnetUtils::safeWrite($conn, "\x08 \x08");
-                    }
-                    continue;
-                }
-                if (str_starts_with($key, 'CHAR:')) {
-                    $char = substr($key, 5);
-                    $lower = strtolower($char);
-                    if ($lower === 'q') {
-                        return;
-                    }
-                    if ($lower === 'c') {
-                        $this->compose($conn, $state, $session, $area, null);
-                        break;
-                    }
-                    if ($lower === 'n') {
-                        if ($page < $totalPages) {
-                            $page++;
-                            $selectedIndex = 0;
-                        }
-                        break;
-                    }
-                    if ($lower === 'p') {
-                        if ($page > 1) {
-                            $page--;
-                            $selectedIndex = 0;
-                        }
-                        break;
-                    }
-                    if (ctype_digit($char)) {
-                        $choice = (int)$char;
-                        if ($choice > 0 && $choice <= count($messages)) {
-                            $msg = $messages[$choice - 1];
-                            $id = $msg['id'] ?? null;
-                            if ($id) {
-                                [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $choice - 1);
-                            }
-                        }
-                        break;
-                    }
-                    $buffer .= $char;
-                    TelnetUtils::safeWrite($conn, $char);
-                }
+                case 'next':
+                    $page++;
+                    $selectedIndex = 0;
+                    break;
+                case 'compose':
+                    $this->compose($conn, $state, $session, $area, null);
+                    break;
+                case 'read':
+                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $result['index']);
+                    break;
             }
         }
     }
@@ -371,8 +272,8 @@ class EchomailHandler
     public function compose($conn, array &$state, string $session, string $area, ?array $reply = null): void
     {
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('=== Compose Echomail ===', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Area: ' . $area, TelnetUtils::ANSI_MAGENTA));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.compose_title', '=== Compose Echomail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.area_label', 'Area: {area}', ['area' => $area], $state['locale']), TelnetUtils::ANSI_MAGENTA));
         TelnetUtils::writeLine($conn, '');
 
         if ($reply && !empty($reply['id'])) {
@@ -391,7 +292,7 @@ class EchomailHandler
         $toNameDefault = $reply['from_name'] ?? 'All';
         $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
 
-        $toNamePrompt = TelnetUtils::colorize('To Name: ', TelnetUtils::ANSI_CYAN);
+        $toNamePrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.to_name', 'To Name: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
         if ($toNameDefault) {
             $toNamePrompt .= TelnetUtils::colorize("[{$toNameDefault}] ", TelnetUtils::ANSI_YELLOW);
         }
@@ -403,12 +304,12 @@ class EchomailHandler
             if ($toNameDefault !== '') {
                 $toName = $toNameDefault;
             } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Recipient name required. Message cancelled.', TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.no_recipient', 'Recipient name required. Message cancelled.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
                 return;
             }
         }
 
-        $subjectPrompt = TelnetUtils::colorize('Subject: ', TelnetUtils::ANSI_CYAN);
+        $subjectPrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.subject', 'Subject: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
         if ($subjectDefault) {
             $subjectPrompt .= TelnetUtils::colorize("[{$subjectDefault}] ", TelnetUtils::ANSI_YELLOW);
         }
@@ -421,7 +322,7 @@ class EchomailHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Enter your message below:', TelnetUtils::ANSI_GREEN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.enter_message', 'Enter your message below:', [], $state['locale']), TelnetUtils::ANSI_GREEN));
 
         $cols = $state['cols'] ?? 80;
 
@@ -430,8 +331,8 @@ class EchomailHandler
         $defaultTagline = MailUtils::getUserDefaultTagline($this->apiBase, $session);
         if (!empty($taglines)) {
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Select a tagline:', TelnetUtils::ANSI_CYAN));
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(' 0) None', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.select_tagline', 'Select a tagline:', [], $state['locale']), TelnetUtils::ANSI_CYAN));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.no_tagline', ' 0) None', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             foreach ($taglines as $idx => $tagline) {
                 TelnetUtils::writeLine($conn, sprintf(' %d) %s', $idx + 1, $tagline));
             }
@@ -445,8 +346,8 @@ class EchomailHandler
                 }
             }
             $prompt = $defaultIndex > 0
-                ? TelnetUtils::colorize("Tagline # [{$defaultIndex}] (Enter for Default): ", TelnetUtils::ANSI_CYAN)
-                : TelnetUtils::colorize('Tagline # (Enter for None): ', TelnetUtils::ANSI_CYAN);
+                ? TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.tagline_default', 'Tagline # [{default}] (Enter for Default): ', ['default' => $defaultIndex], $state['locale']), TelnetUtils::ANSI_CYAN)
+                : TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.tagline_none', 'Tagline # (Enter for None): ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
             $choice = $this->server->prompt($conn, $state, $prompt, true);
             if ($choice === null) {
                 return;
@@ -479,7 +380,7 @@ class EchomailHandler
         $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText);
         if ($messageText === '') {
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Message cancelled (empty).', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.message_cancelled', 'Message cancelled (empty).', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             return;
         }
 
@@ -498,12 +399,12 @@ class EchomailHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Posting echomail...', TelnetUtils::ANSI_CYAN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.posting', 'Posting echomail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('✓ Echomail posted successfully!', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.post_success', '✓ Echomail posted successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('✗ Failed to post echomail: ' . ($result['error'] ?? 'Unknown error'), TelnetUtils::ANSI_RED));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.post_failed', '✗ Failed to post echomail: {error}', ['error' => $result['error'] ?? 'Unknown error'], $state['locale']), TelnetUtils::ANSI_RED));
         }
         TelnetUtils::writeLine($conn, '');
     }
@@ -524,11 +425,7 @@ class EchomailHandler
      */
     private function displayMessage($conn, array &$state, string $session, string $area, int $page, int $perPage, int $totalPages, int $index): array
     {
-        $cols = $state['cols'] ?? 80;
-        $rows = $state['rows'] ?? 24;
-        $width = max(10, $cols - 2);
 
-        $offset = 0;
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
             $msg = $messages[$index] ?? null;
@@ -540,116 +437,70 @@ class EchomailHandler
                 return [$page, $index];
             }
 
-            $detail = TelnetUtils::apiRequest(
-                $this->apiBase,
-                'GET',
-                '/api/messages/echomail/' . urlencode($area) . '/' . $id,
-                null,
-                $session
-            );
-            $body = $detail['data']['message_text'] ?? '';
+            $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
+            $body         = $detail['data']['message_text'] ?? '';
+            $markupFormat = $detail['data']['markup_format'] ?? null;
+            $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
+            $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
 
-            // Format from line with address
-            $fromName = $msg['from_name'] ?? 'Unknown';
+            $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
-            $fromLine = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
 
-            // Format date using user's timezone and date format preferences
-            $dateFormatted = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state);
+            // Closure that rebuilds all layout-dependent view components from current $state.
+            // Called once on open and again whenever the terminal is resized.
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress): array {
+                $cols    = $s['cols'] ?? 80;
+                $width   = max(10, $cols - 2);
+                $charset = $s['terminal_charset'] ?? 'ascii';
+                $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
 
-            $border = str_repeat('-', $width);
-            $headerLines = [
-                $border,
-                TelnetUtils::colorize(substr($fromLine, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Subj: ' . ($msg['subject'] ?? 'Message'), 0, $width), TelnetUtils::ANSI_BOLD),
-                TelnetUtils::colorize(substr('To: ' . ($msg['to_name'] ?? 'All'), 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Area: ' . $area, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Date: ' . $dateFormatted, 0, $width), TelnetUtils::ANSI_DIM),
-                $border
-            ];
+                return [
+                    'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
+                        ['label' => 'From: ', 'value' => $fromLine,                                                      'style' => 'normal'],
+                        ['label' => 'Subj: ', 'value' => $msg['subject'] ?? 'Message',                                  'style' => 'bold'],
+                        ['label' => 'To:   ', 'value' => $msg['to_name'] ?? 'All',                                      'style' => 'dim'],
+                        ['label' => 'Area: ', 'value' => $area,                                                         'style' => 'dim'],
+                        ['label' => 'Date: ', 'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),   'style' => 'dim'],
+                    ], $charset),
+                    'wrappedLines' => $markupFormat !== null
+                        ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
+                        : TelnetUtils::wrapTextLines($body, $width),
+                    'statusLine'   => TelnetUtils::buildStatusBar([
+                        ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'PgUp/PgDn',    'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Page  ',      'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'H',            'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Headers  ',   'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
+                    ], $width),
+                ];
+            };
 
-            $wrappedLines = TelnetUtils::wrapTextLines($body, $width);
-            $bodyHeight = max(1, $rows - count($headerLines) - 1);
-            $maxOffset = max(0, count($wrappedLines) - $bodyHeight);
-            $offset = min($offset, $maxOffset);
+            $view   = $buildView($state);
+            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $view['headerLines'], $view['wrappedLines'], $view['statusLine'], $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView);
 
-            $visibleLines = array_slice($wrappedLines, $offset, $bodyHeight);
-            $statusLine = TelnetUtils::buildStatusBar([
-                ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'L/R', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'R', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Reply  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE],
-            ], $width);
-            TelnetUtils::renderFullScreen($conn, $headerLines, $visibleLines, $statusLine, $rows);
-
-            $key = $this->server->readKeyWithIdleCheck($conn, $state);
-            if ($key === null || $key === 'ENTER') {
-                TelnetUtils::setCursorVisible($conn, true);
-                return [$page, $index];
-            }
-            if ($key === 'CHAR:q' || $key === 'CHAR:Q') {
-                TelnetUtils::setCursorVisible($conn, true);
-                return [$page, $index];
-            }
-            if ($key === 'UP') {
-                if ($offset > 0) {
-                    $offset--;
-                }
-                continue;
-            }
-            if ($key === 'DOWN') {
-                if ($offset < $maxOffset) {
-                    $offset++;
-                }
-                continue;
-            }
-            if ($key === 'HOME') {
-                $offset = 0;
-                continue;
-            }
-            if ($key === 'END') {
-                $offset = $maxOffset;
-                continue;
-            }
-            if ($key === 'LEFT') {
-                if ($index > 0) {
-                    $index--;
-                    $offset = 0;
-                    continue;
-                }
-                if ($page > 1) {
-                    $page--;
-                    $index = max(0, $perPage - 1);
-                    $offset = 0;
-                }
-                continue;
-            }
-            if ($key === 'RIGHT') {
-                if ($index < count($messages) - 1) {
-                    $index++;
-                    $offset = 0;
-                    continue;
-                }
-                if ($page < $totalPages) {
-                    $page++;
-                    $index = 0;
-                    $offset = 0;
-                }
-                continue;
-            }
-            if (str_starts_with($key, 'CHAR:')) {
-                $char = strtolower(substr($key, 5));
-                if ($char === 'r') {
-                    $replyData = $detail['data'] ?? $msg;
+            switch ($result['action']) {
+                case 'quit':
+                    return [$page, $index];
+                case 'prev':
+                    if ($index > 0) { $index--; break; }
+                    if ($page > 1)  { $page--; $index = max(0, $perPage - 1); }
+                    break;
+                case 'next':
+                    if ($index < count($messages) - 1) { $index++; break; }
+                    if ($page < $totalPages)            { $page++; $index = 0; }
+                    break;
+                case 'reply':
                     TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-                    $this->compose($conn, $state, $session, $area, $replyData);
+                    $this->compose($conn, $state, $session, $area, $detail['data'] ?? $msg);
                     TelnetUtils::setCursorVisible($conn, true);
                     return [$page, $index];
-                }
             }
         }
     }
@@ -677,24 +528,125 @@ class EchomailHandler
     }
 
     /**
-     * Re-render a single message list line without redrawing the whole screen.
+     * Render one echoarea option with cyan number hotkey and blue ")" accent.
      */
-    private function renderMessageListLine($conn, array $messages, int $idx, bool $selected, int $listStartRow, int $cols, array &$state): void
+    private function renderEchoAreaSelectionLine(int $num, string $tag, string $domain, string $desc): string
     {
-        if (!isset($messages[$idx])) {
-            return;
-        }
-        $msg = $messages[$idx];
-        $num = $idx + 1;
-        $from = $msg['from_name'] ?? 'Unknown';
-        $subject = $msg['subject'] ?? '(no subject)';
-        $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
-        $line = TelnetUtils::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
-        if ($selected) {
-            $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
-        }
-        $row = $listStartRow + $idx;
-        TelnetUtils::safeWrite($conn, "\033[{$row};1H");
-        TelnetUtils::safeWrite($conn, str_pad($line, max(1, $cols - 1)));
+        $suffix = sprintf(' %-20s %-10s %s', $tag, $domain, $desc);
+        return ' '
+            . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+            . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
+            . $suffix;
     }
+
+    /**
+     * Load saved echomail browser state from user meta.
+     *
+     * @return array{areas_page:int, positions:array<string,array{page:int,selected_message_id:?int}>}
+     */
+    private function loadSavedListState(string $session): array
+    {
+        $response = TelnetUtils::apiRequest(
+            $this->apiBase,
+            'GET',
+            '/api/user/terminal-mail-state',
+            null,
+            $session
+        );
+
+        $settings = $response['data']['settings'] ?? [];
+        $areasPage = (int)($settings['terminal_echomail_areas_page'] ?? 1);
+        $positionsRaw = $settings['terminal_echomail_positions'] ?? '';
+        $positions = [];
+        if (is_string($positionsRaw) && trim($positionsRaw) !== '') {
+            $decoded = json_decode($positionsRaw, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $area => $item) {
+                    if (!is_string($area) || !is_array($item)) {
+                        continue;
+                    }
+                    $page = max(1, (int)($item['page'] ?? 1));
+                    $selected = $item['selected_message_id'] ?? null;
+                    if ($selected !== null) {
+                        $selected = (int)$selected;
+                        if ($selected < 1) {
+                            $selected = null;
+                        }
+                    }
+                    $positions[$area] = [
+                        'page' => $page,
+                        'selected_message_id' => $selected,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'areas_page' => max(1, $areasPage),
+            'positions' => $positions,
+        ];
+    }
+
+    /**
+     * Save echomail message-list state (per area).
+     */
+    private function saveEchomailState(
+        string $session,
+        array &$positions,
+        string $area,
+        int $page,
+        ?int $selectedMessageId,
+        ?string $csrfToken = null
+    ): void
+    {
+        $positions[$area] = [
+            'page' => max(1, $page),
+            'selected_message_id' => ($selectedMessageId !== null && $selectedMessageId > 0) ? $selectedMessageId : null,
+        ];
+
+        $payload = [
+            'terminal_echomail_positions' => $positions,
+        ];
+
+        TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/user/terminal-mail-state',
+            $payload,
+            $session,
+            3,
+            $csrfToken
+        );
+    }
+
+    /**
+     * Save current echoarea listing page.
+     */
+    private function saveEchoareasPage(string $session, int $page, ?string $csrfToken = null): void
+    {
+        TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/user/terminal-mail-state',
+            ['terminal_echomail_areas_page' => max(1, $page)],
+            $session,
+            3,
+            $csrfToken
+        );
+    }
+
+    /**
+     * Find index of a message id in the current message page.
+     */
+    private function findMessageIndexById(array $messages, int $messageId): ?int
+    {
+        foreach ($messages as $idx => $msg) {
+            if ((int)($msg['id'] ?? 0) === $messageId) {
+                return $idx;
+            }
+        }
+
+        return null;
+    }
+
 }

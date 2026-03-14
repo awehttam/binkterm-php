@@ -1,20 +1,20 @@
 {% extends "base.twig" %}
 
-{% block title %}Crashmail Queue - Admin{% endblock %}
+{% block title %}{{ t('ui.admin.crashmail_queue.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2"><i class="fas fa-bolt me-2"></i>Crashmail Queue</h1>
+        <h1 class="h2"><i class="fas fa-bolt me-2"></i>{{ t('ui.admin.crashmail_queue.heading', {}, locale, ['common']) }}</h1>
         <div class="btn-toolbar">
             <button class="btn btn-warning me-2" id="attemptDelivery">
-                <i class="fas fa-paper-plane me-1"></i>Attempt Delivery
+                <i class="fas fa-paper-plane me-1"></i>{{ t('ui.admin.crashmail_queue.attempt_delivery', {}, locale, ['common']) }}
             </button>
             <button class="btn btn-outline-primary me-2" id="refreshQueue">
-                <i class="fas fa-sync-alt me-1"></i>Refresh
+                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
             </button>
             <a href="/admin" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.crashmail_queue.back_to_dashboard', {}, locale, ['common']) }}
             </a>
         </div>
     </div>
@@ -26,7 +26,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.pending', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statPending">-</div>
                         </div>
                         <div class="col-auto">
@@ -42,7 +42,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Attempting</div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.attempting', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statAttempting">-</div>
                         </div>
                         <div class="col-auto">
@@ -58,7 +58,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Sent (24h)</div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.sent_24h', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statSent">-</div>
                         </div>
                         <div class="col-auto">
@@ -74,7 +74,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Failed</div>
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.failed', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statFailed">-</div>
                         </div>
                         <div class="col-auto">
@@ -89,22 +89,22 @@
     <!-- Filter -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Filter Queue</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.crashmail_queue.filter_queue', {}, locale, ['common']) }}</h6>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label">Status</label>
+                    <label class="form-label">{{ t('ui.admin.crashmail_queue.status', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="filterStatus">
-                        <option value="">All</option>
-                        <option value="pending">Pending</option>
-                        <option value="attempting">Attempting</option>
-                        <option value="sent">Sent</option>
-                        <option value="failed">Failed</option>
+                        <option value="">{{ t('ui.common.all', {}, locale, ['common']) }}</option>
+                        <option value="pending">{{ t('ui.admin.crashmail_queue.pending', {}, locale, ['common']) }}</option>
+                        <option value="attempting">{{ t('ui.admin.crashmail_queue.attempting', {}, locale, ['common']) }}</option>
+                        <option value="sent">{{ t('ui.admin.crashmail_queue.sent', {}, locale, ['common']) }}</option>
+                        <option value="failed">{{ t('ui.admin.crashmail_queue.failed', {}, locale, ['common']) }}</option>
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Limit</label>
+                    <label class="form-label">{{ t('ui.admin.crashmail_queue.limit', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="filterLimit">
                         <option value="25">25</option>
                         <option value="50" selected>50</option>
@@ -113,7 +113,7 @@
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button class="btn btn-primary" id="applyFilter">
-                        <i class="fas fa-filter me-1"></i>Apply Filter
+                        <i class="fas fa-filter me-1"></i>{{ t('ui.admin.crashmail_queue.apply_filter', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -123,26 +123,26 @@
     <!-- Queue Items -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Queue Items</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.crashmail_queue.queue_items', {}, locale, ['common']) }}</h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover" id="queueTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>To</th>
-                            <th>Subject</th>
-                            <th>Destination</th>
-                            <th>Status</th>
-                            <th>Attempts</th>
-                            <th>Next Attempt</th>
-                            <th>Actions</th>
+                            <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.to', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.subject', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.destination', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.attempts', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.next_attempt', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="queueTableBody">
                         <tr>
-                            <td colspan="8" class="text-center">Loading...</td>
+                            <td colspan="8" class="text-center">{{ t('ui.common.loading', {}, locale, ['common']) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -160,9 +160,32 @@
 </style>
 
 <script>
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    loadStats();
-    loadQueue();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadStats();
+        loadQueue();
+    });
 
     document.getElementById('refreshQueue').addEventListener('click', function() {
         loadStats();
@@ -170,19 +193,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('attemptDelivery').addEventListener('click', function() {
-        if (!confirm('Attempt delivery for pending crashmail now?')) return;
+        if (!confirm(uiT('ui.admin.crashmail_queue.attempt_delivery_confirm', 'Attempt delivery for pending crashmail now?'))) return;
         fetch('/admin/api/crashmail/poll', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    alert(apiMessage(data, uiT('ui.admin.crashmail_queue.delivery_attempt_started', 'Delivery attempt started.')));
                     loadStats();
                     loadQueue();
                 } else {
-                    alert('Delivery attempt failed: ' + (data.error || 'Unknown error'));
+                    alert(uiT('ui.admin.crashmail_queue.delivery_attempt_failed_prefix', 'Delivery attempt failed: ') + apiError(data, uiT('ui.common.unknown_error', 'Unknown error')));
                 }
             })
             .catch(error => {
-                alert('Error: ' + error.message);
+                alert(uiT('ui.admin.crashmail_queue.error_prefix', 'Error: ') + error.message);
             });
     });
 
@@ -200,7 +224,7 @@ function loadStats() {
             document.getElementById('statFailed').textContent = data.failed || 0;
         })
         .catch(error => {
-            console.error('Error loading stats:', error);
+            console.error(uiT('ui.admin.crashmail_queue.load_stats_failed', 'Error loading stats') + ':', error);
         });
 }
 
@@ -217,7 +241,7 @@ function loadQueue() {
             const tbody = document.getElementById('queueTableBody');
 
             if (!data.items || data.items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No items in queue</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">' + uiT('ui.admin.crashmail_queue.no_items', 'No items in queue') + '</td></tr>';
                 return;
             }
 
@@ -228,9 +252,9 @@ function loadQueue() {
                         <strong>${escapeHtml(item.to_name || '')}</strong><br>
                         <small class="text-muted">${escapeHtml(item.destination_address)}</small>
                     </td>
-                    <td>${escapeHtml(item.subject || '(no subject)')}</td>
+                    <td>${escapeHtml(item.subject || uiT('ui.admin.crashmail_queue.no_subject', '(no subject)'))}</td>
                     <td>
-                        ${item.destination_host ? `${escapeHtml(item.destination_host)}:${item.destination_port}` : '<em>Unresolved</em>'}
+                        ${item.destination_host ? `${escapeHtml(item.destination_host)}:${item.destination_port}` : '<em>' + uiT('ui.admin.crashmail_queue.unresolved', 'Unresolved') + '</em>'}
                     </td>
                     <td>${getStatusBadge(item.status)}</td>
                     <td>${item.attempts} / ${item.max_attempts}</td>
@@ -251,55 +275,57 @@ function loadQueue() {
             `).join('');
         })
         .catch(error => {
-            console.error('Error loading queue:', error);
+            console.error(uiT('ui.admin.crashmail_queue.load_queue_failed', 'Error loading queue') + ':', error);
             document.getElementById('queueTableBody').innerHTML =
-                '<tr><td colspan="8" class="text-center text-danger">Error loading queue</td></tr>';
+                '<tr><td colspan="8" class="text-center text-danger">' + uiT('ui.admin.crashmail_queue.load_queue_failed', 'Error loading queue') + '</td></tr>';
         });
 }
 
 function getStatusBadge(status) {
     const badges = {
-        'pending': '<span class="badge bg-warning">Pending</span>',
-        'attempting': '<span class="badge bg-info">Attempting</span>',
-        'sent': '<span class="badge bg-success">Sent</span>',
-        'failed': '<span class="badge bg-danger">Failed</span>'
+        'pending': '<span class="badge bg-warning">' + uiT('ui.admin.crashmail_queue.pending', 'Pending') + '</span>',
+        'attempting': '<span class="badge bg-info">' + uiT('ui.admin.crashmail_queue.attempting', 'Attempting') + '</span>',
+        'sent': '<span class="badge bg-success">' + uiT('ui.admin.crashmail_queue.sent', 'Sent') + '</span>',
+        'failed': '<span class="badge bg-danger">' + uiT('ui.admin.crashmail_queue.failed', 'Failed') + '</span>'
     };
     return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
 }
 
 function retryItem(id) {
-    if (!confirm('Retry this crashmail delivery?')) return;
+    if (!confirm(uiT('ui.admin.crashmail_queue.retry_confirm', 'Retry this crashmail delivery?'))) return;
 
     fetch(`/admin/api/crashmail/${id}/retry`, { method: 'POST' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                alert(apiMessage(data, uiT('ui.admin.crashmail_queue.retry_success', 'Crashmail retry queued.')));
                 loadStats();
                 loadQueue();
             } else {
-                alert('Failed to retry: ' + (data.error || 'Unknown error'));
+                alert(uiT('ui.admin.crashmail_queue.retry_failed_prefix', 'Failed to retry: ') + apiError(data, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            alert(uiT('ui.admin.crashmail_queue.error_prefix', 'Error: ') + error.message);
         });
 }
 
 function cancelItem(id) {
-    if (!confirm('Cancel this crashmail? The message will remain in your outbox but won\'t be crash-delivered.')) return;
+    if (!confirm(uiT('ui.admin.crashmail_queue.cancel_confirm', 'Cancel this crashmail? The message will remain in your outbox but won\'t be crash-delivered.'))) return;
 
     fetch(`/admin/api/crashmail/${id}`, { method: 'DELETE' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                alert(apiMessage(data, uiT('ui.admin.crashmail_queue.cancel_success', 'Crashmail cancelled.')));
                 loadStats();
                 loadQueue();
             } else {
-                alert('Failed to cancel: ' + (data.error || 'Unknown error'));
+                alert(uiT('ui.admin.crashmail_queue.cancel_failed_prefix', 'Failed to cancel: ') + apiError(data, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            alert(uiT('ui.admin.crashmail_queue.error_prefix', 'Error: ') + error.message);
         });
 }
 

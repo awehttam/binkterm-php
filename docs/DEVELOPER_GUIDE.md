@@ -1,5 +1,18 @@
 # Developer Guide
 
+## Table of Contents
+
+- [Welcome to BinktermPHP](#welcome-to-binkterm-php)
+- [Project Architecture](#project-architecture)
+- [Directory Structure](#directory-structure)
+- [Development Workflow](#development-workflow)
+- [Localization (i18n)](#localization-i18n)
+- [Credits System](#credits-system-overview)
+- [Optional Components & Daemons](#optional-components--daemons)
+- [Getting Help](#getting-help)
+
+---
+
 ## Welcome to BinktermPHP
 
 BinktermPHP is a modern web-based interface for FidoNet messaging networks. It combines a traditional bulletin board system (BBS) experience with contemporary web technologies, allowing users to send and receive netmail (private messages) and echomail (forums) through the FidoNet Technology Network (FTN).
@@ -8,15 +21,19 @@ BinktermPHP is a modern web-based interface for FidoNet messaging networks. It c
 
 FidoNet is a worldwide network of BBSs that exchange mail and files using store-and-forward technology. Messages are packaged into "packets" and transmitted between systems using the binkp protocol. Unlike modern internet messaging, FidoNet operates asynchronously - messages are bundled, transmitted to upstream nodes (hubs), and then distributed across the network.
 
-### Project Architecture
+---
 
-BinktermPHP is built as a dual-component system:
+## Project Architecture
+
+BinktermPHP is built around several cooperating components:
 
 1. **Web Interface**: A PHP-based web application that users interact with via browser
 2. **Binkp Mailer**: Background daemon processes that handle FidoNet packet transmission
-3. **Telnet Daemon**: Background daemon process that provides a Telnet interface.
+3. **Telnet Daemon**: Background daemon that provides a Telnet BBS interface
+4. **SSH Daemon**: Background daemon that provides an SSH-2 BBS interface (`ssh/ssh_daemon.php`)
+5. **Admin Daemon**: Background daemon that manages configuration, logging, and triggered tasks (`scripts/admin_daemon.php`)
 
-#### Key Components
+### Key Components
 
 - **Frontend**: jQuery + Bootstrap 5 for responsive, modern UI
 - **Backend**: PHP with SimpleRouter for routing, Twig for templating
@@ -52,62 +69,89 @@ BinktermPHP is built as a dual-component system:
 - **Polling**: Background process (`scripts/binkp_poll.php`) connects to uplinks on schedule
 - **Server**: Daemon (`scripts/binkp_server.php`) accepts incoming connections from other nodes
 
-#### Telnet Daemon
-- **Uses REST apis**: The Telnet daemon uses the REST apis for login, retrieving messages, etc.  It tries not to reinvent logic of sending and only focuses on Telnet UI.
-- **Feature Parity**: The Telnet daemon isn't expected to have full feature parity as with the web interface.  The web interface is considered "first class".
-- **Testing**: When testing the Telnet daemon be sure to use SyncTerm along with Putty and other telnet clients.  
+#### Terminal Daemons
 
-### Directory Structure
+- **Telnet** (`scripts/telnet_daemon.php`) and **SSH** (`ssh/ssh_daemon.php`) share the same session logic (`BbsSession`) and deliver identical BBS features.
+- Both use the REST APIs for login, message retrieval, etc. — they focus on the terminal UI rather than duplicating business logic.
+- The web interface is considered "first class"; terminal feature parity is desirable but not always required.
+- When testing, use SyncTerm alongside PuTTY and other clients to catch client-specific behaviour.
+
+#### Admin Daemon
+
+The admin daemon (`scripts/admin_daemon.php`) is a long-running process that handles:
+- Server-side logging from web-context code (use `AdminDaemonClient::log($level, $message)`)
+- Configuration reads/writes for settings that require daemon coordination
+- Post-session packet processing triggers
+
+Prefer `AdminDaemonClient::log()` over `error_log()` for application-level log messages so they appear in the structured daemon log rather than the PHP error log.
+
+---
+
+## Directory Structure
 
 ```
 binkterm-php/
-├── config/              Configuration files (bbs.json, database, uplinks)
+├── config/              Configuration files (bbs.json, database, uplinks, i18n overrides)
+│   └── i18n/            Translation catalogs (en/, es/, fr/)
 ├── data/                Runtime data (logs, packets, nodelists)
 │   ├── inbound/         Received FTN packets
 │   ├── outbound/        Packets queued for transmission
 │   └── logs/            Application and packet logs
+├── database/
+│   └── migrations/      Database migrations (vX.Y.Z_description.sql or .php)
 ├── docs/                Documentation
+├── native-doors/        Native door installations and drop files
 ├── public_html/         Web root (index.php, CSS, JS, webdoors)
+│   └── webdoors/        WebDoor game installations
 ├── routes/              HTTP route definitions (web, API, admin)
 ├── scripts/             CLI tools (binkp server, poller, maintenance)
 ├── src/                 Core PHP classes
-│   ├── Admin/           Admin interface controllers
+│   ├── Admin/           Admin interface controllers and AdminDaemonClient
+│   ├── Antivirus/       Pluggable antivirus scanner backends
+│   ├── Binkp/           BinkP protocol implementation
+│   ├── FileArea/        File area rule processing
 │   ├── Database.php     PDO connection singleton
 │   ├── MessageHandler.php  Message processing and storage
-│   ├── PacketProcessor.php FTN packet parsing
 │   ├── Template.php     Twig template wrapper
 │   ├── UserCredit.php   Credits/currency system
 │   └── Version.php      Application version management
+├── ssh/                 SSH-2 daemon
+├── telnet/              Telnet BBS server
 ├── templates/           Twig templates
+│   └── shells/          Shell-specific base templates (web/, bbs-menu/)
 ├── tests/               Debug/test scripts
 └── vendor/              Composer dependencies (DO NOT EDIT)
 ```
 
-### Development Workflow
+---
 
-#### Code Conventions
+## Development Workflow
+
+### Code Conventions
 
 - **Variables/Functions**: camelCase (`$userName`, `sendMessage()`)
 - **Classes**: PascalCase (`MessageHandler`, `UserCredit`)
 - **Indentation**: 4 spaces (no tabs)
 - **Database**: Use `Database::getInstance()->getPdo()` for connections
+- **Environment variables**: Always use `Config::env('VAR_NAME', 'default')` — never `getenv()` or `$_ENV` directly
 
-#### Database Migrations
+### Database Migrations
 
-- **Schema files**: `data/schema/vX.Y.Z_description.sql`
-- **Initial setup**: Run `scripts/setup.php` for new installations
-- **Upgrades**: Run `scripts/upgrade.php` to apply migrations
-- **DO NOT** edit `postgres_schema.sql` directly - use migrations
+- **Migration files**: `database/migrations/vX.Y.Z_description.sql` (or `.php`)
+- **Apply migrations**: Run `php scripts/setup.php` — this runs both migrations and other upgrade tasks
+- **DO NOT** edit `postgres_schema.sql` directly — use migrations
+- **Version numbering**: Before creating a migration, check the highest existing version with `ls database/migrations/ | sort -V | tail -5`. The new file must be one increment higher — do not guess or reuse a version from a different branch of the version tree
+- Migrations can be SQL files or PHP files; see `CLAUDE.md` for the PHP migration patterns
 
-#### Making Changes
+### Making Changes
 
-1. **Read before editing**: Always use Read tool to view code before modifying
+1. **Read before editing**: Always read the file before modifying it
 2. **Avoid over-engineering**: Only implement what's requested
 3. **DRY principle**: Centralize repeated logic into classes
 4. **Security**: Watch for SQL injection, XSS, command injection
-5. **Feature parity**: Netmail and echomail features should be consistent
+5. **Feature parity**: Netmail and echomail features should generally be consistent — clarify when unsure
 
-#### URL Construction
+### URL Construction
 
 Always use the centralized `Config::getSiteUrl()` method when building full URLs:
 
@@ -121,79 +165,91 @@ This method:
 - Returns base URL without trailing slash
 - Prevents code duplication and ensures consistent behavior
 
-#### Version Management
+### Version Management
 
 - **Application version**: Edit `src/Version.php` only
 - **Auto-updates**: Tearlines, footer, API responses update automatically
 - **Format**: Semantic versioning (MAJOR.MINOR.PATCH)
+- **Database versions** are independent of the application version and use the migration file naming scheme
 
-#### Styling Updates
+### Styling Updates
 
-When modifying `public_html/css/style.css`, also update theme files:
+When modifying `public_html/css/style.css`, also update all theme files:
+- `public_html/css/amber.css`
 - `public_html/css/dark.css`
 - `public_html/css/greenterm.css`
 - `public_html/css/cyberpunk.css`
 
-### AI-Assisted Development
+### Service Worker Cache
 
-BinktermPHP is actively developed with AI assistance using tools like Claude (Anthropic) and Codex (OpenAI).
+When changing CSS, JavaScript files, or i18n catalog strings, increment the `CACHE_NAME` version in `public_html/sw.js` (e.g. `binkcache-v42` → `binkcache-v43`) to force clients to download fresh copies.
 
-#### CLAUDE.md - Project Instructions
+### Templates
 
-The `CLAUDE.md` file in the project root contains comprehensive instructions for AI assistants working on this codebase. This file:
+Template resolution order is `templates/custom/` → `templates/shells/<activeShell>/` → `templates/`. When adding nav links or modifying shared layout, update **both** `templates/base.twig` **and** `templates/shells/web/base.twig` (and `bbs-menu` if applicable).
 
-- Documents project structure, tech stack, and conventions
-- Provides context about FidoNet protocols and BBS concepts
-- Outlines coding patterns and best practices
-- Explains critical workflows (database migrations, version management, credits system)
-- Lists recent features and known issues
-- Serves as a knowledge base for both AI tools and human developers
+### Logging
 
-**For AI Tools**: When using Claude Code, Claude.ai, or Codex with this project, ensure the AI has access to `CLAUDE.md` for proper context. This file is the single source of truth for development guidelines.
+Use `AdminDaemonClient::log($level, $message, $context)` for application-level log messages from web-context PHP code. This routes messages through the admin daemon's structured log rather than the PHP error log. The static method handles connection, logging, and cleanup in one call:
 
-**For Human Developers**: Review `CLAUDE.md` to understand the patterns and conventions used throughout the codebase. If you're working with AI tools, keep this file updated as the project evolves.
+```php
+\BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'Something happened', ['key' => 'value']);
+```
 
-#### Working with AI Assistants
+---
 
-When using AI tools to develop BinktermPHP:
+## Localization (i18n)
 
-1. **Provide Context**: Reference `CLAUDE.md` and relevant documentation files
-2. **Be Specific**: Clearly describe the feature, bug, or change needed
-3. **Review Thoroughly**: AI-generated code should be tested and reviewed before committing
-4. **Update Documentation**: Keep `CLAUDE.md`, this guide, and other docs in sync with changes
-5. **Follow Conventions**: Ensure AI-generated code adheres to project coding standards
-6. **Test First, Commit Later**: Per git workflow guidelines, test changes before staging/committing
+All user-facing UI text must go through the translation system — do not hardcode strings in templates or JavaScript.
 
-#### Common AI Development Patterns
+### Translation Catalogs
 
-- **Feature Development**: Ask AI to read existing patterns first, then implement similarly
-- **Bug Fixes**: Provide error logs and relevant code context for accurate diagnosis
-- **Refactoring**: Specify the scope carefully to avoid over-engineering
-- **Documentation**: AI can help generate proposal documents (marked as AI-generated drafts)
-- **Code Review**: Use AI to explain unfamiliar code sections or suggest improvements
+Catalogs live in `config/i18n/<locale>/common.php` and `config/i18n/<locale>/errors.php`. Current supported locales: `en`, `es`, `fr`.
 
-#### Important Notes
+### Twig
 
-- AI-generated proposal documents should state they are drafts and AI-generated
-- Always verify AI suggestions against actual codebase behavior
-- The `vendor/` directory is managed by Composer - exclude from AI modifications
-- Database migrations require special care - review schema changes thoroughly
-- Security-sensitive code (authentication, packet processing) needs extra scrutiny
+```twig
+{{ t('ui.some.key', {}, 'common') }}
+{{ t('ui.polls.cost', {'cost': poll_cost}, 'common') }}
+```
 
-### Key Features
+### JavaScript
+
+```js
+window.t('ui.some.key', {}, 'Fallback text')
+```
+
+### API Errors
+
+API responses must use structured errors:
+```php
+apiError('errors.feature.something_failed', 'Human fallback', 500);
+```
+
+Frontend resolves display text with `window.getApiErrorMessage(payload, fallback)`.
+
+### Required checks before committing
+
+```bash
+php scripts/check_i18n_error_keys.php
+php scripts/check_i18n_hardcoded_strings.php
+```
+
+See `docs/Localization.md` for the full workflow.
+
+---
+
+## Key Features
 
 - **Multi-Network Support**: Connect to multiple FTN networks simultaneously
-- **Webdoors**: Drop-in game/application API (see `docs/WebDoors.md`)
-- **Credits System**: Configurable in-world currency (detailed below)
+- **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
+- **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
+- **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
+- **Credits System**: Configurable in-world currency (see below)
 - **Webshare**: Share echomail messages via secure links with expiration
 - **Gateway Tokens**: SSO-like authentication for external services
 - **ANSI Support**: JavaScript-based ANSI art renderer for messages
-
-### Getting Help
-
-- **FAQ**: See `FAQ.md` for common questions and troubleshooting
-- **WebDoor API**: See `docs/WebDoors.md` for game integration
-- **Upgrade Guides**: Check `UPGRADING_x.x.x.md` files for version-specific changes
+- **BBS Directory**: Public directory of BBS systems auto-populated via Echomail Robots
 
 ---
 
@@ -229,73 +285,133 @@ Defaults are loaded when config values are missing:
 - `netmail_cost`: `1`
 - `echomail_reward`: `3`
 
-If `symbol` is set to an empty string explicitly in `bbs.json`, the UI will display no
-symbol (just the number).
+### Using Credits in Code
 
-## Using Credits in Code
+**Reading balances:**
+```php
+UserCredit::getBalance($userId);
+```
 
-### Reading Balances
+**Charging or awarding credits** (preferred — returns `true`/`false`, no exceptions):
+```php
+UserCredit::debit($userId, $amount, $description);
+UserCredit::credit($userId, $amount, $description);
+```
 
-Use the public API:
+For strict error handling, call `transact()` directly and handle exceptions.
 
-- `UserCredit::getBalance($userId)`
+**Security:** Credit balance modifications must only occur server-side. JavaScript requests business actions (play game, buy item); the server decides whether credits are involved and handles all transactions internally. Never expose credit-specific endpoints to client code.
 
-### Charging or Awarding Credits (Preferred)
+### Credits Disabled Behavior
 
-Use the safe wrappers to avoid exceptions bubbling up:
+When `credits.enabled` is `false`, `transact()` throws, and `credit()`/`debit()` return `false`. Handle gracefully:
 
-- `UserCredit::debit($userId, $amount, $description, $otherPartyId = null, $type = UserCredit::TYPE_PAYMENT)`
-- `UserCredit::credit($userId, $amount, $description, $otherPartyId = null, $type = UserCredit::TYPE_SYSTEM_REWARD)`
+- **Optional rewards** (e.g. echomail rewards): attempt `credit()`; if `false`, log and continue.
+- **Hard requirements** (e.g. netmail cost): if `debit()` returns `false`, abort and return an error to the user.
+- **Games**: if credits are disabled, either disallow play with a clear message, or run in a for-fun mode that skips all credit calls.
 
-These call `transact()` internally and return `true`/`false`. If you need strict error
-handling, call `transact()` directly and handle exceptions.
+### Troubleshooting Credits
 
-### Transactions and Ledger
+- If balances aren't updating, verify `credits.enabled` in `bbs.json` is `true`, and that the migration creating `user_transactions` and `users.credit_balance` ran.
+- If symbols don't match, check `credits.symbol` in `bbs.json`. An empty string is valid and results in no symbol display.
 
-All balance changes must be recorded in `user_transactions`. `transact()` updates the
-balance and inserts a ledger row in one database transaction.
+---
 
-## Credits Disabled Behavior
+## Optional Components & Daemons
 
-When `credits.enabled` is `false`, `transact()` throws, and `credit()`/`debit()` return
-`false`. Your features should handle this gracefully.
+Several features require additional background daemons or services beyond the core web interface and binkp mailer. These are optional — only run the ones that apply to the features you want to offer.
 
-Recommended patterns:
+### Door Games
 
-- **Optional rewards** (e.g. echomail rewards):
-  - Attempt `credit()`; if `false`, log and continue.
-- **Hard requirements** (e.g. netmail cost):
-  - If `debit()` returns `false`, abort the action and return an error to the user.
-- **Games**:
-  - If credits are disabled, either:
-    - Disallow play and show a clear message, or
-    - Run in a read-only/for-fun mode that does not affect balances.
+BinktermPHP supports three door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
 
-## Games + Webdoors
+| Type | Description | Doc |
+|------|-------------|-----|
+| **WebDoors** | HTML5/JavaScript games in a browser iframe — no extra server-side process required | [WebDoors.md](WebDoors.md) |
+| **Native Doors** | Linux binaries or Windows executables launched via PTY | [NativeDoors.md](NativeDoors.md) |
+| **DOS Doors** | Classic DOS games running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
 
-Games that integrate with credits should:
+#### Multiplexing Bridge (Node.js)
 
-1. Check `credits.enabled` before requiring a balance.
-2. Use `UserCredit::credit()` and `UserCredit::debit()` for payouts and wagers.
-3. Use the configured symbol from `bbs.json` when displaying amounts.
+Native Doors and DOS Doors both require the multiplexing bridge: `scripts/dosbox-bridge/multiplexing-server.js`. See [Doors.md](Doors.md) for full setup, environment variables, reverse proxy configuration, and service/daemon installation.
 
-Example flow (Blackjack):
+```bash
+cd scripts/dosbox-bridge
+npm install      # installs ws, pg, node-pty, iconv-lite, dotenv
 
-- On load: verify credits are enabled, load balance, and show symbol.
-- On win/loss: call `credit()` or `debit()` and update the displayed balance.
+# Development
+node scripts/dosbox-bridge/multiplexing-server.js
 
-If credits are disabled, a game should either:
+# Production (daemon mode)
+node scripts/dosbox-bridge/multiplexing-server.js --daemon
+```
 
-- Display a message and exit, or
-- Run without wagering and skip all credit calls.
+PID file: `data/run/multiplexing-server.pid` — Log: `data/logs/multiplexing-server.log`
 
-## Troubleshooting
+---
 
-- If balances aren’t updating, verify:
-  - `credits.enabled` in `bbs.json` is `true`
-  - The migration creating `user_transactions` and `users.credit_balance` ran
-  - You’re using `UserCredit::credit()` / `debit()` or `transact()`
+### MRC Chat Daemon (`scripts/mrc_daemon.php`)
 
-- If symbols don’t match:
-  - Check `credits.symbol` in `bbs.json`
-  - Empty string is valid and results in no symbol display
+Provides **Multi Relay Chat** — a real-time chat network for FTN BBSs. Maintains a persistent connection to an MRC server, relays messages, and keeps room state in the database. See [MRC_Chat.md](MRC_Chat.md) for configuration and setup.
+
+```bash
+php scripts/mrc_daemon.php --daemon
+```
+
+PID file: `data/run/mrc_daemon.pid`
+
+---
+
+### Gemini Daemon (`scripts/gemini_daemon.php`)
+
+Serves BBS content (user capsules, echomail) over the [Gemini protocol](https://geminiprotocol.net/) via TLS on port 1965. See [GeminiCapsule.md](GeminiCapsule.md) for TLS certificate setup and configuration.
+
+```bash
+php scripts/gemini_daemon.php --daemon
+```
+
+PID file: `data/run/gemini_daemon.pid` — Log: `data/logs/gemini_daemon.log`
+
+---
+
+### Terminal Servers
+
+The Telnet and SSH daemons provide a classic BBS terminal interface alongside the web UI. See [TerminalServer.md](TerminalServer.md) for Telnet and [SSHServer.md](SSHServer.md) for SSH setup.
+
+---
+
+### Echomail Robots (`scripts/echomail_robots.php`)
+
+Processes robot command messages posted to special echo areas (e.g. AREAS.BBS subscription management, BBS directory updates). See [Robots.md](Robots.md) for available robots and configuration.
+
+---
+
+### Other Background Scripts
+
+Maintenance and scheduling scripts typically run via cron or the admin daemon's task scheduler. See [MAINTENANCE.md](MAINTENANCE.md) and [CLI.md](CLI.md) for full details.
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/binkp_scheduler.php` | Schedules automatic uplink polling |
+| `scripts/binkp_poll.php` | Polls a single uplink on demand |
+| `scripts/echomail_maintenance.php` | Prunes old messages per area retention settings |
+| `scripts/chat_cleanup.php` | Removes expired MRC chat history |
+| `scripts/logrotate.php` | Rotates application log files |
+| `scripts/database_maintenance.php` | Periodic database VACUUM and upkeep |
+| `scripts/update_nodelists.php` | Downloads and imports FTN nodelist files |
+| `scripts/activity_digest.php` | Sends periodic activity digest emails |
+| `scripts/rss_poster.php` | Posts RSS feed items as echomail |
+| `scripts/weather_report.php` | Posts weather reports as echomail |
+
+The `restart_daemons.sh` (Linux) and `start_daemons_windows.cmd` / `start_daemons_windows.ps1` (Windows) scripts start or restart all long-running daemons in one step.
+
+---
+
+## Getting Help
+
+- **FAQ**: See `FAQ.md` for common questions and troubleshooting
+- **Antivirus**: See `docs/AntiVirus.md` for virus scanning setup and configuration
+- **WebDoor API**: See `docs/WebDoors.md` for game integration
+- **Door Games**: See `docs/Doors.md` for the multiplexing bridge and door types
+- **Localization**: See `docs/Localization.md` for the full i18n workflow
+- **Upgrade Guides**: Check `docs/UPGRADING_x.x.x.md` files for version-specific changes

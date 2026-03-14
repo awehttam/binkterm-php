@@ -17,6 +17,7 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Version;
 
 class BinkdProcessor
@@ -25,7 +26,7 @@ class BinkdProcessor
     private $inboundPath;
     private $outboundPath;
     private $config;
-    private $logFile;
+    private Logger $logger;
 
     public function __construct()
     {
@@ -33,16 +34,7 @@ class BinkdProcessor
         $this->config = BinkpConfig::getInstance();
         $this->inboundPath = $this->config->getInboundPath();
         $this->outboundPath = $this->config->getOutboundPath();
-
-        // Set up log file path
-        $baseDir = dirname(__DIR__);
-        $logDir = $baseDir . '/data/logs';
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0755, true);
-        }
-        $this->logFile = $logDir . '/packets.log';
-
-        // The BinkpConfig methods already handle directory creation
+        $this->logger = new Logger(Config::getLogPath('packets.log'), 'INFO', false);
     }
 
     /**
@@ -50,9 +42,7 @@ class BinkdProcessor
      */
     private function log(string $message): void
     {
-        $timestamp = date('Y-m-d H:i:s');
-        $logLine = "[$timestamp] $message\n";
-        @file_put_contents($this->logFile, $logLine, FILE_APPEND | LOCK_EX);
+        $this->logger->info($message);
     }
 
     public function processInboundPackets()
@@ -79,8 +69,10 @@ class BinkdProcessor
         
         // Process compressed bundles (various formats)
         // Include both lowercase and uppercase patterns for case-sensitive filesystems
+        // Only match FTN day-of-week bundle extensions — these are unambiguously
+        // packet bundles. Generic archive extensions (.zip, .arc, .arj, .lzh, .rar)
+        // are intentionally excluded because they may be regular file attachments.
         $bundlePatterns = [
-            '/*.zip',    // Standard ZIP
             '/*.su?',    // Sunday bundles: .su0, .su1, etc.
             '/*.mo?',    // Monday bundles: .mo0, .mo1, etc.
             '/*.tu?',    // Tuesday bundles: .tu0, .tu1, etc.
@@ -95,10 +87,6 @@ class BinkdProcessor
             '/*.TH?',    // Thursday bundles (uppercase)
             '/*.FR?',    // Friday bundles (uppercase)
             '/*.SA?',    // Saturday bundles (uppercase)
-            '/*.arc',    // ARC compressed
-            '/*.arj',    // ARJ compressed
-            '/*.lzh',    // LHA compressed
-            '/*.rar'     // RAR compressed
         ];
         
         foreach ($bundlePatterns as $pattern) {
@@ -177,6 +165,7 @@ class BinkdProcessor
 
             try {
                 $packetInfo = $this->parsePacketHeader($header);
+                $packetInfo['packet_name'] = $packetName;
                 $origAddress = $packetInfo['origZone'] . ':' . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
                 $destAddress = $packetInfo['destZone'] . ':' . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
 
@@ -202,9 +191,10 @@ class BinkdProcessor
             }
 
             // Process messages in packet
-            $messageCount = 0;
-            $failedMessages = 0;
-            $echomailRejected = false;
+            $messageCount      = 0;
+            $failedMessages    = 0;
+            $echomailRejected  = false;
+            $hasUndeliverable  = false;
 
             while (!feof($handle)) {
                 try {
@@ -218,7 +208,9 @@ class BinkdProcessor
                             break; // Stop processing this packet
                         }
 
-                        $this->storeMessage($message, $packetInfo, $isInsecureSession);
+                        $msgUndeliverable = false;
+                        $this->storeMessage($message, $packetInfo, $isInsecureSession, $msgUndeliverable);
+                        $hasUndeliverable = $hasUndeliverable || $msgUndeliverable;
                         $messageCount++;
                     }
                 } catch (\Exception $e) {
@@ -237,7 +229,22 @@ class BinkdProcessor
                 $this->logPacket($filename, 'IN', 'error');
                 throw new \Exception($error);
             }
-            
+
+            // Preserve a copy of the original packet if any message was undeliverable
+            if ($hasUndeliverable) {
+                $baseDir      = dirname(__DIR__);
+                $undeliverDir = $baseDir . '/data/undeliverable';
+                if (!is_dir($undeliverDir)) {
+                    @mkdir($undeliverDir, 0755, true);
+                }
+                $dest = $undeliverDir . '/' . date('Ymd_His') . '_' . $packetName;
+                if (@copy($filename, $dest)) {
+                    $this->log("[BINKD] Undeliverable packet preserved to: data/undeliverable/" . basename($dest));
+                } else {
+                    $this->log("[BINKD] WARNING: Could not preserve undeliverable packet $packetName");
+                }
+            }
+
             $this->log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
             $this->logPacket($filename, 'IN', 'processed');
             
@@ -342,20 +349,20 @@ class BinkdProcessor
         $subjectRaw = $this->readNullStringRaw($handle, 72);
         
         // Read message text until null terminator
-        $messageText = '';
+        $messageTextRaw = '';
         while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
-            $messageText .= $char;
+            $messageTextRaw .= $char;
         }
-        
+
         // Extract CHRS kludge to determine character encoding before conversion
-        $detectedEncoding = $this->extractChrsKludge($messageText);
+        $detectedEncoding = $this->extractChrsKludge($messageTextRaw);
         
         // Convert all strings from detected/default encoding to UTF-8 for database storage
         $dateTime = $this->convertToUtf8($dateTimeRaw, $detectedEncoding);
         $toName = $this->convertToUtf8($toNameRaw, $detectedEncoding);
         $fromName = $this->convertToUtf8($fromNameRaw, $detectedEncoding);
         $subject = $this->convertToUtf8($subjectRaw, $detectedEncoding);
-        $messageText = $this->convertToUtf8($messageText, $detectedEncoding);
+        $messageText = $this->convertToUtf8($messageTextRaw, $detectedEncoding);
 
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
@@ -447,6 +454,8 @@ class BinkdProcessor
             'subject' => trim($subject),
             'dateTime' => trim($dateTime),
             'text' => $messageText,
+            'textRaw' => $messageTextRaw ?? null,
+            'detectedEncoding' => $detectedEncoding,
             'attributes' => $header['attr']
         ];
 
@@ -543,6 +552,23 @@ class BinkdProcessor
         return mb_convert_encoding($string, 'UTF-8', 'UTF-8//IGNORE');
     }
 
+    private function splitFtnLines(string $text): array
+    {
+        $normalized = str_replace("\r\n", "\n", $text);
+        $normalized = str_replace("\r", "\n", $normalized);
+        return explode("\n", $normalized);
+    }
+
+    private function normalizeDetectedEncoding(?string $encoding, ?string $rawBody = null): ?string
+    {
+        return ArtFormatDetector::normalizeDetectedEncoding($encoding, $rawBody);
+    }
+
+    private function detectArtFormat(?string $rawBody, ?string $detectedEncoding = null): ?string
+    {
+        return ArtFormatDetector::detectArtFormat($rawBody, $detectedEncoding);
+    }
+
     /**
      * Extract character encoding from CHRS kludge line
      * CHRS format: "CHRS: <charset> <level>"
@@ -592,14 +618,14 @@ class BinkdProcessor
         return null; // No CHRS kludge found
     }
 
-    private function storeMessage($message, $packetInfo = null, $isInsecureSession = false)
+    private function storeMessage($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
         // Determine if this is netmail or echomail based on FidoNet standards
         // Use comprehensive detection that works with raw message text
         $isNetmail = $this->isNetmailMessage($message, true);
 
         if ($isNetmail) {
-            $this->storeNetmail($message, $packetInfo, $isInsecureSession);
+            $this->storeNetmail($message, $packetInfo, $isInsecureSession, $undeliverable);
         } else {
             $this->storeEchomail($message, $packetInfo, $message['domain']);
         }
@@ -687,18 +713,39 @@ class BinkdProcessor
         return strpos($firstLine, 'AREA:') === 0;
     }
 
-    private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false)
+    private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
+
+        // Drop undeliverable netmail — no user matched by address or name.
+        // The old sysop catch-all has been removed to prevent misrouted echomail
+        // (which typically has no AREA:/SEEN-BY/PATH markers and an unrecognised
+        // toName) from silently landing in the sysop inbox.
+        // The caller will preserve the original packet file for sysop review.
+        if ($userId === null) {
+            $msgid = '';
+            if (preg_match('/^\x01MSGID:\s*(.+)$/mi', $message['text'] ?? '', $m)) {
+                $msgid = ' msgid=' . trim($m[1]);
+            }
+            $this->log("[BINKD] Dropping undeliverable netmail:"
+                . " pkt=" . ($packetInfo['packet_name'] ?? 'unknown')
+                . " from=" . $message['fromName'] . " <" . $message['origAddr'] . ">"
+                . " to=" . $message['toName'] . " <" . $message['destAddr'] . ">"
+                . " subj=" . $message['subject']
+                . " date=" . $message['dateTime']
+                . $msgid);
+            $undeliverable = true;
+            return;
+        }
         
         // Parse netmail message text to separate kludges from content
         $messageText = $message['text'];
-        $messageText = str_replace("\r\n", "\n", $messageText); // Normalize line endings
-        $messageText = str_replace("\r", "\n", $messageText);
-        
-        $lines = explode("\n", $messageText);
+        $messageTextRaw = $message['textRaw'] ?? '';
+        $lines = $this->splitFtnLines($messageText);
+        $rawLines = $this->splitFtnLines($messageTextRaw);
         $cleanedLines = [];
+        $cleanedRawLines = [];
         $kludgeLines = [];
         $bottomKludges = [];
         $tzutcOffset = null;
@@ -706,7 +753,8 @@ class BinkdProcessor
         $originalAuthorAddress = null;
         $replyAddress = null;
 
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
+            $rawLine = $rawLines[$index] ?? '';
             // Process kludge lines (lines starting with \x01) in netmail
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
                 // Separate bottom kludges (FTS-4009: Via and PATH go after message text)
@@ -767,12 +815,16 @@ class BinkdProcessor
             
             // Include non-kludge lines in cleaned message text
             $cleanedLines[] = $line;
+            $cleanedRawLines[] = $rawLine;
         }
         
         // Create clean message text without kludges
         $cleanMessageText = implode("\n", $cleanedLines);
+        $cleanMessageRaw = implode("\n", $cleanedRawLines);
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
+        $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $messageTextRaw);
+        $artFormat = $this->detectArtFormat($cleanMessageRaw, $message['detectedEncoding'] ?? null);
 
         // Use addresses from kludges if available (more reliable than INTL kludge)
         // Priority: REPLYADDR > MSGID original author > message envelope
@@ -793,30 +845,32 @@ class BinkdProcessor
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
 
-        $stmt->execute([
-            $userId,
-            $fromAddr,
-            $message['destAddr'],
-            $message['fromName'],
-            $message['toName'],
-            $message['subject'],
-            $cleanMessageText, // Use cleaned message text without kludges
-            $dateWritten,
-            $message['attributes'],
-            $messageId,
-            $originalAuthorAddress,
-            $replyAddress,
-            $kludgeText, // Store top kludges separately
-            !empty($bottomKludgeText) ? $bottomKludgeText : null, // Store bottom kludges (Via, etc.)
-            $replyToId,
-            $isInsecureSession ? 'true' : 'false' // PostgreSQL boolean
-        ]);
+        $stmt->bindValue(':user_id', $userId);
+        $stmt->bindValue(':from_address', $fromAddr);
+        $stmt->bindValue(':to_address', $message['destAddr']);
+        $stmt->bindValue(':from_name', $message['fromName']);
+        $stmt->bindValue(':to_name', $message['toName']);
+        $stmt->bindValue(':subject', $message['subject']);
+        $stmt->bindValue(':message_text', $cleanMessageText);
+        $stmt->bindValue(':raw_message_bytes', $cleanMessageRaw !== '' ? $cleanMessageRaw : null, $cleanMessageRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $messageCharset);
+        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':date_written', $dateWritten);
+        $stmt->bindValue(':attributes', $message['attributes']);
+        $stmt->bindValue(':message_id', $messageId);
+        $stmt->bindValue(':original_author_address', $originalAuthorAddress);
+        $stmt->bindValue(':reply_address', $replyAddress);
+        $stmt->bindValue(':kludge_lines', $kludgeText);
+        $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
+        $stmt->bindValue(':reply_to_id', $replyToId);
+        $stmt->bindValue(':received_insecure', $isInsecureSession ? 'true' : 'false');
+        $stmt->execute();
 
         $netmailId = $this->db->lastInsertId();
 
@@ -917,13 +971,13 @@ class BinkdProcessor
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
         $messageText = $message['text'];
-        $messageText = str_replace("\r\n", "\n", $messageText); // Normalize \r\n to \n
-        $messageText = str_replace("\r", "\n", $messageText);   // Normalize \r to \n
-        
-        $lines = explode("\n", $messageText);
+        $messageTextRaw = $message['textRaw'] ?? '';
+        $lines = $this->splitFtnLines($messageText);
+        $rawLines = $this->splitFtnLines($messageTextRaw);
         $echoareaTag = 'UNKNOWN';
         $hasAreaLine = false;
         $cleanedLines = [];
+        $cleanedRawLines = [];
         $kludgeLines = [];
         $bottomKludges = [];
         $messageId = null;
@@ -932,6 +986,7 @@ class BinkdProcessor
         $tzutcOffset = null;
 
         foreach ($lines as $i => $line) {
+            $rawLine = $rawLines[$i] ?? '';
             // Extract AREA: tag from first line
             if ($i === 0 && strpos($line, 'AREA:') === 0) {
                 // Extract just the echoarea name, strip any control characters or extra data
@@ -1022,13 +1077,16 @@ class BinkdProcessor
                 }
                 
                 $cleanedLines[] = $line; // Keep origin line in message body
+                $cleanedRawLines[] = $rawLine;
                 continue;
             }
             
             $cleanedLines[] = $line;
+            $cleanedRawLines[] = $rawLine;
         }
         
         $messageText = implode("\n", $cleanedLines);
+        $messageTextRaw = implode("\n", $cleanedRawLines);
 
         // Drop if no valid AREA: line was found — malformed echomail with no area tag
         if (!$hasAreaLine) {
@@ -1039,18 +1097,14 @@ class BinkdProcessor
         // Get or create echoarea
         $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
 
-        // We don't record date_received explictly to allow postgres to use its DEFAULT value
-        $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?)
-        ");
-
         //$this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
         //$this->log("DEBUG: dateWritten is $dateWritten");
         //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
+        $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $message['textRaw'] ?? '');
+        $artFormat = $this->detectArtFormat($messageTextRaw, $message['detectedEncoding'] ?? null);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
         $replyToId = null;
@@ -1101,20 +1155,26 @@ class BinkdProcessor
                     ', Subject: '.$message['subject']
         );
 
-        $stmt->execute([
-            $echoarea['id'],
-            $fromAddress,
-            $message['fromName'],
-            $message['toName'],
-            $message['subject'],
-            $messageText,
-            $dateWritten,
-            $messageId,
-            $originLine,
-            $kludgeText,
-            !empty($bottomKludgeText) ? $bottomKludgeText : null, // Store bottom kludges (Via, etc.)
-            $replyToId
-        ]);
+        $stmt = $this->db->prepare("
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+        ");
+        $stmt->bindValue(':echoarea_id', $echoarea['id']);
+        $stmt->bindValue(':from_address', $fromAddress);
+        $stmt->bindValue(':from_name', $message['fromName']);
+        $stmt->bindValue(':to_name', $message['toName']);
+        $stmt->bindValue(':subject', $message['subject']);
+        $stmt->bindValue(':message_text', $messageText);
+        $stmt->bindValue(':raw_message_bytes', $messageTextRaw !== '' ? $messageTextRaw : null, $messageTextRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $messageCharset);
+        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':date_written', $dateWritten);
+        $stmt->bindValue(':message_id', $messageId);
+        $stmt->bindValue(':origin_line', $originLine);
+        $stmt->bindValue(':kludge_lines', $kludgeText);
+        $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
+        $stmt->bindValue(':reply_to_id', $replyToId);
+        $stmt->execute();
         
         // Update message count
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
@@ -1733,26 +1793,8 @@ class BinkdProcessor
             }
         }
         
-        // Strategy 5: Fallback to system administrator from config
-        $sysopName = $this->config->getSystemSysop();
-        if (!empty($sysopName)) {
-            $stmt = $this->db->prepare("
-                SELECT id FROM users 
-                WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
-                LIMIT 1
-            ");
-            $stmt->execute([$sysopName, $sysopName]);
-            $user = $stmt->fetch();
-            if ($user) {
-                return $user['id'];
-            }
-        }
-        
-        // Final fallback: First user in database (assumed to be admin)
-        $stmt = $this->db->prepare("SELECT id FROM users WHERE is_admin=true ORDER BY id LIMIT 1");
-        $stmt->execute();
-        $user = $stmt->fetch();
-        return $user ? $user['id'] : 1; // Default to ID 1 if no users exist
+        // No match found — return null so caller can decide how to handle undeliverable mail
+        return null;
     }
 
     private function processBundle($bundleFile)
@@ -1911,49 +1953,133 @@ class BinkdProcessor
         ];
     }
 
+    /**
+     * Ensure a path is strictly underneath an allowed base directory.
+     * Resolves symlinks and `..` segments before comparing.
+     * Returns false if the path escapes the base or cannot be resolved.
+     *
+     * @param string $path     Path to check
+     * @param string $base     Allowed base directory (must already exist)
+     * @return bool
+     */
+    private function pathIsUnder(string $path, string $base): bool
+    {
+        $realBase = realpath($base);
+        if ($realBase === false) {
+            return false;
+        }
+        // For files that don't exist yet, resolve the parent directory
+        $realPath = realpath($path);
+        if ($realPath === false) {
+            $realPath = realpath(dirname($path));
+            if ($realPath === false) {
+                return false;
+            }
+        }
+        return str_starts_with($realPath . DIRECTORY_SEPARATOR, $realBase . DIRECTORY_SEPARATOR);
+    }
+
     private function processExtractedPackets(string $tempDir): int
     {
         $processed = 0;
 
-        // Process all .pkt files in the extracted bundle (both lowercase and uppercase)
-        $extractedFiles = array_merge(
-            glob($tempDir . '/*.pkt') ?: [],
-            glob($tempDir . '/*.PKT') ?: []
+        // Guard: tempDir must be inside inbound to prevent operating on arbitrary paths
+        if (!$this->pathIsUnder($tempDir, $this->inboundPath)) {
+            $this->log("[BINKD] Security: tempDir '$tempDir' is outside inbound path, aborting extraction");
+            return 0;
+        }
+
+        // Recursively find all files in the extracted bundle (archives may extract
+        // into subdirectories, e.g. RETROPCK/ inside the temp dir)
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($tempDir, \RecursiveDirectoryIterator::SKIP_DOTS)
         );
 
-        $this->log("[BINKD] Found " . count($extractedFiles) . " packet files in extracted bundle");
+        $pktFiles = [];
+        $otherFiles = [];
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            // Guard: skip any file that escaped the temp dir via symlink or traversal
+            if (!$this->pathIsUnder($file->getPathname(), $tempDir)) {
+                $this->log("[BINKD] Security: skipping file outside tempDir: " . $file->getPathname());
+                continue;
+            }
+            $ext = strtolower($file->getExtension());
+            if ($ext === 'pkt') {
+                $pktFiles[] = $file->getPathname();
+            } else {
+                $otherFiles[] = $file->getPathname();
+            }
+        }
 
-        foreach ($extractedFiles as $pktFile) {
+        $this->log("[BINKD] Found " . count($pktFiles) . " packet files in extracted bundle");
+
+        foreach ($pktFiles as $pktFile) {
             try {
                 $this->log("[BINKD] Processing extracted packet: " . basename($pktFile));
                 if ($this->processPacket($pktFile)) {
                     $processed++;
                 }
-                unlink($pktFile); // Remove processed packet
+                unlink($pktFile);
             } catch (\Exception $e) {
                 $this->log("Error processing extracted packet $pktFile: " . $e->getMessage());
-                // Move failed packet to error directory
                 $this->moveToErrorDir($pktFile);
+            }
+        }
+
+        // Move any non-pkt files back to inbound so TIC processing can find them
+        // (e.g. NIXLIST.Z65 or RETRONET.z65 bundled inside a day archive)
+        foreach ($otherFiles as $file) {
+            $dest = $this->inboundPath . '/' . basename($file);
+            if (rename($file, $dest)) {
+                $this->log("[BINKD] Moved non-packet file to inbound: " . basename($file));
+            } else {
+                $this->log("[BINKD] Failed to move non-packet file to inbound: " . basename($file));
+                unlink($file);
             }
         }
 
         return $processed;
     }
-    
-    private function cleanupTempDir($tempDir)
+
+    /**
+     * Recursively delete a temporary extraction directory.
+     * Includes a path guard to prevent deletion of files outside inbound.
+     *
+     * @param string $tempDir Path to the temporary directory
+     */
+    private function cleanupTempDir(string $tempDir): void
     {
         if (!is_dir($tempDir)) {
             return;
         }
-        
-        // Clean up any remaining files in temp directory
-        $remainingFiles = glob($tempDir . '/*');
-        foreach ($remainingFiles as $file) {
-            if (is_file($file)) {
-                unlink($file);
+
+        // Guard: refuse to operate on anything outside the inbound directory
+        if (!$this->pathIsUnder($tempDir, $this->inboundPath)) {
+            $this->log("[BINKD] Security: refusing to clean up tempDir '$tempDir' outside inbound path");
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($tempDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            // Guard each item individually against path traversal
+            if (!$this->pathIsUnder($item->getPathname(), $tempDir)) {
+                $this->log("[BINKD] Security: skipping item outside tempDir during cleanup: " . $item->getPathname());
+                continue;
+            }
+            if ($item->isFile()) {
+                unlink($item->getPathname());
+            } elseif ($item->isDir()) {
+                rmdir($item->getPathname());
             }
         }
-        
+
         rmdir($tempDir);
     }
 

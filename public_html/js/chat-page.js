@@ -18,6 +18,22 @@
     };
 
     let dbPromise = null;
+    function uiT(key, fallback, params = {}) {
+        if (window.t) {
+            return window.t(key, params, fallback);
+        }
+        return fallback;
+    }
+
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        if (payload && payload.error) {
+            return String(payload.error);
+        }
+        return fallback;
+    }
 
     function openDb() {
         if (dbPromise) return dbPromise;
@@ -161,7 +177,7 @@
         if (state.users.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'chat-empty text-muted';
-            empty.textContent = 'No one online';
+            empty.textContent = uiT('ui.chat.no_one_online', 'No one online');
             list.appendChild(empty);
             return;
         }
@@ -192,11 +208,11 @@
         const metaEl = document.getElementById('chatThreadMeta');
         if (state.active.type === 'room') {
             const room = state.rooms.find(r => r.id === state.active.id);
-            titleEl.textContent = room ? room.name : 'Room';
+            titleEl.textContent = room ? room.name : uiT('ui.chat.room', 'Room');
             metaEl.textContent = room && room.description ? room.description : '';
         } else {
             const user = state.users.find(u => u.user_id === state.active.id);
-            titleEl.textContent = user ? user.username : 'Direct';
+            titleEl.textContent = user ? user.username : uiT('ui.chat.direct', 'Direct');
             metaEl.textContent = user && user.location ? user.location : '';
         }
     }
@@ -265,7 +281,7 @@
         const header = document.createElement('div');
         header.className = 'chat-message-header';
         const authorClass = window.currentUserIsAdmin ? 'chat-message-author admin-action' : 'chat-message-author';
-        header.innerHTML = `<span class="${authorClass}" data-user-id="${msg.from_user_id || ''}" title="${window.currentUserIsAdmin ? 'Right-click or click to moderate' : ''}">${escapeHtml(msg.from_username || 'System')}</span>
+        header.innerHTML = `<span class="${authorClass}" data-user-id="${msg.from_user_id || ''}" title="${window.currentUserIsAdmin ? uiT('ui.chat.moderation_hint', 'Right-click or click to moderate') : ''}">${escapeHtml(msg.from_username || uiT('ui.chat.system', 'System'))}</span>
             <span class="chat-message-time">${formatTimestamp(msg.created_at)}</span>`;
 
         const body = document.createElement('div');
@@ -381,10 +397,10 @@
                 appendMessage(data.local_message);
             }
             if (!data.success) {
-                alert(data.error || 'Failed to send message');
+                alert(apiError(data, uiT('ui.chat.send_failed', 'Failed to send message')));
             }
         }).catch(() => {
-            alert('Failed to send message');
+            alert(uiT('ui.chat.send_failed', 'Failed to send message'));
         });
     }
 
@@ -553,7 +569,9 @@
             if (!button || !currentTarget) return;
 
             const action = button.dataset.action;
-            if (!confirm(`${action === 'ban' ? 'Ban' : 'Kick'} this user from the room?`)) {
+            if (!confirm(action === 'ban'
+                ? uiT('ui.chat.confirm_ban', 'Ban this user from the room?')
+                : uiT('ui.chat.confirm_kick', 'Kick this user from the room?'))) {
                 hideMenu();
                 return;
             }
@@ -568,10 +586,10 @@
                 })
             }).then(res => res.json()).then(data => {
                 if (!data.success) {
-                    alert(data.error || 'Moderation failed');
+                    alert(apiError(data, uiT('ui.chat.moderation_failed', 'Moderation failed')));
                 }
             }).catch(() => {
-                alert('Moderation failed');
+                alert(uiT('ui.chat.moderation_failed', 'Moderation failed'));
             }).finally(() => {
                 hideMenu();
             });

@@ -116,11 +116,19 @@ Users will see the new theme in their settings dropdown immediately after the co
 1. For local-only areas: Enable the "Local Only" flag on the echo area
 2. For networked areas: Add an uplink configuration in `binkp.json` for that domain
 
-### Q: What's the difference between uplink_address on an echo area vs in binkp.json?
-**A:**
-- The `uplink_address` on an echo area is an optional (experimental) override for where to send messages for that specific area
-- The uplink in `binkp.json` defines the actual connection details (hostname, password) for polling and sending mail
-- If an echo area has no `uplink_address`, messages go to the default uplink for that domain
+### Q: What is the uplink_address field on an echo area actually used for?
+**A:** It is a per-echo-area override for the outbound packet destination. For most installations it should be left blank.
+
+When BinktermPHP spools an outbound echomail message it determines where to send it using this priority order:
+
+1. **Echo area `uplink_address`** — if set, this address is used for that area only
+2. **Domain-level uplink** — the uplink in `binkp.json` whose `domain` matches the echo area's domain
+3. **Fallback** — the uplink in `binkp.json` marked `"default": true`, or if none is marked, the first enabled uplink
+4. **None** — message is not sent upstream (effectively local delivery)
+
+In practice, for a typical setup, step 2 handles everything and `uplink_address` is always left blank. It would only be needed if you had two different uplinks on the same domain and wanted specific echo areas routed to a specific one — an uncommon scenario.
+
+**Note:** The `uplink_address` stored here is just the FTN address (e.g. `21:1/100`). The actual connection details (hostname, port, password) are always defined in `binkp.json` — this field only selects *which* of those configured uplinks to use.
 
 ### Q: Why does ANSI art render incorrectly?
 **A:**
@@ -152,6 +160,15 @@ When sending netmail, check the "Crash" option to attempt direct delivery.
 4. Run `php cli/binkp_poll.php --domain=<domain>` to poll your uplink
 5. Check `data/logs/packets.log` and `data/logs/binkp_poll.log` for errors
 
+### Q: If a packet contains multiple messages and one fails, are other messages affected?
+**A:** It depends on the failure type:
+
+- **Single message exception** (e.g. database error, malformed message data): Only that message is skipped. Processing continues normally for all remaining messages in the packet.
+- **Undeliverable netmail** (no matching local user found by address or name): The message is dropped with a detailed log entry (from/to/subject/date/MSGID) and processing continues. The original `.pkt` file is also preserved to `data/undeliverable/` for manual inspection.
+- **Echomail from an insecure session** (security rejection): Processing stops immediately — the rest of the packet is abandoned and moved to the error directory.
+
+In the first two cases the packet is still considered successfully processed even if individual messages were skipped.
+
 ---
 
 ## Binkp Server & Polling
@@ -162,6 +179,17 @@ When sending netmail, check the "Crash" option to attempt direct delivery.
 Use the --queued-only switch to binkp_poll.php.  In this mode binkp_poll will only poll the uplink if there are packets
 in the queue.
 
+### Q: If an uplink is configured to use CRAM-MD5 (`crypt`), can a remote system still dial in using plaintext authentication?
+**A:** Yes, by default it can.
+
+When the server sees that CRAM-MD5 is available it sends a challenge, but it will still accept a plaintext password response unless `security.allow_plaintext_fallback` is set to `false` in `binkp.json`.
+
+So the current behavior is:
+
+- `crypt` enabled and `allow_plaintext_fallback = true` (default): CRAM-MD5 is offered, but plaintext is still accepted
+- `crypt` enabled and `allow_plaintext_fallback = false`: if a challenge was sent, the remote must use CRAM-MD5
+
+Note: the server currently sends a CRAM-MD5 challenge if any configured uplink has `crypt` enabled, not only the specific remote that connected.
 
 ### Q: What's the difference between polling and the binkp server?
 **A:**

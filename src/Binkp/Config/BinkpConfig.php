@@ -96,7 +96,8 @@ class BinkpConfig
                 'bind_address' => '0.0.0.0',
                 'inbound_path' => 'data/inbound',
                 'outbound_path' => 'data/outbound',
-                'preserve_processed_packets' => false
+                'preserve_processed_packets' => false,
+                'preserve_sent_packets' => false
             ],
             'uplinks' => []
         ];
@@ -189,15 +190,37 @@ class BinkpConfig
     {
         return $this->config['binkp']['preserve_processed_packets'] ?? false;
     }
+
+    public function getPreserveSentPackets()
+    {
+        return $this->config['binkp']['preserve_sent_packets'] ?? false;
+    }
     
     public function getProcessedPacketsPath()
     {
         $inboundPath = $this->getInboundPath();
-        $processedPath = $inboundPath . DIRECTORY_SEPARATOR . 'processed';
-        if (!is_dir($processedPath)) {
-            mkdir($processedPath, 0755, true);
+        return $this->getDatedKeepPath($inboundPath);
+    }
+
+    public function getPreservedSentPacketsPath()
+    {
+        $outboundPath = $this->getOutboundPath();
+        return $this->getDatedKeepPath($outboundPath);
+    }
+
+    private function getDatedKeepPath(string $basePath): string
+    {
+        $keepPath = $basePath . DIRECTORY_SEPARATOR . 'keep';
+        if (!is_dir($keepPath)) {
+            mkdir($keepPath, 0755, true);
         }
-        return $processedPath;
+
+        $datedPath = $keepPath . DIRECTORY_SEPARATOR . date('M-d-Y');
+        if (!is_dir($datedPath)) {
+            mkdir($datedPath, 0755, true);
+        }
+
+        return $datedPath;
     }
 
     public function getRoutingTable()
@@ -433,13 +456,14 @@ class BinkpConfig
         $this->saveConfig();
     }
     
-    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null)
+    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null, $preserveSentPackets = null)
     {
         if ($port !== null) $this->config['binkp']['port'] = $port;
         if ($timeout !== null) $this->config['binkp']['timeout'] = $timeout;
         if ($maxConnections !== null) $this->config['binkp']['max_connections'] = $maxConnections;
         if ($bindAddress !== null) $this->config['binkp']['bind_address'] = $bindAddress;
         if ($preserveProcessedPackets !== null) $this->config['binkp']['preserve_processed_packets'] = (bool)$preserveProcessedPackets;
+        if ($preserveSentPackets !== null) $this->config['binkp']['preserve_sent_packets'] = (bool)$preserveSentPackets;
         
         $this->saveConfig();
     }

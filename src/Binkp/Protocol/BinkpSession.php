@@ -425,17 +425,10 @@ class BinkpSession
             // that late M_GOT frames (remotes that send M_GOT after M_EOB) have already
             // been processed by handleGotCommand and the files deleted before we get here.
             if (!empty($pendingFiles)) {
-                $outboundPath = $this->config->getOutboundPath();
                 $implicitCount = 0;
                 foreach (array_keys($pendingFiles) as $pendingFile) {
-                    $filepath = $outboundPath . '/' . basename($pendingFile);
-                    if (file_exists($filepath)) {
-                        if (unlink($filepath)) {
-                            $implicitCount++;
-                            $this->log("Deleted sent file (implicit M_EOB confirm): " . basename($pendingFile), 'DEBUG');
-                        } else {
-                            $this->log("Failed to delete sent file: " . basename($pendingFile), 'ERROR');
-                        }
+                    if ($this->handleSentFileConfirmation(basename($pendingFile), true)) {
+                        $implicitCount++;
                     }
                 }
                 if ($implicitCount > 0) {
@@ -1049,16 +1042,20 @@ class BinkpSession
 
         $inboundPath = $this->config->getInboundPath();
         $filepath = $inboundPath . '/' . $filename;
+        $tmpPath   = $filepath . '.tmp';
 
         // Handle resume if offset > 0
         if ($offset > 0) {
-            $this->fileHandle = fopen($filepath, 'r+b');
+            // Try resuming the temp file; fall back to the final file if the
+            // temp was already renamed (e.g. after a crash-recovery scenario).
+            $resumePath = file_exists($tmpPath) ? $tmpPath : $filepath;
+            $this->fileHandle = fopen($resumePath, 'r+b');
             if ($this->fileHandle) {
                 fseek($this->fileHandle, $offset);
                 $this->currentFile['received'] = $offset;
             }
         } else {
-            $this->fileHandle = fopen($filepath, 'wb');
+            $this->fileHandle = fopen($tmpPath, 'wb');
         }
 
         if (!$this->fileHandle) {
@@ -1083,7 +1080,16 @@ class BinkpSession
             if ($this->currentFile['received'] >= $this->currentFile['size']) {
                 fclose($this->fileHandle);
                 $this->fileHandle = null;
-                
+
+                // Atomically rename the temp file to its final name so that
+                // process_packets cannot see the file until it is fully written.
+                $inboundPath = $this->config->getInboundPath();
+                $finalPath   = $inboundPath . '/' . $this->currentFile['name'];
+                $tmpPath     = $finalPath . '.tmp';
+                if (!rename($tmpPath, $finalPath)) {
+                    $this->log("Failed to rename temp file to final: " . $this->currentFile['name'], 'ERROR');
+                }
+
                 $this->filesReceived[] = $this->currentFile['name'];
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
@@ -1137,17 +1143,45 @@ class BinkpSession
             return;
         }
 
+        $this->handleSentFileConfirmation($filename, false);
+    }
+
+    private function handleSentFileConfirmation(string $filename, bool $implicitConfirm): bool
+    {
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;
-        if (file_exists($filepath)) {
-            if (unlink($filepath)) {
-                $this->log("Deleted sent file: {$filename}", 'DEBUG');
-            } else {
-                $this->log("Failed to delete sent file: {$filename}", 'ERROR');
-            }
-        } else {
+        if (!file_exists($filepath)) {
             $this->log("Sent file not found: {$filepath}", 'WARNING');
+            return false;
         }
+
+        if ($this->config->getPreserveSentPackets()) {
+            $keepDir = $this->config->getPreservedSentPacketsPath();
+            $destPath = $keepDir . '/' . $filename;
+            if (file_exists($destPath)) {
+                $pathInfo = pathinfo($filename);
+                $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+                $destPath = $keepDir . '/' . $pathInfo['filename'] . '_' . time() . $extension;
+            }
+
+            if (rename($filepath, $destPath)) {
+                $prefix = $implicitConfirm ? 'Preserved sent file after implicit M_EOB confirm' : 'Preserved sent file';
+                $this->log($prefix . ': ' . basename($destPath), 'DEBUG');
+                return true;
+            }
+
+            $this->log("Failed to preserve sent file: {$filename}", 'ERROR');
+            return false;
+        }
+
+        if (unlink($filepath)) {
+            $prefix = $implicitConfirm ? 'Deleted sent file (implicit M_EOB confirm)' : 'Deleted sent file';
+            $this->log($prefix . ": {$filename}", 'DEBUG');
+            return true;
+        }
+
+        $this->log("Failed to delete sent file: {$filename}", 'ERROR');
+        return false;
     }
 
     private function handleGetCommand($data)
@@ -1373,10 +1407,10 @@ class BinkpSession
 
         if ($this->currentFile) {
             $inboundPath = $this->config->getInboundPath();
-            $filepath = $inboundPath . '/' . $this->currentFile['name'];
-            if (file_exists($filepath) && $this->currentFile['received'] < $this->currentFile['size']) {
-                unlink($filepath);
-                $this->log("Deleted incomplete file: " . $this->currentFile['name'], 'DEBUG');
+            $tmpPath = $inboundPath . '/' . $this->currentFile['name'] . '.tmp';
+            if (file_exists($tmpPath) && $this->currentFile['received'] < $this->currentFile['size']) {
+                unlink($tmpPath);
+                $this->log("Deleted incomplete temp file: " . $this->currentFile['name'], 'DEBUG');
             }
         }
     }
