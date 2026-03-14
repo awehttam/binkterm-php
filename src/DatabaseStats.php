@@ -93,7 +93,7 @@ class DatabaseStats
         // Index sizes
         try {
             $stmt = $this->db->query(
-                "SELECT indexname, tablename,
+                "SELECT indexrelname AS indexname, relname AS tablename,
                         pg_size_pretty(pg_relation_size(indexrelid)) AS index_size,
                         pg_relation_size(indexrelid) AS size_bytes
                  FROM pg_stat_user_indexes
