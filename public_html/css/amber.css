@@ -1463,3 +1463,23 @@ tbody, td, tfoot, th, thead, tr {
 .sc-inverse {
     filter: invert(1);
 }
+
+/* Bootstrap contextual table rows — override bright backgrounds for dark theme */
+.table-warning, .table-warning > td, .table-warning > th {
+    --bs-table-bg: rgba(255, 176, 0, 0.15);
+    --bs-table-color: var(--text-color);
+    background-color: rgba(255, 176, 0, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-danger, .table-danger > td, .table-danger > th {
+    --bs-table-bg: rgba(255, 51, 51, 0.15);
+    --bs-table-color: var(--text-color);
+    background-color: rgba(255, 51, 51, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-secondary, .table-secondary > td, .table-secondary > th {
+    --bs-table-bg: rgba(255, 176, 0, 0.08);
+    --bs-table-color: var(--text-color);
+    background-color: rgba(255, 176, 0, 0.08) !important;
+    color: var(--text-color) !important;
+}

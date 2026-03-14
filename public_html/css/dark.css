@@ -1091,3 +1091,23 @@ a:hover {
 .sc-inverse {
     filter: invert(1);
 }
+
+/* Bootstrap contextual table rows — override bright backgrounds for dark theme */
+.table-warning, .table-warning > td, .table-warning > th {
+    --bs-table-bg: rgba(255, 193, 7, 0.15);
+    --bs-table-color: var(--text-color);
+    background-color: rgba(255, 193, 7, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-danger, .table-danger > td, .table-danger > th {
+    --bs-table-bg: rgba(255, 77, 77, 0.15);
+    --bs-table-color: var(--text-color);
+    background-color: rgba(255, 77, 77, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-secondary, .table-secondary > td, .table-secondary > th {
+    --bs-table-bg: rgba(255, 255, 255, 0.07);
+    --bs-table-color: var(--text-color);
+    background-color: rgba(255, 255, 255, 0.07) !important;
+    color: var(--text-color) !important;
+}
