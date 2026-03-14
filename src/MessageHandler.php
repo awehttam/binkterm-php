@@ -297,6 +297,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -342,6 +343,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved

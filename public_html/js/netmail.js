@@ -282,7 +282,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td ${threadIndent}>
-                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
+                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : ''}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
                         <br>
                     </td>
                     <td>

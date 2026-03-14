@@ -472,6 +472,7 @@ function displayMessages(messages, isThreaded = false) {
             const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? `<i class="fas fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>` : `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>`;
+            const petsciiIcon = msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : '';
             const shareIcon = isShared ? `<i class="fas fa-share-alt text-success me-1" title="${uiT('ui.common.shared', 'Shared')}"></i>` : '';
             const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn"
                                  data-message-id="${msg.id}"
@@ -501,7 +502,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
