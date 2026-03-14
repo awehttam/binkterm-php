@@ -130,7 +130,7 @@
         if (isPathMatch('/chat')) {
             chatUnread = false;
             updateChatIcons();
-            await markSeen('chat', stats.total_chat);
+            await markSeen('chat', stats.chat_max_id ?? 0);
         }
         if (isPathMatch('/netmail')) {
             await markSeen('netmail', stats.total_netmail);

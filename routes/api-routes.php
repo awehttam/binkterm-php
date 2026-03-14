@@ -645,8 +645,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $meta = new UserMeta();
         $currentCount = (int)($input['current_count'] ?? 0);
 
-        // Store the current count - badge will only show if count increases
-        $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
+        // Chat uses max message ID for efficient incremental polling; others use counts
+        if ($target === 'chat') {
+            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
+        } else {
+            $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
+        }
 
         echo json_encode(['success' => true, 'target' => $target, 'count' => $currentCount]);
     });
@@ -664,7 +668,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Get last seen counts (not timestamps - we compare counts, not dates)
         $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
         $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
-        $lastChatCount = (int)($meta->getValue((int)$userId, 'last_chat_count') ?? 0);
+        $lastChatMaxId = $meta->getValue((int)$userId, 'last_chat_max_id');
 
         // Get address list for netmail queries
         try {
@@ -715,22 +719,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
-        // Total chat count
-        $chatTotalStmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM chat_messages m
-            LEFT JOIN chat_rooms r ON m.room_id = r.id
-            WHERE (m.room_id IS NOT NULL AND r.is_active = TRUE)
-               OR m.to_user_id = ?
-               OR m.from_user_id = ?
-        ");
-        $chatTotalStmt->execute([$userId, $userId]);
-        $chatTotal = $chatTotalStmt->fetch()['count'] ?? 0;
+        // New chat messages since last seen max ID (avoids full table scan)
+        if ($lastChatMaxId === null) {
+            // Not yet initialized — baseline to current max so no false badge on first load
+            $maxStmt = $db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM chat_messages");
+            $chatMaxId = (int)($maxStmt->fetch()['max_id'] ?? 0);
+            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$chatMaxId);
+            $chatBadge = 0;
+        } else {
+            $lastChatMaxId = (int)$lastChatMaxId;
+            $chatStmt = $db->prepare("
+                SELECT COUNT(*) as new_count, COALESCE(MAX(m.id), ?) as max_id
+                FROM chat_messages m
+                LEFT JOIN chat_rooms r ON m.room_id = r.id
+                WHERE m.id > ?
+                  AND (
+                      (m.room_id IS NOT NULL AND r.is_active = TRUE)
+                      OR m.to_user_id = ?
+                      OR m.from_user_id = ?
+                  )
+            ");
+            $chatStmt->execute([$lastChatMaxId, $lastChatMaxId, $userId, $userId]);
+            $chatRow = $chatStmt->fetch();
+            $chatBadge = (int)$chatRow['new_count'];
+            $chatMaxId = (int)$chatRow['max_id'];
+        }
 
         // Notification badge shows ONLY if count increased
         $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
         $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
-        $chatBadge = $chatTotal > $lastChatCount ? $chatTotal : 0;
 
         // Get user's credit balance
         $creditBalance = 0;
@@ -745,10 +762,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode([
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
-            'chat_total' => (int)$chatBadge,
+            'chat_total' => $chatBadge,
             'total_netmail' => $unreadNetmail,
             'total_echomail' => $unreadEchomail,
-            'total_chat' => $chatTotal,
+            'chat_max_id' => $chatMaxId,
             'credit_balance' => $creditBalance
         ]);
     });
