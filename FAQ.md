@@ -179,6 +179,17 @@ In the first two cases the packet is still considered successfully processed eve
 Use the --queued-only switch to binkp_poll.php.  In this mode binkp_poll will only poll the uplink if there are packets
 in the queue.
 
+### Q: If an uplink is configured to use CRAM-MD5 (`crypt`), can a remote system still dial in using plaintext authentication?
+**A:** Yes, by default it can.
+
+When the server sees that CRAM-MD5 is available it sends a challenge, but it will still accept a plaintext password response unless `security.allow_plaintext_fallback` is set to `false` in `binkp.json`.
+
+So the current behavior is:
+
+- `crypt` enabled and `allow_plaintext_fallback = true` (default): CRAM-MD5 is offered, but plaintext is still accepted
+- `crypt` enabled and `allow_plaintext_fallback = false`: if a challenge was sent, the remote must use CRAM-MD5
+
+Note: the server currently sends a CRAM-MD5 challenge if any configured uplink has `crypt` enabled, not only the specific remote that connected.
 
 ### Q: What's the difference between polling and the binkp server?
 **A:**
