@@ -258,42 +258,20 @@ try {
     if (!$dryRun) {
         echo "\n[8] Running VACUUM and ANALYZE...\n";
 
-        // Get list of tables to vacuum
-        $tables = [
-            'registration_attempts',
-            'netmail',
-            'password_reset_tokens',
-            'gateway_tokens',
-            'webshare',
-            'pending_users',
-            'echomail',
-            'users'
-        ];
+        $tables = $db->query("
+            SELECT relname AS table_name
+            FROM pg_stat_user_tables
+            ORDER BY relname
+        ")->fetchAll(PDO::FETCH_COLUMN);
 
         foreach ($tables as $table) {
             try {
-                // Check if table exists
-                $checkStmt = $db->prepare("
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables
-                        WHERE table_name = ?
-                    )
-                ");
-                $checkStmt->execute([$table]);
-
-                if ($checkStmt->fetchColumn()) {
-                    $db->exec("VACUUM ANALYZE $table");
-                    if ($verbose) {
-                        echo "    Vacuumed and analyzed: $table\n";
-                    }
-                }
+                echo "    Vacuuming $table...\n";
+                $db->exec("VACUUM ANALYZE $table");
+                echo "    Done: $table\n";
             } catch (Exception $e) {
                 echo "    Warning: Could not vacuum $table: " . $e->getMessage() . "\n";
             }
-        }
-
-        if (!$verbose) {
-            echo "    Database vacuum and analyze completed\n";
         }
     } else {
         echo "\n[8] Skipping VACUUM and ANALYZE (dry run)\n";

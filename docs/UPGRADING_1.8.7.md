@@ -12,6 +12,7 @@
   - [Existing Misdetected Messages](#existing-misdetected-messages)
   - [psql Instructions](#psql-instructions)
   - [Notes](#notes)
+- [Database Statistics Page](#database-statistics-page)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -28,6 +29,9 @@
 - Netmail senders and receivers can similarly correct artwork encoding on their
   own messages.
 - Fixed a false-positive PETSCII detection bug on import.
+- New admin **Database Statistics** page (`/admin/database-stats`) showing size
+  and growth, activity metrics, query performance, replication status, maintenance
+  health, and index health.
 
 ## Enhanced Message Search
 
@@ -149,11 +153,41 @@ Then exit `psql`:
 
 ### Notes
 
-- This release does not add a schema migration.
 - Resetting these columns only affects rendering hints stored in the database.
 - It does not alter the message body text itself.
 - For individual messages the in-browser editor (see above) is easier and safer
   than direct SQL. Use the SQL approach for bulk resets or scripted corrections.
+
+## Database Statistics Page
+
+A new admin page at `/admin/database-stats` provides a comprehensive view of
+PostgreSQL internals, organized into six tabs:
+
+- **Size & Growth** — total database size, top tables and indexes by size, dead
+  tuple bloat estimates.
+- **Activity** — active connections vs. maximum, cache hit ratio (warns if below
+  99%), transaction counts, and tuple insert/update/delete totals.
+- **Query Performance** — long-running queries, slowest and most-called queries
+  via `pg_stat_statements` (if installed), current lock waits, and cumulative
+  deadlock count.
+- **Replication** — replication sender status with lag bytes, WAL receiver info
+  for replicas.
+- **Maintenance** — per-table vacuum and analyze timestamps, dead tuple counts,
+  and a warning banner for tables that may need attention.
+- **Index Health** — unused indexes, potentially redundant indexes (same column
+  set), and index vs. sequential scan ratios per table.
+
+A database size summary and link to this page appear on the admin dashboard.
+
+For query performance data, install the `pg_stat_statements` extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+```
+
+Then add it to `shared_preload_libraries` in `postgresql.conf` and restart
+PostgreSQL. The statistics page works without it but the slow/frequent query
+tabs will be empty.
 
 ## Upgrade Instructions
 

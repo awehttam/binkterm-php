@@ -82,13 +82,33 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         }
         $systemAddresses = array_values(array_unique(array_filter($systemAddresses)));
+        $dbStats = new \BinktermPHP\DatabaseStats(\BinktermPHP\Database::getInstance()->getPdo());
         $template->renderResponse('admin/dashboard.twig', [
             'stats' => $stats,
             'db_version' => $dbVersion,
             'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus(),
             'git_commit' => \BinktermPHP\SystemStatus::getGitCommitHash(),
             'git_branch' => \BinktermPHP\SystemStatus::getGitBranch(),
-            'system_addresses' => $systemAddresses
+            'system_addresses' => $systemAddresses,
+            'db_summary' => $dbStats->getDashboardSummary(),
+        ]);
+    });
+
+    // Database statistics page
+    SimpleRouter::get('/database-stats', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $dbStats = new \BinktermPHP\DatabaseStats($db);
+
+        $template = new Template();
+        $template->renderResponse('admin/database_stats.twig', [
+            'size'        => $dbStats->getSizeAndGrowth(),
+            'activity'    => $dbStats->getActivity(),
+            'queries'     => $dbStats->getQueryPerformance(),
+            'replication' => $dbStats->getReplication(),
+            'maintenance' => $dbStats->getMaintenanceHealth(),
+            'indexes'     => $dbStats->getIndexHealth(),
         ]);
     });
 
