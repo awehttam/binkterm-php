@@ -129,8 +129,8 @@
                                     <tbody>
                                         {% for row in size.index_sizes %}
                                         <tr>
-                                            <td><code>{{ row.indexname }}</code></td>
-                                            <td><code>{{ row.tablename }}</code></td>
+                                            <td><code{% if row.indexname|length > 30 %} title="{{ row.indexname }}"{% endif %}>{{ row.indexname|length > 30 ? row.indexname|slice(0, 30) ~ '…' : row.indexname }}</code></td>
+                                            <td><code{% if row.tablename|length > 20 %} title="{{ row.tablename }}"{% endif %}>{{ row.tablename|length > 20 ? row.tablename|slice(0, 20) ~ '…' : row.tablename }}</code></td>
                                             <td class="text-end">{{ row.index_size }}</td>
                                         </tr>
                                         {% endfor %}
