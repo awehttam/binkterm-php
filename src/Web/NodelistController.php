@@ -361,7 +361,7 @@ class NodelistController
         $stmt = $this->db->prepare("
             SELECT n.zone, n.net, n.node, n.point, n.keyword_type,
                    n.system_name, n.sysop_name, n.location, n.phone, n.flags,
-                   n.latitude, n.longitude
+                   n.domain, n.latitude, n.longitude
             FROM nodelist n
             $whereClause
             ORDER BY n.system_name, n.zone, n.net, n.node
@@ -408,6 +408,7 @@ class NodelistController
             $groups[$groupKey]['networks'][] = [
                 'address'      => $address,
                 'zone'         => (int)$row['zone'],
+                'domain'       => $row['domain'] ?? '',
                 'keyword_type' => $row['keyword_type'],
                 'inet_host'    => $inetHost,
             ];
