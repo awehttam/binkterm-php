@@ -11,6 +11,8 @@ class ArtFormatDetector
     private const PETSCII_HEURISTIC_MIN_UNIQUE_CONTROLS = 2;
     private const PETSCII_HEURISTIC_MIN_TEXT_RATIO = 0.70;
     private const PETSCII_HEURISTIC_MAX_HIGH_BYTE_RATIO = 0.15;
+    /** Control bytes must be at least this fraction of total message bytes. */
+    private const PETSCII_HEURISTIC_MIN_CONTROL_RATIO = 0.05;
 
     public static function normalizeDetectedEncoding(?string $encoding, ?string $rawBody = null): ?string
     {
@@ -162,6 +164,12 @@ class ArtFormatDetector
         }
 
         if ($controlHits < self::PETSCII_HEURISTIC_MIN_CONTROL_HITS) {
+            return false;
+        }
+
+        // Control bytes must be dense enough to indicate actual PETSCII encoding,
+        // not just a few extended characters that happen to overlap control code ranges.
+        if (($controlHits / $length) < self::PETSCII_HEURISTIC_MIN_CONTROL_RATIO) {
             return false;
         }
 

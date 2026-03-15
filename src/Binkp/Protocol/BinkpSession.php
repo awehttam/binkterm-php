@@ -37,6 +37,8 @@ class BinkpSession
     private $localAddress;
     private $remoteAddress;
     private $remoteAddressWithDomain;
+    /** @var string[] All AKAs advertised by the remote node */
+    private array $remoteAkas = [];
     private $password;
     private $config;
     private $logger;
