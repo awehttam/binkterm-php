@@ -63,7 +63,8 @@ class MarkdownRenderer
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $level    = strlen($m[1]);
                 $content  = self::inlineHtml($m[2]);
-                $output[] = "<h{$level}>{$content}</h{$level}>";
+                $slug     = self::slugify($m[2]);
+                $output[] = "<h{$level} id=\"{$slug}\">{$content}</h{$level}>";
                 $i++;
                 continue;
             }
@@ -156,6 +157,22 @@ class MarkdownRenderer
     }
 
     /**
+     * Convert a heading string to a GitHub-style anchor slug.
+     *
+     * @param string $text Raw heading text (before HTML encoding)
+     * @return string Slugified anchor id
+     */
+    private static function slugify(string $text): string
+    {
+        // Strip inline markdown (backticks, asterisks, etc.)
+        $text = preg_replace('/[`*_~\[\]()]/', '', $text);
+        $text = strtolower($text);
+        $text = preg_replace('/[^\w\s-]/', '', $text);
+        $text = preg_replace('/[\s]+/', '-', trim($text));
+        return $text;
+    }
+
+    /**
      * Apply inline Markdown transformations: bold, inline code, links.
      *
      * @param string $text Raw inline Markdown
@@ -182,7 +199,7 @@ class MarkdownRenderer
         // are not interpreted as italics.
         $links = [];
         $text = preg_replace_callback(
-            '/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\)]+)\)/',
+            '/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
             function ($m) use (&$links) {
                 $label = $m[1]; // already htmlspecialchars-encoded
                 $url   = $m[2];
