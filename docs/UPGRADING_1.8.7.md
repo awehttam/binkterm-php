@@ -18,11 +18,30 @@
 - [Nodelist Map](#nodelist-map)
 - [Message Reader Improvements](#message-reader-improvements)
 - [Gemini File Areas](#gemini-file-areas)
+- [FREQ Enhancements](#freq-enhancements)
+- [Nodelist Enhancements](#nodelist-enhancements)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+- FREQ response delivery now uses crashmail (direct) as the primary path and a
+  per-node hold directory (`data/outbound/hold/<address>/`) as the fallback.
+  Routed FILE_ATTACH (which hubs strip) is no longer used. Hold files are
+  delivered at the next binkp session regardless of which side initiates.
+- New `scripts/freq_pickup.php` — lets you connect outbound to a node to
+  collect FREQ files they have staged for you.
+- BinkP now advertises the closest network AKA when connecting to a node that
+  is not a configured uplink, ensuring the remote system identifies you by the
+  correct address.
+- File area browser shows **Gemini** and **FREQ** capability badges next to
+  each area name, along with the area description.
+- Nodelist node viewer includes an **ALLFILES FREQ** button to request a file
+  listing from any node that advertises the FREQ flag. A warning is shown for
+  nodes without the flag.
+- Nodelist search supports a multi-select flag filter to narrow results by
+  nodelist flags (CM, IBN, INA, FREQ, etc.).
 
 - Added advanced message search with per-field filtering (poster name, subject,
   message body) and date range support for both echomail and netmail.
@@ -358,6 +377,67 @@ exposed regardless of this setting.
 
 A new database migration (`v1.11.0.20`) adds the `gemini_public` column to the
 `file_areas` table. This is applied automatically by `setup.php`.
+
+## FREQ Enhancements
+
+### Response Delivery
+
+FREQ responses are now delivered as FILE_ATTACH netmail via two paths:
+
+1. **Crashmail (direct)** — if the requesting node has a hostname in the
+   nodelist (IBN/INA flag), BinktermPHP connects directly and delivers the
+   attachment immediately. No action required from the requesting node.
+
+2. **Hold directory (reverse crash)** — if the node cannot be reached directly,
+   the FILE_ATTACH packet and attachment are written to
+   `data/outbound/hold/<address>/`. They are delivered during the next binkp
+   session with that node, whichever side initiates. A notification netmail is
+   also sent to the requesting node via hub routing to let them know files are
+   ready.
+
+The previous approach of queuing raw files in `freq_outbound` for hub-routed
+delivery has been removed. Hubs typically strip file attachments from forwarded
+netmail, making that approach unreliable.
+
+`setup.php` creates the `data/outbound/hold/` directory automatically.
+
+### FREQ File Pickup Script
+
+A new CLI script lets you connect outbound to a remote system to collect FREQ
+files they have staged for you (the "reverse crash" case):
+
+```bash
+php scripts/freq_pickup.php 1:123/456
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554 --password=secret
+```
+
+The script resolves the hostname from the nodelist if omitted, advertises your
+correct network AKA, and also sends any outbound packets queued for that node.
+See [CLI.md](CLI.md#freq-file-pickup) for full option reference.
+
+### BinkP AKA Selection Fix
+
+When connecting to a node that is not a configured uplink (for example, via
+`freq_pickup.php`), BinktermPHP now selects the uplink whose network covers the
+destination address and advertises that uplink's `me` address in `M_ADR`. This
+ensures the remote system identifies you by the same AKA used in your original
+FREQ request rather than your primary zone address.
+
+## Nodelist Enhancements
+
+### Flag Filter
+
+The nodelist search page now includes a **multi-select flag filter**. Select one
+or more flags (CM, IBN, INA, FREQ, MO, etc.) to narrow the results to nodes
+that carry all of the chosen flags.
+
+### ALLFILES FREQ Modal
+
+The nodelist node detail view now includes a **Request ALLFILES** button. This
+sends an ALLFILES FREQ to the selected node and allows you to download their
+file listing in one click. A warning is shown if the node does not advertise the
+FREQ flag in its nodelist entry.
 
 ## Upgrade Instructions
 

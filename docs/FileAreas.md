@@ -202,7 +202,7 @@ Changes are saved through the admin daemon.
 BinktermPHP can serve files to remote FidoNet nodes that send FREQ requests. Two request mechanisms are supported:
 
 - **Binkp `M_GET`** — the remote node sends a `M_GET` command during a binkp session. Files are delivered in the same session.
-- **Netmail FILE_REQUEST** — the remote node sends a netmail with the `FILE_REQUEST` attribute (0x0800). The subject line contains the requested filename(s). Files are queued and delivered on the next binkp session with that node. The netmail itself is not stored in the inbox.
+- **Netmail FILE_REQUEST** — the remote node sends a netmail with the `FILE_REQUEST` attribute (0x0800). The subject line contains the requested filename(s). The response is delivered as a FILE_ATTACH netmail (see below). The request netmail itself is not stored in the inbox.
 
 ### Enabling FREQ on a File Area
 
@@ -243,7 +243,35 @@ Requesting a magic name returns a generated file listing rather than a literal f
 | `ALLFILES` or `FILES` | Combined listing of all FREQ-enabled areas in `FILES.BBS` format |
 | `<AREA_TAG>` | Listing for that specific area (if FREQ is enabled on it) |
 
-Magic name responses are temporary files generated at request time and cleaned up after the session.
+Magic name responses are generated at request time and staged for delivery like any other FREQ response.
+
+### FREQ Response Delivery
+
+When a FREQ request is resolved, the response file is delivered as a
+FILE_ATTACH netmail using one of two methods:
+
+1. **Crashmail (direct)** — if the requesting node is resolvable in the nodelist
+   with a hostname (IBN/INA flag), BinktermPHP connects directly and delivers
+   the attachment. No action is needed from the requesting node.
+
+2. **Hold directory (reverse crash)** — if the requesting node cannot be reached
+   directly, the FILE_ATTACH netmail packet and the attached file are written to a
+   per-node hold directory (`data/outbound/hold/<address>/`). The files are
+   delivered during the next binkp session with that node, regardless of which
+   side initiates the connection.
+
+   BinktermPHP also sends the requesting node a plain notification netmail (via
+   normal hub routing) informing them that their files are ready to collect. To
+   pick up queued files, the requesting node can run:
+
+   ```bash
+   php scripts/freq_pickup.php <your-address>
+   ```
+
+   See [CLI.md](CLI.md#freq-file-pickup) for full usage.
+
+> **Note:** Routed FILE_ATTACH netmail is intentionally not used because FTN
+> hubs typically strip file attachments from forwarded messages.
 
 ### FREQ Log
 

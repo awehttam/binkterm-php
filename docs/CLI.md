@@ -20,6 +20,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
+- [FREQ File Pickup](#freq-file-pickup)
 - [Echomail Robots](#echomail-robots)
 - [Create Translation Catalog](#create-translation-catalog)
 - [Generate Ad](#generate-ad)
@@ -532,6 +533,36 @@ Options:
 - `--limit=N` — Maximum items to process (default: 10)
 - `--verbose` — Show detailed output
 - `--dry-run` — Check queue without attempting delivery
+
+## FREQ File Pickup
+
+Use this script when you have sent a FREQ request to a remote node that cannot
+reach you via crashmail. The remote system queues the requested files for you;
+run this script to connect outbound and collect them.
+
+```bash
+# Basic pickup — hostname resolved from nodelist
+php scripts/freq_pickup.php 1:123/456
+
+# Specify hostname manually
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
+
+# Custom port and session password
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554 --password=secret
+
+# Verbose debug output
+php scripts/freq_pickup.php 1:123/456 --log-level=DEBUG
+```
+
+Options:
+- `--hostname=HOST` — Hostname or IP to connect to (auto-resolved from nodelist if omitted)
+- `--port=PORT` — Port number (default: `24554`)
+- `--password=PASS` — Session password
+- `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default: `INFO`)
+
+The script resolves your local address from the same network as the destination
+so the remote system recognises you by the correct AKA. Any outbound packets
+queued for that node are also sent during the session.
 
 ## Echomail Robots
 
