@@ -718,18 +718,7 @@ class BinkdProcessor
         // Intercept inbound netmail FREQs (FILE_REQUEST attribute 0x0800).
         // These are protocol requests, not user mail — log and discard rather than deliver.
         if (($message['attributes'] ?? 0) & 0x0800) {
-            // Build the routing address from the packet header (the node that actually
-            // delivered this packet to us — may be a hub forwarding on behalf of origAddr).
-            $routingAddr = null;
-            if ($packetInfo) {
-                $rz = $packetInfo['origZone'] ?? null;
-                $rn = $packetInfo['origNet']  ?? null;
-                $ro = $packetInfo['origNode'] ?? null;
-                if ($rz !== null && $rn !== null && $ro !== null) {
-                    $routingAddr = "{$rz}:{$rn}/{$ro}";
-                }
-            }
-            $this->processInboundNetmailFreq($message, $routingAddr);
+            $this->processInboundNetmailFreq($message);
             return;
         }
 
@@ -905,21 +894,15 @@ class BinkdProcessor
      * Resolves filenames from the Subject, queues fulfilled files for delivery,
      * and logs every attempt. The netmail is NOT stored in the inbox.
      *
-     * @param array       $message     Parsed message array from readMessage()
-     * @param string|null $routingAddr Packet-header origin address (the node that delivered
-     *                                 this packet to us, which may be a hub forwarding on
-     *                                 behalf of the true originator). Used as the delivery
-     *                                 address for queued FREQ responses. Falls back to the
-     *                                 message's own origin address when null.
+     * @param array $message Parsed message array from readMessage()
      */
-    private function processInboundNetmailFreq(array $message, ?string $routingAddr = null): void
+    private function processInboundNetmailFreq(array $message): void
     {
-        $fromAddr    = $message['origAddr'] ?? $message['fromAddr'] ?? '';
-        $deliverAddr = $routingAddr ?? $fromAddr;
-        $subject     = trim($message['subject'] ?? '');
-        $body        = $message['text'] ?? '';
+        $fromAddr = $message['origAddr'] ?? $message['fromAddr'] ?? '';
+        $subject  = trim($message['subject'] ?? '');
+        $body     = $message['text'] ?? '';
 
-        $this->log("[BINKD] FREQ netmail from {$fromAddr} (deliver via {$deliverAddr}): {$subject}");
+        $this->log("[BINKD] FREQ netmail from {$fromAddr}: {$subject}");
 
         if ($subject === '' || $fromAddr === '') {
             $this->log("[BINKD] FREQ netmail has no subject or origin address — ignoring");
@@ -928,8 +911,8 @@ class BinkdProcessor
 
         try {
             $resolver = new \BinktermPHP\Freq\FreqResolver();
-            $queued   = $resolver->processNetmailFreq($subject, $body, $fromAddr, $deliverAddr);
-            $this->log("[BINKD] FREQ netmail from {$fromAddr}: queued {$queued} file(s) for delivery via {$deliverAddr}");
+            $queued   = $resolver->processNetmailFreq($subject, $body, $fromAddr);
+            $this->log("[BINKD] FREQ netmail from {$fromAddr}: queued {$queued} file(s) for delivery");
         } catch (\Exception $e) {
             $this->log("[BINKD] FREQ resolution error for {$fromAddr}: " . $e->getMessage(), 'ERROR');
         }

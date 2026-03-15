@@ -64,19 +64,15 @@ class FreqResolver
 
     /**
      * Process all filenames from a netmail FREQ subject line.
-     * Queues served files in freq_outbound for delivery to the requesting node.
+     * Resolves and delivers files to the requesting node via FILE_ATTACH netmail.
      *
-     * @param string      $subject     Subject line (space-separated filenames)
-     * @param string      $body        Message body (may contain password on first line)
-     * @param string      $fromAddr    FTN address of the true requesting node (logged in freq_log)
-     * @param string|null $deliverAddr Address to deliver the response to (routing/hub address);
-     *                                 defaults to $fromAddr when the node connects directly
-     * @return int Number of files queued
+     * @param string $subject  Subject line (space-separated filenames)
+     * @param string $body     Message body (may contain password on first line)
+     * @param string $fromAddr FTN address of the requesting node
+     * @return int Number of files queued for delivery
      */
-    public function processNetmailFreq(string $subject, string $body, string $fromAddr, ?string $deliverAddr = null): int
+    public function processNetmailFreq(string $subject, string $body, string $fromAddr): int
     {
-        $deliverAddr = $deliverAddr ?? $fromAddr;
-
         // Password may appear on the first non-blank body line
         $password = null;
         foreach (explode("\n", $body) as $line) {
@@ -90,18 +86,46 @@ class FreqResolver
         $filenames = preg_split('/\s+/', trim($subject), -1, PREG_SPLIT_NO_EMPTY);
         $queued = 0;
 
+        $handler = new \BinktermPHP\MessageHandler();
+
         foreach ($filenames as $filename) {
             if ($filename === '') {
                 continue;
             }
             $result = $this->resolve($filename, $password, 0, 0, $fromAddr, 'netmail');
-            if ($result->served) {
-                $this->queueForDelivery($deliverAddr, $result);
-                $queued++;
+            if (!$result->served || $result->filePath === null) {
+                continue;
             }
+
+            // Stage generated files to a persistent location before handing off
+            $filePath = $this->stageFile($result);
+
+            $handler->deliverFreqResponse($fromAddr, $filePath, $result->servedName ?? basename($filePath));
+            $queued++;
         }
 
         return $queued;
+    }
+
+    /**
+     * Copy a generated (temp) file to a stable staging directory so it persists
+     * until the netmail attachment is delivered. Real files are returned as-is.
+     */
+    private function stageFile(FreqResult $result): string
+    {
+        if (!$result->isGenerated) {
+            return (string)$result->filePath;
+        }
+
+        $stableDir = __DIR__ . '/../../data/freq_outbound';
+        if (!is_dir($stableDir)) {
+            mkdir($stableDir, 0750, true);
+        }
+        $dest = $stableDir . '/' . uniqid('freq_', true) . '_' . ($result->servedName ?? basename((string)$result->filePath));
+        if (!copy((string)$result->filePath, $dest)) {
+            throw new \RuntimeException("Failed to stage FREQ file to {$dest}");
+        }
+        return $dest;
     }
 
     /**
@@ -230,45 +254,6 @@ class FreqResolver
         }
 
         return FreqResult::served($path, (string)$row['filename'], (int)$row['id'], $size);
-    }
-
-    /**
-     * Insert a row into freq_outbound so the file is delivered on the next session.
-     * Generated files (e.g. ALLFILES.TXT from a temp dir) are copied to a persistent
-     * staging directory so they survive until the next binkp session picks them up.
-     */
-    private function queueForDelivery(string $toAddress, FreqResult $result): void
-    {
-        if (!$result->served || $result->filePath === null) {
-            return;
-        }
-
-        $filePath = $result->filePath;
-
-        // If the file lives in the system temp directory, copy it somewhere stable
-        // so it cannot be cleaned up by the OS before the next session.
-        if ($result->isGenerated) {
-            $stableDir = __DIR__ . '/../../data/freq_outbound';
-            if (!is_dir($stableDir)) {
-                mkdir($stableDir, 0750, true);
-            }
-            $dest = $stableDir . '/' . uniqid('freq_', true) . '_' . ($result->servedName ?? basename($filePath));
-            if (!copy($filePath, $dest)) {
-                throw new \RuntimeException("Failed to stage FREQ file to {$dest}");
-            }
-            $filePath = $dest;
-        }
-
-        $stmt = $this->db->prepare(
-            "INSERT INTO freq_outbound (to_address, file_path, original_filename, file_size, created_at, status)
-             VALUES (?, ?, ?, ?, NOW(), 'pending')"
-        );
-        $stmt->execute([
-            $toAddress,
-            $filePath,
-            $result->servedName ?? basename($result->filePath),
-            $result->fileSize,
-        ]);
     }
 
     /**

@@ -1877,6 +1877,159 @@ class MessageHandler
         }
     }
 
+    /**
+     * Deliver a FREQ response file to a requesting node.
+     *
+     * Strategy:
+     *  1. If crashmail is enabled and the destination is directly resolvable,
+     *     send the file as a FILE_ATTACH crashmail (proactive direct delivery).
+     *  2. Otherwise, queue the file in freq_outbound so it is sent the next time
+     *     the requesting node establishes a direct binkp session with us, and send
+     *     the node a plain notification netmail (via normal hub routing) telling
+     *     them to connect and pick up their files.
+     *
+     * Note: routed FILE_ATTACH netmail is intentionally avoided because hubs
+     * typically strip file attachments from forwarded messages.
+     *
+     * @param string $toAddress FTN address of the requesting node
+     * @param string $filePath  Absolute path to the staged file to deliver
+     * @param string $filename  Filename as presented to the recipient
+     * @throws \Exception on configuration or unrecoverable delivery failure
+     */
+    public function deliverFreqResponse(string $toAddress, string $filePath, string $filename): void
+    {
+        $binkpConfig   = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $sysopName     = $binkpConfig->getSystemSysop() ?: 'Sysop';
+        $originAddress = $binkpConfig->getOriginAddressByDestination($toAddress)
+                      ?: $binkpConfig->getSystemAddress();
+
+        if (!$originAddress) {
+            throw new \Exception("Cannot determine origin address for FREQ response to {$toAddress}");
+        }
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            throw new \Exception("FREQ response file not readable: {$filePath}");
+        }
+
+        // Try crashmail (direct delivery) first
+        if ($binkpConfig->getCrashmailEnabled()) {
+            $crashService = new \BinktermPHP\Crashmail\CrashmailService();
+            $routeInfo    = $crashService->resolveDestination($toAddress);
+            if (!empty($routeInfo['hostname'])) {
+                $this->sendFreqFileAttachCrashmail(
+                    $originAddress, $toAddress, $sysopName, $filePath, $filename, $crashService
+                );
+                error_log("[FREQ] Response to {$toAddress} queued for crashmail: {$filename}");
+                return;
+            }
+        }
+
+        // Fallback: queue for pick-up on next direct session + send notification netmail
+        $this->db->prepare(
+            "INSERT INTO freq_outbound (to_address, file_path, original_filename, file_size, created_at, status)
+             VALUES (?, ?, ?, ?, NOW(), 'pending')"
+        )->execute([$toAddress, $filePath, $filename, filesize($filePath)]);
+
+        $this->sendFreqPickupNotification($originAddress, $toAddress, $sysopName, $filename);
+        error_log("[FREQ] Response to {$toAddress} queued for pick-up: {$filename}");
+    }
+
+    /**
+     * Create a FILE_ATTACH netmail and queue it for crashmail delivery.
+     */
+    private function sendFreqFileAttachCrashmail(
+        string $originAddress,
+        string $toAddress,
+        string $sysopName,
+        string $filePath,
+        string $filename,
+        \BinktermPHP\Crashmail\CrashmailService $crashService
+    ): void {
+        $attributes = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+
+        $kludgeLines = $this->generateNetmailKludges(
+            $originAddress, $toAddress, $sysopName, 'Sysop', $filename, null
+        );
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO netmail
+                (user_id, from_address, to_address, from_name, to_name, subject,
+                 message_text, message_charset, date_written, is_sent, message_id,
+                 kludge_lines, attributes, outbound_attachment_path, is_freq, freq_status)
+            VALUES
+                (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
+                 '', 'UTF-8', NOW(), FALSE, :message_id,
+                 :kludge_lines, :attributes, :attachment_path, FALSE, NULL)
+        ");
+        $stmt->execute([
+            ':from_address'    => $originAddress,
+            ':to_address'      => $toAddress,
+            ':from_name'       => $sysopName,
+            ':to_name'         => 'Sysop',
+            ':subject'         => $filename,
+            ':message_id'      => $msgId,
+            ':kludge_lines'    => $kludgeLines,
+            ':attributes'      => $attributes,
+            ':attachment_path' => $filePath,
+        ]);
+        $crashService->queueCrashmail((int)$this->db->lastInsertId());
+    }
+
+    /**
+     * Send a plain notification netmail (via hub routing) telling a node that
+     * their FREQ was fulfilled but requires a direct session to pick up the files.
+     */
+    private function sendFreqPickupNotification(
+        string $originAddress,
+        string $toAddress,
+        string $sysopName,
+        string $filename
+    ): void {
+        $subject = 'File Request Processed - Pick Up Required';
+        $body    = "Your file request for {$filename} has been processed.\r\n\r\n"
+                 . "The requested file(s) could not be delivered directly because your system\r\n"
+                 . "is not directly reachable from here. The file(s) are queued and waiting\r\n"
+                 . "for you to connect to us ({$originAddress}) to pick them up.\r\n\r\n"
+                 . "Please arrange a direct binkp session with {$originAddress} to collect\r\n"
+                 . "your files.\r\n\r\n"
+                 . "--- {$sysopName} @ {$originAddress}\r\n";
+
+        $kludgeLines = $this->generateNetmailKludges(
+            $originAddress, $toAddress, $sysopName, 'Sysop', $subject, null
+        );
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO netmail
+                (user_id, from_address, to_address, from_name, to_name, subject,
+                 message_text, message_charset, date_written, is_sent, message_id,
+                 kludge_lines, is_freq, freq_status)
+            VALUES
+                (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
+                 :message_text, 'UTF-8', NOW(), FALSE, :message_id,
+                 :kludge_lines, FALSE, NULL)
+        ");
+        $stmt->execute([
+            ':from_address'  => $originAddress,
+            ':to_address'    => $toAddress,
+            ':from_name'     => $sysopName,
+            ':to_name'       => 'Sysop',
+            ':subject'       => $subject,
+            ':message_text'  => $body,
+            ':message_id'    => $msgId,
+            ':kludge_lines'  => $kludgeLines,
+        ]);
+        $this->spoolOutboundNetmail((int)$this->db->lastInsertId());
+    }
+
     private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
     {
         $stmt = $this->db->prepare("
