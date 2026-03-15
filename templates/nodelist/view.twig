@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({
                 type: 'netmail',
                 to_address: '{{ node.full_address|e('js') }}',
-                to_name: '{{ node.sysop_name|default('Sysop')|e('js') }}',
+                to_name: 'FileFix',
                 subject: subject,
                 message_text: '',
                 is_freq: true
