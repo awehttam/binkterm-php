@@ -379,6 +379,10 @@ class BinkpSession
 
                     $this->log("Received: {$frame}", 'DEBUG');
                     $this->processTransferFrame($frame);
+                    // If a file transfer started (e.g. FREQ response), exit early
+                    if ($this->currentFile) {
+                        break;
+                    }
                 }
                 $this->log("Frame processing phase complete", 'DEBUG');
             } else {
@@ -391,7 +395,7 @@ class BinkpSession
                 $hasPendingFreqs = !empty($this->pendingFreqRequests);
                 // Give extra time when FREQ requests were sent — the remote needs to look up
                 // and open the file before it can send M_FILE.
-                $maxWaitTime  = $hasSentFiles ? 5 : ($hasPendingFreqs ? 10 : 2);
+                $maxWaitTime  = $hasSentFiles ? 5 : ($hasPendingFreqs ? 5 : 2);
                 $waitStartTime = time();
             } else {
                 $this->log("Already receiving file: " . $this->currentFile['name'], 'DEBUG');
@@ -440,8 +444,13 @@ class BinkpSession
                 // and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
                     $sentNothing = empty($this->filesSent) && empty($this->pendingFreqRequests);
-                    if ($sentNothing || $inactivity >= 30) {
-                        $reason = $sentNothing ? 'nothing sent' : "no activity for {$inactivity}s";
+                    // If FREQ was sent but remote already sent EOB with no file response,
+                    // the file was denied/not found — don't wait the full 30s.
+                    $freqDenied = !empty($this->pendingFreqRequests)
+                        && empty($this->filesReceived)
+                        && $inactivity >= 5;
+                    if ($sentNothing || $freqDenied || $inactivity >= 30) {
+                        $reason = $sentNothing ? 'nothing sent' : ($freqDenied ? 'FREQ denied/no response' : "no activity for {$inactivity}s");
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;

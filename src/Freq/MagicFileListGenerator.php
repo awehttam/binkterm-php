@@ -37,7 +37,7 @@ class MagicFileListGenerator
         }
 
         $lines = [];
-        $lines[] = 'File Areas — Generated ' . date('Y-m-d H:i:s T');
+        $lines[] = 'File Areas - Generated ' . date('Y-m-d H:i:s T');
         $lines[] = str_repeat('-', 72);
 
         foreach ($areas as $area) {
@@ -98,7 +98,7 @@ class MagicFileListGenerator
             return [];
         }
 
-        $header = $description !== '' ? "{$tag} — {$description}" : $tag;
+        $header = $description !== '' ? "{$tag} - {$description}" : $tag;
         $lines  = [$header, str_repeat('-', 72)];
 
         foreach ($files as $f) {
