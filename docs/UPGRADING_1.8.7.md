@@ -32,10 +32,6 @@
   messages are now clickable links to the nodelist node view page.
 - Node view page now shows an interactive dark map when the node has geocoded
   coordinates.
-- FREQ request modal on the nodelist node view now has a **File to request**
-  dropdown (ALLFILES, FILES, FILELIST, NODELIST, NODEDIFF, Other) and a
-  **Send to** service name picker (FileFix, FileMgr, FileReq, Files, Sysop,
-  Other).
 - Fixed: crashmail FILE_ATTACH netmails sent the garbled staged path as the
   attachment filename instead of the actual filename from the subject line.
 - Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
@@ -443,19 +439,6 @@ FREQ request rather than your primary zone address.
 The nodelist search page now includes a **multi-select flag filter**. Select one
 or more flags (CM, IBN, INA, FREQ, MO, etc.) to narrow the results to nodes
 that carry all of the chosen flags.
-
-### FREQ Request Modal
-
-The nodelist node detail view now includes a **Request File** button. The modal
-provides:
-
-- **File to request** — dropdown with common magic names (ALLFILES, FILES,
-  FILELIST, NODELIST, NODEDIFF) plus an Other option for arbitrary filenames.
-- **Send to** — service name picker (FileFix, FileMgr, FileReq, Files, Sysop,
-  Other). Defaults to `FileFix`, the standard FTN file request service name.
-- **Password** — optional session password.
-
-A warning is shown if the node does not advertise the FREQ flag.
 
 ### Node View Map
 
