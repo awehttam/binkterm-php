@@ -2274,6 +2274,7 @@ return [
     'ui.nodelist.tab_list' => 'List',
     'ui.nodelist.tab_map' => 'Map',
     'ui.nodelist.map_loading' => 'Loading map data…',
+    'ui.nodelist.no_coordinates' => 'Location not geocoded. Run scripts/geocode_nodelist.php to populate coordinates.',
     'ui.nodelist.map_no_coordinates' => 'No geocoded nodes available. Run the geocode_nodelist script to populate coordinates.',
     'ui.nodelist.map_node_count' => '{count} geocoded nodes',
     'ui.nodelist.map_send_netmail' => 'Send Netmail',

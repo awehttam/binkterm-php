@@ -2,6 +2,37 @@
 
 {% block title %}{{ t('ui.nodelist.node_details', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+<style>
+    #nodeMap {
+        height: 300px;
+        width: 100%;
+        border-radius: 0.375rem;
+        background: #111827;
+    }
+    #nodeMap .leaflet-tile-pane {
+        filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+    }
+    #nodeMap .leaflet-control-container .leaflet-bar a,
+    #nodeMap .leaflet-control-zoom a {
+        background: rgba(15, 23, 42, 0.92);
+        color: #e2e8f0;
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+    #nodeMap .leaflet-control-container .leaflet-bar a:hover,
+    #nodeMap .leaflet-control-zoom a:hover {
+        background: rgba(30, 41, 59, 0.98);
+        color: #fff;
+    }
+    #nodeMap .leaflet-popup-content-wrapper,
+    #nodeMap .leaflet-popup-tip {
+        background: #111827;
+        color: #e2e8f0;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="row">
@@ -194,9 +225,54 @@
                     {% endif %}
                 </div>
             </div>
+
+            {% if node.latitude and node.longitude %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card" style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border-color: rgba(148,163,184,0.18);">
+                        <div class="card-header" style="border-color: rgba(148,163,184,0.18);">
+                            <h6 class="mb-0" style="color:#e2e8f0;"><i class="fas fa-map-marker-alt me-2"></i>{{ node.location|default(node.full_address) }}</h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <div id="nodeMap"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-muted small">
+                            <i class="fas fa-map-marker-alt me-1"></i> {{ t('ui.nodelist.no_coordinates') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 </div>
+
+<script src="/assets/leaflet/leaflet.js"></script>
+{% if node.latitude and node.longitude %}
+<script>
+(function() {
+    const lat = {{ node.latitude|e('js') }};
+    const lng = {{ node.longitude|e('js') }};
+    const map = L.map('nodeMap', { scrollWheelZoom: false }).setView([lat, lng], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18
+    }).addTo(map);
+    L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup('<strong>{{ node.system_name|e('js') }}</strong><br>{{ node.full_address|e('js') }}<br><small>{{ node.location|default('')|e('js') }}</small>')
+        .openPopup();
+})();
+</script>
+{% endif %}
 
 <!-- ALLFILES FREQ Modal -->
 <div class="modal fade" id="allfilesModal" tabindex="-1">

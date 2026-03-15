@@ -2274,6 +2274,7 @@ return [
     'ui.nodelist.tab_list' => 'Lista',
     'ui.nodelist.tab_map' => 'Mapa',
     'ui.nodelist.map_loading' => 'Cargando datos del mapa…',
+    'ui.nodelist.no_coordinates' => 'Ubicación no geocodificada. Ejecuta scripts/geocode_nodelist.php para poblar las coordenadas.',
     'ui.nodelist.map_no_coordinates' => 'No hay nodos geocodificados disponibles. Ejecuta el script geocode_nodelist para poblar las coordenadas.',
     'ui.nodelist.map_node_count' => '{count} nodos geocodificados',
     'ui.nodelist.map_send_netmail' => 'Enviar Netmail',
