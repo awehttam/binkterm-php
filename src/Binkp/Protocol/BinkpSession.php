@@ -48,6 +48,8 @@ class BinkpSession
     private $filesSent;
     /** @var array<string,int> Mapping of filename => freq_outbound.id for FREQ files sent this session */
     private array $freqOutboundSent = [];
+    /** @var array<int,array{filename:string,password:?string}> In-memory outbound FREQ request queue */
+    private array $pendingFreqRequests = [];
     private $uplinkPassword;
     private $currentUplink;
 
@@ -109,7 +111,18 @@ class BinkpSession
         $this->uplinkPassword = $password;
         $this->log("setUplinkPassword: length=" . strlen($password), 'DEBUG');
     }
-    
+
+    /**
+     * Queue an outbound FREQ request to be sent as M_GET during this originator session.
+     *
+     * @param string      $filename Filename or magic name to request from the remote
+     * @param string|null $password Optional area password required by the remote
+     */
+    public function addFreqRequest(string $filename, ?string $password = null): void
+    {
+        $this->pendingFreqRequests[] = ['filename' => $filename, 'password' => $password];
+    }
+
     public function log($message, $level = 'INFO')
     {
         if ($this->logger) {
@@ -261,6 +274,9 @@ class BinkpSession
             $this->sendHoldFiles();
 
             if ($this->isOriginator) {
+                // Send any in-memory FREQ requests as M_GET before outbound files
+                $this->sendFreqRequests();
+
                 $this->log("As originator, checking for outbound files", 'DEBUG');
                 $this->sendFiles();
 
@@ -344,8 +360,9 @@ class BinkpSession
             }
 
             // As originator with no files sent, proceed directly to waiting for remote files
-            // As answerer, or as originator after sending files, process incoming frames
-            $shouldWaitForFrames = !$this->isOriginator || !empty($this->filesSent);
+            // As answerer, or as originator after sending files, process incoming frames.
+            // Also wait when we sent FREQ requests — the remote may send M_FILE in response.
+            $shouldWaitForFrames = !$this->isOriginator || !empty($this->filesSent) || !empty($this->pendingFreqRequests);
 
             if ($shouldWaitForFrames) {
                 $this->log("Processing incoming frames before EOB exchange", 'DEBUG');
@@ -370,8 +387,11 @@ class BinkpSession
 
             // As originator, wait for remote to potentially send us files before sending EOB
             if (!$this->currentFile) {
-                $hasSentFiles = !empty($this->filesSent);
-                $maxWaitTime = $hasSentFiles ? 5 : 2;
+                $hasSentFiles    = !empty($this->filesSent);
+                $hasPendingFreqs = !empty($this->pendingFreqRequests);
+                // Give extra time when FREQ requests were sent — the remote needs to look up
+                // and open the file before it can send M_FILE.
+                $maxWaitTime  = $hasSentFiles ? 5 : ($hasPendingFreqs ? 10 : 2);
                 $waitStartTime = time();
             } else {
                 $this->log("Already receiving file: " . $this->currentFile['name'], 'DEBUG');
@@ -415,11 +435,13 @@ class BinkpSession
 
                 // After the remote's EOB has been acknowledged, keep the session open
                 // briefly so the remote's tosser can queue a response (e.g. areafix) and
-                // send it as M_FILE.  Only wait if we actually sent something — if we sent
-                // nothing, the remote has nothing to process and there will be no response.
+                // send it as M_FILE.  Only wait if we actually sent something or sent FREQ
+                // requests — if we sent nothing at all, the remote has nothing to process
+                // and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
-                    if (empty($this->filesSent) || $inactivity >= 30) {
-                        $reason = empty($this->filesSent) ? 'nothing sent' : "no activity for {$inactivity}s";
+                    $sentNothing = empty($this->filesSent) && empty($this->pendingFreqRequests);
+                    if ($sentNothing || $inactivity >= 30) {
+                        $reason = $sentNothing ? 'nothing sent' : "no activity for {$inactivity}s";
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;
@@ -825,6 +847,30 @@ class BinkpSession
             }
         } catch (\Exception $e) {
             $this->log("sendFreqFiles error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Send M_GET frames for any in-memory FREQ requests queued via addFreqRequest().
+     * Only runs as originator. Called before sendFiles() so the remote receives the
+     * requests before we start transmitting our own data.
+     */
+    private function sendFreqRequests(): void
+    {
+        if (empty($this->pendingFreqRequests)) {
+            return;
+        }
+
+        foreach ($this->pendingFreqRequests as $req) {
+            $filename = $req['filename'];
+            $password = $req['password'];
+
+            // M_GET data: "filename" or "filename password"
+            $data = ($password !== null && $password !== '') ? "{$filename} {$password}" : $filename;
+
+            $frame = BinkpFrame::createCommand(BinkpFrame::M_GET, $data);
+            $frame->writeToSocket($this->socket);
+            $this->log("FREQ: sent M_GET for '{$filename}'", 'INFO');
         }
     }
 

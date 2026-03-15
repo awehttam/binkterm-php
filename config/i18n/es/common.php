@@ -2289,6 +2289,8 @@ return [
     'ui.nodelist.request_allfiles_to_other_placeholder' => 'Ingrese nombre del servicio',
     'ui.nodelist.request_allfiles_password' => 'Contraseña (opcional)',
     'ui.nodelist.request_allfiles_password_help' => 'Proporciona una contraseña si el sistema remoto la requiere para servir listados de archivos.',
+    'ui.nodelist.request_allfiles_crashmail' => 'Enviar como correo directo (conectar directamente al nodo)',
+    'ui.nodelist.request_allfiles_crashmail_help' => 'Entrega la solicitud directamente a este nodo en lugar de enrutarla a través de tu enlace ascendente.',
     'ui.nodelist.request_allfiles_sent' => 'Solicitud ALLFILES en cola. El listado de archivos llegará en la próxima sesión binkp.',
     'ui.nodelist.request_allfiles_failed' => 'Error al enviar la solicitud ALLFILES.',
     'ui.nodelist.send_request' => 'Enviar solicitud',

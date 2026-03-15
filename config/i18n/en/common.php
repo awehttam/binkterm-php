@@ -2289,6 +2289,8 @@ return [
     'ui.nodelist.request_allfiles_to_other_placeholder' => 'Enter service name',
     'ui.nodelist.request_allfiles_password' => 'Password (optional)',
     'ui.nodelist.request_allfiles_password_help' => 'Supply a password if the remote system requires one to serve file listings.',
+    'ui.nodelist.request_allfiles_crashmail' => 'Send as crashmail (connect directly to node)',
+    'ui.nodelist.request_allfiles_crashmail_help' => 'Delivers the request directly to this node rather than routing it through your uplink.',
     'ui.nodelist.request_allfiles_sent' => 'ALLFILES request queued. The file listing will arrive on the next binkp session.',
     'ui.nodelist.request_allfiles_failed' => 'Failed to send ALLFILES request.',
     'ui.nodelist.send_request' => 'Send Request',

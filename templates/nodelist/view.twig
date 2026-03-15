@@ -322,6 +322,15 @@
                     <input type="text" class="form-control" id="allfilesPassword" autocomplete="off">
                     <div class="form-text">{{ t('ui.nodelist.request_allfiles_password_help') }}</div>
                 </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="allfilesCrashmail" checked>
+                        <label class="form-check-label" for="allfilesCrashmail">
+                            {{ t('ui.nodelist.request_allfiles_crashmail') }}
+                        </label>
+                    </div>
+                    <div class="form-text">{{ t('ui.nodelist.request_allfiles_crashmail_help') }}</div>
+                </div>
                 <div id="allfilesError" class="alert alert-danger d-none"></div>
             </div>
             <div class="modal-footer">
@@ -423,6 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('allfilesToNameOther').value = '';
         document.getElementById('allfilesToNameOther').classList.add('d-none');
         document.getElementById('allfilesPassword').value = '';
+        document.getElementById('allfilesCrashmail').checked = true;
         document.getElementById('allfilesError').classList.add('d-none');
         document.getElementById('allfilesSendBtn').disabled = false;
         new bootstrap.Modal(document.getElementById('allfilesModal')).show();
@@ -456,6 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const toNameSel = document.getElementById('allfilesToName');
         const toName = (toNameSel.value === '' ? document.getElementById('allfilesToNameOther').value.trim() : toNameSel.value) || 'FileFix';
         const password = document.getElementById('allfilesPassword').value.trim();
+        const crashmail = document.getElementById('allfilesCrashmail').checked;
         const btn = document.getElementById('allfilesSendBtn');
         const errorBox = document.getElementById('allfilesError');
 
@@ -473,7 +484,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 to_name: toName,
                 subject: subject,
                 message_text: '',
-                is_freq: true
+                is_freq: true,
+                crashmail: crashmail
             })
         })
         .then(r => r.json())

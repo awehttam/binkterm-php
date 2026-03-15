@@ -18,11 +18,15 @@ namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
+use BinktermPHP\Nodelist\NodelistManager;
+use BinktermPHP\Crashmail\CrashmailService;
 
 class BinkpClient
 {
     private $config;
     private $logger;
+    /** @var array<int,array{filename:string,password:?string}> FREQ requests to send in next session */
+    private array $pendingFreqRequests = [];
     
     public function __construct($config = null, $logger = null)
     {
@@ -33,6 +37,17 @@ class BinkpClient
     public function setLogger($logger)
     {
         $this->logger = $logger;
+    }
+
+    /**
+     * Queue an outbound FREQ request to be sent as M_GET during the next connect() session.
+     *
+     * @param string      $filename Filename or magic name to request from the remote
+     * @param string|null $password Optional area password required by the remote
+     */
+    public function addFreqRequest(string $filename, ?string $password = null): void
+    {
+        $this->pendingFreqRequests[] = ['filename' => $filename, 'password' => $password];
     }
     
     public function log($message, $level = 'INFO')
@@ -47,13 +62,24 @@ class BinkpClient
     public function connect($address, $hostname = null, $port = null, $password = null)
     {
         $uplink = $this->config->getUplinkByAddress($address);
+
         if (!$uplink && !$hostname) {
-            throw new \Exception("No uplink configuration found for address: {$address}");
+            // Not a configured uplink — resolve via nodelist or binkp_zone DNS
+            $resolved = $this->resolveNodeHostname($address);
+            if ($resolved === null) {
+                throw new \Exception(
+                    "Cannot resolve hostname for {$address}: not a configured uplink and not found in nodelist or binkp_zone DNS"
+                );
+            }
+            $hostname = $resolved['hostname'];
+            $port     = $resolved['port'];
+            // Anonymous session — no password
+            $password = '';
         }
 
         $hostname = $hostname ?: $uplink['hostname'];
         $port = $port ?: ($uplink['port'] ?? 24554);
-        $password = $password ?: ($uplink['password'] ?? '');
+        $password = $password !== null ? $password : ($uplink['password'] ?? '');
 
         $this->log("Connecting to {$hostname}:{$port} ({$address})");
         if ($uplink) {
@@ -88,6 +114,11 @@ class BinkpClient
 
             // Set the uplink password for this session
             $session->setUplinkPassword($password);
+
+            // Pass any queued FREQ requests into the session
+            foreach ($this->pendingFreqRequests as $req) {
+                $session->addFreqRequest($req['filename'], $req['password']);
+            }
 
             // Set the current uplink context for packet filtering and address advertisement.
             // If no exact uplink match exists (e.g. connecting to an arbitrary node via
@@ -223,6 +254,51 @@ class BinkpClient
         ];
     }
     
+    /**
+     * Resolve an FTN address to a hostname and port for a non-uplink node.
+     *
+     * Resolution order:
+     *   1. Nodelist IBN/INA flags via NodelistManager
+     *   2. binkp_zone DNS lookup via the uplink that routes this destination
+     *
+     * @param string $address FTN address (e.g. "1:123/456" or "3:770/220")
+     * @return array{hostname:string,port:int,source:string}|null  Connection info, or null if unresolvable
+     */
+    private function resolveNodeHostname(string $address): ?array
+    {
+        // Step 1: nodelist lookup
+        try {
+            $nodelistManager = new NodelistManager();
+            $info = $nodelistManager->getCrashRouteInfo($address);
+            if ($info && !empty($info['hostname'])) {
+                $this->log("Resolved {$address} via nodelist: {$info['hostname']}:{$info['port']}", 'DEBUG');
+                return ['hostname' => $info['hostname'], 'port' => $info['port'], 'source' => 'nodelist'];
+            }
+        } catch (\Exception $e) {
+            $this->log("Nodelist lookup failed for {$address}: " . $e->getMessage(), 'DEBUG');
+        }
+
+        // Step 2: binkp_zone DNS via the uplink that would route this address
+        $routedUplink = $this->config->getUplinkForDestination($address);
+        if ($routedUplink && !empty($routedUplink['binkp_zone'])) {
+            try {
+                $crashmail = new CrashmailService();
+                $resolved  = $crashmail->resolveDestination($address);
+                if (!empty($resolved['hostname'])) {
+                    $this->log(
+                        "Resolved {$address} via binkp_zone ({$routedUplink['binkp_zone']}): {$resolved['hostname']}:{$resolved['port']}",
+                        'DEBUG'
+                    );
+                    return ['hostname' => $resolved['hostname'], 'port' => $resolved['port'], 'source' => 'binkp_zone'];
+                }
+            } catch (\Exception $e) {
+                $this->log("binkp_zone lookup failed for {$address}: " . $e->getMessage(), 'DEBUG');
+            }
+        }
+
+        return null;
+    }
+
     private function socketToStream($socket)
     {
         $socketResource = socket_export_stream($socket);
