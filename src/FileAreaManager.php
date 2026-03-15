@@ -474,7 +474,13 @@ class FileAreaManager
         } else {
             $existingFile = $this->checkDuplicate($fileAreaId, $fileHash);
             if ($existingFile) {
-                throw new \Exception('This file already exists in this area');
+                // When replace_existing is on, a hash match for the same filename is fine —
+                // the old record will be deleted in the replacement block below.
+                $isSameFile = $fileArea['replace_existing']
+                    && strcasecmp((string)$existingFile['filename'], $filename) === 0;
+                if (!$isSameFile) {
+                    throw new \Exception('This file already exists in this area');
+                }
             }
         }
 
@@ -625,7 +631,13 @@ class FileAreaManager
         } else {
             $existingFile = $this->checkDuplicate($fileAreaId, $fileHash);
             if ($existingFile) {
-                throw new \Exception('This file already exists in this area');
+                // When replace_existing is on, a hash match for the same filename is fine —
+                // the old record will be deleted in the replacement block below.
+                $isSameFile = $fileArea['replace_existing']
+                    && strcasecmp((string)$existingFile['filename'], $filename) === 0;
+                if (!$isSameFile) {
+                    throw new \Exception('This file already exists in this area');
+                }
             }
         }
 
