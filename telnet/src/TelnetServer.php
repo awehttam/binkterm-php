@@ -70,6 +70,26 @@ class TelnetServer
     private ?string $tlsCert = null;
     private ?string $tlsKey = null;
 
+    private function parsePeerAddress($conn): array
+    {
+        $peerName = @stream_socket_get_name($conn, true);
+        if (!$peerName) {
+            return [null, null];
+        }
+
+        if (preg_match('/^\[(.+)\]:(\d+)$/', $peerName, $matches)) {
+            return [$peerName, $matches[1]];
+        }
+
+        $host = parse_url('tcp://' . $peerName, PHP_URL_HOST);
+        if (is_string($host) && $host !== '') {
+            return [$peerName, $host];
+        }
+
+        $parts = explode(':', $peerName);
+        return [$peerName, $parts[0] ?? null];
+    }
+
     /**
      * Create a new Telnet Server instance
      *
@@ -307,10 +327,8 @@ class TelnetServer
                 }
 
                 $connectionCount++;
-                if ($this->debug) {
-                    $peerName = @stream_socket_get_name($conn, true);
-                    $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ''));
-                }
+                [$peerName, $peerIp] = $this->parsePeerAddress($conn);
+                $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ''));
 
                 $forked = false;
                 if (function_exists('pcntl_fork')) {
@@ -321,7 +339,7 @@ class TelnetServer
                         if ($this->debug) {
                             $this->log("WARNING: Fork failed, handling connection in main process");
                         }
-                        if ($isTls && !$this->doTlsHandshake($conn)) {
+                        if ($isTls && !$this->doTlsHandshake($conn, $peerIp)) {
                             fclose($conn);
                             continue;
                         }
@@ -334,7 +352,7 @@ class TelnetServer
                             fclose($tlsServer);
                         }
                         $forked = true;
-                        if ($isTls && !$this->doTlsHandshake($conn)) {
+                        if ($isTls && !$this->doTlsHandshake($conn, $peerIp)) {
                             fclose($conn);
                             exit(0);
                         }
@@ -347,13 +365,13 @@ class TelnetServer
                     }
                 } else {
                     // No fork (Windows or pcntl not compiled in) — handshake in main process
-                    if ($isTls && !$this->doTlsHandshake($conn)) {
+                    if ($isTls && !$this->doTlsHandshake($conn, $peerIp)) {
                         fclose($conn);
                         continue;
                     }
                 }
 
-                $this->handleConnection($conn, $forked, $isTls);
+                $this->handleConnection($conn, $forked, $isTls, $peerName, $peerIp);
             }
         }
     }
@@ -441,10 +459,9 @@ class TelnetServer
      * @param resource $conn Accepted TCP socket
      * @return bool True on successful handshake, false on failure (caller must fclose)
      */
-    private function doTlsHandshake($conn): bool
+    private function doTlsHandshake($conn, ?string $peerIp = null): bool
     {
-        $peerName = @stream_socket_get_name($conn, true);
-        $peerIp   = $peerName ? explode(':', $peerName)[0] : 'unknown';
+        $peerIp = $peerIp ?: 'unknown';
 
         stream_set_blocking($conn, true);
         stream_set_timeout($conn, 10);
@@ -631,7 +648,7 @@ class TelnetServer
      * @param bool $forked Whether this is running in a forked child process
      * @param bool $isTls Whether the connection is TLS-encrypted
      */
-    private function handleConnection($conn, bool $forked, bool $isTls = false): void
+    private function handleConnection($conn, bool $forked, bool $isTls = false, ?string $peerName = null, ?string $peerIp = null): void
     {
         $session = new BbsSession(
             $conn,
@@ -643,7 +660,9 @@ class TelnetServer
             $this->tlsEnabled,
             $this->tlsPort,
             $this->logger,
-            null
+            null,
+            $peerName,
+            $peerIp
         );
         $session->run($forked);
     }

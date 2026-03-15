@@ -39,6 +39,11 @@ class FileAreaManager
         $this->db = Database::getInstance()->getPdo();
     }
 
+    private function isFreqExperimentalEnabled(): bool
+    {
+        return Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true';
+    }
+
     /**
      * Check if file areas feature is enabled
      *
@@ -200,9 +205,14 @@ class FileAreaManager
         }
 
         $geminiPublic = (bool)($data['gemini_public'] ?? false);
-        $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
-        $freqPassword = trim((string)($data['freq_password'] ?? ''));
-        $freqPassword = $freqPassword === '' ? null : $freqPassword;
+        if ($this->isFreqExperimentalEnabled()) {
+            $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
+            $freqPassword = trim((string)($data['freq_password'] ?? ''));
+            $freqPassword = $freqPassword === '' ? null : $freqPassword;
+        } else {
+            $freqEnabled = false;
+            $freqPassword = null;
+        }
 
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
@@ -263,9 +273,19 @@ class FileAreaManager
         }
 
         $geminiPublic = (bool)($data['gemini_public'] ?? false);
-        $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
-        $freqPassword = trim((string)($data['freq_password'] ?? ''));
-        $freqPassword = $freqPassword === '' ? null : $freqPassword;
+        if ($this->isFreqExperimentalEnabled()) {
+            $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
+            $freqPassword = trim((string)($data['freq_password'] ?? ''));
+            $freqPassword = $freqPassword === '' ? null : $freqPassword;
+        } else {
+            $currentArea = $this->getFileAreaById($id);
+            if (!$currentArea) {
+                throw new \Exception('File area not found');
+            }
+            $freqEnabled = !empty($currentArea['freq_enabled']);
+            $freqPassword = trim((string)($currentArea['freq_password'] ?? ''));
+            $freqPassword = $freqPassword === '' ? null : $freqPassword;
+        }
 
         $stmt = $this->db->prepare("
             UPDATE file_areas
@@ -1710,4 +1730,3 @@ class FileAreaManager
             . rawurlencode($filename);
     }
 }
-

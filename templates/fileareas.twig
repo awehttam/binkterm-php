@@ -172,6 +172,7 @@
                                 <div class="form-text">{{ t('ui.fileareas.gemini_public_help', {}, 'List and serve files in this area via the Gemini capsule server') }}</div>
                             </div>
 
+                            {% if freq_experimental_enabled %}
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="fileareaFreqEnabled" name="freq_enabled">
                                 <label class="form-check-label" for="fileareaFreqEnabled">
@@ -184,6 +185,7 @@
                                 <input type="text" class="form-control form-control-sm" id="fileareaFreqPassword" name="freq_password" placeholder="{{ t('ui.fileareas.freq_password_placeholder', {}, locale, ['common']) }}">
                                 <div class="form-text">{{ t('ui.fileareas.freq_password_help', {}, 'Leave blank for open access') }}</div>
                             </div>
+                            {% endif %}
 
                             <div class="mb-3">
                                 <label for="fileareaUploadPermission" class="form-label">{{ t('ui.fileareas.upload_permission', {}, locale, ['common']) }}</label>

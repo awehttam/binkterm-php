@@ -169,6 +169,7 @@ class TelnetUtils
         $prev = error_reporting();
         error_reporting($prev & ~E_NOTICE);
         @fwrite($conn, $data);
+        @fflush($conn);
         error_reporting($prev);
     }
 

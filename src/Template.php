@@ -188,6 +188,7 @@ class Template
         $this->twig->addGlobal('mrc_webdoor_enabled', GameConfig::isEnabled('mrc'));
 
         $this->twig->addGlobal('bbs_directory_enabled', BbsConfig::isFeatureEnabled('bbs_directory'));
+        $this->twig->addGlobal('freq_experimental_enabled', Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true');
 
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
