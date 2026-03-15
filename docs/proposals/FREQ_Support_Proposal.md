@@ -205,7 +205,6 @@ When the requested filename matches a magic name, `FreqResolver::resolveMagic()`
 |---|---|
 | `ALLFILES` or `FILES` | Combined listing of all FREQ-enabled areas |
 | `<AREA_TAG>` | Listing for that specific area (if `freq_enabled`) |
-| `NODELIST.*` | Serve the current nodelist file if configured |
 
 ### File list format
 
@@ -226,15 +225,6 @@ ARJ241.EXE           187,432  1994-03-15  ARJ archiver v2.41
 ```
 
 The file is written to a temp path and cleaned up after the session ends.
-
-### Configuring NODELIST serving
-
-The nodelist magic name is opt-in via a configuration flag:
-
-```
-FREQ_SERVE_NODELIST=true        # Enable nodelist FREQ
-FREQ_NODELIST_PASSWORD=secret   # Optional password
-```
 
 ---
 
@@ -333,6 +323,13 @@ A new admin page showing the `freq_log` table:
 10. Share create/edit: `freq_accessible` checkbox
 11. FREQ log viewer page
 
+### Phase 4 — Outbound FREQ status tracking
+
+12. Add `freq_status` column to the `netmail` table (`pending` | `fulfilled` | `denied` | `partial`)
+13. When a FREQ netmail is sent, status starts as `pending`
+14. When a binkp session with the target node completes and the expected file(s) were received, mark `fulfilled`
+15. Expose status in the netmail reader (e.g. small badge: "FREQ Pending", "FREQ Fulfilled")
+
 ---
 
 ## New and Modified Files
@@ -344,7 +341,7 @@ A new admin page showing the `freq_log` table:
 | `src/Freq/FreqResolver.php` | FREQ resolution engine |
 | `src/Freq/FreqResult.php` | Result value object |
 | `src/Freq/MagicFileListGenerator.php` | Generates `ALLFILES`/per-area file listings |
-| `database/migrations/v1.11.0.20_freq_support.sql` | Schema additions |
+| `database/migrations/v1.11.0.21_freq_support.sql` | Schema additions (`freq_enabled`/`freq_password` on `file_areas`, `freq_accessible` on `shared_files`, `freq_log` table, `freq_status` on `netmail`) |
 | `templates/admin/freq_log.twig` | FREQ log admin page |
 | `routes/admin-freq-routes.php` | Admin route for FREQ log viewer |
 
@@ -361,12 +358,12 @@ A new admin page showing the `freq_log` table:
 
 ---
 
-## Open Questions
+## Decisions
 
-1. **FREQ from non-downlink nodes** — should arbitrary FidoNet nodes be able to FREQ from us, or should FREQ access be limited to nodes in the `downlinks` table? Allowing open FREQ is traditional FidoNet behaviour; restricting it to known nodes is more secure.
-2. **Rate limiting** — should there be a configurable per-node rate limit (files per session, bytes per day)?
-3. **NODELIST serving** — is serving the current nodelist via FREQ desired? It is common on hub nodes.
-4. **Outbound FREQ tracking** — the existing `is_freq` netmail flag records that we sent a FREQ request, but there is no status tracking (was it fulfilled?). Should that be added as part of this work or deferred?
+1. **Open FREQ** — any FidoNet node may FREQ from us. No allowlist or downlinks-table restriction. This is standard FidoNet behaviour; access control is handled at the area level via `freq_enabled` and `freq_password`.
+2. **No rate limiting** — not implemented. The `freq_log` table provides data if this needs revisiting later.
+3. **No NODELIST serving** — nodelist FREQ support is not included.
+4. **Outbound FREQ status tracking** — yes. A `freq_status` column will be added to the `netmail` table to track whether a sent FREQ was fulfilled (see Phase 4 of the implementation plan).
 
 ---
 
