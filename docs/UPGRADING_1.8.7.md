@@ -17,6 +17,7 @@
 - [Database Performance Improvements](#database-performance-improvements)
 - [Nodelist Map](#nodelist-map)
 - [Message Reader Improvements](#message-reader-improvements)
+- [Gemini File Areas](#gemini-file-areas)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -50,6 +51,8 @@
   their location field and grouped by system name, with zone colour coding and
   per-network popup detail. A CLI geocoding script (`scripts/geocode_nodelist.php`)
   can be run manually or via cron to populate coordinates.
+- File areas can now be published to the Gemini capsule server. Gemini clients
+  can browse area listings and download files directly over the Gemini protocol.
 
 ## Enhanced Message Search
 
@@ -322,6 +325,39 @@ has been removed.
 A **print button** (printer icon) is also in the toolbar. Clicking it opens
 the message in a minimal popup window and triggers the browser print dialog.
 The popup closes automatically after printing or cancelling.
+
+## Gemini File Areas
+
+File areas can now be exposed via the Gemini capsule server. When a file area
+has **Gemini Public** enabled, Gemini clients can browse the area and download
+files directly over the Gemini protocol — including binary files such as ZIP
+archives, executables, and images.
+
+**To enable a file area for Gemini access:**
+
+1. Go to **Admin → File Areas**
+2. Edit the file area
+3. Check **Gemini Public**
+4. Save
+
+Once enabled, the area appears in the Gemini capsule under:
+
+```
+gemini://your-host/files/AREA_TAG/
+```
+
+and on the Gemini home page under a new **File Areas** section. Individual
+files are served at:
+
+```
+gemini://your-host/files/AREA_TAG/filename.zip
+```
+
+Only files with an approved status are served. Private file areas are never
+exposed regardless of this setting.
+
+A new database migration (`v1.11.0.20`) adds the `gemini_public` column to the
+`file_areas` table. This is applied automatically by `setup.php`.
 
 ## Upgrade Instructions
 
