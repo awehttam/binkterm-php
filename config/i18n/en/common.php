@@ -2281,6 +2281,8 @@ return [
     'ui.nodelist.freq_not_advertised' => 'This node does not advertise the FREQ flag. A request will still be sent, but the node may not support file requests.',
     'ui.nodelist.request_allfiles_title' => 'Request File List from {node}',
     'ui.nodelist.request_allfiles_body' => 'Sends an ALLFILES FREQ to this node. They will include their file listing on the next binkp session with you.',
+    'ui.nodelist.request_allfiles_filename' => 'File to request',
+    'ui.nodelist.request_allfiles_filename_placeholder' => 'e.g. README.TXT',
     'ui.nodelist.request_allfiles_to' => 'Send to',
     'ui.nodelist.request_allfiles_to_other' => 'Other...',
     'ui.nodelist.request_allfiles_to_other_placeholder' => 'Enter service name',

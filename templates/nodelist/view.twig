@@ -214,6 +214,18 @@
                 </div>
                 {% endif %}
                 <div class="mb-3">
+                    <label for="allfilesFilename" class="form-label">{{ t('ui.nodelist.request_allfiles_filename') }}</label>
+                    <select class="form-select" id="allfilesFilename" onchange="toggleAllfilesFilenameOther()">
+                        <option value="ALLFILES">ALLFILES</option>
+                        <option value="FILES">FILES</option>
+                        <option value="FILELIST">FILELIST</option>
+                        <option value="NODELIST">NODELIST</option>
+                        <option value="NODEDIFF">NODEDIFF</option>
+                        <option value="">{{ t('ui.nodelist.request_allfiles_to_other') }}</option>
+                    </select>
+                    <input type="text" class="form-control mt-2 d-none" id="allfilesFilenameOther" placeholder="{{ t('ui.nodelist.request_allfiles_filename_placeholder') }}" autocomplete="off">
+                </div>
+                <div class="mb-3">
                     <label for="allfilesToName" class="form-label">{{ t('ui.nodelist.request_allfiles_to') }}</label>
                     <select class="form-select" id="allfilesToName" onchange="toggleAllfilesToNameOther()">
                         <option value="FileFix">FileFix</option>
@@ -323,6 +335,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ALLFILES FREQ functions
     window.showAllfilesModal = function() {
+        document.getElementById('allfilesFilename').value = 'ALLFILES';
+        document.getElementById('allfilesFilenameOther').value = '';
+        document.getElementById('allfilesFilenameOther').classList.add('d-none');
         document.getElementById('allfilesToName').value = 'FileFix';
         document.getElementById('allfilesToNameOther').value = '';
         document.getElementById('allfilesToNameOther').classList.add('d-none');
@@ -330,6 +345,17 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('allfilesError').classList.add('d-none');
         document.getElementById('allfilesSendBtn').disabled = false;
         new bootstrap.Modal(document.getElementById('allfilesModal')).show();
+    };
+
+    window.toggleAllfilesFilenameOther = function() {
+        const sel = document.getElementById('allfilesFilename');
+        const other = document.getElementById('allfilesFilenameOther');
+        if (sel.value === '') {
+            other.classList.remove('d-none');
+            other.focus();
+        } else {
+            other.classList.add('d-none');
+        }
     };
 
     window.toggleAllfilesToNameOther = function() {
@@ -344,8 +370,10 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     window.sendAllfilesFreq = function() {
-        const sel = document.getElementById('allfilesToName');
-        const toName = (sel.value === '' ? document.getElementById('allfilesToNameOther').value.trim() : sel.value) || 'FileFix';
+        const filenameSel = document.getElementById('allfilesFilename');
+        const filename = (filenameSel.value === '' ? document.getElementById('allfilesFilenameOther').value.trim() : filenameSel.value) || 'ALLFILES';
+        const toNameSel = document.getElementById('allfilesToName');
+        const toName = (toNameSel.value === '' ? document.getElementById('allfilesToNameOther').value.trim() : toNameSel.value) || 'FileFix';
         const password = document.getElementById('allfilesPassword').value.trim();
         const btn = document.getElementById('allfilesSendBtn');
         const errorBox = document.getElementById('allfilesError');
@@ -353,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = true;
         errorBox.classList.add('d-none');
 
-        const subject = password ? 'ALLFILES ' + password : 'ALLFILES';
+        const subject = password ? filename + ' ' + password : filename;
 
         fetch('/api/messages/send', {
             method: 'POST',
