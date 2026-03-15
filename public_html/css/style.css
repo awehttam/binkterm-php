@@ -793,8 +793,8 @@ body {
    Bootstrap's modal-dialog-scrollable so the .modal-body
    scrolls.  The .message-header-full sticks to the top of
    that scroll container so From/To/Subject/Date stay visible.
-   Background colour is handled by the default or theme rules
-   already applied to .message-header-full.
+   Background colour is set here for the default theme; theme
+   stylesheets override it via their own .message-header-full rules.
    ============================================================ */
 /* Remove modal-body top padding so there is no gap above the sticky header */
 .message-reader-scrollable .modal-body {
@@ -804,6 +804,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 5;
+    background-color: #fff;
     /* Extend to the left/right edges of modal-body (which has 1rem side padding) */
     margin: 0 -1rem 1rem;
     padding: 1rem 1rem 0.75rem;

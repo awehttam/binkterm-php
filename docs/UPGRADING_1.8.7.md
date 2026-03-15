@@ -21,6 +21,8 @@
 - [FREQ Enhancements](#freq-enhancements)
 - [Nodelist Enhancements](#nodelist-enhancements)
 - [Node Address Links](#node-address-links)
+- [Outbound FREQ (File Request)](#outbound-freq-file-request)
+- [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -43,9 +45,19 @@
   delivered at the next binkp session regardless of which side initiates.
 - New `scripts/freq_pickup.php` — lets you connect outbound to a node to
   collect FREQ files they have staged for you.
+- New `scripts/freq_getfile.php` — requests one or more files from a remote
+  node via binkp M_GET (FREQ). Received files land in `data/inbound/`.
+- Nodelist node view now has an **ALLFIX** option in the file request dropdown
+  alongside ALLFILES.
+- Nodelist flag badges and flag filter dropdown now show plain-English
+  descriptions for all standard flags.
 - BinkP now advertises the closest network AKA when connecting to a node that
   is not a configured uplink, ensuring the remote system identifies you by the
   correct address.
+- Crashmail delivery now writes structured logs to `data/logs/crashmail.log`
+  and respects the **preserve sent packets** setting.
+- Fixed: message reader sticky header was transparent in the default theme,
+  allowing message body text to bleed through.
 - File area browser shows **Gemini** and **FREQ** capability badges next to
   each area name, along with the area description.
 - Nodelist search supports a multi-select flag filter to narrow results by
@@ -455,6 +467,49 @@ nodelist node view page:
 - **Netmail** — From: and To: addresses (both in the message reader and in the
   folder list rows)
 
+## Outbound FREQ (File Request)
+
+### freq_getfile.php
+
+A new CLI script allows you to request files from a remote binkp system:
+
+```bash
+php scripts/freq_getfile.php 1:123/456 ALLFILES
+php scripts/freq_getfile.php 1:123/456 ALLFILES FILES --password=secret
+php scripts/freq_getfile.php 1:123/456 ALLFILES --hostname=bbs.example.com --port=24554
+```
+
+The script resolves the hostname automatically from the nodelist or binkp zone
+DNS. Received files are saved to `data/inbound/`. See [CLI.md](CLI.md) for the
+full option reference.
+
+### Nodelist File Request Dialog
+
+The file request dropdown on the nodelist node view page now includes **ALLFIX**
+as a selectable magic name alongside ALLFILES, FILES, NODELIST, and NODEDIFF.
+
+### ALLFILES.TXT Formatting
+
+The dynamically generated `ALLFILES.TXT` file listing now uses plain ASCII
+(no UTF-8 em dashes) and formats columns dynamically based on the longest
+filename in each area. Long descriptions wrap at 80 characters with continuation
+lines aligned to the description column.
+
+## Crashmail Logging and Packet Preservation
+
+### Structured Log File
+
+Crashmail delivery now writes to `data/logs/crashmail.log` using the same
+structured logger as the binkp server (timestamp, PID, level, message). Previously
+all output went only to the PHP error log.
+
+### Preserve Sent Packets
+
+When **Preserve Sent Packets** is enabled in the binkp configuration, crashmail
+packets are now moved to the preserved sent packets directory on successful
+delivery instead of always being deleted. The preserved file is named
+`crashmail_<id>_<timestamp>.pkt`.
+
 ## Bug Fixes
 
 ### Crashmail FILE_ATTACH Filename
@@ -465,6 +520,13 @@ internal staged file path as the filename on the wire (e.g.
 subject line (`ALLFILES.TXT`). The remote system received the file with the
 wrong name. Fixed to use the subject line as the filename for all FILE_ATTACH
 deliveries, matching the FTN convention.
+
+### Message Reader Header Transparency
+
+The sticky message header in the scrollable message reader was transparent in
+the default (light) theme, allowing the message body text to show through as
+the user scrolled. Fixed by adding an explicit white background to the sticky
+header rule in `style.css`.
 
 ### TIC Replace Existing Blocked by Duplicate Hash
 

@@ -444,13 +444,13 @@ class BinkpSession
                 // and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
                     $sentNothing = empty($this->filesSent) && empty($this->pendingFreqRequests);
-                    // If FREQ was sent but remote already sent EOB with no file response,
-                    // the file was denied/not found — don't wait the full 30s.
-                    $freqDenied = !empty($this->pendingFreqRequests)
-                        && empty($this->filesReceived)
-                        && $inactivity >= 5;
-                    if ($sentNothing || $freqDenied || $inactivity >= 30) {
-                        $reason = $sentNothing ? 'nothing sent' : ($freqDenied ? 'FREQ denied/no response' : "no activity for {$inactivity}s");
+                    // FREQ-only session: once remote sends EOB we are done whether the
+                    // file was served or denied — no tosser response is expected.
+                    $freqOnlyDone = empty($this->filesSent)
+                        && !empty($this->pendingFreqRequests)
+                        && $inactivity >= 3;
+                    if ($sentNothing || $freqOnlyDone || $inactivity >= 30) {
+                        $reason = $sentNothing ? 'nothing sent' : ($freqOnlyDone ? 'FREQ-only session complete' : "no activity for {$inactivity}s");
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;
@@ -874,8 +874,11 @@ class BinkpSession
             $filename = $req['filename'];
             $password = $req['password'];
 
-            // M_GET data: "filename" or "filename password"
-            $data = ($password !== null && $password !== '') ? "{$filename} {$password}" : $filename;
+            // M_GET format per FSP-1011 / binkd: "<filename> <size> <time> <offset> [<password>]"
+            // size=-1 means "give me the full file"; time=0, offset=0 = no resume.
+            $data = ($password !== null && $password !== '')
+                ? "{$filename} -1 0 0 {$password}"
+                : "{$filename} -1 0 0";
 
             $frame = BinkpFrame::createCommand(BinkpFrame::M_GET, $data);
             $frame->writeToSocket($this->socket);
@@ -1399,12 +1402,24 @@ class BinkpSession
     {
         $this->log("Remote FREQ request: {$data}", 'DEBUG');
 
-        // Parse M_GET format: filename [password] [size_limit] [unix_timestamp]
-        $parts     = explode(' ', trim($data));
-        $filename  = $parts[0] ?? '';
-        $password  = isset($parts[1]) && $parts[1] !== '' ? $parts[1] : null;
-        $sizeLimit = isset($parts[2]) ? (int)$parts[2] : 0;
-        $newerThan = isset($parts[3]) ? (int)$parts[3] : 0;
+        // Parse M_GET format per FSP-1011 / binkd:
+        //   <filename> <size> <time> <offset> [<password>]
+        // Legacy format (bare filename or filename+password) is also handled.
+        $parts    = explode(' ', trim($data));
+        $filename = $parts[0] ?? '';
+
+        // Detect FSP-1011 format: parts[1] is numeric (size field)
+        if (isset($parts[1]) && is_numeric($parts[1])) {
+            $sizeLimit = (int)$parts[1]; // -1 = any size
+            $newerThan = isset($parts[2]) ? (int)$parts[2] : 0;
+            // parts[3] is offset (ignored — we always serve from start)
+            $password  = isset($parts[4]) && $parts[4] !== '' ? $parts[4] : null;
+        } else {
+            // Legacy: filename [password]
+            $password  = isset($parts[1]) && $parts[1] !== '' ? $parts[1] : null;
+            $sizeLimit = 0;
+            $newerThan = 0;
+        }
 
         if ($filename === '') {
             $this->log("FREQ: empty filename in M_GET, ignoring", 'WARNING');
