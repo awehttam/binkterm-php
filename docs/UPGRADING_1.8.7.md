@@ -20,12 +20,27 @@
 - [Gemini File Areas](#gemini-file-areas)
 - [FREQ Enhancements](#freq-enhancements)
 - [Nodelist Enhancements](#nodelist-enhancements)
+- [Node Address Links](#node-address-links)
+- [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
+- FTN node addresses shown in the From:/To: fields of netmail and echomail
+  messages are now clickable links to the nodelist node view page.
+- Node view page now shows an interactive dark map when the node has geocoded
+  coordinates.
+- FREQ request modal on the nodelist node view now has a **File to request**
+  dropdown (ALLFILES, FILES, FILELIST, NODELIST, NODEDIFF, Other) and a
+  **Send to** service name picker (FileFix, FileMgr, FileReq, Files, Sysop,
+  Other), replacing the hardcoded ALLFILES/Sysop defaults.
+- Fixed: crashmail FILE_ATTACH netmails sent the garbled staged path as the
+  attachment filename instead of the actual filename from the subject line.
+- Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
+  the duplicate content hash check when the incoming file had the same content
+  as the file it was meant to replace.
 - FREQ response delivery now uses crashmail (direct) as the primary path and a
   per-node hold directory (`data/outbound/hold/<address>/`) as the fallback.
   Routed FILE_ATTACH (which hubs strip) is no longer used. Hold files are
@@ -432,12 +447,52 @@ The nodelist search page now includes a **multi-select flag filter**. Select one
 or more flags (CM, IBN, INA, FREQ, MO, etc.) to narrow the results to nodes
 that carry all of the chosen flags.
 
-### ALLFILES FREQ Modal
+### FREQ Request Modal
 
-The nodelist node detail view now includes a **Request ALLFILES** button. This
-sends an ALLFILES FREQ to the selected node and allows you to download their
-file listing in one click. A warning is shown if the node does not advertise the
-FREQ flag in its nodelist entry.
+The nodelist node detail view now includes a **Request File** button. The modal
+provides:
+
+- **File to request** — dropdown with common magic names (ALLFILES, FILES,
+  FILELIST, NODELIST, NODEDIFF) plus an Other option for arbitrary filenames.
+- **Send to** — service name picker (FileFix, FileMgr, FileReq, Files, Sysop,
+  Other). Defaults to `FileFix`, the standard FTN file request service name.
+- **Password** — optional session password.
+
+A warning is shown if the node does not advertise the FREQ flag.
+
+### Node View Map
+
+The nodelist node detail page now includes a dark interactive map below the
+info panels when the node has geocoded coordinates. If coordinates are missing,
+a notice is shown with instructions to run `scripts/geocode_nodelist.php`.
+
+## Node Address Links
+
+FTN node addresses displayed in message headers are now clickable links to the
+nodelist node view page:
+
+- **Echomail** — From: address
+- **Netmail** — From: and To: addresses (both in the message reader and in the
+  folder list rows)
+
+## Bug Fixes
+
+### Crashmail FILE_ATTACH Filename
+
+Crashmail delivery of FILE_ATTACH netmails was sending the attachment using the
+internal staged file path as the filename on the wire (e.g.
+`freq_abc123_ALLFILES.TXT`) instead of the actual filename stored in the
+subject line (`ALLFILES.TXT`). The remote system received the file with the
+wrong name. Fixed to use the subject line as the filename for all FILE_ATTACH
+deliveries, matching the FTN convention.
+
+### TIC Replace Existing Blocked by Duplicate Hash
+
+When a file area had **Replace Existing Files** enabled and **Allow Duplicate
+Content** disabled, TIC imports of updated files with the same content as the
+existing file were rejected by the duplicate hash check before the replacement
+logic could run. Fixed — when replacing a file by name, a hash match for that
+same filename is now allowed through so the replacement proceeds.
 
 ## Upgrade Instructions
 
