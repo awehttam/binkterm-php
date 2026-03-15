@@ -89,10 +89,17 @@ class BinkpClient
             // Set the uplink password for this session
             $session->setUplinkPassword($password);
 
-            // Set the current uplink context for packet filtering
-            // This ensures only packets destined for this uplink's networks are sent
+            // Set the current uplink context for packet filtering and address advertisement.
+            // If no exact uplink match exists (e.g. connecting to an arbitrary node via
+            // freq_pickup), find the uplink whose network covers the destination so we
+            // advertise the correct "me" address rather than the primary/first AKA.
             if ($uplink) {
                 $session->setCurrentUplink($uplink);
+            } else {
+                $routedUplink = $this->config->getUplinkForDestination($address);
+                if ($routedUplink) {
+                    $session->setCurrentUplink($routedUplink);
+                }
             }
 
             $session->handshake();
