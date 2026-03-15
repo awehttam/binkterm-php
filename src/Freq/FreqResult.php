@@ -25,13 +25,17 @@ class FreqResult
     /** @var int File size in bytes (0 if not served) */
     public int $fileSize;
 
+    /** @var bool True if the file was dynamically generated (e.g. ALLFILES.TXT) rather than a real file on disk */
+    public bool $isGenerated;
+
     public function __construct(
         bool    $served,
-        ?string $filePath   = null,
-        ?string $servedName = null,
-        ?int    $fileId     = null,
-        string  $denyReason = '',
-        int     $fileSize   = 0
+        ?string $filePath    = null,
+        ?string $servedName  = null,
+        ?int    $fileId      = null,
+        string  $denyReason  = '',
+        int     $fileSize    = 0,
+        bool    $isGenerated = false
     ) {
         $this->served      = $served;
         $this->filePath    = $filePath;
@@ -39,6 +43,7 @@ class FreqResult
         $this->fileId      = $fileId;
         $this->denyReason  = $denyReason;
         $this->fileSize    = $fileSize;
+        $this->isGenerated = $isGenerated;
     }
 
     public static function denied(string $reason): self
@@ -53,6 +58,6 @@ class FreqResult
 
     public static function servedGenerated(string $filePath, string $servedName, int $fileSize): self
     {
-        return new self(true, $filePath, $servedName, null, '', $fileSize);
+        return new self(true, $filePath, $servedName, null, '', $fileSize, true);
     }
 }

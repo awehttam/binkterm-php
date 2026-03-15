@@ -817,6 +817,12 @@ class BinkpSession
                 $markSent->execute([$id]);
                 $this->freqOutboundSent[$name] = $id;
                 $this->log("FREQ: sent '{$name}' to {$remoteAddr}", 'INFO');
+
+                // Clean up staged generated files (stored under data/freq_outbound/)
+                // Real files (from file areas) must NOT be deleted
+                if (strpos($path, DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'freq_outbound' . DIRECTORY_SEPARATOR) !== false) {
+                    @unlink($path);
+                }
             }
         } catch (\Exception $e) {
             $this->log("sendFreqFiles error: " . $e->getMessage(), 'ERROR');
