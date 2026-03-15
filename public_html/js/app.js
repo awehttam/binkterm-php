@@ -1000,7 +1000,9 @@ function formatDate(dateString) {
 }
 
 function formatFidonetAddress(address) {
-    return `<span class="fidonet-address">${address}</span>`;
+    if (!address) return '';
+    const url = '/nodelist/view?address=' + encodeURIComponent(address);
+    return `<a href="${url}" class="fidonet-address text-decoration-none" title="View node ${escapeHtml(address)}">${escapeHtml(address)}</a>`;
 }
 
 function formatFullDate(dateString) {
