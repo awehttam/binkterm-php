@@ -828,8 +828,8 @@ class MessageHandler
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq)
-            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status)
         ");
 
         $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
@@ -846,6 +846,7 @@ class MessageHandler
         $stmt->bindValue(':message_id', $msgId);
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
+        $stmt->bindValue(':freq_status', $isFreq ? 'pending' : null, $isFreq ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
 
         $result = $stmt->execute();
 

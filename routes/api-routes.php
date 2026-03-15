@@ -2362,7 +2362,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $manager = new \BinktermPHP\FileAreaManager();
-        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours);
+        $freqAccessible = isset($input['freq_accessible']) ? (bool)$input['freq_accessible'] : true;
+        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours, $freqAccessible);
         $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
@@ -6565,5 +6566,60 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
             apiError('errors.referrals.admin_stats_failed', apiLocalizedText('errors.referrals.admin_stats_failed', 'Failed to load admin referral statistics', $user));
         }
     });
+});
+
+// ── FREQ Log API ─────────────────────────────────────────────────────────────
+
+SimpleRouter::get('/admin/api/freq-log', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = 50;
+    $offset  = ($page - 1) * $perPage;
+
+    $where  = '1=1';
+    $params = [];
+
+    if (!empty($_GET['node'])) {
+        $where .= ' AND requesting_node ILIKE ?';
+        $params[] = '%' . $_GET['node'] . '%';
+    }
+    if (!empty($_GET['filename'])) {
+        $where .= ' AND filename ILIKE ?';
+        $params[] = '%' . $_GET['filename'] . '%';
+    }
+    if (isset($_GET['served']) && $_GET['served'] !== '') {
+        $where .= ' AND served = ?';
+        $params[] = $_GET['served'] === '1' ? 'true' : 'false';
+    }
+    if (!empty($_GET['source'])) {
+        $where .= ' AND source = ?';
+        $params[] = $_GET['source'];
+    }
+
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM freq_log WHERE {$where}");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    $stmt = $db->prepare(
+        "SELECT id, requested_at, requesting_node, filename, served, deny_reason, file_size, source
+         FROM freq_log
+         WHERE {$where}
+         ORDER BY requested_at DESC
+         LIMIT {$perPage} OFFSET {$offset}"
+    );
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success' => true,
+        'entries' => $rows,
+        'total'   => $total,
+        'page'    => $page,
+        'per_page'=> $perPage,
+    ]);
 });
 

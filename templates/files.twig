@@ -230,6 +230,13 @@
                         <i class="fas fa-info-circle me-1"></i>
                         {{ t('ui.files.active_share_exists', {}, 'common') }}
                     </div>
+                    <div class="form-check mb-3" id="shareFreqGroup">
+                        <input class="form-check-input" type="checkbox" id="shareFreqAccessible" checked>
+                        <label class="form-check-label" for="shareFreqAccessible">
+                            {{ t('ui.files.freq_accessible', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.files.freq_accessible_help', {}, 'Also allow this file to be requested via FidoNet FREQ') }}</div>
+                    </div>
                     <div class="mb-3" id="shareExpiryGroup">
                         <label for="shareExpiry" class="form-label">{{ t('ui.files.link_expiry', {}, 'common') }}</label>
                         <select class="form-select" id="shareExpiry">
@@ -1146,7 +1153,7 @@ function createFileShare() {
         url: `/api/files/${currentFileId}/share`,
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({ expires_hours: expiresHours }),
+        data: JSON.stringify({ expires_hours: expiresHours, freq_accessible: $('#shareFreqAccessible').is(':checked') }),
         success: function(data) {
             if (data.success) {
                 currentShareId = data.share_id;

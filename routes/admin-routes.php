@@ -3104,6 +3104,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 });
 
 
+// FREQ Log admin page
+SimpleRouter::get('/admin/freq-log', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/freq_log.twig');
+});
+
 // Crashmail Queue page
 SimpleRouter::get('/admin/crashmail', function() {
     $auth = new Auth();

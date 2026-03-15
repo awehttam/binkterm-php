@@ -44,6 +44,8 @@ class BinkpSession
     private $fileHandle;
     private $filesReceived;
     private $filesSent;
+    /** @var array<string,int> Mapping of filename => freq_outbound.id for FREQ files sent this session */
+    private array $freqOutboundSent = [];
     private $uplinkPassword;
     private $currentUplink;
 
@@ -249,6 +251,9 @@ class BinkpSession
             $this->log("Entering file transfer phase", 'DEBUG');
 
             $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
+
+            // Send any FREQ files queued for this node (runs for both originator and answerer)
+            $this->sendFreqFiles();
 
             if ($this->isOriginator) {
                 $this->log("As originator, checking for outbound files", 'DEBUG');
@@ -764,6 +769,60 @@ class BinkpSession
         $this->log("Sent EOB", 'DEBUG');
     }
 
+    /**
+     * Send any files from freq_outbound that are queued for the remote node.
+     * Called at session start for both originator and answerer.
+     */
+    private function sendFreqFiles(): void
+    {
+        $remoteAddr = $this->remoteAddress ?? '';
+        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+            return;
+        }
+
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            $stmt = $db->prepare(
+                "SELECT id, file_path, original_filename, file_size
+                 FROM freq_outbound
+                 WHERE to_address = ? AND status = 'pending'
+                 ORDER BY created_at ASC"
+            );
+            $stmt->execute([$remoteAddr]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                return;
+            }
+
+            $this->log("Sending " . count($rows) . " FREQ file(s) queued for {$remoteAddr}", 'INFO');
+
+            $markSent = $db->prepare(
+                "UPDATE freq_outbound SET status = 'sent', sent_at = NOW() WHERE id = ?"
+            );
+
+            foreach ($rows as $row) {
+                $path = (string)$row['file_path'];
+                $name = (string)$row['original_filename'];
+                $id   = (int)$row['id'];
+
+                if (!file_exists($path) || !is_readable($path)) {
+                    $this->log("FREQ outbound file missing, skipping: {$path}", 'WARNING');
+                    $db->prepare("UPDATE freq_outbound SET status = 'failed' WHERE id = ?")->execute([$id]);
+                    continue;
+                }
+
+                $this->sendFile($path);
+                $markSent->execute([$id]);
+                $this->freqOutboundSent[$name] = $id;
+                $this->log("FREQ: sent '{$name}' to {$remoteAddr}", 'INFO');
+            }
+        } catch (\Exception $e) {
+            $this->log("sendFreqFiles error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
     private function sendFiles()
     {
         $outboundPath = $this->config->getOutboundPath();
@@ -1217,7 +1276,35 @@ class BinkpSession
 
     private function handleGetCommand($data)
     {
-        $this->log("Remote requested file: {$data}", 'DEBUG');
+        $this->log("Remote FREQ request: {$data}", 'DEBUG');
+
+        // Parse M_GET format: filename [password] [size_limit] [unix_timestamp]
+        $parts     = explode(' ', trim($data));
+        $filename  = $parts[0] ?? '';
+        $password  = isset($parts[1]) && $parts[1] !== '' ? $parts[1] : null;
+        $sizeLimit = isset($parts[2]) ? (int)$parts[2] : 0;
+        $newerThan = isset($parts[3]) ? (int)$parts[3] : 0;
+
+        if ($filename === '') {
+            $this->log("FREQ: empty filename in M_GET, ignoring", 'WARNING');
+            return;
+        }
+
+        $callerAddr = $this->remoteAddress ?? 'unknown';
+
+        try {
+            $resolver = new \BinktermPHP\Freq\FreqResolver();
+            $result   = $resolver->resolve($filename, $password, $sizeLimit, $newerThan, $callerAddr, 'binkp');
+
+            if ($result->served && $result->filePath !== null) {
+                $this->log("FREQ: serving {$result->servedName} ({$result->fileSize} bytes) to {$callerAddr}", 'INFO');
+                $this->sendFile($result->filePath);
+            } else {
+                $this->log("FREQ: denied '{$filename}' for {$callerAddr}: {$result->denyReason}", 'INFO');
+            }
+        } catch (\Exception $e) {
+            $this->log("FREQ: resolver error for '{$filename}': " . $e->getMessage(), 'ERROR');
+        }
     }
 
     private function handleSkipCommand($data)
