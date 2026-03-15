@@ -2277,7 +2277,7 @@ return [
     'ui.nodelist.map_no_coordinates' => 'No geocoded nodes available. Run the geocode_nodelist script to populate coordinates.',
     'ui.nodelist.map_node_count' => '{count} geocoded nodes',
     'ui.nodelist.map_send_netmail' => 'Send Netmail',
-    'ui.nodelist.request_allfiles' => 'Request File List (ALLFILES)',
+    'ui.nodelist.request_allfiles' => 'Request File',
     'ui.nodelist.freq_not_advertised' => 'This node does not advertise the FREQ flag. A request will still be sent, but the node may not support file requests.',
     'ui.nodelist.request_allfiles_title' => 'Request File List from {node}',
     'ui.nodelist.request_allfiles_body' => 'Sends an ALLFILES FREQ to this node. They will include their file listing on the next binkp session with you.',

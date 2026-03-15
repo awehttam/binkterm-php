@@ -2277,7 +2277,7 @@ return [
     'ui.nodelist.map_no_coordinates' => 'No hay nodos geocodificados disponibles. Ejecuta el script geocode_nodelist para poblar las coordenadas.',
     'ui.nodelist.map_node_count' => '{count} nodos geocodificados',
     'ui.nodelist.map_send_netmail' => 'Enviar Netmail',
-    'ui.nodelist.request_allfiles' => 'Solicitar lista de archivos (ALLFILES)',
+    'ui.nodelist.request_allfiles' => 'Solicitar archivo',
     'ui.nodelist.freq_not_advertised' => 'Este nodo no anuncia el indicador FREQ. Se enviará la solicitud igualmente, pero es posible que el nodo no admita solicitudes de archivos.',
     'ui.nodelist.request_allfiles_title' => 'Solicitar lista de archivos de {node}',
     'ui.nodelist.request_allfiles_body' => 'Envía un FREQ ALLFILES a este nodo. Incluirán su listado de archivos en la próxima sesión binkp contigo.',
