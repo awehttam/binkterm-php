@@ -35,7 +35,7 @@
 - FREQ request modal on the nodelist node view now has a **File to request**
   dropdown (ALLFILES, FILES, FILELIST, NODELIST, NODEDIFF, Other) and a
   **Send to** service name picker (FileFix, FileMgr, FileReq, Files, Sysop,
-  Other), replacing the hardcoded ALLFILES/Sysop defaults.
+  Other).
 - Fixed: crashmail FILE_ATTACH netmails sent the garbled staged path as the
   attachment filename instead of the actual filename from the subject line.
 - Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
@@ -52,9 +52,6 @@
   correct address.
 - File area browser shows **Gemini** and **FREQ** capability badges next to
   each area name, along with the area description.
-- Nodelist node viewer includes an **ALLFILES FREQ** button to request a file
-  listing from any node that advertises the FREQ flag. A warning is shown for
-  nodes without the flag.
 - Nodelist search supports a multi-select flag filter to narrow results by
   nodelist flags (CM, IBN, INA, FREQ, etc.).
 
