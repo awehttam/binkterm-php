@@ -129,6 +129,9 @@ class BinkpClient
             } else {
                 $routedUplink = $this->config->getUplinkForDestination($address);
                 if ($routedUplink) {
+                    // Use routed uplink only for AKA/domain selection, not authentication.
+                    // Clear crypt so CRAM-MD5 is not attempted against a non-uplink node.
+                    $routedUplink['crypt'] = false;
                     $session->setCurrentUplink($routedUplink);
                 }
             }

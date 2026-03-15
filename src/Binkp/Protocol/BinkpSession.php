@@ -775,10 +775,12 @@ class BinkpSession
             $this->log("Sending CRAM-MD5 digest", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $cramPassword);
         } else {
-            // Plain text password
+            // Plain text password. Send '-' for empty password to explicitly
+            // request an insecure/anonymous session per binkp convention.
             $this->authMethod = 'plaintext';
+            $sendPwd = ($password === '') ? '-' : $password;
             $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
-            $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
+            $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $sendPwd);
         }
 
         $frame->writeToSocket($this->socket);
