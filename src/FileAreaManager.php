@@ -198,14 +198,16 @@ class FileAreaManager
             throw new \Exception('File area with this tag already exists in this domain');
         }
 
+        $geminiPublic = (bool)($data['gemini_public'] ?? false);
+
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
                 allow_duplicate_hash, password,
-                upload_permission, scan_virus,
+                upload_permission, scan_virus, gemini_public,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
@@ -213,7 +215,7 @@ class FileAreaManager
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
-            $uploadPermission, $scanVirus ? 1 : 0
+            $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false'
         ]);
 
         $result = $stmt->fetch();
@@ -255,11 +257,13 @@ class FileAreaManager
             throw new \Exception('File area with this tag already exists in this domain');
         }
 
+        $geminiPublic = (bool)($data['gemini_public'] ?? false);
+
         $stmt = $this->db->prepare("
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
-                replace_existing = ?, allow_duplicate_hash = ?, password = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
+                replace_existing = ?, allow_duplicate_hash = ?, password = ?, upload_permission = ?, scan_virus = ?, gemini_public = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
@@ -267,7 +271,7 @@ class FileAreaManager
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
-            $uploadPermission, $scanVirus ? 1 : 0, $id
+            $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false', $id
         ]);
 
         if (!$result || $stmt->rowCount() === 0) {

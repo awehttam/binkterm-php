@@ -215,6 +215,27 @@ class EchomailSeenBy {
 
 ---
 
+## Transport Abstraction
+
+The fanout engine (deciding which downlinks get which messages and queuing them) is identical regardless of transport. What differs is how queued messages are packaged and delivered. The `downlinks` table carries a `transport` column:
+
+| Value | Delivery method |
+|---|---|
+| `binkp` | FTN .pkt files exchanged over binkp sessions (push or pull) |
+| `qwk` | QWK ZIP packets downloaded/uploaded over HTTP |
+
+All transport-specific logic lives in a `DownlinkDelivery` strategy class selected by transport type. The fanout engine writes to `downlink_outbound` the same way for both.
+
+### QWK transport
+
+When `transport='qwk'`, the downlink is another BBS system (not an individual user). Authentication is by `session_password` against a dedicated HTTP endpoint — not a BBS user account. The `QwkPacketGenerator` class (defined in the [QWK Proposal](QWK_Proposal.md)) must be refactored to accept either a user context or a downlink context, driving conference lists from `downlink_areas` instead of user subscriptions. SEEN-BY and PATH kludges are not included in QWK packets; BinktermPHP adds them when tossing inbound REP replies back into echomail.
+
+QWK downlinks do not use `inet_host`/`port` — delivery is via HTTP endpoints on this system, not outbound sessions.
+
+See the [QWK Proposal](QWK_Proposal.md) for packet format details.
+
+---
+
 ## Binkp Integration
 
 ### Pull: downlink polls us

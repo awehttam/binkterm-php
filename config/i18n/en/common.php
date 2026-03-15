@@ -1432,6 +1432,8 @@ return [
     'ui.fileareas.allow_duplicate_content_help' => 'Allow same file content (hash) with different filenames',
     'ui.fileareas.local_only' => 'Local Only',
     'ui.fileareas.local_only_help' => "Don't forward files to uplinks",
+    'ui.fileareas.gemini_public' => 'Gemini Public',
+    'ui.fileareas.gemini_public_help' => 'List and serve files in this area via the Gemini capsule server',
     'ui.fileareas.upload_permission' => 'Upload Permission',
     'ui.fileareas.upload_users_can_upload' => 'Users Can Upload',
     'ui.fileareas.upload_admin_only' => 'Admin Only',

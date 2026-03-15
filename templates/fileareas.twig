@@ -164,6 +164,14 @@
                                 <div class="form-text">{{ t('ui.fileareas.local_only_help', {}, "Don't forward files to uplinks") }}</div>
                             </div>
 
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaGeminiPublic" name="gemini_public">
+                                <label class="form-check-label" for="fileareaGeminiPublic">
+                                    {{ t('ui.fileareas.gemini_public', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.gemini_public_help', {}, 'List and serve files in this area via the Gemini capsule server') }}</div>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="fileareaUploadPermission" class="form-label">{{ t('ui.fileareas.upload_permission', {}, locale, ['common']) }}</label>
                                 <select class="form-select" id="fileareaUploadPermission" name="upload_permission">
@@ -407,6 +415,7 @@ function editFilearea(id) {
             $('#fileareaReplaceExisting').prop('checked', area.replace_existing);
             $('#fileareaAllowDuplicateHash').prop('checked', area.allow_duplicate_hash);
             $('#fileareaIsLocal').prop('checked', area.is_local);
+            $('#fileareaGeminiPublic').prop('checked', area.gemini_public);
             $('#fileareaUploadPermission').val(area.upload_permission !== undefined ? area.upload_permission : 1);
             $('#fileareaScanVirus').prop('checked', area.scan_virus !== false);
             $('#fileareaIsActive').prop('checked', area.is_active);
@@ -433,6 +442,7 @@ function saveFilearea() {
         replace_existing: $('#fileareaReplaceExisting').is(':checked'),
         allow_duplicate_hash: $('#fileareaAllowDuplicateHash').is(':checked'),
         is_local: $('#fileareaIsLocal').is(':checked'),
+        gemini_public: $('#fileareaGeminiPublic').is(':checked'),
         upload_permission: parseInt($('#fileareaUploadPermission').val()),
         scan_virus: $('#fileareaScanVirus').is(':checked'),
         is_active: $('#fileareaIsActive').is(':checked')
