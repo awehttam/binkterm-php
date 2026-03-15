@@ -142,7 +142,61 @@
                                         data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                                     <span id="flagPickerLabel">{{ selectedFlags|length > 0 ? selectedFlags|join(', ') : t('ui.nodelist.index.flag_filter_any', {}, locale, ['common']) }}</span>
                                 </button>
-                                <ul class="dropdown-menu p-2" id="flagDropdown" style="min-width:160px;max-height:260px;overflow-y:auto;">
+                                {% set flagDescriptions = {
+                                    'IBN':      'Internet BinkP Node',
+                                    'INA':      'Internet Address',
+                                    'ITN':      'Internet Telnet Node',
+                                    'IFC':      'Internet File/Conference',
+                                    'IFT':      'Internet FTP',
+                                    'IVM':      'Internet VoIP/Messaging',
+                                    'IMI':      'Internet MIME email',
+                                    'ISE':      'Internet SMTP/Email',
+                                    'IEM':      'Internet Email',
+                                    'IP':       'Internet IP address (legacy)',
+                                    'BINKP':    'BinkP capable',
+                                    'CM':       'Continuous Mail',
+                                    'MO':       'Mail Only',
+                                    'LO':       'Listed Only',
+                                    'MN':       'Mail and News',
+                                    'FREQ':     'File Request',
+                                    'PING':     'Ping supported',
+                                    'HOLD':     'Mail on hold',
+                                    'DOWN':     'System down',
+                                    'PVT':      'Private node',
+                                    'HUB':      'Hub node',
+                                    'HOST':     'Net host node',
+                                    'REGION':   'Regional coordinator',
+                                    'ZONE':     'Zone coordinator',
+                                    'NEC':      'No EchoMail',
+                                    'V21':      'V.21 modem (300 baud)',
+                                    'V22':      'V.22 modem (1200 baud)',
+                                    'V29':      'V.29 modem (9600 baud)',
+                                    'V32':      'V.32 modem (9600 baud)',
+                                    'V32B':     'V.32bis modem (14400 baud)',
+                                    'V34':      'V.34 modem (28800 baud)',
+                                    'V42':      'V.42 error correction',
+                                    'V42B':     'V.42bis compression',
+                                    'V90C':     'V.90 modem — client (56k download)',
+                                    'V90S':     'V.90 modem — server (56k upload)',
+                                    'H96':      'HST 9600',
+                                    'H14':      'HST 14400',
+                                    'H16':      'HST 16800',
+                                    'MAX':      'MaxLink protocol',
+                                    'PEP':      'PEP high-speed protocol',
+                                    'ZYX':      'ZyXEL protocol',
+                                    'XA':       'Xmodem/ASCII',
+                                    'XB':       'Xmodem/CRC',
+                                    'XC':       'Xmodem/1K',
+                                    'XP':       'Xmodem/1K-G',
+                                    'ZMO':      'ZModem (original)',
+                                    'ZMB':      'ZModem with recovery',
+                                    'ISDN':     'ISDN connection',
+                                    'ISDNA':    'ISDN async',
+                                    'X25':      'X.25 packet network',
+                                    'POINTS24': 'Points file 24 hours',
+                                    'ANUS':     'Allow anonymous sessions'
+                                } %}
+                                <ul class="dropdown-menu p-2" id="flagDropdown" style="min-width:280px;max-height:260px;overflow-y:auto;">
                                     {% if availableFlags|length > 0 %}
                                         {% for f in availableFlags %}
                                         <li>
@@ -150,7 +204,10 @@
                                                 <input type="checkbox" class="form-check-input flag-cb flex-shrink-0"
                                                        name="flag[]" value="{{ f }}"
                                                        {% if f in selectedFlags %}checked{% endif %}>
-                                                <code class="small">{{ f }}</code>
+                                                <code class="small flex-shrink-0">{{ f }}</code>
+                                                {% if flagDescriptions[f] is defined %}
+                                                    <span class="text-muted small">— {{ flagDescriptions[f] }}</span>
+                                                {% endif %}
                                             </label>
                                         </li>
                                         {% endfor %}
