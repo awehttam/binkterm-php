@@ -259,16 +259,19 @@
 {% if node.latitude and node.longitude %}
 <script>
 (function() {
-    const lat = {{ node.latitude|e('js') }};
-    const lng = {{ node.longitude|e('js') }};
+    const lat  = {{ node.latitude|json_encode|raw }};
+    const lng  = {{ node.longitude|json_encode|raw }};
+    const name = {{ node.system_name|default('')|json_encode|raw }};
+    const addr = {{ node.full_address|json_encode|raw }};
+    const loc  = {{ node.location|default('')|json_encode|raw }};
     const map = L.map('nodeMap', { scrollWheelZoom: false }).setView([lat, lng], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        attribution: '\u00a9 <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 18
     }).addTo(map);
     L.marker([lat, lng])
         .addTo(map)
-        .bindPopup('<strong>{{ node.system_name|e('js') }}</strong><br>{{ node.full_address|e('js') }}<br><small>{{ node.location|default('')|e('js') }}</small>')
+        .bindPopup('<strong>' + name + '</strong><br>' + addr + (loc ? '<br><small>' + loc + '</small>' : ''))
         .openPopup();
 })();
 </script>
