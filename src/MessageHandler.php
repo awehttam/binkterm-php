@@ -1991,13 +1991,13 @@ class MessageHandler
         string $filename
     ): void {
         $subject = 'File Request Processed - Pick Up Required';
-        $body    = "Your file request for {$filename} has been processed.\r\n\r\n"
-                 . "The requested file(s) could not be delivered directly because your system\r\n"
-                 . "is not directly reachable from here. The file(s) are queued and waiting\r\n"
-                 . "for you to connect to us ({$originAddress}) to pick them up.\r\n\r\n"
-                 . "Please arrange a direct binkp session with {$originAddress} to collect\r\n"
-                 . "your files.\r\n\r\n"
-                 . "--- {$sysopName} @ {$originAddress}\r\n";
+        $body    = "Your file request for {$filename} has been processed.\n\n"
+                 . "The requested file(s) could not be delivered directly because your system\n"
+                 . "is not directly reachable from here. The file(s) are queued and waiting\n"
+                 . "for you to connect to us ({$originAddress}) to pick them up.\n\n"
+                 . "Please arrange a direct binkp session with {$originAddress} to collect\n"
+                 . "your files.\n\n"
+                 . "--- {$sysopName} @ {$originAddress}\n";
 
         $kludgeLines = $this->generateNetmailKludges(
             $originAddress, $toAddress, $sysopName, 'Sysop', $subject, null
