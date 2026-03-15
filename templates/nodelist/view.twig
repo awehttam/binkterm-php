@@ -127,10 +127,68 @@
                             {% if node.flags and node.flags|length > 0 %}
                                 <hr>
                                 <h6>{{ t('ui.nodelist.capabilities_flags') }}</h6>
+                                {% set flagDescriptions = {
+                                    'IBN':      'Internet BinkP Node — accepts binkp connections',
+                                    'INA':      'Internet Address — hostname or IP for internet connections',
+                                    'ITN':      'Internet Telnet Node — accepts telnet connections',
+                                    'IFC':      'Internet File/Conference — internet file sharing',
+                                    'IFT':      'Internet FTP — accepts FTP connections',
+                                    'IVM':      'Internet VoIP/Messaging',
+                                    'IMI':      'Internet MIME email',
+                                    'ISE':      'Internet SMTP/Email',
+                                    'IEM':      'Internet Email',
+                                    'IP':       'Internet IP address (legacy)',
+                                    'BINKP':    'BinkP capable',
+                                    'CM':       'Continuous Mail — accepts mail 24 hours a day',
+                                    'MO':       'Mail Only — does not accept human callers',
+                                    'LO':       'Listed Only — only accepts calls from listed nodes',
+                                    'MN':       'Mail and News',
+                                    'FREQ':     'File Request — will serve files on request',
+                                    'PING':     'Responds to ping requests',
+                                    'HOLD':     'Mail on hold — not currently accepting connections',
+                                    'DOWN':     'System down — temporarily unavailable',
+                                    'PVT':      'Private node — address not published',
+                                    'HUB':      'Hub node',
+                                    'HOST':     'Net host node',
+                                    'REGION':   'Regional coordinator',
+                                    'ZONE':     'Zone coordinator',
+                                    'NEC':      'No EchoMail',
+                                    'V21':      'V.21 modem (300 baud)',
+                                    'V22':      'V.22 modem (1200 baud)',
+                                    'V29':      'V.29 modem (9600 baud)',
+                                    'V32':      'V.32 modem (9600 baud)',
+                                    'V32B':     'V.32bis modem (14400 baud)',
+                                    'V34':      'V.34 modem (28800 baud)',
+                                    'V42':      'V.42 error correction',
+                                    'V42B':     'V.42bis compression',
+                                    'V90C':     'V.90 modem — client mode (56k download)',
+                                    'V90S':     'V.90 modem — server mode (56k upload)',
+                                    'H96':      'HST 9600',
+                                    'H14':      'HST 14400',
+                                    'H16':      'HST 16800',
+                                    'MAX':      'MaxLink protocol',
+                                    'PEP':      'PEP high-speed protocol',
+                                    'ZYX':      'ZyXEL proprietary protocol',
+                                    'XA':       'Xmodem/ASCII transfer',
+                                    'XB':       'Xmodem/CRC transfer',
+                                    'XC':       'Xmodem/1K transfer',
+                                    'XP':       'Xmodem/1K-G transfer',
+                                    'ZMO':      'ZModem (original)',
+                                    'ZMB':      'ZModem with crash recovery',
+                                    'ISDN':     'ISDN connection',
+                                    'ISDNA':    'ISDN async',
+                                    'X25':      'X.25 packet network',
+                                    'POINTS24': 'Points file available 24 hours',
+                                    'ANUS':     'Allow Null User Session — accepts anonymous/insecure sessions'
+                                } %}
                                 <div class="row">
                                     {% for flag_name, flag_value in node.flags %}
                                         <div class="col-md-4 mb-2">
-                                            <span class="badge bg-info me-1">{{ flag_name }}</span>
+                                            <span class="badge bg-info me-1"
+                                                {% if flagDescriptions[flag_name] is defined %}
+                                                    data-bs-toggle="tooltip"
+                                                    data-bs-title="{{ flagDescriptions[flag_name] }}"
+                                                {% endif %}>{{ flag_name }}</span>
                                             {% if flag_value != true and flag_value != '1' %}
                                                 <small class="text-muted">{{ flag_value }}</small>
                                             {% endif %}
@@ -385,6 +443,11 @@
 <script>
 // Context menu for host links
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialise Bootstrap tooltips for flag descriptions
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
+
     const contextMenu = document.getElementById('hostContextMenu');
     const menuHttp = document.getElementById('menuHttp');
     const menuTelnet = document.getElementById('menuTelnet');
