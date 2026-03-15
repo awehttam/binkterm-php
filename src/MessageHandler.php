@@ -1882,11 +1882,12 @@ class MessageHandler
      *
      * Strategy:
      *  1. If crashmail is enabled and the destination is directly resolvable,
-     *     send the file as a FILE_ATTACH crashmail (proactive direct delivery).
-     *  2. Otherwise, queue the file in freq_outbound so it is sent the next time
-     *     the requesting node establishes a direct binkp session with us, and send
-     *     the node a plain notification netmail (via normal hub routing) telling
-     *     them to connect and pick up their files.
+     *     queue a FILE_ATTACH crashmail (we connect to them).
+     *  2. Otherwise, write a FILE_ATTACH netmail packet + the file into a
+     *     per-node hold directory (data/outbound/hold/<address>/) so that
+     *     both sides can deliver it — either when they connect to us or when
+     *     we poll them. Also send a plain notification netmail via hub routing
+     *     telling them to connect and collect their files.
      *
      * Note: routed FILE_ATTACH netmail is intentionally avoided because hubs
      * typically strip file attachments from forwarded messages.
@@ -1915,35 +1916,33 @@ class MessageHandler
             $crashService = new \BinktermPHP\Crashmail\CrashmailService();
             $routeInfo    = $crashService->resolveDestination($toAddress);
             if (!empty($routeInfo['hostname'])) {
-                $this->sendFreqFileAttachCrashmail(
-                    $originAddress, $toAddress, $sysopName, $filePath, $filename, $crashService
+                $netmailId = $this->insertFreqFileAttachNetmail(
+                    $originAddress, $toAddress, $sysopName, $filePath, $filename
                 );
+                $crashService->queueCrashmail($netmailId);
                 error_log("[FREQ] Response to {$toAddress} queued for crashmail: {$filename}");
                 return;
             }
         }
 
-        // Fallback: queue for pick-up on next direct session + send notification netmail
-        $this->db->prepare(
-            "INSERT INTO freq_outbound (to_address, file_path, original_filename, file_size, created_at, status)
-             VALUES (?, ?, ?, ?, NOW(), 'pending')"
-        )->execute([$toAddress, $filePath, $filename, filesize($filePath)]);
-
+        // Fallback: write FILE_ATTACH packet + file to per-node hold directory.
+        // Delivered when either side initiates a session with the requesting node.
+        $this->spoolFreqAttachToHold($originAddress, $toAddress, $sysopName, $filePath, $filename);
         $this->sendFreqPickupNotification($originAddress, $toAddress, $sysopName, $filename);
-        error_log("[FREQ] Response to {$toAddress} queued for pick-up: {$filename}");
+        error_log("[FREQ] Response to {$toAddress} staged in hold for pick-up: {$filename}");
     }
 
     /**
-     * Create a FILE_ATTACH netmail and queue it for crashmail delivery.
+     * Insert a FILE_ATTACH netmail record and return its ID.
+     * Used by both the crashmail and hold delivery paths.
      */
-    private function sendFreqFileAttachCrashmail(
+    private function insertFreqFileAttachNetmail(
         string $originAddress,
         string $toAddress,
         string $sysopName,
         string $filePath,
-        string $filename,
-        \BinktermPHP\Crashmail\CrashmailService $crashService
-    ): void {
+        string $filename
+    ): int {
         $attributes = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
                     | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
                     | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
@@ -1977,7 +1976,64 @@ class MessageHandler
             ':attributes'      => $attributes,
             ':attachment_path' => $filePath,
         ]);
-        $crashService->queueCrashmail((int)$this->db->lastInsertId());
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Write a FILE_ATTACH netmail packet and the attached file into a per-node
+     * hold directory (data/outbound/hold/<sanitized-address>/).
+     * BinkpSession::sendHoldFiles() delivers these when a session occurs with
+     * the destination node, regardless of which side initiated the connection.
+     */
+    private function spoolFreqAttachToHold(
+        string $originAddress,
+        string $toAddress,
+        string $sysopName,
+        string $filePath,
+        string $filename
+    ): void {
+        $holdDir = $this->getNodeHoldDir($toAddress);
+
+        // Insert the netmail record so it appears in the sender's sent items
+        $this->insertFreqFileAttachNetmail($originAddress, $toAddress, $sysopName, $filePath, $filename);
+
+        // Create the outbound packet in the hold directory
+        $packetPath = $holdDir . '/' . substr(uniqid(), -8) . '.pkt';
+        $message = [
+            'from_name'    => $sysopName,
+            'from_address' => $originAddress,
+            'to_name'      => 'Sysop',
+            'to_address'   => $toAddress,
+            'subject'      => $filename,
+            'message_text' => '',
+            'date_written' => date('D, d M Y H:i:s O'),
+            'attributes'   => \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                            | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                            | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL,
+            'kludge_lines' => '',
+        ];
+        $processor = new \BinktermPHP\BinkdProcessor();
+        $processor->createOutboundPacket([$message], $toAddress, $packetPath);
+
+        // Copy the attachment file to the hold directory so sendHoldFiles() can send both
+        $destFile = $holdDir . '/' . $filename;
+        if (!copy($filePath, $destFile)) {
+            throw new \RuntimeException("Failed to copy FREQ attachment to hold directory: {$destFile}");
+        }
+    }
+
+    /**
+     * Return (and create if needed) the per-node hold directory for a given FTN address.
+     * Address characters that are not alphanumeric are replaced with underscores.
+     */
+    private function getNodeHoldDir(string $address): string
+    {
+        $safe = preg_replace('/[^a-zA-Z0-9]/', '_', $address);
+        $dir  = \BinktermPHP\Config::BINKD_OUTBOUND . '/hold/' . $safe;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        return $dir;
     }
 
     /**

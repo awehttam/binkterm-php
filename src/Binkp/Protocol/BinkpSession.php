@@ -255,6 +255,9 @@ class BinkpSession
             // Send any FREQ files queued for this node (runs for both originator and answerer)
             $this->sendFreqFiles();
 
+            // Deliver any hold-directory files queued for the connecting node (runs for both roles)
+            $this->sendHoldFiles();
+
             if ($this->isOriginator) {
                 $this->log("As originator, checking for outbound files", 'DEBUG');
                 $this->sendFiles();
@@ -820,6 +823,67 @@ class BinkpSession
             }
         } catch (\Exception $e) {
             $this->log("sendFreqFiles error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Send any files from the per-node hold directory for the remote node.
+     * .pkt files are sent first (they carry the FILE_ATTACH netmail), then the
+     * attached files themselves.  Delivered files are removed from the hold dir.
+     * Called for both originator and answerer so the requesting node receives its
+     * FREQ response regardless of which side initiates the session.
+     */
+    private function sendHoldFiles(): void
+    {
+        $remoteAddr = $this->remoteAddress ?? '';
+        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+            return;
+        }
+
+        $safe    = preg_replace('/[^a-zA-Z0-9]/', '_', $remoteAddr);
+        $holdDir = \BinktermPHP\Config::BINKD_OUTBOUND . '/hold/' . $safe;
+
+        if (!is_dir($holdDir)) {
+            return;
+        }
+
+        $pktFiles   = glob($holdDir . '/*.pkt') ?: [];
+        $otherFiles = array_filter(
+            glob($holdDir . '/*') ?: [],
+            static fn($f) => is_file($f) && strtolower(pathinfo($f, PATHINFO_EXTENSION)) !== 'pkt'
+        );
+
+        if (empty($pktFiles) && empty($otherFiles)) {
+            return;
+        }
+
+        $this->log("Hold dir for {$remoteAddr}: " . count($pktFiles) . " packet(s), " . count($otherFiles) . " attachment(s)", 'INFO');
+
+        // Send packets first so the FILE_ATTACH netmail arrives before the data file
+        foreach ($pktFiles as $pkt) {
+            if (!is_readable($pkt)) {
+                $this->log("Hold .pkt unreadable, skipping: " . basename($pkt), 'WARNING');
+                continue;
+            }
+            $this->sendFile($pkt);
+            $this->log("Hold: sent packet " . basename($pkt) . " to {$remoteAddr}", 'INFO');
+            @unlink($pkt);
+        }
+
+        foreach ($otherFiles as $file) {
+            if (!is_readable($file)) {
+                $this->log("Hold attachment unreadable, skipping: " . basename($file), 'WARNING');
+                continue;
+            }
+            $this->sendFile($file);
+            $this->log("Hold: sent attachment " . basename($file) . " to {$remoteAddr}", 'INFO');
+            @unlink($file);
+        }
+
+        // Remove hold dir if now empty
+        $remaining = glob($holdDir . '/*');
+        if ($remaining !== false && empty($remaining)) {
+            @rmdir($holdDir);
         }
     }
 
