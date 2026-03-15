@@ -214,6 +214,18 @@
                 </div>
                 {% endif %}
                 <div class="mb-3">
+                    <label for="allfilesToName" class="form-label">{{ t('ui.nodelist.request_allfiles_to') }}</label>
+                    <select class="form-select" id="allfilesToName" onchange="toggleAllfilesToNameOther()">
+                        <option value="FileFix">FileFix</option>
+                        <option value="FileMgr">FileMgr</option>
+                        <option value="FileReq">FileReq</option>
+                        <option value="Files">Files</option>
+                        <option value="Sysop">Sysop</option>
+                        <option value="">{{ t('ui.nodelist.request_allfiles_to_other') }}</option>
+                    </select>
+                    <input type="text" class="form-control mt-2 d-none" id="allfilesToNameOther" placeholder="{{ t('ui.nodelist.request_allfiles_to_other_placeholder') }}" autocomplete="off">
+                </div>
+                <div class="mb-3">
                     <label for="allfilesPassword" class="form-label">{{ t('ui.nodelist.request_allfiles_password') }}</label>
                     <input type="text" class="form-control" id="allfilesPassword" autocomplete="off">
                     <div class="form-text">{{ t('ui.nodelist.request_allfiles_password_help') }}</div>
@@ -311,13 +323,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ALLFILES FREQ functions
     window.showAllfilesModal = function() {
+        document.getElementById('allfilesToName').value = 'FileFix';
+        document.getElementById('allfilesToNameOther').value = '';
+        document.getElementById('allfilesToNameOther').classList.add('d-none');
         document.getElementById('allfilesPassword').value = '';
         document.getElementById('allfilesError').classList.add('d-none');
         document.getElementById('allfilesSendBtn').disabled = false;
         new bootstrap.Modal(document.getElementById('allfilesModal')).show();
     };
 
+    window.toggleAllfilesToNameOther = function() {
+        const sel = document.getElementById('allfilesToName');
+        const other = document.getElementById('allfilesToNameOther');
+        if (sel.value === '') {
+            other.classList.remove('d-none');
+            other.focus();
+        } else {
+            other.classList.add('d-none');
+        }
+    };
+
     window.sendAllfilesFreq = function() {
+        const sel = document.getElementById('allfilesToName');
+        const toName = (sel.value === '' ? document.getElementById('allfilesToNameOther').value.trim() : sel.value) || 'FileFix';
         const password = document.getElementById('allfilesPassword').value.trim();
         const btn = document.getElementById('allfilesSendBtn');
         const errorBox = document.getElementById('allfilesError');
@@ -333,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({
                 type: 'netmail',
                 to_address: '{{ node.full_address|e('js') }}',
-                to_name: 'FileFix',
+                to_name: toName,
                 subject: subject,
                 message_text: '',
                 is_freq: true

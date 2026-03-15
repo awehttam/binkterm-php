@@ -381,8 +381,14 @@ class CrashmailService
             $attachment = null;
             if (!empty($queueItem['outbound_attachment_path'])) {
                 $attachPath = $queueItem['outbound_attachment_path'];
-                // Filename stored in the path: strip the token prefix (32 hex chars + underscore)
-                $attachFilename = preg_replace('/^[0-9a-f]{32}_/', '', basename($attachPath));
+                // For FILE_ATTACH netmails the subject line IS the filename (FTN convention).
+                // Fall back to stripping the upload-token prefix ({32hex}_name) for regular attachments.
+                $isFileAttach = ((int)$queueItem['attributes'] & self::ATTR_FILE_ATTACH) !== 0;
+                if ($isFileAttach && !empty($queueItem['subject'])) {
+                    $attachFilename = $queueItem['subject'];
+                } else {
+                    $attachFilename = preg_replace('/^[0-9a-f]{32}_/', '', basename($attachPath));
+                }
                 $attachment = [
                     'file_path'  => $attachPath,
                     'filename'   => $attachFilename,
