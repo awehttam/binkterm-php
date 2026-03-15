@@ -62,7 +62,8 @@ class FileAreaManager
         $sql = "SELECT id, tag, description, domain, is_local, is_active,
                        max_file_size, allowed_extensions, blocked_extensions,
                        replace_existing, allow_duplicate_hash, upload_permission,
-                       scan_virus, file_count, total_size, created_at, updated_at
+                       scan_virus, file_count, total_size, created_at, updated_at,
+                       gemini_public, freq_enabled
                 FROM file_areas WHERE 1=1";
         $params = [];
 
@@ -198,14 +199,19 @@ class FileAreaManager
             throw new \Exception('File area with this tag already exists in this domain');
         }
 
+        $geminiPublic = (bool)($data['gemini_public'] ?? false);
+        $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
+        $freqPassword = trim((string)($data['freq_password'] ?? ''));
+        $freqPassword = $freqPassword === '' ? null : $freqPassword;
+
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
                 allow_duplicate_hash, password,
-                upload_permission, scan_virus,
+                upload_permission, scan_virus, gemini_public, freq_enabled, freq_password,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
@@ -213,7 +219,8 @@ class FileAreaManager
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
-            $uploadPermission, $scanVirus ? 1 : 0
+            $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
+            $freqEnabled ? 'true' : 'false', $freqPassword
         ]);
 
         $result = $stmt->fetch();
@@ -255,11 +262,16 @@ class FileAreaManager
             throw new \Exception('File area with this tag already exists in this domain');
         }
 
+        $geminiPublic = (bool)($data['gemini_public'] ?? false);
+        $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
+        $freqPassword = trim((string)($data['freq_password'] ?? ''));
+        $freqPassword = $freqPassword === '' ? null : $freqPassword;
+
         $stmt = $this->db->prepare("
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
-                replace_existing = ?, allow_duplicate_hash = ?, password = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
+                replace_existing = ?, allow_duplicate_hash = ?, password = ?, upload_permission = ?, scan_virus = ?, gemini_public = ?, freq_enabled = ?, freq_password = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
@@ -267,7 +279,8 @@ class FileAreaManager
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
-            $uploadPermission, $scanVirus ? 1 : 0, $id
+            $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
+            $freqEnabled ? 'true' : 'false', $freqPassword, $id
         ]);
 
         if (!$result || $stmt->rowCount() === 0) {
@@ -1459,7 +1472,7 @@ class FileAreaManager
      * @param int|null $expiresHours Hours until expiry (null = never)
      * @return array ['success'=>bool, 'share_url'=>string, 'share_id'=>int, 'existing'=>bool]
      */
-    public function createFileShare(int $fileId, int $userId, ?int $expiresHours = null): array
+    public function createFileShare(int $fileId, int $userId, ?int $expiresHours = null, bool $freqAccessible = true): array
     {
         $file = $this->getFileById($fileId);
         if (!$file || $file['status'] !== 'approved') {
@@ -1497,18 +1510,18 @@ class FileAreaManager
         if ($expiresHours !== null) {
             $expiresHours = (int)$expiresHours;
             $stmt = $this->db->prepare("
-                INSERT INTO shared_files (file_id, shared_by_user_id, share_key, expires_at, created_at)
-                VALUES (?, ?, ?, NOW() + INTERVAL '1 hour' * ?, NOW())
+                INSERT INTO shared_files (file_id, shared_by_user_id, share_key, expires_at, freq_accessible, created_at)
+                VALUES (?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?, NOW())
                 RETURNING id
             ");
-            $stmt->execute([$fileId, $userId, $shareKey, $expiresHours]);
+            $stmt->execute([$fileId, $userId, $shareKey, $expiresHours, $freqAccessible ? 'true' : 'false']);
         } else {
             $stmt = $this->db->prepare("
-                INSERT INTO shared_files (file_id, shared_by_user_id, share_key, expires_at, created_at)
-                VALUES (?, ?, ?, NULL, NOW())
+                INSERT INTO shared_files (file_id, shared_by_user_id, share_key, expires_at, freq_accessible, created_at)
+                VALUES (?, ?, ?, NULL, ?, NOW())
                 RETURNING id
             ");
-            $stmt->execute([$fileId, $userId, $shareKey]);
+            $stmt->execute([$fileId, $userId, $shareKey, $freqAccessible ? 'true' : 'false']);
         }
 
         $row = $stmt->fetch();

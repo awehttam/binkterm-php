@@ -55,6 +55,11 @@ return [
     'errors.messages.echomail.bulk_delete.user_not_found' => 'User not found',
     'errors.messages.echomail.stats.subscription_required' => 'Subscription required for this echo area',
     'errors.messages.echomail.not_found' => 'Message not found',
+    'errors.messages.echomail.edit.admin_required' => 'Admin privileges are required',
+    'errors.messages.echomail.edit.invalid_art_format' => 'Invalid art format value',
+    'errors.messages.echomail.edit.nothing_to_update' => 'No fields to update',
+    'errors.messages.echomail.edit.save_failed' => 'Failed to save changes',
+    'errors.messages.netmail.edit.forbidden' => 'You do not have permission to edit this message',
     'errors.messages.netmail.attachment.no_file' => 'No attachment uploaded',
     'errors.messages.netmail.attachment.upload_error' => 'Attachment upload failed',
     'errors.messages.netmail.attachment.too_large' => 'Attachment exceeds maximum allowed size',
@@ -148,7 +153,9 @@ return [
     'errors.files.upload.read_only' => 'This file area is read-only',
     'errors.files.upload.admin_only' => 'Only administrators can upload files to this area',
     'errors.files.upload.virus_detected' => 'File rejected: virus detected',
+    'errors.files.upload.insufficient_credits' => 'Insufficient credits to upload this file',
     'errors.files.upload.failed' => 'Failed to upload file',
+    'errors.files.download.insufficient_credits' => 'Insufficient credits to download this file',
 
     // Admin Users
     'errors.admin.users.not_found' => 'User not found',

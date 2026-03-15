@@ -715,6 +715,13 @@ class BinkdProcessor
 
     private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
+        // Intercept inbound netmail FREQs (FILE_REQUEST attribute 0x0800).
+        // These are protocol requests, not user mail — log and discard rather than deliver.
+        if (($message['attributes'] ?? 0) & 0x0800) {
+            $this->processInboundNetmailFreq($message);
+            return;
+        }
+
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
 
@@ -879,6 +886,35 @@ class BinkdProcessor
         // Check for file attachments (bit 4 = 0x0010 in FidoNet attributes)
         if (($message['attributes'] ?? 0) & 0x0010) {
             $this->processNetmailAttachment($userId, $message, $netmailId, $fromAddr);
+        }
+    }
+
+    /**
+     * Process an inbound netmail marked FILE_REQUEST (0x0800).
+     * Resolves filenames from the Subject, queues fulfilled files for delivery,
+     * and logs every attempt. The netmail is NOT stored in the inbox.
+     *
+     * @param array $message Parsed message array from readMessage()
+     */
+    private function processInboundNetmailFreq(array $message): void
+    {
+        $fromAddr = $message['origAddr'] ?? $message['fromAddr'] ?? '';
+        $subject  = trim($message['subject'] ?? '');
+        $body     = $message['text'] ?? '';
+
+        $this->log("[BINKD] FREQ netmail from {$fromAddr}: {$subject}");
+
+        if ($subject === '' || $fromAddr === '') {
+            $this->log("[BINKD] FREQ netmail has no subject or origin address — ignoring");
+            return;
+        }
+
+        try {
+            $resolver = new \BinktermPHP\Freq\FreqResolver();
+            $queued   = $resolver->processNetmailFreq($subject, $body, $fromAddr);
+            $this->log("[BINKD] FREQ netmail from {$fromAddr}: queued {$queued} file(s) for delivery");
+        } catch (\Exception $e) {
+            $this->log("[BINKD] FREQ resolution error for {$fromAddr}: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -1422,10 +1458,14 @@ class BinkdProcessor
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
 
-        // Parse origin address — must have a configured uplink with a 'me' address
+        // Parse origin address — prefer uplink-specific 'me' address, fall back to system address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
         if (!$myAddress) {
-            throw new \Exception("No configured uplink 'me' address for destination $destAddr — cannot build packet header");
+            $myAddress = $this->config->getSystemAddress();
+            if (!$myAddress) {
+                throw new \Exception("No configured origin address for destination $destAddr — cannot build packet header");
+            }
+            $this->log("writePacketHeader: no uplink match for $destAddr, using system address $myAddress");
         }
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);

@@ -1,0 +1,726 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.db_stats.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.db_stats.heading', {}, locale, ['common']) }}</h1>
+        <div class="btn-toolbar">
+            <a href="/admin/database-stats" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
+            </a>
+            <a href="/admin/" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.common.go_back', {}, locale, ['common']) }}
+            </a>
+        </div>
+    </div>
+
+    <!-- Nav tabs -->
+    <ul class="nav nav-tabs mb-3" id="dbStatsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-size" data-bs-toggle="tab" data-bs-target="#pane-size" type="button" role="tab">
+                <i class="fas fa-database me-1"></i>{{ t('ui.admin.db_stats.tab.size_growth', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-activity" data-bs-toggle="tab" data-bs-target="#pane-activity" type="button" role="tab">
+                <i class="fas fa-chart-line me-1"></i>{{ t('ui.admin.db_stats.tab.activity', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-queries" data-bs-toggle="tab" data-bs-target="#pane-queries" type="button" role="tab">
+                <i class="fas fa-search me-1"></i>{{ t('ui.admin.db_stats.tab.query_performance', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-replication" data-bs-toggle="tab" data-bs-target="#pane-replication" type="button" role="tab">
+                <i class="fas fa-copy me-1"></i>{{ t('ui.admin.db_stats.tab.replication', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-maintenance" data-bs-toggle="tab" data-bs-target="#pane-maintenance" type="button" role="tab">
+                <i class="fas fa-tools me-1"></i>{{ t('ui.admin.db_stats.tab.maintenance', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-indexes" data-bs-toggle="tab" data-bs-target="#pane-indexes" type="button" role="tab">
+                <i class="fas fa-list-ol me-1"></i>{{ t('ui.admin.db_stats.tab.index_health', {}, locale, ['common']) }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-i18n" data-bs-toggle="tab" data-bs-target="#pane-i18n" type="button" role="tab">
+                <i class="fas fa-language me-1"></i>{{ t('ui.admin.db_stats.tab.i18n_catalogs', {}, locale, ['common']) }}
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="dbStatsTabContent">
+
+        <!-- ===================== SIZE & GROWTH ===================== -->
+        <div class="tab-pane fade show active" id="pane-size" role="tabpanel">
+
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                {{ t('ui.admin.db_stats.db_total_size', {}, locale, ['common']) }}
+                            </div>
+                            <div class="h4 mb-0 font-weight-bold">{{ size.db_size ?? 'N/A' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.table_sizes', {}, locale, ['common']) }}</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if size.table_sizes|length > 0 %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                            <th class="text-end">{{ t('ui.admin.db_stats.col.total_size', {}, locale, ['common']) }}</th>
+                                            <th class="text-end">{{ t('ui.admin.db_stats.col.table_size', {}, locale, ['common']) }}</th>
+                                            <th class="text-end">{{ t('ui.admin.db_stats.col.index_size', {}, locale, ['common']) }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in size.table_sizes %}
+                                        <tr>
+                                            <td><code>{{ row.table_name }}</code></td>
+                                            <td class="text-end">{{ row.total_size }}</td>
+                                            <td class="text-end">{{ row.table_size }}</td>
+                                            <td class="text-end">{{ row.index_size }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted p-3 mb-0">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.index_sizes', {}, locale, ['common']) }}</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if size.index_sizes|length > 0 %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ t('ui.admin.db_stats.col.index', {}, locale, ['common']) }}</th>
+                                            <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                            <th class="text-end">{{ t('ui.admin.db_stats.col.size', {}, locale, ['common']) }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in size.index_sizes %}
+                                        <tr>
+                                            <td><code{% if row.indexname|length > 30 %} title="{{ row.indexname }}"{% endif %}>{{ row.indexname|length > 30 ? row.indexname|slice(0, 30) ~ '…' : row.indexname }}</code></td>
+                                            <td><code{% if row.tablename|length > 20 %} title="{{ row.tablename }}"{% endif %}>{{ row.tablename|length > 20 ? row.tablename|slice(0, 20) ~ '…' : row.tablename }}</code></td>
+                                            <td class="text-end">{{ row.index_size }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted p-3 mb-0">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="card shadow">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-warning">{{ t('ui.admin.db_stats.bloat', {}, locale, ['common']) }}</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if size.bloat|length > 0 %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                            <th class="text-end">{{ t('ui.admin.db_stats.col.dead_tuples', {}, locale, ['common']) }}</th>
+                                            <th class="text-end">{{ t('ui.admin.db_stats.col.dead_pct', {}, locale, ['common']) }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in size.bloat %}
+                                        <tr class="{{ row.dead_pct > 20 ? 'table-warning' : '' }}">
+                                            <td><code>{{ row.table_name }}</code></td>
+                                            <td class="text-end">{{ row.dead_tuples|number_format }}</td>
+                                            <td class="text-end">{{ row.dead_pct }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted p-3 mb-0">{{ t('ui.admin.db_stats.no_bloat', {}, locale, ['common']) }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== ACTIVITY ===================== -->
+        <div class="tab-pane fade" id="pane-activity" role="tabpanel">
+
+            <div class="row mb-4">
+                {% if activity.connections_current is not null %}
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-info shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                {{ t('ui.admin.db_stats.connections', {}, locale, ['common']) }}
+                            </div>
+                            <div class="h4 mb-0 font-weight-bold">
+                                {{ activity.connections_current }} / {{ activity.connections_max }}
+                            </div>
+                            <div class="progress mt-2" style="height:6px">
+                                <div class="progress-bar {{ activity.connections_pct > 80 ? 'bg-danger' : (activity.connections_pct > 60 ? 'bg-warning' : 'bg-success') }}"
+                                     style="width:{{ activity.connections_pct }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ activity.connections_pct }}% {{ t('ui.admin.db_stats.used', {}, locale, ['common']) }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if activity.cache_hit_ratio is not null %}
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-{{ activity.cache_hit_ratio >= 99 ? 'success' : (activity.cache_hit_ratio >= 95 ? 'warning' : 'danger') }} shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1
+                                {{ activity.cache_hit_ratio >= 99 ? 'text-success' : (activity.cache_hit_ratio >= 95 ? 'text-warning' : 'text-danger') }}">
+                                {{ t('ui.admin.db_stats.cache_hit_ratio', {}, locale, ['common']) }}
+                            </div>
+                            <div class="h4 mb-0 font-weight-bold">{{ activity.cache_hit_ratio }}%</div>
+                            {% if activity.cache_hit_ratio < 99 %}
+                            <small class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>{{ t('ui.admin.db_stats.cache_hit_warning', {}, locale, ['common']) }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if activity.xact_commit is not null %}
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                {{ t('ui.admin.db_stats.transactions', {}, locale, ['common']) }}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold">
+                                {{ activity.xact_commit|number_format }} {{ t('ui.admin.db_stats.committed', {}, locale, ['common']) }}
+                            </div>
+                            <small class="text-muted">{{ activity.xact_rollback|number_format }} {{ t('ui.admin.db_stats.rolled_back', {}, locale, ['common']) }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if activity.tup_inserted is not null %}
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                {{ t('ui.admin.db_stats.tuples', {}, locale, ['common']) }}
+                            </div>
+                            <div class="small">
+                                <strong>{{ t('ui.admin.db_stats.inserted', {}, locale, ['common']) }}:</strong> {{ activity.tup_inserted|number_format }}<br>
+                                <strong>{{ t('ui.admin.db_stats.updated', {}, locale, ['common']) }}:</strong> {{ activity.tup_updated|number_format }}<br>
+                                <strong>{{ t('ui.admin.db_stats.deleted', {}, locale, ['common']) }}:</strong> {{ activity.tup_deleted|number_format }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if activity.connection_states|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.connection_states', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.state', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.count', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in activity.connection_states %}
+                                <tr>
+                                    <td>{{ row.state }}</td>
+                                    <td class="text-end">{{ row.cnt }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- ===================== QUERY PERFORMANCE ===================== -->
+        <div class="tab-pane fade" id="pane-queries" role="tabpanel">
+
+            {% if not queries.pg_stat_statements_available %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>{{ t('ui.admin.db_stats.pg_stat_statements_unavailable', {}, locale, ['common']) }}
+            </div>
+            {% endif %}
+
+            <div class="row mb-3">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-left-{{ queries.lock_waits > 0 ? 'danger' : 'success' }} shadow py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 {{ queries.lock_waits > 0 ? 'text-danger' : 'text-success' }}">
+                                {{ t('ui.admin.db_stats.lock_waits', {}, locale, ['common']) }}
+                            </div>
+                            <div class="h4 mb-0 font-weight-bold">{{ queries.lock_waits ?? 'N/A' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-left-{{ queries.deadlocks > 0 ? 'danger' : 'success' }} shadow py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 {{ queries.deadlocks > 0 ? 'text-danger' : 'text-success' }}">
+                                {{ t('ui.admin.db_stats.deadlocks', {}, locale, ['common']) }}
+                            </div>
+                            <div class="h4 mb-0 font-weight-bold">{{ queries.deadlocks ?? 'N/A' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if queries.long_running|length > 0 %}
+            <div class="card shadow mb-4 border-danger">
+                <div class="card-header py-3 bg-danger text-white">
+                    <h6 class="m-0 font-weight-bold">{{ t('ui.admin.db_stats.long_running', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.pid', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.user', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.duration', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.query', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in queries.long_running %}
+                                <tr class="table-danger">
+                                    <td>{{ row.pid }}</td>
+                                    <td>{{ row.usename }}</td>
+                                    <td>{{ row.duration_sec }}s</td>
+                                    <td><code class="small">{{ row.query }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if queries.slowest_queries|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.slow_queries', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.mean_ms', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.total_ms', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.calls', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.query', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in queries.slowest_queries %}
+                                <tr>
+                                    <td>{{ row.mean_ms }} ms</td>
+                                    <td>{{ row.total_ms }} ms</td>
+                                    <td>{{ row.calls|number_format }}</td>
+                                    <td><code class="small">{{ row.query }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if queries.most_called|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.frequent_queries', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.calls', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.mean_ms', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.query', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in queries.most_called %}
+                                <tr>
+                                    <td>{{ row.calls|number_format }}</td>
+                                    <td>{{ row.mean_ms }} ms</td>
+                                    <td><code class="small">{{ row.query }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not queries.pg_stat_statements_available and queries.long_running|length == 0 %}
+            <p class="text-muted">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+            {% endif %}
+
+        </div>
+
+        <!-- ===================== REPLICATION ===================== -->
+        <div class="tab-pane fade" id="pane-replication" role="tabpanel">
+
+            {% if replication.senders|length == 0 and replication.receiver is null %}
+            <div class="alert alert-secondary">
+                <i class="fas fa-info-circle me-2"></i>{{ t('ui.admin.db_stats.no_replication', {}, locale, ['common']) }}
+            </div>
+            {% else %}
+
+            {% if replication.senders|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.replication_senders', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.client', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.state', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.lag_bytes', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in replication.senders %}
+                                <tr>
+                                    <td>{{ row.client_addr }}</td>
+                                    <td>{{ row.state }}</td>
+                                    <td class="text-end {{ row.lag_bytes > 1048576 ? 'text-danger' : '' }}">
+                                        {{ row.lag_bytes|number_format }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if replication.receiver %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.wal_receiver', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">{{ t('ui.admin.db_stats.col.status', {}, locale, ['common']) }}</dt>
+                        <dd class="col-sm-8">{{ replication.receiver.status ?? 'N/A' }}</dd>
+                        <dt class="col-sm-4">{{ t('ui.admin.db_stats.col.sender', {}, locale, ['common']) }}</dt>
+                        <dd class="col-sm-8">{{ replication.receiver.sender_host ?? 'N/A' }}:{{ replication.receiver.sender_port ?? '' }}</dd>
+                    </dl>
+                </div>
+            </div>
+            {% endif %}
+
+            {% endif %}
+        </div>
+
+        <!-- ===================== MAINTENANCE ===================== -->
+        <div class="tab-pane fade" id="pane-maintenance" role="tabpanel">
+
+            {% if maintenance.needs_vacuum|length > 0 %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                {{ t('ui.admin.db_stats.vacuum_needed', {'count': maintenance.needs_vacuum|length}, locale, ['common']) }}
+            </div>
+            {% endif %}
+
+            {% if maintenance.autovacuum_workers|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-info">{{ t('ui.admin.db_stats.autovacuum_active', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.pid', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.duration', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.query', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in maintenance.autovacuum_workers %}
+                                <tr>
+                                    <td>{{ row.pid }}</td>
+                                    <td>{{ row.duration_sec }}s</td>
+                                    <td><code class="small">{{ row.query }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.maintenance_health', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if maintenance.tables|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.last_vacuum', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.last_analyze', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.dead_tuples', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.dead_pct', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in maintenance.tables %}
+                                <tr class="{{ row.dead_pct > 5 ? 'table-warning' : '' }}">
+                                    <td><code>{{ row.table_name }}</code></td>
+                                    <td class="small">
+                                        {{ row.last_autovacuum ?? row.last_vacuum ?? t('ui.admin.db_stats.never', {}, locale, ['common']) }}
+                                    </td>
+                                    <td class="small">
+                                        {{ row.last_autoanalyze ?? row.last_analyze ?? t('ui.admin.db_stats.never', {}, locale, ['common']) }}
+                                    </td>
+                                    <td class="text-end">{{ row.dead_tuples|number_format }}</td>
+                                    <td class="text-end {{ row.dead_pct > 5 ? 'text-warning fw-bold' : '' }}">{{ row.dead_pct }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted p-3 mb-0">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ===================== INDEX HEALTH ===================== -->
+        <div class="tab-pane fade" id="pane-indexes" role="tabpanel">
+
+            {% if indexes.unused|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        {{ t('ui.admin.db_stats.unused_indexes', {}, locale, ['common']) }}
+                        <span class="badge bg-warning text-dark ms-2">{{ indexes.unused|length }}</span>
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.index', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.size', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in indexes.unused %}
+                                <tr>
+                                    <td><code>{{ row.indexname }}</code></td>
+                                    <td><code>{{ row.tablename }}</code></td>
+                                    <td class="text-end">{{ row.index_size }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-success mb-4">
+                <i class="fas fa-check-circle me-2"></i>{{ t('ui.admin.db_stats.no_unused_indexes', {}, locale, ['common']) }}
+            </div>
+            {% endif %}
+
+            {% if indexes.duplicates|length > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">{{ t('ui.admin.db_stats.duplicate_indexes', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.db_stats.col.index', {}, locale, ['common']) }} 1</th>
+                                <th>{{ t('ui.admin.db_stats.col.index', {}, locale, ['common']) }} 2</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in indexes.duplicates %}
+                                <tr>
+                                    <td><code>{{ row.table_name }}</code></td>
+                                    <td><code>{{ row.index1 }}</code></td>
+                                    <td><code>{{ row.index2 }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.scan_ratios', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if indexes.scan_ratios|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.db_stats.col.table', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.seq_scans', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.idx_scans', {}, locale, ['common']) }}</th>
+                                <th class="text-end">{{ t('ui.admin.db_stats.col.idx_pct', {}, locale, ['common']) }}</th>
+                            </tr></thead>
+                            <tbody>
+                                {% for row in indexes.scan_ratios %}
+                                <tr class="{{ row.seq_scan > 1000 and row.idx_scan_pct < 50 ? 'table-warning' : '' }}">
+                                    <td><code>{{ row.table_name }}</code></td>
+                                    <td class="text-end">{{ row.seq_scan|number_format }}</td>
+                                    <td class="text-end">{{ row.idx_scan|number_format }}</td>
+                                    <td class="text-end">
+                                        {% if row.idx_scan_pct is not null %}
+                                            {{ row.idx_scan_pct }}%
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted p-3 mb-0">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+        <!-- ===================== I18N CATALOGS ===================== -->
+        <div class="tab-pane fade" id="pane-i18n" role="tabpanel">
+
+            {% if i18n_catalogs|length == 0 %}
+            <p class="text-muted">{{ t('ui.admin.db_stats.no_data', {}, locale, ['common']) }}</p>
+            {% else %}
+
+            {# Summary row — one card per locale #}
+            <div class="row mb-4">
+                {% for loc in i18n_catalogs %}
+                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+                    <div class="card border-left-{{ loop.index is odd ? 'primary' : 'info' }} shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 {{ loop.index is odd ? 'text-primary' : 'text-info' }}">
+                                {{ loc.locale }}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold">{{ loc.total_keys|number_format }}</div>
+                            <small class="text-muted">{{ t('ui.admin.db_stats.i18n.keys', {}, locale, ['common']) }}</small><br>
+                            <small class="text-muted">{{ (loc.total_memory / 1024)|round(1) }} KB {{ t('ui.admin.db_stats.i18n.memory', {}, locale, ['common']) }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {# Detail table #}
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.db_stats.i18n.detail', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.db_stats.i18n.col.locale', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.db_stats.i18n.col.file', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.db_stats.i18n.col.keys', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.db_stats.i18n.col.file_size', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.db_stats.i18n.col.memory', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for loc in i18n_catalogs %}
+                                    {% for file in loc.files %}
+                                    <tr>
+                                        {% if loop.first %}
+                                        <td rowspan="{{ loc.files|length }}" class="align-middle fw-bold">{{ loc.locale }}</td>
+                                        {% endif %}
+                                        <td><code>{{ file.filename }}</code></td>
+                                        <td class="text-end">{{ file.key_count|number_format }}</td>
+                                        <td class="text-end">{{ (file.file_bytes / 1024)|round(1) }} KB</td>
+                                        <td class="text-end">{{ (file.memory_bytes / 1024)|round(1) }} KB</td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="table-secondary fw-bold">
+                                        <td></td>
+                                        <td class="text-muted small">{{ t('ui.admin.db_stats.i18n.total', {}, locale, ['common']) }}</td>
+                                        <td class="text-end">{{ loc.total_keys|number_format }}</td>
+                                        <td class="text-end">{{ (loc.total_bytes / 1024)|round(1) }} KB</td>
+                                        <td class="text-end">{{ (loc.total_memory / 1024)|round(1) }} KB</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {% endif %}
+        </div>
+
+    </div><!-- /tab-content -->
+
+</div>
+{% endblock %}

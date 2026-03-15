@@ -1558,3 +1558,35 @@ tbody, td, tfoot, th, thead, tr {
 .sc-inverse {
     filter: invert(1);
 }
+
+/* Bootstrap contextual table rows — override bright backgrounds for dark theme */
+.table-warning, .table-warning > td, .table-warning > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(249, 240, 2, 0.12);
+    --bs-table-striped-bg: rgba(249, 240, 2, 0.18);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(249, 240, 2, 0.20);
+    --bs-table-hover-bg: rgba(249, 240, 2, 0.20);
+    background-color: rgba(249, 240, 2, 0.12) !important;
+    color: var(--text-color) !important;
+}
+.table-danger, .table-danger > td, .table-danger > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 42, 109, 0.15);
+    --bs-table-striped-bg: rgba(255, 42, 109, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 42, 109, 0.25);
+    --bs-table-hover-bg: rgba(255, 42, 109, 0.25);
+    background-color: rgba(255, 42, 109, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-secondary, .table-secondary > td, .table-secondary > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(157, 78, 221, 0.15);
+    --bs-table-striped-bg: rgba(157, 78, 221, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(157, 78, 221, 0.22);
+    --bs-table-hover-bg: rgba(157, 78, 221, 0.22);
+    background-color: rgba(157, 78, 221, 0.15) !important;
+    color: var(--text-color) !important;
+}

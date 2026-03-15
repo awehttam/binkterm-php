@@ -350,6 +350,10 @@ class UserCredit
             'echomail_reward' => 3,
             'crashmail_cost' => 10,
             'poll_creation_cost' => 15,
+            'file_upload_cost' => 0,
+            'file_upload_reward' => 0,
+            'file_download_cost' => 0,
+            'file_download_reward' => 0,
             'return_14days' => 50,
             'transfer_fee_percent' => 0.05,
             'referral_enabled' => false,
@@ -370,6 +374,10 @@ class UserCredit
         $merged['echomail_reward'] = max(0, (int)$merged['echomail_reward']);
         $merged['crashmail_cost'] = max(0, (int)$merged['crashmail_cost']);
         $merged['poll_creation_cost'] = max(0, (int)$merged['poll_creation_cost']);
+        $merged['file_upload_cost'] = max(0, (int)$merged['file_upload_cost']);
+        $merged['file_upload_reward'] = max(0, (int)$merged['file_upload_reward']);
+        $merged['file_download_cost'] = max(0, (int)$merged['file_download_cost']);
+        $merged['file_download_reward'] = max(0, (int)$merged['file_download_reward']);
         $merged['return_14days'] = max(0, (int)$merged['return_14days']);
         $merged['transfer_fee_percent'] = max(0, min(1, (float)$merged['transfer_fee_percent']));
         $merged['referral_enabled'] = !empty($merged['referral_enabled']);

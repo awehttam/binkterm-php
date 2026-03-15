@@ -19,9 +19,12 @@
     <div class="col-lg-9 order-2 order-lg-1">
         <div class="card">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0" id="currentAreaTitle"><i class="fas fa-clock"></i> {{ t('ui.files.recent_uploads', {}, 'common') }}</h6>
-                    <div class="d-flex gap-2">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-0" id="currentAreaTitle"><i class="fas fa-clock"></i> {{ t('ui.files.recent_uploads', {}, 'common') }}</h6>
+                        <div id="currentAreaMeta" class="mt-1" style="display:none;"></div>
+                    </div>
+                    <div class="d-flex gap-2 flex-shrink-0 ms-2">
                         <button class="btn btn-sm btn-primary" id="uploadFileBtn" onclick="showUploadModal()" style="display: none;">
                             <i class="fas fa-upload"></i> {{ t('ui.files.upload_file', {}, 'common') }}
                         </button>
@@ -230,6 +233,13 @@
                         <i class="fas fa-info-circle me-1"></i>
                         {{ t('ui.files.active_share_exists', {}, 'common') }}
                     </div>
+                    <div class="form-check mb-3" id="shareFreqGroup">
+                        <input class="form-check-input" type="checkbox" id="shareFreqAccessible" checked>
+                        <label class="form-check-label" for="shareFreqAccessible">
+                            {{ t('ui.files.freq_accessible', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.files.freq_accessible_help', {}, 'Also allow this file to be requested via FidoNet FREQ') }}</div>
+                    </div>
                     <div class="mb-3" id="shareExpiryGroup">
                         <label for="shareExpiry" class="form-label">{{ t('ui.files.link_expiry', {}, 'common') }}</label>
                         <select class="form-select" id="shareExpiry">
@@ -393,6 +403,7 @@ function loadRecentFiles() {
 function displayRecentFiles(files) {
     displayedFiles = files;
     $('#currentAreaTitle').html(`<i class="fas fa-clock"></i> ${uiT('ui.files.recent_uploads', 'Recent Uploads')}`);
+    $('#currentAreaMeta').hide();
     $('#uploadFileBtn').hide();
 
     if (files.length === 0) {
@@ -543,7 +554,7 @@ function renderFileAreaList(areas) {
         const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
 
         html += `
-            <a href="#" class="list-group-item list-group-item-action" data-area-id="${area.id}" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}', ${area.is_local ? 'true' : 'false'}, '${escapeHtml(area.domain || '')}', ${uploadPermission}); return false;">
+            <a href="#" class="list-group-item list-group-item-action" data-area-id="${area.id}" onclick="selectFileArea(${area.id}); return false;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <strong>${displayTag}</strong>
@@ -567,7 +578,7 @@ function renderFileAreaList(areas) {
         const targetId = parseInt(areaParam, 10);
         const target = sortedAreas.find(a => a.id === targetId);
         if (target) {
-            selectFileArea(target.id, target.tag, !!target.is_local, target.domain || '', target.upload_permission ?? 1);
+            selectFileArea(target.id);
             return;
         }
     }
@@ -576,11 +587,17 @@ function renderFileAreaList(areas) {
     loadRecentFiles();
 }
 
-function selectFileArea(areaId, areaTag, isLocal, domain, uploadPermission) {
+function selectFileArea(areaId) {
     currentAreaId = areaId;
+    const area = allFileAreas.find(a => a.id === areaId);
+    if (!area) return;
+
+    const isLocal = !!area.is_local;
+    const domain = area.domain || '';
+    const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
 
     // Display domain for non-local areas
-    let displayTag = escapeHtml(areaTag);
+    let displayTag = escapeHtml(area.tag);
     if (!isLocal && domain) {
         displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
     }
@@ -588,10 +605,25 @@ function selectFileArea(areaId, areaTag, isLocal, domain, uploadPermission) {
     $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
     $('#searchFiles').val('');
 
+    // Build description + capability icons under the area name
+    let icons = '';
+    if (area.gemini_public) {
+        icons += `<span class="badge text-bg-info me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.gemini_public', 'Gemini Public')}"><i class="fas fa-gem"></i> Gemini</span>`;
+    }
+    if (area.freq_enabled) {
+        icons += `<span class="badge text-bg-warning me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.freq_enabled', 'FREQ Enabled')}"><i class="fas fa-file-download"></i> FREQ</span>`;
+    }
+
+    const desc = area.description ? escapeHtml(area.description) : '';
+    if (desc || icons) {
+        $('#currentAreaMeta').html(`${icons}<small class="text-muted">${desc}</small>`).show();
+    } else {
+        $('#currentAreaMeta').hide();
+    }
+
     // Control upload button visibility based on upload permission
     // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
     const UPLOAD_ADMIN_ONLY = 0;
-    const UPLOAD_USERS_ALLOWED = 1;
     const UPLOAD_READ_ONLY = 2;
 
     if (uploadPermission === UPLOAD_READ_ONLY) {
@@ -1146,7 +1178,7 @@ function createFileShare() {
         url: `/api/files/${currentFileId}/share`,
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({ expires_hours: expiresHours }),
+        data: JSON.stringify({ expires_hours: expiresHours, freq_accessible: $('#shareFreqAccessible').is(':checked') }),
         success: function(data) {
             if (data.success) {
                 currentShareId = data.share_id;

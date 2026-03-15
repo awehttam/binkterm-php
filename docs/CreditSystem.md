@@ -21,6 +21,10 @@ BinktermPHP includes an integrated credits economy that rewards user participati
 | Echomail Posted (approx. 2 paragraphs) | +6     | Bonus  | 2× reward for substantial posts (2+ paragraphs)   |
 | Crashmail Sent                         | -10    | Cost   | Direct delivery bypassing uplink                  |
 | Poll Creation                          | -15    | Cost   | Creating a new poll in voting booth               |
+| File Upload                            | 0      | Cost   | Optional charge applied before a file upload      |
+| File Upload                            | 0      | Reward | Optional reward applied after a successful upload |
+| File Download                          | 0      | Cost   | Optional charge applied before a file download    |
+| File Download                          | 0      | Reward | Optional reward applied after a successful download |
 
 ## Configuration
 
@@ -37,7 +41,11 @@ Credits are configured in `config/bbs.json` under the `credits` section. All val
     "netmail_cost": 1,
     "echomail_reward": 5,
     "crashmail_cost": 10,
-    "poll_creation_cost": 15
+    "poll_creation_cost": 15,
+    "file_upload_cost": 0,
+    "file_upload_reward": 0,
+    "file_download_cost": 0,
+    "file_download_reward": 0
   }
 }
 ```

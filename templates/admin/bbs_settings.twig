@@ -179,6 +179,26 @@
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileUploadCost">{{ t('ui.admin.bbs_settings.credits.file_upload_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileUploadCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileUploadReward">{{ t('ui.admin.bbs_settings.credits.file_upload_reward', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileUploadReward" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_reward_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileDownloadCost">{{ t('ui.admin.bbs_settings.credits.file_download_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileDownloadCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileDownloadReward">{{ t('ui.admin.bbs_settings.credits.file_download_reward', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileDownloadReward" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_reward_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.transfer_fee_help', {}, locale, ['common']) }}</small>
@@ -268,6 +288,10 @@ function loadBbsSettings() {
             const echomailRewardValue = parseInt(credits.echomail_reward, 10);
             const crashmailCostValue = parseInt(credits.crashmail_cost, 10);
             const pollCreationCostValue = parseInt(credits.poll_creation_cost, 10);
+            const fileUploadCostValue = parseInt(credits.file_upload_cost, 10);
+            const fileUploadRewardValue = parseInt(credits.file_upload_reward, 10);
+            const fileDownloadCostValue = parseInt(credits.file_download_cost, 10);
+            const fileDownloadRewardValue = parseInt(credits.file_download_reward, 10);
             const new14DaysValue = parseInt(credits.return_14days, 10);
             const transferFeeValue = parseFloat(credits.transfer_fee_percent);
             document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 25 : dailyAmountValue;
@@ -277,6 +301,10 @@ function loadBbsSettings() {
             document.getElementById('bbsCreditsEchomailReward').value = Number.isNaN(echomailRewardValue) ? 3 : echomailRewardValue;
             document.getElementById('bbsCreditsCrashmailCost').value = Number.isNaN(crashmailCostValue) ? 10 : crashmailCostValue;
             document.getElementById('bbsCreditsPollCreationCost').value = Number.isNaN(pollCreationCostValue) ? 15 : pollCreationCostValue;
+            document.getElementById('bbsCreditsFileUploadCost').value = Number.isNaN(fileUploadCostValue) ? 0 : fileUploadCostValue;
+            document.getElementById('bbsCreditsFileUploadReward').value = Number.isNaN(fileUploadRewardValue) ? 0 : fileUploadRewardValue;
+            document.getElementById('bbsCreditsFileDownloadCost').value = Number.isNaN(fileDownloadCostValue) ? 0 : fileDownloadCostValue;
+            document.getElementById('bbsCreditsFileDownloadReward').value = Number.isNaN(fileDownloadRewardValue) ? 0 : fileDownloadRewardValue;
             document.getElementById('bbsCreditsNew14Days').value = Number.isNaN(new14DaysValue) ? 50 : new14DaysValue;
             document.getElementById('bbsCreditsTransferFee').value = Number.isNaN(transferFeeValue) ? 0.05 : transferFeeValue;
 
@@ -439,6 +467,30 @@ function saveBbsCredits() {
         return;
     }
 
+    const fileUploadCost = parseInt(document.getElementById('bbsCreditsFileUploadCost').value, 10);
+    if (Number.isNaN(fileUploadCost) || fileUploadCost < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_upload_cost_non_negative', 'File upload cost must be a non-negative integer.'), 'danger');
+        return;
+    }
+
+    const fileUploadReward = parseInt(document.getElementById('bbsCreditsFileUploadReward').value, 10);
+    if (Number.isNaN(fileUploadReward) || fileUploadReward < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_upload_reward_non_negative', 'File upload reward must be a non-negative integer.'), 'danger');
+        return;
+    }
+
+    const fileDownloadCost = parseInt(document.getElementById('bbsCreditsFileDownloadCost').value, 10);
+    if (Number.isNaN(fileDownloadCost) || fileDownloadCost < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_download_cost_non_negative', 'File download cost must be a non-negative integer.'), 'danger');
+        return;
+    }
+
+    const fileDownloadReward = parseInt(document.getElementById('bbsCreditsFileDownloadReward').value, 10);
+    if (Number.isNaN(fileDownloadReward) || fileDownloadReward < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_download_reward_non_negative', 'File download reward must be a non-negative integer.'), 'danger');
+        return;
+    }
+
     const new14Days = parseInt(document.getElementById('bbsCreditsNew14Days').value, 10);
     if (Number.isNaN(new14Days) || new14Days < 0) {
         showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.return_14_days_non_negative', '14-day return bonus must be a non-negative integer.'), 'danger');
@@ -475,6 +527,10 @@ function saveBbsCredits() {
                     echomail_reward: echomailReward,
                     crashmail_cost: crashmailCost,
                     poll_creation_cost: pollCreationCost,
+                    file_upload_cost: fileUploadCost,
+                    file_upload_reward: fileUploadReward,
+                    file_download_cost: fileDownloadCost,
+                    file_download_reward: fileDownloadReward,
                     return_14days: new14Days,
                     transfer_fee_percent: transferFee,
                     referral_enabled: document.getElementById('bbsCreditsReferralEnabled').checked,

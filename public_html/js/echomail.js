@@ -472,6 +472,7 @@ function displayMessages(messages, isThreaded = false) {
             const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? `<i class="fas fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>` : `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>`;
+            const petsciiIcon = msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : '';
             const shareIcon = isShared ? `<i class="fas fa-share-alt text-success me-1" title="${uiT('ui.common.shared', 'Shared')}"></i>` : '';
             const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn"
                                  data-message-id="${msg.id}"
@@ -501,7 +502,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -851,6 +852,31 @@ function cycleRenderMode() {
     renderCurrentMessageBody();
 }
 
+function printMessage() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    win.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title>'
+        + '<style>'
+        + 'body{font-family:sans-serif;font-size:11pt;padding:1.5cm;color:#000;background:#fff}'
+        + '.message-header-full{border-bottom:1px solid #ccc;margin-bottom:1em;padding-bottom:.5em}'
+        + '.message-header-full strong{color:#333}'
+        + 'pre{white-space:pre-wrap;word-break:break-word;font-size:10pt;background:#f8f9fa;border:1px solid #dee2e6;padding:.75em;border-radius:4px}'
+        + '.message-origin{border-top:1px solid #ccc;margin-top:1em;padding-top:.5em;font-size:9pt;color:#666}'
+        + 'a{color:#000;text-decoration:none}'
+        + 'button,i.fas,i.far,.badge,.btn,#ansiRenderBadge,.modal-header-save-icon{display:none!important}'
+        + '</style>'
+        + '</head><body>'
+        + content.innerHTML
+        + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.onafterprint = function() { win.close(); };
+    win.print();
+}
+
 function downloadCurrentMessage() {
     if (!currentMessageId || !currentMessageData) {
         return;
@@ -946,17 +972,8 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
         </div>
 
-        <div class="message-headers mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">${uiT('ui.common.kludge_lines', 'Kludge Lines')}</h6>
-                <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
-                    <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">${uiT('ui.common.show_kludge_lines', 'Show Kludge Lines')}</span>
-                </button>
-            </div>
-            <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
-            </div>
+        <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
+            <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
         </div>
 
         <div class="message-text">
@@ -1073,7 +1090,8 @@ function searchMessages() {
             $('#mobileSearchCollapse').collapse('hide');
         })
         .fail(function() {
-            showError(uiT('ui.echomail.search.failed', 'Search failed'));
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.echomail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
         });
 }
 
@@ -1082,6 +1100,96 @@ function searchMessagesFromMobile() {
     const query = $('#mobileSearchInput').val().trim();
     $('#searchInput').val(query);
     searchMessages();
+}
+
+function openAdvancedSearch() {
+    $('#advSearchFromName').val('');
+    $('#advSearchSubject').val('');
+    $('#advSearchBody').val('');
+    $('#advSearchDateFrom').val('');
+    $('#advSearchDateTo').val('');
+    $('#advSearchError').addClass('d-none').text('');
+    $('#advancedSearchModal').modal('show');
+}
+
+function runAdvancedSearch() {
+    const fromName = $('#advSearchFromName').val().trim();
+    const subject = $('#advSearchSubject').val().trim();
+    const body = $('#advSearchBody').val().trim();
+    const dateFrom = $('#advSearchDateFrom').val();
+    const dateTo = $('#advSearchDateTo').val();
+
+    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const hasDate = dateFrom || dateTo;
+
+    // Validate: at least one field filled, and text fields must be 2+ chars each
+    if (textFields.length === 0 && !hasDate) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+    if (textFields.some(v => v.length < 2)) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+
+    $('#advSearchError').addClass('d-none');
+    $('#advancedSearchModal').modal('hide');
+    showLoading('#messagesContainer');
+
+    // Collect text search terms for highlighting
+    currentSearchTerms = [fromName, subject, body]
+        .filter(v => v.length > 0)
+        .join(' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(term => term.length > 1);
+
+    const params = new URLSearchParams({ type: 'echomail' });
+    if (fromName) params.set('from_name', fromName);
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (currentEchoarea) params.set('echoarea', currentEchoarea);
+
+    $.get('/api/messages/search?' + params.toString())
+        .done(function(data) {
+            displayMessages(data.messages);
+            $('#pagination').empty();
+
+            if (!originalFilterCounts) {
+                originalFilterCounts = {
+                    all: parseInt($('#allCount').text()) || 0,
+                    unread: parseInt($('#unreadCount').text()) || 0,
+                    read: parseInt($('#readCount').text()) || 0,
+                    tome: parseInt($('#toMeCount').text()) || 0,
+                    saved: parseInt($('#savedCount').text()) || 0,
+                    drafts: parseInt($('#draftsCount').text()) || 0
+                };
+            }
+
+            if (data.echoarea_counts) {
+                searchResultCounts = data.echoarea_counts;
+                isSearchActive = true;
+                updateEchoareaCountsWithSearchResults();
+                showClearSearchButton();
+            }
+
+            if (data.filter_counts) {
+                searchFilterCounts = data.filter_counts;
+                updateFilterCounts(data.filter_counts);
+            }
+
+            $('#mobileSearchCollapse').collapse('hide');
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.echomail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
+        });
 }
 
 function updateEchoareaCountsWithSearchResults() {
@@ -1833,6 +1941,61 @@ function navigateMessage(direction) {
         });
 }
 
+
+// Edit message (admin)
+function openEditMessage() {
+    if (!window.isAdmin || !currentMessageData) return;
+    const msg = currentMessageData;
+
+    const dbId = currentMessageId || msg.id;
+    $('#editMessageModalTitle').html(`<i class="fas fa-pencil-alt me-2"></i>${uiT('ui.echomail.edit_message', 'Edit Message')} #${dbId}`);
+    $('#editMsgDbId').text(dbId);
+    $('#editMsgId').text(msg.message_id || '');
+    $('#editMsgDate').text(formatFullDate(msg.date_written));
+    $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
+    $('#editMsgSubject').text(msg.subject || '');
+    $('#editArtFormat').val(msg.art_format || '');
+    $('#editCharset').val(msg.message_charset || '');
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', false);
+
+    $('#editMessageModal').modal('show');
+}
+
+function saveEditMessage() {
+    if (!window.isAdmin || !currentMessageData) return;
+
+    const artFormat = $('#editArtFormat').val();
+    const charset   = $('#editCharset').val().trim();
+
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/edit`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ art_format: artFormat, message_charset: charset }),
+    }).done(function() {
+        // Update local cached data so the list badge reflects the change immediately
+        currentMessageData.art_format     = artFormat || null;
+        currentMessageData.message_charset = charset || null;
+        const listMsg = currentMessages.find(m => m.id == currentMessageId);
+        if (listMsg) {
+            listMsg.art_format = artFormat || null;
+        }
+        // Refresh the list row
+        displayMessages(currentMessages, currentMessages.some(m => m.thread_level > 0));
+        $('#editMessageSuccess').removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    }).fail(function(xhr) {
+        const payload = xhr.responseJSON || {};
+        $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    });
+}
 
 // Sharing functionality
 function showShareDialog(messageId) {

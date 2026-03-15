@@ -196,7 +196,16 @@ class NodelistManager
             $whereClauses[] = "keyword_type = ?";
             $params[] = $criteria['keyword_type'];
         }
-        
+
+        if (!empty($criteria['flags']) && is_array($criteria['flags'])) {
+            foreach ($criteria['flags'] as $flag) {
+                $flag = strtoupper(trim((string)$flag));
+                if ($flag === '') continue;
+                $whereClauses[] = "EXISTS (SELECT 1 FROM nodelist_flags nf WHERE nf.nodelist_id = nodelist.id AND UPPER(nf.flag_name) = ?)";
+                $params[] = $flag;
+            }
+        }
+
         $sql = "SELECT * FROM nodelist";
         if (!empty($whereClauses)) {
             $sql .= " WHERE " . implode(" AND ", $whereClauses);
@@ -250,6 +259,17 @@ class NodelistManager
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
     
+    /**
+     * Get all distinct flag names present in the current nodelist, sorted alphabetically.
+     *
+     * @return string[]
+     */
+    public function getAvailableFlags(): array
+    {
+        $stmt = $this->db->query("SELECT DISTINCT UPPER(flag_name) AS flag_name FROM nodelist_flags ORDER BY 1");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
     public function getNodesByZoneNet($zone, $net)
     {
         $sql = "SELECT * FROM nodelist WHERE zone = ? AND net = ? ORDER BY node, point";

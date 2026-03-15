@@ -82,13 +82,34 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         }
         $systemAddresses = array_values(array_unique(array_filter($systemAddresses)));
+        $dbStats = new \BinktermPHP\DatabaseStats(\BinktermPHP\Database::getInstance()->getPdo());
         $template->renderResponse('admin/dashboard.twig', [
             'stats' => $stats,
             'db_version' => $dbVersion,
             'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus(),
             'git_commit' => \BinktermPHP\SystemStatus::getGitCommitHash(),
             'git_branch' => \BinktermPHP\SystemStatus::getGitBranch(),
-            'system_addresses' => $systemAddresses
+            'system_addresses' => $systemAddresses,
+            'db_summary' => $dbStats->getDashboardSummary(),
+        ]);
+    });
+
+    // Database statistics page
+    SimpleRouter::get('/database-stats', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $dbStats = new \BinktermPHP\DatabaseStats($db);
+
+        $template = new Template();
+        $template->renderResponse('admin/database_stats.twig', [
+            'size'        => $dbStats->getSizeAndGrowth(),
+            'activity'    => $dbStats->getActivity(),
+            'queries'     => $dbStats->getQueryPerformance(),
+            'replication' => $dbStats->getReplication(),
+            'maintenance' => $dbStats->getMaintenanceHealth(),
+            'indexes'     => $dbStats->getIndexHealth(),
+            'i18n_catalogs' => $dbStats->getI18nCatalogStats(),
         ]);
     });
 
@@ -821,6 +842,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['poll_creation_cost'] ?? null) || (int)$credits['poll_creation_cost'] < 0) {
                         throw new Exception('Poll creation cost must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['file_upload_cost'] ?? 0) || (int)($credits['file_upload_cost'] ?? 0) < 0) {
+                        throw new Exception('File upload cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_upload_reward'] ?? 0) || (int)($credits['file_upload_reward'] ?? 0) < 0) {
+                        throw new Exception('File upload reward must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_download_cost'] ?? 0) || (int)($credits['file_download_cost'] ?? 0) < 0) {
+                        throw new Exception('File download cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_download_reward'] ?? 0) || (int)($credits['file_download_reward'] ?? 0) < 0) {
+                        throw new Exception('File download reward must be a non-negative integer');
+                    }
                     if (!is_numeric($credits['return_14days'] ?? null) || (int)$credits['return_14days'] < 0) {
                         throw new Exception('14-day return bonus must be a non-negative integer');
                     }
@@ -840,6 +873,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'echomail_reward' => (int)$credits['echomail_reward'],
                         'crashmail_cost' => (int)$credits['crashmail_cost'],
                         'poll_creation_cost' => (int)$credits['poll_creation_cost'],
+                        'file_upload_cost' => (int)($credits['file_upload_cost'] ?? 0),
+                        'file_upload_reward' => (int)($credits['file_upload_reward'] ?? 0),
+                        'file_download_cost' => (int)($credits['file_download_cost'] ?? 0),
+                        'file_download_reward' => (int)($credits['file_download_reward'] ?? 0),
                         'return_14days' => (int)$credits['return_14days'],
                         'transfer_fee_percent' => (float)$credits['transfer_fee_percent'],
                         'referral_enabled' => !empty($credits['referral_enabled']),
@@ -3066,6 +3103,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     });
 });
 
+
+// FREQ Log admin page
+SimpleRouter::get('/admin/freq-log', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/freq_log.twig');
+});
 
 // Crashmail Queue page
 SimpleRouter::get('/admin/crashmail', function() {

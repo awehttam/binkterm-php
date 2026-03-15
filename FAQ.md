@@ -436,6 +436,31 @@ Public nodes can also poll as a fallback, though the hub will deliver mail direc
 
 ---
 
+## Database
+
+### Q: The database stats page shows high sequential scan counts on some tables. Is this a problem?
+**A:** Not necessarily. PostgreSQL uses sequential scans when they are more efficient than index scans, which is often the case for small tables or queries where a large fraction of rows would be returned. Here are the common cases you may see in BinktermPHP:
+
+**Small tables (users_meta, user_settings, mrc_state)**
+For tables with only a few hundred or thousand rows, PostgreSQL's query planner will almost always prefer a sequential scan — the overhead of walking an index is greater than simply reading the table directly. High seq scan counts here are expected and correct behaviour, not an indexing gap.
+
+**High-frequency daemon tables (mrc_outbound, mrc_state)**
+The MRC daemon polls these tables continuously (multiple times per second). Because these tables are very small, every poll results in a sequential scan. The counts look alarming but reflect normal operation.
+
+**OR-condition queries (chat_messages, shared_messages)**
+Queries that filter on `col_a = ? OR col_b = ?` cannot use a single B-tree index to satisfy both conditions simultaneously. PostgreSQL must either do a seq scan or merge two separate index scans (bitmap OR). For moderate table sizes or if the planner estimates a large result set, it will choose a seq scan even when indexes exist on both columns individually. This is a structural query pattern — adding more indexes will not change the planner's decision.
+
+**When to investigate further**
+A high seq scan ratio is worth investigating when:
+- The table is large (tens of thousands of rows or more)
+- The query is selecting a small, specific subset of rows (highly selective filter)
+- You can see a long-running or slow query in the Query Performance tab that targets that table
+- `pg_stat_user_tables.seq_tup_read` is very large relative to `idx_tup_fetch`
+
+In those cases, review the actual queries and consider adding a targeted index. For the tables listed above, no additional indexing is needed.
+
+---
+
 ## WebDoors
 
 ### Q: How do I add a connection to my text-based BBS?

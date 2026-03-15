@@ -2,6 +2,65 @@
 
 {% block title %}{{ t('ui.nodelist.index.heading', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+<link rel="stylesheet" href="/assets/leaflet/MarkerCluster.css">
+<link rel="stylesheet" href="/assets/leaflet/MarkerCluster.Default.css">
+<style>
+    .nodelist-map-shell {
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border-color: rgba(148, 163, 184, 0.18);
+        color: #e2e8f0;
+    }
+    #nodelistMap {
+        height: 520px;
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 0.5rem;
+        background: #111827;
+    }
+    #nodelistMap .leaflet-tile-pane {
+        filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+    }
+    #nodelistMap .leaflet-control-container .leaflet-bar a,
+    #nodelistMap .leaflet-control-zoom a {
+        background: rgba(15, 23, 42, 0.92);
+        color: #e2e8f0;
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+    #nodelistMap .leaflet-control-container .leaflet-bar a:hover,
+    #nodelistMap .leaflet-control-zoom a:hover {
+        background: rgba(30, 41, 59, 0.98);
+        color: #fff;
+    }
+    #nodelistMap .leaflet-popup-content-wrapper,
+    #nodelistMap .leaflet-popup-tip {
+        background: #111827;
+        color: #e2e8f0;
+    }
+    #nodelistMap .leaflet-popup-content a {
+        color: #93c5fd;
+    }
+    .context-menu {
+        background-color: var(--bs-body-bg, #fff);
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
+        min-width: 150px;
+        padding: 0.5rem 0;
+    }
+    .context-menu-item {
+        display: block;
+        padding: 0.5rem 1rem;
+        text-decoration: none;
+        color: var(--bs-body-color, #212529);
+        transition: background-color 0.15s ease;
+    }
+    .context-menu-item:hover { background-color: var(--bs-secondary-bg, #e9ecef); }
+    .context-menu-item i { width: 20px; margin-right: 0.5rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="row">
@@ -16,30 +75,37 @@
             </div>
 
             {% if activeNodelists|length > 0 %}
-                <div class="alert alert-info mb-4 text-center">
-                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }},
-                    <strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }},
-                    <strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
-                    <br>
-                    <small class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }}<br>
-                    {% for nodelist in activeNodelists %}
-                        {{ nodelist.domain|default(t('ui.common.unknown', {}, locale, ['common'])) }}: {{ nodelist.imported_at|date('F d, Y') }}{% if not loop.last %}<br>{% endif %}
-                    {% endfor %}
-                    </small>
+                <div class="alert alert-info py-2 mb-3 text-center small">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
+                    <br><span class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }}
+                    {% for nodelist in activeNodelists %}<span class="badge bg-secondary fw-normal ms-1">{{ nodelist.domain|default(t('ui.common.unknown', {}, locale, ['common'])) }} {{ nodelist.imported_at|date('M d, Y') }}</span>{% endfor %}
+                    </span>
                 </div>
             {% elseif activeNodelist %}
-                <div class="alert alert-info mb-4 text-center">
-                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }},
-                    <strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }},
-                    <strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }},
-                    <strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
-                    <br>
-                    <small class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }} {{ activeNodelist.imported_at|date('F d, Y') }}</small>
+                <div class="alert alert-info py-2 mb-3 text-center small">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> {{ t('ui.nodelist.index.nodes', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_zones }}</strong> {{ t('ui.nodelist.index.zones', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.total_nets|number_format }}</strong> {{ t('ui.nodelist.index.nets', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.point_nodes|number_format }}</strong> {{ t('ui.nodelist.index.points', {}, locale, ['common']) }}&ensp;&middot;&ensp;<strong>{{ stats.special_nodes|number_format }}</strong> {{ t('ui.nodelist.index.special', {}, locale, ['common']) }}
+                    <br><span class="text-muted">{{ t('ui.nodelist.index.last_imported', {}, locale, ['common']) }} {{ activeNodelist.imported_at|date('M d, Y') }}</span>
                 </div>
             {% endif %}
+
+            <!-- Tab Navigation -->
+            <ul class="nav nav-tabs mb-4" id="nodelistTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="nodelist-list-tab" data-bs-toggle="tab"
+                            data-bs-target="#nodelist-list-pane" type="button" role="tab">
+                        <i class="fas fa-list me-1"></i>{{ t('ui.nodelist.tab_list', {}, locale, ['common']) }}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="nodelist-map-tab" data-bs-toggle="tab"
+                            data-bs-target="#nodelist-map-pane" type="button" role="tab">
+                        <i class="fas fa-map-marked-alt me-1"></i>{{ t('ui.nodelist.tab_map', {}, locale, ['common']) }}
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+            <div class="tab-pane fade show active" id="nodelist-list-pane" role="tabpanel">
 
             <!-- Search Form -->
             <div class="card mb-4">
@@ -47,10 +113,10 @@
                     <form method="GET" action="/nodelist" class="row g-3">
                         <div class="col-md-4">
                             <label for="search" class="form-label">{{ t('ui.common.search', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" id="search" name="search" 
+                            <input type="text" class="form-control" id="search" name="search"
                                    value="{{ search }}" placeholder="{{ t('ui.nodelist.index.search_placeholder', {}, locale, ['common']) }}">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="zone" class="form-label">{{ t('ui.nodelist.zone', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="zone" name="zone">
                                 <option value="">{{ t('ui.nodelist.index.all_zones', {}, locale, ['common']) }}</option>
@@ -59,7 +125,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="net" class="form-label">{{ t('ui.nodelist.net', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="net" name="net">
                                 <option value="">{{ t('ui.nodelist.index.all_nets', {}, locale, ['common']) }}</option>
@@ -67,6 +133,32 @@
                                     <option value="{{ n }}" {% if selectedNet == n %}selected{% endif %}>{{ t('ui.nodelist.index.net_prefix', {}, locale, ['common']) }} {{ n }}</option>
                                 {% endfor %}
                             </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">{{ t('ui.nodelist.index.flag_filter_label', {}, locale, ['common']) }}</label>
+                            <div class="dropdown" id="flagPickerWrap">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
+                                        type="button" id="flagPickerBtn"
+                                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                    <span id="flagPickerLabel">{{ selectedFlags|length > 0 ? selectedFlags|join(', ') : t('ui.nodelist.index.flag_filter_any', {}, locale, ['common']) }}</span>
+                                </button>
+                                <ul class="dropdown-menu p-2" id="flagDropdown" style="min-width:160px;max-height:260px;overflow-y:auto;">
+                                    {% if availableFlags|length > 0 %}
+                                        {% for f in availableFlags %}
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">
+                                                <input type="checkbox" class="form-check-input flag-cb flex-shrink-0"
+                                                       name="flag[]" value="{{ f }}"
+                                                       {% if f in selectedFlags %}checked{% endif %}>
+                                                <code class="small">{{ f }}</code>
+                                            </label>
+                                        </li>
+                                        {% endfor %}
+                                    {% else %}
+                                        <li><span class="dropdown-item-text text-muted small">No flags available</span></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
@@ -156,53 +248,31 @@
             {% else %}
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    {% if search or selectedZone or selectedNet %}
+                    {% if search or selectedZone or selectedNet or selectedFlags|length > 0 %}
                         {{ t('ui.nodelist.index.no_nodes_found_search', {}, locale, ['common']) }}
                     {% else %}
                         {{ t('ui.nodelist.index.use_search_form', {}, locale, ['common']) }}
                     {% endif %}
                 </div>
             {% endif %}
+
+            </div>{# end list pane #}
+
+            <!-- Map Tab Pane -->
+            <div class="tab-pane fade" id="nodelist-map-pane" role="tabpanel">
+                <div class="card nodelist-map-shell" id="nodelistMapShell">
+                    <div class="card-body p-2">
+                        <div id="nodelistMapNotice" class="alert alert-secondary mb-2 d-none"></div>
+                        <div id="nodelistMap"></div>
+                        <div id="nodelistMapStatus" class="text-muted small mt-1 text-end"></div>
+                    </div>
+                </div>
+            </div>
+
+            </div>{# end tab-content #}
         </div>
     </div>
 </div>
-
-<script>
-function uiT(key, fallback, params = {}) {
-    if (window.t) {
-        return window.t(key, params, fallback);
-    }
-    return fallback;
-}
-document.addEventListener('DOMContentLoaded', function() {
-    const zoneSelect = document.getElementById('zone');
-    const netSelect = document.getElementById('net');
-    
-    zoneSelect.addEventListener('change', function() {
-        const selectedZone = this.value;
-        
-        // Clear net options except "All Nets"
-        netSelect.innerHTML = '<option value="">' + uiT('ui.nodelist.index.all_nets', 'All Nets') + '</option>';
-        
-        if (selectedZone) {
-            // Fetch nets for selected zone
-            fetch(`/api/nodelist/nets?zone=${selectedZone}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.nets) {
-                        data.nets.forEach(net => {
-                            const option = document.createElement('option');
-                            option.value = net;
-                            option.textContent = `${uiT('ui.nodelist.index.net_prefix', 'Net')} ${net}`;
-                            netSelect.appendChild(option);
-                        });
-                    }
-                })
-                .catch(error => console.error(uiT('ui.nodelist.index.error_fetching_nets', 'Error fetching nets:') , error));
-        }
-    });
-});
-</script>
 
 <!-- Context Menu for Host Links -->
 <div id="hostContextMenu" class="context-menu" style="display: none; position: absolute; z-index: 9999;">
@@ -212,36 +282,291 @@ document.addEventListener('DOMContentLoaded', function() {
         <li><a href="#" id="menuSsh" class="context-menu-item"><i class="fas fa-lock"></i> {{ t('ui.nodelist.ssh', {}, locale, ['common']) }}</a></li>
     </ul>
 </div>
+{% endblock %}
 
-<style>
-.context-menu {
-    background-color: var(--bs-body-bg, #fff);
-    border: 1px solid var(--bs-border-color, #dee2e6);
-    border-radius: 0.375rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    min-width: 150px;
-    padding: 0.5rem 0;
+{% block scripts %}
+<script src="/assets/leaflet/leaflet.js"></script>
+<script src="/assets/leaflet/leaflet.markercluster.js"></script>
+<script>
+(function() {
+    const mapTab    = document.getElementById('nodelist-map-tab');
+    const mapShell  = document.getElementById('nodelistMapShell');
+    const mapNotice = document.getElementById('nodelistMapNotice');
+    const mapStatus = document.getElementById('nodelistMapStatus');
+    let nodelistMap = null;
+    let mapLoaded   = false;
+
+    // Network domain colour palette — assigned dynamically as domains are encountered.
+    const DOMAIN_PALETTE = [
+        '#4a90d9', // blue
+        '#5cb85c', // green
+        '#d9534f', // red
+        '#9b59b6', // purple
+        '#1abc9c', // teal
+        '#e8a838', // amber
+        '#e67e22', // orange
+        '#e91e8c', // pink
+        '#00bcd4', // cyan
+        '#8bc34a', // lime
+    ];
+    const COLOUR_MULTI   = '#f39c12'; // gold — node on multiple networks
+    const COLOUR_UNKNOWN = '#95a5a6'; // grey — no network info
+
+    // Built during initMap from the data.
+    const domainColourMap = {};
+
+    function assignDomainColours(nodes) {
+        let idx = 0;
+        nodes.forEach(function(node) {
+            (node.networks || []).forEach(function(net) {
+                const d = (net.domain || '').toLowerCase();
+                if (d && !domainColourMap[d]) {
+                    domainColourMap[d] = DOMAIN_PALETTE[idx % DOMAIN_PALETTE.length];
+                    idx++;
+                }
+            });
+        });
+    }
+
+    function domainColour(networks) {
+        if (!networks || networks.length === 0) return COLOUR_UNKNOWN;
+        const domains = [...new Set(networks.map(function(n) { return (n.domain || '').toLowerCase(); }).filter(Boolean))];
+        if (domains.length === 0) return COLOUR_UNKNOWN;
+        if (domains.length > 1)   return COLOUR_MULTI;
+        return domainColourMap[domains[0]] || COLOUR_UNKNOWN;
+    }
+
+    function makeIcon(colour) {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">'
+            + '<circle cx="7" cy="7" r="6" fill="' + colour + '" stroke="rgba(0,0,0,0.4)" stroke-width="1.5"/>'
+            + '</svg>';
+        return L.divIcon({
+            className: '',
+            html: svg,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+            popupAnchor: [0, -9]
+        });
+    }
+
+    function escapeHtml(v) {
+        return String(v || '').replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function addFullscreenControl() {
+        const FS = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const c = L.DomUtil.create('div', 'leaflet-bar');
+                const a = L.DomUtil.create('a', '', c);
+                a.href = '#'; a.title = 'Toggle fullscreen';
+                a.innerHTML = '<i class="fas fa-expand"></i>';
+                L.DomEvent.disableClickPropagation(c);
+                L.DomEvent.on(a, 'click', function(e) {
+                    L.DomEvent.stop(e);
+                    if (!document.fullscreenElement) {
+                        mapShell && mapShell.requestFullscreen && mapShell.requestFullscreen();
+                    } else {
+                        document.exitFullscreen && document.exitFullscreen();
+                    }
+                });
+                return c;
+            }
+        });
+        nodelistMap.addControl(new FS());
+    }
+
+    function addLegend() {
+        const Legend = L.Control.extend({
+            options: { position: 'bottomright' },
+            onAdd: function() {
+                const div = L.DomUtil.create('div');
+                div.style.cssText = 'background:rgba(17,24,39,0.92);padding:6px 9px;border-radius:4px;'
+                    + 'border:1px solid rgba(148,163,184,0.2);font-size:12px;line-height:1.9;'
+                    + 'color:#e2e8f0';
+                const dot = function(colour) {
+                    return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'
+                        + 'background:' + colour + ';border:1px solid rgba(0,0,0,0.3);margin-right:5px;vertical-align:middle"></span>';
+                };
+                const entries = Object.keys(domainColourMap).sort().map(function(d) {
+                    return dot(domainColourMap[d]) + escapeHtml(d);
+                });
+                if (Object.keys(domainColourMap).length > 1) {
+                    entries.push(dot(COLOUR_MULTI) + 'Multiple networks');
+                }
+                entries.push(dot(COLOUR_UNKNOWN) + 'Unknown');
+                div.innerHTML = entries.join('<br>');
+                return div;
+            }
+        });
+        nodelistMap.addControl(new Legend());
+    }
+
+    function initMap(nodes) {
+        if (nodelistMap) {
+            nodelistMap.invalidateSize();
+            return;
+        }
+
+        if (nodes.length === 0) {
+            mapNotice.textContent = {{ t('ui.nodelist.map_no_coordinates', {}, locale, ['common'])|json_encode|raw }};
+            mapNotice.classList.remove('d-none');
+            document.getElementById('nodelistMap').style.display = 'none';
+            return;
+        }
+
+        assignDomainColours(nodes);
+
+        nodelistMap = L.map('nodelistMap', { scrollWheelZoom: true });
+        addFullscreenControl();
+        addLegend();
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(nodelistMap);
+
+        const cluster = L.markerClusterGroup({
+            showCoverageOnHover: false,
+            spiderfyOnMaxZoom: true,
+            maxClusterRadius: 40
+        });
+
+        const bounds = [];
+        const sendNetmailLabel = {{ t('ui.nodelist.map_send_netmail', {}, locale, ['common'])|json_encode|raw }};
+        const userLoggedIn = {{ user ? 'true' : 'false' }};
+
+        nodes.forEach(function(node) {
+            const lat = Number(node.latitude);
+            const lon = Number(node.longitude);
+            if (!isFinite(lat) || !isFinite(lon)) return;
+
+            const colour = domainColour(node.networks);
+            const parts  = ['<div style="min-width:180px;max-width:260px">'];
+
+            parts.push('<strong>' + escapeHtml(node.system_name || '(unnamed)') + '</strong>');
+            if (node.sysop_name) parts.push('<div class="text-muted small">' + escapeHtml(node.sysop_name) + '</div>');
+            if (node.location)   parts.push('<div class="small">' + escapeHtml(node.location) + '</div>');
+
+            // One row per network entry
+            parts.push('<hr style="margin:4px 0">');
+            (node.networks || []).forEach(function(net) {
+                const dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
+                    + 'background:' + (domainColourMap[(net.domain || '').toLowerCase()] || COLOUR_UNKNOWN) + ';border:1px solid rgba(0,0,0,0.3);'
+                    + 'margin-right:4px;vertical-align:middle"></span>';
+                let row = dot + '<code style="font-size:11px">' + escapeHtml(net.address) + '</code>';
+                if (net.inet_host) {
+                    row += ' <a href="telnet://' + encodeURIComponent(net.inet_host) + '" style="font-size:11px">'
+                        + escapeHtml(net.inet_host) + '</a>';
+                }
+                if (userLoggedIn) {
+                    row += ' <a href="/compose/netmail?to=' + encodeURIComponent(net.address)
+                        + '&to_name=' + encodeURIComponent(node.sysop_name || '')
+                        + '" title="' + escapeHtml(sendNetmailLabel) + '" style="font-size:11px">✉</a>';
+                }
+                parts.push('<div>' + row + '</div>');
+            });
+
+            parts.push('</div>');
+
+            cluster.addLayer(
+                L.marker([lat, lon], { icon: makeIcon(colour) }).bindPopup(parts.join(''))
+            );
+            bounds.push([lat, lon]);
+        });
+
+        nodelistMap.addLayer(cluster);
+
+        if (bounds.length === 1) {
+            nodelistMap.setView(bounds[0], 6);
+        } else if (bounds.length > 1) {
+            nodelistMap.fitBounds(bounds, { padding: [30, 30] });
+        }
+
+        const countTpl = {{ t('ui.nodelist.map_node_count', {}, locale, ['common'])|json_encode|raw }};
+        if (mapStatus) {
+            mapStatus.textContent = countTpl.replace('{count}', nodes.length);
+        }
+    }
+
+    function loadMapData() {
+        if (mapLoaded) {
+            nodelistMap && nodelistMap.invalidateSize();
+            return;
+        }
+        mapLoaded = true;
+
+        if (mapNotice) {
+            mapNotice.textContent = {{ t('ui.nodelist.map_loading', {}, locale, ['common'])|json_encode|raw }};
+            mapNotice.classList.remove('d-none');
+        }
+
+        fetch('/api/nodelist/map-data')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (mapNotice) mapNotice.classList.add('d-none');
+                initMap(data.nodes || []);
+            })
+            .catch(function() {
+                if (mapNotice) {
+                    mapNotice.textContent = 'Failed to load map data.';
+                    mapNotice.classList.remove('d-none');
+                }
+            });
+    }
+
+    if (mapTab) {
+        mapTab.addEventListener('shown.bs.tab', function() {
+            loadMapData();
+        });
+    }
+})();
+</script>
+<script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) { return window.t(key, params, fallback); }
+    return fallback;
 }
+document.addEventListener('DOMContentLoaded', function() {
+    const flagAnyLabel = {{ t('ui.nodelist.index.flag_filter_any', {}, locale, ['common'])|json_encode|raw }};
+    const flagLabel    = document.getElementById('flagPickerLabel');
 
-.context-menu-item {
-    display: block;
-    padding: 0.5rem 1rem;
-    text-decoration: none;
-    color: var(--bs-body-color, #212529);
-    transition: background-color 0.15s ease;
-}
+    function updateFlagLabel() {
+        const checked = Array.from(document.querySelectorAll('.flag-cb:checked')).map(cb => cb.value);
+        flagLabel.textContent = checked.length > 0 ? checked.join(', ') : flagAnyLabel;
+    }
 
-.context-menu-item:hover {
-    background-color: var(--bs-secondary-bg, #e9ecef);
-    color: var(--bs-body-color, #212529);
-}
+    document.querySelectorAll('.flag-cb').forEach(function(cb) {
+        cb.addEventListener('change', updateFlagLabel);
+    });
 
-.context-menu-item i {
-    width: 20px;
-    margin-right: 0.5rem;
-}
-</style>
-
+    const zoneSelect = document.getElementById('zone');
+    const netSelect  = document.getElementById('net');
+    if (zoneSelect) {
+        zoneSelect.addEventListener('change', function() {
+            const selectedZone = this.value;
+            netSelect.innerHTML = '<option value="">' + uiT('ui.nodelist.index.all_nets', 'All Nets') + '</option>';
+            if (selectedZone) {
+                fetch(`/api/nodelist/nets?zone=${selectedZone}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.nets) {
+                            data.nets.forEach(net => {
+                                const opt = document.createElement('option');
+                                opt.value = net;
+                                opt.textContent = `${uiT('ui.nodelist.index.net_prefix', 'Net')} ${net}`;
+                                netSelect.appendChild(opt);
+                            });
+                        }
+                    })
+                    .catch(err => console.error(uiT('ui.nodelist.index.error_fetching_nets', 'Error fetching nets:'), err));
+            }
+        });
+    }
+});
+</script>
 <script>
 // Context menu for host links
 document.addEventListener('DOMContentLoaded', function() {

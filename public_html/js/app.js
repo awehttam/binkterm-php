@@ -557,18 +557,42 @@ function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
 
 function toggleKludgeLines() {
     const container = $('#kludgeContainer');
-    const icon = $('#toggleIcon');
-    const text = $('#toggleText');
-    
+    const btn = $('#toggleHeaders');
+
     if (container.is(':visible')) {
         container.slideUp();
-        icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text(window.t ? window.t('ui.common.show_kludge_lines', {}, 'Show Kludge Lines') : 'Show Kludge Lines');
+        btn.removeClass('active');
     } else {
         container.slideDown();
-        icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text(window.t ? window.t('ui.common.hide_kludge_lines', {}, 'Hide Kludge Lines') : 'Hide Kludge Lines');
+        btn.addClass('active');
     }
+}
+
+// Print message — opens a clean new window containing only the message content.
+// Also defined in echomail.js and netmail.js to avoid cache timing issues.
+function printMessage() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    win.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title>'
+        + '<style>'
+        + 'body{font-family:sans-serif;font-size:11pt;padding:1.5cm;color:#000;background:#fff}'
+        + '.message-header-full{border-bottom:1px solid #ccc;margin-bottom:1em;padding-bottom:.5em}'
+        + '.message-header-full strong{color:#333}'
+        + 'pre{white-space:pre-wrap;word-break:break-word;font-size:10pt;background:#f8f9fa;border:1px solid #dee2e6;padding:.75em;border-radius:4px}'
+        + '.message-origin{border-top:1px solid #ccc;margin-top:1em;padding-top:.5em;font-size:9pt;color:#666}'
+        + 'a{color:#000;text-decoration:none}'
+        + 'button,i.fas,i.far,.badge,.btn,#ansiRenderBadge,.modal-header-save-icon{display:none!important}'
+        + '</style>'
+        + '</head><body>'
+        + content.innerHTML
+        + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.onafterprint = function() { win.close(); };
+    win.print();
 }
 
 // Global user settings object
@@ -976,7 +1000,9 @@ function formatDate(dateString) {
 }
 
 function formatFidonetAddress(address) {
-    return `<span class="fidonet-address">${address}</span>`;
+    if (!address) return '';
+    const url = '/nodelist/view?address=' + encodeURIComponent(address);
+    return `<a href="${url}" class="fidonet-address text-decoration-none" title="View node ${escapeHtml(address)}">${escapeHtml(address)}</a>`;
 }
 
 function formatFullDate(dateString) {

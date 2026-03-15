@@ -17,6 +17,7 @@
 namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Config;
 
 class BinkpClient
 {
@@ -67,6 +68,7 @@ class BinkpClient
 
         socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
         socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
+        $this->configureTcpNoDelay($socket);
 
         $result = socket_connect($socket, $hostname, $port);
         if ($result === false) {
@@ -87,10 +89,17 @@ class BinkpClient
             // Set the uplink password for this session
             $session->setUplinkPassword($password);
 
-            // Set the current uplink context for packet filtering
-            // This ensures only packets destined for this uplink's networks are sent
+            // Set the current uplink context for packet filtering and address advertisement.
+            // If no exact uplink match exists (e.g. connecting to an arbitrary node via
+            // freq_pickup), find the uplink whose network covers the destination so we
+            // advertise the correct "me" address rather than the primary/first AKA.
             if ($uplink) {
                 $session->setCurrentUplink($uplink);
+            } else {
+                $routedUplink = $this->config->getUplinkForDestination($address);
+                if ($routedUplink) {
+                    $session->setCurrentUplink($routedUplink);
+                }
             }
 
             $session->handshake();
@@ -185,6 +194,7 @@ class BinkpClient
         
         socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $timeout, 'usec' => 0]);
         socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $timeout, 'usec' => 0]);
+        $this->configureTcpNoDelay($socket);
         
         $startTime = microtime(true);
         $result = socket_connect($socket, $hostname, $port);
@@ -228,6 +238,17 @@ class BinkpClient
         stream_set_blocking($socketResource, true);
 
         return $socketResource;
+    }
+
+    private function configureTcpNoDelay($socket): void
+    {
+        if (!defined('TCP_NODELAY')) {
+            return;
+        }
+
+        $raw = strtolower(trim((string)Config::env('BINKP_TCP_NODELAY', 'true')));
+        $enabled = !in_array($raw, ['0', 'false', 'no', 'off'], true);
+        @socket_set_option($socket, SOL_TCP, TCP_NODELAY, $enabled ? 1 : 0);
     }
     
     public function sendFile($address, $filePath)

@@ -18,6 +18,7 @@ namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
+use BinktermPHP\Config;
 
 class BinkpServer
 {
@@ -128,6 +129,8 @@ class BinkpServer
             $this->log('Failed to accept connection: ' . socket_strerror(socket_last_error($this->serverSocket)), 'ERROR');
             return;
         }
+
+        $this->configureTcpNoDelay($clientSocket);
 
         // Check max connections (count active child processes)
         $this->reapChildren();
@@ -260,6 +263,17 @@ class BinkpServer
         stream_set_blocking($socketResource, true);
 
         return $socketResource;
+    }
+
+    private function configureTcpNoDelay($socket): void
+    {
+        if (!defined('TCP_NODELAY')) {
+            return;
+        }
+
+        $raw = strtolower(trim((string)Config::env('BINKP_TCP_NODELAY', 'true')));
+        $enabled = !in_array($raw, ['0', 'false', 'no', 'off'], true);
+        @socket_set_option($socket, SOL_TCP, TCP_NODELAY, $enabled ? 1 : 0);
     }
     
     public function stop()

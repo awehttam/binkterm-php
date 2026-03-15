@@ -59,13 +59,16 @@ class NodelistController
         $this->auth = new Auth();
     }
     
-    public function index($search = '', $zone = '', $net = '', $page = 1)
+    public function index($search = '', $zone = '', $net = '', $flags = [], $page = 1)
     {
         $user = $this->auth->getCurrentUser(); // Get user if logged in, but don't require auth
-        
-        $limit = 50;
-        $offset = ($page - 1) * $limit;
-        
+
+        // Normalize flags to a clean array of uppercase strings
+        if (!is_array($flags)) {
+            $flags = $flags !== '' ? [strtoupper(trim($flags))] : [];
+        }
+        $flags = array_values(array_filter(array_map(fn($f) => strtoupper(trim((string)$f)), $flags)));
+
         $criteria = [];
         if ($search) {
             $criteria['search_term'] = $search;
@@ -76,12 +79,16 @@ class NodelistController
         if ($net) {
             $criteria['net'] = $net;
         }
-        
+        if (!empty($flags)) {
+            $criteria['flags'] = $flags;
+        }
+
         $nodes = $this->nodelistManager->searchNodes($criteria);
         $zones = $this->nodelistManager->getZones();
         $stats = $this->nodelistManager->getNodelistStats();
         $activeNodelist = $this->nodelistManager->getActiveNodelist();
         $activeNodelists = $this->nodelistManager->getActiveNodelists();
+        $availableFlags = $this->nodelistManager->getAvailableFlags();
 
         $nets = [];
         if ($zone) {
@@ -96,9 +103,11 @@ class NodelistController
             'stats' => $stats,
             'activeNodelist' => $activeNodelist,
             'activeNodelists' => $activeNodelists,
+            'availableFlags' => $availableFlags,
             'search' => $search,
             'selectedZone' => $zone,
             'selectedNet' => $net,
+            'selectedFlags' => $flags,
             'page' => $page
         ]);
     }
@@ -230,6 +239,8 @@ class NodelistController
                     return $this->apiNets();
                 case 'stats':
                     return $this->apiStats();
+                case 'map-data':
+                    return $this->apiMapData();
                 default:
                     $this->respondApiError('errors.nodelist.api.endpoint_not_found', 'API endpoint not found', 404);
             }
@@ -331,11 +342,93 @@ class NodelistController
     {
         $stats = $this->nodelistManager->getNodelistStats();
         $activeNodelist = $this->nodelistManager->getActiveNodelist();
-        
+
         echo json_encode([
             'stats' => $stats,
             'active_nodelist' => $activeNodelist
         ]);
+    }
+
+    /**
+     * Return all geocoded nodelist entries for the map view.
+     * Only nodes with coordinates are included.
+     */
+    private function apiMapData()
+    {
+        $filterZone = $_GET['zone'] ?? '';
+
+        $params = [];
+        $where  = ['n.latitude IS NOT NULL', 'n.longitude IS NOT NULL'];
+
+        if ($filterZone !== '') {
+            $where[]  = 'n.zone = ?';
+            $params[] = (int)$filterZone;
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+        $stmt = $this->db->prepare("
+            SELECT n.zone, n.net, n.node, n.point, n.keyword_type,
+                   n.system_name, n.sysop_name, n.location, n.phone, n.flags,
+                   n.domain, n.latitude, n.longitude
+            FROM nodelist n
+            $whereClause
+            ORDER BY n.system_name, n.zone, n.net, n.node
+        ");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Group by system_name (case-insensitive). Each group becomes one map marker.
+        // The first row in a group provides coordinates and primary sysop/location.
+        $groups = [];
+        foreach ($rows as $row) {
+            $flags = [];
+            if (!empty($row['flags'])) {
+                $decoded = json_decode($row['flags'], true);
+                if (is_array($decoded)) {
+                    $flags = $decoded;
+                }
+            }
+
+            $address = "{$row['zone']}:{$row['net']}/{$row['node']}";
+            if ((int)$row['point'] > 0) {
+                $address .= ".{$row['point']}";
+            }
+
+            $inetHost = $flags['INA'] ?? ($flags['IBN'] ?? null);
+
+            $groupKey = mb_strtolower(trim((string)$row['system_name']));
+            if ($groupKey === '') {
+                $groupKey = $address; // fallback: unnamed nodes each get their own pin
+            }
+
+            if (!isset($groups[$groupKey])) {
+                $groups[$groupKey] = [
+                    'system_name' => $row['system_name'],
+                    'sysop_name'  => $row['sysop_name'],
+                    'location'    => $row['location'],
+                    'latitude'    => (float)$row['latitude'],
+                    'longitude'   => (float)$row['longitude'],
+                    'networks'    => [],
+                    'zones'       => [],
+                ];
+            }
+
+            $groups[$groupKey]['networks'][] = [
+                'address'      => $address,
+                'zone'         => (int)$row['zone'],
+                'domain'       => $row['domain'] ?? '',
+                'keyword_type' => $row['keyword_type'],
+                'inet_host'    => $inetHost,
+            ];
+
+            if (!in_array((int)$row['zone'], $groups[$groupKey]['zones'], true)) {
+                $groups[$groupKey]['zones'][] = (int)$row['zone'];
+            }
+        }
+
+        $nodes = array_values($groups);
+        echo json_encode(['nodes' => $nodes, 'total' => count($nodes)]);
     }
     
     private function validateNodelistFile($filepath)

@@ -645,8 +645,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $meta = new UserMeta();
         $currentCount = (int)($input['current_count'] ?? 0);
 
-        // Store the current count - badge will only show if count increases
-        $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
+        // Chat uses max message ID for efficient incremental polling; others use counts
+        if ($target === 'chat') {
+            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
+        } else {
+            $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
+        }
 
         echo json_encode(['success' => true, 'target' => $target, 'count' => $currentCount]);
     });
@@ -664,7 +668,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Get last seen counts (not timestamps - we compare counts, not dates)
         $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
         $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
-        $lastChatCount = (int)($meta->getValue((int)$userId, 'last_chat_count') ?? 0);
+        $lastChatMaxId = $meta->getValue((int)$userId, 'last_chat_max_id');
 
         // Get address list for netmail queries
         try {
@@ -715,22 +719,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
-        // Total chat count
-        $chatTotalStmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM chat_messages m
-            LEFT JOIN chat_rooms r ON m.room_id = r.id
-            WHERE (m.room_id IS NOT NULL AND r.is_active = TRUE)
-               OR m.to_user_id = ?
-               OR m.from_user_id = ?
-        ");
-        $chatTotalStmt->execute([$userId, $userId]);
-        $chatTotal = $chatTotalStmt->fetch()['count'] ?? 0;
+        // New chat messages since last seen max ID (avoids full table scan)
+        if ($lastChatMaxId === null) {
+            // Not yet initialized — baseline to current max so no false badge on first load
+            $maxStmt = $db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM chat_messages");
+            $chatMaxId = (int)($maxStmt->fetch()['max_id'] ?? 0);
+            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$chatMaxId);
+            $chatBadge = 0;
+        } else {
+            $lastChatMaxId = (int)$lastChatMaxId;
+            $chatStmt = $db->prepare("
+                SELECT COUNT(*) as new_count, COALESCE(MAX(m.id), ?) as max_id
+                FROM chat_messages m
+                LEFT JOIN chat_rooms r ON m.room_id = r.id
+                WHERE m.id > ?
+                  AND (
+                      (m.room_id IS NOT NULL AND r.is_active = TRUE)
+                      OR m.to_user_id = ?
+                      OR m.from_user_id = ?
+                  )
+            ");
+            $chatStmt->execute([$lastChatMaxId, $lastChatMaxId, $userId, $userId]);
+            $chatRow = $chatStmt->fetch();
+            $chatBadge = (int)$chatRow['new_count'];
+            $chatMaxId = (int)$chatRow['max_id'];
+        }
 
         // Notification badge shows ONLY if count increased
         $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
         $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
-        $chatBadge = $chatTotal > $lastChatCount ? $chatTotal : 0;
 
         // Get user's credit balance
         $creditBalance = 0;
@@ -745,10 +762,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode([
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
-            'chat_total' => (int)$chatBadge,
+            'chat_total' => $chatBadge,
             'total_netmail' => $unreadNetmail,
             'total_echomail' => $unreadEchomail,
-            'total_chat' => $chatTotal,
+            'chat_max_id' => $chatMaxId,
             'credit_balance' => $creditBalance
         ]);
     });
@@ -2280,6 +2297,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Properly encode filename for Content-Disposition header (RFC 6266 & RFC 5987)
         $filename = basename($file['filename']);
         $encodedFilename = rawurlencode($filename);
+        $downloadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
+        $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
+
+        if ($downloadCost > 0) {
+            $debitSuccess = UserCredit::debit(
+                (int)$userId,
+                $downloadCost,
+                "Downloaded file: {$filename}",
+                null,
+                UserCredit::TYPE_PAYMENT
+            );
+            if (!$debitSuccess) {
+                http_response_code(402);
+                echo apiLocalizedText('errors.files.download.insufficient_credits', 'Insufficient credits to download this file', $user);
+                return;
+            }
+        }
+
+        if ($downloadReward > 0) {
+            $creditSuccess = UserCredit::credit(
+                (int)$userId,
+                $downloadReward,
+                "Download reward: {$filename}",
+                null,
+                UserCredit::TYPE_SYSTEM_REWARD
+            );
+            if (!$creditSuccess) {
+                error_log("Failed to award file download credits for user {$userId} and file {$id}");
+            }
+        }
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
 
@@ -2315,7 +2362,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $manager = new \BinktermPHP\FileAreaManager();
-        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours);
+        $freqAccessible = isset($input['freq_accessible']) ? (bool)$input['freq_accessible'] : true;
+        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours, $freqAccessible);
         $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
@@ -2438,6 +2486,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $uploadCostCharged = false;
+        $uploadCost = 0;
+
         try {
             if (!isset($_FILES['file'])) {
                 throw new \Exception('No file uploaded');
@@ -2475,7 +2527,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Get user's FidoNet address or username
             $uploadedBy = $user['username'] ?? 'Unknown';
-            $ownerId = $user['user_id'] ?? $user['id'] ?? null;
+            $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $uploadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
+            $uploadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+
+            if ($uploadCost > 0) {
+                $uploadCostCharged = UserCredit::debit(
+                    $ownerId,
+                    $uploadCost,
+                    "Uploaded file cost: " . ($_FILES['file']['name'] ?? 'unknown'),
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$uploadCostCharged) {
+                    throw new \Exception('Insufficient credits for file upload');
+                }
+            }
+
             $fileId = $manager->uploadFile(
                 $fileAreaId,
                 $_FILES['file'],
@@ -2484,6 +2552,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $uploadedBy,
                 $ownerId
             );
+
+            if ($uploadReward > 0) {
+                $creditSuccess = UserCredit::credit(
+                    $ownerId,
+                    $uploadReward,
+                    "Upload reward: " . ($_FILES['file']['name'] ?? 'unknown'),
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    error_log("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
+                }
+            }
 
             ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $_FILES['file']['name'] ?? null, ['file_area_id' => $fileAreaId]);
 
@@ -2494,6 +2575,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
+            if ($uploadCostCharged && $uploadCost > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $uploadCost,
+                    'Refund: File upload failed',
+                    null,
+                    UserCredit::TYPE_REFUND
+                );
+            }
+
             http_response_code(400);
             $message = $e->getMessage();
             if ($message === 'No file uploaded') {
@@ -2508,6 +2599,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
             } elseif ($message === 'Only administrators can upload files to this area.') {
                 apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Insufficient credits for file upload') {
+                apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
             } elseif ($message === 'File rejected: virus detected.') {
                 \BinktermPHP\Admin\AdminDaemonClient::log('WARNING', 'Infected file upload rejected', [
                     'username'  => $user['username'] ?? 'unknown',
@@ -2884,6 +2977,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $message['attachments'] = [];
             }
 
+            $message['can_edit'] = ((int)($message['user_id'] ?? 0) === (int)$userId);
             echo json_encode($message);
         } else {
             http_response_code(404);
@@ -2958,6 +3052,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo $content;
         exit;
+    })->where(['id' => '[0-9]+']);
+
+    // Netmail message meta edit endpoint (sender or receiver only)
+    SimpleRouter::post('/messages/netmail/{id}/edit', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db = Database::getInstance()->getPdo();
+
+        // Verify the message exists and belongs to the current user
+        $stmt = $db->prepare('SELECT user_id FROM netmail WHERE id = ?');
+        $stmt->execute([(int)$id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            http_response_code(404);
+            apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        if ((int)$row['user_id'] !== (int)$userId && empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.netmail.edit.forbidden', apiLocalizedText('errors.messages.netmail.edit.forbidden', 'You do not have permission to edit this message', $user));
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $validArtFormats = ['', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+        $artFormat = isset($input['art_format']) ? strtolower(trim((string)$input['art_format'])) : null;
+        $charset   = isset($input['message_charset']) ? strtoupper(trim((string)$input['message_charset'])) : null;
+
+        if ($artFormat !== null && !in_array($artFormat, $validArtFormats, true)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_art_format', apiLocalizedText('errors.messages.echomail.edit.invalid_art_format', 'Invalid art format', $user));
+            return;
+        }
+
+        $setClauses = [];
+        $params     = [];
+
+        if ($artFormat !== null) {
+            $setClauses[] = 'art_format = ?';
+            $params[]     = $artFormat === '' ? null : $artFormat;
+        }
+        if ($charset !== null) {
+            $setClauses[] = 'message_charset = ?';
+            $params[]     = $charset === '' ? null : $charset;
+        }
+
+        if (empty($setClauses)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.nothing_to_update', apiLocalizedText('errors.messages.echomail.edit.nothing_to_update', 'No fields to update', $user));
+            return;
+        }
+
+        $params[] = (int)$id;
+        $stmt = $db->prepare('UPDATE netmail SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+        $stmt->execute($params);
+
+        echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/netmail/bulk-delete', function() {
@@ -3428,6 +3585,63 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
         header('X-Content-Type-Options: nosniff');
         echo $content;
+    })->where(['id' => '[0-9]+']);
+
+    // Echomail message meta edit endpoint (admin only)
+    SimpleRouter::post('/messages/echomail/{id}/edit', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.echomail.edit.admin_required', apiLocalizedText('errors.messages.echomail.edit.admin_required', 'Admin access required', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $validArtFormats = ['', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+        $artFormat = isset($input['art_format']) ? strtolower(trim((string)$input['art_format'])) : null;
+        $charset   = isset($input['message_charset']) ? strtoupper(trim((string)$input['message_charset'])) : null;
+
+        if ($artFormat !== null && !in_array($artFormat, $validArtFormats, true)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_art_format', apiLocalizedText('errors.messages.echomail.edit.invalid_art_format', 'Invalid art format', $user));
+            return;
+        }
+
+        // Build update
+        $setClauses = [];
+        $params     = [];
+
+        if ($artFormat !== null) {
+            $setClauses[] = 'art_format = ?';
+            $params[]     = $artFormat === '' ? null : $artFormat;
+        }
+        if ($charset !== null) {
+            $setClauses[] = 'message_charset = ?';
+            $params[]     = $charset === '' ? null : $charset;
+        }
+
+        if (empty($setClauses)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.nothing_to_update', apiLocalizedText('errors.messages.echomail.edit.nothing_to_update', 'No fields to update', $user));
+            return;
+        }
+
+        $params[] = (int)$id;
+        $stmt = $db->prepare('UPDATE echomail SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+        $stmt->execute($params);
+
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {
@@ -3932,6 +4146,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        try {
+
         $query = $_GET['q'] ?? '';
         $type = $_GET['type'] ?? null;
         $echoarea = $_GET['echoarea'] ?? null;
@@ -3941,7 +4157,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea = urldecode($echoarea);
         }
 
-        if (strlen($query) < 2) {
+        // Collect field-specific search params
+        $searchParams = [];
+        if (!empty($_GET['from_name'])) {
+            $searchParams['from_name'] = $_GET['from_name'];
+        }
+        if (!empty($_GET['subject'])) {
+            $searchParams['subject'] = $_GET['subject'];
+        }
+        if (!empty($_GET['body'])) {
+            $searchParams['body'] = $_GET['body'];
+        }
+        // Date range params — validate YYYY-MM-DD format
+        foreach (['date_from', 'date_to'] as $dateKey) {
+            if (!empty($_GET[$dateKey])) {
+                $val = $_GET[$dateKey];
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $val)) {
+                    $searchParams[$dateKey] = $val;
+                }
+            }
+        }
+
+        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasDateParams = !empty($searchParams['date_from']) || !empty($searchParams['date_to']);
+        $hasAdvancedParams = $hasTextParams || $hasDateParams;
+
+        // Validate: need a general query of 2+ chars, or at least one valid text/date field
+        if ($hasTextParams) {
+            foreach (['from_name', 'subject', 'body'] as $textKey) {
+                if (isset($searchParams[$textKey]) && strlen($searchParams[$textKey]) < 2) {
+                    http_response_code(400);
+                    apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
+                    return;
+                }
+            }
+        } elseif (!$hasDateParams && strlen($query) < 2) {
             http_response_code(400);
             apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
             return;
@@ -3952,21 +4202,47 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams);
 
-        // For echomail searches, also get per-echo-area counts and filter counts
+        // For echomail searches, derive per-echo-area counts from already-fetched results
+        // and compute filter counts by PK lookup — avoids re-running the expensive search query.
         $echoareaCounts = [];
         $filterCounts = [];
         if ($type === 'echomail' || $type === null) {
-            $echoareaCounts = $handler->getSearchResultCounts($query, $echoarea, $userId);
-            $filterCounts = $handler->getSearchFilterCounts($query, $echoarea, $userId);
+            $countMap = [];
+            foreach ($messages as $msg) {
+                $tag = $msg['echoarea'] ?? '';
+                $domain = $msg['echoarea_domain'] ?? '';
+                $key = "{$tag}@{$domain}";
+                if (!isset($countMap[$key])) {
+                    $countMap[$key] = ['tag' => $tag, 'domain' => $domain, 'message_count' => 0];
+                }
+                $countMap[$key]['message_count']++;
+            }
+            $echoareaCounts = array_values($countMap);
+
+            $messageIds = array_column($messages, 'id');
+            $filterCounts = $handler->getSearchFilterCountsByIds($messageIds, $userId);
         }
 
-        echo json_encode([
+        $json = json_encode([
             'messages' => $messages,
             'echoarea_counts' => $echoareaCounts,
             'filter_counts' => $filterCounts
-        ]);
+        ], JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($json === false) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to encode results: ' . json_last_error_msg()]);
+            return;
+        }
+
+        echo $json;
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage(), 'trace' => $e->getFile() . ':' . $e->getLine()]);
+        }
     });
 
     // Mark message as read
@@ -6290,5 +6566,60 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
             apiError('errors.referrals.admin_stats_failed', apiLocalizedText('errors.referrals.admin_stats_failed', 'Failed to load admin referral statistics', $user));
         }
     });
+});
+
+// ── FREQ Log API ─────────────────────────────────────────────────────────────
+
+SimpleRouter::get('/admin/api/freq-log', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = 50;
+    $offset  = ($page - 1) * $perPage;
+
+    $where  = '1=1';
+    $params = [];
+
+    if (!empty($_GET['node'])) {
+        $where .= ' AND requesting_node ILIKE ?';
+        $params[] = '%' . $_GET['node'] . '%';
+    }
+    if (!empty($_GET['filename'])) {
+        $where .= ' AND filename ILIKE ?';
+        $params[] = '%' . $_GET['filename'] . '%';
+    }
+    if (isset($_GET['served']) && $_GET['served'] !== '') {
+        $where .= ' AND served = ?';
+        $params[] = $_GET['served'] === '1' ? 'true' : 'false';
+    }
+    if (!empty($_GET['source'])) {
+        $where .= ' AND source = ?';
+        $params[] = $_GET['source'];
+    }
+
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM freq_log WHERE {$where}");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    $stmt = $db->prepare(
+        "SELECT id, requested_at, requesting_node, filename, served, deny_reason, file_size, source
+         FROM freq_log
+         WHERE {$where}
+         ORDER BY requested_at DESC
+         LIMIT {$perPage} OFFSET {$offset}"
+    );
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success' => true,
+        'entries' => $rows,
+        'total'   => $total,
+        'page'    => $page,
+        'per_page'=> $perPage,
+    ]);
 });
 

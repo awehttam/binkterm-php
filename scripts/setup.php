@@ -65,7 +65,9 @@ class SetupManager
             $baseDir . '/files',
             $baseDir . '/files/.quarantine',
             $baseDir . '/files/private',
-            $baseDir . '/netmail_attachments'
+            $baseDir . '/netmail_attachments',
+            $baseDir . '/freq_outbound',
+            $baseDir . '/outbound/hold'
         ];
 
         foreach ($filesDirs as $dir) {

@@ -211,7 +211,7 @@ See **[docs/SSHServer.md](docs/SSHServer.md)** for daemon setup, configuration, 
 
 ## Credits System
 
-BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience. Configuration is done in `config/bbs.json` under the `credits` section, or via **Admin → BBS Settings → Credits System Configuration**.
+BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience. Configuration is done in `config/bbs.json` under the `credits` section, or via **Admin → BBS Settings → Credits System Configuration**. Current built-in actions include login bonuses, message costs/rewards, poll creation cost, and configurable file upload/download costs and rewards.
 
 See **[docs/CreditSystem.md](docs/CreditSystem.md)** for default values, configuration options, transaction types, and the developer API.
 
@@ -579,6 +579,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | In-browser message artwork encoding editor (echomail for sysops, netmail for sender/receiver); fixed false-positive PETSCII detection on import; C64 badge in message lists |
 | [1.8.6](docs/UPGRADING_1.8.6.md)       | Mar 2026    | i18n/localization, SSH daemon, file areas terminal, ZMODEM, telnet ANSI auto-detect, echomail/netmail reader keyboard shortcuts |
 | [1.8.5](docs/UPGRADING_1.8.5.md)       | Mar 4 2026  | Native doors (PTY), StyleCodes rendering, LSC-001 Draft 2 MARKUP kludge, markup format composer selector, allow_markup uplink config key |
 | [1.8.4](docs/UPGRADING_1.8.4.md)       | Mar 1 2026  | Username/real name cross-collision check, MRC room list fix, collapsible compose sidebar, echolist new-tab support |

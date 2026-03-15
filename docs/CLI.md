@@ -17,8 +17,10 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Admin Daemon](#admin-daemon)
 - [Admin Client](#admin-client)
 - [Nodelist Updates](#nodelist-updates)
+- [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
+- [FREQ File Pickup](#freq-file-pickup)
 - [Echomail Robots](#echomail-robots)
 - [Create Translation Catalog](#create-translation-catalog)
 - [Generate Ad](#generate-ad)
@@ -425,6 +427,69 @@ php scripts/update_nodelists.php --force
 php scripts/update_nodelists.php --help
 ```
 
+## Geocoding
+
+Both the BBS Directory and the Nodelist map use coordinates resolved from location strings via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API. Results are permanently cached in the `geocode_cache` table, so a given location string is only ever looked up once regardless of which script processed it first.
+
+The Nominatim API is rate-limited to **one request per second**. Scripts enforce this automatically.
+
+Environment variables (all optional):
+
+| Variable | Default | Description |
+|---|---|---|
+| `BBS_DIRECTORY_GEOCODING_ENABLED` | `true` | Set to `false` to disable all geocoding |
+| `BBS_DIRECTORY_GEOCODER_EMAIL` | _(none)_ | Contact email sent in API requests (good practice) |
+| `BBS_DIRECTORY_GEOCODER_URL` | Nominatim endpoint | Override with a self-hosted instance |
+| `BBS_DIRECTORY_GEOCODER_USER_AGENT` | Auto-generated | Custom `User-Agent` header |
+
+### Geocode Nodelist
+
+Populates `latitude`/`longitude` on nodelist entries that have a `location` field but no coordinates yet.
+
+```bash
+# Geocode all pending nodelist entries
+php scripts/geocode_nodelist.php
+
+# Limit to 100 entries per run (good for cron)
+php scripts/geocode_nodelist.php --limit=100
+
+# Re-geocode entries that already have coordinates
+php scripts/geocode_nodelist.php --force
+
+# Preview without writing changes
+php scripts/geocode_nodelist.php --dry-run
+```
+
+Options:
+- `--limit=N` — Process at most N nodes (default: all pending)
+- `--force` — Re-geocode nodes that already have coordinates
+- `--dry-run` — Show what would be processed without making changes
+
+Cron example (nightly, 100 nodes at a time):
+
+```
+0 3 * * * /usr/bin/php /path/to/binkterm/scripts/geocode_nodelist.php --limit=100
+```
+
+### Geocode BBS Directory
+
+Backfills coordinates for BBS Directory entries that have a location set but no coordinates.
+
+```bash
+# Geocode all pending BBS directory entries
+php scripts/geocode_bbs_directory.php
+
+# Limit to N entries
+php scripts/geocode_bbs_directory.php --limit=50
+
+# Preview without writing changes
+php scripts/geocode_bbs_directory.php --dry-run
+```
+
+Options:
+- `--limit=N` — Process at most N entries
+- `--dry-run` — Show how many rows would be updated without writing changes
+
 ## Database Backup
 
 Creates PostgreSQL database backups using `pg_dump` with connection settings from `.env`. Backups are saved to the `backups/` directory with a timestamp in the filename.
@@ -468,6 +533,36 @@ Options:
 - `--limit=N` — Maximum items to process (default: 10)
 - `--verbose` — Show detailed output
 - `--dry-run` — Check queue without attempting delivery
+
+## FREQ File Pickup
+
+Use this script when you have sent a FREQ request to a remote node that cannot
+reach you via crashmail. The remote system queues the requested files for you;
+run this script to connect outbound and collect them.
+
+```bash
+# Basic pickup — hostname resolved from nodelist
+php scripts/freq_pickup.php 1:123/456
+
+# Specify hostname manually
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
+
+# Custom port and session password
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554 --password=secret
+
+# Verbose debug output
+php scripts/freq_pickup.php 1:123/456 --log-level=DEBUG
+```
+
+Options:
+- `--hostname=HOST` — Hostname or IP to connect to (auto-resolved from nodelist if omitted)
+- `--port=PORT` — Port number (default: `24554`)
+- `--password=PASS` — Session password
+- `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default: `INFO`)
+
+The script resolves your local address from the same network as the destination
+so the remote system recognises you by the correct AKA. Any outbound packets
+queued for that node are also sent during the session.
 
 ## Echomail Robots
 

@@ -13,6 +13,9 @@
  *   gemini://host/echomail/                      List of public echo areas
  *   gemini://host/echomail/{TAG}@{domain}/       50 most recent messages in an echo area
  *   gemini://host/echomail/{TAG}@{domain}/{id}   Single echomail message
+ *   gemini://host/files/                         List of Gemini-public file areas
+ *   gemini://host/files/{TAG}/                   Directory listing for a file area
+ *   gemini://host/files/{TAG}/{filename}         Download a file (binary or text)
  *
  * Usage:
  *   php scripts/gemini_daemon.php [options]
@@ -370,6 +373,30 @@ function handleHomePage($socket, string $geminiHost): void
         $lines[] = 'Browse active bulletin board systems, including their names, locations, and telnet addresses.';
         $lines[] = '';
         $lines[] = "=> gemini://{$geminiHost}/bbs-directory/ Browse the bulletin board list";
+
+        // File areas
+        $fileAreaStmt = $db->query(
+            'SELECT tag, description FROM file_areas
+             WHERE gemini_public = TRUE AND is_active = TRUE AND is_private = FALSE
+             ORDER BY tag ASC'
+        );
+        $fileAreas = $fileAreaStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (!empty($fileAreas)) {
+            $lines[] = '';
+            $lines[] = '## File Areas';
+            $lines[] = '';
+            $lines[] = 'Downloadable files are available in the following areas.';
+            $lines[] = '';
+            $lines[] = "=> gemini://{$geminiHost}/files/ Browse all file areas";
+            $lines[] = '';
+            foreach ($fileAreas as $fa) {
+                $faTag  = strtoupper((string)$fa['tag']);
+                $faDesc = trim((string)($fa['description'] ?? ''));
+                $label  = $faDesc !== '' ? "{$faTag} — {$faDesc}" : $faTag;
+                $lines[] = "=> gemini://{$geminiHost}/files/{$faTag}/ {$label}";
+            }
+        }
 
         // Echo areas
         $areaStmt = $db->query(
@@ -849,6 +876,274 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
 }
 
 /**
+ * Map a file extension to a MIME type for Gemini responses.
+ *
+ * @param string $filename
+ * @return string MIME type string
+ */
+function fileMimeType(string $filename): string
+{
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $map = [
+        // Text
+        'txt'  => 'text/plain',
+        'md'   => 'text/plain',
+        'gmi'  => 'text/gemini',
+        'gemini' => 'text/gemini',
+        'diz'  => 'text/plain',
+        'nfo'  => 'text/plain',
+        'log'  => 'text/plain',
+        'cfg'  => 'text/plain',
+        'ini'  => 'text/plain',
+        // Archives
+        'zip'  => 'application/zip',
+        'gz'   => 'application/gzip',
+        'tar'  => 'application/x-tar',
+        'bz2'  => 'application/x-bzip2',
+        'xz'   => 'application/x-xz',
+        'rar'  => 'application/vnd.rar',
+        'arj'  => 'application/x-arj',
+        'lzh'  => 'application/x-lzh-compressed',
+        'lha'  => 'application/x-lzh-compressed',
+        'arc'  => 'application/x-arc',
+        'zoo'  => 'application/x-zoo',
+        '7z'   => 'application/x-7z-compressed',
+        // Images
+        'png'  => 'image/png',
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif'  => 'image/gif',
+        'bmp'  => 'image/bmp',
+        'ico'  => 'image/x-icon',
+        // Documents
+        'pdf'  => 'application/pdf',
+        // Executables / DOS
+        'exe'  => 'application/octet-stream',
+        'com'  => 'application/octet-stream',
+        'bat'  => 'text/plain',
+        // Audio / Video
+        'mp3'  => 'audio/mpeg',
+        'ogg'  => 'audio/ogg',
+        'wav'  => 'audio/wav',
+        'mp4'  => 'video/mp4',
+        'avi'  => 'video/x-msvideo',
+    ];
+    return $map[$ext] ?? 'application/octet-stream';
+}
+
+/**
+ * Stream a binary or text file to a Gemini socket.
+ * Reads in 64 KB chunks to avoid loading large files into memory.
+ *
+ * @param resource $socket
+ * @param string   $mime      MIME type for the Gemini header
+ * @param string   $filePath  Absolute path to the file
+ */
+function geminiStreamFile($socket, string $mime, string $filePath): void
+{
+    fwrite($socket, "20 {$mime}\r\n");
+    $fh = fopen($filePath, 'rb');
+    if ($fh === false) {
+        return;
+    }
+    while (!feof($fh)) {
+        $chunk = fread($fh, 65536);
+        if ($chunk === false) {
+            break;
+        }
+        fwrite($socket, $chunk);
+    }
+    fclose($fh);
+}
+
+/**
+ * List all Gemini-public file areas.
+ *
+ * @param resource $socket
+ * @param string   $geminiHost
+ */
+function handleFileAreaList($socket, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $bbsName = $binkpConfig->getSystemName();
+
+        $stmt = $db->query(
+            "SELECT tag, description, domain, file_count, total_size
+             FROM file_areas
+             WHERE gemini_public = TRUE AND is_active = TRUE AND is_private = FALSE
+             ORDER BY tag ASC"
+        );
+        $areas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $lines = [
+            '# File Areas',
+            '',
+            'Publicly available file areas on ' . $bbsName . '.',
+            '',
+        ];
+
+        if (empty($areas)) {
+            $lines[] = 'No file areas are currently available for download.';
+        } else {
+            foreach ($areas as $area) {
+                $tag   = strtoupper((string)$area['tag']);
+                $desc  = trim((string)($area['description'] ?? ''));
+                $count = (int)($area['file_count'] ?? 0);
+                $size  = (int)($area['total_size'] ?? 0);
+
+                $sizeLabel = '';
+                if ($size > 0) {
+                    $sizeLabel = $size >= 1048576
+                        ? ' — ' . round($size / 1048576, 1) . ' MB'
+                        : ' — ' . round($size / 1024, 0) . ' KB';
+                }
+
+                $countLabel = $count === 1 ? '1 file' : "{$count} files";
+                $label = $desc !== '' ? "{$tag} — {$desc} ({$countLabel}{$sizeLabel})" : "{$tag} ({$countLabel}{$sizeLabel})";
+                $lines[] = "=> gemini://{$geminiHost}/files/{$tag}/ {$label}";
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/ Return to main index";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
+ * List files in a specific Gemini-public file area.
+ *
+ * @param resource $socket
+ * @param string   $tag        Area tag (case-insensitive)
+ * @param string   $geminiHost
+ */
+function handleFileAreaDirectory($socket, string $tag, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        // Validate area exists and is gemini_public
+        $areaStmt = $db->prepare(
+            "SELECT id, tag, description FROM file_areas
+             WHERE UPPER(tag) = UPPER(?) AND gemini_public = TRUE AND is_active = TRUE AND is_private = FALSE
+             LIMIT 1"
+        );
+        $areaStmt->execute([$tag]);
+        $area = $areaStmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$area) {
+            geminiRespond($socket, 51, 'File area not found');
+            return;
+        }
+
+        $areaTag  = strtoupper((string)$area['tag']);
+        $areaDesc = trim((string)($area['description'] ?? ''));
+
+        $filesStmt = $db->prepare(
+            "SELECT filename, filesize, short_description, created_at
+             FROM files
+             WHERE file_area_id = ? AND status = 'approved'
+             ORDER BY filename ASC"
+        );
+        $filesStmt->execute([$area['id']]);
+        $files = $filesStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $title = $areaDesc !== '' ? "{$areaTag} — {$areaDesc}" : $areaTag;
+        $lines = [
+            "# {$title}",
+            '',
+        ];
+
+        if (empty($files)) {
+            $lines[] = 'No files are available in this area.';
+        } else {
+            foreach ($files as $file) {
+                $name  = (string)$file['filename'];
+                $size  = (int)$file['filesize'];
+                $desc  = trim((string)($file['short_description'] ?? ''));
+                $date  = substr((string)($file['created_at'] ?? ''), 0, 10);
+
+                $sizeLabel = $size >= 1048576
+                    ? round($size / 1048576, 1) . ' MB'
+                    : round($size / 1024, 0) . ' KB';
+
+                $label = $desc !== '' ? "{$name} ({$sizeLabel}) — {$desc}" : "{$name} ({$sizeLabel})";
+                if ($date !== '') {
+                    $label .= "  [{$date}]";
+                }
+                $lines[] = "=> gemini://{$geminiHost}/files/{$areaTag}/" . rawurlencode($name) . " {$label}";
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/files/ Back to File Areas";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
+ * Serve a single file from a Gemini-public file area.
+ *
+ * @param resource $socket
+ * @param string   $tag       Area tag (case-insensitive)
+ * @param string   $filename  Requested filename (URL-decoded by caller)
+ */
+function handleFileAreaDownload($socket, string $tag, string $filename): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        // Resolve area
+        $areaStmt = $db->prepare(
+            "SELECT id FROM file_areas
+             WHERE UPPER(tag) = UPPER(?) AND gemini_public = TRUE AND is_active = TRUE AND is_private = FALSE
+             LIMIT 1"
+        );
+        $areaStmt->execute([$tag]);
+        $area = $areaStmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$area) {
+            geminiRespond($socket, 51, 'File area not found');
+            return;
+        }
+
+        // Resolve file (case-insensitive filename match)
+        $fileStmt = $db->prepare(
+            "SELECT filename, storage_path, filesize FROM files
+             WHERE file_area_id = ? AND LOWER(filename) = LOWER(?) AND status = 'approved'
+             LIMIT 1"
+        );
+        $fileStmt->execute([$area['id'], $filename]);
+        $file = $fileStmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$file) {
+            geminiRespond($socket, 51, 'File not found');
+            return;
+        }
+
+        $storagePath = (string)$file['storage_path'];
+        if (!file_exists($storagePath) || !is_readable($storagePath)) {
+            geminiRespond($socket, 40, 'File not available');
+            return;
+        }
+
+        $mime = fileMimeType((string)$file['filename']);
+        geminiStreamFile($socket, $mime, $storagePath);
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
  * Handle a single Gemini connection: read request, route, respond, close.
  * The socket is already TLS-encrypted (handshake completed by ssl:// accept).
  *
@@ -909,6 +1204,12 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
         handleEchoMessages($socket, $m[1], $m[2], $geminiHost);
     } elseif (preg_match('#^/echomail/([A-Za-z0-9._-]+)@([A-Za-z0-9._-]+)/(\d+)$#', $path, $m)) {
         handleEchoMessage($socket, $m[1], $m[2], (int)$m[3], $geminiHost);
+    } elseif ($path === '/files/' || $path === '/files') {
+        handleFileAreaList($socket, $geminiHost);
+    } elseif (preg_match('#^/files/([A-Za-z0-9._-]+)/$#', $path, $m)) {
+        handleFileAreaDirectory($socket, $m[1], $geminiHost);
+    } elseif (preg_match('#^/files/([A-Za-z0-9._-]+)/(.+)$#', $path, $m)) {
+        handleFileAreaDownload($socket, $m[1], rawurldecode($m[2]));
     } else {
         geminiRespond($socket, 51, 'Not Found');
     }

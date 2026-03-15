@@ -55,6 +55,11 @@ return [
     'errors.messages.echomail.bulk_delete.user_not_found' => 'Usuario no encontrado',
     'errors.messages.echomail.stats.subscription_required' => 'Se requiere suscripcion para esta area de eco',
     'errors.messages.echomail.not_found' => 'Mensaje no encontrado',
+    'errors.messages.echomail.edit.admin_required' => 'Se requieren privilegios de administrador',
+    'errors.messages.echomail.edit.invalid_art_format' => 'Formato de arte no valido',
+    'errors.messages.echomail.edit.nothing_to_update' => 'No hay campos para actualizar',
+    'errors.messages.echomail.edit.save_failed' => 'Error al guardar los cambios',
+    'errors.messages.netmail.edit.forbidden' => 'No tienes permiso para editar este mensaje',
     'errors.messages.netmail.attachment.no_file' => 'No se subio ningun archivo adjunto',
     'errors.messages.netmail.attachment.upload_error' => 'La carga del archivo adjunto fallo',
     'errors.messages.netmail.attachment.too_large' => 'El archivo adjunto excede el tamano maximo permitido',
@@ -148,7 +153,9 @@ return [
     'errors.files.upload.read_only' => 'Esta area de archivos es de solo lectura',
     'errors.files.upload.admin_only' => 'Solo los administradores pueden subir archivos a esta area',
     'errors.files.upload.virus_detected' => 'Archivo rechazado: virus detectado',
+    'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
+    'errors.files.download.insufficient_credits' => 'No tiene creditos suficientes para descargar este archivo',
 
     // Admin Users
     'errors.admin.users.not_found' => 'Usuario no encontrado',
