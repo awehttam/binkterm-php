@@ -7,7 +7,11 @@ use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::get('/nodelist', function() {
     $controller = new BinktermPHP\Web\NodelistController();
-    echo $controller->index($_GET['search'] ?? '', $_GET['zone'] ?? '', $_GET['net'] ?? '', (int)($_GET['page'] ?? 1));
+    $flags = $_GET['flag'] ?? [];
+    if (!is_array($flags)) {
+        $flags = $flags !== '' ? [$flags] : [];
+    }
+    echo $controller->index($_GET['search'] ?? '', $_GET['zone'] ?? '', $_GET['net'] ?? '', $flags, (int)($_GET['page'] ?? 1));
 });
 
 SimpleRouter::get('/nodelist/view', function() {

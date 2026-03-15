@@ -59,13 +59,16 @@ class NodelistController
         $this->auth = new Auth();
     }
     
-    public function index($search = '', $zone = '', $net = '', $page = 1)
+    public function index($search = '', $zone = '', $net = '', $flags = [], $page = 1)
     {
         $user = $this->auth->getCurrentUser(); // Get user if logged in, but don't require auth
-        
-        $limit = 50;
-        $offset = ($page - 1) * $limit;
-        
+
+        // Normalize flags to a clean array of uppercase strings
+        if (!is_array($flags)) {
+            $flags = $flags !== '' ? [strtoupper(trim($flags))] : [];
+        }
+        $flags = array_values(array_filter(array_map(fn($f) => strtoupper(trim((string)$f)), $flags)));
+
         $criteria = [];
         if ($search) {
             $criteria['search_term'] = $search;
@@ -76,12 +79,16 @@ class NodelistController
         if ($net) {
             $criteria['net'] = $net;
         }
-        
+        if (!empty($flags)) {
+            $criteria['flags'] = $flags;
+        }
+
         $nodes = $this->nodelistManager->searchNodes($criteria);
         $zones = $this->nodelistManager->getZones();
         $stats = $this->nodelistManager->getNodelistStats();
         $activeNodelist = $this->nodelistManager->getActiveNodelist();
         $activeNodelists = $this->nodelistManager->getActiveNodelists();
+        $availableFlags = $this->nodelistManager->getAvailableFlags();
 
         $nets = [];
         if ($zone) {
@@ -96,9 +103,11 @@ class NodelistController
             'stats' => $stats,
             'activeNodelist' => $activeNodelist,
             'activeNodelists' => $activeNodelists,
+            'availableFlags' => $availableFlags,
             'search' => $search,
             'selectedZone' => $zone,
             'selectedNet' => $net,
+            'selectedFlags' => $flags,
             'page' => $page
         ]);
     }

@@ -128,10 +128,10 @@
                                     <i class="fas fa-sign-in-alt"></i> {{ t('ui.nodelist.login_to_send_netmail') }}
                                 </a>
                                 {% endif %}
-                                {% if node.flags and node.flags['FREQ'] is defined %}
-                                    <button class="btn btn-info" onclick="alert('{{ t('ui.nodelist.file_request_coming_soon')|e('js') }}')">
-                                        <i class="fas fa-download"></i> {{ t('ui.nodelist.file_request') }}
-                                    </button>
+                                {% if user %}
+                                <button class="btn btn-info" onclick="showAllfilesModal()">
+                                    <i class="fas fa-file-download"></i> {{ t('ui.nodelist.request_allfiles') }}
+                                </button>
                                 {% endif %}
                             </div>
                         </div>
@@ -193,6 +193,38 @@
                         </div>
                     {% endif %}
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ALLFILES FREQ Modal -->
+<div class="modal fade" id="allfilesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.nodelist.request_allfiles_title', {'node': node.full_address}) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>{{ t('ui.nodelist.request_allfiles_body') }}</p>
+                {% if not (node.flags and node.flags['FREQ'] is defined) %}
+                <div class="alert alert-warning py-2 small">
+                    <i class="fas fa-exclamation-triangle me-1"></i>{{ t('ui.nodelist.freq_not_advertised') }}
+                </div>
+                {% endif %}
+                <div class="mb-3">
+                    <label for="allfilesPassword" class="form-label">{{ t('ui.nodelist.request_allfiles_password') }}</label>
+                    <input type="text" class="form-control" id="allfilesPassword" autocomplete="off">
+                    <div class="form-text">{{ t('ui.nodelist.request_allfiles_password_help') }}</div>
+                </div>
+                <div id="allfilesError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                <button type="button" class="btn btn-info" id="allfilesSendBtn" onclick="sendAllfilesFreq()">
+                    <i class="fas fa-file-download"></i> {{ t('ui.nodelist.send_request') }}
+                </button>
             </div>
         </div>
     </div>
@@ -276,6 +308,56 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove port number if present (e.g., "example.com:24554" -> "example.com")
         return hostname.split(':')[0];
     }
+
+    // ALLFILES FREQ functions
+    window.showAllfilesModal = function() {
+        document.getElementById('allfilesPassword').value = '';
+        document.getElementById('allfilesError').classList.add('d-none');
+        document.getElementById('allfilesSendBtn').disabled = false;
+        new bootstrap.Modal(document.getElementById('allfilesModal')).show();
+    };
+
+    window.sendAllfilesFreq = function() {
+        const password = document.getElementById('allfilesPassword').value.trim();
+        const btn = document.getElementById('allfilesSendBtn');
+        const errorBox = document.getElementById('allfilesError');
+
+        btn.disabled = true;
+        errorBox.classList.add('d-none');
+
+        const subject = password ? 'ALLFILES ' + password : 'ALLFILES';
+
+        fetch('/api/messages/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'netmail',
+                to_address: '{{ node.full_address|e('js') }}',
+                to_name: '{{ node.sysop_name|default('Sysop')|e('js') }}',
+                subject: subject,
+                message_text: '',
+                is_freq: true
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('allfilesModal')).hide();
+                if (window.showSuccess) {
+                    showSuccess('{{ t('ui.nodelist.request_allfiles_sent')|e('js') }}');
+                }
+            } else {
+                errorBox.textContent = (window.getApiErrorMessage ? window.getApiErrorMessage(data, '') : '') || data.error || '{{ t('ui.nodelist.request_allfiles_failed')|e('js') }}';
+                errorBox.classList.remove('d-none');
+                btn.disabled = false;
+            }
+        })
+        .catch(() => {
+            errorBox.textContent = '{{ t('ui.nodelist.request_allfiles_failed')|e('js') }}';
+            errorBox.classList.remove('d-none');
+            btn.disabled = false;
+        });
+    };
 
     // Handle menu item clicks
     menuHttp.addEventListener('click', function(e) {

@@ -113,10 +113,10 @@
                     <form method="GET" action="/nodelist" class="row g-3">
                         <div class="col-md-4">
                             <label for="search" class="form-label">{{ t('ui.common.search', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" id="search" name="search" 
+                            <input type="text" class="form-control" id="search" name="search"
                                    value="{{ search }}" placeholder="{{ t('ui.nodelist.index.search_placeholder', {}, locale, ['common']) }}">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="zone" class="form-label">{{ t('ui.nodelist.zone', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="zone" name="zone">
                                 <option value="">{{ t('ui.nodelist.index.all_zones', {}, locale, ['common']) }}</option>
@@ -125,7 +125,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="net" class="form-label">{{ t('ui.nodelist.net', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="net" name="net">
                                 <option value="">{{ t('ui.nodelist.index.all_nets', {}, locale, ['common']) }}</option>
@@ -133,6 +133,32 @@
                                     <option value="{{ n }}" {% if selectedNet == n %}selected{% endif %}>{{ t('ui.nodelist.index.net_prefix', {}, locale, ['common']) }} {{ n }}</option>
                                 {% endfor %}
                             </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">{{ t('ui.nodelist.index.flag_filter_label', {}, locale, ['common']) }}</label>
+                            <div class="dropdown" id="flagPickerWrap">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
+                                        type="button" id="flagPickerBtn"
+                                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                    <span id="flagPickerLabel">{{ selectedFlags|length > 0 ? selectedFlags|join(', ') : t('ui.nodelist.index.flag_filter_any', {}, locale, ['common']) }}</span>
+                                </button>
+                                <ul class="dropdown-menu p-2" id="flagDropdown" style="min-width:160px;max-height:260px;overflow-y:auto;">
+                                    {% if availableFlags|length > 0 %}
+                                        {% for f in availableFlags %}
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">
+                                                <input type="checkbox" class="form-check-input flag-cb flex-shrink-0"
+                                                       name="flag[]" value="{{ f }}"
+                                                       {% if f in selectedFlags %}checked{% endif %}>
+                                                <code class="small">{{ f }}</code>
+                                            </label>
+                                        </li>
+                                        {% endfor %}
+                                    {% else %}
+                                        <li><span class="dropdown-item-text text-muted small">No flags available</span></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
@@ -222,7 +248,7 @@
             {% else %}
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    {% if search or selectedZone or selectedNet %}
+                    {% if search or selectedZone or selectedNet or selectedFlags|length > 0 %}
                         {{ t('ui.nodelist.index.no_nodes_found_search', {}, locale, ['common']) }}
                     {% else %}
                         {{ t('ui.nodelist.index.use_search_form', {}, locale, ['common']) }}
@@ -504,6 +530,18 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 document.addEventListener('DOMContentLoaded', function() {
+    const flagAnyLabel = {{ t('ui.nodelist.index.flag_filter_any', {}, locale, ['common'])|json_encode|raw }};
+    const flagLabel    = document.getElementById('flagPickerLabel');
+
+    function updateFlagLabel() {
+        const checked = Array.from(document.querySelectorAll('.flag-cb:checked')).map(cb => cb.value);
+        flagLabel.textContent = checked.length > 0 ? checked.join(', ') : flagAnyLabel;
+    }
+
+    document.querySelectorAll('.flag-cb').forEach(function(cb) {
+        cb.addEventListener('change', updateFlagLabel);
+    });
+
     const zoneSelect = document.getElementById('zone');
     const netSelect  = document.getElementById('net');
     if (zoneSelect) {

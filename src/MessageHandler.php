@@ -1827,8 +1827,10 @@ class MessageHandler
             $binkdProcessor = new BinkdProcessor();
 
             // Set netmail attributes: PRIVATE always set; FILE_REQUEST (0x0800) for FREQs
+            // is_freq comes back from PostgreSQL as 't'/'f'; avoid !empty() which treats 'f' as truthy
             $message['attributes'] = 0x0001;
-            if (!empty($message['is_freq'])) {
+            $isFreqMsg = in_array($message['is_freq'], [true, 't', '1', 1, 'true'], true);
+            if ($isFreqMsg) {
                 $message['attributes'] |= 0x0800;
             }
 
@@ -1870,9 +1872,8 @@ class MessageHandler
             //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
-            // Log error but don't fail the message creation
             error_log("[SPOOL] Failed to spool netmail #{$messageId} (from=\"{$fromName}\" subject=\"{$subject}\"): " . $e->getMessage());
-            return false;
+            throw $e;
         }
     }
 

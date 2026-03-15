@@ -1458,10 +1458,14 @@ class BinkdProcessor
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
 
-        // Parse origin address — must have a configured uplink with a 'me' address
+        // Parse origin address — prefer uplink-specific 'me' address, fall back to system address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
         if (!$myAddress) {
-            throw new \Exception("No configured uplink 'me' address for destination $destAddr — cannot build packet header");
+            $myAddress = $this->config->getSystemAddress();
+            if (!$myAddress) {
+                throw new \Exception("No configured origin address for destination $destAddr — cannot build packet header");
+            }
+            $this->log("writePacketHeader: no uplink match for $destAddr, using system address $myAddress");
         }
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);

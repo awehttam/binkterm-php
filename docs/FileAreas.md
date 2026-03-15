@@ -196,3 +196,59 @@ Changes are saved through the admin daemon.
 - Rules are applied after virus scanning.
 - Infected files are rejected and will not run rules.
 - Rule processing runs for both user uploads and TIC imports.
+
+## FREQ (File REQuest)
+
+BinktermPHP can serve files to remote FidoNet nodes that send FREQ requests. Two request mechanisms are supported:
+
+- **Binkp `M_GET`** — the remote node sends a `M_GET` command during a binkp session. Files are delivered in the same session.
+- **Netmail FILE_REQUEST** — the remote node sends a netmail with the `FILE_REQUEST` attribute (0x0800). The subject line contains the requested filename(s). Files are queued and delivered on the next binkp session with that node. The netmail itself is not stored in the inbox.
+
+### Enabling FREQ on a File Area
+
+1. Go to **Admin → File Areas** and edit the area.
+2. Check **Allow FREQ** to make all approved files in the area requestable.
+3. Optionally set a **FREQ Password**. Remote nodes must supply this password in their `M_GET` command to receive files. Leave blank for open access.
+4. Save.
+
+Only files with an `approved` status are served. Files in private areas are never served regardless of this setting.
+
+### Enabling FREQ on Individual Files
+
+A specific file can be made FREQable without opening its entire area:
+
+1. Go to **Files** and share the file using the share button.
+2. The **FREQ Accessible** checkbox (checked by default) makes the file requestable via FREQ.
+3. Uncheck it if you want a web-only share link.
+
+Shared file FREQ access respects expiration dates — an expired share is not served even if the file itself is still active.
+
+### Access Control Summary
+
+A file is served if **either** condition is true:
+
+| Condition | Required |
+|---|---|
+| File is in an area with **Allow FREQ** enabled | Area password must match if set; area must not be private |
+| File has an active, non-expired share with **FREQ Accessible** checked | Area must not be private |
+
+Files with a status other than `approved` (pending, quarantined, rejected) are never served.
+
+### Magic Names
+
+Requesting a magic name returns a generated file listing rather than a literal file:
+
+| Requested filename | Response |
+|---|---|
+| `ALLFILES` or `FILES` | Combined listing of all FREQ-enabled areas in `FILES.BBS` format |
+| `<AREA_TAG>` | Listing for that specific area (if FREQ is enabled on it) |
+
+Magic name responses are temporary files generated at request time and cleaned up after the session.
+
+### FREQ Log
+
+All FREQ requests — served and denied — are recorded. View them at:
+
+- **Admin → FREQ Log** (`/admin/freq-log`)
+
+The log shows the requesting node address, filename, whether it was served, the deny reason if applicable, and the request source (`m_get` for binkp sessions, `netmail` for FILE_REQUEST netmails). You can filter by node, filename, served/denied status, and source.
