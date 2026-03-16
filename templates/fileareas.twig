@@ -699,6 +699,18 @@ $(document).on('change', 'input[name="area_type"]', function() {
     updateIsoFieldsVisibility();
 });
 
+// Bootstrap 5 does not support nested modals. When isoPreviewModal closes it
+// strips modal-open from <body> and removes the backdrop, leaving fileareaModal
+// broken. Restore the outer modal's state when the inner one is fully hidden.
+$('#isoPreviewModal').on('hidden.bs.modal', function () {
+    if ($('#fileareaModal').hasClass('show')) {
+        $('body').addClass('modal-open');
+        if (!$('.modal-backdrop').length) {
+            $('<div class="modal-backdrop fade show"></div>').appendTo('body');
+        }
+    }
+});
+
 function openIsoPreview() {
     if (!currentFileareaId) return;
     const flat          = $('#isoPreviewFlat').is(':checked');
@@ -711,8 +723,9 @@ function openIsoPreview() {
     $('#isoPreviewBody').empty();
     $('#isoPreviewSummary').text('');
 
-    const modal = new bootstrap.Modal('#isoPreviewModal');
-    modal.show();
+    // Use getOrCreateInstance to avoid creating duplicate Bootstrap modal instances
+    // (e.g. when the checkbox change handler calls openIsoPreview while already open).
+    bootstrap.Modal.getOrCreateInstance('#isoPreviewModal').show();
 
     $.get(`/api/fileareas/${currentFileareaId}/preview-iso?flat=${flat ? 1 : 0}&catalogue_only=${catalogueOnly ? 1 : 0}`)
         .done(function(data) {
