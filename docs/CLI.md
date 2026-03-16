@@ -27,6 +27,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Generate Ad](#generate-ad)
 - [Log Rotate](#log-rotate)
 - [Post Ad](#post-ad)
+- [Post File to File Area](#post-file-to-file-area)
 - [Restart Daemons](#restart-daemons)
 - [Who](#who)
 
@@ -685,6 +686,42 @@ php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet
 
 # Post a specific ad file
 php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1.ans --subject="BBS Advertisement"
+```
+
+## Post File to File Area
+
+Posts a file into a file area from the command line, following the same path as a web upload: validation, deduplication, storage, and TIC distribution to configured uplinks. TIC generation is skipped automatically for local areas, private areas, and areas with no uplinks configured for their domain.
+
+```bash
+# Basic upload
+php scripts/post_file.php /path/to/file.zip NEWFILES "Cool new utility"
+
+# Specify domain (default: fidonet)
+php scripts/post_file.php /path/to/NODELIST.Z30 NODELIST "Weekly nodelist" --domain=fidonet
+
+# With long description and custom uploader name
+php scripts/post_file.php /tmp/tool.zip UTILS "Useful tool" \
+    --long-desc="A multi-line description of what this tool does." \
+    --user=sysop
+```
+
+Arguments:
+- `file` — Path to the file to upload
+- `area-tag` — Tag of the destination file area (e.g. `NEWFILES`)
+- `description` — Short description shown in file listings
+
+Options:
+- `--domain=` — Domain of the file area (default: `fidonet`)
+- `--long-desc=` — Long description appended to the listing
+- `--user=` — Username recorded as the uploader (default: `sysop`)
+
+Output indicates how many TIC files were queued for outbound, or why distribution was skipped:
+
+```
+File added: ID 42, area NEWFILES
+TIC distribution: 2 TIC file(s) queued for outbound
+  a3f1c2b0.tic
+  d4e9f7a1.tic
 ```
 
 ## Restart Daemons
