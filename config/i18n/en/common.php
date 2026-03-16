@@ -2732,6 +2732,13 @@ return [
     'ui.echomail.art_format_petscii' => 'PETSCII / C64',
     'ui.echomail.message_charset' => 'Art Encoding',
     'ui.echomail.message_charset_help' => 'Character encoding of the raw art bytes. Only affects rendering of ANSI/PETSCII art. Leave blank to clear.',
+    'ui.echomail.next_page_title' => 'Load next page',
+    'ui.echomail.next_echo_title' => 'Next echo: {tag}',
+    'ui.echomail.end_of_echo_title' => 'End of {echo}',
+    'ui.echomail.end_of_echo_next_prompt' => 'Continue to {echo}?',
+    'ui.echomail.end_of_echo_go' => 'Go to {echo}',
+    'ui.echomail.end_of_echo_no_next' => 'You have no more unread messages.',
+    'ui.echomail.end_of_echo_next_btn_title' => 'End of echo',
     'ui.common.db_id' => 'DB ID',
     'ui.common.message_id' => 'Message ID',
 

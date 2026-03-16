@@ -2732,6 +2732,13 @@ return [
     'ui.echomail.art_format_petscii' => 'PETSCII / C64',
     'ui.echomail.message_charset' => 'Codificacion de arte',
     'ui.echomail.message_charset_help' => 'Codificacion de caracteres de los bytes de arte sin procesar. Solo afecta la representacion de arte ANSI/PETSCII. Dejar en blanco para borrar.',
+    'ui.echomail.next_page_title' => 'Cargar siguiente pagina',
+    'ui.echomail.next_echo_title' => 'Siguiente eco: {tag}',
+    'ui.echomail.end_of_echo_title' => 'Fin de {echo}',
+    'ui.echomail.end_of_echo_next_prompt' => '¿Continuar a {echo}?',
+    'ui.echomail.end_of_echo_go' => 'Ir a {echo}',
+    'ui.echomail.end_of_echo_no_next' => 'No tienes mas mensajes sin leer.',
+    'ui.echomail.end_of_echo_next_btn_title' => 'Fin del eco',
     'ui.common.db_id' => 'ID de base de datos',
     'ui.common.message_id' => 'ID de mensaje',
 

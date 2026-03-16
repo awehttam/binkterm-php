@@ -18,6 +18,7 @@ let searchResultCounts = null;
 let searchFilterCounts = null;
 let originalFilterCounts = null;
 let isSearchActive = false;
+let currentPagination = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -325,7 +326,7 @@ function selectEchoarea(tag) {
     loadMessages();
 }
 
-function loadMessages() {
+function loadMessages(callback) {
     showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
@@ -353,6 +354,9 @@ function loadMessages() {
             updateUnreadCount(data.unreadCount || 0);
             // Refresh stats to get updated filter counts
             loadStats();
+            if (typeof callback === 'function') {
+                callback(data);
+            }
         })
         .fail(function() {
             $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
@@ -529,6 +533,7 @@ function displayMessages(messages, isThreaded = false) {
 }
 
 function updatePagination(pagination) {
+    currentPagination = pagination;
     const container = $('#pagination');
     let html = '';
 
@@ -1742,18 +1747,112 @@ function updateNavigationButtons() {
     const prevBtn = $('#prevMessageBtn');
     const nextBtn = $('#nextMessageBtn');
 
-    // Disable/enable buttons based on current position
-    if (currentMessageIndex <= 0) {
-        prevBtn.prop('disabled', true);
-    } else {
-        prevBtn.prop('disabled', false);
-    }
+    prevBtn.prop('disabled', currentMessageIndex <= 0);
+    prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
 
-    if (currentMessageIndex >= currentMessages.length - 1) {
-        nextBtn.prop('disabled', true);
+    const atEnd = currentMessageIndex >= currentMessages.length - 1;
+    if (atEnd) {
+        const hasNextPage = currentPagination && currentPagination.page < currentPagination.pages;
+        if (hasNextPage) {
+            // More pages available — keep enabled, navigateMessage will load the next page
+            nextBtn.prop('disabled', false);
+            nextBtn.attr('title', uiT('ui.echomail.next_page_title', 'Load next page'));
+        } else {
+            // At the true end — keep enabled so user can trigger the end-of-echo prompt
+            nextBtn.prop('disabled', false);
+            nextBtn.attr('title', uiT('ui.echomail.end_of_echo_next_btn_title', 'End of echo'));
+        }
     } else {
         nextBtn.prop('disabled', false);
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
     }
+}
+
+/**
+ * Show an end-of-echo prompt inside the message modal, asking the user
+ * whether to continue to the next unread echoarea (or just close).
+ *
+ * @param {object|null} nextEcho  The next echoarea object, or null if none.
+ */
+function showEndOfEchoPrompt(nextEcho) {
+    const currentDisplayTag = currentEchoarea
+        ? (currentEchoarea.includes('@') ? currentEchoarea.split('@')[0] : currentEchoarea)
+        : uiT('ui.echomail.echo_list', 'Echo List');
+
+    let bodyHtml = `
+        <div class="text-center py-4">
+            <div class="mb-3">
+                <i class="fas fa-check-circle fa-3x text-success"></i>
+            </div>
+            <h5>${uiT('ui.echomail.end_of_echo_title', 'End of {echo}').replace('{echo}', escapeHtml(currentDisplayTag))}</h5>`;
+
+    if (nextEcho) {
+        const nextDisplayTag = nextEcho.tag.includes('@') ? nextEcho.tag.split('@')[0] : nextEcho.tag;
+        bodyHtml += `
+            <p class="text-muted">${uiT('ui.echomail.end_of_echo_next_prompt', 'Continue to {echo}?').replace('{echo}', `<strong>${escapeHtml(nextDisplayTag)}</strong>`)}</p>
+            <div class="d-flex justify-content-center gap-2 mt-3">
+                <button class="btn btn-primary" onclick="proceedToNextEcho(${escapeHtml(JSON.stringify(nextEcho.tag))})">
+                    <i class="fas fa-arrow-right me-1"></i>${uiT('ui.echomail.end_of_echo_go', 'Go to {echo}').replace('{echo}', escapeHtml(nextDisplayTag))}
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>${uiT('ui.common.close', 'Close')}
+                </button>
+            </div>`;
+    } else {
+        bodyHtml += `
+            <p class="text-muted">${uiT('ui.echomail.end_of_echo_no_next', 'You have no more unread messages.')}</p>
+            <div class="d-flex justify-content-center mt-3">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>${uiT('ui.common.close', 'Close')}
+                </button>
+            </div>`;
+    }
+
+    bodyHtml += `</div>`;
+
+    // Replace modal body content with the prompt
+    $('#messageContent').html(bodyHtml);
+
+    // Update modal title to reflect end-of-echo state
+    $('#messageSubject').text(uiT('ui.echomail.end_of_echo_title', 'End of {echo}').replace('{echo}', currentDisplayTag));
+
+    // Disable nav buttons — user must choose via the prompt
+    $('#prevMessageBtn').prop('disabled', true);
+    $('#nextMessageBtn').prop('disabled', true);
+}
+
+/**
+ * Navigate to the next echoarea after the user confirms the end-of-echo prompt.
+ */
+function proceedToNextEcho(tag) {
+    modalClosedByBackButton = true;
+    $('#messageModal').one('hidden.bs.modal', function() {
+        selectEchoarea(tag);
+    });
+    $('#messageModal').modal('hide');
+}
+
+/**
+ * Find the next echoarea with unread messages after the currently selected one.
+ * Returns the echoarea object from allEchoareas, or null if none found.
+ */
+function findNextUnreadEcho() {
+    if (!allEchoareas || allEchoareas.length === 0) return null;
+
+    const currentTag = currentEchoarea || null;
+    let foundCurrent = (currentTag === null); // if "All Messages", start from beginning
+
+    for (let i = 0; i < allEchoareas.length; i++) {
+        const area = allEchoareas[i];
+        if (!foundCurrent) {
+            if (area.tag === currentTag) foundCurrent = true;
+            continue;
+        }
+        if ((area.unread_count || 0) > 0) {
+            return area;
+        }
+    }
+    return null;
 }
 
 function updateModalTitle(subject) {
@@ -1896,7 +1995,25 @@ function navigateMessage(direction) {
     const newIndex = currentMessageIndex + direction;
 
     // Check bounds
-    if (newIndex < 0 || newIndex >= currentMessages.length) {
+    if (newIndex < 0) return;
+
+    if (newIndex >= currentMessages.length) {
+        if (direction > 0) {
+            // More pages available — load next page and open its first message
+            if (currentPagination && currentPagination.page < currentPagination.pages) {
+                currentPage = currentPagination.page + 1;
+                loadMessages(function() {
+                    if (currentMessages.length > 0) {
+                        viewMessage(currentMessages[0].id);
+                    }
+                });
+                return;
+            }
+
+            // No more pages — show end-of-echo prompt
+            const nextEcho = findNextUnreadEcho();
+            showEndOfEchoPrompt(nextEcho);
+        }
         return;
     }
 
