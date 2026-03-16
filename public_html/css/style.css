@@ -806,6 +806,10 @@ body {
 .message-reader-scrollable .modal-body {
     padding-top: 0;
 }
+.message-header-full {
+    padding: 0.75rem 1rem;
+}
+
 .message-reader-scrollable .message-header-full {
     position: sticky;
     top: 0;
