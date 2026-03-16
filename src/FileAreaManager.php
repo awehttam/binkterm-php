@@ -907,7 +907,8 @@ class FileAreaManager
         $stmt = $this->db->prepare("
             WITH regular AS (
                 SELECT f.*, fa.tag AS area_tag, fa.domain, fa.is_local,
-                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared,
+                       NULL::text AS subfolder_label
                 FROM files f
                 JOIN file_areas fa ON f.file_area_id = fa.id
                 {$sharedJoin}
@@ -919,10 +920,15 @@ class FileAreaManager
             iso_subdirs AS (
                 SELECT DISTINCT ON (f.file_area_id, f.subfolder)
                        f.*, fa.tag AS area_tag, fa.domain, fa.is_local,
-                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared,
+                       m.short_description AS subfolder_label
                 FROM files f
                 JOIN file_areas fa ON f.file_area_id = fa.id
                 {$sharedJoin}
+                LEFT JOIN files m ON m.file_area_id = f.file_area_id
+                                 AND m.source_type = 'iso_subdir'
+                                 AND m.iso_rel_path = f.subfolder
+                                 AND m.status = 'approved'
                 WHERE f.status = 'approved'
                   {$areaFilter}
                   AND f.source_type = 'iso_import'

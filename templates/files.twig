@@ -504,9 +504,10 @@ function displayRecentFiles(files) {
             }
             seenIsoSubfolders.add(subfolderKey);
 
-            // Show the actual directory name (last path component) as the label
-            // so "TEXT/DIR9" appears as "DIR9", not as an unrelated file description.
-            const subfolderName = escapeHtml(file.subfolder.split('/').pop() || file.subfolder);
+            // Use the subfolder's short_description if set, otherwise the last path component.
+            const dirName = file.subfolder.split('/').pop() || file.subfolder;
+            const sfLabel = file.subfolder_label && file.subfolder_label !== dirName ? file.subfolder_label : dirName;
+            const subfolderName = escapeHtml(sfLabel);
             const onclick = `selectFileArea(${file.file_area_id}, '${escapeHtml(file.subfolder)}'); return false;`;
 
             html += `
