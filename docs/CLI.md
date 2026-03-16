@@ -696,7 +696,7 @@ Posts a file into a file area from the command line, following the same path as 
 # Basic upload
 php scripts/post_file.php /path/to/file.zip NEWFILES "Cool new utility"
 
-# Specify domain (default: fidonet)
+# Specify domain for a networked area
 php scripts/post_file.php /path/to/NODELIST.Z30 NODELIST "Weekly nodelist" --domain=fidonet
 
 # With long description and custom uploader name
@@ -711,7 +711,7 @@ Arguments:
 - `description` — Short description shown in file listings
 
 Options:
-- `--domain=` — Domain of the file area (default: `fidonet`)
+- `--domain=` — Domain of the file area. When omitted, the area is looked up by tag only (use this for local areas).
 - `--long-desc=` — Long description appended to the listing
 - `--user=` — Username recorded as the uploader (default: `sysop`)
 

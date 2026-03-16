@@ -164,10 +164,15 @@ class FileAreaManager
      * @param string $domain Domain (default: 'fidonet')
      * @return array|null File area record or null if not found
      */
-    public function getFileAreaByTag(string $tag, string $domain = 'fidonet'): ?array
+    public function getFileAreaByTag(string $tag, string $domain = ''): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM file_areas WHERE tag = ? AND domain = ?");
-        $stmt->execute([$tag, $domain]);
+        if ($domain === '') {
+            $stmt = $this->db->prepare("SELECT * FROM file_areas WHERE tag = ? LIMIT 1");
+            $stmt->execute([$tag]);
+        } else {
+            $stmt = $this->db->prepare("SELECT * FROM file_areas WHERE tag = ? AND domain = ?");
+            $stmt->execute([$tag, $domain]);
+        }
         $result = $stmt->fetch();
         return $result ?: null;
     }

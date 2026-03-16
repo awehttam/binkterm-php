@@ -16,7 +16,7 @@
  *   description   Short description (displayed in file listings)
  *
  * Options:
- *   --domain=     Domain of the file area (default: fidonet)
+ *   --domain=     Domain of the file area. When omitted, lookup is by tag only.
  *   --long-desc=  Long description (multi-line text appended to listing)
  *   --user=       Username to record as uploader (default: sysop)
  */
@@ -45,7 +45,7 @@ function printUsage(): void
     echo "  description   Short description\n";
     echo "\n";
     echo "Options:\n";
-    echo "  --domain=     Domain of the file area (default: fidonet)\n";
+    echo "  --domain=     Domain of the file area (omit for local areas)\n";
     echo "  --long-desc=  Long description\n";
     echo "  --user=       Username to record as uploader (default: sysop)\n";
 }
@@ -62,7 +62,7 @@ function parseArgs(array $argv): array
         'file'      => null,
         'area_tag'  => null,
         'description' => null,
-        'domain'    => 'fidonet',
+        'domain'    => '',
         'long_desc' => '',
         'user'      => 'sysop',
     ];
