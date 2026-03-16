@@ -1043,14 +1043,27 @@ class FileAreaManager
     }
 
     /**
-     * Get distinct subfolders that exist within a file area, with optional descriptions
-     * sourced from iso_subdir records.
+     * Get immediate child subfolders at the given parent path within a file area.
      *
-     * @param int $areaId File area ID
+     * At root ($parentPath = null) returns only top-level folders (no '/' in path).
+     * When $parentPath is set returns only direct children of that path, so
+     * 'msdos' returns 'msdos/util' but not 'msdos/util/sub'.
+     *
+     * @param int         $areaId     File area ID
+     * @param string|null $parentPath Current directory path, or null for root
      * @return array[] Array of ['subfolder' => string, 'description' => string|null, 'subdir_id' => int|null]
      */
-    public function getSubfolders(int $areaId): array
+    public function getSubfolders(int $areaId, ?string $parentPath = null): array
     {
+        if ($parentPath === null) {
+            $whereParent = "AND f.subfolder NOT LIKE '%/%'";
+            $params = [$areaId];
+        } else {
+            $prefix = $parentPath . '/';
+            $whereParent = "AND f.subfolder LIKE ? AND f.subfolder NOT LIKE ?";
+            $params = [$areaId, $prefix . '%', $prefix . '%/%'];
+        }
+
         $stmt = $this->db->prepare("
             SELECT DISTINCT f.subfolder,
                    m.short_description AS description,
@@ -1065,9 +1078,10 @@ class FileAreaManager
               AND f.status = 'approved'
               AND f.subfolder IS NOT NULL
               AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+              {$whereParent}
             ORDER BY f.subfolder
         ");
-        $stmt->execute([$areaId]);
+        $stmt->execute($params);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 

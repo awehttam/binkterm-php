@@ -945,21 +945,41 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
 
 function buildBreadcrumb(subfolder, label) {
     const areaLabel = uiT('ui.files.title', 'Files');
-    // Use the server-resolved label (short_description or dir name) when available,
-    // otherwise fall back to the local lookup map then the raw path.
-    const displayLabel = label || subfolderLabel(subfolder);
-    return `
-        <nav class="px-3 pt-2 pb-1 small border-bottom" aria-label="breadcrumb">
-            <ol class="breadcrumb mb-0">
+    const parts = subfolder ? subfolder.split('/') : [];
+
+    let items = `
+        <li class="breadcrumb-item">
+            <a href="#" onclick="exitSubfolder(); return false;">
+                <i class="fas fa-folder-open me-1"></i>${escapeHtml(areaLabel)}
+            </a>
+        </li>
+    `;
+
+    parts.forEach(function(part, i) {
+        const path = parts.slice(0, i + 1).join('/');
+        const isLast = i === parts.length - 1;
+        // Use server-resolved label only for the deepest segment
+        const segLabel = isLast ? (label || subfolderLabel(path)) : subfolderLabel(part);
+        if (isLast) {
+            items += `
+                <li class="breadcrumb-item fw-semibold text-body" aria-current="page">
+                    <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(segLabel)}
+                </li>
+            `;
+        } else {
+            items += `
                 <li class="breadcrumb-item">
-                    <a href="#" onclick="exitSubfolder(); return false;">
-                        <i class="fas fa-folder-open me-1"></i>${escapeHtml(areaLabel)}
+                    <a href="#" onclick="selectFileArea(${currentAreaId}, '${escapeHtml(path)}'); return false;">
+                        <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(segLabel)}
                     </a>
                 </li>
-                <li class="breadcrumb-item fw-semibold text-body" aria-current="page">
-                    <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(displayLabel)}
-                </li>
-            </ol>
+            `;
+        }
+    });
+
+    return `
+        <nav class="px-3 pt-2 pb-1 small border-bottom" aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">${items}</ol>
         </nav>
     `;
 }

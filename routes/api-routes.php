@@ -2304,7 +2304,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Treat empty string as null (root)
         $subfolder = ($subfolderParam !== null && $subfolderParam !== '') ? $subfolderParam : null;
 
-        $subfolders = $manager->getSubfolders((int)$areaId);
+        $subfolders = $manager->getSubfolders((int)$areaId, $subfolder);
         $files = $manager->getFiles((int)$areaId, $subfolder);
 
         // When inside a subfolder, resolve its display label from the iso_subdir record.
