@@ -31,7 +31,6 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
 - [File Preview](#file-preview)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
-  - [Prerequisites (Linux)](#prerequisites-linux)
   - [Creating an ISO area](#creating-an-iso-area)
   - [Import preview](#import-preview)
   - [Subfolder navigation](#subfolder-navigation)
@@ -102,13 +101,14 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - File areas can now be published to the Gemini capsule server. Gemini clients
   can browse area listings and download files directly over the Gemini protocol.
 - **ISO-backed file areas** — a file area can now be backed by a CD/DVD ISO
-  image (or any plain directory). The admin sets the ISO path; `admin_daemon`
-  mounts it automatically via `fuseiso` on Linux. Files are imported from the
-  ISO's directory tree using `FILES.BBS` / `DESCRIPT.ION` catalogues. ISO areas
-  are read-only; description edits are stored in the database. The directory
-  tree is exposed as browsable subfolders with editable labels. A preview modal
-  lets sysops review and customise the import before committing. ZIP files
-  inside the ISO show `FILE_ID.DIZ` in the preview modal.
+  image (or any readable directory). The sysop mounts the ISO using any
+  suitable method and enters the mount point path in the file area properties.
+  Files are imported from the ISO's directory tree using `FILES.BBS` /
+  `DESCRIPT.ION` catalogues. ISO areas are read-only; description edits are
+  stored in the database. The directory tree is exposed as browsable subfolders
+  with editable labels. A preview modal lets sysops review and customise the
+  import before committing. ZIP files inside the ISO show `FILE_ID.DIZ` in the
+  preview modal.
 
 
 **Nodelist**
@@ -641,24 +641,16 @@ sysops to expose large shareware CD collections (Simtel, Walnut Creek, etc.)
 without copying files to local storage. Plain directories work too — the
 system only requires a readable path in the **Mount Point** field.
 
-### Prerequisites (Linux)
-
-Install `fuseiso` on the server (user-space FUSE mounting, no root required):
-
-```bash
-apt install fuseiso        # Debian/Ubuntu
-dnf install fuseiso        # Fedora/RHEL
-```
-
 ### Creating an ISO area
 
-1. In **Admin → Area Management → File Areas**, click **Add File Area**.
-2. Set **Area Type** to **ISO-backed**.
-3. Enter the absolute path to the `.iso` file (e.g. `/srv/isos/simtel.iso`).
-4. Save the area.
-5. In the edit modal, click **Mount** to mount the ISO (handled automatically
-   by `admin_daemon` on Linux; on Windows, mount manually and enter the drive
-   letter in the **Mount Point** field).
+1. Mount the ISO using any suitable method and note the resulting path.
+   On Linux: `sudo mount -o loop,ro /srv/isos/simtel.iso /srv/iso_mounts/simtel`
+   On Windows: right-click the `.iso` → **Mount**, note the drive letter.
+2. In **Admin → Area Management → File Areas**, click **Add File Area**.
+3. Set **Area Type** to **ISO-backed**.
+4. Enter the mount point path in **Mount Point**
+   (e.g. `/srv/iso_mounts/simtel` or `D:\`).
+5. Save. The status badge shows **Accessible** when the path is reachable.
 6. Click **Re-index ISO** to open the import preview.
 
 ### Import preview
@@ -710,10 +702,8 @@ directory. If no catalogue is present, the filename is used as the description.
   deletion removes the database record only (no disk change).
 - Description edits (short/long description) are stored in the database and
   are always permitted.
-- `admin_daemon` re-mounts all active ISO areas on startup.
-- If an unmount fails (e.g. the directory is busy), the mount status remains
-  `mounted` — the area continues to serve files normally.
-- If the ISO is not mounted when a file is requested, the server returns 503.
+- If the mount point is not accessible when a file is requested, the server
+  returns 503.
 - ZIP files inside the ISO display `FILE_ID.DIZ` in the preview modal.
 
 ### Migration

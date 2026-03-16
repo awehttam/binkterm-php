@@ -204,11 +204,6 @@
 
                             <div id="isoFieldsGroup" style="display:none;">
                                 <div class="mb-3">
-                                    <label for="fileareaIsoFilePath" class="form-label">{{ t('ui.fileareas.iso_file_path', {}, locale, ['common']) }}</label>
-                                    <input type="text" class="form-control" id="fileareaIsoFilePath" name="iso_file_path" placeholder="/srv/isos/simtel.iso">
-                                    <div class="form-text">{{ t('ui.fileareas.iso_file_path_help', {}, locale, ['common']) }}</div>
-                                </div>
-                                <div class="mb-3">
                                     <label for="fileareaIsoMountPoint" class="form-label">{{ t('ui.fileareas.iso_mount_point', {}, locale, ['common']) }}</label>
                                     <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="/srv/isos/mounts/1  or  D:\">
                                     <div class="form-text">{{ t('ui.fileareas.iso_mount_point_help', {}, locale, ['common']) }}</div>
@@ -217,18 +212,11 @@
                                     <label class="form-label">{{ t('ui.fileareas.iso_mount_status', {}, locale, ['common']) }}</label>
                                     <div class="d-flex align-items-center gap-2 flex-wrap">
                                         <span id="isoMountStatusBadge" class="badge bg-secondary">—</span>
-                                        <button type="button" class="btn btn-sm btn-outline-success" id="isoMountBtn" onclick="isoMount()">
-                                            <i class="fas fa-plug"></i> {{ t('ui.fileareas.mount', {}, locale, ['common']) }}
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-outline-warning" id="isoUnmountBtn" onclick="isoUnmount()">
-                                            <i class="fas fa-eject"></i> {{ t('ui.fileareas.unmount', {}, locale, ['common']) }}
-                                        </button>
                                         <button type="button" class="btn btn-sm btn-outline-primary" id="isoReindexBtn" onclick="openIsoPreview()">
                                             <i class="fas fa-search"></i> {{ t('ui.fileareas.reindex', {}, locale, ['common']) }}
                                         </button>
                                     </div>
                                     <div id="isoLastIndexed" class="form-text mt-1"></div>
-                                    <div id="isoMountError" class="text-danger small mt-1" style="display:none;"></div>
                                 </div>
                             </div>
 
@@ -435,11 +423,9 @@ function displayFileareas(fileareas) {
 
         let isoBadge = '';
         if (area.area_type === 'iso') {
-            const mountDot = area.iso_mount_status === 'mounted'
-                ? '<span class="text-success ms-1" title="Mounted">●</span>'
-                : area.iso_mount_status === 'error'
-                    ? '<span class="text-danger ms-1" title="Mount error">●</span>'
-                    : '<span class="text-secondary ms-1" title="Unmounted">●</span>';
+            const mountDot = area.iso_accessible
+                ? '<span class="text-success ms-1" title="Accessible">●</span>'
+                : '<span class="text-secondary ms-1" title="Not accessible">●</span>';
             isoBadge = `<span class="badge bg-secondary ms-1">ISO</span>${mountDot}`;
         }
 
@@ -527,24 +513,16 @@ function updateIsoFieldsVisibility() {
 function updateIsoMountStatusUI(area) {
     if (!area || area.area_type !== 'iso') return;
     $('#isoMountControls').show();
-    const status = area.iso_mount_status || 'unmounted';
-    let badgeClass = 'bg-secondary';
-    let badgeText = uiT('ui.fileareas.unmounted', 'Unmounted');
-    if (status === 'mounted') { badgeClass = 'bg-success'; badgeText = uiT('ui.fileareas.mounted', 'Mounted'); }
-    if (status === 'error')   { badgeClass = 'bg-danger';  badgeText = uiT('ui.fileareas.mount_error', 'Error'); }
+    const accessible = !!area.iso_accessible;
+    const badgeClass = accessible ? 'bg-success' : 'bg-secondary';
+    const badgeText  = accessible ? uiT('ui.fileareas.accessible', 'Accessible') : uiT('ui.fileareas.not_accessible', 'Not accessible');
     $('#isoMountStatusBadge').attr('class', 'badge ' + badgeClass).text(badgeText);
-    if (area.iso_mount_error) {
-        $('#isoMountError').text(area.iso_mount_error).show();
-    } else {
-        $('#isoMountError').hide();
-    }
     if (area.iso_last_indexed) {
         $('#isoLastIndexed').text(uiT('ui.fileareas.last_indexed', 'Last indexed') + ': ' + area.iso_last_indexed);
     } else {
         $('#isoLastIndexed').text('');
     }
-    // Enable reindex only when mounted
-    $('#isoReindexBtn').prop('disabled', status !== 'mounted');
+    $('#isoReindexBtn').prop('disabled', !accessible);
 }
 
 function showAddFileareaModal() {
@@ -556,7 +534,6 @@ function showAddFileareaModal() {
     $('#fileareaPassword').val('');
     $('#fileareaMaxSize').val(10);
     $('#areaTypeNormal').prop('checked', true);
-    $('#fileareaIsoFilePath').val('');
     $('#fileareaIsoMountPoint').val('');
     $('#isoFieldsGroup').hide();
     $('#isoMountControls').hide();
@@ -598,7 +575,6 @@ function editFilearea(id) {
             // ISO fields
             const isIso = area.area_type === 'iso';
             $(`input[name="area_type"][value="${isIso ? 'iso' : 'normal'}"]`).prop('checked', true);
-            $('#fileareaIsoFilePath').val(area.iso_file_path || '');
             $('#fileareaIsoMountPoint').val(area.iso_mount_point || '');
             updateIsoFieldsVisibility();
             updateIsoMountStatusUI(area);
@@ -633,7 +609,6 @@ function saveFilearea() {
         scan_virus: $('#fileareaScanVirus').is(':checked'),
         is_active: $('#fileareaIsActive').is(':checked'),
         area_type: areaType,
-        iso_file_path: areaType === 'iso' ? $('#fileareaIsoFilePath').val().trim() : null,
         iso_mount_point: areaType === 'iso' ? ($('#fileareaIsoMountPoint').val().trim() || null) : null
     };
 
@@ -722,41 +697,7 @@ $(document).on('change', '#fileareaFreqEnabled', function() {
 
 $(document).on('change', 'input[name="area_type"]', function() {
     updateIsoFieldsVisibility();
-    if ($(this).val() !== 'iso') {
-        $('#isoMountControls').hide();
-    }
 });
-
-function isoMount() {
-    if (!currentFileareaId) return;
-    $('#isoMountBtn').prop('disabled', true);
-    $.post(`/api/fileareas/${currentFileareaId}/mount-iso`)
-        .done(function() {
-            // Reload area to get fresh mount status
-            $.get(`/api/fileareas/${currentFileareaId}`)
-                .done(function(data) { updateIsoMountStatusUI(data.filearea); })
-                .always(function() { $('#isoMountBtn').prop('disabled', false); loadFileareas(); });
-        })
-        .fail(function(xhr) {
-            $('#isoMountBtn').prop('disabled', false);
-            showError(apiError(xhr.responseJSON, uiT('errors.fileareas.mount_failed', 'Failed to mount ISO area')));
-        });
-}
-
-function isoUnmount() {
-    if (!currentFileareaId) return;
-    $('#isoUnmountBtn').prop('disabled', true);
-    $.post(`/api/fileareas/${currentFileareaId}/unmount-iso`)
-        .done(function() {
-            $.get(`/api/fileareas/${currentFileareaId}`)
-                .done(function(data) { updateIsoMountStatusUI(data.filearea); })
-                .always(function() { $('#isoUnmountBtn').prop('disabled', false); loadFileareas(); });
-        })
-        .fail(function(xhr) {
-            $('#isoUnmountBtn').prop('disabled', false);
-            showError(apiError(xhr.responseJSON, uiT('errors.fileareas.unmount_failed', 'Failed to unmount ISO area')));
-        });
-}
 
 function openIsoPreview() {
     if (!currentFileareaId) return;

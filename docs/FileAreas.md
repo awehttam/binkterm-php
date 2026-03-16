@@ -416,56 +416,58 @@ permitted.
 
 ### How It Works
 
-1. The sysop creates an ISO-backed file area and configures the ISO path and mount
-   point in the admin UI.
-2. On Linux, the admin daemon can mount the ISO automatically via `fuseiso`. On
-   Windows, the sysop mounts the ISO manually in Windows and enters the resulting
-   drive letter in the **Mount Point** field.
-3. The sysop triggers a re-index from the admin UI or CLI. The importer walks the
-   ISO directory tree, reads any description catalogues it finds, and writes file
-   records to the database. Each record stores a path relative to the mount point
-   (`iso_rel_path`).
+1. The sysop mounts the ISO on the server using any suitable method and notes
+   the resulting mount point path.
+2. The sysop creates an ISO-backed file area and enters the mount point path
+   in the **Mount Point** field. The admin UI shows a green **Accessible**
+   badge when the path exists and is readable.
+3. The sysop triggers a re-index from the admin UI or CLI. The importer walks
+   the ISO directory tree, reads any description catalogues it finds, and writes
+   file records to the database. Each record stores a path relative to the mount
+   point (`iso_rel_path`).
 4. At download or preview time the server reconstructs the absolute path from
-   the current mount point and the stored relative path. If the ISO is not mounted
-   the server returns HTTP 503.
+   the current mount point and the stored relative path. If the path is not
+   accessible the server returns HTTP 503.
 
 ---
 
 ### Linux Setup
 
-#### Prerequisites
+#### Mounting the ISO
 
-Install `fuseiso` (user-space FUSE mounting — no root required):
+Mount the ISO to a directory of your choice. Using a loop device requires root
+(or a sudoers rule):
 
 ```bash
-apt install fuseiso        # Debian/Ubuntu
-dnf install fuseiso        # Fedora/RHEL
+sudo mkdir -p /srv/iso_mounts/simtel
+sudo mount -o loop,ro /srv/isos/simtel.iso /srv/iso_mounts/simtel
 ```
+
+To remount automatically on reboot, add an entry to `/etc/fstab`:
+
+```
+/srv/isos/simtel.iso  /srv/iso_mounts/simtel  iso9660  loop,ro  0  0
+```
+
+Alternatively, any method that produces a readable directory — FUSE tools,
+udisksctl, or a loop device managed by your init system — works equally well.
+The BBS only requires a readable directory path; it does not care how it was
+mounted.
 
 #### Creating the area
 
-1. Go to **Admin → Area Management → File Areas** and click **Add File Area**.
-2. Set **Area Type** to **ISO-backed**.
-3. Enter the absolute path to the `.iso` file (e.g. `/srv/isos/simtel.iso`).
-4. Leave **Mount Point** blank — the daemon will populate it automatically.
-5. Save, then re-open the area to edit it.
-6. Click **Mount** to mount the ISO. The daemon calls `fuseiso` and stores the
-   mount point under `data/iso_mounts/<area_id>/`.
-7. Once mounted, click **Re-index ISO** to import the file catalogue.
-
-`admin_daemon` re-mounts all active ISO areas automatically on startup, so ISOs
-survive server reboots without manual intervention. Mount points are created under
-`data/iso_mounts/` by default; override with the `ISO_MOUNT_BASE` environment
-variable in `.env`.
+1. Mount the ISO as described above.
+2. Go to **Admin → Area Management → File Areas** and click **Add File Area**.
+3. Set **Area Type** to **ISO-backed**.
+4. Enter the mount point path in **Mount Point** (e.g. `/srv/iso_mounts/simtel`).
+5. Save. The status badge should show **Accessible**.
+6. Click **Re-index ISO** to import the file catalogue.
 
 ---
 
 ### Windows Setup
 
 Windows 10 and 11 can mount ISO files natively without third-party software.
-Because `fuseiso` is not available on Windows, the **Mount** and **Unmount**
-buttons in the admin UI will not function. The sysop must mount the ISO in
-Windows and enter the resulting path in the file area properties.
 
 #### Creating the area
 
@@ -479,15 +481,11 @@ Windows and enter the resulting path in the file area properties.
    Get-DiskImage -ImagePath "C:\isos\simtel.iso" | Get-Volume
    ```
 
-2. Go to **Admin → Area Management** and click **Add File Area**.
+2. Go to **Admin → Area Management → File Areas** and click **Add File Area**.
 3. Set **Area Type** to **ISO-backed**.
-4. Enter the path to the `.iso` file in **ISO File Path**
-   (e.g. `C:\isos\simtel.iso`).
-5. Enter the mounted drive letter or path in **Mount Point** (e.g. `D:\`). The
-   system will treat this as the mount root and mark the area as mounted when you
-   save.
-6. Save the area.
-7. Click **Re-index ISO** to import the file catalogue.
+4. Enter the mounted drive letter or path in **Mount Point** (e.g. `D:\`).
+5. Save. The status badge should show **Accessible**.
+6. Click **Re-index ISO** to import the file catalogue.
 
 #### Re-mounting after a reboot
 
@@ -501,16 +499,16 @@ present. After remounting:
 No re-index is needed unless the ISO itself changed — the existing file records
 remain valid and path resolution uses the updated mount point immediately.
 
-#### Unmounting
+#### Dismounting
 
-1. Edit the file area in the admin UI and clear the **Mount Point** field, then
-   save. This prevents the system from attempting to serve files while the ISO is
-   not accessible.
-2. Dismount the ISO in Windows:
+Clear the **Mount Point** field in the admin UI before dismounting, then:
 
-   ```powershell
-   Dismount-DiskImage -ImagePath "C:\isos\simtel.iso"
-   ```
+```powershell
+Dismount-DiskImage -ImagePath "C:\isos\simtel.iso"
+```
+
+Clearing the mount point prevents the system from attempting to serve files
+while the ISO is not accessible.
 
 ---
 
@@ -683,12 +681,12 @@ preview panel with CP437→UTF-8 conversion applied. No extraction to disk occur
 
 | Item | Notes |
 |---|---|
-| Auto-mount | Linux only (`fuseiso`). On Windows, enter the mount point manually in the file area properties. |
+| Mounting | The sysop is responsible for mounting the ISO and keeping it mounted. BinktermPHP does not manage mount lifecycle. |
 | ARJ/LZH `FILE_ID.DIZ` | Not extracted — PHP has no built-in ARJ reader. Shown as download prompt instead. |
 | Uploads | Blocked. ISO areas are permanently read-only. |
 | File deletion | Admin-only. Removes the database record; no disk change. Re-index with `--update` to refresh descriptions if the ISO changes. |
 | Move / rename | Filename and area moves are blocked. Description edits are allowed. |
-| ISO format | ISO 9660 and Joliet extensions are supported by `fuseiso`. Rock Ridge is also supported. UDF (DVD-Video) discs may require `udftools` (`udisksctl mount`) instead of `fuseiso`. |
+| ISO format | ISO 9660, Joliet, and Rock Ridge extensions are supported by the Linux kernel ISO driver. UDF discs can be mounted with `mount -t udf`. |
 
 ---
 

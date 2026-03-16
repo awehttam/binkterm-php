@@ -481,8 +481,6 @@ return [
     'errors.admin.echomail_robots.invalid_config_json' => 'La configuracion del procesador no es JSON valido',
     'errors.files.iso_not_mounted' => 'El área de archivos no está montada',
     'errors.files.iso_readonly' => 'Los archivos ISO no se pueden modificar',
-    'errors.fileareas.mount_failed' => 'No se pudo montar el área ISO',
-    'errors.fileareas.unmount_failed' => 'No se pudo desmontar el área ISO',
     'errors.fileareas.reindex_failed' => 'No se pudo iniciar la re-indexación ISO',
 ];
 

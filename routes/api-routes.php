@@ -2073,6 +2073,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
+        foreach ($fileareas as &$fa) {
+            if (($fa['area_type'] ?? '') === 'iso') {
+                $mp = $fa['iso_mount_point'] ?? '';
+                $fa['iso_accessible'] = !empty($mp) && is_dir($mp) && is_readable($mp);
+            }
+        }
+        unset($fa);
 
         $privateArea = $userId ? $manager->getPrivateFileArea((int)$userId) : null;
         if ($privateArea) {
@@ -2091,6 +2098,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filearea = $manager->getFileAreaById((int)$id);
 
         if ($filearea) {
+            if (($filearea['area_type'] ?? '') === 'iso') {
+                $mp = $filearea['iso_mount_point'] ?? '';
+                $filearea['iso_accessible'] = !empty($mp) && is_dir($mp) && is_readable($mp);
+            }
             echo json_encode(['filearea' => $filearea]);
         } else {
             http_response_code(404);
@@ -2172,46 +2183,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode($stats);
     });
-
-    /**
-     * POST /api/fileareas/{id}/mount-iso
-     * Request admin_daemon to mount an ISO file area. Admin only.
-     */
-    SimpleRouter::post('/fileareas/{id}/mount-iso', function($id) {
-        $user = RouteHelper::requireAdmin();
-        header('Content-Type: application/json');
-
-        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
-        try {
-            $daemonClient->mountIso((int)$id);
-            $daemonClient->close();
-        } catch (\Exception $e) {
-            http_response_code(500);
-            apiError('errors.fileareas.mount_failed', apiLocalizedText('errors.fileareas.mount_failed', 'Failed to mount ISO area', $user));
-            return;
-        }
-        echo json_encode(['success' => true]);
-    })->where(['id' => '[0-9]+']);
-
-    /**
-     * POST /api/fileareas/{id}/unmount-iso
-     * Request admin_daemon to unmount an ISO file area. Admin only.
-     */
-    SimpleRouter::post('/fileareas/{id}/unmount-iso', function($id) {
-        $user = RouteHelper::requireAdmin();
-        header('Content-Type: application/json');
-
-        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
-        try {
-            $daemonClient->unmountIso((int)$id);
-            $daemonClient->close();
-        } catch (\Exception $e) {
-            http_response_code(500);
-            apiError('errors.fileareas.unmount_failed', apiLocalizedText('errors.fileareas.unmount_failed', 'Failed to unmount ISO area', $user));
-            return;
-        }
-        echo json_encode(['success' => true]);
-    })->where(['id' => '[0-9]+']);
 
     /**
      * GET /api/fileareas/{id}/preview-iso

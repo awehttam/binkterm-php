@@ -352,28 +352,6 @@ class AdminDaemonClient
     }
 
     /**
-     * Mount an ISO-backed file area.
-     *
-     * @param int $areaId File area ID
-     * @return array Daemon response
-     */
-    public function mountIso(int $areaId): array
-    {
-        return $this->sendCommand('mount_iso', ['area_id' => $areaId]);
-    }
-
-    /**
-     * Unmount an ISO-backed file area.
-     *
-     * @param int $areaId File area ID
-     * @return array Daemon response
-     */
-    public function unmountIso(int $areaId): array
-    {
-        return $this->sendCommand('unmount_iso', ['area_id' => $areaId]);
-    }
-
-    /**
      * Trigger a re-index of an ISO-backed file area.
      *
      * @param int $areaId File area ID

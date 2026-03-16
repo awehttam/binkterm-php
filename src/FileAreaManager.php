@@ -209,29 +209,6 @@ class FileAreaManager
     }
 
     /**
-     * Update the ISO mount status for a file area.
-     *
-     * @param int         $id          File area ID
-     * @param string      $status      'mounted', 'unmounted', or 'error'
-     * @param string|null $error       Error message (e.g. fuseiso output on failure); stored in iso_mount_error
-     * @param string|null $mountPoint  Absolute mount point path (set on successful mount)
-     */
-    public function updateIsoMountStatus(int $id, string $status, ?string $error = null, ?string $mountPoint = null): void
-    {
-        $sets = ['iso_mount_status = ?', 'iso_mount_error = ?', 'updated_at = NOW()'];
-        $params = [$status, $error];
-
-        if ($mountPoint !== null) {
-            $sets[] = 'iso_mount_point = ?';
-            $params[] = $mountPoint;
-        }
-
-        $params[] = $id;
-        $sql = 'UPDATE file_areas SET ' . implode(', ', $sets) . ' WHERE id = ?';
-        $this->db->prepare($sql)->execute($params);
-    }
-
-    /**
      * Update the ISO last-indexed timestamp for a file area.
      *
      * @param int $id File area ID
@@ -670,21 +647,6 @@ class FileAreaManager
     }
 
     /**
-     * Get all active ISO-backed file areas (for daemon startup re-mount).
-     *
-     * @return array
-     */
-    public function getActiveIsoAreas(): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT * FROM file_areas
-            WHERE area_type = 'iso' AND is_active = TRUE AND iso_file_path IS NOT NULL
-        ");
-        $stmt->execute();
-        return $stmt->fetchAll();
-    }
-
-    /**
      * Create a new file area
      *
      * @param array $data File area data
@@ -709,8 +671,7 @@ class FileAreaManager
         $password = $password === '' ? null : $password;
 
         // ISO fields
-        $areaType    = in_array($data['area_type'] ?? 'normal', ['normal', 'iso']) ? ($data['area_type'] ?? 'normal') : 'normal';
-        $isoFilePath   = $areaType === 'iso' ? (trim($data['iso_file_path'] ?? '') ?: null) : null;
+        $areaType      = in_array($data['area_type'] ?? 'normal', ['normal', 'iso']) ? ($data['area_type'] ?? 'normal') : 'normal';
         $isoMountPoint = $areaType === 'iso' ? (trim($data['iso_mount_point'] ?? '') ?: null) : null;
         // Force read-only for ISO areas
         if ($areaType === 'iso') {
@@ -736,17 +697,15 @@ class FileAreaManager
             $freqPassword = null;
         }
 
-        $mountStatus = $isoMountPoint !== null ? 'mounted' : null;
-
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
                 allow_duplicate_hash, password,
                 upload_permission, scan_virus, gemini_public, freq_enabled, freq_password,
-                area_type, iso_file_path, iso_mount_point, iso_mount_status,
+                area_type, iso_mount_point,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
@@ -756,7 +715,7 @@ class FileAreaManager
             $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
             $freqEnabled ? 'true' : 'false', $freqPassword,
-            $areaType, $isoFilePath, $isoMountPoint, $mountStatus
+            $areaType, $isoMountPoint
         ]);
 
         $result = $stmt->fetch();
@@ -800,14 +759,7 @@ class FileAreaManager
         $areaType    = in_array($data['area_type'] ?? $currentArea['area_type'] ?? 'normal', ['normal', 'iso'])
             ? ($data['area_type'] ?? $currentArea['area_type'] ?? 'normal')
             : 'normal';
-        $isoFilePath = $areaType === 'iso'
-            ? (array_key_exists('iso_file_path', $data) ? (trim($data['iso_file_path']) ?: null) : $currentArea['iso_file_path'])
-            : null;
 
-        // Manual mount point: sysop can specify directly (required on Windows;
-        // optional on Linux where the daemon manages it via fuseiso).
-        // When a non-empty mount point is supplied we treat the area as mounted.
-        // When cleared we leave the existing mount point alone (daemon manages it).
         $manualMountPoint = $areaType === 'iso' && array_key_exists('iso_mount_point', $data)
             ? (trim($data['iso_mount_point'] ?? '') ?: null)
             : null; // null = not supplied, don't touch existing value
@@ -828,16 +780,15 @@ class FileAreaManager
             $freqPassword = $freqPassword === '' ? null : $freqPassword;
         }
 
-        // Build the SET clause — only touch iso_mount_point/status when the sysop
-        // explicitly provided a value in the form (manual mount override).
+        // Only touch iso_mount_point when the sysop explicitly provided a value.
         $mountCols   = '';
         $mountParams = [];
         if ($manualMountPoint !== null) {
-            $mountCols   = ', iso_mount_point = ?, iso_mount_status = ?, iso_mount_error = NULL';
-            $mountParams = [$manualMountPoint, 'mounted'];
+            $mountCols   = ', iso_mount_point = ?';
+            $mountParams = [$manualMountPoint];
         } elseif ($areaType === 'normal' && ($currentArea['area_type'] ?? 'normal') === 'iso') {
-            // Area type changed from iso → normal: clear mount fields
-            $mountCols   = ', iso_mount_point = NULL, iso_mount_status = NULL, iso_mount_error = NULL';
+            // Area type changed from iso → normal: clear mount point
+            $mountCols = ', iso_mount_point = NULL';
         }
 
         $sql = "
@@ -847,7 +798,7 @@ class FileAreaManager
                 replace_existing = ?, allow_duplicate_hash = ?, password = ?,
                 upload_permission = ?, scan_virus = ?, gemini_public = ?,
                 freq_enabled = ?, freq_password = ?,
-                area_type = ?, iso_file_path = ?
+                area_type = ?
                 {$mountCols},
                 updated_at = NOW()
             WHERE id = ?
@@ -859,7 +810,7 @@ class FileAreaManager
             $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
             $freqEnabled ? 'true' : 'false', $freqPassword,
-            $areaType, $isoFilePath,
+            $areaType,
             ...$mountParams,
             $id
         ];
