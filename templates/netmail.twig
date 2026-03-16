@@ -46,10 +46,10 @@
                                 <i class="fas fa-sort"></i>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">{{ t('ui.common.sort.newest_first', {}, locale, ['common']) }}</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">{{ t('ui.common.sort.oldest_first', {}, locale, ['common']) }}</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">{{ t('ui.common.sort.by_subject', {}, locale, ['common']) }}</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">{{ t('ui.common.sort.by_author', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="date_desc" href="#" onclick="sortMessages('date_desc')">{{ t('ui.common.sort.newest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="date_asc" href="#" onclick="sortMessages('date_asc')">{{ t('ui.common.sort.oldest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="subject" href="#" onclick="sortMessages('subject')">{{ t('ui.common.sort.by_subject', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="author" href="#" onclick="sortMessages('author')">{{ t('ui.common.sort.by_author', {}, locale, ['common']) }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="toggleThreading()">
                                     <i class="fas fa-project-diagram"></i>

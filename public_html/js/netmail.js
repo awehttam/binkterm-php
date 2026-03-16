@@ -973,11 +973,22 @@ function markMessageAsRead(messageId) {
 function sortMessages(sortBy) {
     currentSort = sortBy;
     currentPage = 1;
+    updateSortIndicator();
 
     // Save sort preference
     window.saveUserSetting('default_sort', sortBy);
 
     loadMessages();
+}
+
+function updateSortIndicator() {
+    $('.sort-option').each(function() {
+        const $el = $(this);
+        $el.find('.sort-active-indicator').remove();
+        if ($el.data('sort') === currentSort) {
+            $el.prepend('<i class="fas fa-arrow-right me-2 sort-active-indicator text-primary" style="font-size:0.75em;"></i>');
+        }
+    });
 }
 
 function toggleThreading() {
@@ -1018,6 +1029,7 @@ function loadNetmailSettings() {
             if (userSettings.default_sort) {
                 currentSort = userSettings.default_sort;
             }
+            updateSortIndicator();
         })
         : Promise.resolve();
 
