@@ -246,7 +246,7 @@ class FileAreaManager
             throw new \Exception("ISO is not mounted");
         }
 
-        $catalogueNames = ['FILES.BBS', 'DESCRIPT.ION', 'FILE_LIST.BBS', '00INDEX.TXT', 'INDEX.TXT'];
+        $catalogueNames = ['FILES.BBS', 'DESCRIPT.ION', 'FILE_LIST.BBS', '00INDEX.TXT', '00_INDEX.TXT', 'INDEX.TXT'];
         $entries = [];
         $this->collectPreviewDirs($mountPoint, $mountPoint, $areaId, $catalogueNames, $flat, $catalogueOnly, $entries);
 
@@ -367,7 +367,7 @@ class FileAreaManager
             throw new \Exception("Scan directory not found: {$scanRoot}");
         }
 
-        $catalogueNames = ['FILES.BBS', 'DESCRIPT.ION', 'FILE_LIST.BBS', '00INDEX.TXT', 'INDEX.TXT'];
+        $catalogueNames = ['FILES.BBS', 'DESCRIPT.ION', 'FILE_LIST.BBS', '00INDEX.TXT', '00_INDEX.TXT', 'INDEX.TXT'];
         $counters = ['imported' => 0, 'updated' => 0, 'skipped' => 0, 'no_description' => 0, 'errors' => 0];
 
         $this->scanIsoDirectory($scanRoot, $mountPoint, $areaId, $catalogueNames, $update, $counters, $flat, $overrides, $catalogueOnly);
@@ -568,9 +568,14 @@ class FileAreaManager
                 if ($content === false) {
                     continue;
                 }
-                return strtolower($catalogueName) === 'descript.ion'
-                    ? $this->parseDescriptIon($content)
-                    : $this->parseFilesBbs($content);
+                $lower = strtolower($catalogueName);
+                if ($lower === 'descript.ion') {
+                    return $this->parseDescriptIon($content);
+                } elseif ($lower === '00_index.txt') {
+                    return $this->parseZeroZeroIndex($content);
+                } else {
+                    return $this->parseFilesBbs($content);
+                }
             }
         }
         return [];
@@ -643,6 +648,56 @@ class FileAreaManager
                 $entries[strtolower($m[1])] = [trim($m[2], '"'), ''];
             }
         }
+        return $entries;
+    }
+
+    /**
+     * Parse a 00_INDEX.TXT catalogue (Simtel-style).
+     *
+     * Format:
+     *   Directory: path/to/dir
+     *
+     *   File: filename.zip
+     *
+     *       Multi-line description text indented with spaces.
+     *
+     * @return array filename_lowercase => [short_desc, long_desc]
+     */
+    private function parseZeroZeroIndex(string $content): array
+    {
+        $entries = [];
+        $currentFile = null;
+        $descLines = [];
+
+        foreach (preg_split('/\r?\n/', $content) as $line) {
+            // New file entry
+            if (preg_match('/^File:\s+(\S+)/i', $line, $m)) {
+                if ($currentFile !== null) {
+                    $desc = trim(implode("\n", $descLines));
+                    $short = $desc !== '' ? (explode("\n", $desc)[0]) : '';
+                    $entries[$currentFile] = [$short, $desc];
+                }
+                $currentFile = strtolower($m[1]);
+                $descLines = [];
+                continue;
+            }
+            // Directory header — skip
+            if (preg_match('/^Directory:/i', $line)) {
+                continue;
+            }
+            // Description line (indented or blank continuation)
+            if ($currentFile !== null) {
+                $descLines[] = trim($line);
+            }
+        }
+
+        // Flush last entry
+        if ($currentFile !== null) {
+            $desc = trim(implode("\n", $descLines));
+            $short = $desc !== '' ? (explode("\n", $desc)[0]) : '';
+            $entries[$currentFile] = [$short, $desc];
+        }
+
         return $entries;
     }
 
