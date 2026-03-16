@@ -33,10 +33,12 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [ISO-Backed File Areas](#iso-backed-file-areas)
   - [Creating an ISO area](#creating-an-iso-area)
   - [Import preview](#import-preview)
+  - [Catalogue formats](#catalogue-formats)
   - [Subfolder navigation](#subfolder-navigation)
   - [Importing files (CLI)](#importing-files-cli)
   - [Behaviour](#behaviour)
   - [Migration](#migration)
+- [Global File Search](#global-file-search)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
@@ -103,12 +105,19 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - **ISO-backed file areas** — a file area can now be backed by a CD/DVD ISO
   image (or any readable directory). The sysop mounts the ISO using any
   suitable method and enters the mount point path in the file area properties.
-  Files are imported from the ISO's directory tree using `FILES.BBS` /
-  `DESCRIPT.ION` catalogues. ISO areas are read-only; description edits are
+  Files are imported from the ISO's directory tree using `FILES.BBS`,
+  `DESCRIPT.ION`, `00INDEX.TXT`, `00_INDEX.TXT` (Simtel block format), or
+  `INDEX.TXT` catalogues. ISO areas are read-only; description edits are
   stored in the database. The directory tree is exposed as browsable subfolders
   with editable labels. A preview modal lets sysops review and customise the
   import before committing. ZIP files inside the ISO show `FILE_ID.DIZ` in the
-  preview modal.
+  preview modal. Partial imports (selecting child directories without their
+  parent) are supported; ancestor directories are created automatically so
+  navigation remains intact.
+- **Global file search** — a search box in the file browser sidebar searches
+  filename and description across all accessible file areas. Results include
+  file size, upload date, a file-info button, and a direct link to the area
+  containing each result.
 
 
 **Nodelist**
@@ -671,6 +680,24 @@ Click **Apply Import** to commit. Import options in the modal header:
 | **Flat import** | All files imported to the area root, directory structure ignored. |
 | **Catalogue only** | Only import files listed in `FILES.BBS` / `DESCRIPT.ION`. Unlisted files are skipped. If no catalogue exists in a directory, all files there are imported. |
 
+### Catalogue formats
+
+The importer recognises the following description files, tried in priority
+order. If a higher-priority file is found but yields no entries, the next
+format is tried automatically.
+
+| File | Format |
+|---|---|
+| `FILES.BBS` | One filename per line followed by two or more spaces and a description. Continuation lines are indented. |
+| `DESCRIPT.ION` | `filename "description"` per line (JPSOFT 4DOS / Midnight Commander format). |
+| `FILE_LIST.BBS` | Same parser as `FILES.BBS`. |
+| `00INDEX.TXT` | Same parser as `FILES.BBS`. |
+| `00_INDEX.TXT` | Simtel block format: `Directory:` headers group entries; each `File:` block is followed by an indented multi-line description. |
+| `INDEX.TXT` | Same parser as `FILES.BBS`. |
+
+Comparisons are case-insensitive so `files.bbs`, `FILES.BBS`, and `Files.Bbs`
+are all recognised.
+
 ### Subfolder navigation
 
 The ISO directory tree is exposed as browsable subfolders in the file browser.
@@ -708,8 +735,32 @@ directory. If no catalogue is present, the filename is used as the description.
 
 ### Migration
 
-This feature requires a database migration. Run `php scripts/setup.php` as
+This feature requires database migrations. Run `php scripts/setup.php` as
 part of the standard upgrade procedure.
+
+## Global File Search
+
+A **Search Files** card now appears in the file browser sidebar, between the
+File Areas list and the Status panel. Typing two or more characters triggers a
+server-side search across filename and short description for all accessible file
+areas.
+
+**Results table columns:** Filename (opens preview), Area (click to navigate
+to that area), Description, Size, Uploaded date, Info button, Download button.
+
+Results are limited to 100 entries ordered by area tag then filename.
+Password-protected areas are excluded unless the session has them unlocked.
+
+### Search indexes
+
+Migration `v1.11.0.27` enables the `pg_trgm` PostgreSQL extension and creates
+GIN trigram indexes on `files.filename` and `files.short_description`. These
+indexes make `ILIKE '%term%'` queries fast regardless of how many files are in
+the database.
+
+**On large file databases the index build may take a minute or two.** The
+upgrade will appear to pause at this migration step — this is normal. Do not
+interrupt it.
 
 ## Netmail Attachment Improvements
 
