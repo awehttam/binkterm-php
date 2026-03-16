@@ -1224,7 +1224,14 @@ function renderPreviewContent(fileId, filename) {
                 return r.text();
             })
             .then(function(text) {
-                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${retroStyle}">${escapeHtml(text)}</pre>`);
+                body.html(`
+                    <pre class="m-0 p-3" style="max-height:65vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${retroStyle}">${escapeHtml(text)}</pre>
+                    <div class="p-2 text-center border-top">
+                        <a href="/api/files/${fileId}/download" class="btn btn-sm btn-primary" download>
+                            <i class="fas fa-download me-1"></i>${uiT('ui.files.download', 'Download')}
+                        </a>
+                    </div>
+                `);
             })
             .catch(function(err) {
                 // No FILE_ID.DIZ or error — fall back to download prompt
