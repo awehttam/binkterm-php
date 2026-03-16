@@ -2,10 +2,15 @@
 <?php
 
 /**
- * freq_getfile.php - Request a file from a remote binkp node via FREQ (M_GET).
+ * freq_getfile.php - Request a file from a remote binkp node via FREQ.
  *
- * The remote node must have the file available for FREQ. Received files are
- * written to the configured inbound directory.
+ * Default mode: generates a .req file and sends it as a regular binkp file
+ * transfer.  The remote system's FREQ handler processes the .req and sends
+ * the requested files back in the same (or a subsequent) session.
+ *
+ * -g mode: sends binkp M_GET commands (live-session FREQ per FSP-1011).
+ * Use this only when connecting to another BinktermPHP node or a system
+ * known to support binkp M_GET FREQ natively.
  *
  * Usage:
  *   php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
@@ -16,6 +21,7 @@
  *                     Multiple filenames may be listed to request more than one file.
  *
  * Options:
+ *   -g                Use binkp M_GET (live-session FREQ) instead of .req file
  *   --password=PASS   Area password required by the remote node
  *   --hostname=HOST   Override hostname (skip nodelist/DNS lookup)
  *   --port=PORT       Override port (default 24554)
@@ -28,6 +34,7 @@
  *   php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
  *   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
  *   php scripts/freq_getfile.php 1:123/456 FILES ALLFILES
+ *   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET mode)
  */
 
 chdir(__DIR__ . '/../');
@@ -54,6 +61,7 @@ Arguments:
                     Multiple filenames may be listed.
 
 Options:
+  -g                Use binkp M_GET (live-session FREQ) instead of .req file
   --password=PASS   Area password required by the remote node
   --hostname=HOST   Override hostname (bypass nodelist/DNS lookup)
   --port=PORT       Override port (default 24554)
@@ -66,12 +74,14 @@ Examples:
   php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
   php scripts/freq_getfile.php 1:123/456 FILES ALLFILES
+  php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET / live-session FREQ)
 
 USAGE;
 }
 
 /**
  * Parse $argv into named options and positional arguments.
+ * Handles both --long=value and -x short flags.
  *
  * @return array{opts: array<string,string|true>, args: string[]}
  */
@@ -89,6 +99,9 @@ function parseArgs(array $argv): array
             } else {
                 $opts[substr($arg, 2)] = true;
             }
+        } elseif (str_starts_with($arg, '-') && strlen($arg) === 2) {
+            // Short single-character flag (e.g. -g)
+            $opts[substr($arg, 1)] = true;
         } else {
             $args[] = $arg;
         }
@@ -96,10 +109,6 @@ function parseArgs(array $argv): array
 
     return ['opts' => $opts, 'args' => $args];
 }
-
-// ---------------------------------------------------------------------------
-// Normalize FTN address: strip @domain suffix, validate basic format
-// ---------------------------------------------------------------------------
 
 /**
  * Strip @domain suffix from an FTN address and validate that zone:net/node
@@ -109,12 +118,10 @@ function parseArgs(array $argv): array
  */
 function normalizeAddress(string $address): string
 {
-    // Strip @domain (e.g. @fidonet, @fsxnet)
     if (str_contains($address, '@')) {
         $address = explode('@', $address, 2)[0];
     }
 
-    // Validate: must look like zone:net/node or zone:net/node.point
     if (!preg_match('/^\d+:\d+\/\d+(\.\d+)?$/', $address)) {
         throw new \InvalidArgumentException(
             "Invalid FTN address format: '{$address}'. Expected zone:net/node (e.g. 3:770/220)"
@@ -122,6 +129,28 @@ function normalizeAddress(string $address): string
     }
 
     return $address;
+}
+
+/**
+ * Build a .req file for Bark-style FREQ.
+ *
+ * Format (FTS-0008): one filename per line, optional area password on its own
+ * line prefixed with ! before the filenames that require it.
+ *
+ * @param  string[]    $filenames
+ * @param  string|null $password
+ * @return string      File contents
+ */
+function buildReqFileContents(array $filenames, ?string $password): string
+{
+    $lines = [];
+    if ($password !== null && $password !== '') {
+        $lines[] = '!' . $password;
+    }
+    foreach ($filenames as $fn) {
+        $lines[] = $fn;
+    }
+    return implode("\r\n", $lines) . "\r\n";
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +171,8 @@ if (count($args) < 2) {
 }
 
 $rawAddress = array_shift($args);
-$filenames  = $args;   // one or more filenames / magic names
+$filenames  = $args;
+$useGet     = isset($opts['g']);
 $password   = isset($opts['password']) ? (string)$opts['password'] : null;
 $hostname   = isset($opts['hostname']) ? (string)$opts['hostname'] : null;
 $port       = isset($opts['port'])     ? (int)$opts['port']        : null;
@@ -152,7 +182,6 @@ $logFile    = isset($opts['log-file'])
     : \BinktermPHP\Config::getLogPath('freq_getfile.log');
 $noConsole  = isset($opts['no-console']);
 
-// Validate and normalise address
 try {
     $address = normalizeAddress($rawAddress);
 } catch (\InvalidArgumentException $e) {
@@ -161,19 +190,34 @@ try {
 }
 
 $logger = new Logger($logFile, $logLevel, !$noConsole);
-$logger->log('INFO', "FREQ request: node={$address}, files=" . implode(', ', $filenames));
+$mode   = $useGet ? 'M_GET (live-session)' : '.req file';
+$logger->log('INFO', "FREQ request [{$mode}]: node={$address}, files=" . implode(', ', $filenames));
+
+$reqTempFile = null;
 
 try {
     $config = BinkpConfig::getInstance();
     $client = new BinkpClient($config, $logger);
 
-    // Queue each requested filename
-    foreach ($filenames as $filename) {
-        $client->addFreqRequest($filename, $password);
-        $logger->log('INFO', "Queued FREQ: {$filename}" . ($password !== null ? " (with password)" : ''));
+    if ($useGet) {
+        // M_GET mode: send binkp live-session FREQ commands
+        foreach ($filenames as $filename) {
+            $client->addFreqRequest($filename, $password);
+            $logger->log('INFO', "Queued M_GET: {$filename}" . ($password !== null ? " (with password)" : ''));
+        }
+    } else {
+        // .req file mode: write a Bark-style request file and send it as a
+        // regular binkp file transfer.  The remote's FREQ handler processes it.
+        $reqContents = buildReqFileContents($filenames, $password);
+        $reqTempFile = sys_get_temp_dir() . '/freq_' . uniqid() . '.req';
+        if (file_put_contents($reqTempFile, $reqContents) === false) {
+            throw new \RuntimeException("Failed to write .req file: {$reqTempFile}");
+        }
+        $client->addExtraFile($reqTempFile);
+        $logger->log('INFO', "Created .req file: " . basename($reqTempFile));
+        $logger->log('DEBUG', "Contents:\n{$reqContents}");
     }
 
-    // Connect — BinkpClient resolves hostname via nodelist / binkp_zone if needed
     $result = $client->connect($address, $hostname, $port);
 
     if ($result['success']) {
@@ -187,18 +231,29 @@ try {
         } else {
             $logger->log('WARNING', "Session complete but no files were received.");
             echo "Session complete — no files received.\n";
-            echo "The remote may not have the requested file, or it may require a password.\n";
+            if ($useGet) {
+                echo "The remote may not support binkp M_GET FREQ, or the file is unavailable.\n";
+            } else {
+                echo "The remote may process the .req asynchronously — files may arrive on next poll.\n";
+            }
         }
-        exit(0);
+        $exitCode = 0;
     } else {
         $error = $result['error'] ?? 'unknown error';
         $logger->log('ERROR', "Session failed: {$error}");
         fwrite(STDERR, "Session failed: {$error}\n");
-        exit(1);
+        $exitCode = 1;
     }
 
 } catch (\Exception $e) {
     $logger->log('ERROR', "FREQ failed: " . $e->getMessage());
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
-    exit(1);
+    $exitCode = 1;
+} finally {
+    // Clean up temp .req file regardless of outcome
+    if ($reqTempFile !== null && file_exists($reqTempFile)) {
+        unlink($reqTempFile);
+    }
 }
+
+exit($exitCode ?? 1);

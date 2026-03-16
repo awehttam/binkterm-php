@@ -50,6 +50,10 @@ class BinkpSession
     private array $freqOutboundSent = [];
     /** @var array<int,array{filename:string,password:?string}> In-memory outbound FREQ request queue */
     private array $pendingFreqRequests = [];
+    /** @var string[] Extra files to transmit this session (e.g. .req files), bypassing outbound directory filtering */
+    private array $extraOutboundFiles = [];
+    /** @var array<string,string> basename => full path for extra outbound files, used for M_GOT cleanup */
+    private array $extraOutboundFilesByName = [];
     private $uplinkPassword;
     private $currentUplink;
 
@@ -121,6 +125,18 @@ class BinkpSession
     public function addFreqRequest(string $filename, ?string $password = null): void
     {
         $this->pendingFreqRequests[] = ['filename' => $filename, 'password' => $password];
+    }
+
+    /**
+     * Queue an extra file to be sent during this originator session, bypassing the
+     * outbound directory and uplink-destination filtering.  Used for .req files.
+     *
+     * @param string $path Absolute path to the file to send
+     */
+    public function addExtraFile(string $path): void
+    {
+        $this->extraOutboundFiles[] = $path;
+        $this->extraOutboundFilesByName[basename($path)] = $path;
     }
 
     public function log($message, $level = 'INFO')
@@ -968,6 +984,18 @@ class BinkpSession
             }
         }
 
+        // Send extra files queued via addExtraFile() (e.g. .req files) unconditionally —
+        // these bypass outbound directory filtering and must be sent even when there are
+        // no .pkt or .tic files.
+        foreach ($this->extraOutboundFiles as $extraFile) {
+            if (!file_exists($extraFile)) {
+                $this->log("Extra outbound file not found, skipping: {$extraFile}", 'WARNING');
+                continue;
+            }
+            $this->log("Sending extra file: " . basename($extraFile));
+            $this->sendFile($extraFile);
+        }
+
         $files = $pktFiles;
 
         $this->log("Found " . count($pktFiles) . " packet files and " . count($ticPairs) . " TIC pairs", 'DEBUG');
@@ -1309,6 +1337,12 @@ class BinkpSession
                 $this->filesReceived[] = $this->currentFile['name'];
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
+                // If the received file is a Bark-style .req file, process it immediately
+                // and serve the requested files back in this same session.
+                if (preg_match('/\.req$/i', $this->currentFile['name'])) {
+                    $this->processReqFile($finalPath);
+                }
+
                 // Create metadata file for packets received in insecure sessions
                 if ($this->isInsecureSession && preg_match('/\.pkt$/i', $this->currentFile['name'])) {
                     $inboundPath = $this->config->getInboundPath();
@@ -1364,6 +1398,16 @@ class BinkpSession
 
     private function handleSentFileConfirmation(string $filename, bool $implicitConfirm): bool
     {
+        // Extra outbound files (e.g. .req) live outside the outbound directory
+        if (isset($this->extraOutboundFilesByName[$filename])) {
+            $filepath = $this->extraOutboundFilesByName[$filename];
+            if (file_exists($filepath)) {
+                unlink($filepath);
+                $this->log("Deleted extra sent file: {$filename}", 'DEBUG');
+            }
+            return true;
+        }
+
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;
         if (!file_exists($filepath)) {
@@ -1398,6 +1442,63 @@ class BinkpSession
 
         $this->log("Failed to delete sent file: {$filename}", 'ERROR');
         return false;
+    }
+
+    /**
+     * Parse and serve a Bark-style .req file received from the remote node.
+     *
+     * Format (FTS-0008): one filename or magic name per line.
+     * - A line beginning with ! sets the current area password for subsequent requests.
+     * - Inline password: "filename !password"
+     * - Blank lines are ignored.
+     *
+     * Each resolved request is served immediately via sendFile() so the files
+     * go back to the remote in this same binkp session.
+     *
+     * @param string $path Full path to the received .req file
+     */
+    private function processReqFile(string $path): void
+    {
+        $this->log("Processing FREQ .req file: " . basename($path), 'INFO');
+
+        $contents = file_get_contents($path);
+        if ($contents === false) {
+            $this->log("Failed to read .req file: {$path}", 'ERROR');
+            return;
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $contents);
+        $currentPassword = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            // Line beginning with ! sets the area password for subsequent requests
+            if (str_starts_with($line, '!')) {
+                $currentPassword = substr($line, 1);
+                continue;
+            }
+
+            // Inline password: "filename !password"
+            $password = $currentPassword;
+            if (preg_match('/^(\S+)\s+!(\S+)$/', $line, $m)) {
+                $filename = $m[1];
+                $password = $m[2];
+            } else {
+                $filename = $line;
+            }
+
+            // Reuse the M_GET handler — it calls FreqResolver and sendFile()
+            $data = $password !== null
+                ? "{$filename} -1 0 0 {$password}"
+                : "{$filename} -1 0 0";
+
+            $this->log("FREQ from .req: {$filename}", 'DEBUG');
+            $this->handleGetCommand($data);
+        }
     }
 
     private function handleGetCommand($data)

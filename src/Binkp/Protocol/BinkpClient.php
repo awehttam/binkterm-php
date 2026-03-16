@@ -27,6 +27,8 @@ class BinkpClient
     private $logger;
     /** @var array<int,array{filename:string,password:?string}> FREQ requests to send in next session */
     private array $pendingFreqRequests = [];
+    /** @var string[] Extra files to transmit in the next session (e.g. .req files) */
+    private array $extraOutboundFiles = [];
     
     public function __construct($config = null, $logger = null)
     {
@@ -48,6 +50,17 @@ class BinkpClient
     public function addFreqRequest(string $filename, ?string $password = null): void
     {
         $this->pendingFreqRequests[] = ['filename' => $filename, 'password' => $password];
+    }
+
+    /**
+     * Queue a file to be sent during the next connect() session, bypassing the
+     * outbound directory and uplink-destination filtering.  Used for .req files.
+     *
+     * @param string $path Absolute path to the file to send
+     */
+    public function addExtraFile(string $path): void
+    {
+        $this->extraOutboundFiles[] = $path;
     }
     
     public function log($message, $level = 'INFO')
@@ -118,6 +131,11 @@ class BinkpClient
             // Pass any queued FREQ requests into the session
             foreach ($this->pendingFreqRequests as $req) {
                 $session->addFreqRequest($req['filename'], $req['password']);
+            }
+
+            // Pass any extra outbound files into the session
+            foreach ($this->extraOutboundFiles as $path) {
+                $session->addExtraFile($path);  // also registers in extraOutboundFilesByName
             }
 
             // Set the current uplink context for packet filtering and address advertisement.
