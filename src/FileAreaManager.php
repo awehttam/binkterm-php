@@ -372,6 +372,7 @@ class FileAreaManager
 
         $this->scanIsoDirectory($scanRoot, $mountPoint, $areaId, $catalogueNames, $update, $counters, $flat, $overrides, $catalogueOnly);
         $this->updateIsoLastIndexed($areaId);
+        $this->updateFileAreaStats($areaId);
 
         return $counters;
     }
@@ -1166,30 +1167,50 @@ class FileAreaManager
     public function getSubfolders(int $areaId, ?string $parentPath = null): array
     {
         if ($parentPath === null) {
-            $whereParent = "AND f.subfolder NOT LIKE '%/%'";
-            $params = [$areaId];
+            $whereFiles  = "AND f.subfolder NOT LIKE '%/%'";
+            $whereSubdir = "AND s.iso_rel_path NOT LIKE '%/%'";
+            $params      = [$areaId, $areaId];
         } else {
-            $prefix = $parentPath . '/';
-            $whereParent = "AND f.subfolder LIKE ? AND f.subfolder NOT LIKE ?";
-            $params = [$areaId, $prefix . '%', $prefix . '%/%'];
+            $prefix      = $parentPath . '/';
+            $whereFiles  = "AND f.subfolder LIKE ? AND f.subfolder NOT LIKE ?";
+            $whereSubdir = "AND s.iso_rel_path LIKE ? AND s.iso_rel_path NOT LIKE ?";
+            $params      = [$areaId, $prefix . '%', $prefix . '%/%',
+                            $areaId, $prefix . '%', $prefix . '%/%'];
         }
 
+        // Union two sources so that directories with no direct files (only
+        // subdirectories) are still visible via their iso_subdir records.
         $stmt = $this->db->prepare("
-            SELECT DISTINCT f.subfolder,
-                   m.short_description AS description,
-                   m.long_description  AS long_description,
-                   m.id                AS subdir_id
-            FROM files f
-            LEFT JOIN files m ON m.file_area_id = f.file_area_id
-                              AND m.source_type = 'iso_subdir'
-                              AND m.iso_rel_path = f.subfolder
-                              AND m.status = 'approved'
-            WHERE f.file_area_id = ?
-              AND f.status = 'approved'
-              AND f.subfolder IS NOT NULL
-              AND (f.source_type IS DISTINCT FROM 'iso_subdir')
-              {$whereParent}
-            ORDER BY f.subfolder
+            SELECT subfolder, description, long_description, subdir_id
+            FROM (
+                SELECT DISTINCT f.subfolder,
+                       m.short_description AS description,
+                       m.long_description  AS long_description,
+                       m.id                AS subdir_id
+                FROM files f
+                LEFT JOIN files m ON m.file_area_id = f.file_area_id
+                                  AND m.source_type = 'iso_subdir'
+                                  AND m.iso_rel_path = f.subfolder
+                                  AND m.status = 'approved'
+                WHERE f.file_area_id = ?
+                  AND f.status = 'approved'
+                  AND f.subfolder IS NOT NULL
+                  AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+                  {$whereFiles}
+
+                UNION
+
+                SELECT s.iso_rel_path AS subfolder,
+                       s.short_description AS description,
+                       s.long_description  AS long_description,
+                       s.id                AS subdir_id
+                FROM files s
+                WHERE s.file_area_id = ?
+                  AND s.status = 'approved'
+                  AND s.source_type = 'iso_subdir'
+                  {$whereSubdir}
+            ) combined
+            ORDER BY subfolder
         ");
         $stmt->execute($params);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -2381,10 +2402,14 @@ class FileAreaManager
         $stmt = $this->db->prepare("
             UPDATE file_areas
             SET file_count = (
-                    SELECT COUNT(*) FROM files WHERE file_area_id = ? AND status = 'approved'
+                    SELECT COUNT(*) FROM files
+                    WHERE file_area_id = ? AND status = 'approved'
+                      AND (source_type IS DISTINCT FROM 'iso_subdir')
                 ),
                 total_size = (
-                    SELECT COALESCE(SUM(filesize), 0) FROM files WHERE file_area_id = ? AND status = 'approved'
+                    SELECT COALESCE(SUM(filesize), 0) FROM files
+                    WHERE file_area_id = ? AND status = 'approved'
+                      AND (source_type IS DISTINCT FROM 'iso_subdir')
                 ),
                 updated_at = NOW()
             WHERE id = ?
