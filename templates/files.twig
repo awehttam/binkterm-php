@@ -1210,6 +1210,36 @@ function renderPreviewContent(fileId, filename) {
                 body.html(`<div class="alert alert-danger m-3">${uiT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
+    } else if (filename.toLowerCase().endsWith('.zip')) {
+        // ZIP files: try to show FILE_ID.DIZ from the preview endpoint
+        const retroStyle = 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;';
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const ct = r.headers.get('Content-Type') || '';
+                if (!ct.includes('text/')) throw new Error('no-diz');
+                return r.text();
+            })
+            .then(function(text) {
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${retroStyle}">${escapeHtml(text)}</pre>`);
+            })
+            .catch(function(err) {
+                // No FILE_ID.DIZ or error — fall back to download prompt
+                body.css('background', '').html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-file-archive fa-3x mb-3 d-block"></i>
+                        <p class="mb-2">${escapeHtml(filename)}</p>
+                        <p class="small mb-4">${uiT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                        <a href="/api/files/${fileId}/download" class="btn btn-primary" download>
+                            <i class="fas fa-download me-2"></i>${uiT('ui.files.download', 'Download')}
+                        </a>
+                    </div>
+                `);
+            });
+
     } else {
         // Unknown type — show download prompt
         body.css('background', '').html(`
