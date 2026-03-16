@@ -1025,6 +1025,9 @@ class MessageHandler
         $senderUser = $this->getUserById($fromUserId);
         $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
 
+        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $storage = $this->prepareLocalMessageStorage($finalMessageText);
+
         // Generate kludges for this local netmail
         $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId, null, $markupType);
 
