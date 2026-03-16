@@ -619,11 +619,17 @@ class FileAreaManager
                 }
                 $lower = strtolower($catalogueName);
                 if ($lower === 'descript.ion') {
-                    return $this->parseDescriptIon($content);
+                    $parsed = $this->parseDescriptIon($content);
                 } elseif ($lower === '00_index.txt') {
-                    return $this->parseZeroZeroIndex($content);
+                    $parsed = $this->parseZeroZeroIndex($content);
                 } else {
-                    return $this->parseFilesBbs($content);
+                    $parsed = $this->parseFilesBbs($content);
+                }
+                // Only use this catalogue if it produced entries; otherwise
+                // fall through to the next catalogue name so that e.g. an
+                // empty FILES.BBS doesn't block a populated 00_INDEX.TXT.
+                if (!empty($parsed)) {
+                    return $parsed;
                 }
             }
         }
