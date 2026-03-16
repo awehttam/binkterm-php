@@ -167,6 +167,12 @@ function loadMessages(callback) {
 
     $.get(url)
         .done(function(data) {
+            // If the saved page is beyond the last page, reset to page 1 and reload
+            if (currentPage > 1 && data.messages && data.messages.length === 0 && data.pagination && data.pagination.pages < currentPage) {
+                currentPage = 1;
+                loadMessages(callback);
+                return;
+            }
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
             // Remember the current netmail page
