@@ -42,7 +42,7 @@ class MessageHandler
         return self::ECHOMAIL_DATE_FIELD_DEFAULT;
     }
 
-    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
+    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
         if (!$user) {
@@ -57,7 +57,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedNetmail($userId, $page, $limit, $filter);
+            return $this->getThreadedNetmail($userId, $page, $limit, $filter, $sort);
         }
 
         // Get system's configured FidoNet addresses
@@ -119,6 +119,14 @@ class MessageHandler
         $params[] = $user['username'];
         $params[] = $user['real_name'];
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "n.date_received ASC",
+            'subject'  => "n.subject ASC",
+            'author'   => "n.from_name ASC",
+            default    => "CASE WHEN n.date_received > NOW() THEN 0 ELSE 1 END, n.date_received DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
@@ -128,10 +136,7 @@ class MessageHandler
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
-            ORDER BY CASE
-                WHEN n.date_received > NOW() THEN 0
-                ELSE 1
-            END, n.date_received DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
         
@@ -4665,7 +4670,7 @@ class MessageHandler
     /**
      * Get threaded netmail messages using MSGID/REPLY relationships
      */
-    public function getThreadedNetmail($userId, $page = 1, $limit = null, $filter = 'all')
+    public function getThreadedNetmail($userId, $page = 1, $limit = null, $filter = 'all', $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
         if (!$user) {
@@ -4760,11 +4765,16 @@ class MessageHandler
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
         
-        // Sort threads by most recent message in each thread
-        usort($threads, function($a, $b) {
-            $aLatest = $this->getLatestMessageInThread($a);
-            $bLatest = $this->getLatestMessageInThread($b);
-            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        // Sort threads according to the requested sort order
+        usort($threads, function($a, $b) use ($sort) {
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
+            return match($sort) {
+                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
+                'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
+                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+            };
         });
         
         // Apply pagination to threads

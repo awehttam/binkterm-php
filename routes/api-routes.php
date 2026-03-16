@@ -3260,7 +3260,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getNetmail($user['user_id'], $page, null, $filter, $threaded);
+        $validSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $validSorts, true) ? $_GET['sort'] : 'date_desc';
+        $result = $handler->getNetmail($user['user_id'], $page, null, $filter, $threaded, $sort);
         $result = apiLocalizeErrorPayload($result, $user);
         echo json_encode($result);
     });
