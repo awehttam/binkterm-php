@@ -460,13 +460,24 @@ class BinkpSession
                 // and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
                     $sentNothing = empty($this->filesSent) && empty($this->pendingFreqRequests);
-                    // FREQ-only session: once remote sends EOB we are done whether the
-                    // file was served or denied — no tosser response is expected.
+                    // FREQ M_GET mode: sent FREQ requests, no normal files.
                     $freqOnlyDone = empty($this->filesSent)
                         && !empty($this->pendingFreqRequests)
                         && $inactivity >= 3;
-                    if ($sentNothing || $freqOnlyDone || $inactivity >= 30) {
-                        $reason = $sentNothing ? 'nothing sent' : ($freqOnlyDone ? 'FREQ-only session complete' : "no activity for {$inactivity}s");
+                    // FREQ .req file mode: we sent a .req file this session and received
+                    // files back. Both EOBs are exchanged and no transfer is active —
+                    // terminate now rather than waiting the full inactivity timeout.
+                    $sentReqFile = array_reduce(
+                        array_keys($this->extraOutboundFilesByName),
+                        fn($carry, $name) => $carry || str_ends_with(strtolower($name), '.req'),
+                        false
+                    );
+                    $gotFreqResponse = $sentReqFile && !empty($this->filesReceived);
+                    if ($sentNothing || $freqOnlyDone || $gotFreqResponse || $inactivity >= 30) {
+                        $reason = $sentNothing ? 'nothing sent'
+                            : ($freqOnlyDone    ? 'FREQ-only session complete'
+                            : ($gotFreqResponse ? 'FREQ response received, both EOBs done'
+                            : "no activity for {$inactivity}s"));
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;
@@ -1327,15 +1338,34 @@ class BinkpSession
 
                 // Atomically rename the temp file to its final name so that
                 // process_packets cannot see the file until it is fully written.
-                $inboundPath = $this->config->getInboundPath();
-                $finalPath   = $inboundPath . '/' . $this->currentFile['name'];
-                $tmpPath     = $finalPath . '.tmp';
-                if (!rename($tmpPath, $finalPath)) {
-                    $this->log("Failed to rename temp file to final: " . $this->currentFile['name'], 'ERROR');
+                $inboundPath    = $this->config->getInboundPath();
+                $originalName   = $this->currentFile['name'];
+                $finalPath      = $inboundPath . '/' . $originalName;
+                $tmpPath        = $finalPath . '.tmp';
+
+                // If a file with the same name already exists, pick a unique name
+                // so we do not clobber it.
+                $localName = $originalName;
+                if (file_exists($finalPath)) {
+                    $pathInfo = pathinfo($originalName);
+                    $base     = $pathInfo['filename'];
+                    $ext      = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+                    $counter  = 1;
+                    do {
+                        $localName = $base . '_' . $counter . $ext;
+                        $finalPath = $inboundPath . '/' . $localName;
+                        $counter++;
+                    } while (file_exists($finalPath));
+                    $this->log("Inbound collision — saving as '{$localName}' instead of '{$originalName}'", 'DEBUG');
                 }
 
-                $this->filesReceived[] = $this->currentFile['name'];
-                $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
+                if (!rename($tmpPath, $finalPath)) {
+                    $this->log("Failed to rename temp file to final: {$localName}", 'ERROR');
+                }
+
+                $this->currentFile['name'] = $localName;
+                $this->filesReceived[] = $localName;
+                $this->log("File received: {$localName} ({$this->currentFile['received']} bytes)", 'INFO');
 
                 // If the received file is a Bark-style .req file, process it immediately
                 // and serve the requested files back in this same session.
@@ -1369,11 +1399,12 @@ class BinkpSession
                     }
                 }
 
-                // Send M_GOT
-                $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
+                // Send M_GOT — must use the original remote filename, not the
+                // locally deduplicated name, so the remote knows we accepted it.
+                $gotData = $originalName . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
                 $frame->writeToSocket($this->socket);
-                $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
+                $this->log("Sent M_GOT: {$originalName}", 'DEBUG');
 
                 $this->currentFile = null;
             }

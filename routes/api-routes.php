@@ -2074,7 +2074,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $isAdmin = !empty($user['is_admin']);
         $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
 
-        echo json_encode(['fileareas' => $fileareas]);
+        $privateArea = $userId ? $manager->getPrivateFileArea((int)$userId) : null;
+        if ($privateArea) {
+            $privateArea['_username'] = $user['username'] ?? '';
+        }
+
+        echo json_encode(['fileareas' => $fileareas, 'private_area' => $privateArea]);
     });
 
     SimpleRouter::get('/fileareas/{id}', function($id) {
@@ -2197,11 +2202,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $files = $manager->getFiles((int)$areaId);
+        // Optional subfolder filter. Pass ?subfolder= (empty string) to list root,
+        // or ?subfolder=incoming to list files in the 'incoming' subfolder.
+        // When not provided at all, behaves as root view (null = root).
+        $subfolderParam = isset($_GET['subfolder']) ? $_GET['subfolder'] : null;
+        // Treat empty string as null (root)
+        $subfolder = ($subfolderParam !== null && $subfolderParam !== '') ? $subfolderParam : null;
+
+        $subfolders = $manager->getSubfolders((int)$areaId);
+        $files = $manager->getFiles((int)$areaId, $subfolder);
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
 
-        echo json_encode(['files' => $files]);
+        echo json_encode([
+            'files'      => $files,
+            'subfolders' => $subfolders,
+            'subfolder'  => $subfolder,
+        ]);
     });
 
     SimpleRouter::get('/files/recent', function() {
@@ -2968,7 +2985,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
                 try {
                     $fileAreaManager = new \BinktermPHP\FileAreaManager();
-                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail');
+                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail', $userId ? (int)$userId : null);
                     $message['attachments'] = $attachments;
                 } catch (\Exception $e) {
                     $message['attachments'] = [];

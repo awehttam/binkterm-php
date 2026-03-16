@@ -21,6 +21,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
 - [FREQ File Pickup](#freq-file-pickup)
+- [Outbound FREQ (File Request)](#outbound-freq-file-request)
 - [Echomail Robots](#echomail-robots)
 - [Create Translation Catalog](#create-translation-catalog)
 - [Generate Ad](#generate-ad)
@@ -563,6 +564,54 @@ Options:
 The script resolves your local address from the same network as the destination
 so the remote system recognises you by the correct AKA. Any outbound packets
 queued for that node are also sent during the session.
+
+## Outbound FREQ (File Request)
+
+Requests one or more files from a remote binkp node. Two modes are supported:
+
+- **Default (.req file)** — builds a Bark-style `.req` file (FTS-0008) and
+  sends it to the remote node as a regular file transfer. The remote FREQ
+  handler processes the request and sends the files back, either in the same
+  session or the next time it connects. Use this with any FTN node.
+- **-g (M_GET / live-session)** — sends binkp `M_GET` commands during the
+  active session (FSP-1011). The remote must support binkp M_GET FREQ natively.
+  Use this when connecting to another BinktermPHP node or a known-compatible
+  system.
+
+Received files that are not FidoNet infrastructure files (`.pkt`, `.tic`,
+day-of-week bundles, etc.) are stored in the specified user's private file area
+under the **FREQ Responses** (`incoming`) subfolder. Infrastructure files are
+left in `data/inbound/` for `process_packets` to handle.
+
+```bash
+# Request a file by magic name (default .req mode)
+php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+
+# Request multiple files
+php scripts/freq_getfile.php 1:123/456 ALLFILES FILES
+
+# Store received files for a specific user
+php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
+
+# Use a session password
+php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
+
+# Use binkp M_GET (live-session FREQ)
+php scripts/freq_getfile.php -g 1:123/456 ALLFILES
+
+# Override hostname and port
+php scripts/freq_getfile.php --hostname=bbs.example.com --port=24554 1:123/456 ALLFILES
+```
+
+Options:
+- `-g` — Use binkp M_GET (live-session FREQ) instead of `.req` file
+- `--user=USERNAME` — Store received files for this user (default: first admin)
+- `--password=PASS` — Area password sent with the request
+- `--hostname=HOST` — Override hostname (skip nodelist/DNS lookup)
+- `--port=PORT` — Override port (default: `24554`)
+- `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default: `INFO`)
+- `--log-file=FILE` — Log file path (default: `data/logs/freq_getfile.log`)
+- `--no-console` — Suppress console output
 
 ## Echomail Robots
 

@@ -883,6 +883,17 @@ class MessageHandler
                     }
 
                     if ($recipientUser) {
+                        // Make a copy for the sender before moving the file to the recipient's area.
+                        $senderCopyPath = null;
+                        $senderIsDifferent = (int)$recipientUser['id'] !== (int)$fromUserId;
+                        if ($senderIsDifferent) {
+                            $senderCopyPath = $attachment['file_path'] . '.sendercopy';
+                            if (!copy($attachment['file_path'], $senderCopyPath)) {
+                                error_log("[NETMAIL] Failed to copy attachment for sender copy on message {$messageId}; sender will not have a copy.");
+                                $senderCopyPath = null;
+                            }
+                        }
+
                         try {
                             $fileAreaManager = new \BinktermPHP\FileAreaManager();
                             $fileAreaManager->storeNetmailAttachment(
@@ -895,6 +906,27 @@ class MessageHandler
                         } catch (\Exception $e) {
                             error_log("[NETMAIL] Failed to store local attachment for message {$messageId}: " . $e->getMessage());
                             @unlink($attachment['file_path']);
+                            @unlink($senderCopyPath);
+                            $senderCopyPath = null;
+                        }
+
+                        // Store a copy in the sender's private area
+                        if ($senderCopyPath !== null) {
+                            try {
+                                $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                                $fileAreaManager->storeNetmailAttachment(
+                                    (int)$fromUserId,
+                                    $senderCopyPath,
+                                    $attachment['filename'],
+                                    $messageId,
+                                    $originAddress,
+                                    'netmail_sent',
+                                    "Sent to {$toName}"
+                                );
+                            } catch (\Exception $e) {
+                                error_log("[NETMAIL] Failed to store sender copy for message {$messageId}: " . $e->getMessage());
+                                @unlink($senderCopyPath);
+                            }
                         }
                     } else {
                         error_log("[NETMAIL] Could not find recipient '{$toName}' for local attachment on message {$messageId}; file dropped.");

@@ -1964,6 +1964,7 @@ return [
     'ui.files.edit_success' => 'Archivo actualizado correctamente',
     'ui.files.previous_file' => 'Archivo anterior',
     'ui.files.next_file' => 'Archivo siguiente',
+    'ui.files.my_files' => 'Mis archivos',
     'ui.files.move_to_area' => 'Mover al área',
     'ui.files.active_share_exists' => 'Este archivo ya tiene un enlace compartido activo.',
     'ui.files.revoke_confirm' => 'Esta seguro de que desea revocar este enlace compartido? Cualquiera con el enlace ya no podra acceder.',

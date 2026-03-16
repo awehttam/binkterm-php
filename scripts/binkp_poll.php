@@ -108,6 +108,22 @@ try {
     
     $logger = new Logger($logFile, $logLevel, $logToConsole);
     $client = new BinkpClient($config, $logger);
+
+    /**
+     * Route any FREQ response files received during a session.
+     */
+    $routeFreqResponses = function(array $result) use ($logger): void {
+        if (empty($result['success']) || empty($result['files_received']) || empty($result['remote_address'])) {
+            return;
+        }
+        try {
+            $db     = \BinktermPHP\Database::getInstance()->getPdo();
+            $router = new \BinktermPHP\Freq\FreqResponseRouter($db, $logger);
+            $router->routeReceivedFiles($result['remote_address'], $result['files_received']);
+        } catch (\Exception $e) {
+            $logger->log('WARNING', "FREQ response routing failed: " . $e->getMessage());
+        }
+    };
     
     if (isset($args['all'])) {
         if (!$quiet) echo "Polling all configured uplinks...\n";
@@ -115,6 +131,7 @@ try {
         $results = $client->pollAllUplinks($queued_only);
         
         foreach ($results as $address => $result) {
+            $routeFreqResponses($result);
             if ($quiet) {
                 echo "{$address}: " . formatResult($result, true) . "\n";
             } else {
@@ -165,13 +182,14 @@ try {
             $password = isset($args['password']) ? $args['password'] : null;
             
             $result = $client->connect($address, $hostname, $port, $password);
-            
+            $routeFreqResponses($result);
+
             if ($quiet) {
                 echo formatResult($result, true) . "\n";
             } else {
                 echo formatResult($result);
             }
-            
+
             exit($result['success'] ? 0 : 1);
         }
         

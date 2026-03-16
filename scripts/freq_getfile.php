@@ -12,6 +12,12 @@
  * Use this only when connecting to another BinktermPHP node or a system
  * known to support binkp M_GET FREQ natively.
  *
+ * Received files that are not FidoNet infrastructure files (.pkt, .tic,
+ * day-of-week bundles, etc.) are assumed to be the FREQ response and are
+ * moved into the requesting user's private file area under an "incoming"
+ * subdirectory.  All other received files are left in data/inbound/ for
+ * process_packets to handle.
+ *
  * Usage:
  *   php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
  *
@@ -22,6 +28,7 @@
  *
  * Options:
  *   -g                Use binkp M_GET (live-session FREQ) instead of .req file
+ *   --user=USERNAME   Username to store received files for (default: first admin)
  *   --password=PASS   Area password required by the remote node
  *   --hostname=HOST   Override hostname (skip nodelist/DNS lookup)
  *   --port=PORT       Override port (default 24554)
@@ -32,8 +39,8 @@
  *
  * Examples:
  *   php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+ *   php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
  *   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
- *   php scripts/freq_getfile.php 1:123/456 FILES ALLFILES
  *   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET mode)
  */
 
@@ -45,6 +52,10 @@ require_once __DIR__ . '/../src/functions.php';
 use BinktermPHP\Binkp\Protocol\BinkpClient;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Database;
+use BinktermPHP\FileAreaManager;
+use BinktermPHP\Freq\FreqRequestTracker;
+use BinktermPHP\Freq\FreqResponseRouter;
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -62,6 +73,7 @@ Arguments:
 
 Options:
   -g                Use binkp M_GET (live-session FREQ) instead of .req file
+  --user=USERNAME   Username to store received FREQ files for (default: first admin)
   --password=PASS   Area password required by the remote node
   --hostname=HOST   Override hostname (bypass nodelist/DNS lookup)
   --port=PORT       Override port (default 24554)
@@ -72,8 +84,8 @@ Options:
 
 Examples:
   php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+  php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
-  php scripts/freq_getfile.php 1:123/456 FILES ALLFILES
   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET / live-session FREQ)
 
 USAGE;
@@ -100,7 +112,6 @@ function parseArgs(array $argv): array
                 $opts[substr($arg, 2)] = true;
             }
         } elseif (str_starts_with($arg, '-') && strlen($arg) === 2) {
-            // Short single-character flag (e.g. -g)
             $opts[substr($arg, 1)] = true;
         } else {
             $args[] = $arg;
@@ -111,10 +122,9 @@ function parseArgs(array $argv): array
 }
 
 /**
- * Strip @domain suffix from an FTN address and validate that zone:net/node
- * format is present.
+ * Strip @domain suffix from an FTN address and validate zone:net/node format.
  *
- * @throws \InvalidArgumentException if the address format is unrecognisable
+ * @throws \InvalidArgumentException
  */
 function normalizeAddress(string $address): string
 {
@@ -153,6 +163,34 @@ function buildReqFileContents(array $filenames, ?string $password): string
     return implode("\r\n", $lines) . "\r\n";
 }
 
+
+/**
+ * Resolve a username to a user record, or fall back to the first admin user.
+ *
+ * @return array{id:int,username:string}
+ * @throws \Exception if no suitable user can be found
+ */
+function resolveUser(\PDO $db, ?string $username): array
+{
+    if ($username !== null) {
+        $stmt = $db->prepare('SELECT id, username FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE');
+        $stmt->execute([$username]);
+        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$user) {
+            throw new \Exception("User not found or inactive: {$username}");
+        }
+        return $user;
+    }
+
+    // Default: first admin user (lowest id)
+    $stmt = $db->query('SELECT id, username FROM users WHERE is_admin = TRUE AND is_active = TRUE ORDER BY id ASC LIMIT 1');
+    $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$user) {
+        throw new \Exception("No active admin user found to assign FREQ files to. Use --user=USERNAME.");
+    }
+    return $user;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -173,9 +211,10 @@ if (count($args) < 2) {
 $rawAddress = array_shift($args);
 $filenames  = $args;
 $useGet     = isset($opts['g']);
-$password   = isset($opts['password']) ? (string)$opts['password'] : null;
-$hostname   = isset($opts['hostname']) ? (string)$opts['hostname'] : null;
-$port       = isset($opts['port'])     ? (int)$opts['port']        : null;
+$username   = isset($opts['user'])      ? (string)$opts['user']      : null;
+$password   = isset($opts['password'])  ? (string)$opts['password']  : null;
+$hostname   = isset($opts['hostname'])  ? (string)$opts['hostname']  : null;
+$port       = isset($opts['port'])      ? (int)$opts['port']         : null;
 $logLevel   = isset($opts['log-level']) ? strtoupper((string)$opts['log-level']) : 'INFO';
 $logFile    = isset($opts['log-file'])
     ? (string)$opts['log-file']
@@ -194,20 +233,18 @@ $mode   = $useGet ? 'M_GET (live-session)' : '.req file';
 $logger->log('INFO', "FREQ request [{$mode}]: node={$address}, files=" . implode(', ', $filenames));
 
 $reqTempFile = null;
+$exitCode    = 0;
 
 try {
     $config = BinkpConfig::getInstance();
     $client = new BinkpClient($config, $logger);
 
     if ($useGet) {
-        // M_GET mode: send binkp live-session FREQ commands
         foreach ($filenames as $filename) {
             $client->addFreqRequest($filename, $password);
             $logger->log('INFO', "Queued M_GET: {$filename}" . ($password !== null ? " (with password)" : ''));
         }
     } else {
-        // .req file mode: write a Bark-style request file and send it as a
-        // regular binkp file transfer.  The remote's FREQ handler processes it.
         $reqContents = buildReqFileContents($filenames, $password);
         $reqTempFile = sys_get_temp_dir() . '/freq_' . uniqid() . '.req';
         if (file_put_contents($reqTempFile, $reqContents) === false) {
@@ -218,31 +255,37 @@ try {
         $logger->log('DEBUG', "Contents:\n{$reqContents}");
     }
 
+    // Persist the request so a subsequent session can route the response files
+    // to the correct user even if the remote fulfils the request asynchronously.
+    $db      = Database::getInstance()->getPdo();
+    $user    = resolveUser($db, $username);
+    $tracker = new FreqRequestTracker($db);
+    $tracker->recordRequest($address, $filenames, (int)$user['id'], $useGet ? 'mget' : 'req');
+    $logger->log('INFO', "Recorded FREQ request for user: {$user['username']} (id={$user['id']})");
+
     $result = $client->connect($address, $hostname, $port);
 
-    if ($result['success']) {
+    if (!$result['success']) {
+        $error = $result['error'] ?? 'unknown error';
+        $logger->log('ERROR', "Session failed: {$error}");
+        fwrite(STDERR, "Session failed: {$error}\n");
+        $exitCode = 1;
+    } else {
         $received = $result['files_received'] ?? [];
-        if (!empty($received)) {
-            $logger->log('INFO', "Session complete. Files received: " . implode(', ', $received));
-            echo "Received " . count($received) . " file(s):\n";
-            foreach ($received as $f) {
-                echo "  {$f}\n";
-            }
-        } else {
+
+        if (empty($received)) {
             $logger->log('WARNING', "Session complete but no files were received.");
             echo "Session complete — no files received.\n";
             if ($useGet) {
                 echo "The remote may not support binkp M_GET FREQ, or the file is unavailable.\n";
             } else {
-                echo "The remote may process the .req asynchronously — files may arrive on next poll.\n";
+                echo "The remote may process the .req asynchronously — files will be routed on the next session.\n";
             }
+        } else {
+            $router = new FreqResponseRouter($db, $logger);
+            $router->routeReceivedFiles($address, $received);
+            echo "Session complete — received " . count($received) . " file(s).\n";
         }
-        $exitCode = 0;
-    } else {
-        $error = $result['error'] ?? 'unknown error';
-        $logger->log('ERROR', "Session failed: {$error}");
-        fwrite(STDERR, "Session failed: {$error}\n");
-        $exitCode = 1;
     }
 
 } catch (\Exception $e) {
@@ -250,10 +293,9 @@ try {
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
     $exitCode = 1;
 } finally {
-    // Clean up temp .req file regardless of outcome
     if ($reqTempFile !== null && file_exists($reqTempFile)) {
         unlink($reqTempFile);
     }
 }
 
-exit($exitCode ?? 1);
+exit($exitCode);

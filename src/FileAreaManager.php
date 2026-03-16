@@ -93,6 +93,22 @@ class FileAreaManager
     }
 
     /**
+     * Get the private file area for a user if it already exists.
+     * Does NOT create it — returns null when the user has no private area yet.
+     *
+     * @param int $userId
+     * @return array|null File area record or null
+     */
+    public function getPrivateFileArea(int $userId): ?array
+    {
+        $tag  = 'PRIVATE_USER_' . $userId;
+        $stmt = $this->db->prepare("SELECT * FROM file_areas WHERE tag = ? AND is_private = TRUE LIMIT 1");
+        $stmt->execute([$tag]);
+        $result = $stmt->fetch();
+        return $result ?: null;
+    }
+
+    /**
      * Get a single file area by ID
      *
      * @param int $id File area ID
@@ -392,21 +408,78 @@ class FileAreaManager
      * @param int $areaId File area ID
      * @return array Array of files
      */
-    public function getFiles(int $areaId): array
+    /**
+     * Get files in a file area, optionally filtered by subfolder.
+     *
+     * @param int         $areaId    File area ID
+     * @param string|null $subfolder Subfolder name, or NULL for root-level files only
+     * @param bool        $allDepths When true, return all files regardless of subfolder
+     * @return array
+     */
+    public function getFiles(int $areaId, ?string $subfolder = null, bool $allDepths = false): array
+    {
+        if ($allDepths) {
+            $sql = "
+                SELECT f.*, fa.tag as area_tag,
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                FROM files f
+                JOIN file_areas fa ON f.file_area_id = fa.id
+                LEFT JOIN shared_files sf ON sf.file_id = f.id
+                    AND sf.is_active = TRUE
+                    AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+                WHERE f.file_area_id = ? AND f.status = 'approved'
+                ORDER BY f.subfolder NULLS FIRST, f.created_at DESC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$areaId]);
+        } elseif ($subfolder === null) {
+            $sql = "
+                SELECT f.*, fa.tag as area_tag,
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                FROM files f
+                JOIN file_areas fa ON f.file_area_id = fa.id
+                LEFT JOIN shared_files sf ON sf.file_id = f.id
+                    AND sf.is_active = TRUE
+                    AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+                WHERE f.file_area_id = ? AND f.status = 'approved' AND f.subfolder IS NULL
+                ORDER BY f.created_at DESC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$areaId]);
+        } else {
+            $sql = "
+                SELECT f.*, fa.tag as area_tag,
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                FROM files f
+                JOIN file_areas fa ON f.file_area_id = fa.id
+                LEFT JOIN shared_files sf ON sf.file_id = f.id
+                    AND sf.is_active = TRUE
+                    AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+                WHERE f.file_area_id = ? AND f.status = 'approved' AND f.subfolder = ?
+                ORDER BY f.created_at DESC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$areaId, $subfolder]);
+        }
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Get distinct subfolders that exist within a file area.
+     *
+     * @param int $areaId File area ID
+     * @return string[] Sorted list of subfolder names (never includes NULL)
+     */
+    public function getSubfolders(int $areaId): array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag,
-                   CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
-            FROM files f
-            JOIN file_areas fa ON f.file_area_id = fa.id
-            LEFT JOIN shared_files sf ON sf.file_id = f.id
-                AND sf.is_active = TRUE
-                AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
-            WHERE f.file_area_id = ? AND f.status = 'approved'
-            ORDER BY f.created_at DESC
+            SELECT DISTINCT subfolder
+            FROM files
+            WHERE file_area_id = ? AND status = 'approved' AND subfolder IS NOT NULL
+            ORDER BY subfolder
         ");
         $stmt->execute([$areaId]);
-        return $stmt->fetchAll();
+        return array_column($stmt->fetchAll(\PDO::FETCH_ASSOC), 'subfolder');
     }
 
     /**
@@ -1042,7 +1115,7 @@ class FileAreaManager
         }
 
         $stmt = $this->db->prepare(
-            "UPDATE files SET file_area_id = ?, storage_path = ?, updated_at = NOW() WHERE id = ?"
+            "UPDATE files SET file_area_id = ?, storage_path = ?, subfolder = NULL, updated_at = NOW() WHERE id = ?"
         );
         $stmt->execute([$targetAreaId, $newPath, $fileId]);
 
@@ -1324,7 +1397,7 @@ class FileAreaManager
      * @return int File ID
      * @throws \Exception If storage fails
      */
-    public function storeNetmailAttachment(int $userId, string $filePath, string $filename, ?int $messageId, string $fromAddress): int
+    public function storeNetmailAttachment(int $userId, string $filePath, string $filename, ?int $messageId, string $fromAddress, string $sourceType = 'netmail_attachment', ?string $shortDescription = null): int
     {
         if (!file_exists($filePath)) {
             throw new \Exception("Attachment file not found: {$filePath}");
@@ -1337,12 +1410,13 @@ class FileAreaManager
         $fileSize = filesize($filePath);
         $fileHash = hash_file('sha256', $filePath);
 
-        // Create area directory if needed
-        $areaDir = $this->getAreaStorageDir($fileArea);
-        self::ensureDirectoryExists($areaDir);
+        // Store under an "attachments" subdirectory within the private area
+        $areaDir        = $this->getAreaStorageDir($fileArea);
+        $attachmentsDir = $areaDir . '/attachments';
+        self::ensureDirectoryExists($attachmentsDir);
 
         // Determine storage path (with versioning for duplicates)
-        $storagePath = $areaDir . '/' . $filename;
+        $storagePath = $attachmentsDir . '/' . $filename;
         $counter = 1;
         while (file_exists($storagePath)) {
             $pathInfo = pathinfo($filename);
@@ -1350,12 +1424,12 @@ class FileAreaManager
             if (isset($pathInfo['extension'])) {
                 $newFilename .= '.' . $pathInfo['extension'];
             }
-            $storagePath = $areaDir . '/' . $newFilename;
-            $filename = $newFilename;
+            $storagePath = $attachmentsDir . '/' . $newFilename;
+            $filename    = $newFilename;
             $counter++;
         }
 
-        // Move file from inbound to storage
+        // Move file from temp dir to storage
         if (!rename($filePath, $storagePath)) {
             throw new \Exception("Failed to move attachment file");
         }
@@ -1369,16 +1443,16 @@ class FileAreaManager
                 file_area_id, filename, filesize, file_hash, storage_path,
                 uploaded_from_address, source_type,
                 short_description, owner_id, message_id, message_type,
-                status, created_at
+                subfolder, status, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?,
-                ?, 'netmail_attachment',
+                ?, ?,
                 ?, ?, ?, 'netmail',
-                'approved', NOW()
+                'attachments', 'approved', NOW()
             ) RETURNING id
         ");
 
-        $shortDescription = "Netmail attachment from {$fromAddress}";
+        $shortDescription = $shortDescription ?? "Netmail attachment from {$fromAddress}";
 
         $stmt->execute([
             $fileArea['id'],
@@ -1387,6 +1461,7 @@ class FileAreaManager
             $fileHash,
             $storagePath,
             $fromAddress,
+            $sourceType,
             $shortDescription,
             $userId,
             $messageId,
@@ -1407,21 +1482,134 @@ class FileAreaManager
     }
 
     /**
-     * Get files attached to a message
+     * Store a file received via FREQ into the user's private file area under
+     * an "incoming" subdirectory.  Used by freq_getfile.php after a session.
+     *
+     * @param int    $userId      ID of the user who made the request
+     * @param string $filePath    Absolute path to the file (e.g. in data/inbound/)
+     * @param string $fromAddress FTN address of the node that sent the file
+     * @return int   Inserted file ID
+     * @throws \Exception on filesystem or database error
+     */
+    public function storeFreqIncoming(int $userId, string $filePath, string $fromAddress): int
+    {
+        if (!file_exists($filePath)) {
+            throw new \Exception("FREQ incoming file not found: {$filePath}");
+        }
+
+        $fileArea = $this->getOrCreatePrivateFileArea($userId);
+        $filename = basename($filePath);
+        $fileSize = filesize($filePath);
+        $fileHash = hash_file('sha256', $filePath);
+
+        // Store under an "incoming" subdirectory within the private area
+        $areaDir = $this->getAreaStorageDir($fileArea);
+        $incomingDir = $areaDir . '/incoming';
+        self::ensureDirectoryExists($incomingDir);
+
+        // Avoid filename collisions
+        $storagePath = $incomingDir . '/' . $filename;
+        $counter = 1;
+        while (file_exists($storagePath)) {
+            $pathInfo = pathinfo($filename);
+            $newFilename = $pathInfo['filename'] . '_' . $counter;
+            if (isset($pathInfo['extension'])) {
+                $newFilename .= '.' . $pathInfo['extension'];
+            }
+            $storagePath = $incomingDir . '/' . $newFilename;
+            $filename    = $newFilename;
+            $counter++;
+        }
+
+        if (!rename($filePath, $storagePath)) {
+            throw new \Exception("Failed to move FREQ file to private area: {$filePath}");
+        }
+
+        chmod($storagePath, 0664);
+        $storagePath = realpath($storagePath);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO files (
+                file_area_id, filename, filesize, file_hash, storage_path,
+                uploaded_from_address, source_type,
+                short_description, owner_id, subfolder,
+                status, created_at
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, 'freq_incoming',
+                ?, ?, 'incoming',
+                'approved', NOW()
+            ) RETURNING id
+        ");
+
+        $stmt->execute([
+            $fileArea['id'],
+            $filename,
+            $fileSize,
+            $fileHash,
+            $storagePath,
+            $fromAddress,
+            "FREQ download from {$fromAddress}",
+            $userId,
+        ]);
+
+        $fileId = $stmt->fetch()['id'];
+
+        $this->updateFileAreaStats($fileArea['id']);
+
+        return $fileId;
+    }
+
+    /**
+     * Get files attached to a message, filtered to what the viewer can access.
+     *
+     * When multiple copies of an attachment exist (e.g. sender copy + recipient copy),
+     * only the copy in an area the viewer can access is returned.  Private areas are
+     * only visible to their owner; public areas are visible to everyone.
      *
      * @param int $messageId Message ID
      * @param string $messageType 'netmail' or 'echomail'
+     * @param int|null $viewerUserId The ID of the user viewing the message (null = no filtering)
      * @return array Array of file records
      */
-    public function getMessageAttachments(int $messageId, string $messageType): array
+    public function getMessageAttachments(int $messageId, string $messageType, ?int $viewerUserId = null): array
     {
         $stmt = $this->db->prepare("
-            SELECT * FROM files
-            WHERE message_id = ? AND message_type = ?
-            ORDER BY created_at ASC
+            SELECT f.*, fa.is_private, fa.tag AS area_tag
+            FROM files f
+            JOIN file_areas fa ON fa.id = f.file_area_id
+            WHERE f.message_id = ? AND f.message_type = ?
+            ORDER BY f.created_at ASC
         ");
         $stmt->execute([$messageId, $messageType]);
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
+
+        if ($viewerUserId === null) {
+            return $rows;
+        }
+
+        // For each distinct original filename, prefer the copy the viewer can access.
+        // A viewer can access a file if:
+        //   - the area is public (is_private = false), OR
+        //   - the area tag matches their own private area (PRIVATE_USER_{viewerUserId})
+        $viewerPrivateTag = 'PRIVATE_USER_' . $viewerUserId;
+
+        $accessible = [];
+        $inaccessible = [];
+
+        foreach ($rows as $row) {
+            $isPrivate = ($row['is_private'] === true || $row['is_private'] === 't' || $row['is_private'] === '1' || $row['is_private'] === 1);
+            if (!$isPrivate || $row['area_tag'] === $viewerPrivateTag) {
+                $accessible[] = $row;
+            } else {
+                $inaccessible[] = $row;
+            }
+        }
+
+        // If we have at least one accessible copy, return only accessible copies.
+        // Fall back to all copies only when the viewer has no accessible copy at all
+        // (e.g. admin viewing a message between other users).
+        return !empty($accessible) ? $accessible : $rows;
     }
 
     /**

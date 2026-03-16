@@ -360,7 +360,6 @@
                     <label for="allfilesFilename" class="form-label">{{ t('ui.nodelist.request_allfiles_filename') }}</label>
                     <select class="form-select" id="allfilesFilename" onchange="toggleAllfilesFilenameOther()">
                         <option value="ALLFILES">ALLFILES</option>
-                        <option value="ALLFIX">ALLFIX</option>
                         <option value="FILES">FILES</option>
                         <option value="FILELIST">FILELIST</option>
                         <option value="NODELIST">NODELIST</option>
@@ -372,6 +371,7 @@
                 <div class="mb-3">
                     <label for="allfilesToName" class="form-label">{{ t('ui.nodelist.request_allfiles_to') }}</label>
                     <select class="form-select" id="allfilesToName" onchange="toggleAllfilesToNameOther()">
+                        <option value="AllFix">AllFix</option>
                         <option value="FileFix">FileFix</option>
                         <option value="FileMgr">FileMgr</option>
                         <option value="FileReq">FileReq</option>

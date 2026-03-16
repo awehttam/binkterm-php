@@ -2,6 +2,10 @@
 
 ⚠️ Make sure you've made a backup of your database and files before upgrading.
 
+⏳ This upgrade rebuilds trigram indexes on the message tables. On large
+message databases the migration step may take several minutes or more. The
+upgrade will appear to pause — this is normal. Do not interrupt it.
+
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
@@ -24,6 +28,9 @@
 - [Node Address Links](#node-address-links)
 - [Outbound FREQ (File Request)](#outbound-freq-file-request)
 - [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
+- [File Area Subfolder Navigation](#file-area-subfolder-navigation)
+- [Netmail Attachment Improvements](#netmail-attachment-improvements)
+- [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -31,72 +38,71 @@
 
 ## Summary of Changes
 
-- FTN node addresses shown in the From:/To: fields of netmail and echomail
-  messages are now clickable links to the nodelist node view page.
-- Node view page now shows an interactive dark map when the node has geocoded
-  coordinates.
-- Fixed: crashmail FILE_ATTACH netmails sent the garbled staged path as the
-  attachment filename instead of the actual filename from the subject line.
-- Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
-  the duplicate content hash check when the incoming file had the same content
-  as the file it was meant to replace.
-- FREQ response delivery now uses crashmail (direct) as the primary path and a
-  per-node hold directory (`data/outbound/hold/<address>/`) as the fallback.
-  Routed FILE_ATTACH (which hubs strip) is no longer used. Hold files are
-  delivered at the next binkp session regardless of which side initiates.
-- New `scripts/freq_pickup.php` — lets you connect outbound to a node to
-  collect FREQ files they have staged for you.
-- New `scripts/freq_getfile.php` — requests one or more files from a remote
-  node via binkp M_GET (FREQ). Received files land in `data/inbound/`.
-- Nodelist node view now has an **ALLFIX** option in the file request dropdown
-  alongside ALLFILES.
-- Nodelist flag badges and flag filter dropdown now show plain-English
-  descriptions for all standard flags.
-- BinkP now advertises the closest network AKA when connecting to a node that
-  is not a configured uplink, ensuring the remote system identifies you by the
-  correct address.
-- Crashmail delivery now writes structured logs to `data/logs/crashmail.log`
-  and respects the **preserve sent packets** setting.
-- Fixed: message reader sticky header was transparent in the default theme,
+**Message Reader**
+- Kludge lines are now hidden by default and toggled via a small icon button in
+  the modal header toolbar.
+- A print button opens the message in a clean popup window for printing.
+- FTN node addresses in From:/To: fields are now clickable links to the nodelist
+  node view page.
+- Echomail reader now transparently loads the next page when reaching the end of
+  a page. When the last message in an echo is reached, a prompt offers to
+  continue to the next subscribed echo with unread messages.
+- Fixed: sticky message reader header was transparent in the default theme,
   allowing message body text to bleed through.
-- Echomail reader now transparently loads the next page of messages when the
-  reader reaches the end of a page. When the last message in an echo is reached,
-  a confirmation prompt asks whether to continue to the next subscribed echo
-  with unread messages.
-- File area browser shows **Gemini** and **FREQ** capability badges next to
-  each area name, along with the area description.
-- Nodelist search supports a multi-select flag filter to narrow results by
-  nodelist flags (CM, IBN, INA, FREQ, etc.).
 
-- Added advanced message search with per-field filtering (poster name, subject,
-  message body) and date range support for both echomail and netmail.
-- Search performance significantly improved via trigram GIN indexes on subject
-  and message body columns.
-- Sysops can now edit artwork encoding metadata on any echomail message directly
-  from the message reader — no more manual SQL updates for misdetected art format
-  or encoding.
-- Netmail senders and receivers can similarly correct artwork encoding on their
-  own messages.
+**Echomail**
+- Advanced message search with per-field filtering (poster name, subject, body)
+  and date range support.
+- Search performance significantly improved via trigram GIN indexes.
+- Sysops can edit artwork encoding metadata directly from the message reader.
 - Fixed a false-positive PETSCII detection bug on import.
-- New admin **Database Statistics** page (`/admin/database-stats`) showing size
-  and growth, activity metrics, query performance, replication status, maintenance
-  health, and index health.
-- Added configurable file upload and file download credit costs/rewards in the
-  **Credits System Configuration** page.
-- Database performance improvements: new indexes on `mrc_outbound`, `users`,
-  `shared_messages`, and `saved_messages` eliminate millions of unnecessary
-  sequential scans. Chat notification polling rewritten to use primary key
-  index instead of full table count.
-- Kludge lines in the echomail and netmail message readers are now hidden by
-  default and toggled via a small icon button in the modal header toolbar.
-- A print button in the message reader opens the message in a clean popup
-  window for printing, with no modal chrome or page background.
-- New interactive nodelist map tab powered by Leaflet. Nodes are geocoded from
-  their location field and grouped by system name, with zone colour coding and
-  per-network popup detail. A CLI geocoding script (`scripts/geocode_nodelist.php`)
-  can be run manually or via cron to populate coordinates.
+
+**Netmail**
+- Netmail senders and receivers can correct artwork encoding on their own messages.
+- Fixed: crashmail FILE_ATTACH netmails sent the staged path as the attachment
+  filename instead of the actual filename from the subject line.
+
+**File Areas**
+- File area browser shows **Gemini** and **FREQ** capability badges next to each
+  area name, along with the area description.
+- Users now have a **My Files** entry in the sidebar giving direct access to their
+  private file area.
+- Virtual subfolder navigation within file areas, with named folders for netmail
+  attachments and FREQ responses.
+- Netmail attachment delivery now stores a copy in the sender's private area as
+  well as the recipient's.
+- Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
+  the duplicate content hash check when the incoming file had the same content as
+  the file it was meant to replace.
 - File areas can now be published to the Gemini capsule server. Gemini clients
   can browse area listings and download files directly over the Gemini protocol.
+
+**Nodelist**
+- New interactive map tab powered by Leaflet, with zone colour coding and marker
+  clustering. Nodes are geocoded from their location field.
+- Node view page shows an interactive dark map when the node has geocoded
+  coordinates.
+- Nodelist search supports a multi-select flag filter to narrow results by
+  nodelist flags (CM, IBN, INA, FREQ, etc.).
+- Flag badges and flag filter dropdown now show plain-English descriptions for
+  all standard flags.
+
+**BinkP / Crashmail**
+- BinkP now advertises the closest network AKA when connecting to a node that is
+  not a configured uplink.
+- Crashmail delivery now writes structured logs to `data/logs/crashmail.log` and
+  respects the **preserve sent packets** setting.
+- Experimental FREQ support (see [FREQ Enhancements](#freq-enhancements)).
+
+**Admin**
+- New **Database Statistics** page (`/admin/database-stats`) showing size and
+  growth, activity metrics, query performance, replication status, maintenance
+  health, and index health.
+- Configurable file upload and download credit costs/rewards in the **Credits
+  System Configuration** page.
+- Database performance improvements: new indexes on `mrc_outbound`, `users`,
+  `shared_messages`, and `saved_messages`. Chat notification polling rewritten to
+  use the primary key index instead of a full table count.
 
 ## Enhanced Message Search
 
@@ -405,6 +411,9 @@ A new database migration (`v1.11.0.20`) adds the `gemini_public` column to the
 
 ## FREQ Enhancements
 
+> **Note:** FREQ support in this release is experimental and sysop-only.
+> Compatibility with third-party BinkP implementations varies.
+
 ### Response Delivery
 
 FREQ responses are now delivered as FILE_ATTACH netmail via two paths:
@@ -426,28 +435,29 @@ netmail, making that approach unreliable.
 
 `setup.php` creates the `data/outbound/hold/` directory automatically.
 
-### FREQ File Pickup Script
+### Outbound FREQ Response Routing
 
-A new CLI script lets you connect outbound to a remote system to collect FREQ
-files they have staged for you (the "reverse crash" case):
+When `freq_getfile.php` sends a file request, the request is now persisted to a
+new `freq_requests_outbound` database table. When the remote node fulfils the
+request — whether in the same session or a later one — the received files are
+automatically matched against pending requests by node address and filename and
+routed to the requesting user's private file area.
 
-```bash
-php scripts/freq_pickup.php 1:123/456
-php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
-php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554 --password=secret
-```
+This means FREQ responses are handled correctly across all session types:
+inbound sessions (remote connects to deliver), outbound polls, and same-session
+delivery. Only files whose names exactly match a requested filename are routed;
+all other received files (netmail attachments, packets, etc.) are left in
+`data/inbound/` untouched.
 
-The script resolves the hostname from the nodelist if omitted, advertises your
-correct network AKA, and also sends any outbound packets queued for that node.
-See [CLI.md](CLI.md#freq-file-pickup) for full option reference.
+A new database migration (`v1.11.0.24`) creates the `freq_requests_outbound`
+table. This is applied automatically by `setup.php`.
 
 ### BinkP AKA Selection Fix
 
-When connecting to a node that is not a configured uplink (for example, via
-`freq_pickup.php`), BinktermPHP now selects the uplink whose network covers the
-destination address and advertises that uplink's `me` address in `M_ADR`. This
-ensures the remote system identifies you by the same AKA used in your original
-FREQ request rather than your primary zone address.
+When connecting to a node that is not a configured uplink, BinktermPHP now
+selects the uplink whose network covers the destination address and advertises
+that uplink's `me` address in `M_ADR`. This ensures the remote system
+identifies you by the correct AKA rather than your primary zone address.
 
 ## Nodelist Enhancements
 
@@ -485,13 +495,15 @@ php scripts/freq_getfile.php 1:123/456 ALLFILES --hostname=bbs.example.com --por
 ```
 
 The script resolves the hostname automatically from the nodelist or binkp zone
-DNS. Received files are saved to `data/inbound/`. See [CLI.md](CLI.md) for the
+DNS. Received files are stored in your private file area and are visible in the
+file browser under **My Files → FREQ Responses**. See [CLI.md](CLI.md) for the
 full option reference.
 
 ### Nodelist File Request Dialog
 
-The file request dropdown on the nodelist node view page now includes **ALLFIX**
-as a selectable magic name alongside ALLFILES, FILES, NODELIST, and NODEDIFF.
+The file request dialog on the nodelist node view page now includes **AllFix**
+as a selectable addressee alongside FileFix, FileMgr, FileReq, and Sysop.
+AllFix is a file area manager robot name, not a magic filename.
 
 ### ALLFILES.TXT Formatting
 
@@ -536,6 +548,77 @@ Next now shows a confirmation panel inside the message reader:
 The next/previous navigation buttons in the modal header now always display
 descriptive tooltips ("Next message", "Previous message", "Load next page",
 "End of echo").
+
+## File Area Subfolder Navigation
+
+The file browser now supports virtual subfolders within file areas. Subfolders
+appear as folder icons in the file listing and are navigable by clicking. A
+breadcrumb trail shows the current location and lets you return to the area
+root.
+
+**My Files sidebar entry:**
+
+Each user with a private file area now sees a **My Files** entry pinned at the
+top of the file area sidebar. Clicking it opens their own private area directly,
+without navigating the full area list.
+
+**Built-in subfolders:**
+
+- **`attachments`** — displayed as *Netmail Attachments*. Netmail file
+  attachments delivered to a user's private area are stored here automatically.
+- **`incoming`** — displayed as *FREQ Responses*. Files received in response
+  to outbound FREQ requests (`freq_getfile.php`) land here.
+
+Subfolders are a view-only concept — no physical subdirectories are created.
+The `subfolder` column on the `files` table stores the virtual path for each
+file record.
+
+A new database migration (`v1.11.0.22`) adds the `subfolder` column. This is
+applied automatically by `setup.php`.
+
+## Netmail Attachment Improvements
+
+### Sender Copy
+
+When a local netmail with a file attachment is delivered between two users on
+the same system, the sender now receives a copy of the attachment in their own
+private file area (under the `attachments` subfolder), tagged as
+`source_type = netmail_sent`. The recipient's copy is unchanged.
+
+Previously only the recipient received the file; the sender had no local copy.
+
+### Attachment Viewer Filtering
+
+When viewing a netmail that has attachments, each viewer now sees only the
+copy stored in an area they can access:
+
+- The **recipient** sees the file in their private area.
+- The **sender** sees their own sent copy.
+- If only one copy exists (e.g. historical messages from before this release),
+  the single copy is shown to both parties as before.
+
+### Duplicate Hash Constraint Removed
+
+The `UNIQUE(file_area_id, file_hash)` constraint on the `files` table has been
+replaced with a plain index. The unique constraint was causing INSERT failures
+when the same file was attached to more than one netmail in the same area (for
+example, a recurring attachment sent to the same recipient). The constraint
+provided no meaningful integrity guarantee in private areas and has been
+removed.
+
+A new database migration (`v1.11.0.23`) performs this change automatically via
+`setup.php`.
+
+## BinkP Inbound File Collision Handling
+
+When an inbound BinkP session delivers a file whose filename already exists in
+the `data/inbound/` directory, the new file is now saved with a numeric suffix
+(`filename_1.ext`, `filename_2.ext`, …) instead of silently overwriting the
+existing file. The `M_GOT` acknowledgement still uses the original remote
+filename as required by the BinkP protocol.
+
+Previously a collision would clobber the existing inbound file with no
+warning.
 
 ## Bug Fixes
 

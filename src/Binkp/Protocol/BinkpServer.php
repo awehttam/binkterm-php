@@ -192,6 +192,20 @@ class BinkpServer
 
                 if ($session->processSession()) {
                     $this->log("Session completed for {$clientIP} ({$connectionId})");
+
+                    // Route any FREQ response files to the requesting user's private area
+                    $filesReceived = $session->getFilesReceived();
+                    $remoteAddress = $session->getRemoteAddress();
+                    if (!empty($filesReceived) && $remoteAddress) {
+                        try {
+                            $db     = \BinktermPHP\Database::getInstance()->getPdo();
+                            $router = new \BinktermPHP\Freq\FreqResponseRouter($db, $this->logger);
+                            $router->routeReceivedFiles($remoteAddress, $filesReceived);
+                        } catch (\Exception $e) {
+                            $this->log("FREQ response routing failed: " . $e->getMessage(), 'WARNING');
+                        }
+                    }
+
                     try {
                         $client = new AdminDaemonClient();
                         $client->processPackets();
