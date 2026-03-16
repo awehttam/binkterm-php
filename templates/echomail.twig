@@ -3,18 +3,20 @@
 {% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if echoarea %} - {{ echoarea }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>
-        <i class="fas fa-comments"></i>
-        {{ t('ui.echomail.title', {}, locale, ['common']) }}
-        {% if echoarea %}
-            <small class="text-muted">/ {{ echoarea }}</small>
-        {% endif %}
-    </h2>
-    <button class="btn btn-fidonet" onclick="composeMessage('echomail')">
-        <i class="fas fa-plus"></i>
-        {{ t('ui.echomail.post_message', {}, locale, ['common']) }}
-    </button>
+<!-- Echo area info bar: description + subscribe toggle + post (desktop only, visible only when an echo is selected) -->
+<div id="echoInfoBar" class="d-none mb-3">
+    <div class="d-flex align-items-start justify-content-between gap-3 px-3 py-2 border rounded">
+        <div class="d-flex flex-column" style="min-width:0">
+            <strong id="echoTitle" class="text-warning small"></strong>
+            <small id="echoDescription" class="text-muted"></small>
+        </div>
+        <div class="d-flex flex-column gap-1 flex-shrink-0">
+            <button class="btn btn-sm" id="echoSubscribeBtn" onclick="toggleSubscription()"></button>
+            <button class="btn btn-sm btn-outline-primary" onclick="composeMessage('echomail')">
+                {{ t('ui.echomail.post_message', {}, locale, ['common']) }}
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- Mobile Controls -->
@@ -38,10 +40,10 @@
                 <div class="accordion-body">
                     <div class="d-flex gap-2 mb-2">
                         <a href="/echolist" class="btn btn-sm btn-outline-primary flex-fill">
-                            <i class="fa-solid fa-list me-1"></i> {{ t('ui.echomail.echo_list', {}, locale, ['common']) }}
+                            <i class="fa-solid fa-list me-1"></i> {{ t('ui.echomail.full_echo_list', {}, locale, ['common']) }}
                         </a>
                         <a href="/subscriptions" class="btn btn-sm btn-outline-secondary flex-fill">
-                            <i class="fa-solid fa-wrench me-1"></i> {{ t('ui.common.manage', {}, locale, ['common']) }}
+                            <i class="fa-solid fa-star me-1"></i> {{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}
                         </a>
                     </div>
                     <input type="text" class="form-control form-control-sm mb-2" id="mobileEchoareaSearchInput"

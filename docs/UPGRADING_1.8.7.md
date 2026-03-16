@@ -22,6 +22,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Nodelist Map](#nodelist-map)
 - [Message Reader Improvements](#message-reader-improvements)
 - [Echomail Reader Navigation](#echomail-reader-navigation)
+- [Echomail Info Bar](#echomail-info-bar)
 - [Gemini File Areas](#gemini-file-areas)
 - [FREQ Enhancements](#freq-enhancements)
 - [Nodelist Enhancements](#nodelist-enhancements)
@@ -31,12 +32,12 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
 - [File Preview](#file-preview)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
+  - [Behaviour](#behaviour)
   - [Creating an ISO area](#creating-an-iso-area)
   - [Import preview](#import-preview)
   - [Catalogue formats](#catalogue-formats)
   - [Subfolder navigation](#subfolder-navigation)
   - [Importing files (CLI)](#importing-files-cli)
-  - [Behaviour](#behaviour)
   - [Migration](#migration)
 - [Global File Search](#global-file-search)
 - [Page Position Memory](#page-position-memory)
@@ -45,6 +46,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
+  - [Subscription Toggle in Echomail Reader](#subscription-toggle-in-echomail-reader)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -78,6 +80,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   for the netmail inbox, and restored automatically on return.
 
 **Echomail**
+- An info bar now appears above the message list when an echo area is selected,
+  showing the area tag, domain, and description alongside Subscribe/Unsubscribe
+  and Post Message buttons.
+- The echomail page title header has been replaced by the info bar.
 - Advanced message search with per-field filtering (poster name, subject, body)
   and date range support.
 - Search performance significantly improved via trigram GIN indexes.
@@ -109,12 +115,13 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - File areas can now be published to the Gemini capsule server. Gemini clients
   can browse area listings and download files directly over the Gemini protocol.
 - **ISO-backed file areas** — a file area can now be backed by a CD/DVD ISO
-  image (or any readable directory). The sysop mounts the ISO using any
-  suitable method and enters the mount point path in the file area properties.
+  image, a physical CD/DVD drive, or any readable directory. The sysop enters
+  the mount point path in the file area properties.
   Files are imported from the ISO's directory tree using `FILES.BBS`,
   `DESCRIPT.ION`, `00INDEX.TXT`, `00_INDEX.TXT` (Simtel block format), or
-  `INDEX.TXT` catalogues. ISO areas are read-only; description edits are
-  stored in the database. The directory tree is exposed as browsable subfolders
+  `INDEX.TXT` catalogues. ISO areas are read-only — uploads, renames, and
+  moves are blocked; only descriptive information (short/long description,
+  subfolder labels) can be edited, and those edits are stored in the database. The directory tree is exposed as browsable subfolders
   with editable labels. A preview modal lets sysops review and customise the
   import before committing. ZIP files inside the ISO show `FILE_ID.DIZ` in the
   preview modal. Partial imports (selecting child directories without their
@@ -127,7 +134,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 
 
 **Nodelist**
-- New interactive map tab powered by Leaflet, with zone colour coding and marker
+- New interactive map tab powered by Leaflet, with network colour coding and marker
   clustering. Nodes are geocoded from their location field.
 - Node view page shows an interactive dark map when the node has geocoded
   coordinates.
@@ -375,9 +382,9 @@ dense areas readable.
 - Nodes with the same system name (across multiple networks) are grouped into a
   single marker. The popup shows all networks the system belongs to, including
   the FTN address and a "Send Netmail" link.
-- Markers are colour coded by zone (Z1 = blue, Z2 = green, Z3 = amber,
-  Z4 = red, Z5 = purple, Z6 = teal). Systems on multiple zones use gold.
-  A legend is displayed in the bottom-right corner of the map.
+- Markers are colour coded by the network the node belongs to. Systems on
+  multiple networks use a distinct colour. A legend is displayed in the
+  bottom-right corner of the map.
 - Map data loads lazily — only fetched when the Map tab is first opened.
 
 **Geocoding:**
@@ -389,7 +396,7 @@ php scripts/geocode_nodelist.php
 ```
 
 Options:
-- `--limit=N` — process at most N nodes (default: 100 per run)
+- `--limit=N` — process at most N nodes (default: all pending)
 - `--force` — re-geocode nodes that already have coordinates
 - `--dry-run` — show what would be geocoded without making any changes
 
@@ -401,7 +408,7 @@ Run it once after upgrading to seed initial coordinates, then add it to cron
 to pick up newly imported nodes:
 
 ```
-0 3 * * * php /path/to/scripts/geocode_nodelist.php --limit=200
+0 1 * * 6 php /path/to/scripts/geocode_nodelist.php
 ```
 
 Geocoding requires the `BBS_DIRECTORY_GEOCODING_ENABLED` environment variable
@@ -624,7 +631,6 @@ without navigating the full area list.
 - **`incoming`** — displayed as *FREQ Responses*. Files received in response
   to outbound FREQ requests (`freq_getfile.php`) land here.
 
-Subfolders are a view-only concept — no physical subdirectories are created.
 The `subfolder` column on the `files` table stores the virtual path for each
 file record.
 
@@ -659,8 +665,25 @@ No configuration or migration is required for this feature.
 
 A file area can now be backed by a CD/DVD ISO image on the server, allowing
 sysops to expose large shareware CD collections (Simtel, Walnut Creek, etc.)
-without copying files to local storage. Plain directories work too — the
-system only requires a readable path in the **Mount Point** field.
+without copying files to local storage. Physical CD/DVD drives also work —
+anything the OS can mount and expose as a directory path is supported. Plain
+directories work too — the system only requires a readable path in the
+**Mount Point** field.
+
+> **Note:** CD/DVD jukeboxes and changers are not supported. The mount point
+> must be a single, consistently accessible path. Media that changes or goes
+> offline will cause file requests to return 503 until the path is accessible
+> again.
+
+### Behaviour
+
+- ISO areas are **read-only** — uploads, renames, and moves are blocked.
+  Admin file deletion removes the database record only; no disk change is made.
+- Descriptive information (short/long description, subfolder labels) can always
+  be edited and is stored in the database.
+- If the mount point is not accessible when a file is requested, the server
+  returns 503.
+- ZIP files inside the ISO display `FILE_ID.DIZ` in the preview modal.
 
 ### Creating an ISO area
 
@@ -735,16 +758,6 @@ php scripts/import_iso.php --area=<id> [--update] [--dry-run] [--verbose]
 Files are imported from `FILES.BBS` / `DESCRIPT.ION` catalogues found in each
 directory. If no catalogue is present, the filename is used as the description.
 
-### Behaviour
-
-- ISO areas are **read-only** — uploads and moves are blocked; admin file
-  deletion removes the database record only (no disk change).
-- Description edits (short/long description) are stored in the database and
-  are always permitted.
-- If the mount point is not accessible when a file is requested, the server
-  returns 503.
-- ZIP files inside the ISO display `FILE_ID.DIZ` in the preview modal.
-
 ### Migration
 
 This feature requires database migrations. Run `php scripts/setup.php` as
@@ -761,7 +774,7 @@ areas.
 to that area), Description, Size, Uploaded date, Info button, Download button.
 
 Results are limited to 100 entries ordered by area tag then filename.
-Password-protected areas are excluded unless the session has them unlocked.
+Private areas belonging to other users are excluded.
 
 ### Search indexes
 
@@ -769,10 +782,6 @@ Migration `v1.11.0.27` enables the `pg_trgm` PostgreSQL extension and creates
 GIN trigram indexes on `files.filename` and `files.short_description`. These
 indexes make `ILIKE '%term%'` queries fast regardless of how many files are in
 the database.
-
-**On large file databases the index build may take a minute or two.** The
-upgrade will appear to pause at this migration step — this is normal. Do not
-interrupt it.
 
 ## Page Position Memory
 
@@ -875,6 +884,16 @@ Content** disabled, TIC imports of updated files with the same content as the
 existing file were rejected by the duplicate hash check before the replacement
 logic could run. Fixed — when replacing a file by name, a hash match for that
 same filename is now allowed through so the replacement proceeds.
+
+### Subscription Toggle in Echomail Reader
+
+The subscribe/unsubscribe button in the echomail info bar was not updating after
+being clicked. `SubscriptionController` was not setting a `Content-Type:
+application/json` response header, causing jQuery to treat the response body as
+plain text rather than JSON. As a result `data.success` was always `undefined`
+and the success branch never ran. Fixed by adding the missing header in
+`SubscriptionController::handleUserSubscriptions()` and adding `dataType: 'json'`
+to the `$.ajax` call in `echomail.js`.
 
 ## Upgrade Instructions
 

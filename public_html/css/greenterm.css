@@ -997,8 +997,11 @@ a:hover {
     color: var(--term-green);
 }
 
-.list-group-item:hover {
+.list-group-item:hover,
+.list-group-item-action:hover,
+.list-group-item-action:focus {
     background-color: var(--term-black-light);
+    color: var(--term-green);
 }
 
 .list-group-item.active {
@@ -1500,4 +1503,35 @@ tbody, td, tfoot, th, thead, tr {
     --bs-table-hover-bg: rgba(51, 255, 51, 0.13);
     background-color: rgba(51, 255, 51, 0.08) !important;
     color: var(--text-color) !important;
+}
+
+/* Accordion */
+.accordion-item {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+}
+
+.accordion-button {
+    background-color: var(--term-black-light);
+    color: var(--term-green);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--term-black-lighter);
+    color: var(--term-green-bright);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(51, 255, 51, 0.25);
+    border-color: var(--term-green);
+}
+
+.accordion-button::after {
+    filter: invert(1) sepia(1) saturate(5) hue-rotate(90deg);
+}
+
+.accordion-body {
+    background-color: var(--term-black);
+    color: var(--term-green);
 }

@@ -16,6 +16,8 @@ let currentRenderMode = 'auto';
 let keyboardHelpVisible = false;
 let allEchoareas = [];
 let echoareaSearchQuery = '';
+let currentEchoareaData = null;  // area object for the currently viewed echo
+let allEchoareasCache = null;    // lazy full-list cache for unsubscribed area lookups
 let searchResultCounts = null;
 let searchFilterCounts = null;
 let originalFilterCounts = null;
@@ -156,11 +158,127 @@ function loadEchoareas() {
         .done(function(data) {
             allEchoareas = data.echoareas;
             applyEchoareaFilter();
+            updateEchoInfoBar();
         })
         .fail(function() {
             $('#echoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
             $('#mobileEchoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
         });
+}
+
+/**
+ * Update the echo info bar (description + subscribe button) for the current echo.
+ * If no echo is selected the bar is hidden.
+ */
+function updateEchoInfoBar() {
+    if (!currentEchoarea) {
+        $('#echoInfoBar').addClass('d-none');
+        currentEchoareaData = null;
+        return;
+    }
+
+    // Look for the area in the already-loaded subscribed list
+    currentEchoareaData = null;
+    if (allEchoareas) {
+        for (const area of allEchoareas) {
+            const fullTag = area.domain ? `${area.tag}@${area.domain}` : area.tag;
+            if (fullTag === currentEchoarea) {
+                currentEchoareaData = area;
+                break;
+            }
+        }
+    }
+
+    if (currentEchoareaData) {
+        renderEchoInfoBar(currentEchoareaData, true);
+    } else {
+        // Area not in subscribed list — lazy-fetch all areas to get description + ID
+        if (allEchoareasCache) {
+            const found = allEchoareasCache[currentEchoarea] || null;
+            currentEchoareaData = found;
+            renderEchoInfoBar(found, false);
+        } else {
+            // Show bar immediately with spinner while fetching
+            $('#echoDescription').text('');
+            $('#echoSubscribeBtn').prop('disabled', true).text('...');
+            $('#echoInfoBar').removeClass('d-none');
+
+            $.get('/api/echoareas').done(function(data) {
+                allEchoareasCache = {};
+                (data.echoareas || []).forEach(function(area) {
+                    const fullTag = area.domain ? `${area.tag}@${area.domain}` : area.tag;
+                    allEchoareasCache[fullTag] = area;
+                });
+                const found = allEchoareasCache[currentEchoarea] || null;
+                currentEchoareaData = found;
+                renderEchoInfoBar(found, false);
+            }).fail(function() {
+                renderEchoInfoBar(null, false);
+            });
+        }
+    }
+}
+
+/**
+ * Render the info bar contents given an area object and subscription state.
+ * @param {object|null} area  Area data (may be null for unknown areas)
+ * @param {boolean}     subscribed
+ */
+function renderEchoInfoBar(area, subscribed) {
+    const title       = area ? (area.domain ? `${area.tag}@${area.domain}` : (area.tag || '')) : '';
+    const description = area ? (area.description || '') : '';
+    const areaId      = area ? area.id : null;
+
+    $('#echoTitle').text(title);
+    $('#echoDescription').text(description);
+
+    const btn = $('#echoSubscribeBtn');
+    btn.prop('disabled', false).attr('data-area-id', areaId || '').attr('data-subscribed', subscribed ? '1' : '0');
+
+    if (subscribed) {
+        btn.removeClass('btn-outline-success').addClass('btn-outline-secondary')
+           .html(`<i class="fas fa-star me-1"></i>${uiT('ui.echomail.unsubscribe', 'Unsubscribe')}`);
+    } else {
+        btn.removeClass('btn-outline-secondary').addClass('btn-outline-success')
+           .html(`<i class="far fa-star me-1"></i>${uiT('ui.echomail.subscribe', 'Subscribe')}`);
+    }
+
+    $('#echoInfoBar').removeClass('d-none');
+}
+
+/**
+ * Toggle subscription for the currently viewed echo area.
+ */
+function toggleSubscription() {
+    const btn        = $('#echoSubscribeBtn');
+    const areaId     = parseInt(btn.attr('data-area-id'));
+    const subscribed = btn.attr('data-subscribed') === '1';
+
+    if (!areaId) return;
+
+    const action = subscribed ? 'unsubscribe' : 'subscribe';
+    btn.prop('disabled', true);
+
+    $.ajax({
+        url: '/api/subscriptions/user',
+        method: 'POST',
+        contentType: 'application/json',
+        dataType: 'json',
+        data: JSON.stringify({ action: action, echoarea_id: areaId }),
+        success: function(data) {
+            if (data.success) {
+                // Update button immediately, then reload sidebar in background
+                renderEchoInfoBar(currentEchoareaData, !subscribed);
+                allEchoareasCache = null;
+                loadEchoareas();
+            } else {
+                btn.prop('disabled', false);
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false);
+        }
+    });
 }
 
 function searchEchoareas(query) {
@@ -291,20 +409,13 @@ function displayMobileEchoareas(echoareas) {
 
 function selectEchoarea(tag) {
     currentEchoarea = tag;
+    updateEchoInfoBar();
     const memKey = tag || '__all__';
     currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
 
     // Update URL without page reload
     const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
     history.pushState({echoarea: tag}, '', url);
-
-    // Update title - strip domain for display
-    const displayTag = tag && tag.includes('@') ? tag.split('@')[0] : tag;
-    const title = displayTag ? `Echomail - ${displayTag}` : 'Echomail';
-    $('h2 small').remove();
-    if (displayTag) {
-        $('h2').append(`<small class="text-muted">/ ${displayTag}</small>`);
-    }
 
     // Update mobile accordion text
     updateMobileAccordionText(tag);

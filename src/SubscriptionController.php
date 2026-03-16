@@ -41,7 +41,8 @@ class SubscriptionController
         $userId = $user['user_id'] ?? $user['id'];
 
         $method = $_SERVER['REQUEST_METHOD'];
-        
+        header('Content-Type: application/json');
+
         if ($method === 'GET') {
             // Get user's subscription status for all echoareas
             $echoareas = $this->subscriptionManager->getAllEchoareasWithSubscriptionStatus($userId);

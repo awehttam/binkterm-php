@@ -1862,6 +1862,8 @@ return [
     'ui.echomail.viewing_prefix' => 'Viendo:',
     'ui.echomail.viewing_all' => 'Viendo: Todos los mensajes',
     'ui.echomail.echo_list' => 'Lista de ecos',
+    'ui.echomail.full_echo_list' => 'Lista completa de ecos',
+    'ui.echomail.manage_subscriptions' => 'Gestionar suscripciones',
     'ui.echomail.search_areas_placeholder' => 'Buscar areas...',
     'ui.echomail.loading_areas' => 'Cargando areas...',
     'ui.echomail.recent_messages' => 'Mensajes recientes',
@@ -2757,6 +2759,8 @@ return [
     'ui.echomail.end_of_echo_go' => 'Ir a {echo}',
     'ui.echomail.end_of_echo_no_next' => 'No tienes mas mensajes sin leer.',
     'ui.echomail.end_of_echo_next_btn_title' => 'Fin del eco',
+    'ui.echomail.subscribe' => 'Suscribirse',
+    'ui.echomail.unsubscribe' => 'Cancelar suscripción',
     'ui.common.db_id' => 'ID de base de datos',
     'ui.common.message_id' => 'ID de mensaje',
 

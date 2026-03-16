@@ -1862,6 +1862,8 @@ return [
     'ui.echomail.viewing_prefix' => 'Viewing:',
     'ui.echomail.viewing_all' => 'Viewing: All Messages',
     'ui.echomail.echo_list' => 'Echo List',
+    'ui.echomail.full_echo_list' => 'Full Echo List',
+    'ui.echomail.manage_subscriptions' => 'Manage Subscriptions',
     'ui.echomail.search_areas_placeholder' => 'Search areas...',
     'ui.echomail.loading_areas' => 'Loading areas...',
     'ui.echomail.recent_messages' => 'Recent Messages',
@@ -2757,6 +2759,8 @@ return [
     'ui.echomail.end_of_echo_go' => 'Go to {echo}',
     'ui.echomail.end_of_echo_no_next' => 'You have no more unread messages.',
     'ui.echomail.end_of_echo_next_btn_title' => 'End of echo',
+    'ui.echomail.subscribe' => 'Subscribe',
+    'ui.echomail.unsubscribe' => 'Unsubscribe',
     'ui.common.db_id' => 'DB ID',
     'ui.common.message_id' => 'Message ID',
 
