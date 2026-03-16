@@ -1788,10 +1788,12 @@ function showEndOfEchoPrompt(nextEcho) {
 
     if (nextEcho) {
         const nextDisplayTag = nextEcho.tag.includes('@') ? nextEcho.tag.split('@')[0] : nextEcho.tag;
+        // Build full tag including domain so selectEchoarea hits the correct API path
+        const nextFullTag = nextEcho.domain ? `${nextEcho.tag}@${nextEcho.domain}` : nextEcho.tag;
         bodyHtml += `
             <p class="text-muted">${uiT('ui.echomail.end_of_echo_next_prompt', 'Continue to {echo}?').replace('{echo}', `<strong>${escapeHtml(nextDisplayTag)}</strong>`)}</p>
             <div class="d-flex justify-content-center gap-2 mt-3">
-                <button class="btn btn-primary" onclick="proceedToNextEcho(${escapeHtml(JSON.stringify(nextEcho.tag))})">
+                <button class="btn btn-primary" onclick="proceedToNextEcho(${escapeHtml(JSON.stringify(nextFullTag))})">
                     <i class="fas fa-arrow-right me-1"></i>${uiT('ui.echomail.end_of_echo_go', 'Go to {echo}').replace('{echo}', escapeHtml(nextDisplayTag))}
                 </button>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">
@@ -1851,7 +1853,7 @@ function findNextUnreadEcho() {
             if (bareAreaTag === bareCurrentTag) foundCurrent = true;
             continue;
         }
-        if ((area.unread_count || 0) > 0) {
+        if ((area.unread_count || 0) > 0 && (area.message_count || 0) > 0) {
             return area;
         }
     }
