@@ -1839,13 +1839,16 @@ function proceedToNextEcho(tag) {
 function findNextUnreadEcho() {
     if (!allEchoareas || allEchoareas.length === 0) return null;
 
-    const currentTag = currentEchoarea || null;
-    let foundCurrent = (currentTag === null); // if "All Messages", start from beginning
+    // currentEchoarea may be "TAG@domain"; area.tag from the API is bare "TAG".
+    // Normalise both to bare tag for comparison.
+    const bareCurrentTag = currentEchoarea ? currentEchoarea.split('@')[0] : null;
+    let foundCurrent = (bareCurrentTag === null); // if "All Messages", start from beginning
 
     for (let i = 0; i < allEchoareas.length; i++) {
         const area = allEchoareas[i];
+        const bareAreaTag = (area.tag || '').split('@')[0];
         if (!foundCurrent) {
-            if (area.tag === currentTag) foundCurrent = true;
+            if (bareAreaTag === bareCurrentTag) foundCurrent = true;
             continue;
         }
         if ((area.unread_count || 0) > 0) {
