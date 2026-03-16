@@ -2607,27 +2607,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if ($ext === 'zip') {
             $zip = new ZipArchive();
             if ($zip->open($storagePath) === true) {
+                // Determine search prefix: if no files exist at the true root
+                // (e.g. GitHub-style archives with a single top-level directory),
+                // look one level deep inside that directory instead.
+                $hasRootFiles = false;
+                $topDirs      = [];
                 for ($i = 0; $i < $zip->numFiles; $i++) {
-                    $entryName = $zip->getNameIndex($i);
-                    if (strtolower(basename($entryName)) === 'file_id.diz') {
+                    $n = $zip->getNameIndex($i);
+                    if (str_ends_with($n, '/')) {
+                        continue; // directory entry
+                    }
+                    $parts = explode('/', $n);
+                    if (count($parts) === 1) {
+                        $hasRootFiles = true;
+                        break;
+                    }
+                    $topDirs[$parts[0]] = true;
+                }
+
+                $prefix = '';
+                if (!$hasRootFiles && count($topDirs) === 1) {
+                    $prefix = array_key_first($topDirs) . '/';
+                }
+
+                $dizContent = null;
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $entryName  = $zip->getNameIndex($i);
+                    $entryLower = strtolower($entryName);
+                    if ($entryLower === strtolower($prefix) . 'file_id.diz') {
                         $dizContent = $zip->getFromIndex($i);
-                        $zip->close();
-                        if ($dizContent !== false) {
-                            $converted = @iconv('CP437', 'UTF-8//IGNORE', $dizContent);
-                            if ($converted !== false && strlen($converted) > 0) {
-                                $dizContent = $converted;
-                            }
-                            header('Content-Type: text/plain; charset=utf-8');
-                            header('Content-Disposition: inline; filename="FILE_ID.DIZ"');
-                            header('X-Content-Type-Options: nosniff');
-                            header('Cache-Control: private, max-age=3600');
-                            echo $dizContent;
-                            exit;
-                        }
                         break;
                     }
                 }
                 $zip->close();
+
+                if ($dizContent !== false && $dizContent !== null) {
+                    if (!mb_check_encoding($dizContent, 'UTF-8')) {
+                        $converted = @iconv('CP437', 'UTF-8//IGNORE', $dizContent);
+                        if ($converted !== false && strlen($converted) > 0) {
+                            $dizContent = $converted;
+                        }
+                    }
+                    header('Content-Type: text/plain; charset=utf-8');
+                    header('Content-Disposition: inline; filename="FILE_ID.DIZ"');
+                    header('X-Content-Type-Options: nosniff');
+                    header('Cache-Control: private, max-age=3600');
+                    echo $dizContent;
+                    exit;
+                }
             }
             // Fall through to octet-stream download if no FILE_ID.DIZ found
         }
