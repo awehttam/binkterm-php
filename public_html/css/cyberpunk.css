@@ -1092,14 +1092,15 @@ a:hover {
 
 .breadcrumb-item a {
     color: var(--cyber-cyan);
+    text-shadow: 0 0 6px var(--cyber-cyan);
 }
 
 .breadcrumb-item.active {
-    color: var(--text-color-muted);
+    color: var(--text-color);
 }
 
 .breadcrumb-item + .breadcrumb-item::before {
-    color: var(--cyber-purple);
+    color: var(--cyber-cyan-dim);
 }
 
 /* Cursor styling for inputs */

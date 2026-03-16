@@ -962,7 +962,7 @@ function buildBreadcrumb(subfolder, label) {
         const segLabel = isLast ? (label || subfolderLabel(path)) : subfolderLabel(part);
         if (isLast) {
             items += `
-                <li class="breadcrumb-item fw-semibold text-body" aria-current="page">
+                <li class="breadcrumb-item fw-semibold" aria-current="page">
                     <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(segLabel)}
                 </li>
             `;
