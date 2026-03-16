@@ -43,6 +43,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
+  - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -507,6 +508,12 @@ selects the uplink whose network covers the destination address and advertises
 that uplink's `me` address in `M_ADR`. This ensures the remote system
 identifies you by the correct AKA rather than your primary zone address.
 
+This fix now applies to **crashmail delivery** as well. Previously, crashmail
+sessions created a raw BinkP session without an uplink context, causing the
+primary AKA to be advertised to all remote hosts regardless of network. This
+resulted in "Bad password" rejections when delivering to nodes that are uplinks
+for one network but not for the zone associated with your primary address.
+
 ## Nodelist Enhancements
 
 ### Flag Filter
@@ -826,6 +833,15 @@ Previously a collision would clobber the existing inbound file with no
 warning.
 
 ## Bug Fixes
+
+### Crashmail AKA Selection
+
+Crashmail delivery was presenting the primary (zone 1) AKA to all remote hosts,
+even when the destination node is only an uplink for a different network. The
+remote system would reject the session with "Bad password" because it had no
+password configured for that address. Fixed — crashmail sessions now select the
+correct AKA for the destination's network, matching the behaviour already in
+place for other outbound BinkP connections.
 
 ### Crashmail FILE_ATTACH Filename
 

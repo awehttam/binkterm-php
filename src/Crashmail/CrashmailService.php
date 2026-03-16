@@ -497,6 +497,18 @@ class CrashmailService
             $session->setSessionType('crash_outbound');
             $session->setUplinkPassword($password);
 
+            // Set the uplink context so the session advertises only the AKA that
+            // belongs to the network handling this destination, rather than all AKAs.
+            // Without this, the primary (e.g. zone 1 FidoNet) address is presented to
+            // hosts that are only uplinks for other networks, causing "Bad password".
+            $routedUplink = $this->config->getUplinkForDestination($destAddress);
+            if ($routedUplink) {
+                // Disable CRAM-MD5 for non-uplink crash delivery — password is empty
+                // for nodelist/binkp_zone resolved destinations.
+                $routedUplink['crypt'] = false;
+                $session->setCurrentUplink($routedUplink);
+            }
+
             // Perform handshake
             $session->handshake();
             $this->logger->info("Handshake completed with {$destAddress}");
