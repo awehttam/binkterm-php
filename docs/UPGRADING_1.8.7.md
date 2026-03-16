@@ -17,6 +17,7 @@
 - [Database Performance Improvements](#database-performance-improvements)
 - [Nodelist Map](#nodelist-map)
 - [Message Reader Improvements](#message-reader-improvements)
+- [Echomail Reader Navigation](#echomail-reader-navigation)
 - [Gemini File Areas](#gemini-file-areas)
 - [FREQ Enhancements](#freq-enhancements)
 - [Nodelist Enhancements](#nodelist-enhancements)
@@ -58,6 +59,10 @@
   and respects the **preserve sent packets** setting.
 - Fixed: message reader sticky header was transparent in the default theme,
   allowing message body text to bleed through.
+- Echomail reader now transparently loads the next page of messages when the
+  reader reaches the end of a page. When the last message in an echo is reached,
+  a confirmation prompt asks whether to continue to the next subscribed echo
+  with unread messages.
 - File area browser shows **Gemini** and **FREQ** capability badges next to
   each area name, along with the area description.
 - Nodelist search supports a multi-select flag filter to narrow results by
@@ -509,6 +514,28 @@ When **Preserve Sent Packets** is enabled in the binkp configuration, crashmail
 packets are now moved to the preserved sent packets directory on successful
 delivery instead of always being deleted. The preserved file is named
 `crashmail_<id>_<timestamp>.pkt`.
+
+## Echomail Reader Navigation
+
+### Transparent Pagination
+
+When reading messages in an echo and reaching the last message on the current
+page, clicking Next automatically loads the next page and opens its first
+message — no manual page flipping required.
+
+### End-of-Echo Prompt
+
+When the last message in an echo is reached (all pages exhausted), clicking
+Next now shows a confirmation panel inside the message reader:
+
+- **"End of [ECHONAME]"** with a prompt to continue to the next subscribed
+  echo that has unread messages.
+- **Go to [NEXT ECHO]** and **Close** buttons.
+- If there are no more unread echoes, the panel says so and offers only Close.
+
+The next/previous navigation buttons in the modal header now always display
+descriptive tooltips ("Next message", "Previous message", "Load next page",
+"End of echo").
 
 ## Bug Fixes
 
