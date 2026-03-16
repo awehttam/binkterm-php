@@ -710,7 +710,8 @@ class AdminDaemonServer
         if (!str_starts_with($baseDir, '/')) {
             $baseDir = __DIR__ . '/../../' . $baseDir;
         }
-        $mountPoint = rtrim($baseDir, '/') . '/' . $areaId;
+        $baseDir    = realpath($baseDir) ?: $baseDir;
+        $mountPoint = $baseDir . '/' . $areaId;
         if (!is_dir($mountPoint)) {
             mkdir($mountPoint, 0755, true);
         }
