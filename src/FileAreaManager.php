@@ -397,6 +397,11 @@ class FileAreaManager
         $relDir    = ltrim(str_replace(['/', '\\'], '/', substr($dirPath, strlen($mountPoint))), '/');
         $subfolder = ($flat || $relDir === '') ? null : $relDir;
 
+        // If this directory is marked skip, omit its subdir record and files but still
+        // recurse so that selected child directories (e.g. games/apogee) are imported.
+        $override = $relDir !== '' ? ($overrides[$relDir] ?? null) : null;
+        $skipThis = $override && !empty($override['skip']);
+
         $insertStmt = $this->db->prepare("
             INSERT INTO files (
                 filename, short_description, long_description,
@@ -434,13 +439,7 @@ class FileAreaManager
 
         // Upsert an iso_subdir record for this directory itself (skip the ISO root).
         // This lets admins set a human-readable description on each subfolder.
-        if ($relDir !== '' && !$flat) {
-            // Check if this directory is explicitly skipped by user overrides
-            $override = $overrides[$relDir] ?? null;
-            if ($override && !empty($override['skip'])) {
-                return; // Skip this entire directory and its files
-            }
-
+        if ($relDir !== '' && !$flat && !$skipThis) {
             $dirName    = basename($relDir);
             $parentDir  = dirname($relDir);
             $parentSubfolder = ($parentDir === '.' || $parentDir === '') ? null : $parentDir;
@@ -478,6 +477,10 @@ class FileAreaManager
                 );
                 $upd->execute([$dirDesc, $areaId, $relDir]);
             }
+
+            // Ensure all ancestor directories have iso_subdir records so that
+            // navigation works even when a parent dir was skipped during import.
+            $this->ensureAncestorSubdirs($areaId, $relDir);
         }
 
         foreach ($entries as $entry) {
@@ -488,6 +491,11 @@ class FileAreaManager
 
             if (is_dir($fullPath)) {
                 $this->scanIsoDirectory($fullPath, $mountPoint, $areaId, $catalogueNames, $update, $counters, $flat, $overrides, $catalogueOnly);
+                continue;
+            }
+
+            // Skip files in a directory that was unchecked (but recursion above still ran)
+            if ($skipThis) {
                 continue;
             }
 
@@ -548,6 +556,47 @@ class FileAreaManager
                     error_log("[IsoImport] Error importing {$relPath}: " . $e->getMessage());
                     $counters['errors']++;
                 }
+            }
+        }
+    }
+
+    /**
+     * Ensure iso_subdir records exist for every ancestor of $relDir.
+     *
+     * When a child directory is imported but its parent was skipped, the parent
+     * has no iso_subdir record and becomes invisible to the folder navigator.
+     * This method walks up the path and inserts minimal placeholder records for
+     * any ancestors that don't already exist, using the directory name as the
+     * description so they are at least navigable.
+     *
+     * @param int    $areaId  File area ID
+     * @param string $relDir  Relative path of the directory just imported (e.g. "games/apogee")
+     */
+    private function ensureAncestorSubdirs(int $areaId, string $relDir): void
+    {
+        $parts = explode('/', $relDir);
+        array_pop($parts); // ancestors only — the dir itself is handled by the caller
+
+        $path = '';
+        foreach ($parts as $part) {
+            $path = $path === '' ? $part : $path . '/' . $part;
+            $parentPath = dirname($path);
+            $parentSubfolder = ($parentPath === '.' || $parentPath === '') ? null : $parentPath;
+
+            $check = $this->db->prepare(
+                "SELECT id FROM files WHERE file_area_id = ? AND iso_rel_path = ? AND source_type = 'iso_subdir' LIMIT 1"
+            );
+            $check->execute([$areaId, $path]);
+            if (!$check->fetch()) {
+                $ins = $this->db->prepare("
+                    INSERT INTO files (
+                        filename, short_description, file_area_id,
+                        storage_path, filesize, file_hash, iso_rel_path, subfolder,
+                        source_type, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, '', 0, '', ?, ?, 'iso_subdir', 'approved', NOW(), NOW())
+                    ON CONFLICT DO NOTHING
+                ");
+                $ins->execute([basename($path), basename($path), $areaId, $path, $parentSubfolder]);
             }
         }
     }
