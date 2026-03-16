@@ -944,7 +944,8 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
 }
 
 function buildBreadcrumb(subfolder, label) {
-    const areaLabel = uiT('ui.files.title', 'Files');
+    const area = allFileAreas.find(a => a.id === currentAreaId);
+    const areaLabel = area ? area.tag : uiT('ui.files.title', 'Files');
     const parts = subfolder ? subfolder.split('/') : [];
 
     let items = `
