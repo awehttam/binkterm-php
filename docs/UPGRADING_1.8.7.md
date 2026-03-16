@@ -53,6 +53,13 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Fixed: maximized message reader had a visible gap on the left and top edges
   due to Bootstrap's scrollbar-compensation padding. The modal now fills the
   full viewport when maximized.
+- Fixed: end-of-echo "next unread" prompt always showed "no more unread
+  messages" due to a tag comparison bug with `@domain` suffixes.
+- Fixed: "Go to next echo" navigated to the wrong area (no messages shown)
+  because the bare tag was passed instead of `TAG@domain`.
+- Message list pagination now shows first page, context window around the
+  current page, and last page with ellipsis gaps, so the total page count
+  is always visible.
 
 **Echomail**
 - Advanced message search with per-field filtering (poster name, subject, body)

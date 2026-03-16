@@ -352,11 +352,23 @@ function updatePagination(pagination) {
             html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">${uiT('ui.common.previous', 'Previous')}</a></li>`;
         }
 
-        // Page numbers
-        for (let i = 1; i <= pagination.pages; i++) {
-            const active = i === pagination.page ? 'active' : '';
-            html += `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
-        }
+        // Page numbers: first, ellipsis, window around current, ellipsis, last
+        const cur = pagination.page, total = pagination.pages;
+        const pageBtn = (n) => {
+            const active = n === cur ? 'active' : '';
+            return `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${n})">${n}</a></li>`;
+        };
+        const ellipsis = `<li class="page-item disabled"><span class="page-link">&hellip;</span></li>`;
+
+        const pages = new Set([1, total]);
+        for (let i = Math.max(1, cur - 2); i <= Math.min(total, cur + 2); i++) pages.add(i);
+
+        let prev = 0;
+        [...pages].sort((a, b) => a - b).forEach(p => {
+            if (prev && p - prev > 1) html += ellipsis;
+            html += pageBtn(p);
+            prev = p;
+        });
 
         // Next button
         if (pagination.page < pagination.pages) {
