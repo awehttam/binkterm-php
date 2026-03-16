@@ -753,6 +753,9 @@ function viewMessage(messageId) {
 }
 
 function displayMessageContent(message) {
+    // Re-enable toolbar buttons that may have been disabled by the end-of-echo prompt
+    $('#editMessageButton, #toggleHeaders, #printMessageButton').prop('disabled', false);
+
     updateModalTitle(message.subject);
 
     // Parse message to separate kludge lines from body
@@ -1823,9 +1826,10 @@ function showEndOfEchoPrompt(nextEcho) {
     // Update modal title to reflect end-of-echo state
     $('#messageSubject').text(uiT('ui.echomail.end_of_echo_title', 'End of {echo}').replace('{echo}', currentDisplayTag));
 
-    // Disable nav buttons — user must choose via the prompt
+    // Disable nav and toolbar buttons — no message is displayed
     $('#prevMessageBtn').prop('disabled', true);
     $('#nextMessageBtn').prop('disabled', true);
+    $('#editMessageButton, #toggleHeaders, #printMessageButton').prop('disabled', true);
 }
 
 /**
