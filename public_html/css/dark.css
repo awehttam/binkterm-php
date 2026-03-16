@@ -981,6 +981,12 @@ a:hover {
     }
 }
 
+/* Fullscreen modal: strip Bootstrap's scrollbar-compensation padding so the
+   dialog truly fills the viewport with no gap on any edge. */
+.modal:has(.modal-dialog.modal-fullscreen) {
+    padding: 0 !important;
+}
+
 /* Echolist page - Dark theme overrides */
 #echolist-page .forums-table {
     background: rgba(0, 0, 0, 0.3);

@@ -219,9 +219,11 @@ class MarkdownRenderer
         // Strikethrough (~~...~~)
         $text = preg_replace('/~~(.+?)~~/', '<del>$1</del>', $text);
 
-        // Italic (*...* or _..._) — single delimiters only
+        // Italic (*...* or _..._) — single delimiters only.
+        // For underscore, require non-word character (or start/end) on both
+        // flanking sides so that SNAKE_CASE_WORDS are never italicised.
         $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text);
-        $text = preg_replace('/_([^_]+)_/', '<em>$1</em>', $text);
+        $text = preg_replace('/(?<!\w)_([^_]+)_(?!\w)/', '<em>$1</em>', $text);
 
         if (!empty($codeSpans)) {
             $text = strtr($text, $codeSpans);

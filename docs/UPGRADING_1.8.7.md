@@ -32,6 +32,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
+  - [Maximized Message Reader Gap](#maximized-message-reader-gap)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -49,6 +50,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   continue to the next subscribed echo with unread messages.
 - Fixed: sticky message reader header was transparent in the default theme,
   allowing message body text to bleed through.
+- Fixed: maximized message reader had a visible gap on the left and top edges
+  due to Bootstrap's scrollbar-compensation padding. The modal now fills the
+  full viewport when maximized.
 
 **Echomail**
 - Advanced message search with per-field filtering (poster name, subject, body)
@@ -637,6 +641,15 @@ The sticky message header in the scrollable message reader was transparent in
 the default (light) theme, allowing the message body text to show through as
 the user scrolled. Fixed by adding an explicit white background to the sticky
 header rule in `style.css`.
+
+### Maximized Message Reader Gap
+
+The maximized message reader modal had a visible gap along the left and top
+edges. Bootstrap JS adds an inline `padding-right` to the modal container to
+compensate for the scrollbar when a modal opens; in fullscreen mode this
+padding is unnecessary and pushed the dialog away from the viewport edges.
+Fixed by overriding the padding to zero when the `modal-fullscreen` class is
+active.
 
 ### TIC Replace Existing Blocked by Duplicate Hash
 

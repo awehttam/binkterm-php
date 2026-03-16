@@ -1353,6 +1353,12 @@ tbody, td, tfoot, th, thead, tr {
     }
 }
 
+/* Fullscreen modal: strip Bootstrap's scrollbar-compensation padding so the
+   dialog truly fills the viewport with no gap on any edge. */
+.modal:has(.modal-dialog.modal-fullscreen) {
+    padding: 0 !important;
+}
+
 /* Echolist page - Amber Terminal theme overrides */
 #echolist-page .forums-table {
     background: var(--term-black-light);
