@@ -4,6 +4,7 @@ let currentSort = 'date_desc';
 let currentMessageId = null;
 let currentMessageIndex = -1;
 let currentMessages = [];
+let currentPagination = null;
 let modalClosedByBackButton = false;
 let threadedView = false;
 let userSettings = {};
@@ -144,7 +145,7 @@ $(document).ready(function() {
     }, 120000);
 });
 
-function loadMessages() {
+function loadMessages(callback) {
     showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
@@ -168,6 +169,7 @@ function loadMessages() {
         .done(function(data) {
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
+            if (typeof callback === 'function') callback(data);
         })
         .fail(function() {
             $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
@@ -341,6 +343,7 @@ function displayMessages(messages, isThreaded = false) {
 }
 
 function updatePagination(pagination) {
+    currentPagination = pagination;
     const container = $('#pagination');
     let html = '';
 
@@ -1388,7 +1391,17 @@ function navigateMessage(direction) {
     const newIndex = currentMessageIndex + direction;
 
     // Check bounds
-    if (newIndex < 0 || newIndex >= currentMessages.length) {
+    if (newIndex < 0) return;
+
+    if (newIndex >= currentMessages.length) {
+        if (direction > 0 && currentPagination && currentPagination.page < currentPagination.pages) {
+            currentPage = currentPagination.page + 1;
+            loadMessages(function() {
+                if (currentMessages.length > 0) {
+                    viewMessage(currentMessages[0].id);
+                }
+            });
+        }
         return;
     }
 
@@ -1438,10 +1451,16 @@ function updateNavigationButtons() {
     }
 
     // Disable/enable next button
-    if (currentMessageIndex >= currentMessages.length - 1) {
-        nextBtn.prop('disabled', true);
+    const atEnd = currentMessageIndex >= currentMessages.length - 1;
+    if (atEnd) {
+        const hasNextPage = currentPagination && currentPagination.page < currentPagination.pages;
+        nextBtn.prop('disabled', !hasNextPage);
+        nextBtn.attr('title', hasNextPage
+            ? uiT('ui.netmail.next_page_title', 'Load next page')
+            : uiT('ui.common.next_message', 'Next message'));
     } else {
         nextBtn.prop('disabled', false);
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
     }
 }
 

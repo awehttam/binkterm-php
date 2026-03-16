@@ -2678,6 +2678,7 @@ return [
     'ui.netmail.received_insecure_badge_title' => 'This message was received via an insecure/unauthenticated binkp session',
     'ui.netmail.received_insecurely' => 'Received Insecurely',
     'ui.netmail.not_authenticated' => 'This message was not authenticated',
+    'ui.netmail.next_page_title' => 'Load next page',
 
     // Echomail
     'ui.echomail.search.failed' => 'Search failed',
