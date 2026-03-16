@@ -29,6 +29,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Outbound FREQ (File Request)](#outbound-freq-file-request)
 - [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
 - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
+- [File Preview](#file-preview)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
@@ -80,6 +81,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   private file area.
 - Virtual subfolder navigation within file areas, with named folders for netmail
   attachments and FREQ responses.
+- Clicking a filename in the file browser now opens an inline preview: images
+  display in a lightbox-style modal, video and audio play directly in the browser,
+  text and NFO files (including CP437-encoded ANSI art) render in a scrollable
+  panel. Unknown file types prompt a download. Navigation arrows and keyboard
+  shortcuts cycle through files without closing the modal.
 - Netmail attachment delivery now stores a copy in the sender's private area as
   well as the recipient's.
 - Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
@@ -586,6 +592,30 @@ file record.
 
 A new database migration (`v1.11.0.22`) adds the `subfolder` column. This is
 applied automatically by `setup.php`.
+
+## File Preview
+
+Clicking a filename in the file browser now opens a preview modal instead of
+going straight to a download.
+
+**Supported types:**
+
+| Type | Extensions | Behaviour |
+|------|-----------|-----------|
+| Image | jpg, jpeg, png, gif, webp, svg, bmp, ico, tiff, avif | Displayed inline; click to open full size in a new tab |
+| Video | mp4, webm, mov, ogv, m4v | Plays in a `<video>` element with full controls and seek support |
+| Audio | mp3, wav, ogg, flac, aac, m4a, opus | Plays in an `<audio>` element |
+| Text / NFO | txt, log, nfo, diz, md, cfg, ini, json, xml, … | Rendered in a scrollable panel; NFO and DIZ files are automatically converted from CP437 to UTF-8 so ANSI art displays correctly |
+| Unknown | everything else | Download prompt with a Download button |
+
+The modal header includes:
+- **◀ ▶ navigation arrows** to move through the current file list without
+  closing the modal. Left/right arrow keys work too.
+- **ⓘ (File Info)** button to switch to the full file-details view for the
+  current file.
+- **⬇ (Download)** button to download the file at any time.
+
+No configuration or migration is required for this feature.
 
 ## Netmail Attachment Improvements
 

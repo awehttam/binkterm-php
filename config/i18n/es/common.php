@@ -1971,6 +1971,12 @@ return [
     'ui.files.share_revoked' => 'Enlace compartido revocado',
     'ui.files.share_link_copied_clipboard' => 'Enlace compartido copiado al portapapeles',
     'ui.files.share_link_copied' => 'Enlace compartido copiado',
+    'ui.files.preview_title' => 'Vista previa del archivo',
+    'ui.files.view_full_size' => 'Ver tamaño completo',
+    'ui.files.video_not_supported' => 'Formato de vídeo no compatible con su navegador',
+    'ui.files.no_preview' => 'No hay vista previa disponible para este tipo de archivo',
+    'ui.files.preview_failed' => 'Error al cargar la vista previa',
+    'ui.files.file_info' => 'Información del archivo',
 
     // Polls Page
     'ui.polls.title' => 'Encuestas',

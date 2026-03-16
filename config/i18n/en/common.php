@@ -1971,6 +1971,12 @@ return [
     'ui.files.share_revoked' => 'Share link revoked',
     'ui.files.share_link_copied_clipboard' => 'Share link copied to clipboard',
     'ui.files.share_link_copied' => 'Share link copied',
+    'ui.files.preview_title' => 'File Preview',
+    'ui.files.view_full_size' => 'View full size',
+    'ui.files.video_not_supported' => 'Video format not supported by your browser',
+    'ui.files.no_preview' => 'No preview available for this file type',
+    'ui.files.preview_failed' => 'Failed to load preview',
+    'ui.files.file_info' => 'File Info',
 
     // Polls Page
     'ui.polls.title' => 'Polls',

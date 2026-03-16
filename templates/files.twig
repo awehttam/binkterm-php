@@ -104,6 +104,39 @@
     </div>
 </div>
 
+<!-- File Preview Modal -->
+<div class="modal fade" id="filePreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevPreviewBtn" onclick="navigatePreview(-1)" title="{{ t('ui.files.previous_file', {}, 'common') }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextPreviewBtn" onclick="navigatePreview(1)" title="{{ t('ui.files.next_file', {}, 'common') }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <h5 class="modal-title ms-2 text-truncate" id="previewModalTitle">{{ t('ui.files.preview_title', {}, 'common') }}</h5>
+                <div class="ms-auto d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openDetailsFromPreview()" title="{{ t('ui.files.file_info', {}, 'common') }}">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a class="btn btn-outline-success btn-sm" id="previewDownloadBtn" href="#" download title="{{ t('ui.files.download', {}, 'common') }}">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0 text-center" id="previewModalBody" style="min-height:200px;background:#1a1a1a;">
+                <div class="py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- File Details Modal -->
 <div class="modal fade" id="fileDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -384,6 +417,29 @@ $(document).ready(function() {
                     break;
             }
         }
+        if ($('#filePreviewModal').hasClass('show')) {
+            switch (e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    navigatePreview(-1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    navigatePreview(1);
+                    break;
+            }
+        }
+    });
+
+    // Stop media playback when preview modal closes
+    $('#filePreviewModal').on('hidden.bs.modal', function() {
+        $(this).find('video,audio').each(function() {
+            this.pause();
+            this.src = '';
+        });
+        $('#previewModalBody').css('background', '#1a1a1a').html(
+            '<div class="py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
+        );
     });
 });
 
@@ -458,7 +514,7 @@ function displayRecentFiles(files) {
             <tr>
                 <td>
                     ${scanIcon}
-                    <strong>${escapeHtml(file.filename)}</strong>${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}
                 </td>
                 <td><small class="text-muted">${areaLabel}</small></td>
                 <td><small class="text-muted">${shortDesc}</small></td>
@@ -809,7 +865,7 @@ function displayFiles(files, subfolders, subfolder) {
             <tr>
                 <td>
                     ${scanIcon}
-                    <strong>${escapeHtml(file.filename)}</strong>${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}
                 </td>
                 <td><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
@@ -958,6 +1014,150 @@ function navigateFile(direction) {
     if (!nextFile) return;
     currentFileIndex = newIndex;
     showFileDetails(nextFile.id);
+}
+
+// ---------------------------------------------------------------------------
+// File preview (lightbox-style modal for images, video, audio, text)
+// ---------------------------------------------------------------------------
+
+let currentPreviewFileId = null;
+
+const previewImageExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif'];
+const previewVideoExts = ['mp4','webm','mov','ogv','m4v'];
+const previewAudioExts = ['mp3','wav','ogg','flac','aac','m4a','opus'];
+const previewTextExts  = ['txt','log','nfo','diz','md','cfg','ini','conf','lsm','json','xml','bat','sh','ans'];
+
+function getFileType(filename) {
+    const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
+    if (previewImageExts.includes(ext)) return 'image';
+    if (previewVideoExts.includes(ext)) return 'video';
+    if (previewAudioExts.includes(ext)) return 'audio';
+    if (previewTextExts.includes(ext))  return 'text';
+    return 'download';
+}
+
+function previewFile(fileId) {
+    const file = displayedFiles.find(f => f.id == fileId);
+    if (!file) return;
+    const filename = file.filename;
+
+    currentPreviewFileId = fileId;
+    currentFileIndex = displayedFiles.findIndex(f => f.id == fileId);
+
+    const position = displayedFiles.length > 1 && currentFileIndex >= 0
+        ? ` <small class="text-muted">(${currentFileIndex + 1}/${displayedFiles.length})</small>`
+        : '';
+    $('#previewModalTitle').html(escapeHtml(filename) + position);
+    $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
+    updatePreviewNavButtons();
+    renderPreviewContent(fileId, filename);
+
+    if (!$('#filePreviewModal').hasClass('show')) {
+        new bootstrap.Modal('#filePreviewModal').show();
+    }
+}
+
+function renderPreviewContent(fileId, filename) {
+    const type       = getFileType(filename);
+    const previewUrl = `/api/files/${fileId}/preview`;
+    const body       = $('#previewModalBody');
+
+    // Stop any currently playing media
+    body.find('video,audio').each(function() { this.pause(); this.src = ''; });
+
+    if (type === 'image') {
+        body.css('background', '#1a1a1a').html(`
+            <a href="${previewUrl}" target="_blank" title="${uiT('ui.files.view_full_size', 'View full size')}">
+                <img src="${previewUrl}"
+                     class="img-fluid d-block mx-auto"
+                     style="max-height:78vh;object-fit:contain;cursor:zoom-in;"
+                     alt="${escapeHtml(filename)}">
+            </a>
+        `);
+
+    } else if (type === 'video') {
+        body.css('background', '#000').html(`
+            <video controls class="d-block mx-auto" style="max-width:100%;max-height:75vh;">
+                <source src="${previewUrl}">
+                ${uiT('ui.files.video_not_supported', 'Video format not supported by your browser')}
+            </video>
+        `);
+
+    } else if (type === 'audio') {
+        body.css('background', '').html(`
+            <div class="p-5 text-center">
+                <i class="fas fa-music fa-3x text-muted mb-3 d-block"></i>
+                <p class="text-muted mb-3">${escapeHtml(filename)}</p>
+                <audio controls class="w-100" style="max-width:520px;">
+                    <source src="${previewUrl}">
+                </audio>
+            </div>
+        `);
+
+    } else if (type === 'text') {
+        const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+        const isRetro = ['nfo','diz','ans'].includes(ext);
+        const preStyle = isRetro
+            ? 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;'
+            : '';
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(function(text) {
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${preStyle}">${escapeHtml(text)}</pre>`);
+            })
+            .catch(function() {
+                body.html(`<div class="alert alert-danger m-3">${uiT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
+            });
+
+    } else {
+        // Unknown type — show download prompt
+        body.css('background', '').html(`
+            <div class="p-5 text-center text-muted">
+                <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                <p class="mb-2">${escapeHtml(filename)}</p>
+                <p class="small mb-4">${uiT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                <a href="/api/files/${fileId}/download" class="btn btn-primary" download>
+                    <i class="fas fa-download me-2"></i>${uiT('ui.files.download', 'Download')}
+                </a>
+            </div>
+        `);
+    }
+}
+
+function updatePreviewNavButtons() {
+    $('#prevPreviewBtn').prop('disabled', currentFileIndex <= 0);
+    $('#nextPreviewBtn').prop('disabled', currentFileIndex < 0 || currentFileIndex >= displayedFiles.length - 1);
+}
+
+function navigatePreview(direction) {
+    if (displayedFiles.length === 0) return;
+    const newIndex = currentFileIndex + direction;
+    if (newIndex < 0 || newIndex >= displayedFiles.length) return;
+    const file = displayedFiles[newIndex];
+    if (!file) return;
+    currentFileIndex = newIndex;
+    currentPreviewFileId = file.id;
+    const position = displayedFiles.length > 1
+        ? ` <small class="text-muted">(${currentFileIndex + 1}/${displayedFiles.length})</small>`
+        : '';
+    $('#previewModalTitle').html(escapeHtml(file.filename) + position);
+    $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
+    updatePreviewNavButtons();
+    renderPreviewContent(file.id, file.filename);
+}
+
+function openDetailsFromPreview() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('filePreviewModal'));
+    if (modal) modal.hide();
+    if (currentPreviewFileId) {
+        showFileDetails(currentPreviewFileId);
+    }
 }
 
 function loadStats() {

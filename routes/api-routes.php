@@ -2359,6 +2359,158 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     /**
+     * GET /api/files/{id}/preview
+     * Serve a file inline for in-browser preview (images, video, audio, text).
+     * No download credits are charged — this is view-only. For unknown types the
+     * file is served as an attachment (triggers a download in the browser).
+     */
+    SimpleRouter::get('/files/{id}/preview', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user);
+            return;
+        }
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            return;
+        }
+
+        $userId  = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+
+        // Allow senders of netmail attachments to preview what they sent
+        if (!$hasAccess && $file['source_type'] === 'netmail_attachment' && $file['message_id'] !== null) {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $nmStmt = $db->prepare("SELECT user_id FROM netmail WHERE id = ? LIMIT 1");
+            $nmStmt->execute([$file['message_id']]);
+            $nm = $nmStmt->fetch();
+            if ($nm && (int)$nm['user_id'] === (int)$userId) {
+                $hasAccess = true;
+            }
+        }
+
+        if (!$hasAccess) {
+            http_response_code(403);
+            echo apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user);
+            return;
+        }
+
+        $storagePath = $file['storage_path'];
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            return;
+        }
+
+        $filename = basename($file['filename']);
+        $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        $imageMimes = [
+            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+            'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp', 'ico'  => 'image/x-icon', 'tiff' => 'image/tiff',
+            'tif' => 'image/tiff', 'avif' => 'image/avif',
+        ];
+        $videoMimes = [
+            'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
+            'ogv' => 'video/ogg', 'm4v'  => 'video/mp4',
+        ];
+        $audioMimes = [
+            'mp3' => 'audio/mpeg', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg',
+            'flac' => 'audio/flac', 'aac' => 'audio/aac', 'm4a' => 'audio/mp4',
+            'opus' => 'audio/ogg',
+        ];
+        $textExts = [
+            'txt', 'log', 'nfo', 'diz', 'md', 'cfg', 'ini', 'conf', 'lsm',
+            'json', 'xml', 'bat', 'sh', 'readme', 'ans',
+        ];
+
+        $safeFilename    = addslashes($filename);
+        $encodedFilename = rawurlencode($filename);
+        $fileSize        = filesize($storagePath);
+
+        if (isset($imageMimes[$ext])) {
+            header('Content-Type: ' . $imageMimes[$ext]);
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('Content-Length: ' . $fileSize);
+            header('Cache-Control: private, max-age=3600');
+            header('X-Content-Type-Options: nosniff');
+            readfile($storagePath);
+            exit;
+        }
+
+        if (isset($videoMimes[$ext]) || isset($audioMimes[$ext])) {
+            $mimeType = $videoMimes[$ext] ?? $audioMimes[$ext];
+            // Support HTTP range requests so browsers can seek in video/audio
+            header('Accept-Ranges: bytes');
+            $rangeHeader = $_SERVER['HTTP_RANGE'] ?? null;
+            if ($rangeHeader && preg_match('/bytes=(\d+)-(\d*)/', $rangeHeader, $m)) {
+                $start  = (int)$m[1];
+                $end    = $m[2] !== '' ? (int)$m[2] : $fileSize - 1;
+                $length = $end - $start + 1;
+                http_response_code(206);
+                header('Content-Type: ' . $mimeType);
+                header("Content-Range: bytes {$start}-{$end}/{$fileSize}");
+                header('Content-Length: ' . $length);
+                header('Content-Disposition: inline; filename="' . $safeFilename . '"');
+                header('Cache-Control: private, max-age=3600');
+                $fp = fopen($storagePath, 'rb');
+                fseek($fp, $start);
+                $remaining = $length;
+                while ($remaining > 0 && !feof($fp)) {
+                    $chunk = fread($fp, min(65536, $remaining));
+                    if ($chunk === false) break;
+                    echo $chunk;
+                    $remaining -= strlen($chunk);
+                }
+                fclose($fp);
+            } else {
+                header('Content-Type: ' . $mimeType);
+                header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+                header('Content-Length: ' . $fileSize);
+                header('Cache-Control: private, max-age=3600');
+                readfile($storagePath);
+            }
+            exit;
+        }
+
+        if (in_array($ext, $textExts)) {
+            $content = (string)file_get_contents($storagePath);
+            $charset = 'utf-8';
+            // Attempt CP437 → UTF-8 conversion for NFO/DIZ/ANSI files
+            if (in_array($ext, ['nfo', 'diz', 'ans'])) {
+                $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
+                if ($converted !== false && strlen($converted) > 0) {
+                    $content = $converted;
+                }
+            }
+            header('Content-Type: text/plain; charset=' . $charset);
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            exit;
+        }
+
+        // Unknown type — serve as attachment
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+        header('Content-Length: ' . $fileSize);
+        header('Cache-Control: no-cache, must-revalidate');
+        readfile($storagePath);
+        exit;
+    })->where(['id' => '[0-9]+']);
+
+    /**
      * POST /api/files/{id}/share
      * Create a share link for a file (auth required). Returns existing share if one exists.
      */

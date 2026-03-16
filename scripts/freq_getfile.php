@@ -163,6 +163,29 @@ function buildReqFileContents(array $filenames, ?string $password): string
     return implode("\r\n", $lines) . "\r\n";
 }
 
+/**
+ * Derive the conventional WaZOO/Bark .req filename from an FTN address.
+ *
+ * The traditional format is 8 uppercase hex digits: 4 for net + 4 for node.
+ * e.g. 1:123/456 → net=123 (0x007B), node=456 (0x01C8) → "007B01C8.REQ"
+ *
+ * Most BinkP mailers (binkd etc.) recognise incoming .req files regardless
+ * of name, but using the address-based name is the conventional approach.
+ *
+ * @param string $address FTN address (zone:net/node or zone:net/node.point)
+ * @return string Filename such as "007B01C8.REQ"
+ */
+function reqFilenameForAddress(string $address): string
+{
+    // Parse zone:net/node(.point)
+    if (!preg_match('/^(\d+):(\d+)\/(\d+)/', $address, $m)) {
+        return 'FREQ' . uniqid() . '.REQ';
+    }
+    $net  = (int)$m[2];
+    $node = (int)$m[3];
+    return sprintf('%04X%04X.REQ', $net, $node);
+}
+
 
 /**
  * Resolve a username to a user record, or fall back to the first admin user.
@@ -246,7 +269,7 @@ try {
         }
     } else {
         $reqContents = buildReqFileContents($filenames, $password);
-        $reqTempFile = sys_get_temp_dir() . '/freq_' . uniqid() . '.req';
+        $reqTempFile = sys_get_temp_dir() . '/' . reqFilenameForAddress($address);
         if (file_put_contents($reqTempFile, $reqContents) === false) {
             throw new \RuntimeException("Failed to write .req file: {$reqTempFile}");
         }

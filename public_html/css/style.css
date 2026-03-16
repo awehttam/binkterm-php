@@ -150,6 +150,15 @@ body {
     color: inherit !important;
 }
 
+/* File preview link — inherits table text color so it's readable in every theme */
+a.file-preview-link {
+    color: inherit;
+    text-decoration: none;
+}
+a.file-preview-link:hover {
+    text-decoration: underline;
+}
+
 .table-hover > tbody > tr:hover {
     background-color: #f8f9fa !important;
 }
