@@ -30,6 +30,14 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
 - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
 - [File Preview](#file-preview)
+- [ISO-Backed File Areas](#iso-backed-file-areas)
+  - [Prerequisites (Linux)](#prerequisites-linux)
+  - [Creating an ISO area](#creating-an-iso-area)
+  - [Import preview](#import-preview)
+  - [Subfolder navigation](#subfolder-navigation)
+  - [Importing files (CLI)](#importing-files-cli)
+  - [Behaviour](#behaviour)
+  - [Migration](#migration)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
@@ -93,6 +101,15 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   the file it was meant to replace.
 - File areas can now be published to the Gemini capsule server. Gemini clients
   can browse area listings and download files directly over the Gemini protocol.
+- **ISO-backed file areas** — a file area can now be backed by a CD/DVD ISO
+  image (or any plain directory). The admin sets the ISO path; `admin_daemon`
+  mounts it automatically via `fuseiso` on Linux. Files are imported from the
+  ISO's directory tree using `FILES.BBS` / `DESCRIPT.ION` catalogues. ISO areas
+  are read-only; description edits are stored in the database. The directory
+  tree is exposed as browsable subfolders with editable labels. A preview modal
+  lets sysops review and customise the import before committing. ZIP files
+  inside the ISO show `FILE_ID.DIZ` in the preview modal.
+
 
 **Nodelist**
 - New interactive map tab powered by Leaflet, with zone colour coding and marker
@@ -402,7 +419,7 @@ archives, executables, and images.
 
 **To enable a file area for Gemini access:**
 
-1. Go to **Admin → File Areas**
+1. Go to **Admin → Area Management → File Areas**
 2. Edit the file area
 3. Check **Gemini Public**
 4. Save
@@ -616,6 +633,93 @@ The modal header includes:
 - **⬇ (Download)** button to download the file at any time.
 
 No configuration or migration is required for this feature.
+
+## ISO-Backed File Areas
+
+A file area can now be backed by a CD/DVD ISO image on the server, allowing
+sysops to expose large shareware CD collections (Simtel, Walnut Creek, etc.)
+without copying files to local storage. Plain directories work too — the
+system only requires a readable path in the **Mount Point** field.
+
+### Prerequisites (Linux)
+
+Install `fuseiso` on the server (user-space FUSE mounting, no root required):
+
+```bash
+apt install fuseiso        # Debian/Ubuntu
+dnf install fuseiso        # Fedora/RHEL
+```
+
+### Creating an ISO area
+
+1. In **Admin → Area Management → File Areas**, click **Add File Area**.
+2. Set **Area Type** to **ISO-backed**.
+3. Enter the absolute path to the `.iso` file (e.g. `/srv/isos/simtel.iso`).
+4. Save the area.
+5. In the edit modal, click **Mount** to mount the ISO (handled automatically
+   by `admin_daemon` on Linux; on Windows, mount manually and enter the drive
+   letter in the **Mount Point** field).
+6. Click **Re-index ISO** to open the import preview.
+
+### Import preview
+
+Clicking **Re-index ISO** opens a preview modal before writing anything to the
+database. Each directory in the ISO is shown as a row with:
+
+- **Include/exclude checkbox** — uncheck to skip that directory.
+- **Description** — pre-filled from the catalogue or existing database entry;
+  editable before committing.
+- **File count** — how many files would be imported from that directory.
+- **Status badge** — New or Existing.
+
+Click **Apply Import** to commit. Import options in the modal header:
+
+| Option | Effect |
+|---|---|
+| **Flat import** | All files imported to the area root, directory structure ignored. |
+| **Catalogue only** | Only import files listed in `FILES.BBS` / `DESCRIPT.ION`. Unlisted files are skipped. If no catalogue exists in a directory, all files there are imported. |
+
+### Subfolder navigation
+
+The ISO directory tree is exposed as browsable subfolders in the file browser.
+Each subdirectory is stored as an `iso_subdir` record in the `files` table —
+a virtual row with no physical file that carries a human-readable label and
+description for the folder.
+
+- **Labels** — sysops can set a short description (folder label) and long
+  description on any subfolder by clicking the pencil icon on the folder row.
+  Labels are preserved across re-indexes.
+- **Deletion** — admins can delete an entire subfolder (and all its nested
+  content) from the folder row's trash icon. Only database records are removed;
+  ISO files are not touched.
+
+### Importing files (CLI)
+
+The importer is also available from the command line:
+
+```bash
+php scripts/import_iso.php --area=<id> [--update] [--dry-run] [--verbose]
+```
+
+Files are imported from `FILES.BBS` / `DESCRIPT.ION` catalogues found in each
+directory. If no catalogue is present, the filename is used as the description.
+
+### Behaviour
+
+- ISO areas are **read-only** — uploads and moves are blocked; admin file
+  deletion removes the database record only (no disk change).
+- Description edits (short/long description) are stored in the database and
+  are always permitted.
+- `admin_daemon` re-mounts all active ISO areas on startup.
+- If an unmount fails (e.g. the directory is busy), the mount status remains
+  `mounted` — the area continues to serve files normally.
+- If the ISO is not mounted when a file is requested, the server returns 503.
+- ZIP files inside the ISO display `FILE_ID.DIZ` in the preview modal.
+
+### Migration
+
+This feature requires a database migration. Run `php scripts/setup.php` as
+part of the standard upgrade procedure.
 
 ## Netmail Attachment Improvements
 

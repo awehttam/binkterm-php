@@ -479,4 +479,9 @@ return [
     'errors.admin.bbs_directory.merge_missing_discard' => 'discard_id is required',
     'errors.admin.bbs_directory.merge_failed' => 'Merge failed',
     'errors.admin.echomail_robots.invalid_config_json' => 'Processor config is not valid JSON',
+    'errors.files.iso_not_mounted' => 'File area is not mounted',
+    'errors.files.iso_readonly' => 'ISO-backed files cannot be modified',
+    'errors.fileareas.mount_failed' => 'Failed to mount ISO area',
+    'errors.fileareas.unmount_failed' => 'Failed to unmount ISO area',
+    'errors.fileareas.reindex_failed' => 'Failed to start ISO re-index',
 ];

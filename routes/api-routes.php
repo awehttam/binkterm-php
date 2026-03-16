@@ -2115,6 +2115,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
+            error_log('[FileArea create] ' . $e->getMessage());
             http_response_code(400);
             apiError('errors.fileareas.create_failed', apiLocalizedText('errors.fileareas.create_failed', 'Failed to create file area', $user));
         }
@@ -2172,6 +2173,129 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($stats);
     });
 
+    /**
+     * POST /api/fileareas/{id}/mount-iso
+     * Request admin_daemon to mount an ISO file area. Admin only.
+     */
+    SimpleRouter::post('/fileareas/{id}/mount-iso', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        try {
+            $daemonClient->mountIso((int)$id);
+            $daemonClient->close();
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.fileareas.mount_failed', apiLocalizedText('errors.fileareas.mount_failed', 'Failed to mount ISO area', $user));
+            return;
+        }
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/fileareas/{id}/unmount-iso
+     * Request admin_daemon to unmount an ISO file area. Admin only.
+     */
+    SimpleRouter::post('/fileareas/{id}/unmount-iso', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        try {
+            $daemonClient->unmountIso((int)$id);
+            $daemonClient->close();
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.fileareas.unmount_failed', apiLocalizedText('errors.fileareas.unmount_failed', 'Failed to unmount ISO area', $user));
+            return;
+        }
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/fileareas/{id}/preview-iso
+     * Dry-run ISO scan returning directory entries with descriptions and status. Admin only.
+     */
+    SimpleRouter::get('/fileareas/{id}/preview-iso', function($id) {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $flat          = !empty($_GET['flat']);
+        $catalogueOnly = !empty($_GET['catalogue_only']);
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $preview = $manager->previewIsoImport((int)$id, $flat, $catalogueOnly);
+            echo json_encode(['success' => true] + $preview);
+        } catch (\Exception $e) {
+            error_log('[IsoPreview] ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/fileareas/{id}/reindex-iso
+     * Trigger a re-index of an ISO file area. Admin only.
+     * Spawns import_iso.php as a background job via admin_daemon.
+     */
+    SimpleRouter::post('/fileareas/{id}/reindex-iso', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        try {
+            $body          = json_decode(file_get_contents('php://input'), true) ?? [];
+            $flat          = !empty($body['flat']);
+            $catalogueOnly = !empty($body['catalogue_only']);
+            $overrides = [];
+            foreach ($body['overrides'] ?? [] as $item) {
+                $path = $item['rel_path'] ?? '';
+                if ($path === '') continue;
+                $overrides[$path] = [
+                    'description' => $item['description'] ?? '',
+                    'skip'        => !empty($item['skip']),
+                ];
+            }
+            $manager  = new \BinktermPHP\FileAreaManager();
+            $counters = $manager->importIsoFiles((int)$id, true, null, $flat, $overrides, $catalogueOnly);
+            echo json_encode(['success' => true, 'counters' => $counters]);
+        } catch (\Exception $e) {
+            error_log('[IsoReindex] ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.fileareas.reindex_failed', apiLocalizedText('errors.fileareas.reindex_failed', 'Failed to re-index ISO area', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * DELETE /api/fileareas/{id}/subfolder
+     * Remove all files (and iso_subdir records) belonging to a subfolder path,
+     * including any nested subfolders. Admin only.
+     * Body: { subfolder: string }
+     */
+    SimpleRouter::delete('/fileareas/{id}/subfolder', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $subfolder = trim($body['subfolder'] ?? '');
+
+        if ($subfolder === '') {
+            http_response_code(400);
+            apiError('errors.files.area_id_required', 'Subfolder is required');
+            return;
+        }
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $deleted = $manager->deleteSubfolder((int)$id, $subfolder);
+            echo json_encode(['success' => true, 'deleted' => $deleted]);
+        } catch (\Exception $e) {
+            error_log('[SubfolderDelete] ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.files.delete_failed', 'Failed to delete subfolder');
+        }
+    })->where(['id' => '[0-9]+']);
+
     // Files API routes
     SimpleRouter::get('/files', function() {
         $user = RouteHelper::requireAuth();
@@ -2212,12 +2336,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $subfolders = $manager->getSubfolders((int)$areaId);
         $files = $manager->getFiles((int)$areaId, $subfolder);
 
+        // When inside a subfolder, resolve its display label from the iso_subdir record.
+        $subfolderLabel = null;
+        if ($subfolder !== null) {
+            $subfolderLabel = $manager->getSubfolderLabel((int)$areaId, $subfolder);
+        }
+
         ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
 
         echo json_encode([
-            'files'      => $files,
-            'subfolders' => $subfolders,
-            'subfolder'  => $subfolder,
+            'files'           => $files,
+            'subfolders'      => $subfolders,
+            'subfolder'       => $subfolder,
+            'subfolder_label' => $subfolderLabel,
         ]);
     });
 
@@ -2303,10 +2434,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $storagePath = $file['storage_path'];
+        // Resolve path at request time (ISO-backed areas reconstruct from mount point)
+        $storagePath = $manager->resolveFilePath($file);
         if (!file_exists($storagePath)) {
-            http_response_code(404);
-            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            if (($file['source_type'] ?? '') === 'iso_import') {
+                http_response_code(503);
+                echo apiLocalizedText('errors.files.iso_not_mounted', 'File area is not mounted', $user);
+            } else {
+                http_response_code(404);
+                echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            }
             return;
         }
 
@@ -2404,15 +2541,50 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $storagePath = $file['storage_path'];
+        // Resolve path at request time (ISO-backed areas reconstruct from mount point)
+        $storagePath = $manager->resolveFilePath($file);
         if (!file_exists($storagePath)) {
-            http_response_code(404);
-            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            if (($file['source_type'] ?? '') === 'iso_import') {
+                http_response_code(503);
+                echo apiLocalizedText('errors.files.iso_not_mounted', 'File area is not mounted', $user);
+            } else {
+                http_response_code(404);
+                echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            }
             return;
         }
 
         $filename = basename($file['filename']);
         $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        // For ZIP files, attempt to extract and serve FILE_ID.DIZ
+        if ($ext === 'zip') {
+            $zip = new ZipArchive();
+            if ($zip->open($storagePath) === true) {
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $entryName = $zip->getNameIndex($i);
+                    if (strtolower(basename($entryName)) === 'file_id.diz') {
+                        $dizContent = $zip->getFromIndex($i);
+                        $zip->close();
+                        if ($dizContent !== false) {
+                            $converted = @iconv('CP437', 'UTF-8//IGNORE', $dizContent);
+                            if ($converted !== false && strlen($converted) > 0) {
+                                $dizContent = $converted;
+                            }
+                            header('Content-Type: text/plain; charset=utf-8');
+                            header('Content-Disposition: inline; filename="FILE_ID.DIZ"');
+                            header('X-Content-Type-Options: nosniff');
+                            header('Cache-Control: private, max-age=3600');
+                            echo $dizContent;
+                            exit;
+                        }
+                        break;
+                    }
+                }
+                $zip->close();
+            }
+            // Fall through to octet-stream download if no FILE_ID.DIZ found
+        }
 
         $imageMimes = [
             'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
@@ -2801,6 +2973,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isAdmin = !empty($user['is_admin']);
 
             $manager = new \BinktermPHP\FileAreaManager();
+
+            $fileToDelete = $manager->getFileById((int)$id);
+            $sourceType = $fileToDelete['source_type'] ?? '';
+            if ($fileToDelete && in_array($sourceType, ['iso_import', 'iso_subdir']) && !$isAdmin) {
+                http_response_code(403);
+                apiError('errors.files.iso_readonly', apiLocalizedText('errors.files.iso_readonly', 'ISO-backed files cannot be deleted', $user));
+                return;
+            }
+
             $manager->deleteFile((int)$id, $userId, $isAdmin);
 
             echo json_encode([
@@ -2863,6 +3044,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $userId   = $user['user_id'] ?? $user['id'] ?? 0;
             $manager  = new \BinktermPHP\FileAreaManager();
+
+            // ISO-backed files: block rename and move; allow description edits only
+            $fileToEdit = $manager->getFileById((int)$id);
+            if ($fileToEdit && ($fileToEdit['source_type'] ?? '') === 'iso_import') {
+                if ($newFilename !== null || $targetAreaId !== null) {
+                    http_response_code(403);
+                    apiError('errors.files.iso_readonly', apiLocalizedText('errors.files.iso_readonly', 'ISO-backed files cannot be renamed or moved', $user));
+                    return;
+                }
+            }
+
             $response = ['success' => true];
 
             if ($newFilename !== null) {

@@ -351,6 +351,38 @@ class AdminDaemonClient
         return $this->sendCommand('run_echomail_robot', ['robot_id' => $robotId]);
     }
 
+    /**
+     * Mount an ISO-backed file area.
+     *
+     * @param int $areaId File area ID
+     * @return array Daemon response
+     */
+    public function mountIso(int $areaId): array
+    {
+        return $this->sendCommand('mount_iso', ['area_id' => $areaId]);
+    }
+
+    /**
+     * Unmount an ISO-backed file area.
+     *
+     * @param int $areaId File area ID
+     * @return array Daemon response
+     */
+    public function unmountIso(int $areaId): array
+    {
+        return $this->sendCommand('unmount_iso', ['area_id' => $areaId]);
+    }
+
+    /**
+     * Trigger a re-index of an ISO-backed file area.
+     *
+     * @param int $areaId File area ID
+     * @return array Daemon response
+     */
+    public function reindexIso(int $areaId): array
+    {
+        return $this->sendCommand('reindex_iso', ['area_id' => $areaId]);
+    }
 
     public function close(): void
     {

@@ -93,7 +93,8 @@
                             <div class="mb-3">
                                 <label for="fileareaTag" class="form-label">{{ t('ui.fileareas.tag_required', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control text-uppercase" id="fileareaTag" name="tag" required maxlength="255">
-                                <div class="form-text">{{ t('ui.fileareas.tag_help', {}, locale, ['common']) }}</div>
+                                <div class="form-text" id="fileareaTagHelp">{{ t('ui.fileareas.tag_help', {}, locale, ['common']) }}</div>
+                                <div class="form-text text-warning" id="fileareaTagReadonlyNote" style="display:none;"><i class="fas fa-lock me-1"></i>{{ t('ui.fileareas.tag_readonly', {}, locale, ['common']) }}</div>
                             </div>
 
                             <div class="mb-3">
@@ -188,6 +189,50 @@
                             {% endif %}
 
                             <div class="mb-3">
+                                <label class="form-label">{{ t('ui.fileareas.area_type', {}, locale, ['common']) }}</label>
+                                <div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="area_type" id="areaTypeNormal" value="normal" checked>
+                                        <label class="form-check-label" for="areaTypeNormal">{{ t('ui.fileareas.area_type_normal', {}, locale, ['common']) }}</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="area_type" id="areaTypeIso" value="iso">
+                                        <label class="form-check-label" for="areaTypeIso">{{ t('ui.fileareas.area_type_iso', {}, locale, ['common']) }}</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="isoFieldsGroup" style="display:none;">
+                                <div class="mb-3">
+                                    <label for="fileareaIsoFilePath" class="form-label">{{ t('ui.fileareas.iso_file_path', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="fileareaIsoFilePath" name="iso_file_path" placeholder="/srv/isos/simtel.iso">
+                                    <div class="form-text">{{ t('ui.fileareas.iso_file_path_help', {}, locale, ['common']) }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="fileareaIsoMountPoint" class="form-label">{{ t('ui.fileareas.iso_mount_point', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="/srv/isos/mounts/1  or  D:\">
+                                    <div class="form-text">{{ t('ui.fileareas.iso_mount_point_help', {}, locale, ['common']) }}</div>
+                                </div>
+                                <div id="isoMountControls" style="display:none;" class="mb-3">
+                                    <label class="form-label">{{ t('ui.fileareas.iso_mount_status', {}, locale, ['common']) }}</label>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <span id="isoMountStatusBadge" class="badge bg-secondary">—</span>
+                                        <button type="button" class="btn btn-sm btn-outline-success" id="isoMountBtn" onclick="isoMount()">
+                                            <i class="fas fa-plug"></i> {{ t('ui.fileareas.mount', {}, locale, ['common']) }}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" id="isoUnmountBtn" onclick="isoUnmount()">
+                                            <i class="fas fa-eject"></i> {{ t('ui.fileareas.unmount', {}, locale, ['common']) }}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="isoReindexBtn" onclick="openIsoPreview()">
+                                            <i class="fas fa-search"></i> {{ t('ui.fileareas.reindex', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
+                                    <div id="isoLastIndexed" class="form-text mt-1"></div>
+                                    <div id="isoMountError" class="text-danger small mt-1" style="display:none;"></div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
                                 <label for="fileareaUploadPermission" class="form-label">{{ t('ui.fileareas.upload_permission', {}, locale, ['common']) }}</label>
                                 <select class="form-select" id="fileareaUploadPermission" name="upload_permission">
                                     <option value="1">{{ t('ui.fileareas.upload_users_can_upload', {}, locale, ['common']) }}</option>
@@ -220,6 +265,64 @@
                 <a href="/admin/filearea-rules" class="btn btn-outline-secondary me-auto">{{ t('ui.fileareas.edit_rules', {}, locale, ['common']) }}</a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveFilearea()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ISO Import Preview Modal -->
+<div class="modal fade" id="isoPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-search me-2"></i><span id="isoPreviewTitle">ISO Import Preview</span></h5>
+                <div class="ms-3 form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" id="isoPreviewFlat">
+                    <label class="form-check-label small" for="isoPreviewFlat" title="Import all files into the root of the area, ignoring the ISO directory structure.">Flat import</label>
+                </div>
+                <div class="ms-3 form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" id="isoPreviewCatalogueOnly">
+                    <label class="form-check-label small" for="isoPreviewCatalogueOnly" title="Only import files listed in FILES.BBS / DESCRIPT.ION. Files not in the catalogue are skipped.">Catalogue only</label>
+                </div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="isoPreviewLoading" class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-3 d-block"></i>
+                    <span id="isoPreviewLoadingMsg">Scanning ISO…</span>
+                </div>
+                <div id="isoPreviewContent" style="display:none;">
+                    <div id="isoPreviewSummary" class="px-3 py-2 border-bottom small text-muted"></div>
+                    <div class="px-3 py-2 border-bottom d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="isoPreviewSelectAll(true)">
+                            <i class="fas fa-check-square me-1"></i>Select All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="isoPreviewSelectAll(false)">
+                            <i class="fas fa-square me-1"></i>Deselect All
+                        </button>
+                    </div>
+                    <div class="table-responsive" style="max-height:55vh; overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0" id="isoPreviewTable">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th width="4%"></th>
+                                    <th width="22%">Directory</th>
+                                    <th width="40%">Description</th>
+                                    <th width="12%">Files</th>
+                                    <th width="12%">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="isoPreviewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="isoPreviewError" class="alert alert-danger m-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="isoPreviewSubmitBtn" onclick="submitIsoImport()" style="display:none;">
+                    <i class="fas fa-download me-1"></i>Apply Import
+                </button>
             </div>
         </div>
     </div>
@@ -330,6 +433,16 @@ function displayFileareas(fileareas) {
             ? `<span class="badge bg-warning ms-1">${uiT('ui.fileareas.replace', 'Replace')}</span>`
             : '';
 
+        let isoBadge = '';
+        if (area.area_type === 'iso') {
+            const mountDot = area.iso_mount_status === 'mounted'
+                ? '<span class="text-success ms-1" title="Mounted">●</span>'
+                : area.iso_mount_status === 'error'
+                    ? '<span class="text-danger ms-1" title="Mount error">●</span>'
+                    : '<span class="text-secondary ms-1" title="Unmounted">●</span>';
+            isoBadge = `<span class="badge bg-secondary ms-1">ISO</span>${mountDot}`;
+        }
+
         const fileSize = formatBytes(area.total_size || 0);
 
         html += `
@@ -339,7 +452,7 @@ function displayFileareas(fileareas) {
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
-                <td>${statusBadge}${localBadge}${replaceBadge}</td>
+                <td>${statusBadge}${localBadge}${replaceBadge}${isoBadge}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="editFilearea(${area.id})">
                         <i class="fas fa-edit"></i>
@@ -400,6 +513,40 @@ function resetFileareaPasswordVisibility() {
     }
 }
 
+function updateIsoFieldsVisibility() {
+    const isIso = $('input[name="area_type"]:checked').val() === 'iso';
+    $('#isoFieldsGroup').toggle(isIso);
+    // Lock upload permission to read-only for ISO areas
+    if (isIso) {
+        $('#fileareaUploadPermission').val(2).prop('disabled', true);
+    } else {
+        $('#fileareaUploadPermission').prop('disabled', false);
+    }
+}
+
+function updateIsoMountStatusUI(area) {
+    if (!area || area.area_type !== 'iso') return;
+    $('#isoMountControls').show();
+    const status = area.iso_mount_status || 'unmounted';
+    let badgeClass = 'bg-secondary';
+    let badgeText = uiT('ui.fileareas.unmounted', 'Unmounted');
+    if (status === 'mounted') { badgeClass = 'bg-success'; badgeText = uiT('ui.fileareas.mounted', 'Mounted'); }
+    if (status === 'error')   { badgeClass = 'bg-danger';  badgeText = uiT('ui.fileareas.mount_error', 'Error'); }
+    $('#isoMountStatusBadge').attr('class', 'badge ' + badgeClass).text(badgeText);
+    if (area.iso_mount_error) {
+        $('#isoMountError').text(area.iso_mount_error).show();
+    } else {
+        $('#isoMountError').hide();
+    }
+    if (area.iso_last_indexed) {
+        $('#isoLastIndexed').text(uiT('ui.fileareas.last_indexed', 'Last indexed') + ': ' + area.iso_last_indexed);
+    } else {
+        $('#isoLastIndexed').text('');
+    }
+    // Enable reindex only when mounted
+    $('#isoReindexBtn').prop('disabled', status !== 'mounted');
+}
+
 function showAddFileareaModal() {
     currentFileareaId = null;
     $('#fileareaModalTitle').text(uiT('ui.fileareas.add_file_area', 'Add File Area'));
@@ -408,19 +555,30 @@ function showAddFileareaModal() {
     $('#fileareaDomain').val('');
     $('#fileareaPassword').val('');
     $('#fileareaMaxSize').val(10);
+    $('#areaTypeNormal').prop('checked', true);
+    $('#fileareaIsoFilePath').val('');
+    $('#fileareaIsoMountPoint').val('');
+    $('#isoFieldsGroup').hide();
+    $('#isoMountControls').hide();
+    $('#fileareaUploadPermission').prop('disabled', false);
+    $('#fileareaTag').prop('readonly', false).removeClass('bg-body-secondary');
+    $('#fileareaTagHelp').show();
+    $('#fileareaTagReadonlyNote').hide();
     resetFileareaPasswordVisibility();
     new bootstrap.Modal('#fileareaModal').show();
 }
 
 function editFilearea(id) {
     currentFileareaId = id;
-    $('#fileareaModalTitle').text(uiT('ui.fileareas.edit_file_area', 'Edit File Area'));
+    $('#fileareaModalTitle').text(uiT('ui.fileareas.edit_file_area', 'Edit File Area') + ' #' + id);
 
     $.get(`/api/fileareas/${id}`)
         .done(function(data) {
             const area = data.filearea;
             $('#fileareaId').val(area.id);
-            $('#fileareaTag').val(area.tag);
+            $('#fileareaTag').val(area.tag).prop('readonly', true).addClass('bg-body-secondary');
+            $('#fileareaTagHelp').hide();
+            $('#fileareaTagReadonlyNote').show();
             $('#fileareaDescription').val(area.description);
             $('#fileareaDomain').val(area.domain || '');
             $('#fileareaPassword').val(area.password || '');
@@ -437,6 +595,13 @@ function editFilearea(id) {
             $('#fileareaUploadPermission').val(area.upload_permission !== undefined ? area.upload_permission : 1);
             $('#fileareaScanVirus').prop('checked', area.scan_virus !== false);
             $('#fileareaIsActive').prop('checked', area.is_active);
+            // ISO fields
+            const isIso = area.area_type === 'iso';
+            $(`input[name="area_type"][value="${isIso ? 'iso' : 'normal'}"]`).prop('checked', true);
+            $('#fileareaIsoFilePath').val(area.iso_file_path || '');
+            $('#fileareaIsoMountPoint').val(area.iso_mount_point || '');
+            updateIsoFieldsVisibility();
+            updateIsoMountStatusUI(area);
             resetFileareaPasswordVisibility();
             new bootstrap.Modal('#fileareaModal').show();
         })
@@ -449,6 +614,7 @@ function saveFilearea() {
     const maxSizeMB = parseFloat($('#fileareaMaxSize').val()) || 10;
     const maxSizeBytes = maxSizeMB * 1048576;
 
+    const areaType = $('input[name="area_type"]:checked').val() || 'normal';
     const data = {
         tag: $('#fileareaTag').val(),
         description: $('#fileareaDescription').val(),
@@ -465,7 +631,10 @@ function saveFilearea() {
         freq_password: $('#fileareaFreqPassword').val(),
         upload_permission: parseInt($('#fileareaUploadPermission').val()),
         scan_virus: $('#fileareaScanVirus').is(':checked'),
-        is_active: $('#fileareaIsActive').is(':checked')
+        is_active: $('#fileareaIsActive').is(':checked'),
+        area_type: areaType,
+        iso_file_path: areaType === 'iso' ? $('#fileareaIsoFilePath').val().trim() : null,
+        iso_mount_point: areaType === 'iso' ? ($('#fileareaIsoMountPoint').val().trim() || null) : null
     };
 
     const url = currentFileareaId ? `/api/fileareas/${currentFileareaId}` : '/api/fileareas';
@@ -550,5 +719,155 @@ function formatBytes(bytes) {
 $(document).on('change', '#fileareaFreqEnabled', function() {
     $('#freqPasswordGroup').toggle(this.checked);
 });
+
+$(document).on('change', 'input[name="area_type"]', function() {
+    updateIsoFieldsVisibility();
+    if ($(this).val() !== 'iso') {
+        $('#isoMountControls').hide();
+    }
+});
+
+function isoMount() {
+    if (!currentFileareaId) return;
+    $('#isoMountBtn').prop('disabled', true);
+    $.post(`/api/fileareas/${currentFileareaId}/mount-iso`)
+        .done(function() {
+            // Reload area to get fresh mount status
+            $.get(`/api/fileareas/${currentFileareaId}`)
+                .done(function(data) { updateIsoMountStatusUI(data.filearea); })
+                .always(function() { $('#isoMountBtn').prop('disabled', false); loadFileareas(); });
+        })
+        .fail(function(xhr) {
+            $('#isoMountBtn').prop('disabled', false);
+            showError(apiError(xhr.responseJSON, uiT('errors.fileareas.mount_failed', 'Failed to mount ISO area')));
+        });
+}
+
+function isoUnmount() {
+    if (!currentFileareaId) return;
+    $('#isoUnmountBtn').prop('disabled', true);
+    $.post(`/api/fileareas/${currentFileareaId}/unmount-iso`)
+        .done(function() {
+            $.get(`/api/fileareas/${currentFileareaId}`)
+                .done(function(data) { updateIsoMountStatusUI(data.filearea); })
+                .always(function() { $('#isoUnmountBtn').prop('disabled', false); loadFileareas(); });
+        })
+        .fail(function(xhr) {
+            $('#isoUnmountBtn').prop('disabled', false);
+            showError(apiError(xhr.responseJSON, uiT('errors.fileareas.unmount_failed', 'Failed to unmount ISO area')));
+        });
+}
+
+function openIsoPreview() {
+    if (!currentFileareaId) return;
+    const flat          = $('#isoPreviewFlat').is(':checked');
+    const catalogueOnly = $('#isoPreviewCatalogueOnly').is(':checked');
+
+    $('#isoPreviewLoading').show();
+    $('#isoPreviewContent').hide();
+    $('#isoPreviewError').hide();
+    $('#isoPreviewSubmitBtn').hide();
+    $('#isoPreviewBody').empty();
+    $('#isoPreviewSummary').text('');
+
+    const modal = new bootstrap.Modal('#isoPreviewModal');
+    modal.show();
+
+    $.get(`/api/fileareas/${currentFileareaId}/preview-iso?flat=${flat ? 1 : 0}&catalogue_only=${catalogueOnly ? 1 : 0}`)
+        .done(function(data) {
+            renderIsoPreview(data);
+        })
+        .fail(function(xhr) {
+            $('#isoPreviewLoading').hide();
+            $('#isoPreviewError').text((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load preview').show();
+        });
+}
+
+// Re-load preview when import options change
+$('#isoPreviewFlat, #isoPreviewCatalogueOnly').on('change', function() {
+    if (bootstrap.Modal.getInstance('#isoPreviewModal')) {
+        openIsoPreview();
+    }
+});
+
+function renderIsoPreview(data) {
+    const entries = data.entries || [];
+    const summary = data.summary || {};
+
+    const summaryText = `${entries.length} directories · ${summary.new_dirs || 0} new, ${summary.existing_dirs || 0} existing · ${summary.total_files || 0} files`;
+    $('#isoPreviewSummary').text(summaryText);
+
+    let rows = '';
+    entries.forEach(function(entry, idx) {
+        const desc = entry.db_description || entry.catalogue_description || entry.name;
+        const statusBadge = entry.status === 'new'
+            ? '<span class="badge bg-success">New</span>'
+            : '<span class="badge bg-secondary">Existing</span>';
+        rows += `
+            <tr>
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input iso-preview-check" data-idx="${idx}" checked>
+                </td>
+                <td>
+                    <i class="fas fa-folder text-warning me-1"></i>
+                    <span class="small font-monospace">${escapeHtml(entry.rel_path)}</span>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm iso-preview-desc" data-idx="${idx}"
+                           value="${escapeHtml(desc)}" placeholder="${escapeHtml(entry.catalogue_description || entry.name)}">
+                </td>
+                <td class="small text-muted">${entry.file_count}</td>
+                <td>${statusBadge}</td>
+            </tr>
+        `;
+    });
+
+    $('#isoPreviewBody').html(rows);
+    // Store entries for submit
+    $('#isoPreviewModal').data('entries', entries);
+
+    $('#isoPreviewLoading').hide();
+    $('#isoPreviewContent').show();
+    $('#isoPreviewSubmitBtn').show();
+}
+
+function isoPreviewSelectAll(checked) {
+    $('.iso-preview-check').prop('checked', checked);
+}
+
+function submitIsoImport() {
+    if (!currentFileareaId) return;
+
+    const entries       = $('#isoPreviewModal').data('entries') || [];
+    const flat          = $('#isoPreviewFlat').is(':checked');
+    const catalogueOnly = $('#isoPreviewCatalogueOnly').is(':checked');
+
+    const overrides = entries.map(function(entry, idx) {
+        const skip = !$('.iso-preview-check[data-idx="' + idx + '"]').is(':checked');
+        const description = $('.iso-preview-desc[data-idx="' + idx + '"]').val().trim();
+        return { rel_path: entry.rel_path, description, skip };
+    });
+
+    $('#isoPreviewSubmitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Importing…');
+
+    $.ajax({
+        url: `/api/fileareas/${currentFileareaId}/reindex-iso`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ flat, catalogue_only: catalogueOnly, overrides })
+    })
+        .done(function(data) {
+            const c = data.counters || {};
+            bootstrap.Modal.getInstance('#isoPreviewModal').hide();
+            const msg = uiT('ui.fileareas.reindex_done', 'Re-index complete') +
+                `: ${c.imported || 0} imported, ${c.updated || 0} updated, ${c.skipped || 0} skipped`;
+            showSuccess(msg);
+            $.get(`/api/fileareas/${currentFileareaId}`).done(d => updateIsoMountStatusUI(d.filearea));
+        })
+        .fail(function(xhr) {
+            $('#isoPreviewSubmitBtn').prop('disabled', false).html('<i class="fas fa-download me-1"></i>Apply Import');
+            showError(uiT('errors.fileareas.reindex_failed', 'Failed to re-index ISO'));
+        });
+}
 </script>
 {% endblock %}

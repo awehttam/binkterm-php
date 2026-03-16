@@ -473,16 +473,19 @@ function displayRecentFiles(files) {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="35%">${uiT('ui.files.filename', 'Filename')}</th>
-                        <th width="15%">${uiT('ui.files.area', 'Area')}</th>
-                        <th width="18%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="55%">${uiT('ui.files.filename', 'Filename')}</th>
                         <th width="10%">${uiT('ui.files.size', 'Size')}</th>
-                        <th width="12%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
-                        <th width="10%">${uiT('ui.files.actions', 'Actions')}</th>
+                        <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th width="20%">${uiT('ui.files.actions', 'Actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
+
+    // Track which ISO subfolders have already been rendered so each subfolder
+    // appears only once in the recent-uploads list (avoids duplicate folder rows
+    // caused by multiple files sharing the same parent directory).
+    const seenIsoSubfolders = new Set();
 
     files.forEach(function(file) {
         const shortDesc = escapeHtml(file.short_description || '');
@@ -490,9 +493,34 @@ function displayRecentFiles(files) {
         const uploadDate = formatDate(file.created_at);
         const canDelete = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
 
-        let areaLabel = escapeHtml(file.area_tag || '');
-        if (!file.is_local && file.domain) {
-            areaLabel += '<span class="text-muted">@' + escapeHtml(file.domain) + '</span>';
+        const isIsoDir = file.source_type === 'iso_import' && !!file.subfolder;
+
+        if (isIsoDir) {
+            // Use "areaId:subfolder" as the dedup key so the same subfolder path
+            // in different areas is treated as distinct entries.
+            const subfolderKey = `${file.file_area_id}:${file.subfolder}`;
+            if (seenIsoSubfolders.has(subfolderKey)) {
+                return; // already rendered a row for this subfolder
+            }
+            seenIsoSubfolders.add(subfolderKey);
+
+            // Show the actual directory name (last path component) as the label
+            // so "TEXT/DIR9" appears as "DIR9", not as an unrelated file description.
+            const subfolderName = escapeHtml(file.subfolder.split('/').pop() || file.subfolder);
+            const onclick = `selectFileArea(${file.file_area_id}, '${escapeHtml(file.subfolder)}'); return false;`;
+
+            html += `
+                <tr>
+                    <td>
+                        <i class="fas fa-folder text-warning me-2"></i>
+                        <a href="#" class="file-preview-link fw-bold" onclick="${onclick}">${subfolderName}</a>
+                    </td>
+                    <td>—</td>
+                    <td><small>${uploadDate}</small></td>
+                    <td></td>
+                </tr>
+            `;
+            return;
         }
 
         let scanIcon = '<i class="fas fa-file me-2"></i>';
@@ -516,8 +544,6 @@ function displayRecentFiles(files) {
                     ${scanIcon}
                     <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}
                 </td>
-                <td><small class="text-muted">${areaLabel}</small></td>
-                <td><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
@@ -680,70 +706,71 @@ function renderFileAreaList(areas) {
     loadRecentFiles();
 }
 
-function selectFileArea(areaId) {
+function selectFileArea(areaId, subfolder) {
     currentAreaId = areaId;
-    currentSubfolder = null;
+    currentSubfolder = subfolder !== undefined ? subfolder : null;
     const area = allFileAreas.find(a => a.id === areaId);
-    if (!area) return;
 
-    const isLocal = !!area.is_local;
-    const domain = area.domain || '';
-    const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
+    if (area) {
+        const isLocal = !!area.is_local;
+        const domain = area.domain || '';
+        const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
 
-    // Display domain for non-local areas; use friendly label for private area
-    let displayTag;
-    if (privateFileArea && area.id === privateFileArea.id) {
-        displayTag = privateFileArea._username
-            ? `${escapeHtml(privateFileArea._username)}'s private file area`
-            : uiT('ui.files.my_files', 'My Files');
-    } else {
-        displayTag = escapeHtml(area.tag);
-        if (!isLocal && domain) {
-            displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
-        }
-    }
-
-    $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
-    $('#searchFiles').val('');
-
-    // Build description + capability icons under the area name
-    let icons = '';
-    if (area.gemini_public) {
-        icons += `<span class="badge text-bg-info me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.gemini_public', 'Gemini Public')}"><i class="fas fa-gem"></i> Gemini</span>`;
-    }
-    if (area.freq_enabled) {
-        icons += `<span class="badge text-bg-warning me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.freq_enabled', 'FREQ Enabled')}"><i class="fas fa-file-download"></i> FREQ</span>`;
-    }
-
-    const desc = area.description ? escapeHtml(area.description) : '';
-    if (desc || icons) {
-        $('#currentAreaMeta').html(`${icons}<small class="text-muted">${desc}</small>`).show();
-    } else {
-        $('#currentAreaMeta').hide();
-    }
-
-    // Control upload button visibility based on upload permission
-    // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
-    const UPLOAD_ADMIN_ONLY = 0;
-    const UPLOAD_READ_ONLY = 2;
-
-    if (uploadPermission === UPLOAD_READ_ONLY) {
-        $('#uploadFileBtn').hide();
-    } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
-        if (isAdmin) {
-            $('#uploadFileBtn').show();
+        // Display domain for non-local areas; use friendly label for private area
+        let displayTag;
+        if (privateFileArea && area.id === privateFileArea.id) {
+            displayTag = privateFileArea._username
+                ? `${escapeHtml(privateFileArea._username)}'s private file area`
+                : uiT('ui.files.my_files', 'My Files');
         } else {
-            $('#uploadFileBtn').hide();
+            displayTag = escapeHtml(area.tag);
+            if (!isLocal && domain) {
+                displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
+            }
         }
-    } else {
-        $('#uploadFileBtn').show();
+
+        $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
+        $('#searchFiles').val('');
+
+        // Build description + capability icons under the area name
+        let icons = '';
+        if (area.gemini_public) {
+            icons += `<span class="badge text-bg-info me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.gemini_public', 'Gemini Public')}"><i class="fas fa-gem"></i> Gemini</span>`;
+        }
+        if (area.freq_enabled) {
+            icons += `<span class="badge text-bg-warning me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.freq_enabled', 'FREQ Enabled')}"><i class="fas fa-file-download"></i> FREQ</span>`;
+        }
+
+        const desc = area.description ? escapeHtml(area.description) : '';
+        if (desc || icons) {
+            $('#currentAreaMeta').html(`${icons}<small class="text-muted">${desc}</small>`).show();
+        } else {
+            $('#currentAreaMeta').hide();
+        }
+
+        // Control upload button visibility based on upload permission
+        // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
+        const UPLOAD_ADMIN_ONLY = 0;
+        const UPLOAD_READ_ONLY = 2;
+
+        if (uploadPermission === UPLOAD_READ_ONLY) {
+            $('#uploadFileBtn').hide();
+        } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
+            if (isAdmin) {
+                $('#uploadFileBtn').show();
+            } else {
+                $('#uploadFileBtn').hide();
+            }
+        } else {
+            $('#uploadFileBtn').show();
+        }
+
+        // Highlight selected area
+        $('#fileAreasList .list-group-item').removeClass('active');
+        $(`#fileAreasList .list-group-item[data-area-id="${areaId}"]`).addClass('active');
     }
 
-    // Highlight selected area
-    $('#fileAreasList .list-group-item').removeClass('active');
-    $(`#fileAreasList .list-group-item[data-area-id="${areaId}"]`).addClass('active');
-
-    loadFiles(areaId);
+    loadFiles(areaId, currentSubfolder);
 }
 
 function loadFiles(areaId, subfolder) {
@@ -761,7 +788,7 @@ function loadFiles(areaId, subfolder) {
         .done(function(data) {
             allFiles = data.files;
             const subfolders = (subfolder === null) ? (data.subfolders || []) : [];
-            displayFiles(allFiles, subfolders, subfolder);
+            displayFiles(allFiles, subfolders, subfolder, data.subfolder_label || null);
         })
         .fail(function() {
             $('#filesContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.files.load_files_failed', 'Failed to load files')}</div>`);
@@ -787,15 +814,16 @@ function subfolderLabel(name) {
     return subfolderLabels[name] || name;
 }
 
-function displayFiles(files, subfolders, subfolder) {
-    subfolders = subfolders || [];
-    subfolder  = subfolder  !== undefined ? subfolder : currentSubfolder;
+function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
+    subfolders         = subfolders || [];
+    subfolder          = subfolder          !== undefined ? subfolder          : currentSubfolder;
+    subfolderDisplayLabel = subfolderDisplayLabel !== undefined ? subfolderDisplayLabel : null;
     displayedFiles = files;
 
     if (files.length === 0 && subfolders.length === 0) {
         let emptyHtml = '';
         if (subfolder !== null) {
-            emptyHtml = buildBreadcrumb(subfolder);
+            emptyHtml = buildBreadcrumb(subfolder, subfolderDisplayLabel);
         }
         emptyHtml += `<div class="p-4 text-center text-muted">${uiT('ui.files.no_files_in_area', 'No files in this area')}</div>`;
         $('#filesContainer').html(emptyHtml);
@@ -806,7 +834,7 @@ function displayFiles(files, subfolders, subfolder) {
 
     // Breadcrumb when inside a subfolder
     if (subfolder !== null) {
-        html += buildBreadcrumb(subfolder);
+        html += buildBreadcrumb(subfolder, subfolderDisplayLabel);
     }
 
     html += `
@@ -825,14 +853,37 @@ function displayFiles(files, subfolders, subfolder) {
     `;
 
     // Subfolder rows (only shown at root level)
+    // Each folder is {subfolder, description, subdir_id}
     subfolders.forEach(function(folder) {
+        const sf        = folder.subfolder;
+        const dirName   = subfolderLabel(sf);
+        // Show short_description as the folder label if it's set and differs from the directory name
+        const shortDesc = folder.description || '';
+        const label     = escapeHtml(shortDesc && shortDesc !== sf ? shortDesc : dirName);
+        const desc      = escapeHtml(folder.long_description || '');
+        const editBtn = isAdmin && folder.subdir_id
+            ? `<button class="btn btn-sm btn-outline-secondary me-1" title="${uiT('ui.files.edit_description', 'Edit description')}"
+                       onclick="event.stopPropagation(); openSubdirEdit(${folder.subdir_id})">
+                   <i class="fas fa-pencil-alt"></i>
+               </button>`
+            : '';
+        const deleteBtn = isAdmin
+            ? `<button class="btn btn-sm btn-outline-danger me-1" title="${uiT('ui.files.delete_subfolder', 'Delete subfolder')}"
+                       onclick="event.stopPropagation(); confirmDeleteSubfolder(${currentAreaId}, '${escapeHtml(sf)}')">
+                   <i class="fas fa-trash"></i>
+               </button>`
+            : '';
         html += `
-            <tr class="table-secondary" style="cursor:pointer;" onclick="enterSubfolder('${escapeHtml(folder)}')">
-                <td colspan="4">
+            <tr class="table-secondary" style="cursor:pointer;" onclick="enterSubfolder('${escapeHtml(sf)}')">
+                <td>
                     <i class="fas fa-folder text-warning me-2"></i>
-                    <strong>${escapeHtml(subfolderLabel(folder))}</strong>
+                    <strong>${label}</strong>
                 </td>
+                <td><small class="text-muted">${desc}</small></td>
+                <td>—</td>
+                <td>—</td>
                 <td class="text-end">
+                    ${editBtn}${deleteBtn}
                     <i class="fas fa-chevron-right text-muted"></i>
                 </td>
             </tr>
@@ -891,8 +942,11 @@ function displayFiles(files, subfolders, subfolder) {
     $('#filesContainer').html(html);
 }
 
-function buildBreadcrumb(subfolder) {
+function buildBreadcrumb(subfolder, label) {
     const areaLabel = uiT('ui.files.title', 'Files');
+    // Use the server-resolved label (short_description or dir name) when available,
+    // otherwise fall back to the local lookup map then the raw path.
+    const displayLabel = label || subfolderLabel(subfolder);
     return `
         <nav class="px-3 pt-2 pb-1 small border-bottom" aria-label="breadcrumb">
             <ol class="breadcrumb mb-0">
@@ -901,8 +955,8 @@ function buildBreadcrumb(subfolder) {
                         <i class="fas fa-folder-open me-1"></i>${escapeHtml(areaLabel)}
                     </a>
                 </li>
-                <li class="breadcrumb-item active" aria-current="page">
-                    <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(subfolderLabel(subfolder))}
+                <li class="breadcrumb-item fw-semibold text-body" aria-current="page">
+                    <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(displayLabel)}
                 </li>
             </ol>
         </nav>
@@ -1326,9 +1380,26 @@ function saveScanStatus() {
     });
 }
 
+/**
+ * Load an iso_subdir record by ID then open the standard edit dialog,
+ * which already disables the filename field and hides move-area for ISO types.
+ */
+function openSubdirEdit(subdirId) {
+    $.get(`/api/files/${subdirId}`)
+        .done(function(data) {
+            currentFile   = data.file;
+            currentFileId = subdirId;
+            showEditDialog();
+        })
+        .fail(function() {
+            showError(uiT('ui.files.load_files_failed', 'Failed to load file details'));
+        });
+}
+
 function showEditDialog() {
     const currentFilename = currentFile ? currentFile.filename : $('#detailFilename').text();
-    $('#renameFilenameInput').val(currentFilename);
+    const isIso = currentFile && (currentFile.source_type === 'iso_import' || currentFile.source_type === 'iso_subdir');
+    $('#renameFilenameInput').val(currentFilename).prop('disabled', isIso);
     $('#editShortDescInput').val(currentFile ? (currentFile.short_description || '') : '');
     $('#editLongDescInput').val(currentFile ? (currentFile.long_description || '') : '');
     $('#renameErrorMsg').hide();
@@ -1343,12 +1414,12 @@ function showEditDialog() {
             options += `<option value="${area.id}"${selected}>${escapeHtml(label)}</option>`;
         });
         $('#editMoveAreaSelect').html(options);
-        $('#editMoveAreaGroup').show();
+        $('#editMoveAreaGroup').toggle(!isIso);
     } else {
         $('#editMoveAreaGroup').hide();
     }
 
-    bootstrap.Modal.getInstance('#fileDetailsModal').hide();
+    bootstrap.Modal.getInstance('#fileDetailsModal')?.hide();
     new bootstrap.Modal('#fileRenameModal').show();
     $('#fileRenameModal').on('shown.bs.modal', function() {
         const input = $('#renameFilenameInput')[0];
@@ -1364,7 +1435,7 @@ function submitEdit() {
     const shortDesc    = $('#editShortDescInput').val().trim();
     const longDesc     = $('#editLongDescInput').val().trim();
 
-    if (!newFilename) {
+    if (!newFilename && !$('#renameFilenameInput').prop('disabled')) {
         $('#renameErrorMsg').text(uiT('errors.files.rename_filename_required', 'New filename is required'));
         $('#renameErrorMsg').show();
         return;
@@ -1439,6 +1510,33 @@ function deleteFile(fileId) {
         },
         error: function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('errors.files.delete_failed', 'Failed to delete file'));
+            showError(error);
+        }
+    });
+}
+
+function confirmDeleteSubfolder(areaId, subfolder) {
+    const msg = uiT('ui.files.delete_subfolder_confirm', `Are you sure you want to delete the subfolder "${subfolder}" and all its files? This cannot be undone.`, { subfolder });
+    if (confirm(msg)) {
+        deleteSubfolder(areaId, subfolder);
+    }
+}
+
+function deleteSubfolder(areaId, subfolder) {
+    $.ajax({
+        url: `/api/fileareas/${areaId}/subfolder`,
+        method: 'DELETE',
+        contentType: 'application/json',
+        data: JSON.stringify({ subfolder }),
+        success: function() {
+            showSuccess(uiT('ui.files.subfolder_deleted', 'Subfolder deleted'));
+            loadFiles(areaId);
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.files.delete_failed', 'Failed to delete subfolder'))
+                : uiT('errors.files.delete_failed', 'Failed to delete subfolder');
             showError(error);
         }
     });

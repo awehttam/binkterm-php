@@ -188,6 +188,503 @@ class FileAreaManager
     }
 
     /**
+     * Resolve the filesystem path for a file record.
+     *
+     * For ISO-imported files the path is reconstructed from the area's current
+     * mount point and the file's relative path. For normal files the stored
+     * storage_path is returned unchanged.
+     *
+     * @param array $file   File record from files table (must include file_area_id, source_type, iso_rel_path, storage_path)
+     * @return string       Absolute filesystem path
+     */
+    public function resolveFilePath(array $file): string
+    {
+        if (($file['source_type'] ?? '') === 'iso_import' && !empty($file['iso_rel_path'])) {
+            $area = $this->getFileAreaById($file['file_area_id']);
+            if ($area && !empty($area['iso_mount_point'])) {
+                return rtrim($area['iso_mount_point'], '/') . '/' . ltrim($file['iso_rel_path'], '/');
+            }
+        }
+        return $file['storage_path'];
+    }
+
+    /**
+     * Update the ISO mount status for a file area.
+     *
+     * @param int         $id          File area ID
+     * @param string      $status      'mounted', 'unmounted', or 'error'
+     * @param string|null $error       Error message (e.g. fuseiso output on failure); stored in iso_mount_error
+     * @param string|null $mountPoint  Absolute mount point path (set on successful mount)
+     */
+    public function updateIsoMountStatus(int $id, string $status, ?string $error = null, ?string $mountPoint = null): void
+    {
+        $sets = ['iso_mount_status = ?', 'iso_mount_error = ?', 'updated_at = NOW()'];
+        $params = [$status, $error];
+
+        if ($mountPoint !== null) {
+            $sets[] = 'iso_mount_point = ?';
+            $params[] = $mountPoint;
+        }
+
+        $params[] = $id;
+        $sql = 'UPDATE file_areas SET ' . implode(', ', $sets) . ' WHERE id = ?';
+        $this->db->prepare($sql)->execute($params);
+    }
+
+    /**
+     * Update the ISO last-indexed timestamp for a file area.
+     *
+     * @param int $id File area ID
+     */
+    public function updateIsoLastIndexed(int $id): void
+    {
+        $this->db->prepare("UPDATE file_areas SET iso_last_indexed = NOW(), updated_at = NOW() WHERE id = ?")
+            ->execute([$id]);
+    }
+
+    /**
+     * Dry-run scan of an ISO-backed file area.
+     *
+     * Returns one entry per discovered subdirectory (not individual files).
+     * Each entry includes the catalogue description, current DB description,
+     * approximate file count, and whether the directory is already indexed.
+     *
+     * @param int  $areaId
+     * @param bool $flat          When true, all files are at root — no directory entries
+     * @param bool $catalogueOnly When true, only import files listed in a catalogue (FILES.BBS etc.)
+     * @return array{entries: array, summary: array}
+     * @throws \Exception
+     */
+    public function previewIsoImport(int $areaId, bool $flat = false, bool $catalogueOnly = false): array
+    {
+        $area = $this->getFileAreaById($areaId);
+        if (!$area) {
+            throw new \Exception("File area {$areaId} not found");
+        }
+        if (($area['area_type'] ?? 'normal') !== 'iso') {
+            throw new \Exception("File area {$areaId} is not ISO-backed");
+        }
+        $mountPoint = rtrim($area['iso_mount_point'] ?? '', '/\\');
+        if (empty($mountPoint) || !is_dir($mountPoint)) {
+            throw new \Exception("ISO is not mounted");
+        }
+
+        $catalogueNames = ['FILES.BBS', 'DESCRIPT.ION', 'FILE_LIST.BBS', '00INDEX.TXT', 'INDEX.TXT'];
+        $entries = [];
+        $this->collectPreviewDirs($mountPoint, $mountPoint, $areaId, $catalogueNames, $flat, $catalogueOnly, $entries);
+
+        $newDirs = $existingDirs = $totalFiles = 0;
+        foreach ($entries as $e) {
+            $e['status'] === 'new' ? $newDirs++ : $existingDirs++;
+            $totalFiles += $e['file_count'];
+        }
+
+        return [
+            'entries' => $entries,
+            'summary' => [
+                'new_dirs'      => $newDirs,
+                'existing_dirs' => $existingDirs,
+                'total_files'   => $totalFiles,
+            ],
+        ];
+    }
+
+    /**
+     * Recursively collect directory entries for ISO preview (no DB writes).
+     */
+    private function collectPreviewDirs(
+        string $dirPath,
+        string $mountPoint,
+        int $areaId,
+        array $catalogueNames,
+        bool $flat,
+        bool $catalogueOnly,
+        array &$entries
+    ): void {
+        $relDir = ltrim(str_replace(['/', '\\'], '/', substr($dirPath, strlen($mountPoint))), '/');
+
+        if ($relDir !== '' && !$flat) {
+            $dirName   = basename($relDir);
+            $catalogue = $this->loadIsoCatalogue($dirPath, $catalogueNames);
+            $catDesc   = $this->toUtf8($catalogue[strtolower($dirName)][0] ?? '') ?: $dirName;
+            $catDesc   = mb_substr($catDesc, 0, 255);
+
+            // Check for existing iso_subdir record
+            $stmt = $this->db->prepare("
+                SELECT short_description FROM files
+                WHERE file_area_id = ? AND source_type = 'iso_subdir' AND iso_rel_path = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$areaId, $relDir]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            // Count immediate files in this directory (respecting catalogue_only filter)
+            $fileCount = 0;
+            $hasCatalogue = !empty($catalogue);
+            foreach (@scandir($dirPath) ?: [] as $f) {
+                if ($f === '.' || $f === '..' || !is_file($dirPath . DIRECTORY_SEPARATOR . $f)) {
+                    continue;
+                }
+                if ($catalogueOnly && $hasCatalogue && !isset($catalogue[strtolower($f)])) {
+                    continue;
+                }
+                $fileCount++;
+            }
+
+            $entries[] = [
+                'rel_path'              => $relDir,
+                'name'                  => $dirName,
+                'catalogue_description' => $catDesc,
+                'db_description'        => $existing ? ($existing['short_description'] ?? null) : null,
+                'status'                => $existing ? 'existing' : 'new',
+                'file_count'            => $fileCount,
+                'has_catalogue'         => $hasCatalogue,
+            ];
+        }
+
+        // Recurse into subdirectories
+        foreach (@scandir($dirPath) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            $fullPath = $dirPath . DIRECTORY_SEPARATOR . $entry;
+            if (is_dir($fullPath)) {
+                $this->collectPreviewDirs($fullPath, $mountPoint, $areaId, $catalogueNames, $flat, $catalogueOnly, $entries);
+            }
+        }
+    }
+
+    /**
+     * Import/re-index files from a mounted ISO-backed file area.
+     *
+     * Walks the mount point directory tree, reads FILES.BBS / DESCRIPT.ION
+     * catalogues, and inserts or updates file records in the database.
+     *
+     * @param int    $areaId        File area ID
+     * @param bool   $update        Update descriptions for already-imported files
+     * @param string|null $filterDir Only scan this subdirectory of the mount point
+     * @param bool   $flat          If true, import all files without subfolder grouping
+     * @param array  $overrides     Per-directory overrides keyed by rel_path
+     * @param bool   $catalogueOnly If true, only import files listed in a catalogue (FILES.BBS etc.)
+     * @return array {imported: int, updated: int, skipped: int, no_description: int, errors: int}
+     * @throws \Exception If the area is not found, not ISO-backed, or not mounted
+     */
+    public function importIsoFiles(int $areaId, bool $update = false, ?string $filterDir = null, bool $flat = false, array $overrides = [], bool $catalogueOnly = false): array
+    {
+        $area = $this->getFileAreaById($areaId);
+        if (!$area) {
+            throw new \Exception("File area {$areaId} not found");
+        }
+        if (($area['area_type'] ?? 'normal') !== 'iso') {
+            throw new \Exception("File area {$areaId} is not an ISO-backed area");
+        }
+
+        $mountPoint = rtrim($area['iso_mount_point'] ?? '', '/\\');
+        if (empty($mountPoint) || !is_dir($mountPoint)) {
+            throw new \Exception("ISO area is not mounted (mount_point: '{$mountPoint}')");
+        }
+
+        $scanRoot = $filterDir
+            ? rtrim($mountPoint, '/\\') . DIRECTORY_SEPARATOR . ltrim($filterDir, '/\\')
+            : $mountPoint;
+
+        if (!is_dir($scanRoot)) {
+            throw new \Exception("Scan directory not found: {$scanRoot}");
+        }
+
+        $catalogueNames = ['FILES.BBS', 'DESCRIPT.ION', 'FILE_LIST.BBS', '00INDEX.TXT', 'INDEX.TXT'];
+        $counters = ['imported' => 0, 'updated' => 0, 'skipped' => 0, 'no_description' => 0, 'errors' => 0];
+
+        $this->scanIsoDirectory($scanRoot, $mountPoint, $areaId, $catalogueNames, $update, $counters, $flat, $overrides, $catalogueOnly);
+        $this->updateIsoLastIndexed($areaId);
+
+        return $counters;
+    }
+
+    /**
+     * Recursively scan a directory and import files into the database.
+     *
+     * @param bool $flat  If true, all files are stored without subfolder grouping
+     */
+    private function scanIsoDirectory(
+        string $dirPath,
+        string $mountPoint,
+        int $areaId,
+        array $catalogueNames,
+        bool $update,
+        array &$counters,
+        bool $flat = false,
+        array $overrides = [],
+        bool $catalogueOnly = false
+    ): void {
+        $catalogue = $this->loadIsoCatalogue($dirPath, $catalogueNames);
+
+        $relDir    = ltrim(str_replace(['/', '\\'], '/', substr($dirPath, strlen($mountPoint))), '/');
+        $subfolder = ($flat || $relDir === '') ? null : $relDir;
+
+        $insertStmt = $this->db->prepare("
+            INSERT INTO files (
+                filename, short_description, long_description,
+                file_area_id, storage_path, filesize, file_hash,
+                iso_rel_path, subfolder, source_type, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'iso_import', 'approved', ?, NOW())
+            ON CONFLICT DO NOTHING
+        ");
+
+        $updateStmt = $this->db->prepare("
+            UPDATE files
+            SET short_description = CASE WHEN (short_description IS NULL OR short_description = filename) THEN ? ELSE short_description END,
+                long_description  = CASE WHEN long_description IS NULL THEN ? ELSE long_description END,
+                storage_path = ?, filesize = ?, updated_at = NOW()
+            WHERE file_area_id = ? AND iso_rel_path = ?
+        ");
+
+        $updateFlatStmt = $this->db->prepare("
+            UPDATE files
+            SET short_description = CASE WHEN (short_description IS NULL OR short_description = filename) THEN ? ELSE short_description END,
+                long_description  = CASE WHEN long_description IS NULL THEN ? ELSE long_description END,
+                storage_path = ?, filesize = ?, subfolder = NULL, updated_at = NOW()
+            WHERE file_area_id = ? AND iso_rel_path = ?
+        ");
+
+        $checkStmt = $this->db->prepare("
+            SELECT id FROM files WHERE file_area_id = ? AND iso_rel_path = ? LIMIT 1
+        ");
+
+        $entries = @scandir($dirPath);
+        if ($entries === false) {
+            return;
+        }
+
+        // Upsert an iso_subdir record for this directory itself (skip the ISO root).
+        // This lets admins set a human-readable description on each subfolder.
+        if ($relDir !== '' && !$flat) {
+            // Check if this directory is explicitly skipped by user overrides
+            $override = $overrides[$relDir] ?? null;
+            if ($override && !empty($override['skip'])) {
+                return; // Skip this entire directory and its files
+            }
+
+            $dirName    = basename($relDir);
+            $parentDir  = dirname($relDir);
+            $parentSubfolder = ($parentDir === '.' || $parentDir === '') ? null : $parentDir;
+            $descKey    = strtolower($dirName);
+            $dirDesc    = $this->toUtf8($catalogue[$descKey][0] ?? '');
+            if ($dirDesc === '') {
+                $dirDesc = $dirName;
+            }
+            $dirDesc = mb_substr($dirDesc, 0, 255);
+
+            // Override description from user-submitted preview
+            if ($override && isset($override['description']) && $override['description'] !== '') {
+                $dirDesc = mb_substr($override['description'], 0, 255);
+            }
+
+            $existingStmt = $this->db->prepare(
+                "SELECT id FROM files WHERE file_area_id = ? AND iso_rel_path = ? AND source_type = 'iso_subdir' LIMIT 1"
+            );
+            $existingStmt->execute([$areaId, $relDir]);
+            $existingRow = $existingStmt->fetch();
+            if (!$existingRow) {
+                $ins = $this->db->prepare("
+                    INSERT INTO files (
+                        filename, short_description, file_area_id,
+                        storage_path, filesize, file_hash, iso_rel_path, subfolder,
+                        source_type, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, '', 0, '', ?, ?, 'iso_subdir', 'approved', NOW(), NOW())
+                    ON CONFLICT DO NOTHING
+                ");
+                $ins->execute([$dirName, $dirDesc, $areaId, $relDir, $parentSubfolder]);
+            } elseif ($override && isset($override['description'])) {
+                // User explicitly set a description in the preview — always apply it
+                $upd = $this->db->prepare(
+                    "UPDATE files SET short_description = ?, updated_at = NOW() WHERE file_area_id = ? AND iso_rel_path = ? AND source_type = 'iso_subdir'"
+                );
+                $upd->execute([$dirDesc, $areaId, $relDir]);
+            }
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $fullPath = $dirPath . DIRECTORY_SEPARATOR . $entry;
+
+            if (is_dir($fullPath)) {
+                $this->scanIsoDirectory($fullPath, $mountPoint, $areaId, $catalogueNames, $update, $counters, $flat, $overrides, $catalogueOnly);
+                continue;
+            }
+
+            // Skip catalogue files
+            foreach ($catalogueNames as $catName) {
+                if (strtolower($entry) === strtolower($catName)) {
+                    continue 2;
+                }
+            }
+
+            if (!is_file($fullPath)) {
+                continue;
+            }
+
+            $descKey   = strtolower($entry);
+
+            // In catalogue-only mode, skip files not listed in the catalogue
+            // (only when a catalogue actually exists; if there's no catalogue, import all)
+            if ($catalogueOnly && !empty($catalogue) && !isset($catalogue[$descKey])) {
+                $counters['skipped']++;
+                continue;
+            }
+
+            $relPath   = ($relDir !== '' ? $relDir . '/' : '') . $entry;
+            $fileSize  = @filesize($fullPath) ?: 0;
+            $fileHash  = hash_file('sha256', $fullPath);
+            $fileMtime = @filemtime($fullPath);
+            $fileDate  = $fileMtime ? date('Y-m-d H:i:sO', $fileMtime) : null;
+
+            $shortDesc = $this->toUtf8($catalogue[$descKey][0] ?? '');
+            $longDesc  = $this->toUtf8($catalogue[$descKey][1] ?? '');
+            if ($shortDesc === '') {
+                $shortDesc = $entry;
+                $counters['no_description']++;
+            }
+            $shortDesc = mb_substr($shortDesc, 0, 255);
+
+            $checkStmt->execute([$areaId, $relPath]);
+            $existing = $checkStmt->fetch();
+
+            if ($existing) {
+                if ($update) {
+                    $stmt = $flat ? $updateFlatStmt : $updateStmt;
+                    $stmt->execute([$shortDesc, $longDesc ?: null, $fullPath, $fileSize, $areaId, $relPath]);
+                    $counters['updated']++;
+                } else {
+                    $counters['skipped']++;
+                }
+            } else {
+                try {
+                    $insertStmt->execute([
+                        $entry, $shortDesc, $longDesc ?: null,
+                        $areaId, $fullPath, $fileSize, $fileHash,
+                        $relPath, $subfolder, $fileDate,
+                    ]);
+                    $counters[$insertStmt->rowCount() > 0 ? 'imported' : 'skipped']++;
+                } catch (\Exception $e) {
+                    error_log("[IsoImport] Error importing {$relPath}: " . $e->getMessage());
+                    $counters['errors']++;
+                }
+            }
+        }
+    }
+
+    /**
+     * Load a FILES.BBS or DESCRIPT.ION catalogue from a directory.
+     *
+     * @return array filename_lowercase => [short_desc, long_desc]
+     */
+    private function loadIsoCatalogue(string $dirPath, array $catalogueNames): array
+    {
+        foreach ($catalogueNames as $catalogueName) {
+            foreach (@scandir($dirPath) ?: [] as $entry) {
+                if (strtolower($entry) !== strtolower($catalogueName)) {
+                    continue;
+                }
+                $content = @file_get_contents($dirPath . DIRECTORY_SEPARATOR . $entry);
+                if ($content === false) {
+                    continue;
+                }
+                return strtolower($catalogueName) === 'descript.ion'
+                    ? $this->parseDescriptIon($content)
+                    : $this->parseFilesBbs($content);
+            }
+        }
+        return [];
+    }
+
+    /**
+     * Parse a FILES.BBS catalogue.
+     *
+     * @return array filename_lowercase => [short_desc, long_desc]
+     */
+    /**
+     * Convert a string to valid UTF-8.
+     * Attempts CP437→UTF-8 conversion first (common on DOS-era CDs),
+     * then falls back to stripping any remaining invalid bytes.
+     */
+    private function toUtf8(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+        // If already valid UTF-8, return as-is
+        if (mb_check_encoding($text, 'UTF-8')) {
+            return $text;
+        }
+        // Try CP437 → UTF-8
+        $converted = @iconv('CP437', 'UTF-8//IGNORE', $text);
+        if ($converted !== false && $converted !== '') {
+            return $converted;
+        }
+        // Last resort: strip any byte sequence PostgreSQL would reject
+        return mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+    }
+
+    private function parseFilesBbs(string $content): array
+    {
+        $entries  = [];
+        $lastKey  = null;
+        foreach (preg_split('/\r?\n/', $content) as $line) {
+            if (preg_match('/^[;-]/', $line) || trim($line) === '') {
+                continue;
+            }
+            // Continuation line
+            if (preg_match('/^[ \t]+(\S.*)$/', $line, $m) && $lastKey !== null) {
+                $entries[$lastKey][1] = trim(($entries[$lastKey][1] ?? '') . "\n" . trim($m[1]));
+                continue;
+            }
+            // Normal entry: FILENAME  Description
+            if (preg_match('/^(\S+)(?:\t|  +)(.*)$/', $line, $m)) {
+                $lastKey           = strtolower($m[1]);
+                $entries[$lastKey] = [trim($m[2]), ''];
+            }
+        }
+        return $entries;
+    }
+
+    /**
+     * Parse a DESCRIPT.ION catalogue.
+     *
+     * @return array filename_lowercase => [short_desc, long_desc]
+     */
+    private function parseDescriptIon(string $content): array
+    {
+        $entries = [];
+        foreach (preg_split('/\r?\n/', $content) as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (preg_match('/^(\S+)\s+(.+)$/', $line, $m)) {
+                $entries[strtolower($m[1])] = [trim($m[2], '"'), ''];
+            }
+        }
+        return $entries;
+    }
+
+    /**
+     * Get all active ISO-backed file areas (for daemon startup re-mount).
+     *
+     * @return array
+     */
+    public function getActiveIsoAreas(): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM file_areas
+            WHERE area_type = 'iso' AND is_active = TRUE AND iso_file_path IS NOT NULL
+        ");
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Create a new file area
      *
      * @param array $data File area data
@@ -211,6 +708,15 @@ class FileAreaManager
         $password = trim((string)($data['password'] ?? ''));
         $password = $password === '' ? null : $password;
 
+        // ISO fields
+        $areaType    = in_array($data['area_type'] ?? 'normal', ['normal', 'iso']) ? ($data['area_type'] ?? 'normal') : 'normal';
+        $isoFilePath   = $areaType === 'iso' ? (trim($data['iso_file_path'] ?? '') ?: null) : null;
+        $isoMountPoint = $areaType === 'iso' ? (trim($data['iso_mount_point'] ?? '') ?: null) : null;
+        // Force read-only for ISO areas
+        if ($areaType === 'iso') {
+            $uploadPermission = self::UPLOAD_READ_ONLY;
+        }
+
         if (empty($tag) || empty($description)) {
             throw new \Exception('Tag and description are required');
         }
@@ -230,14 +736,17 @@ class FileAreaManager
             $freqPassword = null;
         }
 
+        $mountStatus = $isoMountPoint !== null ? 'mounted' : null;
+
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
                 allow_duplicate_hash, password,
                 upload_permission, scan_virus, gemini_public, freq_enabled, freq_password,
+                area_type, iso_file_path, iso_mount_point, iso_mount_status,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
@@ -246,7 +755,8 @@ class FileAreaManager
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
-            $freqEnabled ? 'true' : 'false', $freqPassword
+            $freqEnabled ? 'true' : 'false', $freqPassword,
+            $areaType, $isoFilePath, $isoMountPoint, $mountStatus
         ]);
 
         $result = $stmt->fetch();
@@ -263,7 +773,13 @@ class FileAreaManager
      */
     public function updateFileArea(int $id, array $data): bool
     {
-        $tag = strtoupper(trim($data['tag'] ?? ''));
+        // Tag is immutable after creation — always use the stored value.
+        $currentArea = $this->getFileAreaById($id);
+        if (!$currentArea) {
+            throw new \Exception('File area not found');
+        }
+        $tag = $currentArea['tag'];
+
         $description = trim($data['description'] ?? '');
         $domain = trim($data['domain'] ?? '');
         $maxFileSize = intval($data['max_file_size'] ?? 10485760);
@@ -278,14 +794,27 @@ class FileAreaManager
         $password = trim((string)($data['password'] ?? ''));
         $password = $password === '' ? null : $password;
 
-        if (empty($tag) || empty($description)) {
-            throw new \Exception('Tag and description are required');
+        if (empty($description)) {
+            throw new \Exception('Description is required');
         }
+        $areaType    = in_array($data['area_type'] ?? $currentArea['area_type'] ?? 'normal', ['normal', 'iso'])
+            ? ($data['area_type'] ?? $currentArea['area_type'] ?? 'normal')
+            : 'normal';
+        $isoFilePath = $areaType === 'iso'
+            ? (array_key_exists('iso_file_path', $data) ? (trim($data['iso_file_path']) ?: null) : $currentArea['iso_file_path'])
+            : null;
 
-        // Check for duplicate tag (excluding current record)
-        $existing = $this->getFileAreaByTag($tag, $domain);
-        if ($existing && $existing['id'] != $id) {
-            throw new \Exception('File area with this tag already exists in this domain');
+        // Manual mount point: sysop can specify directly (required on Windows;
+        // optional on Linux where the daemon manages it via fuseiso).
+        // When a non-empty mount point is supplied we treat the area as mounted.
+        // When cleared we leave the existing mount point alone (daemon manages it).
+        $manualMountPoint = $areaType === 'iso' && array_key_exists('iso_mount_point', $data)
+            ? (trim($data['iso_mount_point'] ?? '') ?: null)
+            : null; // null = not supplied, don't touch existing value
+
+        // Force read-only for ISO areas
+        if ($areaType === 'iso') {
+            $uploadPermission = self::UPLOAD_READ_ONLY;
         }
 
         $geminiPublic = (bool)($data['gemini_public'] ?? false);
@@ -294,30 +823,49 @@ class FileAreaManager
             $freqPassword = trim((string)($data['freq_password'] ?? ''));
             $freqPassword = $freqPassword === '' ? null : $freqPassword;
         } else {
-            $currentArea = $this->getFileAreaById($id);
-            if (!$currentArea) {
-                throw new \Exception('File area not found');
-            }
             $freqEnabled = !empty($currentArea['freq_enabled']);
             $freqPassword = trim((string)($currentArea['freq_password'] ?? ''));
             $freqPassword = $freqPassword === '' ? null : $freqPassword;
         }
 
-        $stmt = $this->db->prepare("
+        // Build the SET clause — only touch iso_mount_point/status when the sysop
+        // explicitly provided a value in the form (manual mount override).
+        $mountCols   = '';
+        $mountParams = [];
+        if ($manualMountPoint !== null) {
+            $mountCols   = ', iso_mount_point = ?, iso_mount_status = ?, iso_mount_error = NULL';
+            $mountParams = [$manualMountPoint, 'mounted'];
+        } elseif ($areaType === 'normal' && ($currentArea['area_type'] ?? 'normal') === 'iso') {
+            // Area type changed from iso → normal: clear mount fields
+            $mountCols   = ', iso_mount_point = NULL, iso_mount_status = NULL, iso_mount_error = NULL';
+        }
+
+        $sql = "
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
-                replace_existing = ?, allow_duplicate_hash = ?, password = ?, upload_permission = ?, scan_virus = ?, gemini_public = ?, freq_enabled = ?, freq_password = ?, updated_at = NOW()
+                replace_existing = ?, allow_duplicate_hash = ?, password = ?,
+                upload_permission = ?, scan_virus = ?, gemini_public = ?,
+                freq_enabled = ?, freq_password = ?,
+                area_type = ?, iso_file_path = ?
+                {$mountCols},
+                updated_at = NOW()
             WHERE id = ?
-        ");
+        ";
 
-        $result = $stmt->execute([
+        $params = [
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
-            $freqEnabled ? 'true' : 'false', $freqPassword, $id
-        ]);
+            $freqEnabled ? 'true' : 'false', $freqPassword,
+            $areaType, $isoFilePath,
+            ...$mountParams,
+            $id
+        ];
+
+        $stmt   = $this->db->prepare($sql);
+        $result = $stmt->execute($params);
 
         if (!$result || $stmt->rowCount() === 0) {
             throw new \Exception('File area not found');
@@ -382,20 +930,60 @@ class FileAreaManager
      * @param int $limit Maximum number of files to return
      * @return array Array of files ordered by upload date descending
      */
+    /**
+     * Return recent files for the activity feed.
+     *
+     * Regular (non-ISO) files are returned individually.
+     * ISO subfolder files are deduplicated at the SQL level so that each
+     * (file_area_id, subfolder) combination contributes at most one row —
+     * preventing a single large ISO import from flooding the list.
+     *
+     * @param int $limit Maximum rows to return
+     * @return array
+     */
     public function getRecentFiles(int $limit = 25): array
     {
-        $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag, fa.domain, fa.is_local,
-                   CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
-            FROM files f
-            JOIN file_areas fa ON f.file_area_id = fa.id
+        $sharedJoin = "
             LEFT JOIN shared_files sf ON sf.file_id = f.id
                 AND sf.is_active = TRUE
                 AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
-            WHERE f.status = 'approved'
-              AND fa.is_active = TRUE
-              AND (fa.is_private = FALSE OR fa.is_private IS NULL)
-            ORDER BY f.created_at DESC
+        ";
+        $areaFilter = "
+            AND fa.is_active = TRUE
+            AND (fa.is_private = FALSE OR fa.is_private IS NULL)
+        ";
+
+        $stmt = $this->db->prepare("
+            WITH regular AS (
+                SELECT f.*, fa.tag AS area_tag, fa.domain, fa.is_local,
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                FROM files f
+                JOIN file_areas fa ON f.file_area_id = fa.id
+                {$sharedJoin}
+                WHERE f.status = 'approved'
+                  {$areaFilter}
+                  AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+                  AND (f.source_type IS DISTINCT FROM 'iso_import' OR f.subfolder IS NULL)
+            ),
+            iso_subdirs AS (
+                SELECT DISTINCT ON (f.file_area_id, f.subfolder)
+                       f.*, fa.tag AS area_tag, fa.domain, fa.is_local,
+                       CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+                FROM files f
+                JOIN file_areas fa ON f.file_area_id = fa.id
+                {$sharedJoin}
+                WHERE f.status = 'approved'
+                  {$areaFilter}
+                  AND f.source_type = 'iso_import'
+                  AND f.subfolder IS NOT NULL
+                ORDER BY f.file_area_id, f.subfolder, f.created_at DESC
+            )
+            SELECT * FROM (
+                SELECT * FROM regular
+                UNION ALL
+                SELECT * FROM iso_subdirs
+            ) combined
+            ORDER BY created_at DESC
             LIMIT ?
         ");
         $stmt->execute([$limit]);
@@ -428,7 +1016,8 @@ class FileAreaManager
                     AND sf.is_active = TRUE
                     AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
                 WHERE f.file_area_id = ? AND f.status = 'approved'
-                ORDER BY f.subfolder NULLS FIRST, f.created_at DESC
+                  AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+                ORDER BY f.subfolder NULLS FIRST, f.filename ASC
             ";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$areaId]);
@@ -442,7 +1031,8 @@ class FileAreaManager
                     AND sf.is_active = TRUE
                     AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
                 WHERE f.file_area_id = ? AND f.status = 'approved' AND f.subfolder IS NULL
-                ORDER BY f.created_at DESC
+                  AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+                ORDER BY f.created_at DESC, f.filename ASC
             ";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$areaId]);
@@ -456,7 +1046,8 @@ class FileAreaManager
                     AND sf.is_active = TRUE
                     AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
                 WHERE f.file_area_id = ? AND f.status = 'approved' AND f.subfolder = ?
-                ORDER BY f.created_at DESC
+                  AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+                ORDER BY f.created_at DESC, f.filename ASC
             ";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$areaId, $subfolder]);
@@ -470,16 +1061,57 @@ class FileAreaManager
      * @param int $areaId File area ID
      * @return string[] Sorted list of subfolder names (never includes NULL)
      */
+    /**
+     * Return the display label for a subfolder: the iso_subdir short_description if set
+     * and different from the raw directory name, otherwise the raw directory name.
+     *
+     * @param int    $areaId    File area ID
+     * @param string $subfolder Subfolder path
+     * @return string
+     */
+    public function getSubfolderLabel(int $areaId, string $subfolder): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT short_description FROM files
+            WHERE file_area_id = ? AND source_type = 'iso_subdir' AND iso_rel_path = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$areaId, $subfolder]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $dirName = basename($subfolder);
+        if ($row && !empty($row['short_description']) && $row['short_description'] !== $subfolder && $row['short_description'] !== $dirName) {
+            return $row['short_description'];
+        }
+        return $dirName;
+    }
+
+    /**
+     * Get distinct subfolders that exist within a file area, with optional descriptions
+     * sourced from iso_subdir records.
+     *
+     * @param int $areaId File area ID
+     * @return array[] Array of ['subfolder' => string, 'description' => string|null, 'subdir_id' => int|null]
+     */
     public function getSubfolders(int $areaId): array
     {
         $stmt = $this->db->prepare("
-            SELECT DISTINCT subfolder
-            FROM files
-            WHERE file_area_id = ? AND status = 'approved' AND subfolder IS NOT NULL
-            ORDER BY subfolder
+            SELECT DISTINCT f.subfolder,
+                   m.short_description AS description,
+                   m.long_description  AS long_description,
+                   m.id                AS subdir_id
+            FROM files f
+            LEFT JOIN files m ON m.file_area_id = f.file_area_id
+                              AND m.source_type = 'iso_subdir'
+                              AND m.iso_rel_path = f.subfolder
+                              AND m.status = 'approved'
+            WHERE f.file_area_id = ?
+              AND f.status = 'approved'
+              AND f.subfolder IS NOT NULL
+              AND (f.source_type IS DISTINCT FROM 'iso_subdir')
+            ORDER BY f.subfolder
         ");
         $stmt->execute([$areaId]);
-        return array_column($stmt->fetchAll(\PDO::FETCH_ASSOC), 'subfolder');
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     /**
@@ -961,6 +1593,52 @@ class FileAreaManager
         }
 
         throw new \Exception('Failed to delete file');
+    }
+
+    /**
+     * Delete all files and iso_subdir records belonging to a subfolder (and any
+     * nested sub-paths) within a file area. For ISO-backed files the physical
+     * file is not removed (the ISO is read-only); only the DB records are deleted.
+     *
+     * @param int    $areaId    File area ID
+     * @param string $subfolder Subfolder path to delete (e.g. "001A" or "TEXT/DIR9")
+     * @return int Number of rows deleted
+     */
+    public function deleteSubfolder(int $areaId, string $subfolder): int
+    {
+        // Collect non-ISO files so we can unlink them from disk.
+        $stmt = $this->db->prepare("
+            SELECT storage_path FROM files
+            WHERE file_area_id = ?
+              AND source_type NOT IN ('iso_import', 'iso_subdir')
+              AND (subfolder = ? OR subfolder LIKE ?)
+        ");
+        $stmt->execute([$areaId, $subfolder, $subfolder . '/%']);
+        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $path) {
+            if ($path && file_exists($path)) {
+                @unlink($path);
+            }
+        }
+
+        // Delete all file records in this subfolder (including nested paths)
+        // and the iso_subdir records for the subfolder itself and any children.
+        $del = $this->db->prepare("
+            DELETE FROM files
+            WHERE file_area_id = ?
+              AND (
+                  subfolder = ? OR subfolder LIKE ?
+                  OR (source_type = 'iso_subdir' AND (iso_rel_path = ? OR iso_rel_path LIKE ?))
+              )
+        ");
+        $like = $subfolder . '/%';
+        $del->execute([$areaId, $subfolder, $like, $subfolder, $like]);
+        $deleted = $del->rowCount();
+
+        if ($deleted > 0) {
+            $this->updateFileAreaStats($areaId);
+        }
+
+        return $deleted;
     }
 
     /**

@@ -52,6 +52,9 @@ class AdminDaemonServer
 
         $this->logger->info('Admin daemon started', ['socket' => $this->socketTarget]);
 
+        // Re-mount all active ISO file areas on startup
+        $this->remountAllIsoAreas();
+
         $canFork = function_exists('pcntl_fork')
             && function_exists('posix_getppid')
             && function_exists('posix_kill');
@@ -644,6 +647,33 @@ class AdminDaemonServer
                     $this->logCommandResult('run_echomail_robot', $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'mount_iso':
+                    $areaId = (int)($data['area_id'] ?? 0);
+                    if ($areaId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_area_id']);
+                        break;
+                    }
+                    $mountResult = $this->mountIsoArea($areaId);
+                    $this->writeResponse($client, ['ok' => $mountResult['ok'], 'result' => $mountResult]);
+                    break;
+                case 'unmount_iso':
+                    $areaId = (int)($data['area_id'] ?? 0);
+                    if ($areaId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_area_id']);
+                        break;
+                    }
+                    $unmountResult = $this->unmountIsoArea($areaId);
+                    $this->writeResponse($client, ['ok' => $unmountResult['ok'], 'result' => $unmountResult]);
+                    break;
+                case 'reindex_iso':
+                    $areaId = (int)($data['area_id'] ?? 0);
+                    if ($areaId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_area_id']);
+                        break;
+                    }
+                    $this->spawnCommand([PHP_BINARY, 'scripts/import_iso.php', "--area={$areaId}", '--update']);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['spawned' => true]]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -651,6 +681,114 @@ class AdminDaemonServer
         } catch (\Throwable $e) {
             $this->logger->error('Admin daemon command error', ['error' => $e->getMessage(), 'cmd' => $cmd]);
             $this->writeResponse($client, ['ok' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Mount a single ISO-backed file area using fuseiso.
+     *
+     * @param int $areaId
+     * @return array {ok: bool, error?: string}
+     */
+    private function mountIsoArea(int $areaId): array
+    {
+        $manager = new \BinktermPHP\FileAreaManager();
+        $area = $manager->getFileAreaById($areaId);
+
+        if (!$area || ($area['area_type'] ?? 'normal') !== 'iso') {
+            return ['ok' => false, 'error' => 'not_an_iso_area'];
+        }
+
+        $isoPath = $area['iso_file_path'] ?? '';
+        if (empty($isoPath) || !file_exists($isoPath)) {
+            $manager->updateIsoMountStatus($areaId, 'error', 'ISO file not found: ' . $isoPath);
+            return ['ok' => false, 'error' => 'iso_file_not_found'];
+        }
+
+        // Create mount point directory
+        $baseDir = \BinktermPHP\Config::env('ISO_MOUNT_BASE', 'data/iso_mounts');
+        $mountPoint = rtrim($baseDir, '/') . '/' . $areaId;
+        if (!is_dir($mountPoint)) {
+            mkdir($mountPoint, 0755, true);
+        }
+
+        // Unmount first if already mounted (cleanup stale mounts)
+        if (is_dir($mountPoint) && count(scandir($mountPoint)) > 2) {
+            @shell_exec('fuseiso -u ' . escapeshellarg($mountPoint) . ' 2>/dev/null');
+        }
+
+        $escapedIso   = escapeshellarg($isoPath);
+        $escapedMount = escapeshellarg($mountPoint);
+        $output = [];
+        $returnCode = 0;
+        exec("fuseiso {$escapedIso} {$escapedMount} 2>&1", $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            $errMsg = implode(' ', $output);
+            $manager->updateIsoMountStatus($areaId, 'error', $errMsg);
+            $this->logger->error('ISO mount failed', ['area_id' => $areaId, 'error' => $errMsg]);
+            return ['ok' => false, 'error' => $errMsg];
+        }
+
+        $manager->updateIsoMountStatus($areaId, 'mounted', null, realpath($mountPoint) ?: $mountPoint);
+        $this->logger->info('ISO area mounted', ['area_id' => $areaId, 'mount_point' => $mountPoint]);
+        return ['ok' => true];
+    }
+
+    /**
+     * Unmount a single ISO-backed file area.
+     *
+     * @param int $areaId
+     * @return array {ok: bool, error?: string}
+     */
+    private function unmountIsoArea(int $areaId): array
+    {
+        $manager = new \BinktermPHP\FileAreaManager();
+        $area = $manager->getFileAreaById($areaId);
+
+        if (!$area || ($area['area_type'] ?? 'normal') !== 'iso') {
+            return ['ok' => false, 'error' => 'not_an_iso_area'];
+        }
+
+        $mountPoint = $area['iso_mount_point'] ?? '';
+        if (!empty($mountPoint) && is_dir($mountPoint)) {
+            $output = [];
+            $returnCode = 0;
+            exec('fuseiso -u ' . escapeshellarg($mountPoint) . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                $errMsg = implode(' ', $output);
+                // Leave status as 'mounted' — the ISO is still mounted and serving files.
+                // Only update the error message so the UI can surface the reason.
+                $manager->updateIsoMountStatus($areaId, 'mounted', $errMsg);
+                $this->logger->error('ISO unmount failed', ['area_id' => $areaId, 'error' => $errMsg]);
+                return ['ok' => false, 'error' => $errMsg];
+            }
+        }
+
+        $manager->updateIsoMountStatus($areaId, 'unmounted');
+        $this->logger->info('ISO area unmounted', ['area_id' => $areaId]);
+        return ['ok' => true];
+    }
+
+    /**
+     * Re-mount all active ISO areas on daemon startup.
+     */
+    private function remountAllIsoAreas(): void
+    {
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $areas = $manager->getActiveIsoAreas();
+            foreach ($areas as $area) {
+                $result = $this->mountIsoArea((int)$area['id']);
+                if (!$result['ok']) {
+                    $this->logger->warning('Startup ISO re-mount failed', [
+                        'area_id' => $area['id'],
+                        'error'   => $result['error'] ?? 'unknown',
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error('ISO startup re-mount error', ['error' => $e->getMessage()]);
         }
     }
 
