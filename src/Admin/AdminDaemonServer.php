@@ -705,23 +705,53 @@ class AdminDaemonServer
             return ['ok' => false, 'error' => 'iso_file_not_found'];
         }
 
-        // Create mount point directory
-        $baseDir = \BinktermPHP\Config::env('ISO_MOUNT_BASE', 'data/iso_mounts');
+        // Create mount point directory (always use absolute path)
+        $baseDir = \BinktermPHP\Config::env('ISO_MOUNT_BASE', __DIR__ . '/../../data/iso_mounts');
+        if (!str_starts_with($baseDir, '/')) {
+            $baseDir = __DIR__ . '/../../' . $baseDir;
+        }
         $mountPoint = rtrim($baseDir, '/') . '/' . $areaId;
         if (!is_dir($mountPoint)) {
             mkdir($mountPoint, 0755, true);
         }
 
-        // Unmount first if already mounted (cleanup stale mounts)
-        if (is_dir($mountPoint) && count(scandir($mountPoint)) > 2) {
-            @shell_exec('fuseiso -u ' . escapeshellarg($mountPoint) . ' 2>/dev/null');
-        }
+        // Always attempt to unmount first to clear any stale FUSE mount.
+        // Use fusermount -u (standard FUSE unmount tool) rather than fuseiso -u,
+        // and suppress errors since the mount may not exist yet.
+        @shell_exec('fusermount -u ' . escapeshellarg($mountPoint) . ' 2>/dev/null');
 
-        $escapedIso   = escapeshellarg($isoPath);
-        $escapedMount = escapeshellarg($mountPoint);
-        $output = [];
-        $returnCode = 0;
-        exec("fuseiso {$escapedIso} {$escapedMount} 2>&1", $output, $returnCode);
+        $absIso   = realpath($isoPath) ?: $isoPath;
+        $output     = [];
+        $returnCode = 1;
+
+        // Fork before exec'ing fuseiso so the child can close all inherited
+        // file descriptors (e.g. the admin daemon's listening socket) before
+        // mounting. Without this, fuseiso's daemonized child inherits the
+        // socket and keeps it bound even after the admin daemon is killed.
+        if (function_exists('pcntl_fork')) {
+            $pid = pcntl_fork();
+            if ($pid === -1) {
+                $manager->updateIsoMountStatus($areaId, 'error', 'pcntl_fork failed');
+                return ['ok' => false, 'error' => 'pcntl_fork failed'];
+            }
+            if ($pid === 0) {
+                // Child: close all fds above stderr, then exec fuseiso.
+                // Use bash to enumerate /proc/self/fd so we don't miss any.
+                $script = 'for fd in $(ls /proc/self/fd 2>/dev/null); do '
+                        . '[ "$fd" -gt 2 ] 2>/dev/null && eval "exec ${fd}>&-" 2>/dev/null; '
+                        . 'done; '
+                        . 'exec fuseiso "$@"';
+                pcntl_exec('/bin/bash', ['-c', $script, '--', $absIso, $mountPoint]);
+                exit(1); // pcntl_exec only returns on failure
+            }
+            // Parent: wait for fuseiso's setup phase to complete.
+            // fuseiso daemonizes internally — its parent exits with 0 on success.
+            pcntl_waitpid($pid, $status);
+            $returnCode = (pcntl_wifexited($status) ? pcntl_wexitstatus($status) : 1);
+        } else {
+            // Fallback (no pcntl): fd inheritance issue may occur but mounting will work.
+            exec('fuseiso ' . escapeshellarg($absIso) . ' ' . escapeshellarg($mountPoint) . ' 2>&1', $output, $returnCode);
+        }
 
         if ($returnCode !== 0) {
             $errMsg = implode(' ', $output);
@@ -754,7 +784,7 @@ class AdminDaemonServer
         if (!empty($mountPoint) && is_dir($mountPoint)) {
             $output = [];
             $returnCode = 0;
-            exec('fuseiso -u ' . escapeshellarg($mountPoint) . ' 2>&1', $output, $returnCode);
+            exec('fusermount -u ' . escapeshellarg($mountPoint) . ' 2>&1', $output, $returnCode);
             if ($returnCode !== 0) {
                 $errMsg = implode(' ', $output);
                 // Leave status as 'mounted' — the ISO is still mounted and serving files.
