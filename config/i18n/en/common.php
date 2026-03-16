@@ -1982,6 +1982,11 @@ return [
     'ui.files.no_preview' => 'No preview available for this file type',
     'ui.files.preview_failed' => 'Failed to load preview',
     'ui.files.file_info' => 'File Info',
+    'ui.files.search_heading' => 'Search Files',
+    'ui.files.search_global_placeholder' => 'Search filename or description…',
+    'ui.files.search_result_count' => '{count} result(s)',
+    'ui.files.search_no_results' => 'No files found',
+    'ui.files.search_failed' => 'Search failed',
 
     // Polls Page
     'ui.polls.title' => 'Polls',

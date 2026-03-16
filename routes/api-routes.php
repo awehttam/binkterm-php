@@ -2341,6 +2341,81 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['files' => $files]);
     });
 
+    /**
+     * GET /api/files/search?q=QUERY
+     * Search filenames and short descriptions across all accessible file areas.
+     * Requires authentication. Returns up to 100 results ordered by area tag and filename.
+     */
+    SimpleRouter::get('/files/search', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $q = trim($_GET['q'] ?? '');
+        if (mb_strlen($q) < 2) {
+            echo json_encode(['results' => []]);
+            return;
+        }
+
+        $db      = \BinktermPHP\Database::getInstance()->getPdo();
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $isAdmin = !empty($user['is_admin']);
+
+        // Build accessible-area conditions:
+        // - Area must be active
+        // - Exclude private areas that do not belong to this user
+        // - Admins can see all active non-private areas plus their own private area
+        $areaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL";
+        if ($userId > 0) {
+            $privateTag = 'PRIVATE_USER_' . $userId;
+            $areaConditions .= " OR fa.tag = " . $db->quote($privateTag);
+        }
+        $areaConditions .= ")";
+
+        $sql = "
+            SELECT
+                f.id,
+                f.filename,
+                f.short_description,
+                f.filesize,
+                f.created_at,
+                f.file_area_id AS area_id,
+                fa.tag         AS area_tag,
+                f.subfolder
+            FROM files f
+            JOIN file_areas fa ON fa.id = f.file_area_id
+            WHERE {$areaConditions}
+              AND f.status = 'approved'
+              AND f.source_type <> 'iso_subdir'
+              AND (
+                    f.filename          ILIKE '%' || :q1 || '%'
+                 OR f.short_description ILIKE '%' || :q2 || '%'
+              )
+            ORDER BY fa.tag ASC, f.filename ASC
+            LIMIT 100
+        ";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':q1' => $q, ':q2' => $q]);
+        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Cast numeric fields
+        foreach ($results as &$row) {
+            $row['id']       = (int)$row['id'];
+            $row['area_id']  = (int)$row['area_id'];
+            $row['filesize'] = (int)$row['filesize'];
+        }
+        unset($row);
+
+        echo json_encode(['results' => $results]);
+    });
+
     SimpleRouter::get('/files/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 

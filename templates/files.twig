@@ -62,6 +62,25 @@
             </div>
         </div>
 
+        <!-- File Search -->
+        <div class="card mb-3" id="fileSearchCard">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-search me-1"></i>{{ t('ui.files.search_heading', {}, 'common') }}</h6>
+            </div>
+            <div class="px-2 py-2">
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" id="globalFileSearch"
+                           placeholder="{{ t('ui.files.search_global_placeholder', {}, 'common') }}"
+                           oninput="scheduleFileSearch(this.value)">
+                    <button class="btn btn-outline-secondary" type="button" id="clearFileSearch"
+                            onclick="clearFileSearch()" style="display:none;" title="Clear search">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="fileSearchStatus" class="small text-muted mt-1" style="display:none;"></div>
+            </div>
+        </div>
+
         <!-- Statistics (desktop only - directly under File Areas) -->
         <div class="card d-none d-lg-block">
             <div class="card-header">
@@ -1675,6 +1694,139 @@ function copyFileShareUrl() {
         document.execCommand('copy');
         showSuccess(uiT('ui.files.share_link_copied', 'Share link copied'));
     });
+}
+
+// ---------------------------------------------------------------------------
+// Global file search
+// ---------------------------------------------------------------------------
+
+let fileSearchTimer = null;
+
+/**
+ * Schedule a global file search after a short debounce delay.
+ * Called on each keystroke in the global search input.
+ *
+ * @param {string} query - Current value of the search input
+ */
+function scheduleFileSearch(query) {
+    clearTimeout(fileSearchTimer);
+    $('#clearFileSearch').toggle(query.length > 0);
+    if (query.length < 2) {
+        if (query.length === 0) {
+            // Restore normal view
+            if (currentAreaId) {
+                loadFiles(currentAreaId, currentSubfolder);
+            } else {
+                loadRecentFiles();
+            }
+            $('#fileSearchStatus').hide();
+        }
+        return;
+    }
+    fileSearchTimer = setTimeout(function() { runFileSearch(query); }, 350);
+}
+
+/**
+ * Clear the global search input and restore the previous view.
+ */
+function clearFileSearch() {
+    $('#globalFileSearch').val('');
+    $('#clearFileSearch').hide();
+    $('#fileSearchStatus').hide();
+    if (currentAreaId) {
+        loadFiles(currentAreaId, currentSubfolder);
+    } else {
+        loadRecentFiles();
+    }
+}
+
+/**
+ * Execute the global file search against the API.
+ *
+ * @param {string} query - Search query string (minimum 2 chars)
+ */
+function runFileSearch(query) {
+    $('#fileSearchStatus').text(uiT('ui.common.loading', 'Loading…')).show();
+    $('#filesContainer').html('<div class="p-4 text-center text-muted"><i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.common.loading', 'Searching…') + '</div>');
+
+    $.get('/api/files/search', { q: query })
+        .done(function(data) {
+            const results = data.results || [];
+            $('#fileSearchStatus').text(
+                window.t('ui.files.search_result_count', { count: results.length }, results.length + ' result(s)')
+            ).show();
+            displaySearchResults(results, query);
+        })
+        .fail(function() {
+            $('#fileSearchStatus').text(uiT('ui.files.search_failed', 'Search failed')).show();
+            $('#filesContainer').html('<div class="p-4 text-center text-muted">' + uiT('ui.files.search_failed', 'Search failed') + '</div>');
+        });
+}
+
+/**
+ * Render global search results into the main files container.
+ *
+ * @param {Array}  results - Array of file result objects from the API
+ * @param {string} query   - Original search query (reserved for future highlighting)
+ */
+function displaySearchResults(results, query) {
+    if (results.length === 0) {
+        $('#filesContainer').html('<div class="p-4 text-center text-muted">' + uiT('ui.files.search_no_results', 'No files found') + '</div>');
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="28%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="10%">${uiT('ui.files.area', 'Area')}</th>
+                        <th width="22%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="10%">${uiT('ui.files.size', 'Size')}</th>
+                        <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    results.forEach(function(file) {
+        const filename   = escapeHtml(file.filename);
+        const desc       = escapeHtml(file.short_description || '');
+        const areaTag    = escapeHtml(file.area_tag || '');
+        const size       = formatBytes(file.filesize || 0);
+        const uploaded   = formatDate(file.created_at);
+        const subfolder  = file.subfolder ? escapeHtml(file.subfolder) : null;
+        const areaOnclick = subfolder
+            ? `selectFileArea(${file.area_id}, '${subfolder}'); clearFileSearch();`
+            : `selectFileArea(${file.area_id}, null); clearFileSearch();`;
+
+        html += `
+            <tr>
+                <td class="font-monospace small">
+                    <a href="#" onclick="previewFile(${file.id}); return false;">${filename}</a>
+                </td>
+                <td class="small">
+                    <a href="#" onclick="${areaOnclick} return false;" class="text-muted">${areaTag}</a>
+                </td>
+                <td class="small text-muted">${desc}</td>
+                <td class="small">${size}</td>
+                <td class="small">${uploaded}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showFileDetails(${file.id})" title="${uiT('ui.files.file_info', 'File info')}">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    $('#filesContainer').html(html);
 }
 </script>
 {% endblock %}

@@ -1982,6 +1982,11 @@ return [
     'ui.files.no_preview' => 'No hay vista previa disponible para este tipo de archivo',
     'ui.files.preview_failed' => 'Error al cargar la vista previa',
     'ui.files.file_info' => 'Información del archivo',
+    'ui.files.search_heading' => 'Buscar Archivos',
+    'ui.files.search_global_placeholder' => 'Buscar nombre de archivo o descripción…',
+    'ui.files.search_result_count' => '{count} resultado(s)',
+    'ui.files.search_no_results' => 'No se encontraron archivos',
+    'ui.files.search_failed' => 'Búsqueda fallida',
 
     // Polls Page
     'ui.polls.title' => 'Encuestas',
