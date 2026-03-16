@@ -704,6 +704,12 @@ class AdminDaemonServer
             $manager->updateIsoMountStatus($areaId, 'error', 'ISO file not found: ' . $isoPath);
             return ['ok' => false, 'error' => 'iso_file_not_found'];
         }
+        // Resolve to absolute path — relative paths break fuseiso after it daemonizes
+        $isoPath = realpath($isoPath);
+        if ($isoPath === false) {
+            $manager->updateIsoMountStatus($areaId, 'error', 'Could not resolve absolute path for ISO file');
+            return ['ok' => false, 'error' => 'iso_path_not_resolvable'];
+        }
 
         // Create mount point directory (always use absolute path)
         $baseDir = \BinktermPHP\Config::env('ISO_MOUNT_BASE', __DIR__ . '/../../data/iso_mounts');
@@ -721,7 +727,7 @@ class AdminDaemonServer
         // and suppress errors since the mount may not exist yet.
         @shell_exec('fusermount -u ' . escapeshellarg($mountPoint) . ' 2>/dev/null');
 
-        $absIso   = realpath($isoPath) ?: $isoPath;
+        $absIso   = $isoPath; // already resolved to absolute path above
         $output     = [];
         $returnCode = 1;
 
