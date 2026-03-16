@@ -6076,6 +6076,88 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     });
 
+    // Web mail state API endpoints (web-specific page positions, separate from telnet)
+    SimpleRouter::get('/user/web-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $meta = new \BinktermPHP\UserMeta();
+
+        $settings = [
+            'web_netmail_page'        => $meta->getValue((int)$userId, 'web_netmail_page'),
+            'web_echomail_positions'  => $meta->getValue((int)$userId, 'web_echomail_positions'),
+        ];
+
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    });
+
+    SimpleRouter::post('/user/web-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = $body['settings'] ?? $body;
+        $meta = new \BinktermPHP\UserMeta();
+
+        // web_netmail_page — positive integer
+        if (array_key_exists('web_netmail_page', $settings)) {
+            $value = $settings['web_netmail_page'];
+            if ($value === null || $value === '') {
+                $meta->setValue((int)$userId, 'web_netmail_page', null);
+            } elseif (!is_numeric($value) || (int)$value < 1) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for web_netmail_page']);
+                return;
+            } else {
+                $meta->setValue((int)$userId, 'web_netmail_page', (string)((int)$value));
+            }
+        }
+
+        // web_echomail_positions — JSON object mapping area tag to {page: N}
+        if (array_key_exists('web_echomail_positions', $settings)) {
+            $positions = $settings['web_echomail_positions'];
+            if (is_string($positions)) {
+                $decoded = json_decode($positions, true);
+                if (!is_array($decoded)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for web_echomail_positions']);
+                    return;
+                }
+                $positions = $decoded;
+            }
+
+            if (!is_array($positions)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for web_echomail_positions']);
+                return;
+            }
+
+            $clean = [];
+            foreach ($positions as $area => $page) {
+                if (!is_string($area) || trim($area) === '' || strlen($area) > 128) {
+                    continue;
+                }
+                $pageInt = (int)$page;
+                if ($pageInt < 1) {
+                    $pageInt = 1;
+                }
+                $clean[$area] = $pageInt;
+            }
+
+            $encoded = json_encode($clean);
+            if ($encoded === false || strlen($encoded) > 64000) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for web_echomail_positions']);
+                return;
+            }
+            $meta->setValue((int)$userId, 'web_echomail_positions', $encoded);
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
     // Admin API endpoints for user management
     SimpleRouter::get('/admin/pending-users', function() {
         $user = RouteHelper::requireAuth();

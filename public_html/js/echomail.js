@@ -1,5 +1,7 @@
 let currentPage = 1;
 let currentSort = 'date_desc';
+// Per-area page memory, keyed by area tag. Loaded from and saved to DB via web-mail-state API.
+let echoPageMemory = {};
 let currentMessageId = null;
 let currentFilter = 'all';
 let modalClosedByBackButton = false;
@@ -55,6 +57,11 @@ $(document).ready(function() {
             $('#mobileSearchInput').val(searchQuery);
             searchMessages();
         } else {
+            // Restore last visited page for the current area
+            const memKey = currentEchoarea || '__all__';
+            if (echoPageMemory[memKey]) {
+                currentPage = echoPageMemory[memKey];
+            }
             loadMessages();
         }
     });
@@ -284,7 +291,8 @@ function displayMobileEchoareas(echoareas) {
 
 function selectEchoarea(tag) {
     currentEchoarea = tag;
-    currentPage = 1;
+    const memKey = tag || '__all__';
+    currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
 
     // Update URL without page reload
     const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
@@ -352,6 +360,9 @@ function loadMessages(callback) {
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
             updateUnreadCount(data.unreadCount || 0);
+            // Remember the current page for this area (null = All Messages, stored as '__all__')
+            echoPageMemory[currentEchoarea || '__all__'] = currentPage;
+            saveEchoPositions();
             // Refresh stats to get updated filter counts
             loadStats();
             if (typeof callback === 'function') {
@@ -2480,8 +2491,8 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
 
 // User settings functions - apply echomail-specific settings after loading
 function loadEchomailSettings() {
-    if (typeof window.loadUserSettings === 'function') {
-        return window.loadUserSettings().then(function() {
+    const settingsPromise = typeof window.loadUserSettings === 'function'
+        ? window.loadUserSettings().then(function() {
             // Apply echomail-specific settings
             userSettings = window.userSettings;
 
@@ -2498,11 +2509,38 @@ function loadEchomailSettings() {
             if (userSettings.default_sort) {
                 currentSort = userSettings.default_sort;
             }
-        });
-    } else {
-        // Fallback if global function not available
-        return Promise.resolve();
-    }
+        })
+        : Promise.resolve();
+
+    // Load per-area page positions from DB
+    const positionsPromise = $.get('/api/user/web-mail-state')
+        .then(function(data) {
+            if (data && data.settings && data.settings.web_echomail_positions) {
+                try {
+                    const parsed = typeof data.settings.web_echomail_positions === 'string'
+                        ? JSON.parse(data.settings.web_echomail_positions)
+                        : data.settings.web_echomail_positions;
+                    if (parsed && typeof parsed === 'object') {
+                        echoPageMemory = parsed;
+                    }
+                } catch (e) {}
+            }
+        })
+        .catch(function() {});
+
+    return Promise.all([settingsPromise, positionsPromise]);
+}
+
+/**
+ * Persist the current echoPageMemory to the DB (fire-and-forget).
+ */
+function saveEchoPositions() {
+    $.ajax({
+        url: '/api/user/web-mail-state',
+        method: 'POST',
+        data: JSON.stringify({ web_echomail_positions: echoPageMemory }),
+        contentType: 'application/json'
+    });
 }
 
 // Use global settings functions directly - no local wrappers needed

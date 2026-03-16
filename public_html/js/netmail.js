@@ -169,6 +169,8 @@ function loadMessages(callback) {
         .done(function(data) {
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
+            // Remember the current netmail page
+            saveNetmailPage();
             if (typeof callback === 'function') callback(data);
         })
         .fail(function() {
@@ -998,8 +1000,8 @@ function toggleThreading() {
 
 // User settings functions - apply netmail-specific settings after loading
 function loadNetmailSettings() {
-    if (typeof window.loadUserSettings === 'function') {
-        return window.loadUserSettings().then(function() {
+    const settingsPromise = typeof window.loadUserSettings === 'function'
+        ? window.loadUserSettings().then(function() {
             // Apply netmail-specific settings
             userSettings = window.userSettings;
 
@@ -1016,11 +1018,34 @@ function loadNetmailSettings() {
             if (userSettings.default_sort) {
                 currentSort = userSettings.default_sort;
             }
-        });
-    } else {
-        // Fallback if global function not available
-        return Promise.resolve();
-    }
+        })
+        : Promise.resolve();
+
+    // Load last visited netmail page from DB
+    const pagePromise = $.get('/api/user/web-mail-state')
+        .then(function(data) {
+            if (data && data.settings && data.settings.web_netmail_page) {
+                const page = parseInt(data.settings.web_netmail_page, 10);
+                if (page >= 1) {
+                    currentPage = page;
+                }
+            }
+        })
+        .catch(function() {});
+
+    return Promise.all([settingsPromise, pagePromise]);
+}
+
+/**
+ * Persist the current netmail page to the DB (fire-and-forget).
+ */
+function saveNetmailPage() {
+    $.ajax({
+        url: '/api/user/web-mail-state',
+        method: 'POST',
+        data: JSON.stringify({ web_netmail_page: currentPage }),
+        contentType: 'application/json'
+    });
 }
 
 // Use global settings functions directly - no local wrappers needed

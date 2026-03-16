@@ -39,6 +39,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Behaviour](#behaviour)
   - [Migration](#migration)
 - [Global File Search](#global-file-search)
+- [Page Position Memory](#page-position-memory)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Bug Fixes](#bug-fixes)
@@ -70,6 +71,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Message list pagination now shows first page, context window around the
   current page, and last page with ellipsis gaps, so the total page count
   is always visible.
+
+**Echomail / Netmail**
+- Last-visited page is remembered per echo area (including All Messages) and
+  for the netmail inbox, and restored automatically on return.
 
 **Echomail**
 - Advanced message search with per-field filtering (poster name, subject, body)
@@ -761,6 +766,20 @@ the database.
 **On large file databases the index build may take a minute or two.** The
 upgrade will appear to pause at this migration step — this is normal. Do not
 interrupt it.
+
+## Page Position Memory
+
+The echomail and netmail readers now remember the last page you were viewing
+and restore it automatically when you return.
+
+- **Echomail** — the last-visited page is remembered per echo area, including
+  the **All Messages** view. Navigating to a different echo area and back
+  restores the correct page for each.
+- **Netmail** — the last-visited page of your inbox is remembered.
+
+Positions are stored per-user in the database (`users_meta` table under the
+keys `web_echomail_positions` and `web_netmail_page`) and persist across browser
+sessions and devices. No migration is required.
 
 ## Netmail Attachment Improvements
 
