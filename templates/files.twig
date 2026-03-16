@@ -788,7 +788,7 @@ function loadFiles(areaId, subfolder) {
     $.get(url)
         .done(function(data) {
             allFiles = data.files;
-            const subfolders = (subfolder === null) ? (data.subfolders || []) : [];
+            const subfolders = data.subfolders || [];
             displayFiles(allFiles, subfolders, subfolder, data.subfolder_label || null);
         })
         .fail(function() {
