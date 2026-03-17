@@ -107,9 +107,11 @@ var JSC64_BASEPATH = '/vendor/jsc64/js/';
 
 <script>
 (function () {
-    var params   = new URLSearchParams(window.location.search);
-    var fileId   = params.get('file_id');
-    var prgName  = params.get('prg');
+    var params        = new URLSearchParams(window.location.search);
+    var fileId        = params.get('file_id');
+    var prgName       = params.get('prg');
+    var shareArea     = params.get('share_area');
+    var shareFilename = params.get('share_filename');
     var paused   = false;
     var instance = null;
 
@@ -187,7 +189,12 @@ var JSC64_BASEPATH = '/vendor/jsc64/js/';
 
         setStatus('Loading ' + (prgName || 'PRG') + '\u2026');
 
-        fetch('/api/files/' + fileId + '/prgs', {credentials: 'same-origin'})
+        var prgsUrl = '/api/files/' + fileId + '/prgs';
+        if (shareArea && shareFilename) {
+            prgsUrl += '?share_area=' + encodeURIComponent(shareArea)
+                     + '&share_filename=' + encodeURIComponent(shareFilename);
+        }
+        fetch(prgsUrl, {credentials: 'same-origin'})
             .then(function (r) {
                 if (!r.ok) throw new Error('API error ' + r.status);
                 return r.json();

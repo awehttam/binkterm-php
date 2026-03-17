@@ -129,7 +129,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
             .then(data => {
                 if (!data.prgs || !data.prgs.length) throw new Error('empty');
-                renderPrgGallery(body, data.prgs, fileId);
+                renderPrgGallery(body, data.prgs, fileId, shareQs);
             })
             .catch(() => {
                 body.css('background', '').html(
@@ -146,7 +146,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             .then(buf => {
                 const uBytes  = new Uint8Array(buf);
                 const byteStr = Array.from(uBytes, b => String.fromCharCode(b)).join('');
-                const emuUrl  = `/c64emu/?file_id=${encodeURIComponent(fileId)}`;
+                const emuUrl  = `/c64emu/?file_id=${encodeURIComponent(fileId)}` + shareQs.replace('?', '&');
                 const draw = () => {
                     const html = renderPetsciiBuffer(byteStr, 40, 500);
                     body.css('background', '#000').html(`
@@ -197,9 +197,9 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                         </div>
                         <div id="prgGalleryContainer"></div>
                     `);
-                    renderPrgGallery($('#prgGalleryContainer'), data.prgs, fileId);
+                    renderPrgGallery($('#prgGalleryContainer'), data.prgs, fileId, shareQs);
                 } else {
-                    renderPrgGallery(body, data.prgs, fileId);
+                    renderPrgGallery(body, data.prgs, fileId, shareQs);
                 }
             })
             .catch(() => {
@@ -242,7 +242,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                 `);
                 return;
             }
-            if (hasPrgs && !diz) { renderPrgGallery(body, prgs, fileId); return; }
+            if (hasPrgs && !diz) { renderPrgGallery(body, prgs, fileId, shareQs); return; }
             if (diz && !hasPrgs) {
                 body.html(`<pre class="m-0 p-3" style="max-height:65vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${retroStyle}">${escapeHtml(diz)}</pre>`);
                 return;
@@ -252,7 +252,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                 <pre class="m-0 p-3" style="font-size:0.85em;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #333;${retroStyle}">${escapeHtml(diz)}</pre>
                 <div id="prgGalleryContainer"></div>
             `);
-            renderPrgGallery($('#prgGalleryContainer'), prgs, fileId);
+            renderPrgGallery($('#prgGalleryContainer'), prgs, fileId, shareQs);
         });
 
     } else {
@@ -269,8 +269,10 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
 /**
  * Render a C64 PRG art gallery into a jQuery container.
  * Each entry in prgs: {name, load_address, data_b64}
+ * @param {string} [shareQs] - Optional share query string (e.g. '?share_area=X&share_filename=Y')
  */
-function renderPrgGallery(container, prgs, fileId) {
+function renderPrgGallery(container, prgs, fileId, shareQs) {
+    shareQs = shareQs || '';
     let idx = 0;
 
     function show(i) {
@@ -307,7 +309,7 @@ function renderPrgGallery(container, prgs, fileId) {
                 artWrap.empty().append(cvs);
             } else {
                 // Machine code PRG — show notice; clicking Run on C64 replaces it with the emulator inline
-                const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}`;
+                const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}` + shareQs.replace('?', '&');
                 const notice = $('<div>').addClass('p-4 text-center text-muted').append(
                     $('<i>').addClass('fas fa-microchip fa-2x d-block mb-2'),
                     $('<div>').addClass('mb-3').append(
@@ -334,7 +336,7 @@ function renderPrgGallery(container, prgs, fileId) {
 
         container.append(artWrap);
 
-        const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}`;
+        const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}` + shareQs.replace('?', '&');
         const runBtn = $('<button>').addClass('btn btn-sm btn-outline-warning ms-2')
             .attr('title', _fpT('ui.files.prg_run_c64', 'Run on C64'))
             .html('<i class="fas fa-play"></i>')
