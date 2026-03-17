@@ -157,6 +157,194 @@ class Mail
         return $this->sendMail($email, $subject, $htmlMessage, $plainTextMessage);
     }
     
+    /**
+     * Send a netmail forwarding email to the recipient's external email address.
+     *
+     * @param string $toEmail      Recipient email address
+     * @param string $fromName     Sender display name (the FTN message author)
+     * @param string $fromAddress  Sender FTN address (e.g. 1:123/456)
+     * @param string $subject      Original netmail subject
+     * @param string $messageText  Plain-text message body
+     * @param string $systemName   Name of this BBS/system
+     * @param array  $attachments  Optional file attachments; each entry is
+     *                             ['path' => '/absolute/path', 'filename' => 'file.ext']
+     * @return bool True on success, false on failure
+     */
+    public function sendNetmailForward(
+        string $toEmail,
+        string $fromName,
+        string $fromAddress,
+        string $subject,
+        string $messageText,
+        string $systemName,
+        array $attachments = []
+    ): bool {
+        if (!$this->isEnabled()) {
+            return false;
+        }
+
+        $emailSubject = "[Netmail] {$subject}";
+
+        $fromLine  = $fromAddress !== '' ? "{$fromName} ({$fromAddress})" : $fromName;
+
+        $plainText = "From: {$fromLine}\n"
+            . "Subject: {$subject}\n"
+            . "System: {$systemName}\n"
+            . "---\n"
+            . $messageText
+            . "\n\n---\n"
+            . "This message was forwarded automatically from {$systemName}.\n"
+            . "Note: Replying to this email will not reach the sender. Please log in to {$systemName} to reply.";
+
+        $safeFrom    = htmlspecialchars($fromLine, ENT_QUOTES, 'UTF-8');
+        $safeBody    = nl2br(htmlspecialchars($messageText, ENT_QUOTES, 'UTF-8'));
+        $safeSystem  = htmlspecialchars($systemName, ENT_QUOTES, 'UTF-8');
+        $htmlBody = "
+        <html>
+        <head>
+            <title>Netmail from {$safeFrom}</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .header { background: #f4f4f4; padding: 10px 15px; border-left: 4px solid #0066cc; margin-bottom: 15px; }
+                .message-body { font-family: 'Courier New', monospace; white-space: pre-wrap; }
+                hr { border: none; border-top: 1px solid #ccc; margin: 15px 0; }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                <strong>Netmail from {$safeFrom}</strong><br>
+                <small>System: {$safeSystem}</small>
+            </div>
+            <div class='message-body'>{$safeBody}</div>
+            <hr>
+            <small style='color: #666;'>
+                This message was forwarded automatically from {$safeSystem}.<br>
+                <strong>Note:</strong> Replying to this email will not reach the sender.
+                Please log in to {$safeSystem} to reply.
+            </small>
+        </body>
+        </html>
+        ";
+
+        try {
+            $mail = new PHPMailer(true);
+
+            // Server settings
+            $mail->isSMTP();
+            $mail->Host     = Config::env('SMTP_HOST');
+            $mail->SMTPAuth = true;
+            $mail->Username = Config::env('SMTP_USER');
+            $mail->Password = Config::env('SMTP_PASS');
+            $mail->Port     = (int) Config::env('SMTP_PORT', 587);
+
+            if (Config::env('SMTP_NOVERIFYCERT') == true) {
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer'       => false,
+                        'verify_peer_name'  => false,
+                        'allow_self_signed' => true,
+                    ]
+                ];
+            }
+
+            // Security settings
+            $security = strtolower(Config::env('SMTP_SECURITY', 'tls'));
+            if ($security === 'ssl') {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } elseif ($security === 'tls') {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            }
+
+            // Recipients
+            $mail->setFrom(Config::env('SMTP_FROM_EMAIL'), Config::env('SMTP_FROM_NAME', 'BinktermPHP'));
+            $mail->addAddress($toEmail);
+
+            // Attachments
+            foreach ($attachments as $att) {
+                if (!empty($att['path']) && is_readable($att['path'])) {
+                    $mail->addAttachment($att['path'], $att['filename'] ?? basename($att['path']));
+                }
+            }
+
+            // Content
+            $mail->isHTML(true);
+            $mail->Subject = $emailSubject;
+            $mail->Body    = $htmlBody;
+            $mail->AltBody = $plainText;
+
+            $mail->send();
+            error_log("[NETMAIL FORWARD] Forwarded netmail to {$toEmail} re: {$subject}");
+            return true;
+
+        } catch (Exception $e) {
+            error_log("[NETMAIL FORWARD] Failed to forward netmail to {$toEmail}: " . $mail->ErrorInfo);
+            return false;
+        }
+    }
+
+    /**
+     * Forward a received netmail to the recipient's email if forwarding is enabled,
+     * the system is licensed, and the user has an email address configured.
+     *
+     * @param int    $recipientUserId  The local user who received the netmail
+     * @param string $fromName         Sender display name
+     * @param string $fromAddress      Sender FTN address (e.g. 1:123/456)
+     * @param string $subject          Message subject
+     * @param string $messageText      Plain-text message body
+     * @param array  $attachments      Optional list of ['path'=>..., 'filename'=>...] to attach
+     */
+    public static function maybeForwardNetmail(
+        int $recipientUserId,
+        string $fromName,
+        string $fromAddress,
+        string $subject,
+        string $messageText,
+        array $attachments = []
+    ): void {
+        try {
+            if (!License::isValid()) {
+                return;
+            }
+
+            $db = Database::getInstance()->getPdo();
+
+            $stmt = $db->prepare(
+                "SELECT u.email, us.forward_netmail_email
+                 FROM users u
+                 LEFT JOIN user_settings us ON us.user_id = u.id
+                 WHERE u.id = ?"
+            );
+            $stmt->execute([$recipientUserId]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$row || empty($row['email']) || !$row['forward_netmail_email']) {
+                return;
+            }
+
+            $systemName = 'BinktermPHP System';
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $systemName = $binkpConfig->getSystemName();
+            } catch (\Exception $e) {
+                // Use default system name
+            }
+
+            $mail = new self();
+            $mail->sendNetmailForward(
+                $row['email'],
+                $fromName,
+                $fromAddress,
+                $subject,
+                $messageText,
+                $systemName,
+                $attachments
+            );
+
+        } catch (\Exception $e) {
+            error_log("[NETMAIL FORWARD] Error in maybeForwardNetmail for user {$recipientUserId}: " . $e->getMessage());
+        }
+    }
+
     private function loadWelcomeTemplate($realName, $systemName, $systemAddress, $sysopName)
     {
         $welcomeFile = __DIR__ . '/../config/newuser_welcome.txt';

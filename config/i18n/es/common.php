@@ -287,7 +287,7 @@ return [
     'ui.admin.licensing.why_sustain' => 'Sostener el desarrollo — el registro apoya directamente las correcciones de errores, nuevas funciones y el trabajo de compatibilidad de protocolos.',
     'ui.admin.licensing.why_branding' => 'Desbloquear control de marca — presente una experiencia completamente personalizada sin la atribucion de BinktermPHP en el pie de pagina.',
     'ui.admin.licensing.why_features' => 'Acceder a herramientas premium — las instalaciones registradas reciben nuevas funciones premium automaticamente a medida que se lanzan.',
-    'ui.admin.licensing.why_perpetual' => 'Licencia perpetua — registrese una vez para la linea de version actual. Sin suscripcion ni tarifa recurrente.',
+    'ui.admin.licensing.why_perpetual' => 'Licencia perpetua — registrese una vez. Sin suscripcion ni tarifa recurrente.',
     'ui.admin.licensing.remove_confirm' => '¿Eliminar el archivo de licencia actual? El sistema volvera a la edicion comunitaria.',
     'ui.admin.licensing.how_to_register_link' => 'Como registrarse',
     'ui.admin.licensing.register_modal_title' => 'Registrar BinktermPHP',
@@ -500,6 +500,18 @@ return [
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Enlace opcional que se muestra en el menu Mensajeria justo debajo de Echomail.',
     'ui.admin.appearance.message_reader.save' => 'Guardar ajustes del lector de mensajes',
+
+    // Appearance - Splash Pages tab
+    'ui.admin.appearance.tab_splash' => 'Paginas de inicio',
+    'ui.admin.appearance.splash.title' => 'Paginas de inicio personalizadas',
+    'ui.admin.appearance.splash.help' => 'Agregue contenido personalizado que aparece encima de los formularios de inicio de sesion y registro. Compatible con Markdown. Deje en blanco para no mostrar nada.',
+    'ui.admin.appearance.splash.login_label' => 'Inicio de sesion',
+    'ui.admin.appearance.splash.login_help' => 'Se muestra encima del formulario de inicio de sesion en /login.',
+    'ui.admin.appearance.splash.register_label' => 'Pagina de registro',
+    'ui.admin.appearance.splash.register_help' => 'Se muestra encima del formulario de registro en /register.',
+    'ui.admin.appearance.splash.placeholder' => '## Bienvenido\n\nEste es un mensaje de **inicio personalizado**.',
+    'ui.admin.appearance.splash.locked_heading' => 'Funcion registrada',
+    'ui.admin.appearance.splash.locked_description' => 'Las paginas de inicio personalizadas estan disponibles para instalaciones registradas.',
 
     // Admin Binkp Config
     'ui.admin.binkp_config.load_failed' => 'No se pudo cargar la configuracion',
@@ -2588,6 +2600,9 @@ return [
     'ui.settings.quote_display' => 'Visualizacion de citas',
     'ui.settings.quote_coloring' => 'Colorear texto citado por profundidad',
     'ui.settings.quote_coloring_help' => 'Muestra lineas citadas (que empiezan con >) en diferentes colores segun nivel de anidacion',
+    'ui.settings.notifications' => 'Notificaciones',
+    'ui.settings.forward_netmail_email' => 'Reenviar netmail al correo electronico',
+    'ui.settings.forward_netmail_email_help' => 'Envia una copia de los mensajes de netmail entrantes a tu direccion de correo electronico. Requiere una direccion de correo electronico valida en tu perfil y SMTP configurado.',
     'ui.settings.session_security' => 'Sesion y seguridad',
     'ui.settings.active_sessions' => 'Sesiones activas',
     'ui.settings.active_sessions_help' => 'Administre sus sesiones de inicio de sesion activas',

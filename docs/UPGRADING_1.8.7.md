@@ -62,13 +62,16 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Message Templates](#message-templates)
   - [Economy Viewer Now Requires Registration](#economy-viewer-now-requires-registration)
   - [Referral Analytics](#referral-analytics)
+  - [Custom Login and Registration Splash Pages](#custom-login-and-registration-splash-pages)
   - [How to Register](#how-to-register)
+- [Netmail Forwarding to Email](#netmail-forwarding-to-email)
 - [Shared File Preview for Unauthenticated Visitors](#shared-file-preview-for-unauthenticated-visitors)
 - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
 - [Admin Menu Reorganization](#admin-menu-reorganization)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
+  - [After Upgrading: Clear Browser Cache](#after-upgrading-clear-browser-cache)
 
 ## Summary of Changes
 
@@ -220,6 +223,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   signups, bonus credits earned, and summary totals.
 - Admin licensing page now shows a **Why Register?** panel explaining the value
   of registration, with a **How to Register** modal that renders `REGISTER.md`.
+- **Custom splash pages** — registered sysops can configure custom Markdown
+  content that appears above the login and registration forms.
+- **Netmail forwarding to email** — users can opt in to have incoming netmail
+  forwarded to their email address, including file attachments.
 
 **Telnet / SSH**
 - Telnet file area browser now supports virtual subfolders.
@@ -980,13 +987,14 @@ and restore it automatically when you return.
   restores the correct page for each.
 - **Netmail** — the last-visited page of your inbox is remembered.
 
-This behaviour is **opt-in**. It is disabled by default and can be enabled in
-**Settings → Remember last page in echomail and netmail**.
+This behaviour is **opt-in and disabled by default**. Users can enable it in
+**Settings** under the new **Remember last page in echomail and netmail**
+toggle. Existing users will have the setting off after upgrading.
 
-Positions are stored per-user in the database (`users_meta` table under the
-keys `web_echomail_positions` and `web_netmail_page`) and persist across browser
+Positions are stored per-user in the database and persist across browser
 sessions and devices. Migration `v1.11.0.28` adds the `remember_page_position`
-column to `user_settings` and is applied automatically by `setup.php`.
+column to `user_settings` (default `FALSE`) and is applied automatically by
+`setup.php`.
 
 ## Netmail Attachment Improvements
 
@@ -1206,6 +1214,24 @@ available to registered installations. It shows:
 This page requires a valid license and is accessible via **Admin → Analytics →
 Referral Analytics**.
 
+### Custom Login and Registration Splash Pages
+
+Registered installations can configure custom Markdown content that appears
+above the login and registration forms. This is useful for system announcements,
+welcome messages, or instructions specific to your BBS.
+
+Configure both pages from **Admin → Appearance → Splash Pages**. Each page has
+its own editor — leave either blank to show nothing. Content is rendered as
+Markdown and displayed in a card above the respective form.
+
+**Legacy `config/welcome.txt`** — the old plain-text welcome file is still
+supported as a fallback for unlicensed installations. If a registered
+installation has a login splash configured, the splash takes precedence and
+`welcome.txt` is ignored. `config/welcome.txt.example` has been removed from
+the repository as it is superseded by the splash pages feature.
+
+No configuration or migration is required.
+
 ### How to Register
 
 Visit the **Admin → Licensing** page and click **How to Register** to open the
@@ -1215,6 +1241,37 @@ registration options and contact information.
 The **Why Register?** panel on the licensing page summarises the benefits:
 sustaining the project, custom branding controls, access to premium features,
 and a perpetual license for the current version line.
+
+## Netmail Forwarding to Email
+
+Users can now opt in to have incoming netmail automatically forwarded to their
+registered email address. This is a registered-only feature and requires SMTP
+to be configured on the system.
+
+**Enabling forwarding:**
+
+1. Set a valid email address in your user profile.
+2. Go to **Settings** and enable **Forward netmail to email** under the
+   Notifications section. The toggle is visible to all users but only active
+   on registered installations.
+
+**What is forwarded:**
+
+- The sender's name and FTN address (e.g. `Matthew Asham (1:123/456)`)
+- The original subject and message body
+- File attachments, when present
+
+The forwarded email includes a notice that replies will not reach the netmail
+sender and that the user should log in to the BBS to reply.
+
+**Behaviour notes:**
+
+- Opt-in, disabled by default for all users after upgrading.
+- File attachments are included in the forwarded email for both locally
+  composed netmail and inbound FTN netmail arriving via BinkP.
+
+A database migration (`v1.11.0.30`) adds the `forward_netmail_email` column
+to `user_settings` and is applied automatically by `setup.php`.
 
 ## Shared File Preview for Unauthenticated Visitors
 
@@ -1321,3 +1378,20 @@ wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/bink
 php binkterm-installer.phar
 scripts/restart_daemons.sh
 ```
+
+### After Upgrading: Clear Browser Cache
+
+After deploying this update, users upgrading from **1.8.5 or earlier** may see a
+blank loading page, loading indicators that don't clear, or other malfunctions
+on their first page load. This happens because the browser's service worker is
+still serving an older cached copy of `app.js` that pre-dates the i18n system.
+
+**What users should do:**
+
+- Press **Ctrl+Shift+R** (Windows/Linux) or **Cmd+Shift+R** (Mac) to perform a
+  hard refresh, bypassing the service worker cache.
+- Alternatively: open DevTools → Application → Service Workers → click
+  **Unregister**, then reload the page.
+
+After the first hard refresh the service worker will update automatically and
+subsequent loads will work normally without any manual intervention.

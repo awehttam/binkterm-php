@@ -569,6 +569,24 @@ class AdminDaemonServer
                     $this->writeHouseRules($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'set_login_splash':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeLoginSplash($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'set_register_splash':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeRegisterSplash($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'get_i18n_overlay':
                     $locale = (string)($data['locale'] ?? '');
                     $ns     = (string)($data['ns'] ?? '');
@@ -1599,6 +1617,16 @@ class AdminDaemonServer
         return __DIR__ . '/../../data/houserules.md';
     }
 
+    private function getLoginSplashPath(): string
+    {
+        return __DIR__ . '/../../data/login_splash.md';
+    }
+
+    private function getRegisterSplashPath(): string
+    {
+        return __DIR__ . '/../../data/register_splash.md';
+    }
+
     private function getAppearanceConfig(): array
     {
         $path = $this->getAppearanceConfigPath();
@@ -1613,11 +1641,15 @@ class AdminDaemonServer
 
         $systemNewsPath = $this->getSystemNewsPath();
         $houseRulesPath = $this->getHouseRulesPath();
+        $loginSplashPath = $this->getLoginSplashPath();
+        $registerSplashPath = $this->getRegisterSplashPath();
 
         return [
             'config' => $config ?? [],
             'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
             'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
+            'login_splash' => file_exists($loginSplashPath) ? (file_get_contents($loginSplashPath) ?: '') : null,
+            'register_splash' => file_exists($registerSplashPath) ? (file_get_contents($registerSplashPath) ?: '') : null,
         ];
     }
 
@@ -1662,6 +1694,30 @@ class AdminDaemonServer
 
         if (@file_put_contents($path, $text, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write house rules');
+        }
+    }
+
+    private function writeLoginSplash(string $text): void
+    {
+        $path = $this->getLoginSplashPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write login splash');
+        }
+    }
+
+    private function writeRegisterSplash(string $text): void
+    {
+        $path = $this->getRegisterSplashPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write register splash');
         }
     }
 

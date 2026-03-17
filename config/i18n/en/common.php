@@ -287,7 +287,7 @@ return [
     'ui.admin.licensing.why_sustain' => 'Sustain development — registration directly supports bug fixes, new features, and protocol compatibility work.',
     'ui.admin.licensing.why_branding' => 'Unlock branding control — present a fully branded experience without BinktermPHP attribution in the footer.',
     'ui.admin.licensing.why_features' => 'Access premium tools — registered installations receive new premium features automatically as they are released.',
-    'ui.admin.licensing.why_perpetual' => 'Perpetual license — register once for the current version line. No subscription or recurring fee.',
+    'ui.admin.licensing.why_perpetual' => 'Perpetual license — register once. No subscription or recurring fee.',
     'ui.admin.licensing.remove_confirm' => 'Remove the current license file? The system will revert to Community Edition.',
     'ui.admin.licensing.how_to_register_link' => 'How to Register',
     'ui.admin.licensing.register_modal_title' => 'Register BinktermPHP',
@@ -500,6 +500,18 @@ return [
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Optional link shown in the Messaging menu directly under Echomail.',
     'ui.admin.appearance.message_reader.save' => 'Save Message Reader Settings',
+
+    // Appearance - Splash Pages tab
+    'ui.admin.appearance.tab_splash' => 'Splash Pages',
+    'ui.admin.appearance.splash.title' => 'Custom Splash Pages',
+    'ui.admin.appearance.splash.help' => 'Add custom content that appears above the login and registration forms. Supports Markdown. Leave blank to show nothing.',
+    'ui.admin.appearance.splash.login_label' => 'Login Page Splash',
+    'ui.admin.appearance.splash.login_help' => 'Displayed above the login form on /login.',
+    'ui.admin.appearance.splash.register_label' => 'Registration Page Splash',
+    'ui.admin.appearance.splash.register_help' => 'Displayed above the registration form on /register.',
+    'ui.admin.appearance.splash.placeholder' => '## Welcome\n\nThis is a **custom splash** message.',
+    'ui.admin.appearance.splash.locked_heading' => 'Registered Feature',
+    'ui.admin.appearance.splash.locked_description' => 'Custom splash pages are available to registered installations.',
 
     // Admin Binkp Config
     'ui.admin.binkp_config.load_failed' => 'Failed to load config',
@@ -2586,6 +2598,9 @@ return [
     'ui.settings.quote_display' => 'Quote Display',
     'ui.settings.quote_coloring' => 'Color quoted text by depth',
     'ui.settings.quote_coloring_help' => 'Show quoted message lines (starting with >) in different colors based on nesting level',
+    'ui.settings.notifications' => 'Notifications',
+    'ui.settings.forward_netmail_email' => 'Forward netmail to email',
+    'ui.settings.forward_netmail_email_help' => 'Send a copy of incoming netmail messages to your email address. Requires a valid email address in your profile and SMTP to be configured.',
     'ui.settings.session_security' => 'Session & Security',
     'ui.settings.active_sessions' => 'Active Sessions',
     'ui.settings.active_sessions_help' => 'Manage your active login sessions',

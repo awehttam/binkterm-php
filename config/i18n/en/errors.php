@@ -295,6 +295,8 @@ return [
     'errors.admin.appearance.shell.save_failed' => 'Failed to save shell settings',
     'errors.admin.appearance.message_reader.save_failed' => 'Failed to save message reader settings',
     'errors.admin.appearance.markdown_preview.failed' => 'Failed to render markdown preview',
+    'errors.admin.appearance.splash.license_required' => 'A valid license is required to configure splash pages',
+    'errors.admin.appearance.splash.save_failed' => 'Failed to save splash settings',
     'errors.admin.shell_art.list_failed' => 'Failed to list shell art files',
     'errors.admin.shell_art.upload.no_file' => 'No shell art file uploaded',
     'errors.admin.shell_art.upload.upload_error' => 'Shell art upload failed',

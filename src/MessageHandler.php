@@ -865,6 +865,7 @@ class MessageHandler
             $messageId = $this->db->lastInsertId();
 
             // Store attachment path and set FILE_ATTACH attribute when a file is attached
+            $recipientUser = null;
             if ($attachment !== null) {
                 if ($toAddress === $originAddress) {
                     // Local delivery: store directly into the recipient's private file area.
@@ -953,6 +954,46 @@ class MessageHandler
                         WHERE id = ?
                     ");
                     $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+                }
+            }
+
+            // Forward to recipient's email if they have forwarding enabled and this is local delivery.
+            // For local delivery the recipient is different from the sender.
+            if ($toAddress === $originAddress) {
+                // If $recipientUser was not resolved during attachment handling (no attachment),
+                // look it up now so the email forwarding hook has a user ID to work with.
+                if ($recipientUser === null) {
+                    $fwdRecipStmt = $this->db->prepare("
+                        SELECT id FROM users
+                        WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $fwdRecipStmt->execute([$toName, $toName]);
+                    $recipientUser = $fwdRecipStmt->fetch() ?: null;
+                }
+
+                if (isset($recipientUser['id']) && (int)$recipientUser['id'] !== (int)$fromUserId) {
+                    // Gather attachment paths from the files table for this message
+                    $fwdAttachments = [];
+                    if ($attachment !== null) {
+                        $attStmt = $this->db->prepare(
+                            "SELECT storage_path, filename FROM files WHERE message_id = ? AND message_type = 'netmail' AND owner_id = ? AND subfolder = 'attachments' LIMIT 5"
+                        );
+                        $attStmt->execute([$messageId, (int)$recipientUser['id']]);
+                        foreach ($attStmt->fetchAll() as $row) {
+                            if (!empty($row['storage_path']) && file_exists($row['storage_path'])) {
+                                $fwdAttachments[] = ['path' => $row['storage_path'], 'filename' => $row['filename']];
+                            }
+                        }
+                    }
+                    \BinktermPHP\Mail::maybeForwardNetmail(
+                        (int)$recipientUser['id'],
+                        $senderName,
+                        $originAddress,
+                        $subject,
+                        $finalMessageText,
+                        $fwdAttachments
+                    );
                 }
             }
 
@@ -2479,7 +2520,8 @@ class MessageHandler
             'date_format' => 'STRING',
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
-            'default_tagline' => 'TAGLINE'
+            'default_tagline' => 'TAGLINE',
+            'forward_netmail_email' => 'BOOLEAN'
         ];
 
         $updates = [];

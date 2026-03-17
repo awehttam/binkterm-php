@@ -42,6 +42,7 @@ These features are live and gated behind `License::isValid()`.
 | Message templates | Save and load subject/body templates in the compose form; per-user, filterable by netmail/echomail | `License::isValid()` |
 | Economy viewer | Admin dashboard for credit economy stats, transaction history, and active user reporting | `License::isValid()` |
 | Referral analytics | Admin page showing top referrers, referral signups, bonus credits earned, and summary totals | `License::isValid()` |
+| Custom splash pages | Sysop-defined Markdown/HTML content shown above the login and registration forms | `License::isValid()` |
 
 ---
 
@@ -64,7 +65,6 @@ The following are candidate features for future consideration. None are implemen
 ### Branding and Appearance
 
 - Custom CSS themes beyond the built-in set
-- Custom login/registration splash content
 - Fully editable About page from admin UI
 - Curated ANSI art packs (distributed separately from the main repo)
 

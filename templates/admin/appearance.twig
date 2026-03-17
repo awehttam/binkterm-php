@@ -40,6 +40,11 @@
             <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.admin.appearance.tab_message_reader', {}, locale, ['common']) }}
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-splash-btn" data-bs-toggle="tab" data-bs-target="#tab-splash" type="button" role="tab">
+            <i class="fas fa-door-open me-1"></i> {{ t('ui.admin.appearance.tab_splash', {}, locale, ['common']) }}
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="appearanceTabContent">
@@ -431,6 +436,47 @@
         </div>
     </div>
 
+    {# ====== TAB: SPLASH PAGES ====== #}
+    <div class="tab-pane fade" id="tab-splash" role="tabpanel">
+        {% if not license_valid %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-lock text-muted mb-3" style="font-size: 3rem; opacity: 0.4;"></i>
+                <h5 class="text-muted">{{ t('ui.admin.appearance.splash.locked_heading', {}, locale, ['common']) }}</h5>
+                <p class="text-muted small">{{ t('ui.admin.appearance.splash.locked_description', {}, locale, ['common']) }}</p>
+                <a href="/admin/licensing" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-id-card me-1"></i>{{ t('ui.error403.licensing_link', {}, locale, ['common']) }}
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.admin.appearance.splash.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-4">{{ t('ui.admin.appearance.splash.help', {}, locale, ['common']) }}</p>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold" for="loginSplash">{{ t('ui.admin.appearance.splash.login_label', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control font-monospace" id="loginSplash" rows="8" placeholder="{{ t('ui.admin.appearance.splash.placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.splash.login_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold" for="registerSplash">{{ t('ui.admin.appearance.splash.register_label', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control font-monospace" id="registerSplash" rows="8" placeholder="{{ t('ui.admin.appearance.splash.placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.splash.register_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <button class="btn btn-fidonet" onclick="saveSplash()">
+                    <i class="fas fa-save me-1"></i>{{ t('ui.common.save', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
 </div>
 {% endblock %}
 
@@ -572,6 +618,14 @@ function loadAppearanceConfig() {
             const mr = config.message_reader || {};
             $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
             $('#mrEmailLinkUrl').val(mr.email_link_url || '');
+
+            // Splash Pages
+            if (d.login_splash !== null && d.login_splash !== undefined) {
+                $('#loginSplash').val(d.login_splash);
+            }
+            if (d.register_splash !== null && d.register_splash !== undefined) {
+                $('#registerSplash').val(d.register_splash);
+            }
         })
         .fail(function(xhr) {
             showAlert('danger', uiT('ui.admin.appearance.load_failed_prefix', 'Failed to load appearance config: ') + apiError(xhr.responseJSON, uiT('ui.common.unknown_error', 'Unknown error')));
@@ -926,6 +980,33 @@ function saveMessageReader() {
         .fail(function(xhr) {
             $('#messageReaderStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
         });
+}
+
+// ---- SPLASH PAGES ----
+function saveSplash() {
+    const payload = {
+        login_splash: $('#loginSplash').val(),
+        register_splash: $('#registerSplash').val()
+    };
+    $.ajax({
+        url: '/admin/api/appearance/splash',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(data) {
+            showAppearanceAlert('success', window.t ? window.t('ui.common.saved', {}, 'Saved') : 'Saved');
+        },
+        error: function(xhr) {
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'))
+                : uiT('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings');
+            showAppearanceAlert('danger', msg);
+        }
+    });
+}
+
+function showAppearanceAlert(type, msg) {
+    showAlert(type, msg);
 }
 
 function showAlert(type, msg) {

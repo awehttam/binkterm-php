@@ -204,10 +204,21 @@ SimpleRouter::get('/login', function() {
             && \BinktermPHP\NativeDoorConfig::isAnonymousAllowed('pubterm');
     } catch (\Throwable $e) {}
 
+    // Splash takes precedence over the legacy welcome.txt
+    $loginSplashHtml = null;
+    if (\BinktermPHP\License::isValid()) {
+        $loginSplashMd = \BinktermPHP\AppearanceConfig::getLoginSplashMarkdown();
+        if ($loginSplashMd !== null && trim($loginSplashMd) !== '') {
+            $loginSplashHtml = \BinktermPHP\MarkdownRenderer::toHtml($loginSplashMd);
+            $welcomeMessage = ''; // suppress legacy fallback
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('login.twig', [
         'welcome_message'  => $welcomeMessage,
         'pubterm_enabled'  => $pubTermEnabled,
+        'login_splash'     => $loginSplashHtml,
     ]);
 });
 
@@ -233,8 +244,18 @@ SimpleRouter::get('/register', function() {
         }
     }
 
+    $registerSplashHtml = null;
+    if (\BinktermPHP\License::isValid()) {
+        $registerSplashMd = \BinktermPHP\AppearanceConfig::getRegisterSplashMarkdown();
+        if ($registerSplashMd !== null && trim($registerSplashMd) !== '') {
+            $registerSplashHtml = \BinktermPHP\MarkdownRenderer::toHtml($registerSplashMd);
+        }
+    }
+
     $template = new Template();
-    $template->renderResponse('register.twig');
+    $template->renderResponse('register.twig', [
+        'register_splash' => $registerSplashHtml,
+    ]);
 });
 
 SimpleRouter::get('/forgot-password', function() {
@@ -660,7 +681,8 @@ SimpleRouter::get('/settings', function() {
         'system_address_display' => $systemAddress,
         'system_sysop' => $sysopName,
         'taglines' => $taglines,
-        'default_tagline' => $defaultTagline
+        'default_tagline' => $defaultTagline,
+        'license_valid' => \BinktermPHP\License::isValid(),
     ];
 
     $template = new Template();

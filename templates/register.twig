@@ -3,6 +3,18 @@
 {% block title %}{{ t('ui.register.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
+{% if register_splash %}
+<div class="row justify-content-center mb-3">
+    <div class="col-md-6 col-lg-6">
+        <div class="card">
+            <div class="card-body prose">
+                {{ register_splash|raw }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
     <div class="row justify-content-center">
     <div class="col-md-6 col-lg-6">
         <div class="card">

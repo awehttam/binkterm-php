@@ -245,6 +245,16 @@ class AdminDaemonClient
         return $this->sendCommand('set_house_rules', ['text' => $text]);
     }
 
+    public function setLoginSplash(string $text): array
+    {
+        return $this->sendCommand('set_login_splash', ['text' => $text]);
+    }
+
+    public function setRegisterSplash(string $text): array
+    {
+        return $this->sendCommand('set_register_splash', ['text' => $text]);
+    }
+
     public function listShellArt(): array
     {
         return $this->sendCommand('list_shell_art');

@@ -1246,6 +1246,44 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/splash', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            if (!\BinktermPHP\License::isValid()) {
+                http_response_code(403);
+                apiError('errors.admin.appearance.splash.license_required', apiLocalizedText('errors.admin.appearance.splash.license_required', 'A valid license is required to configure splash pages'));
+                return;
+            }
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+
+                if (array_key_exists('login_splash', $payload)) {
+                    $text = (string)$payload['login_splash'];
+                    if (mb_strlen($text) > 10000) {
+                        throw new Exception('Splash content must be 10,000 characters or less');
+                    }
+                    $client->setLoginSplash($text);
+                }
+
+                if (array_key_exists('register_splash', $payload)) {
+                    $text = (string)$payload['register_splash'];
+                    if (mb_strlen($text) > 10000) {
+                        throw new Exception('Splash content must be 10,000 characters or less');
+                    }
+                    $client->setRegisterSplash($text);
+                }
+
+                echo json_encode(['success' => true, 'message_code' => 'ui.common.saved']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+            }
+        });
+
         SimpleRouter::post('/appearance/navigation', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');

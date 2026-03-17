@@ -445,16 +445,34 @@
                 }
             });
 
+            // Detect when a new SW claims this page (skipWaiting + clients.claim path).
+            // hadController guards against showing the toast on a fresh install (no previous SW).
+            const hadController = !!navigator.serviceWorker.controller;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (hadController) {
+                    console.log('[Page] Controller changed, showing update notification');
+                    showUpdateNotification();
+                }
+            });
+
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
                         console.log('[Page] Service Worker registered! Scope is:', registration.scope);
                         swRegistration = registration;
 
-                        // Check if there's already a waiting SW
+                        // Check if there's already a waiting or installing SW
                         if (registration.waiting) {
                             console.log('[Page] SW already waiting, showing update notification');
                             showUpdateNotification();
+                        } else if (registration.installing) {
+                            console.log('[Page] SW already installing, watching for completion');
+                            const installingWorker = registration.installing;
+                            installingWorker.addEventListener('statechange', () => {
+                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    showUpdateNotification();
+                                }
+                            });
                         }
 
                         // Listen for new SW installing

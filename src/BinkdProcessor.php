@@ -887,6 +887,29 @@ class BinkdProcessor
         if (($message['attributes'] ?? 0) & 0x0010) {
             $this->processNetmailAttachment($userId, $message, $netmailId, $fromAddr);
         }
+
+        // Forward to email if recipient has forwarding enabled.
+        // Attachment processing runs first so the files table is populated before we query it.
+        $fwdAttachments = [];
+        $attStmt = $this->db->prepare(
+            "SELECT storage_path, filename FROM files
+             WHERE message_id = ? AND message_type = 'netmail' AND owner_id = ? AND subfolder = 'attachments'
+             LIMIT 5"
+        );
+        $attStmt->execute([$netmailId, (int)$userId]);
+        foreach ($attStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if (!empty($row['storage_path']) && file_exists($row['storage_path'])) {
+                $fwdAttachments[] = ['path' => $row['storage_path'], 'filename' => $row['filename']];
+            }
+        }
+        \BinktermPHP\Mail::maybeForwardNetmail(
+            (int)$userId,
+            (string)($message['fromName'] ?? ''),
+            (string)$fromAddr,
+            (string)($message['subject'] ?? ''),
+            (string)$cleanMessageText,
+            $fwdAttachments
+        );
     }
 
     /**
