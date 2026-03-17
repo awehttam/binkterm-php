@@ -589,7 +589,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     COALESCE(SUM(ct.amount), 0) AS bonus_earned
                 FROM users u
                 LEFT JOIN users r ON r.referred_by = u.id
-                LEFT JOIN credit_transactions ct
+                LEFT JOIN user_transactions ct
                     ON ct.user_id = u.id AND ct.transaction_type = 'referral_bonus'
                 GROUP BY u.id, u.username, u.real_name, u.referral_code
                 HAVING COUNT(r.id) > 0
