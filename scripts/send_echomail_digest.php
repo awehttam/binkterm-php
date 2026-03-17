@@ -256,7 +256,7 @@ foreach ($users as $user) {
 
     // Fetch new echomail in subscribed areas
     $msgStmt = $db->prepare("
-        SELECT e.id AS echoarea_id, e.tag, e.name,
+        SELECT e.id AS echoarea_id, e.tag, e.description AS name,
                em.subject, em.from_name, em.date_received
         FROM echomail em
         JOIN echoareas e ON em.echoarea_id = e.id
