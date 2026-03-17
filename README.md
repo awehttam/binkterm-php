@@ -138,7 +138,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Address Book Support** A handy address book to keep track of your netmail contacts
 - **Message Sharing** - Share echomail messages via secure web links with privacy controls
 - **Message Saving** - Ability to save messages
-- **Search Capabilities** - Full-text search across messages and echo areas
+- **Search Capabilities** - Full-text trigram search across messages and echo areas, plus global cross-area file search
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
@@ -147,7 +147,8 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
-- **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
+- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
+- **Outbound FREQ** - Users can request files from other FTN nodes directly from the nodelist browser
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
@@ -157,6 +158,9 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Echomail Robots** - Generic rule-based framework that watches echo areas for matching messages and dispatches them to configurable processors. Ships with a built-in processor for FSXNet `ibbslastcall-data` announcements that auto-populates the BBS Directory. Custom processors can be added in `src/Robots/Processors/`. See [docs/Robots.md](docs/Robots.md).
 - **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
 - **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English and Spanish out of the box.
+- **Message Artwork Encoding Editor** - In-browser tool for correcting the character encoding of ANSI and PETSCII art in messages when automatic detection is wrong; available to sysops on any echomail and to senders/receivers on netmail
+- **Email Notifications** - Registered feature: users can opt in to have incoming netmail forwarded to their email address (including FTN file attachments), and/or receive a periodic echomail digest summarising new activity in their subscribed areas (daily or weekly)
+- **Registration** - Optional registration unlocks premium features including custom login/registration splash pages, netmail email forwarding, echomail digest emails, economy viewer, and referral analytics. See `REGISTER.md` for details.
 
 
 ## Native Binkp Protocol Support
@@ -579,7 +583,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | In-browser message artwork encoding editor (echomail for sysops, netmail for sender/receiver); fixed false-positive PETSCII detection on import; C64 badge in message lists |
+| [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | Registration/premium features; ISO-backed file areas; global file search; outbound FREQ; echomail digest emails; netmail forwarding to email; in-browser artwork encoding editor; enhanced message search; nodelist map; page position memory; file preview improvements |
 | [1.8.6](docs/UPGRADING_1.8.6.md)       | Mar 2026    | i18n/localization, SSH daemon, file areas terminal, ZMODEM, telnet ANSI auto-detect, echomail/netmail reader keyboard shortcuts |
 | [1.8.5](docs/UPGRADING_1.8.5.md)       | Mar 4 2026  | Native doors (PTY), StyleCodes rendering, LSC-001 Draft 2 MARKUP kludge, markup format composer selector, allow_markup uplink config key |
 | [1.8.4](docs/UPGRADING_1.8.4.md)       | Mar 1 2026  | Username/real name cross-collision check, MRC room list fix, collapsible compose sidebar, echolist new-tab support |
@@ -633,6 +637,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `process_packets.php` | Process inbound packets manually |
 | `restart_daemons.sh` | Stop and restart all running daemons |
 | `send_activityreport.php` | Generate and send an activity digest as netmail |
+| `send_echomail_digest.php` | Send per-user echomail digest emails (daily or weekly); registered feature — see [docs/EchoDigests.md](docs/EchoDigests.md) |
 | `subscribe_users.php` | Bulk subscribe users to echo areas |
 | `update_nodelists.php` | Download and import nodelists from configured URL feeds (optional — the recommended method is file area rules with the import_nodelist tool) |
 | `user-manager.php` | Manage user accounts |
@@ -717,6 +722,9 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 
 # Optional: start DOS door multiplexing bridge on boot
 @reboot /usr/bin/node /path/to/binktest/scripts/dosbox-bridge/multiplexing-server.js --daemon
+
+# Optional: send echomail digest emails (registered feature; hourly — script enforces per-user frequency)
+0 * * * * /usr/bin/php /path/to/binktest/scripts/send_echomail_digest.php
 
 # Rotate logs weekly
 0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
@@ -944,6 +952,14 @@ Areas are managed at **Admin → Echo Areas** and support bulk import via CSV. F
 File areas are organized collections of downloadable files, similar to echo areas but for file distribution. Each area is identified by a `tag` and a `domain` (e.g., `NODELIST` in `fidonet` or `localnet`). File areas can be local‑only or networked for distribution to uplinks, and they support controls like maximum file size, upload permissions, and virus scanning.
 
 Files uploaded or received via TIC are stored under a directory specific to the file area, and the web UI at `/fileareas` lets sysops manage area settings and browse files. This makes it easy to distribute nodelists, archives, and other content across FTN networks while keeping local areas isolated when needed.
+
+**Subfolder navigation** — File areas support hierarchical subfolder browsing. The web interface and terminal server both allow navigating into subdirectories within an area.
+
+**File preview** — Files can be previewed in the browser without downloading: ANSI art renders inline, PETSCII files are decoded and displayed, D64 disk images show a gallery of PRG files found on the disk, and C64 PRG/SEQ files can be run in a built-in C64 emulator.
+
+**ISO-backed file areas** — A file area can be backed by a read-only ISO 9660 image instead of a regular directory. The ISO is mounted virtually; its contents are browsable and downloadable without extracting the archive. This is useful for distributing large CD-ROM archives or nodelist compilations. See [docs/FileAreas.md](docs/FileAreas.md) for setup details.
+
+**Global file search** — Users can search for files by name across all areas they have access to from the `/files` page.
 
 BinktermPHP supports optional ClamAV virus scanning for uploaded and TIC-received files, configurable per area. See [docs/AntiVirus.md](docs/AntiVirus.md) for installation and configuration instructions.
 
