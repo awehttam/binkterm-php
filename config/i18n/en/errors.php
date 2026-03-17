@@ -179,6 +179,11 @@ return [
     'errors.messages.drafts.not_found' => 'Draft not found',
     'errors.messages.drafts.get_failed' => 'Failed to load draft',
     'errors.messages.drafts.delete_failed' => 'Failed to delete draft',
+    'errors.messages.templates.not_licensed' => 'Message templates require a registered license',
+    'errors.messages.templates.not_found' => 'Template not found',
+    'errors.messages.templates.name_required' => 'Template name is required',
+    'errors.messages.templates.name_too_long' => 'Template name must be 100 characters or less',
+    'errors.economy.not_licensed' => 'Economy viewer requires a registered license',
     'errors.messages.netmail.get_failed' => 'Failed to load message',
     'errors.messages.echomail.get_failed' => 'Failed to load message',
 

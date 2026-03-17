@@ -85,19 +85,35 @@
                     <div class="form-text">{{ t('ui.admin.appearance.branding.logo_url_help', {}, locale, ['common']) }}</div>
                 </div>
 
+                {% if license_valid %}
                 <div class="mb-3">
                     <label class="form-label" for="footerText">{{ t('ui.admin.appearance.branding.footer_text', {}, locale, ['common']) }}</label>
                     <input type="text" class="form-control" id="footerText" maxlength="500" placeholder="{{ t('ui.admin.appearance.branding.footer_placeholder', {}, locale, ['common']) }}">
                     <div class="form-text">{{ t('ui.admin.appearance.branding.footer_help', {}, locale, ['common']) }}</div>
                 </div>
 
-                {% if license_valid and 'registered_badge' in license_features %}
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="hidePoweredBy">
+                        <label class="form-check-label" for="hidePoweredBy">{{ t('ui.admin.appearance.branding.hide_powered_by', {}, locale, ['common']) }}</label>
+                    </div>
+                    <div class="form-text">{{ t('ui.admin.appearance.branding.hide_powered_by_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                {% if 'registered_badge' in license_features %}
                 <div class="mb-3">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="showRegistrationBadge">
                         <label class="form-check-label" for="showRegistrationBadge">{{ t('ui.admin.appearance.branding.show_registration_badge', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="form-text">{{ t('ui.admin.appearance.branding.show_registration_badge_help', {}, locale, ['common']) }}</div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <div class="alert alert-secondary">
+                    <i class="fas fa-lock me-1"></i> {{ t('ui.admin.appearance.branding.premium_branding_locked', {}, locale, ['common']) }}
+                    <a href="/admin/licensing" class="ms-2">{{ t('ui.admin.appearance.branding.premium_branding_register', {}, locale, ['common']) }}</a>
                 </div>
                 {% endif %}
 
@@ -495,6 +511,7 @@ function loadAppearanceConfig() {
             $('#lockTheme').prop('checked', !!b.lock_theme);
             $('#logoUrl').val(b.logo_url || '');
             $('#footerText').val(b.footer_text || '');
+            $('#hidePoweredBy').prop('checked', !!b.hide_powered_by);
             $('#showRegistrationBadge').prop('checked', b.show_registration_badge !== false);
 
             // Content
@@ -601,6 +618,7 @@ function saveBranding() {
             lock_theme: $('#lockTheme').is(':checked'),
             logo_url: $('#logoUrl').val().trim(),
             footer_text: $('#footerText').val().trim(),
+            hide_powered_by: $('#hidePoweredBy').is(':checked'),
             show_registration_badge: $('#showRegistrationBadge').is(':checked')
         }
     };

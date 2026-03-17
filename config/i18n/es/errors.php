@@ -179,6 +179,11 @@ return [
     'errors.messages.drafts.not_found' => 'Borrador no encontrado',
     'errors.messages.drafts.get_failed' => 'No se pudo cargar el borrador',
     'errors.messages.drafts.delete_failed' => 'No se pudo eliminar el borrador',
+    'errors.messages.templates.not_licensed' => 'Las plantillas de mensajes requieren una licencia registrada',
+    'errors.messages.templates.not_found' => 'Plantilla no encontrada',
+    'errors.messages.templates.name_required' => 'El nombre de la plantilla es obligatorio',
+    'errors.messages.templates.name_too_long' => 'El nombre de la plantilla debe tener 100 caracteres o menos',
+    'errors.economy.not_licensed' => 'El visor de economia requiere una licencia registrada',
     'errors.messages.netmail.get_failed' => 'No se pudo cargar el mensaje',
     'errors.messages.echomail.get_failed' => 'No se pudo cargar el mensaje',
 

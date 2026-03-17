@@ -101,6 +101,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/licensing.twig');
     });
 
+    // License registration info — serves REGISTER.md as HTML
+    SimpleRouter::get('/api/register-info', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+        $path = __DIR__ . '/../REGISTER.md';
+        if (!file_exists($path)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+        $html = \BinktermPHP\MarkdownRenderer::toHtml(file_get_contents($path));
+        echo json_encode(['html' => $html]);
+    });
+
     // License API — GET: current status
     SimpleRouter::get('/api/license', function() {
         RouteHelper::requireAdmin();
@@ -387,6 +401,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/economy', function() {
         RouteHelper::requireAdmin();
 
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('errors/403.twig');
+            return;
+        }
+
         $template = new Template();
         $template->renderResponse('admin/economy.twig');
     });
@@ -545,6 +566,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             $adminController = new AdminController();
             $adminController->requireAdmin($user);
+
+            if (!\BinktermPHP\License::isValid()) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                apiError('errors.economy.not_licensed', apiLocalizedText('errors.economy.not_licensed', 'Economy viewer requires a registered license', $user));
+                return;
+            }
 
             $period = $_GET['period'] ?? '30d';
 
@@ -1063,6 +1091,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config['branding']['lock_theme'] = !empty($branding['lock_theme']);
                 $config['branding']['logo_url'] = $logoUrl;
                 $config['branding']['footer_text'] = $footerText;
+                $config['branding']['hide_powered_by'] = !empty($branding['hide_powered_by']);
                 $config['branding']['show_registration_badge'] = isset($branding['show_registration_badge']) ? (bool)$branding['show_registration_badge'] : true;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();

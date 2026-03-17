@@ -105,9 +105,11 @@
                         <a href="/admin/activity-stats" class="btn btn-outline-primary">
                             <i class="fas fa-chart-bar me-2"></i>{{ t('ui.base.admin.activity_stats', {}, locale, ['common']) }}
                         </a>
+                        {% if license_valid %}
                         <a href="/admin/economy" class="btn btn-outline-success">
                             <i class="fas fa-coins me-2"></i>{{ t('ui.base.admin.economy_viewer', {}, locale, ['common']) }}
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -156,6 +158,21 @@
                         </div>
                         <div class="col-sm-6">
                             {{ app_version }}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>{{ t('ui.admin.dashboard.registration_status', {}, locale, ['common']) }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {% if license_valid %}
+                                <span class="badge bg-success">{{ t('ui.admin.dashboard.registration_registered', {}, locale, ['common']) }}</span>
+                                <span class="text-muted ms-1">{{ t('ui.admin.dashboard.registration_to', {'system': license_system_name, 'licensee': license_licensee}, locale, ['common']) }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ t('ui.admin.dashboard.registration_unregistered', {}, locale, ['common']) }}</span>
+                                <a href="/admin/licensing" class="ms-2 small">{{ t('ui.admin.dashboard.registration_link', {}, locale, ['common']) }}</a>
+                            {% endif %}
                         </div>
                     </div>
                     <hr>

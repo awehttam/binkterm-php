@@ -228,6 +228,21 @@
                             {{ t('ui.compose.save_draft', {}, locale, ['common']) }}
                         </button>
 
+                        {% if license_valid %}
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="templatesDropdownBtn">
+                                <i class="fas fa-file-alt"></i>
+                                {{ t('ui.compose.templates.button', {}, locale, ['common']) }}
+                            </button>
+                            <ul class="dropdown-menu" id="templatesDropdownMenu">
+                                <li><span class="dropdown-item text-muted small" id="templatesLoadingItem">{{ t('ui.compose.templates.loading', {}, locale, ['common']) }}</span></li>
+                                <li><hr class="dropdown-divider" id="templatesDivider" style="display:none"></li>
+                                <li><a class="dropdown-item" href="#" onclick="openSaveTemplateModal(); return false;"><i class="fas fa-plus me-1"></i>{{ t('ui.compose.templates.save_current', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="openManageTemplatesModal(); return false;"><i class="fas fa-cog me-1"></i>{{ t('ui.compose.templates.manage', {}, locale, ['common']) }}</a></li>
+                            </ul>
+                        </div>
+                        {% endif %}
+
                         <button type="submit" class="btn btn-fidonet">
                             <i class="fas fa-paper-plane"></i>
                             {{ t('ui.compose.send_prefix', {}, locale, ['common']) }} {{ type|title }}
@@ -1658,4 +1673,196 @@ if (localStorage.getItem(SIDEBAR_KEY) === '1') {
     toggleComposeSidebar();
 }
 </script>
+
+{% if license_valid %}
+{# ── Save Template Modal ─────────────────────────────────────────────── #}
+<div class="modal fade" id="saveTemplateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>{{ t('ui.compose.templates.save_modal_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="saveTemplateAlert" class="alert" style="display:none"></div>
+                <div class="mb-3">
+                    <label class="form-label" for="templateName">{{ t('ui.compose.templates.name_label', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="templateName" maxlength="100" placeholder="{{ t('ui.compose.templates.name_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ t('ui.compose.templates.type_label', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="templateType">
+                        <option value="both">{{ t('ui.compose.templates.type_both', {}, locale, ['common']) }}</option>
+                        <option value="netmail">{{ t('ui.compose.templates.type_netmail', {}, locale, ['common']) }}</option>
+                        <option value="echomail">{{ t('ui.compose.templates.type_echomail', {}, locale, ['common']) }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveAsTemplate()">{{ t('ui.compose.templates.save_button', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Manage Templates Modal ──────────────────────────────────────────── #}
+<div class="modal fade" id="manageTemplatesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-cog me-2"></i>{{ t('ui.compose.templates.manage_modal_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="manageTemplatesAlert" class="alert" style="display:none"></div>
+                <div id="manageTemplatesList">
+                    <p class="text-muted">{{ t('ui.compose.templates.loading', {}, locale, ['common']) }}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const messageType = $('#messageType').val();
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    function showTemplateAlert(containerId, message, type) {
+        $('#' + containerId).removeClass('alert-success alert-danger alert-warning')
+            .addClass('alert-' + type).text(message).show();
+    }
+
+    function syncEditorToTextarea() {
+        // Ensure markdown editor content is flushed to the hidden textarea
+        if (typeof syncEditorContent === 'function') syncEditorContent();
+    }
+
+    // ── Load templates into dropdown ─────────────────────────────────────
+
+    function loadTemplatesDropdown() {
+        $.get('/api/messages/templates', { type: messageType })
+            .done(function(data) {
+                const templates = data.templates || [];
+                $('#templatesLoadingItem').hide();
+                // Remove previously injected template items
+                $('#templatesDropdownMenu .template-item').remove();
+                $('#templatesDivider').toggle(templates.length > 0);
+                templates.forEach(function(tpl) {
+                    const item = $('<li class="template-item"><a class="dropdown-item" href="#"></a></li>');
+                    item.find('a').text(tpl.name).on('click', function(e) {
+                        e.preventDefault();
+                        loadTemplate(tpl.id);
+                    });
+                    $('#templatesDivider').before(item);
+                });
+                if (templates.length === 0) {
+                    const empty = $('<li class="template-item"><span class="dropdown-item text-muted small"></span></li>');
+                    empty.find('span').text(window.t('ui.compose.templates.none', {}, 'No saved templates'));
+                    $('#templatesDivider').before(empty);
+                    $('#templatesDivider').hide();
+                }
+            });
+    }
+
+    // Load on dropdown open
+    $('#templatesDropdownBtn').closest('.btn-group').on('show.bs.dropdown', loadTemplatesDropdown);
+
+    // ── Load a template into the compose form ─────────────────────────────
+
+    function loadTemplate(id) {
+        $.get('/api/messages/templates/' + id)
+            .done(function(data) {
+                const tpl = data.template;
+                if (tpl.subject) $('#subject').val(tpl.subject);
+                if (tpl.body) {
+                    $('#messageText').val(tpl.body);
+                    if (typeof setEditorContent === 'function') setEditorContent(tpl.body);
+                }
+            })
+            .fail(function() {
+                alert(window.t('ui.compose.templates.load_failed', {}, 'Failed to load template'));
+            });
+    }
+
+    // ── Save current compose as template ─────────────────────────────────
+
+    window.openSaveTemplateModal = function() {
+        $('#saveTemplateAlert').hide();
+        $('#templateName').val('');
+        $('#templateType').val(messageType === 'netmail' || messageType === 'echomail' ? messageType : 'both');
+        new bootstrap.Modal(document.getElementById('saveTemplateModal')).show();
+    };
+
+    window.saveAsTemplate = function() {
+        syncEditorToTextarea();
+        const name = $('#templateName').val().trim();
+        if (!name) {
+            showTemplateAlert('saveTemplateAlert', window.t('ui.compose.templates.name_required', {}, 'Please enter a template name'), 'warning');
+            return;
+        }
+        $.ajax({
+            url: '/api/messages/templates',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                name: name,
+                type: $('#templateType').val(),
+                subject: $('#subject').val(),
+                body: $('#messageText').val()
+            })
+        }).done(function() {
+            bootstrap.Modal.getInstance(document.getElementById('saveTemplateModal')).hide();
+        }).fail(function() {
+            showTemplateAlert('saveTemplateAlert', window.t('ui.compose.templates.save_failed', {}, 'Failed to save template'), 'danger');
+        });
+    };
+
+    // ── Manage templates modal ────────────────────────────────────────────
+
+    window.openManageTemplatesModal = function() {
+        $('#manageTemplatesAlert').hide();
+        renderManageList();
+        new bootstrap.Modal(document.getElementById('manageTemplatesModal')).show();
+    };
+
+    function renderManageList() {
+        const list = $('#manageTemplatesList');
+        list.html('<p class="text-muted">' + window.t('ui.compose.templates.loading', {}, 'Loading...') + '</p>');
+        $.get('/api/messages/templates').done(function(data) {
+            const templates = data.templates || [];
+            if (templates.length === 0) {
+                list.html('<p class="text-muted">' + window.t('ui.compose.templates.none', {}, 'No saved templates') + '</p>');
+                return;
+            }
+            const ul = $('<ul class="list-group"></ul>');
+            templates.forEach(function(tpl) {
+                const li = $('<li class="list-group-item d-flex justify-content-between align-items-center"></li>');
+                const label = $('<span></span>').text(tpl.name);
+                const badge = $('<span class="badge bg-secondary ms-2"></span>').text(tpl.type);
+                const del = $('<button class="btn btn-sm btn-outline-danger ms-auto"><i class="fas fa-trash"></i></button>');
+                del.on('click', function() {
+                    if (!confirm(window.t('ui.compose.templates.delete_confirm', {}, 'Delete this template?'))) return;
+                    $.ajax({ url: '/api/messages/templates/' + tpl.id, method: 'DELETE' })
+                        .done(function() { renderManageList(); })
+                        .fail(function() {
+                            showTemplateAlert('manageTemplatesAlert', window.t('ui.compose.templates.delete_failed', {}, 'Failed to delete template'), 'danger');
+                        });
+                });
+                li.append(label).append(badge).append(del);
+                ul.append(li);
+            });
+            list.html('').append(ul);
+        }).fail(function() {
+            list.html('<p class="text-danger">' + window.t('ui.compose.templates.load_failed', {}, 'Failed to load templates') + '</p>');
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

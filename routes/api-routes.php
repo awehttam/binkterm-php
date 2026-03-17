@@ -4760,6 +4760,158 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // -----------------------------------------------------------------------
+    // Message Templates (premium feature — requires valid license)
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /api/messages/templates[?type=netmail|echomail]
+     * List templates for the current user, optionally filtered by type.
+     */
+    SimpleRouter::get('/messages/templates', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $type   = $_GET['type'] ?? null;
+
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $sql  = "SELECT id, name, type, subject, created_at FROM message_templates WHERE user_id = ?";
+        $args = [$userId];
+
+        if ($type && in_array($type, ['netmail', 'echomail'], true)) {
+            $sql  .= " AND (type = ? OR type = 'both')";
+            $args[] = $type;
+        }
+
+        $sql .= " ORDER BY name ASC";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($args);
+        echo json_encode(['templates' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
+
+    /**
+     * GET /api/messages/templates/{id}
+     * Fetch a single template (full body) for the current user.
+     */
+    SimpleRouter::get('/messages/templates/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt   = $db->prepare("SELECT * FROM message_templates WHERE id = ? AND user_id = ?");
+        $stmt->execute([(int)$id, $userId]);
+        $template = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$template) {
+            http_response_code(404);
+            apiError('errors.messages.templates.not_found', apiLocalizedText('errors.messages.templates.not_found', 'Template not found', $user));
+            return;
+        }
+
+        echo json_encode(['template' => $template]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/messages/templates
+     * Create or update a template. Pass id to update an existing one.
+     * Body: { name, type, subject, body, id? }
+     */
+    SimpleRouter::post('/messages/templates', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $name    = trim((string)($input['name'] ?? ''));
+        $type    = $input['type'] ?? 'both';
+        $subject = trim((string)($input['subject'] ?? ''));
+        $body    = trim((string)($input['body'] ?? ''));
+        $editId  = isset($input['id']) ? (int)$input['id'] : null;
+
+        if ($name === '') {
+            http_response_code(400);
+            apiError('errors.messages.templates.name_required', apiLocalizedText('errors.messages.templates.name_required', 'Template name is required', $user));
+            return;
+        }
+        if (!in_array($type, ['netmail', 'echomail', 'both'], true)) {
+            $type = 'both';
+        }
+        if (mb_strlen($name) > 100) {
+            http_response_code(400);
+            apiError('errors.messages.templates.name_too_long', apiLocalizedText('errors.messages.templates.name_too_long', 'Template name must be 100 characters or less', $user));
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        if ($editId) {
+            // Update — verify ownership
+            $check = $db->prepare("SELECT id FROM message_templates WHERE id = ? AND user_id = ?");
+            $check->execute([$editId, $userId]);
+            if (!$check->fetch()) {
+                http_response_code(404);
+                apiError('errors.messages.templates.not_found', apiLocalizedText('errors.messages.templates.not_found', 'Template not found', $user));
+                return;
+            }
+            $stmt = $db->prepare("UPDATE message_templates SET name = ?, type = ?, subject = ?, body = ?, updated_at = NOW() WHERE id = ? AND user_id = ?");
+            $stmt->execute([$name, $type, $subject, $body, $editId, $userId]);
+            echo json_encode(['success' => true, 'id' => $editId, 'message_code' => 'ui.compose.templates.saved']);
+        } else {
+            $stmt = $db->prepare("INSERT INTO message_templates (user_id, name, type, subject, body) VALUES (?, ?, ?, ?, ?) RETURNING id");
+            $stmt->execute([$userId, $name, $type, $subject, $body]);
+            $newId = $stmt->fetchColumn();
+            echo json_encode(['success' => true, 'id' => $newId, 'message_code' => 'ui.compose.templates.saved']);
+        }
+    });
+
+    /**
+     * DELETE /api/messages/templates/{id}
+     */
+    SimpleRouter::delete('/messages/templates/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt   = $db->prepare("DELETE FROM message_templates WHERE id = ? AND user_id = ?");
+        $stmt->execute([(int)$id, $userId]);
+
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.messages.templates.not_found', apiLocalizedText('errors.messages.templates.not_found', 'Template not found', $user));
+            return;
+        }
+
+        echo json_encode(['success' => true, 'message_code' => 'ui.compose.templates.deleted']);
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::get('/messages/search', function() {
         $user = RouteHelper::requireAuth();
 

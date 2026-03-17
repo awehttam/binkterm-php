@@ -40,6 +40,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - This is for FTN style networks and forums
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.7.5_description.sql
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
+ - **Premium features**: When implementing a feature that requires a valid license (`License::isValid()` or `License::hasFeature()`), update the "Currently Implemented Premium Features" table in `docs/proposals/PremiumFeatures.md` and remove it from the future ideas list if it was listed there.
  - Leave the vendor directory alone. It's managed by composer only
  - **Composer Dependencies**: When adding a new required package to composer.json, the UPGRADING_x.x.x.md document for that version MUST include instructions to run `composer install` before `php scripts/setup.php`. Without this, the upgrade will fail because `vendor/autoload.php` is loaded before setup.php runs.
  - **Upgrade docs TOC**: When creating or maintaining an `UPGRADING_x.y.z.md` document, always add or update its table of contents so the headings in that file remain navigable and in sync with the document.
