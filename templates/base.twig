@@ -205,7 +205,6 @@
                                 <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> {{ t('ui.base.admin.binkp_status', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> {{ t('ui.base.admin.manage_users', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> {{ t('ui.base.admin.ads', {}, 'common') }}</a></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> {{ t('ui.base.admin.area_management', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
@@ -214,13 +213,20 @@
                                         <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/echomail-robots"><i class="fas fa-robot"></i> {{ t('ui.base.admin.echomail_robots', {}, 'common') }}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
-                                <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
-                                <li><a class="dropdown-item" href="/admin/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.admin.bbs_directory', {}, 'common') }}</a></li>
-                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> {{ t('ui.base.admin.chat_rooms', {}, 'common') }}</a></li>
-                                <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
-                                <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-users"></i> {{ t('ui.base.admin.community', {}, 'common') }}</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/admin/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.admin.bbs_directory', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> {{ t('ui.base.admin.ads', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> {{ t('ui.base.admin.chat_rooms', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
+                                    </ul>
+                                </li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> {{ t('ui.base.admin.doors', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">

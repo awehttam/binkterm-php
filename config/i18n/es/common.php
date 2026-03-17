@@ -239,6 +239,7 @@ return [
     'ui.base.admin.doors_native' => 'Puertas nativas',
     'ui.base.admin.doors_web' => 'Puertas web',
     'ui.base.admin.analytics' => 'Analitica',
+    'ui.base.admin.community' => 'Comunidad',
     'ui.base.admin.registered_feature' => 'Funcion registrada',
     'ui.base.admin.activity_stats' => 'Estadisticas de actividad',
     'ui.base.admin.economy_viewer' => 'Visor de economia',
