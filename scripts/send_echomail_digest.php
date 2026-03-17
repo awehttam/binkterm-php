@@ -120,7 +120,7 @@ function buildPlainDigest(array $areas, string $systemName, string $siteUrl): st
             $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ')';
         }
 
-        $lines[] = '  ' . $siteUrl . '/echomail/' . rawurlencode($area['tag']);
+        $lines[] = '  ' . $siteUrl . '/echomail/' . rawurlencode($area['slug']);
         $lines[] = '';
     }
 
@@ -146,7 +146,7 @@ function buildHtmlDigest(array $areas, string $systemName, string $siteUrl): str
     foreach ($areas as $area) {
         $count       = count($area['messages']);
         $safeTag     = htmlspecialchars($area['tag'], ENT_QUOTES, 'UTF-8');
-        $areaUrl     = $siteUrl . '/echomail/' . rawurlencode($area['tag']);
+        $areaUrl     = $siteUrl . '/echomail/' . rawurlencode($area['slug']);
         $safeAreaUrl = htmlspecialchars($areaUrl, ENT_QUOTES, 'UTF-8');
 
         $areaHtml .= '<div class="area">';
@@ -268,7 +268,7 @@ foreach ($users as $user) {
     // Fetch new echomail in subscribed areas, ordered so the most active areas
     // bubble up first (we'll truncate to $maxAreas after grouping).
     $msgStmt = $db->prepare("
-        SELECT e.id AS echoarea_id, e.tag, e.description AS name,
+        SELECT e.id AS echoarea_id, e.tag, e.domain, e.description AS name,
                em.subject, em.from_name, em.date_received
         FROM echomail em
         JOIN echoareas e ON em.echoarea_id = e.id
@@ -297,9 +297,13 @@ foreach ($users as $user) {
     foreach ($rows as $row) {
         $eid = (int) $row['echoarea_id'];
         if (!isset($areas[$eid])) {
+            $slug = !empty($row['domain'])
+                ? $row['tag'] . '@' . $row['domain']
+                : $row['tag'];
             $areas[$eid] = [
                 'echoarea_id' => $eid,
                 'tag'         => $row['tag'],
+                'slug'        => $slug,
                 'name'        => $row['name'],
                 'messages'    => [],
                 'total'       => 0,
