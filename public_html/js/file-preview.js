@@ -140,6 +140,7 @@ function renderPreviewContent(fileId, filename, container) {
             .then(buf => {
                 const uBytes  = new Uint8Array(buf);
                 const byteStr = Array.from(uBytes, b => String.fromCharCode(b)).join('');
+                const emuUrl  = `/c64emu/?file_id=${encodeURIComponent(fileId)}`;
                 const draw = () => {
                     const html = renderPetsciiBuffer(byteStr, 40, 500);
                     body.css('background', '#000').html(`
@@ -147,6 +148,19 @@ function renderPreviewContent(fileId, filename, container) {
                             <pre class="m-0 d-inline-block text-start" style="letter-spacing:0;">${html}</pre>
                         </div>
                     `);
+                    const runBtn = $('<button>').addClass('btn btn-sm btn-outline-warning')
+                        .html('<i class="fas fa-play me-1"></i>' + _fpT('ui.files.prg_run_c64', 'Run on C64'))
+                        .on('click', function () {
+                            body.css({ background: '#000', padding: '0', textAlign: 'center' }).empty().append(
+                                $('<iframe>').attr('src', emuUrl).attr('title', 'C64')
+                                    .css({ border: 'none', width: '403px', height: '284px', maxWidth: '100%', display: 'block', margin: '0 auto' })
+                            );
+                        });
+                    body.append(
+                        $('<div>').addClass('d-flex justify-content-end px-3 py-2 border-top')
+                            .css({ background: '#111' })
+                            .append(runBtn)
+                    );
                 };
                 if (document.fonts && document.fonts.load) {
                     document.fonts.load('8px "Pet Me 64"').then(draw, draw);
@@ -286,13 +300,23 @@ function renderPrgGallery(container, prgs, fileId) {
                 cvs.style.maxWidth = '100%';
                 artWrap.empty().append(cvs);
             } else {
-                // Screen RAM not detectable (machine code PRG) — don't render garbage
-                artWrap.css('background', '').empty().append(
-                    $('<div>').addClass('p-4 text-center text-muted').append(
-                        $('<i>').addClass('fas fa-microchip fa-2x d-block mb-2'),
+                // Machine code PRG — show notice; clicking Run on C64 replaces it with the emulator inline
+                const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}`;
+                const notice = $('<div>').addClass('p-4 text-center text-muted').append(
+                    $('<i>').addClass('fas fa-microchip fa-2x d-block mb-2'),
+                    $('<div>').addClass('mb-3').append(
                         $('<small>').text(_fpT('ui.files.prg_no_preview', 'Preview unavailable — machine code program'))
-                    )
+                    ),
+                    $('<button>').addClass('btn btn-sm btn-outline-warning').html(
+                        '<i class="fas fa-play me-1"></i>' + _fpT('ui.files.prg_run_c64', 'Run on C64')
+                    ).on('click', function () {
+                        artWrap.css({ background: '#000', padding: '0', textAlign: 'center' }).empty().append(
+                            $('<iframe>').attr('src', emuUrl).attr('title', prg.name)
+                                .css({ border: 'none', width: '403px', height: '284px', maxWidth: '100%', display: 'block', margin: '0 auto' })
+                        );
+                    })
                 );
+                artWrap.css('background', '').empty().append(notice);
             }
         };
 
@@ -304,6 +328,12 @@ function renderPrgGallery(container, prgs, fileId) {
 
         container.append(artWrap);
 
+        const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}`;
+        const runBtn = $('<a>').addClass('btn btn-sm btn-outline-warning ms-2')
+            .attr('href', emuUrl).attr('target', '_blank').attr('rel', 'noopener')
+            .attr('title', _fpT('ui.files.prg_run_c64', 'Run on C64'))
+            .html('<i class="fas fa-play"></i>');
+
         let navBar;
         if (prgs.length > 1) {
             navBar = $('<div>').addClass('d-flex align-items-center justify-content-between px-3 py-2 border-top')
@@ -313,13 +343,19 @@ function renderPrgGallery(container, prgs, fileId) {
                         .html('<i class="fas fa-chevron-left"></i>'),
                     $('<small>').addClass('text-muted text-truncate mx-2')
                         .html(escapeHtml(prg.name) + ` (${i + 1}\u202f/\u202f${prgs.length})`),
-                    $('<button>').addClass('btn btn-sm btn-outline-secondary').attr('id', 'prgNext').prop('disabled', isLast)
-                        .html('<i class="fas fa-chevron-right"></i>')
+                    $('<div>').addClass('d-flex align-items-center').append(
+                        $('<button>').addClass('btn btn-sm btn-outline-secondary').attr('id', 'prgNext').prop('disabled', isLast)
+                            .html('<i class="fas fa-chevron-right"></i>'),
+                        runBtn
+                    )
                 );
         } else {
-            navBar = $('<div>').addClass('px-3 py-2 text-center border-top')
-                .css('background', '#111')
-                .html(`<small class="text-muted">${escapeHtml(prg.name)}</small>`);
+            navBar = $('<div>').addClass('d-flex align-items-center justify-content-between px-3 py-2 border-top')
+                .css({ background: '#111', minHeight: '42px' })
+                .append(
+                    $('<small>').addClass('text-muted text-truncate').text(prg.name),
+                    runBtn
+                );
         }
         container.append(navBar);
 

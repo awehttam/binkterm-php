@@ -34,6 +34,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [ANSI Art Rendering](#ansi-art-rendering)
   - [PETSCII / PRG Rendering](#petscii--prg-rendering)
   - [D64 Disk Image Preview](#d64-disk-image-preview)
+  - [C64 Emulator](#c64-emulator)
   - [Shared File Preview](#shared-file-preview)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
   - [Behaviour](#behaviour)
@@ -151,6 +152,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - `.d64` Commodore 64 floppy disk images now render a PRG gallery in the
   preview modal, showing all closed PRG files found on the disk with the disk
   name displayed as a header.
+- A **Run on C64** button appears on every C64 content preview — rendered PRGs
+  (as an icon in the nav bar), machine-code PRGs (as a fallback button that
+  launches the emulator inline), and PETSCII stream (`.seq`) files (in a bar
+  below the rendered art). Clicking it loads a jsc64-based C64 emulator
+  directly inside the preview panel without leaving the page.
 
 
 **Nodelist**
@@ -681,7 +687,8 @@ going straight to a download.
 | Audio | mp3, wav, ogg, flac, aac, m4a, opus | Plays in an `<audio>` element |
 | Text / NFO | txt, log, nfo, diz, md, cfg, ini, json, xml, … | Rendered in a scrollable panel; NFO and DIZ files are automatically converted from CP437 to UTF-8 so ANSI art displays correctly |
 | ANSI Art | ans | Rendered inline using the ANSI decoder with the full 16-colour ANSI palette |
-| PETSCII / PRG | prg | Rendered using the C64 screen RAM decoder with the exact C64 16-colour palette |
+| PETSCII / PRG | prg | Rendered using the C64 screen RAM decoder with the exact C64 16-colour palette; **Run on C64** button in nav bar |
+| PETSCII Stream | seq | Rendered using the PETSCII decoder; **Run on C64** button loads the emulator inline |
 | D64 Disk Image | d64 | Parsed as a C64 floppy image; PRG files extracted and shown as a gallery |
 | Unknown | everything else | Download prompt with a Download button |
 
@@ -724,6 +731,13 @@ renderer cannot perfectly replicate every aspect of the original C64 display.
 navigation arrows and a "N / total" counter. `FILE_ID.DIZ` (if present in
 the ZIP) is shown below the gallery.
 
+A **▶ Run on C64** icon button appears in the nav bar for all rendered PRGs,
+allowing the file to be run interactively in the built-in C64 emulator.
+
+PRGs where no screen RAM block is detectable (machine-code programs) show a
+"Preview unavailable" notice with a **Run on C64** button. Clicking it loads
+the emulator inline in the preview panel and auto-executes the program.
+
 A new API endpoint powers PRG extraction:
 
 ```
@@ -757,6 +771,37 @@ The same `/api/files/{id}/prgs` endpoint is extended to handle D64 files; the
 response includes an additional `disk_name` field.
 
 No configuration or migration is required.
+
+### C64 Emulator
+
+A **Run on C64** button is available on every C64 content type in the preview
+modal, powered by [jsc64](https://github.com/Reggino/jsc64) — a JavaScript
+port of the fc64 Commodore 64 emulator.
+
+**Where the button appears:**
+
+| Content type | Button location | Behaviour on click |
+|---|---|---|
+| Rendered PRG (screen art) | Icon (▶) on the right of the nav bar | Opens emulator in a new tab, auto-executes the PRG |
+| Machine-code PRG | Below the "Preview unavailable" notice | Hides the notice; loads emulator inline in the preview panel |
+| PETSCII stream (`.seq`) | Bar below the rendered art | Hides the art; loads emulator inline in the preview panel |
+
+The emulator boots the C64, waits approximately 2 seconds for BASIC to
+initialise, then fetches the PRG bytes from the `/api/files/{id}/prgs` API
+endpoint, writes them into emulated memory, and executes the program.
+A **RST** button resets the CPU; a **❙❙** button pauses and resumes execution.
+
+**SEQ files** — `.seq` PETSCII stream files do not have a native PRG on disk.
+When the emulator is requested for a SEQ file, the API generates a
+machine-code PRG on the fly: a small 6502 stub (load address `$2000`) streams
+every byte of the SEQ data through the C64 CHROUT kernal routine (`$FFD2`),
+reproducing the file exactly as a C64 would display it.
+
+**ROM files** — jsc64 requires the original Commodore 64 Kernal, BASIC, and
+Character ROM binaries. These are included in the vendor directory
+(`public_html/vendor/jsc64/js/assets/`).
+
+**No configuration or migration is required.**
 
 ### Shared File Preview
 

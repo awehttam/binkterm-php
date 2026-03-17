@@ -2019,6 +2019,7 @@ return [
     'ui.files.search_no_results' => 'No se encontraron archivos',
     'ui.files.search_failed' => 'Búsqueda fallida',
     'ui.files.prg_no_preview' => 'Vista previa no disponible — programa en código máquina',
+    'ui.files.prg_run_c64' => 'Ejecutar en C64',
     'ui.files.no_prgs_in_d64' => 'No se encontraron archivos PRG en la imagen de disco',
 
     // Polls Page

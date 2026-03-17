@@ -2881,8 +2881,58 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if ($ext === 'seq') {
+            $seqBytes = file_get_contents($storagePath);
+            if ($seqBytes === false) {
+                http_response_code(422);
+                echo json_encode(['error' => 'Cannot read SEQ file']);
+                return;
+            }
+            // Build a 6502 machine-code wrapper that streams the SEQ bytes through
+            // the C64 CHROUT kernal routine ($FFD2), then halts.
+            // Load address: $2000; data appended starting at $2036 (54-byte stub).
+            $loadAddr   = 0x2000;
+            $dataOffset = 0x36;   // 54 bytes of stub
+            $dataLen    = strlen($seqBytes);
+            $lenLo      = $dataLen & 0xFF;
+            $lenHi      = ($dataLen >> 8) & 0xFF;
+            $dataLo     = ($loadAddr + $dataOffset) & 0xFF;        // $36
+            $dataHi     = (($loadAddr + $dataOffset) >> 8) & 0xFF; // $20
+            $loopCheck  = $loadAddr + 0x15;  // offset 21: ORA $FE check
+            $doneAddr   = $loadAddr + 0x33;  // offset 51: JMP * (halt)
+            $stub = pack('C*',
+                // Clear screen
+                0xA9, 0x93, 0x20, 0xD2, 0xFF,            // LDA #$93; JSR $FFD2   (+5 = $05)
+                // Set up 16-bit data pointer in $FB/$FC
+                0xA9, $dataLo, 0x85, 0xFB,               // LDA #lo; STA $FB      (+4 = $09)
+                0xA9, $dataHi, 0x85, 0xFC,               // LDA #hi; STA $FC      (+4 = $0D)
+                // Set up 16-bit counter in $FD/$FE
+                0xA9, $lenLo,  0x85, 0xFD,               // LDA #lo; STA $FD      (+4 = $11)
+                0xA9, $lenHi,  0x85, 0xFE,               // LDA #hi; STA $FE      (+4 = $15) <- loopCheck
+                // loop_check: if counter == 0 branch to done
+                0xA5, 0xFD, 0x05, 0xFE, 0xF0, 0x18,     // LDA $FD; ORA $FE; BEQ +24  (+6 = $1B)
+                // Read byte via ($FB),Y (Y=0) and output
+                0xA0, 0x00, 0xB1, 0xFB, 0x20, 0xD2, 0xFF, // LDY#0; LDA ($FB),Y; JSR $FFD2 (+7 = $22)
+                // Increment pointer
+                0xE6, 0xFB, 0xD0, 0x02, 0xE6, 0xFC,     // INC $FB; BNE +2; INC $FC    (+6 = $28)
+                // Decrement 16-bit counter
+                0xA5, 0xFD, 0xD0, 0x02, 0xC6, 0xFE,     // LDA $FD; BNE +2; DEC $FE    (+6 = $2E)
+                0xC6, 0xFD,                               // DEC $FD                     (+2 = $30)
+                // Jump back to loop_check
+                0x4C, $loopCheck & 0xFF, ($loopCheck >> 8) & 0xFF, // JMP loopCheck      (+3 = $33) <- doneAddr
+                // Halt (JMP *)
+                0x4C, $doneAddr & 0xFF,  ($doneAddr >> 8) & 0xFF   // JMP $2033          (+3 = $36) <- data
+            );
+            echo json_encode(['prgs' => [[
+                'name'         => $filename,
+                'load_address' => $loadAddr,
+                'data_b64'     => base64_encode($stub . $seqBytes),
+            ]]]);
+            return;
+        }
+
         http_response_code(404);
-        echo json_encode(['error' => 'Not a PRG, ZIP, or D64 file']);
+        echo json_encode(['error' => 'Not a PRG, ZIP, D64, or SEQ file']);
     })->where(['id' => '[0-9]+']);
 
     /**
