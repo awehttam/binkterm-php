@@ -281,7 +281,7 @@ return [
     'ui.admin.licensing.why_sustain' => 'Sostener el desarrollo — el registro apoya directamente las correcciones de errores, nuevas funciones y el trabajo de compatibilidad de protocolos.',
     'ui.admin.licensing.why_branding' => 'Desbloquear control de marca — presente una experiencia completamente personalizada sin la atribucion de BinktermPHP en el pie de pagina.',
     'ui.admin.licensing.why_features' => 'Acceder a herramientas premium — las instalaciones registradas reciben nuevas funciones premium automaticamente a medida que se lanzan.',
-    'ui.admin.licensing.why_perpetual' => 'Licencia perpetua — compra unica para la linea de version actual. Sin suscripcion ni tarifa recurrente.',
+    'ui.admin.licensing.why_perpetual' => 'Licencia perpetua — registrese una vez para la linea de version actual. Sin suscripcion ni tarifa recurrente.',
     'ui.admin.licensing.remove_confirm' => '¿Eliminar el archivo de licencia actual? El sistema volvera a la edicion comunitaria.',
     'ui.admin.licensing.how_to_register_link' => 'Como registrarse',
     'ui.admin.licensing.register_modal_title' => 'Registrar BinktermPHP',
