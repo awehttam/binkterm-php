@@ -41,6 +41,7 @@ These features are live and gated behind `License::isValid()`.
 | Hide "Powered by BinktermPHP" | Remove BinktermPHP attribution from the site footer | `License::isValid()` |
 | Message templates | Save and load subject/body templates in the compose form; per-user, filterable by netmail/echomail | `License::isValid()` |
 | Economy viewer | Admin dashboard for credit economy stats, transaction history, and active user reporting | `License::isValid()` |
+| Referral analytics | Admin page showing top referrers, referral signups, bonus credits earned, and summary totals | `License::isValid()` |
 
 ---
 

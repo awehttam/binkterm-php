@@ -232,6 +232,7 @@
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> {{ t('ui.base.admin.activity_stats', {}, 'common') }}</a></li>
                                 {% if license_valid %}<li><a class="dropdown-item" href="/admin/economy"><i class="fas fa-coins"></i> {{ t('ui.base.admin.economy_viewer', {}, 'common') }}</a></li>{% endif %}
+                                {% if license_valid %}<li><a class="dropdown-item" href="/admin/referrals"><i class="fas fa-user-plus"></i> {{ t('ui.base.admin.referrals', {}, 'common') }}</a></li>{% endif %}
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> {{ t('ui.base.admin.bbs_settings', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">

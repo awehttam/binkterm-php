@@ -240,6 +240,7 @@ return [
     'ui.base.admin.doors_web' => 'Puertas web',
     'ui.base.admin.activity_stats' => 'Estadisticas de actividad',
     'ui.base.admin.economy_viewer' => 'Visor de economia',
+    'ui.base.admin.referrals' => 'Analitica de referidos',
     'ui.base.admin.licensing' => 'Licencias',
     'ui.base.admin.bbs_settings' => 'Configuracion del BBS',
     'ui.base.admin.appearance' => 'Apariencia',
@@ -1380,6 +1381,25 @@ return [
     'ui.admin.activity_stats.chat' => 'Chat',
     'ui.admin.activity_stats.auth' => 'Autenticacion',
     'ui.admin.activity_stats.anonymous' => '(anon)',
+
+    // Admin Referral Analytics
+    'ui.admin.referrals.page_title' => 'Analitica de referidos',
+    'ui.admin.referrals.heading' => 'Analitica de referidos',
+    'ui.admin.referrals.back' => 'Panel de administracion',
+    'ui.admin.referrals.loading' => 'Cargando datos de referidos...',
+    'ui.admin.referrals.load_failed' => 'Error al cargar los datos de referidos',
+    'ui.admin.referrals.top_referrers' => 'Principales referidores',
+    'ui.admin.referrals.recent_signups' => 'Registros recientes por referido',
+    'ui.admin.referrals.col_user' => 'Usuario',
+    'ui.admin.referrals.col_code' => 'Codigo de referido',
+    'ui.admin.referrals.col_signups' => 'Registros',
+    'ui.admin.referrals.col_bonus' => 'Bono ganado',
+    'ui.admin.referrals.col_referred_by' => 'Referido por',
+    'ui.admin.referrals.col_joined' => 'Se unio',
+    'ui.admin.referrals.no_referrers' => 'Aun no hay referidos registrados.',
+    'ui.admin.referrals.no_recent' => 'Aun no hay registros por referido.',
+    'ui.admin.referrals.stat_referred_users' => 'Usuarios referidos',
+    'ui.admin.referrals.stat_active_referrers' => 'Referidores activos',
 
     // Admin Economy Viewer
     'ui.admin.economy.page_title' => 'Visor de economia',

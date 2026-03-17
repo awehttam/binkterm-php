@@ -40,11 +40,16 @@ function _fpT(key, fallback, params) {
  * @param {number} fileId
  * @param {string} filename
  * @param {jQuery} container
+ * @param {{share_area?: string, share_filename?: string}} [shareParams] - Optional share context for unauthenticated access
  */
-function renderPreviewContent(fileId, filename, container) {
-    const body       = container;
-    const type       = getFileType(filename);
-    const previewUrl = `/api/files/${fileId}/preview`;
+function renderPreviewContent(fileId, filename, container, shareParams) {
+    const body = container;
+    const type = getFileType(filename);
+    let previewUrl = `/api/files/${fileId}/preview`;
+    if (shareParams && shareParams.share_area && shareParams.share_filename) {
+        previewUrl += '?share_area=' + encodeURIComponent(shareParams.share_area)
+                   + '&share_filename=' + encodeURIComponent(shareParams.share_filename);
+    }
 
     body.find('video,audio').each(function() { this.pause(); this.src = ''; });
 

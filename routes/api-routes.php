@@ -2555,15 +2555,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * file is served as an attachment (triggers a download in the browser).
      */
     SimpleRouter::get('/files/{id}/preview', function($id) {
-        $user = RouteHelper::requireAuth();
+        // Allow unauthenticated access for valid active file shares
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            // Verify the share is active and matches the requested file
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        if (!$user && !$viaShare) {
+            RouteHelper::requireAuth(); // triggers 401/redirect
+            return;
+        }
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
             echo apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user);
             return;
         }
-
-        $manager = new \BinktermPHP\FileAreaManager();
         $file = $manager->getFileById((int)$id);
 
         if (!$file || $file['status'] !== 'approved') {
@@ -2572,19 +2591,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $userId  = $user['user_id'] ?? $user['id'] ?? null;
-        $isAdmin = !empty($user['is_admin']);
+        // Shared-file access bypasses per-area access controls
+        if ($viaShare) {
+            $hasAccess = true;
+        } else {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
 
-        $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+            $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
 
-        // Allow senders of netmail attachments to preview what they sent
-        if (!$hasAccess && $file['source_type'] === 'netmail_attachment' && $file['message_id'] !== null) {
-            $db = \BinktermPHP\Database::getInstance()->getPdo();
-            $nmStmt = $db->prepare("SELECT user_id FROM netmail WHERE id = ? LIMIT 1");
-            $nmStmt->execute([$file['message_id']]);
-            $nm = $nmStmt->fetch();
-            if ($nm && (int)$nm['user_id'] === (int)$userId) {
-                $hasAccess = true;
+            // Allow senders of netmail attachments to preview what they sent
+            if (!$hasAccess && $file['source_type'] === 'netmail_attachment' && $file['message_id'] !== null) {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $nmStmt = $db->prepare("SELECT user_id FROM netmail WHERE id = ? LIMIT 1");
+                $nmStmt->execute([$file['message_id']]);
+                $nm = $nmStmt->fetch();
+                if ($nm && (int)$nm['user_id'] === (int)$userId) {
+                    $hasAccess = true;
+                }
             }
         }
 

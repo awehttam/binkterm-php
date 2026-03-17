@@ -398,6 +398,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
+    SimpleRouter::get('/referrals', function() {
+        RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('errors/403.twig');
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('admin/referrals.twig');
+    });
+
     SimpleRouter::get('/economy', function() {
         RouteHelper::requireAdmin();
 
@@ -545,6 +559,76 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 apiError('errors.admin.users.delete_failed', apiLocalizedText('errors.admin.users.delete_failed', 'Failed to delete user'));
             }
+        });
+
+        // Referral analytics (premium)
+        SimpleRouter::get('/referrals', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            if (!\BinktermPHP\License::isValid()) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                apiError('errors.referrals.not_licensed', apiLocalizedText('errors.referrals.not_licensed', 'Referral analytics require a registered license', $user));
+                return;
+            }
+
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            // Top referrers: users who have referred others
+            $referrersStmt = $db->query("
+                SELECT
+                    u.id,
+                    u.username,
+                    u.real_name,
+                    u.referral_code,
+                    COUNT(r.id) AS referral_count,
+                    COALESCE(SUM(ct.amount), 0) AS bonus_earned
+                FROM users u
+                LEFT JOIN users r ON r.referred_by = u.id
+                LEFT JOIN credit_transactions ct
+                    ON ct.user_id = u.id AND ct.transaction_type = 'referral_bonus'
+                GROUP BY u.id, u.username, u.real_name, u.referral_code
+                HAVING COUNT(r.id) > 0
+                ORDER BY referral_count DESC, bonus_earned DESC
+                LIMIT 100
+            ");
+            $referrers = $referrersStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Recent referral signups
+            $recentStmt = $db->query("
+                SELECT
+                    u.id,
+                    u.username,
+                    u.real_name,
+                    u.created_at,
+                    ref.username AS referred_by_username,
+                    ref.real_name AS referred_by_real_name
+                FROM users u
+                JOIN users ref ON ref.id = u.referred_by
+                ORDER BY u.created_at DESC
+                LIMIT 50
+            ");
+            $recent = $recentStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Summary totals
+            $totalsStmt = $db->query("
+                SELECT
+                    COUNT(*) AS total_referred_users,
+                    COUNT(DISTINCT referred_by) AS total_referrers
+                FROM users
+                WHERE referred_by IS NOT NULL
+            ");
+            $totals = $totalsStmt->fetch(\PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'referrers' => $referrers,
+                'recent'    => $recent,
+                'totals'    => $totals,
+            ]);
         });
 
         // Get system stats

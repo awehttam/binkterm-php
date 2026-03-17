@@ -189,7 +189,7 @@ $(document).ready(function() {
     }
 
     {% if file %}
-    renderPreviewContent({{ file.id }}, {{ file.filename|json_encode|raw }}, $('#sharedPreviewContainer'));
+    renderPreviewContent({{ file.id }}, {{ file.filename|json_encode|raw }}, $('#sharedPreviewContainer'), {share_area: {{ file.area_tag|json_encode|raw }}, share_filename: {{ file.filename|json_encode|raw }}});
     {% endif %}
 });
 
