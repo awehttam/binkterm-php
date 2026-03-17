@@ -329,10 +329,16 @@ function renderPrgGallery(container, prgs, fileId) {
         container.append(artWrap);
 
         const emuUrl = `/c64emu/?file_id=${encodeURIComponent(fileId)}&prg=${encodeURIComponent(prg.name)}`;
-        const runBtn = $('<a>').addClass('btn btn-sm btn-outline-warning ms-2')
-            .attr('href', emuUrl).attr('target', '_blank').attr('rel', 'noopener')
+        const runBtn = $('<button>').addClass('btn btn-sm btn-outline-warning ms-2')
             .attr('title', _fpT('ui.files.prg_run_c64', 'Run on C64'))
-            .html('<i class="fas fa-play"></i>');
+            .html('<i class="fas fa-play"></i>')
+            .on('click', function () {
+                artWrap.css({ background: '#000', padding: '0', textAlign: 'center' }).empty().append(
+                    $('<iframe>').attr('src', emuUrl).attr('title', prg.name)
+                        .css({ border: 'none', width: '403px', height: '284px', maxWidth: '100%', display: 'block', margin: '0 auto' })
+                );
+                navBar.remove();
+            });
 
         let navBar;
         if (prgs.length > 1) {

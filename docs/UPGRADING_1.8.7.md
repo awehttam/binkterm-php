@@ -782,7 +782,7 @@ port of the fc64 Commodore 64 emulator.
 
 | Content type | Button location | Behaviour on click |
 |---|---|---|
-| Rendered PRG (screen art) | Icon (▶) on the right of the nav bar | Opens emulator in a new tab, auto-executes the PRG |
+| Rendered PRG (screen art) | Icon (▶) on the right of the nav bar | Hides the art; loads emulator inline in the preview panel |
 | Machine-code PRG | Below the "Preview unavailable" notice | Hides the notice; loads emulator inline in the preview panel |
 | PETSCII stream (`.seq`) | Bar below the rendered art | Hides the art; loads emulator inline in the preview panel |
 
