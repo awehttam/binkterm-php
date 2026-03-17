@@ -36,7 +36,12 @@ Email **awehttam@gmail.com** with the subject line **BinktermPHP Registration** 
 
 **Step 3 — Install your license**
 
-Once your registration is received, a license file will be generated and sent to you. Place it at `data/license.json` in your BinktermPHP installation directory. No restart is required.
+Once your registration is received, a license file will be generated and sent to you. You can install it in either of two ways:
+
+- **Via the admin panel** — go to **Admin → Licensing**, paste the license JSON into the box, and click Install License.
+- **Manually** — place the file at `data/license.json` in your BinktermPHP installation directory.
+
+No restart is required either way.
 
 ## Questions?
 
