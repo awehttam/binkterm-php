@@ -2888,6 +2888,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode(['error' => 'Cannot read SEQ file']);
                 return;
             }
+            // Strip trailing CR/LF — many SEQ files end with $0D which CHROUT would
+            // render as an unwanted blank line before the program halts.
+            $seqBytes = rtrim($seqBytes, "\x0D\x0A");
             // Build a 6502 machine-code wrapper that streams the SEQ bytes through
             // the C64 CHROUT kernal routine ($FFD2), then halts.
             // Load address: $2000; data appended starting at $2036 (54-byte stub).
