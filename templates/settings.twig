@@ -175,6 +175,18 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">{{ t('ui.settings.page_position_memory', {}, locale, ['common']) }}</label>
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="rememberPagePosition" name="remember_page_position">
+                            <label class="form-check-label" for="rememberPagePosition">
+                                {{ t('ui.settings.remember_page_position', {}, locale, ['common']) }}
+                            </label>
+                            <div class="form-text">{{ t('ui.settings.remember_page_position_help', {}, locale, ['common']) }}</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">{{ t('ui.settings.quote_display', {}, locale, ['common']) }}</label>
 
                         <div class="form-check form-switch mb-2">
@@ -396,6 +408,7 @@ function loadSettings() {
             // Threading preferences
             $('#threadedView').prop('checked', data.threaded_view === true);
             $('#netmailThreadedView').prop('checked', data.netmail_threaded_view === true);
+            $('#rememberPagePosition').prop('checked', data.remember_page_position === true);
 
             // Quote coloring (defaults to true if not set)
             $('#quoteColoring').prop('checked', data.quote_coloring !== false);
@@ -437,6 +450,7 @@ function saveSettings() {
         default_tagline: $('#defaultTagline').val(),
         threaded_view: $('#threadedView').is(':checked'),
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
+        remember_page_position: $('#rememberPagePosition').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
         show_origin: $('#showOrigin').is(':checked'),
         show_tearline: $('#showTearline').is(':checked'),

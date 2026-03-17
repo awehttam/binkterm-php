@@ -863,9 +863,13 @@ and restore it automatically when you return.
   restores the correct page for each.
 - **Netmail** — the last-visited page of your inbox is remembered.
 
+This behaviour is **opt-in**. It is disabled by default and can be enabled in
+**Settings → Remember last page in echomail and netmail**.
+
 Positions are stored per-user in the database (`users_meta` table under the
 keys `web_echomail_positions` and `web_netmail_page`) and persist across browser
-sessions and devices. No migration is required.
+sessions and devices. Migration `v1.11.0.28` adds the `remember_page_position`
+column to `user_settings` and is applied automatically by `setup.php`.
 
 ## Netmail Attachment Improvements
 

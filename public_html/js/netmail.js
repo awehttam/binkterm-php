@@ -1039,9 +1039,10 @@ function loadNetmailSettings() {
         })
         : Promise.resolve();
 
-    // Load last visited netmail page from DB
+    // Load last visited netmail page from DB (only if setting is enabled)
     const pagePromise = $.get('/api/user/web-mail-state')
         .then(function(data) {
+            if (!window.userSettings || !window.userSettings.remember_page_position) return;
             if (data && data.settings && data.settings.web_netmail_page) {
                 const page = parseInt(data.settings.web_netmail_page, 10);
                 if (page >= 1) {
@@ -1058,6 +1059,7 @@ function loadNetmailSettings() {
  * Persist the current netmail page to the DB (fire-and-forget).
  */
 function saveNetmailPage() {
+    if (!window.userSettings || !window.userSettings.remember_page_position) return;
     $.ajax({
         url: '/api/user/web-mail-state',
         method: 'POST',

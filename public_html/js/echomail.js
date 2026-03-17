@@ -2641,9 +2641,10 @@ function loadEchomailSettings() {
         })
         : Promise.resolve();
 
-    // Load per-area page positions from DB
+    // Load per-area page positions from DB (only if setting is enabled)
     const positionsPromise = $.get('/api/user/web-mail-state')
         .then(function(data) {
+            if (!window.userSettings || !window.userSettings.remember_page_position) return;
             if (data && data.settings && data.settings.web_echomail_positions) {
                 try {
                     const parsed = typeof data.settings.web_echomail_positions === 'string'
@@ -2664,6 +2665,7 @@ function loadEchomailSettings() {
  * Persist the current echoPageMemory to the DB (fire-and-forget).
  */
 function saveEchoPositions() {
+    if (!window.userSettings || !window.userSettings.remember_page_position) return;
     $.ajax({
         url: '/api/user/web-mail-state',
         method: 'POST',

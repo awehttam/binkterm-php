@@ -2475,6 +2475,7 @@ class MessageHandler
             'show_tearline' => 'BOOLEAN',
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
+            'remember_page_position' => 'BOOLEAN',
             'date_format' => 'STRING',
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
