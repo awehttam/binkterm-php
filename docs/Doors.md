@@ -7,8 +7,9 @@ BinktermPHP supports three types of door games, each suited to different use cas
 | **DOS Doors** | Classic DOS games (LORD, TradeWars, etc.) running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
 | **Native Doors** | Linux/Windows binaries or scripts running via PTY | [NativeDoors.md](NativeDoors.md) |
 | **WebDoors** | Browser-based HTML5/PHP games embedded in an iframe | [WebDoors.md](WebDoors.md) |
+| **C64 Doors** | Commodore 64 PRG/D64/ROM programs running in the jsc64 emulator | [C64Doors.md](C64Doors.md) |
 
-WebDoors run entirely in the browser and require no additional server-side components. DOS Doors and Native Doors both require the **multiplexing bridge** described below.
+C64 Doors and WebDoors run entirely in the browser and require no additional server-side components. DOS Doors and Native Doors both require the **multiplexing bridge** described below.
 
 ## Table of Contents
 
@@ -326,3 +327,4 @@ SSLProxyEngine on
 - [DOS Doors](DOSDoors.md) — Setup, DOSBox configuration, adding door games, drop file format, troubleshooting
 - [Native Doors](NativeDoors.md) — Manifest format, environment variables, platform notes, test doors
 - [WebDoors](WebDoors.md) — Manifest format, iframe integration, BBS API, credits system
+- [C64 Doors](C64Doors.md) — PRG/D64/ROM support, shared engine, configuration reference

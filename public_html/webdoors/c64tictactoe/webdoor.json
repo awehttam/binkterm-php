@@ -1,0 +1,18 @@
+{
+    "webdoor_version": "1.0",
+    "game": {
+        "id": "c64tictactoe",
+        "name": "C64 Tic Tac Toe",
+        "version": "1.0",
+        "author": "",
+        "description": "Tic Tac Toe.",
+        "entry_point": "index.php"
+    },
+    "requirements": {
+        "min_host_version": "1.0",
+        "features": []
+    },
+    "config": {
+        "credits_cost_per_session": 0
+    }
+}

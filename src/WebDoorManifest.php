@@ -37,7 +37,7 @@ class WebDoorManifest
 
         $manifests = [];
         foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
+            if ($entry === '.' || $entry === '..' || str_starts_with($entry, '_')) {
                 continue;
             }
 
