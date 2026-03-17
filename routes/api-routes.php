@@ -1676,6 +1676,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.is_sysop_only,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count,
+                    COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
                     last_posts.last_subject,
                     last_posts.last_author,
                     last_posts.last_date
@@ -1711,7 +1712,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                         date_received as last_date
                     FROM echomail
                     ORDER BY echoarea_id, date_received DESC
-                ) last_posts ON e.id = last_posts.echoarea_id";
+                ) last_posts ON e.id = last_posts.echoarea_id
+                LEFT JOIN (
+                    SELECT echoarea_id, COUNT(*) as subscriber_count
+                    FROM user_echoarea_subscriptions
+                    WHERE is_active = TRUE
+                    GROUP BY echoarea_id
+                ) sub_counts ON e.id = sub_counts.echoarea_id";
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
