@@ -953,6 +953,8 @@ class ArtPetsciiDecoder {
                 return;
             case 147: // clear / home
                 this.buffer.clearScreen(2);
+                this.buffer.cursorRow = 0;
+                this.buffer.cursorCol = 0;
                 return;
             case 157: // cursor left
                 this.buffer.cursorCol = Math.max(0, this.buffer.cursorCol - 1);
@@ -1238,7 +1240,7 @@ function renderAmigaAnsiBuffer(text, cols = 80, rows = 500) {
 function renderPetsciiBuffer(input, cols = 40, rows = 500) {
     const buffer = new ArtScreenBuffer(cols, rows);
     buffer.currentAttr.fg = 14;
-    buffer.currentAttr.bg = 4;
+    buffer.currentAttr.bg = 0;
     const decoder = new ArtPetsciiDecoder(buffer);
     const renderer = new ArtHtmlRenderer();
     decoder.decode(input);

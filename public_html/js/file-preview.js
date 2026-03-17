@@ -11,17 +11,19 @@ const previewImageExts   = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','t
 const previewVideoExts   = ['mp4','webm','mov','ogv','m4v'];
 const previewAudioExts   = ['mp3','wav','ogg','flac','aac','m4a','opus'];
 const previewTextExts    = ['txt','log','nfo','diz','md','cfg','ini','conf','lsm','json','xml','bat','sh'];
-const previewAnsiExts    = ['ans'];
-const previewPetsciiExts = ['prg'];
+const previewAnsiExts          = ['ans'];
+const previewPetsciiExts       = ['prg'];
+const previewPetsciiStreamExts = ['seq'];
 
 function getFileType(filename) {
     const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
-    if (previewImageExts.includes(ext))   return 'image';
-    if (previewVideoExts.includes(ext))   return 'video';
-    if (previewAudioExts.includes(ext))   return 'audio';
-    if (previewTextExts.includes(ext))    return 'text';
-    if (previewAnsiExts.includes(ext))    return 'ansi';
-    if (previewPetsciiExts.includes(ext)) return 'petscii';
+    if (previewImageExts.includes(ext))          return 'image';
+    if (previewVideoExts.includes(ext))          return 'video';
+    if (previewAudioExts.includes(ext))          return 'audio';
+    if (previewTextExts.includes(ext))           return 'text';
+    if (previewAnsiExts.includes(ext))           return 'ansi';
+    if (previewPetsciiExts.includes(ext))        return 'petscii';
+    if (previewPetsciiStreamExts.includes(ext))  return 'petscii_stream';
     return 'download';
 }
 
@@ -120,6 +122,30 @@ function renderPreviewContent(fileId, filename, container) {
             .then(data => {
                 if (!data.prgs || !data.prgs.length) throw new Error('empty');
                 renderPrgGallery(body, data.prgs, fileId);
+            })
+            .catch(() => {
+                body.css('background', '').html(
+                    `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
+                );
+            });
+
+    } else if (type === 'petscii_stream') {
+        body.css('background', '#0000aa').html(
+            `<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x" style="color:#55ffff;"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+            .then(buf => {
+                const uBytes  = new Uint8Array(buf);
+                const byteStr = Array.from(uBytes, b => String.fromCharCode(b)).join('');
+                const html    = renderPetsciiBuffer(byteStr, 40, 500);
+                body.css('background', '#0000aa').html(`
+                    <div style="overflow:auto;max-height:78vh;background:#0000aa;padding:8px;text-align:center;">
+                        <pre class="m-0 d-inline-block text-start"
+                             style="letter-spacing:0;font-family:'Pet Me 64',Consolas,'DejaVu Sans Mono',monospace;"
+                        >${html}</pre>
+                    </div>
+                `);
             })
             .catch(() => {
                 body.css('background', '').html(
@@ -239,7 +265,6 @@ function renderPrgGallery(container, prgs, fileId) {
 
         container.append(artWrap);
 
-        const fidelityNote = `<small class="text-muted fst-italic ms-2">${_fpT('ui.files.prg_low_fidelity', 'low-fidelity preview')}</small>`;
         let navBar;
         if (prgs.length > 1) {
             navBar = $('<div>').addClass('d-flex align-items-center justify-content-between px-3 py-2 border-top')
@@ -249,14 +274,13 @@ function renderPrgGallery(container, prgs, fileId) {
                         .html('<i class="fas fa-chevron-left"></i>'),
                     $('<small>').addClass('text-muted text-truncate mx-2')
                         .html(escapeHtml(prg.name) + ` (${i + 1}\u202f/\u202f${prgs.length})`),
-                    $(fidelityNote),
                     $('<button>').addClass('btn btn-sm btn-outline-secondary').attr('id', 'prgNext').prop('disabled', isLast)
                         .html('<i class="fas fa-chevron-right"></i>')
                 );
         } else {
             navBar = $('<div>').addClass('px-3 py-2 text-center border-top')
                 .css('background', '#111')
-                .html(`<small class="text-muted">${escapeHtml(prg.name)}</small>${fidelityNote}`);
+                .html(`<small class="text-muted">${escapeHtml(prg.name)}</small>`);
         }
         container.append(navBar);
 
