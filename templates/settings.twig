@@ -209,6 +209,15 @@
                             </label>
                             <div class="form-text">{{ t('ui.settings.forward_netmail_email_help', {}, locale, ['common']) }}</div>
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label" for="echomailDigest">{{ t('ui.settings.echomail_digest', {}, locale, ['common']) }}</label>
+                            <select class="form-select form-select-sm w-auto" id="echomailDigest">
+                                <option value="none">{{ t('ui.settings.echomail_digest_none', {}, locale, ['common']) }}</option>
+                                <option value="daily">{{ t('ui.settings.echomail_digest_daily', {}, locale, ['common']) }}</option>
+                                <option value="weekly">{{ t('ui.settings.echomail_digest_weekly', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.echomail_digest_help', {}, locale, ['common']) }}</div>
+                        </div>
                         {% else %}
                         <div class="form-check form-switch mb-2 opacity-50">
                             <input class="form-check-input" type="checkbox" id="forwardNetmailEmail" disabled>
@@ -217,6 +226,15 @@
                                 <span class="badge bg-secondary ms-1" style="font-size:0.7em;">{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}</span>
                             </label>
                             <div class="form-text">{{ t('ui.settings.forward_netmail_email_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="mb-2 opacity-50">
+                            <label class="form-label">{{ t('ui.settings.echomail_digest', {}, locale, ['common']) }}
+                                <span class="badge bg-secondary ms-1" style="font-size:0.7em;">{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}</span>
+                            </label>
+                            <select class="form-select form-select-sm w-auto" disabled>
+                                <option>{{ t('ui.settings.echomail_digest_none', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.echomail_digest_help', {}, locale, ['common']) }}</div>
                         </div>
                         {% endif %}
                     </div>
@@ -438,6 +456,7 @@ function loadSettings() {
 
             // Notifications
             $('#forwardNetmailEmail').prop('checked', data.forward_netmail_email === true);
+            $('#echomailDigest').val(data.echomail_digest || 'none');
 
             // Commented out settings (not yet implemented)
             $('#showOrigin').prop('checked', data.show_origin !== false);
@@ -479,6 +498,7 @@ function saveSettings() {
         remember_page_position: $('#rememberPagePosition').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
         forward_netmail_email: $('#forwardNetmailEmail').is(':checked'),
+        echomail_digest: $('#echomailDigest').val() || 'none',
         show_origin: $('#showOrigin').is(':checked'),
         show_tearline: $('#showTearline').is(':checked'),
         auto_refresh: $('#autoRefresh').is(':checked')

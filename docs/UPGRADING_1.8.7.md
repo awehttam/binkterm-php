@@ -65,6 +65,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Custom Login and Registration Splash Pages](#custom-login-and-registration-splash-pages)
   - [How to Register](#how-to-register)
 - [Netmail Forwarding to Email](#netmail-forwarding-to-email)
+- [Echomail Digest](#echomail-digest)
 - [Shared File Preview for Unauthenticated Visitors](#shared-file-preview-for-unauthenticated-visitors)
 - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
 - [Admin Menu Reorganization](#admin-menu-reorganization)
@@ -1272,6 +1273,37 @@ sender and that the user should log in to the BBS to reply.
 
 A database migration (`v1.11.0.30`) adds the `forward_netmail_email` column
 to `user_settings` and is applied automatically by `setup.php`.
+
+## Echomail Digest
+
+Users can now opt in to a periodic echomail digest email that summarises new
+messages across their subscribed echo areas.  The digest is available in two
+frequencies — **Daily** and **Weekly** — and is configured in
+**Settings → Notifications**.  The option is disabled (Off) by default.
+
+This is a registered feature requiring a valid license.
+
+Each digest email lists, per echo area, the number of new messages along with
+subject lines and author names since the last digest was sent.  Full message
+bodies are not included to keep the email concise.
+
+**Cron setup** — Run the new script periodically to deliver digests.  Once per
+hour is recommended; the script enforces the per-user frequency internally:
+
+```bash
+# Hourly via crontab
+0 * * * * php /path/to/binkterm-php/scripts/send_echomail_digest.php
+```
+
+Test a specific user without sending:
+
+```bash
+php scripts/send_echomail_digest.php --dry-run --verbose --user=1
+```
+
+A database migration (`v1.11.0.31`) adds `echomail_digest` and
+`echomail_digest_last_sent` to `user_settings` and is applied automatically by
+`setup.php`.
 
 ## Shared File Preview for Unauthenticated Visitors
 

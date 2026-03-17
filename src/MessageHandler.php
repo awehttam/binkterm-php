@@ -2521,7 +2521,8 @@ class MessageHandler
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE',
-            'forward_netmail_email' => 'BOOLEAN'
+            'forward_netmail_email' => 'BOOLEAN',
+            'echomail_digest' => 'DIGEST_FREQUENCY'
         ];
 
         $updates = [];
@@ -2572,6 +2573,10 @@ class MessageHandler
                         $locale = 'en';
                     }
                     $params[] = $locale;
+                    break;
+                case 'DIGEST_FREQUENCY':
+                    $freq = trim((string)$value);
+                    $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
                     break;
                 default:
                     $params[] = $value;

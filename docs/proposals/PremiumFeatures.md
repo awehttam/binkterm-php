@@ -43,6 +43,8 @@ These features are live and gated behind `License::isValid()`.
 | Economy viewer | Admin dashboard for credit economy stats, transaction history, and active user reporting | `License::isValid()` |
 | Referral analytics | Admin page showing top referrers, referral signups, bonus credits earned, and summary totals | `License::isValid()` |
 | Custom splash pages | Sysop-defined Markdown/HTML content shown above the login and registration forms | `License::isValid()` |
+| Netmail forwarding to email | Forward incoming netmail (including FTN attachments) to the user's email address; opt-in per-user setting | `License::isValid()` |
+| Echomail digest | Periodic email digest (daily or weekly) summarising new messages across subscribed echo areas; per-user opt-in | `License::isValid()` |
 
 ---
 
@@ -74,7 +76,6 @@ The following are candidate features for future consideration. None are implemen
 - Undeliverable packet browser
 - Filterable web UI over `data/logs/packets.log`
 - Configuration export/import via admin UI
-- Scheduled activity digest emails (requires SMTP)
 - Expanded database health dashboard
 - Admin audit log — web-viewable record of configuration and user management actions
 
