@@ -120,7 +120,7 @@ function buildPlainDigest(array $areas, string $systemName, string $siteUrl): st
             $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ')';
         }
 
-        $lines[] = '  ' . $siteUrl . '/echomail/' . $area['echoarea_id'];
+        $lines[] = '  ' . $siteUrl . '/echomail/' . rawurlencode($area['tag']);
         $lines[] = '';
     }
 
@@ -146,7 +146,7 @@ function buildHtmlDigest(array $areas, string $systemName, string $siteUrl): str
     foreach ($areas as $area) {
         $count       = count($area['messages']);
         $safeTag     = htmlspecialchars($area['tag'], ENT_QUOTES, 'UTF-8');
-        $areaUrl     = $siteUrl . '/echomail/' . (int) $area['echoarea_id'];
+        $areaUrl     = $siteUrl . '/echomail/' . rawurlencode($area['tag']);
         $safeAreaUrl = htmlspecialchars($areaUrl, ENT_QUOTES, 'UTF-8');
 
         $areaHtml .= '<div class="area">';

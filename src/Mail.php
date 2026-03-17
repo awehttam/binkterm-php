@@ -35,7 +35,8 @@ class Mail
         
         try {
             $mail = new PHPMailer(true);
-            
+            $mail->CharSet = PHPMailer::CHARSET_UTF8;
+
             // Server settings
             $mail->isSMTP();
             $mail->Host = Config::env('SMTP_HOST');
@@ -228,6 +229,7 @@ class Mail
 
         try {
             $mail = new PHPMailer(true);
+            $mail->CharSet = PHPMailer::CHARSET_UTF8;
 
             // Server settings
             $mail->isSMTP();
