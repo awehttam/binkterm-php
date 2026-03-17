@@ -1535,3 +1535,6 @@ tbody, td, tfoot, th, thead, tr {
     background-color: var(--term-black);
     color: var(--term-green);
 }
+
+/* Disabled dropdown items — grayed out but readable */
+.dropdown-item-locked { color: #888 !important; pointer-events: none; cursor: default; }

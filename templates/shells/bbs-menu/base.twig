@@ -188,8 +188,8 @@
                         <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-chart-line"></i> {{ t('ui.base.admin.analytics', {}, 'common') }}</a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> {{ t('ui.base.admin.activity_stats', {}, 'common') }}</a></li>
-                            <li><a class="dropdown-item{% if not license_valid %} disabled{% endif %}" href="{{ license_valid ? '/admin/economy' : '#' }}"><i class="fas fa-coins"></i> {{ t('ui.base.admin.economy_viewer', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
-                            <li><a class="dropdown-item{% if not license_valid %} disabled{% endif %}" href="{{ license_valid ? '/admin/referrals' : '#' }}"><i class="fas fa-user-plus"></i> {{ t('ui.base.admin.referrals', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
+                            <li><a class="dropdown-item{% if not license_valid %} dropdown-item-locked{% endif %}" href="{{ license_valid ? '/admin/economy' : '#' }}"><i class="fas fa-coins"></i> {{ t('ui.base.admin.economy_viewer', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
+                            <li><a class="dropdown-item{% if not license_valid %} dropdown-item-locked{% endif %}" href="{{ license_valid ? '/admin/referrals' : '#' }}"><i class="fas fa-user-plus"></i> {{ t('ui.base.admin.referrals', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
                         </ul>
                     </li>
                     <li class="dropdown-submenu">

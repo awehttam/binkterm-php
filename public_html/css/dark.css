@@ -1201,3 +1201,6 @@ a:hover {
     background-color: var(--bg-card);
     color: var(--text-color);
 }
+
+/* Disabled dropdown items — grayed out but readable */
+.dropdown-item-locked { color: #888 !important; pointer-events: none; cursor: default; }

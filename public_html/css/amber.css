@@ -1504,3 +1504,6 @@ tbody, td, tfoot, th, thead, tr {
     background-color: rgba(255, 176, 0, 0.08) !important;
     color: var(--text-color) !important;
 }
+
+/* Disabled dropdown items — grayed out but readable */
+.dropdown-item-locked { color: #888 !important; pointer-events: none; cursor: default; }
