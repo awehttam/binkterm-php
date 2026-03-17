@@ -2458,7 +2458,7 @@ return [
     'ui.shared_file.register' => 'Registrarse',
     'ui.shared_file.login' => 'Iniciar sesion',
     'ui.shared_file.about_system' => 'Acerca de {system_name}',
-    'ui.shared_file.about_system_text' => '{system_name} es un BBS conectado a FidoNet con areas publicas de archivos. Los miembros pueden subir, descargar y compartir archivos de un archivo en crecimiento.',
+    'ui.shared_file.about_system_text' => '{system_name} es un BBS conectado a {network} con areas de archivos. Los miembros pueden subir, descargar y compartir archivos de un archivo en crecimiento.',
     'ui.shared_file.powered_by' => 'Desarrollado por BinktermPHP',
     'ui.shared_file.not_available_title' => 'Archivo no disponible',
     'ui.shared_file.not_available_body' => 'Este enlace de archivo compartido no esta disponible. Puede haber expirado o sido revocado.',

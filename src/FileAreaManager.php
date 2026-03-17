@@ -2576,6 +2576,7 @@ class FileAreaManager
                    f.virus_scan_result,
                    f.file_area_id,
                    fa.tag AS area_tag,
+                   fa.domain,
                    fa.description AS area_description
             FROM shared_files sf
             JOIN files f ON sf.file_id = f.id
@@ -2620,6 +2621,7 @@ class FileAreaManager
             'file_area_id'     => (int)$row['file_area_id'],
             'area_tag'         => $row['area_tag'],
             'area_description' => $row['area_description'],
+            'domain'           => $row['domain'] ?? 'fidonet',
         ];
 
         $shareInfo = [

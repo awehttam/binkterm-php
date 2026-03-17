@@ -140,7 +140,7 @@
                             <i class="fas fa-info-circle me-2"></i>{{ t('ui.shared_file.about_system', {'system_name': system_name}, locale, ['common']) }}
                         </h6>
                         <p class="card-text mb-0">
-                            {{ t('ui.shared_file.about_system_text', {'system_name': system_name}, locale, ['common']) }}
+                            {{ t('ui.shared_file.about_system_text', {'system_name': system_name, 'network': file.domain ? file.domain|upper : 'FidoNet'}, locale, ['common']) }}
                         </p>
                     </div>
                 </div>

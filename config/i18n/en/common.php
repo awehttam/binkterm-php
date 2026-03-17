@@ -2456,7 +2456,7 @@ return [
     'ui.shared_file.register' => 'Register',
     'ui.shared_file.login' => 'Login',
     'ui.shared_file.about_system' => 'About {system_name}',
-    'ui.shared_file.about_system_text' => '{system_name} is a FidoNet-connected BBS with public file areas. Members can upload, download, and share files from a growing archive.',
+    'ui.shared_file.about_system_text' => '{system_name} is a {network}-connected BBS with file areas. Members can upload, download, and share files from a growing archive.',
     'ui.shared_file.powered_by' => 'Powered by BinktermPHP',
     'ui.shared_file.not_available_title' => 'File Not Available',
     'ui.shared_file.not_available_body' => 'This shared file link is not available. It may have expired or been revoked.',
