@@ -1274,7 +1274,7 @@ class FileAreaManager
             throw new \Exception('Source file not found or not readable');
         }
 
-        $filename = basename($sourcePath);
+        $filename = str_replace(' ', '_', basename($sourcePath));
         $fileSize = filesize($sourcePath);
 
         if ($fileSize > $fileArea['max_file_size']) {
@@ -1426,7 +1426,7 @@ class FileAreaManager
             throw new \Exception('Invalid file upload');
         }
 
-        $filename = basename($fileData['name']);
+        $filename = str_replace(' ', '_', basename($fileData['name']));
         $fileSize = $fileData['size'];
         $tmpPath = $fileData['tmp_name'];
 

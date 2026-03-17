@@ -2018,6 +2018,8 @@ return [
     'ui.files.search_result_count' => '{count} result(s)',
     'ui.files.search_no_results' => 'No files found',
     'ui.files.search_failed' => 'Search failed',
+    'ui.files.prg_no_preview' => 'Preview unavailable — machine code program',
+    'ui.files.no_prgs_in_d64' => 'No PRG files found in disk image',
 
     // Polls Page
     'ui.polls.title' => 'Polls',

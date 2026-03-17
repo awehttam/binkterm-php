@@ -574,8 +574,9 @@ class CrashmailService
         $fileSize = filesize($filePath);
         $timestamp = filemtime($filePath);
 
-        // Send M_FILE command
-        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        // Send M_FILE command — sanitize spaces to underscores (binkp has no quoting)
+        $wireName = str_replace(' ', '_', $filename);
+        $fileInfo = "{$wireName} {$fileSize} {$timestamp} 0";
         $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
             \BinktermPHP\Binkp\Protocol\BinkpFrame::M_FILE,
             $fileInfo
@@ -616,7 +617,9 @@ class CrashmailService
         $fileSize  = filesize($filePath);
         $timestamp = filemtime($filePath);
 
-        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        // Sanitize spaces to underscores (binkp has no quoting)
+        $wireName = str_replace(' ', '_', $filename);
+        $fileInfo = "{$wireName} {$fileSize} {$timestamp} 0";
         $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
             \BinktermPHP\Binkp\Protocol\BinkpFrame::M_FILE,
             $fileInfo

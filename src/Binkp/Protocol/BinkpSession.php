@@ -54,6 +54,8 @@ class BinkpSession
     private array $extraOutboundFiles = [];
     /** @var array<string,string> basename => full path for extra outbound files, used for M_GOT cleanup */
     private array $extraOutboundFilesByName = [];
+    /** @var array<string,string> wire-filename => real disk path, for files whose names were sanitized for binkp */
+    private array $wireToRealPath = [];
     private $uplinkPassword;
     private $currentUplink;
 
@@ -1234,16 +1236,19 @@ class BinkpSession
             $destAddr = $this->getPacketDestination($filePath);
         }
 
-        // Format: filename size timestamp [offset]
-        // According to binkp spec, format should be: filename size time [offset]
-        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        // Binkp has no quoting — sanitize spaces to underscores for the wire name.
+        $wireName = str_replace(' ', '_', $filename);
+        if ($wireName !== $filename) {
+            $this->wireToRealPath[$wireName] = $filePath;
+        }
+        $fileInfo = "{$wireName} {$fileSize} {$timestamp} 0";
         $frame = BinkpFrame::createCommand(BinkpFrame::M_FILE, $fileInfo);
         $frame->writeToSocket($this->socket);
 
         if ($destAddr) {
-            $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+            $this->log("Sending packet {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
         } else {
-            $this->log("Sending file {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
+            $this->log("Sending file {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
         }
 
         $handle = fopen($filePath, 'rb');
@@ -1265,20 +1270,35 @@ class BinkpSession
         fclose($handle);
 
         if ($bytesSent === $fileSize) {
-            $this->filesSent[] = $filename;
-            $this->log("Delivered packet {$filename} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
+            $this->filesSent[] = $wireName;
+            $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
-            $this->log("Packet send incomplete: {$filename} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
+            $this->log("Packet send incomplete: {$wireName} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
         }
     }
 
     private function handleFileCommand($data)
     {
-        $parts = explode(' ', $data, 4);
-        $filename = $parts[0];
-        $size = isset($parts[1]) ? intval($parts[1]) : 0;
-        $timestamp = isset($parts[2]) ? intval($parts[2]) : time();
-        $offset = isset($parts[3]) ? intval($parts[3]) : 0;
+        // Filename may be quoted (e.g. "name with spaces") when it contains spaces.
+        if (str_starts_with($data, '"')) {
+            $closeQuote = strpos($data, '"', 1);
+            if ($closeQuote !== false) {
+                $filename = substr($data, 1, $closeQuote - 1);
+                $rest     = ltrim(substr($data, $closeQuote + 1));
+                $trailing = explode(' ', $rest, 3);
+            } else {
+                // Malformed — treat whole string as filename
+                $filename = $data;
+                $trailing = [];
+            }
+        } else {
+            $parts    = explode(' ', $data, 4);
+            $filename = $parts[0];
+            $trailing = array_slice($parts, 1);
+        }
+        $size      = isset($trailing[0]) ? intval($trailing[0]) : 0;
+        $timestamp = isset($trailing[1]) ? intval($trailing[1]) : time();
+        $offset    = isset($trailing[2]) ? intval($trailing[2]) : 0;
 
         // Validate filename to prevent directory traversal
         $filename = basename($filename);
@@ -1439,8 +1459,17 @@ class BinkpSession
             return true;
         }
 
-        $outboundPath = $this->config->getOutboundPath();
-        $filepath = $outboundPath . '/' . $filename;
+        // Wire-name may differ from disk-name (spaces → underscores): resolve to real path.
+        if (isset($this->wireToRealPath[$filename])) {
+            $filepath = $this->wireToRealPath[$filename];
+            $diskName = basename($filepath);
+        } else {
+            $outboundPath = $this->config->getOutboundPath();
+            $filepath = $outboundPath . '/' . $filename;
+            $diskName = $filename;
+        }
+
+        $filename = $diskName; // use disk name for logging and preserve-path operations
         if (!file_exists($filepath)) {
             $this->log("Sent file not found: {$filepath}", 'WARNING');
             return false;

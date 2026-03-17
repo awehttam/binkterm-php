@@ -33,6 +33,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [File Preview](#file-preview)
   - [ANSI Art Rendering](#ansi-art-rendering)
   - [PETSCII / PRG Rendering](#petscii--prg-rendering)
+  - [D64 Disk Image Preview](#d64-disk-image-preview)
   - [Shared File Preview](#shared-file-preview)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
   - [Behaviour](#behaviour)
@@ -47,10 +48,12 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Echo Area Management Improvements](#echo-area-management-improvements)
+- [File Upload Filename Sanitization](#file-upload-filename-sanitization)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
   - [Subscription Toggle in Echomail Reader](#subscription-toggle-in-echomail-reader)
+  - [BinkP Filenames with Spaces](#binkp-filenames-with-spaces)
 - [Footer Registration Display](#footer-registration-display)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -143,6 +146,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   filename and description across all accessible file areas. Results include
   file size, upload date, a file-info button, and a direct link to the area
   containing each result.
+- Spaces in uploaded filenames are now replaced with underscores at upload time
+  so filenames are always compatible with FTN file transfer protocols.
+- `.d64` Commodore 64 floppy disk images now render a PRG gallery in the
+  preview modal, showing all closed PRG files found on the disk with the disk
+  name displayed as a header.
 
 
 **Nodelist**
@@ -161,6 +169,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Crashmail delivery now writes structured logs to `data/logs/crashmail.log` and
   respects the **preserve sent packets** setting.
 - Experimental FREQ support (see [FREQ Enhancements](#freq-enhancements)).
+- Fixed: filenames containing spaces were sent unquoted in `M_FILE` commands,
+  causing remote binkd systems to misparse the command and reject the transfer.
+  Spaces are now replaced with underscores on the wire.
 
 **User Interface**
 - The "Registered to" line in the page footer is now displayed inline with the
@@ -671,6 +682,7 @@ going straight to a download.
 | Text / NFO | txt, log, nfo, diz, md, cfg, ini, json, xml, … | Rendered in a scrollable panel; NFO and DIZ files are automatically converted from CP437 to UTF-8 so ANSI art displays correctly |
 | ANSI Art | ans | Rendered inline using the ANSI decoder with the full 16-colour ANSI palette |
 | PETSCII / PRG | prg | Rendered using the C64 screen RAM decoder with the exact C64 16-colour palette |
+| D64 Disk Image | d64 | Parsed as a C64 floppy image; PRG files extracted and shown as a gallery |
 | Unknown | everything else | Download prompt with a Download button |
 
 The modal header includes:
@@ -721,6 +733,30 @@ GET /api/files/{id}/prgs
 Returns a JSON array of PRG entries, each with `name`, `load_address`, and
 base64-encoded `data_b64`. Works for both standalone `.prg` files and ZIP
 archives.
+
+### D64 Disk Image Preview
+
+`.d64` Commodore 64 floppy disk image files now open in the preview modal as a
+PRG gallery.
+
+The backend parses the standard D64 directory (track 18) and extracts all
+closed PRG files by following the track/sector chain links. Both 35-track
+(174,848-byte) and extended 40-track images are supported.
+
+The preview shows:
+
+- The **disk name** (from the BAM sector) as a header bar above the gallery,
+  when present.
+- Each PRG file rendered using the same C64 screen RAM decoder used for
+  standalone `.prg` files and ZIP bundles — with previous/next navigation and
+  a file counter.
+- Machine-code PRGs (load address ≠ `$0400` and no detectable screen RAM block)
+  show a "preview unavailable" notice instead of garbage output.
+
+The same `/api/files/{id}/prgs` endpoint is extended to handle D64 files; the
+response includes an additional `disk_name` field.
+
+No configuration or migration is required.
 
 ### Shared File Preview
 
@@ -933,6 +969,20 @@ most popular at a glance.
 No database migration is required; subscriber counts are derived from the
 existing `user_echoarea_subscriptions` table.
 
+## File Upload Filename Sanitization
+
+Spaces in filenames are now replaced with underscores (`_`) when a file is
+uploaded to a file area, both through the web interface and via the
+`post_file.php` CLI script.
+
+This ensures filenames stored on disk and in the database are always compatible
+with FTN file transfer protocols (binkp and TIC), which treat spaces as
+field delimiters in their wire formats.
+
+**Existing files** with spaces in their names are not renamed automatically.
+Use the **Rename** action in the file browser to update them if needed before
+they are distributed to uplinks.
+
 ## Bug Fixes
 
 ### Crashmail AKA Selection
@@ -986,6 +1036,22 @@ plain text rather than JSON. As a result `data.success` was always `undefined`
 and the success branch never ran. Fixed by adding the missing header in
 `SubscriptionController::handleUserSubscriptions()` and adding `dataType: 'json'`
 to the `$.ajax` call in `echomail.js`.
+
+### BinkP Filenames with Spaces
+
+When sending a file whose name contained spaces, the `M_FILE` command was
+emitted without any quoting — for example `FILE compufreak - sb - hf.prg 1035
+…`. The binkp protocol has no quoting mechanism; remote binkd systems split on
+spaces and treated the first token as the filename and the remaining tokens as
+unknown options, rejecting the transfer.
+
+Fixed by replacing spaces with underscores in the filename advertised over the
+wire. The original file on disk is not renamed — the mapping is tracked
+internally so the file is correctly deleted or preserved after the remote
+acknowledges receipt with `M_GOT`.
+
+The inbound `M_FILE` parser has also been made more defensive and will handle
+quoted filenames sent by other implementations that do use quoting.
 
 ## Footer Registration Display
 

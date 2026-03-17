@@ -14,6 +14,7 @@ const previewTextExts    = ['txt','log','nfo','diz','md','cfg','ini','conf','lsm
 const previewAnsiExts          = ['ans'];
 const previewPetsciiExts       = ['prg'];
 const previewPetsciiStreamExts = ['seq'];
+const previewD64Exts           = ['d64'];
 
 function getFileType(filename) {
     const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
@@ -24,6 +25,7 @@ function getFileType(filename) {
     if (previewAnsiExts.includes(ext))           return 'ansi';
     if (previewPetsciiExts.includes(ext))        return 'petscii';
     if (previewPetsciiStreamExts.includes(ext))  return 'petscii_stream';
+    if (previewD64Exts.includes(ext))            return 'd64';
     return 'download';
 }
 
@@ -130,7 +132,7 @@ function renderPreviewContent(fileId, filename, container) {
             });
 
     } else if (type === 'petscii_stream') {
-        body.css('background', '#0000aa').html(
+        body.css('background', '#000').html(
             `<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x" style="color:#55ffff;"></i></div>`
         );
         fetch(previewUrl, {credentials: 'same-origin'})
@@ -138,19 +140,56 @@ function renderPreviewContent(fileId, filename, container) {
             .then(buf => {
                 const uBytes  = new Uint8Array(buf);
                 const byteStr = Array.from(uBytes, b => String.fromCharCode(b)).join('');
-                const html    = renderPetsciiBuffer(byteStr, 40, 500);
-                body.css('background', '#0000aa').html(`
-                    <div style="overflow:auto;max-height:78vh;background:#0000aa;padding:8px;text-align:center;">
-                        <pre class="m-0 d-inline-block text-start"
-                             style="letter-spacing:0;font-family:'Pet Me 64',Consolas,'DejaVu Sans Mono',monospace;"
-                        >${html}</pre>
-                    </div>
-                `);
+                const draw = () => {
+                    const html = renderPetsciiBuffer(byteStr, 40, 500);
+                    body.css('background', '#000').html(`
+                        <div class="ansi-art-container art-format-petscii" style="overflow:auto;max-height:78vh;background:#000;padding:8px;text-align:center;">
+                            <pre class="m-0 d-inline-block text-start" style="letter-spacing:0;">${html}</pre>
+                        </div>
+                    `);
+                };
+                if (document.fonts && document.fonts.load) {
+                    document.fonts.load('8px "Pet Me 64"').then(draw, draw);
+                } else {
+                    draw();
+                }
             })
             .catch(() => {
                 body.css('background', '').html(
                     `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
                 );
+            });
+
+    } else if (type === 'd64') {
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(`/api/files/${fileId}/prgs`, {credentials: 'same-origin'})
+            .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+            .then(data => {
+                if (!data.prgs || !data.prgs.length) throw new Error('empty');
+                const diskName = data.disk_name || '';
+                if (diskName) {
+                    const retroStyle = 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;';
+                    body.html(`
+                        <div class="px-3 py-2" style="${retroStyle}border-bottom:1px solid #333;font-size:0.85em;">
+                            <i class="fas fa-floppy-disk me-2"></i>${escapeHtml(diskName)}
+                        </div>
+                        <div id="prgGalleryContainer"></div>
+                    `);
+                    renderPrgGallery($('#prgGalleryContainer'), data.prgs, fileId);
+                } else {
+                    renderPrgGallery(body, data.prgs, fileId);
+                }
+            })
+            .catch(() => {
+                body.css('background', '').html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-floppy-disk fa-3x mb-3 d-block"></i>
+                        <p class="mb-2">${escapeHtml(filename)}</p>
+                        <p class="small mb-4">${_fpT('ui.files.no_prgs_in_d64', 'No PRG files found in disk image')}</p>
+                    </div>
+                `);
             });
 
     } else if (filename.toLowerCase().endsWith('.zip')) {
@@ -247,12 +286,12 @@ function renderPrgGallery(container, prgs, fileId) {
                 cvs.style.maxWidth = '100%';
                 artWrap.empty().append(cvs);
             } else {
-                const html = renderPetsciiBuffer(byteStr, 40, 500);
-                artWrap.empty().append(
-                    $('<pre>').addClass('m-0 p-2 d-inline-block text-start')
-                        .css({ background: '#000', letterSpacing: '0',
-                               fontFamily: "'Pet Me 64',Consolas,'DejaVu Sans Mono',monospace" })
-                        .html(html)
+                // Screen RAM not detectable (machine code PRG) — don't render garbage
+                artWrap.css('background', '').empty().append(
+                    $('<div>').addClass('p-4 text-center text-muted').append(
+                        $('<i>').addClass('fas fa-microchip fa-2x d-block mb-2'),
+                        $('<small>').text(_fpT('ui.files.prg_no_preview', 'Preview unavailable — machine code program'))
+                    )
                 );
             }
         };

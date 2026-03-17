@@ -861,23 +861,26 @@ class ArtPetsciiDecoder {
         this.buffer = buffer;
         this.reverse = false;
         this.charsetMode = 'upper_graphics';
+        // Maps PETSCII color-change codes to C64 color indices 0–15.
+        // These indices are used with C64HtmlRenderer (c64-fg-N / c64-bg-N classes)
+        // and the exact C64 palette defined in ansisys.css.
         this.colorMap = {
-            5: 15,    // white
-            28: 1,    // red
-            30: 2,    // green
-            31: 4,    // blue
-            129: 3,   // orange
-            144: 0,   // black
-            149: 3,   // brown
-            150: 9,   // light red
-            151: 8,   // dark gray
-            152: 7,   // gray
-            153: 10,  // light green
-            154: 12,  // light blue
-            155: 7,   // light gray
-            156: 5,   // purple
-            158: 11,  // yellow
-            159: 6    // cyan
+            5:   1,   // white        → C64 1
+            28:  2,   // red          → C64 2
+            30:  5,   // green        → C64 5
+            31:  6,   // blue         → C64 6
+            129: 8,   // orange       → C64 8
+            144: 0,   // black        → C64 0
+            149: 9,   // brown        → C64 9
+            150: 10,  // light red    → C64 10
+            151: 11,  // dark grey    → C64 11
+            152: 12,  // grey         → C64 12
+            153: 13,  // light green  → C64 13
+            154: 14,  // light blue   → C64 14
+            155: 15,  // light grey   → C64 15
+            156: 4,   // purple       → C64 4
+            158: 7,   // yellow       → C64 7
+            159: 3    // cyan         → C64 3
         };
     }
 
@@ -942,7 +945,12 @@ class ArtPetsciiDecoder {
                 this.buffer.cursorCol++;
                 this.buffer.clampCursor();
                 return;
-            case 141: // line feed / cursor up in some contexts
+            case 141: // SHIFT+RETURN — display newline (advance to next line, col 0)
+                this.buffer.cursorCol = 0;
+                this.buffer.cursorRow++;
+                this.buffer.ensureRows(this.buffer.cursorRow + 1);
+                return;
+            case 145: // cursor up
                 this.buffer.cursorRow = Math.max(0, this.buffer.cursorRow - 1);
                 return;
             case 142: // switch to upper/graphics character set
@@ -970,7 +978,8 @@ class ArtPetsciiDecoder {
             const fg = attr.fg;
             attr.fg = attr.bg;
             attr.bg = fg;
-            attr.reverse = true;
+            // Don't set attr.reverse — colors are already pre-swapped; the CSS
+            // invert class would double-invert and cancel the swap out.
         }
         this.buffer.writeChar(this.mapByteToChar(byte), attr);
     }
@@ -1239,10 +1248,10 @@ function renderAmigaAnsiBuffer(text, cols = 80, rows = 500) {
 
 function renderPetsciiBuffer(input, cols = 40, rows = 500) {
     const buffer = new ArtScreenBuffer(cols, rows);
-    buffer.currentAttr.fg = 14;
-    buffer.currentAttr.bg = 0;
+    buffer.currentAttr.fg = 14; // C64 default: light blue
+    buffer.currentAttr.bg = 0;  // C64 default: black
     const decoder = new ArtPetsciiDecoder(buffer);
-    const renderer = new ArtHtmlRenderer();
+    const renderer = new C64HtmlRenderer();
     decoder.decode(input);
     return renderer.render(buffer);
 }

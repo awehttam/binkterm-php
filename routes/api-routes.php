@@ -2764,12 +2764,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     /**
      * GET /api/files/{id}/prgs
-     * Return all PRG files found in a .prg or .zip file as base64-encoded JSON.
+     * Return all PRG files found in a .prg, .zip, or .d64 file as base64-encoded JSON.
      * Used by the file preview modal to render PETSCII art.
      *
      * The 2-byte PRG load address header is stripped before base64 encoding.
      *
-     * Response: {"prgs":[{"name":"...","data_b64":"..."},...]}
+     * Response: {"prgs":[{"name":"...","load_address":int,"data_b64":"..."},...], "disk_name":"..."}
+     * (disk_name only present for .d64 files)
      */
     SimpleRouter::get('/files/{id}/prgs', function($id) {
         $user = RouteHelper::requireAuth();
@@ -2862,8 +2863,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if ($ext === 'd64') {
+            $bytes = file_get_contents($storagePath);
+            if ($bytes === false) {
+                http_response_code(422);
+                echo json_encode(['error' => 'Cannot read D64 file']);
+                return;
+            }
+            $parser = new \BinktermPHP\D64Parser($bytes);
+            $prgs = $parser->extractPrgs();
+            if (empty($prgs)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'No PRG files found in D64 image']);
+                return;
+            }
+            echo json_encode(['prgs' => $prgs, 'disk_name' => $parser->diskName()]);
+            return;
+        }
+
         http_response_code(404);
-        echo json_encode(['error' => 'Not a PRG or ZIP file']);
+        echo json_encode(['error' => 'Not a PRG, ZIP, or D64 file']);
     })->where(['id' => '[0-9]+']);
 
     /**
