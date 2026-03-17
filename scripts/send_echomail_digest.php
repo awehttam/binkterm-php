@@ -251,10 +251,22 @@ foreach ($users as $user) {
         continue;
     }
 
-    // Determine the window: messages received since last digest (or all-time if never sent)
-    $since = $lastSent ?? '1970-01-01 00:00:00';
+    // Limits to keep digest emails manageable
+    $maxAreas   = 20; // Show at most this many echo areas
+    $maxPerArea = 20; // Show at most this many messages per area
 
-    // Fetch new echomail in subscribed areas
+    // Determine the lookback window.
+    // Use last_sent when available; on first run fall back to the frequency window
+    // so the user only sees recent activity, not the entire message history.
+    if ($lastSent !== null) {
+        $since = $lastSent;
+    } else {
+        $lookback = $frequency === 'weekly' ? '7 days' : '24 hours';
+        $since    = (new DateTimeImmutable("-{$lookback}"))->format('Y-m-d H:i:s');
+    }
+
+    // Fetch new echomail in subscribed areas, ordered so the most active areas
+    // bubble up first (we'll truncate to $maxAreas after grouping).
     $msgStmt = $db->prepare("
         SELECT e.id AS echoarea_id, e.tag, e.description AS name,
                em.subject, em.from_name, em.date_received
@@ -280,7 +292,7 @@ foreach ($users as $user) {
         continue;
     }
 
-    // Group by echo area, cap per-area message list at 50 to keep emails manageable
+    // Group by echo area, cap per-area message list at $maxPerArea
     $areas = [];
     foreach ($rows as $row) {
         $eid = (int) $row['echoarea_id'];
@@ -290,9 +302,11 @@ foreach ($users as $user) {
                 'tag'         => $row['tag'],
                 'name'        => $row['name'],
                 'messages'    => [],
+                'total'       => 0,
             ];
         }
-        if (count($areas[$eid]['messages']) < 50) {
+        $areas[$eid]['total']++;
+        if (count($areas[$eid]['messages']) < $maxPerArea) {
             $areas[$eid]['messages'][] = [
                 'subject'   => $row['subject'],
                 'from_name' => $row['from_name'],
@@ -300,13 +314,22 @@ foreach ($users as $user) {
         }
     }
 
-    $totalMessages = count($rows);
-    $totalAreas    = count($areas);
+    // Sort by total message count descending so the busiest areas appear first,
+    // then truncate to $maxAreas
+    uasort($areas, fn($a, $b) => $b['total'] <=> $a['total']);
+    $totalAreas = count($areas);
+    if ($totalAreas > $maxAreas) {
+        $areas = array_slice($areas, 0, $maxAreas, true);
+    }
 
-    log_msg("User {$userId} ({$user['username']}): {$totalMessages} message(s) across {$totalAreas} area(s).", $verbose);
+    $totalMessages = count($rows);
+
+    log_msg("User {$userId} ({$user['username']}): {$totalMessages} message(s) across {$totalAreas} area(s)" .
+        ($totalAreas > $maxAreas ? " (showing top {$maxAreas})" : '') . '.', $verbose);
 
     if ($dryRun) {
-        log_msg("  [dry-run] Would send digest to {$user['email']}", $verbose, true);
+        $shownAreas = count($areas);
+        log_msg("  [dry-run] Would send digest to {$user['email']} ({$shownAreas} area(s) shown)", $verbose, true);
         $sent++;
         continue;
     }
