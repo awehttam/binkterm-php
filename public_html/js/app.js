@@ -999,10 +999,13 @@ function formatDate(dateString) {
     }
 }
 
-function formatFidonetAddress(address) {
+function formatFidonetAddress(address, systemName) {
     if (!address) return '';
     const url = '/nodelist/view?address=' + encodeURIComponent(address);
-    return `<a href="${url}" class="fidonet-address text-decoration-none" title="View node ${escapeHtml(address)}">${escapeHtml(address)}</a>`;
+    const titleText = systemName
+        ? `${escapeHtml(systemName)} (${escapeHtml(address)})`
+        : `View node ${escapeHtml(address)}`;
+    return `<a href="${url}" class="fidonet-address text-decoration-none" title="${titleText}">${escapeHtml(address)}</a>`;
 }
 
 function formatFullDate(dateString) {

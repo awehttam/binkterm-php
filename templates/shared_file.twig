@@ -124,6 +124,15 @@
                     </div>
                 </div>
 
+                {# File preview #}
+                <div class="card mb-4">
+                    <div class="card-body p-0" id="sharedPreviewContainer" style="min-height:120px;">
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+
                 {# About this system #}
                 <div class="card">
                     <div class="card-body">
@@ -167,6 +176,10 @@
 {% endblock %}
 
 {% block scripts %}
+{% if file %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/file-preview.js"></script>
+{% endif %}
 <script>
 $(document).ready(function() {
     // Format file size using the same helper used in files.twig
@@ -177,6 +190,10 @@ $(document).ready(function() {
             sizeEl.textContent = formatBytes(bytes);
         }
     }
+
+    {% if file %}
+    renderPreviewContent({{ file.id }}, {{ file.filename|json_encode|raw }}, $('#sharedPreviewContainer'));
+    {% endif %}
 });
 
 function formatBytes(bytes) {

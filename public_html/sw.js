@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v278';
+const CACHE_NAME = 'binkcache-v288';
 
 // Static assets to precache
 const staticAssets = [
@@ -9,6 +9,7 @@ const staticAssets = [
     '/js/chat-page.js',
     '/js/chat-notify.js',
     '/js/ansisys.js',
+    '/js/file-preview.js',
     '/css/ansisys.css',
     '/css/chat-page.css',
     // Theme stylesheets

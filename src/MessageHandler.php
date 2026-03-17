@@ -699,6 +699,12 @@ class MessageHandler
                 }
             }
 
+            // Add system names from nodelist for address tooltips
+            $message['from_system_name'] = $this->lookupSystemName($message['from_address'] ?? null);
+            if ($type === 'netmail') {
+                $message['to_system_name'] = $this->lookupSystemName($message['to_address'] ?? null);
+            }
+
             $message = $this->appendRawMessagePayload($message, $rawMessageBytes, $rawMessageCharset, $rawArtFormat);
             $message = $this->appendMarkdownRendering($message);
         }
@@ -2570,6 +2576,36 @@ class MessageHandler
     }
 
     /**
+     * Look up the system name for a given FTN address from the nodelist.
+     *
+     * @param string|null $address FTN address (e.g. "1:123/456")
+     * @return string|null System name or null if not found
+     */
+    private function lookupSystemName(?string $address): ?string
+    {
+        if (empty($address)) {
+            return null;
+        }
+        try {
+            if (!preg_match('/^(\d+):(\d+)\/(\d+)(?:\.(\d+))?$/', $address, $m)) {
+                return null;
+            }
+            $zone  = (int)$m[1];
+            $net   = (int)$m[2];
+            $node  = (int)$m[3];
+            $point = isset($m[4]) ? (int)$m[4] : 0;
+            $stmt = $this->db->prepare(
+                "SELECT system_name FROM nodelist WHERE zone = ? AND net = ? AND node = ? AND point = ? LIMIT 1"
+            );
+            $stmt->execute([$zone, $net, $node, $point]);
+            $row = $stmt->fetch();
+            return $row ? ($row['system_name'] ?: null) : null;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
      * Clean message data to ensure proper JSON encoding
      * Fixes UTF-8 encoding issues that prevent json_encode from working
      */
@@ -3238,6 +3274,9 @@ class MessageHandler
         // Clean message for JSON encoding
         $message = $this->cleanMessageForJson($message);
         $message = $this->appendMarkdownRendering($message);
+
+        // Add system names from nodelist for address tooltips
+        $message['from_system_name'] = $this->lookupSystemName($message['from_address'] ?? null);
 
         return [
             'success' => true,

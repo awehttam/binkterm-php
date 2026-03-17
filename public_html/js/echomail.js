@@ -1095,7 +1095,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             <div class="row">
                 <div class="col-md-4">
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: message.from_name })}">${escapeHtml(message.from_name)}</a>
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">

@@ -376,6 +376,8 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/file-preview.js"></script>
 <script>
 let currentAreaId = null;
 let currentSubfolder = null;
@@ -1117,20 +1119,6 @@ function navigateFile(direction) {
 
 let currentPreviewFileId = null;
 
-const previewImageExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif'];
-const previewVideoExts = ['mp4','webm','mov','ogv','m4v'];
-const previewAudioExts = ['mp3','wav','ogg','flac','aac','m4a','opus'];
-const previewTextExts  = ['txt','log','nfo','diz','md','cfg','ini','conf','lsm','json','xml','bat','sh','ans'];
-
-function getFileType(filename) {
-    const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
-    if (previewImageExts.includes(ext)) return 'image';
-    if (previewVideoExts.includes(ext)) return 'video';
-    if (previewAudioExts.includes(ext)) return 'audio';
-    if (previewTextExts.includes(ext))  return 'text';
-    return 'download';
-}
-
 function previewFile(fileId) {
     const file = displayedFiles.find(f => f.id == fileId);
     if (!file) return;
@@ -1145,120 +1133,10 @@ function previewFile(fileId) {
     $('#previewModalTitle').html(escapeHtml(filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
     updatePreviewNavButtons();
-    renderPreviewContent(fileId, filename);
+    renderPreviewContent(fileId, filename, $('#previewModalBody'));
 
     if (!$('#filePreviewModal').hasClass('show')) {
         new bootstrap.Modal('#filePreviewModal').show();
-    }
-}
-
-function renderPreviewContent(fileId, filename) {
-    const type       = getFileType(filename);
-    const previewUrl = `/api/files/${fileId}/preview`;
-    const body       = $('#previewModalBody');
-
-    // Stop any currently playing media
-    body.find('video,audio').each(function() { this.pause(); this.src = ''; });
-
-    if (type === 'image') {
-        body.css('background', '#1a1a1a').html(`
-            <a href="${previewUrl}" target="_blank" title="${uiT('ui.files.view_full_size', 'View full size')}">
-                <img src="${previewUrl}"
-                     class="img-fluid d-block mx-auto"
-                     style="max-height:78vh;object-fit:contain;cursor:zoom-in;"
-                     alt="${escapeHtml(filename)}">
-            </a>
-        `);
-
-    } else if (type === 'video') {
-        body.css('background', '#000').html(`
-            <video controls class="d-block mx-auto" style="max-width:100%;max-height:75vh;">
-                <source src="${previewUrl}">
-                ${uiT('ui.files.video_not_supported', 'Video format not supported by your browser')}
-            </video>
-        `);
-
-    } else if (type === 'audio') {
-        body.css('background', '').html(`
-            <div class="p-5 text-center">
-                <i class="fas fa-music fa-3x text-muted mb-3 d-block"></i>
-                <p class="text-muted mb-3">${escapeHtml(filename)}</p>
-                <audio controls class="w-100" style="max-width:520px;">
-                    <source src="${previewUrl}">
-                </audio>
-            </div>
-        `);
-
-    } else if (type === 'text') {
-        const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
-        const isRetro = ['nfo','diz','ans'].includes(ext);
-        const preStyle = isRetro
-            ? 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;'
-            : '';
-        body.css('background', '').html(
-            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
-        );
-        fetch(previewUrl, {credentials: 'same-origin'})
-            .then(function(r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.text();
-            })
-            .then(function(text) {
-                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${preStyle}">${escapeHtml(text)}</pre>`);
-            })
-            .catch(function() {
-                body.html(`<div class="alert alert-danger m-3">${uiT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
-            });
-
-    } else if (filename.toLowerCase().endsWith('.zip')) {
-        // ZIP files: try to show FILE_ID.DIZ from the preview endpoint
-        const retroStyle = 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;';
-        body.css('background', '').html(
-            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
-        );
-        fetch(previewUrl, {credentials: 'same-origin'})
-            .then(function(r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                const ct = r.headers.get('Content-Type') || '';
-                if (!ct.includes('text/')) throw new Error('no-diz');
-                return r.text();
-            })
-            .then(function(text) {
-                body.html(`
-                    <pre class="m-0 p-3" style="max-height:65vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${retroStyle}">${escapeHtml(text)}</pre>
-                    <div class="p-2 text-center border-top">
-                        <a href="/api/files/${fileId}/download" class="btn btn-sm btn-primary" download>
-                            <i class="fas fa-download me-1"></i>${uiT('ui.files.download', 'Download')}
-                        </a>
-                    </div>
-                `);
-            })
-            .catch(function(err) {
-                // No FILE_ID.DIZ or error — fall back to download prompt
-                body.css('background', '').html(`
-                    <div class="p-5 text-center text-muted">
-                        <i class="fas fa-file-archive fa-3x mb-3 d-block"></i>
-                        <p class="mb-2">${escapeHtml(filename)}</p>
-                        <p class="small mb-4">${uiT('ui.files.no_preview', 'No preview available for this file type')}</p>
-                        <a href="/api/files/${fileId}/download" class="btn btn-primary" download>
-                            <i class="fas fa-download me-2"></i>${uiT('ui.files.download', 'Download')}
-                        </a>
-                    </div>
-                `);
-            });
-
-    } else {
-        // Unknown type — show download prompt
-        body.css('background', '').html(`
-            <div class="p-5 text-center text-muted">
-                <i class="fas fa-file fa-3x mb-3 d-block"></i>
-                <p class="mb-2">${escapeHtml(filename)}</p>
-                <p class="small mb-4">${uiT('ui.files.no_preview', 'No preview available for this file type')}</p>
-                <a href="/api/files/${fileId}/download" class="btn btn-primary" download>
-                    <i class="fas fa-download me-2"></i>${uiT('ui.files.download', 'Download')}
-                </a>
-            </div>
-        `);
     }
 }
 
@@ -1281,7 +1159,7 @@ function navigatePreview(direction) {
     $('#previewModalTitle').html(escapeHtml(file.filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
     updatePreviewNavButtons();
-    renderPreviewContent(file.id, file.filename);
+    renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
 }
 
 function openDetailsFromPreview() {
@@ -1865,5 +1743,6 @@ function displaySearchResults(results, query) {
     html += '</tbody></table></div>';
     $('#filesContainer').html(html);
 }
+
 </script>
 {% endblock %}

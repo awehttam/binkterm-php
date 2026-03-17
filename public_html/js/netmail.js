@@ -649,12 +649,12 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
             <div class="row">
                 <div class="col-md-6">
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-6">
                     <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name)}
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.to_address)}</small>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.to_address, message.to_system_name)}</small>
                 </div>
             </div>
             <div class="row mt-2">

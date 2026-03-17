@@ -31,6 +31,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
 - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
 - [File Preview](#file-preview)
+  - [ANSI Art Rendering](#ansi-art-rendering)
+  - [PETSCII / PRG Rendering](#petscii--prg-rendering)
+  - [Shared File Preview](#shared-file-preview)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
   - [Behaviour](#behaviour)
   - [Creating an ISO area](#creating-an-iso-area)
@@ -48,6 +51,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
   - [Subscription Toggle in Echomail Reader](#subscription-toggle-in-echomail-reader)
+- [Footer Registration Display](#footer-registration-display)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -108,6 +112,13 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   text and NFO files (including CP437-encoded ANSI art) render in a scrollable
   panel. Unknown file types prompt a download. Navigation arrows and keyboard
   shortcuts cycle through files without closing the modal.
+- `.ans` files render inline in the preview modal using the ANSI decoder.
+- `.prg` files and ZIP bundles containing `.prg` files render using the C64
+  screen RAM decoder with the exact C64 16-colour palette. Multi-file bundles
+  show a gallery with previous/next navigation arrows.
+- Shared file link pages (`/shared/file/…`) now display the same inline preview
+  as the file browser, so recipients can view images, read text/NFO files, and
+  see ANSI or PETSCII art without logging in.
 - Netmail attachment delivery now stores a copy in the sender's private area as
   well as the recipient's.
 - Fixed: TIC file import with **Replace Existing Files** enabled was blocked by
@@ -150,6 +161,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Crashmail delivery now writes structured logs to `data/logs/crashmail.log` and
   respects the **preserve sent packets** setting.
 - Experimental FREQ support (see [FREQ Enhancements](#freq-enhancements)).
+
+**User Interface**
+- The "Registered to" line in the page footer is now displayed inline with the
+  "Powered by BinktermPHP" line (e.g. *Powered by BinktermPHP 1.8.7 - Registered
+  to My BBS*) and no longer shows a separate badge icon.
 
 **Admin**
 - New **Database Statistics** page (`/admin/database-stats`) showing size and
@@ -653,6 +669,8 @@ going straight to a download.
 | Video | mp4, webm, mov, ogv, m4v | Plays in a `<video>` element with full controls and seek support |
 | Audio | mp3, wav, ogg, flac, aac, m4a, opus | Plays in an `<audio>` element |
 | Text / NFO | txt, log, nfo, diz, md, cfg, ini, json, xml, … | Rendered in a scrollable panel; NFO and DIZ files are automatically converted from CP437 to UTF-8 so ANSI art displays correctly |
+| ANSI Art | ans | Rendered inline using the ANSI decoder with the full 16-colour ANSI palette |
+| PETSCII / PRG | prg | Rendered using the C64 screen RAM decoder with the exact C64 16-colour palette |
 | Unknown | everything else | Download prompt with a Download button |
 
 The modal header includes:
@@ -663,6 +681,55 @@ The modal header includes:
 - **⬇ (Download)** button to download the file at any time.
 
 No configuration or migration is required for this feature.
+
+### ANSI Art Rendering
+
+Files with the `.ans` extension are fetched as text (the backend converts them
+from CP437 to UTF-8 automatically) and passed to the ANSI decoder. The result
+is displayed in the preview modal with the standard ANSI colour palette on a
+dark background, identically to how ANSI art in message bodies is rendered.
+
+### PETSCII / PRG Rendering
+
+Files with the `.prg` extension, and ZIP archives that contain `.prg` files,
+are rendered using the C64 screen RAM decoder.
+
+The renderer:
+
+1. Strips the 2-byte PRG load-address header.
+2. If the load address is `$0400` (the C64's screen RAM base address), the
+   data is decoded directly as 40×25 screen codes with optional color RAM.
+3. Otherwise a heuristic scans the executable body for an embedded 1000-byte
+   screen RAM + color RAM block (the standard C64 art pack layout) and decodes
+   that.
+4. Color RAM values (0–15) are mapped to the exact C64 16-colour palette via
+   CSS classes (`c64-fg-N` / `c64-bg-N`).
+
+A **low-fidelity preview** note is shown beneath the artwork — the browser
+renderer cannot perfectly replicate every aspect of the original C64 display.
+
+**ZIP bundles with multiple PRGs** show a gallery view with previous/next
+navigation arrows and a "N / total" counter. `FILE_ID.DIZ` (if present in
+the ZIP) is shown below the gallery.
+
+A new API endpoint powers PRG extraction:
+
+```
+GET /api/files/{id}/prgs
+```
+
+Returns a JSON array of PRG entries, each with `name`, `load_address`, and
+base64-encoded `data_b64`. Works for both standalone `.prg` files and ZIP
+archives.
+
+### Shared File Preview
+
+The shared file link page (`/shared/file/{area}/{filename}`) now renders the
+same inline preview as the file browser. All supported types work — images,
+video, audio, text/NFO, ANSI art, and PETSCII/PRG — without requiring the
+visitor to be logged in.
+
+No configuration or migration is required.
 
 ## ISO-Backed File Areas
 
@@ -915,6 +982,17 @@ plain text rather than JSON. As a result `data.success` was always `undefined`
 and the success branch never ran. Fixed by adding the missing header in
 `SubscriptionController::handleUserSubscriptions()` and adding `dataType: 'json'`
 to the `$.ajax` call in `echomail.js`.
+
+## Footer Registration Display
+
+The "Registered to" line in the page footer has been simplified. Previously it
+appeared as a separate line with a badge icon below the "Powered by
+BinktermPHP" line. It is now displayed inline:
+
+> Powered by BinktermPHP 1.8.7 - Registered to *System Name* | …
+
+The badge icon has been removed. The change applies when a valid licence is
+present; unlicensed installations are unaffected.
 
 ## Upgrade Instructions
 

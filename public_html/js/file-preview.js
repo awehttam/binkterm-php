@@ -1,0 +1,270 @@
+/**
+ * File preview renderer — shared between files.twig and shared_file.twig.
+ *
+ * Dependencies (must be loaded first):
+ *   app.js     — escapeHtml()
+ *   ansisys.js — renderAnsiBuffer(), renderPetsciiBuffer(), renderPrgToCanvas(),
+ *                findScreenRamOffset(), byteStringFromBase64()
+ */
+
+const previewImageExts   = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif'];
+const previewVideoExts   = ['mp4','webm','mov','ogv','m4v'];
+const previewAudioExts   = ['mp3','wav','ogg','flac','aac','m4a','opus'];
+const previewTextExts    = ['txt','log','nfo','diz','md','cfg','ini','conf','lsm','json','xml','bat','sh'];
+const previewAnsiExts    = ['ans'];
+const previewPetsciiExts = ['prg'];
+
+function getFileType(filename) {
+    const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
+    if (previewImageExts.includes(ext))   return 'image';
+    if (previewVideoExts.includes(ext))   return 'video';
+    if (previewAudioExts.includes(ext))   return 'audio';
+    if (previewTextExts.includes(ext))    return 'text';
+    if (previewAnsiExts.includes(ext))    return 'ansi';
+    if (previewPetsciiExts.includes(ext)) return 'petscii';
+    return 'download';
+}
+
+/** @param {string} key @param {string} fallback @param {object} [params] */
+function _fpT(key, fallback, params) {
+    return window.t ? window.t(key, params || {}, fallback) : fallback;
+}
+
+/**
+ * Render a file preview into the given jQuery container.
+ *
+ * @param {number} fileId
+ * @param {string} filename
+ * @param {jQuery} container
+ */
+function renderPreviewContent(fileId, filename, container) {
+    const body       = container;
+    const type       = getFileType(filename);
+    const previewUrl = `/api/files/${fileId}/preview`;
+
+    body.find('video,audio').each(function() { this.pause(); this.src = ''; });
+
+    if (type === 'image') {
+        body.css('background', '#1a1a1a').html(`
+            <a href="${previewUrl}" target="_blank" title="${_fpT('ui.files.view_full_size', 'View full size')}">
+                <img src="${previewUrl}"
+                     class="img-fluid d-block mx-auto"
+                     style="max-height:78vh;object-fit:contain;cursor:zoom-in;"
+                     alt="${escapeHtml(filename)}">
+            </a>
+        `);
+
+    } else if (type === 'video') {
+        body.css('background', '#000').html(`
+            <video controls class="d-block mx-auto" style="max-width:100%;max-height:75vh;">
+                <source src="${previewUrl}">
+                ${_fpT('ui.files.video_not_supported', 'Video format not supported by your browser')}
+            </video>
+        `);
+
+    } else if (type === 'audio') {
+        body.css('background', '').html(`
+            <div class="p-5 text-center">
+                <i class="fas fa-music fa-3x text-muted mb-3 d-block"></i>
+                <p class="text-muted mb-3">${escapeHtml(filename)}</p>
+                <audio controls class="w-100" style="max-width:520px;">
+                    <source src="${previewUrl}">
+                </audio>
+            </div>
+        `);
+
+    } else if (type === 'text') {
+        const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+        const isRetro = ['nfo','diz','ans'].includes(ext);
+        const preStyle = isRetro
+            ? 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;'
+            : '';
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(text => {
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${preStyle}">${escapeHtml(text)}</pre>`);
+            })
+            .catch(() => {
+                body.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
+            });
+
+    } else if (type === 'ansi') {
+        body.css('background', '#0a0a0a').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(text => {
+                const artHtml = renderAnsiBuffer(text, 80, 500);
+                body.css('background', '#0a0a0a').html(`
+                    <div class="ansi-art-container" style="overflow:auto;max-height:78vh;background:#0a0a0a;padding:8px;">
+                        <pre class="m-0">${artHtml}</pre>
+                    </div>
+                `);
+            })
+            .catch(() => {
+                body.css('background', '').html(
+                    `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
+                );
+            });
+
+    } else if (type === 'petscii') {
+        body.css('background', '#0000aa').html(
+            `<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x" style="color:#55ffff;"></i></div>`
+        );
+        fetch(`/api/files/${fileId}/prgs`, {credentials: 'same-origin'})
+            .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+            .then(data => {
+                if (!data.prgs || !data.prgs.length) throw new Error('empty');
+                renderPrgGallery(body, data.prgs, fileId);
+            })
+            .catch(() => {
+                body.css('background', '').html(
+                    `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
+                );
+            });
+
+    } else if (filename.toLowerCase().endsWith('.zip')) {
+        const retroStyle = 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;';
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        Promise.allSettled([
+            fetch(previewUrl, {credentials: 'same-origin'})
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const ct = r.headers.get('Content-Type') || '';
+                    if (!ct.includes('text/')) throw new Error('no-diz');
+                    return r.text();
+                }),
+            fetch(`/api/files/${fileId}/prgs`, {credentials: 'same-origin'})
+                .then(r => r.ok ? r.json() : Promise.reject())
+        ]).then(([dizResult, prgsResult]) => {
+            const diz     = dizResult.status  === 'fulfilled' ? dizResult.value        : null;
+            const prgs    = prgsResult.status === 'fulfilled' ? prgsResult.value?.prgs : null;
+            const hasPrgs = prgs && prgs.length > 0;
+
+            if (!diz && !hasPrgs) {
+                body.css('background', '').html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-file-archive fa-3x mb-3 d-block"></i>
+                        <p class="mb-2">${escapeHtml(filename)}</p>
+                        <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                    </div>
+                `);
+                return;
+            }
+            if (hasPrgs && !diz) { renderPrgGallery(body, prgs, fileId); return; }
+            if (diz && !hasPrgs) {
+                body.html(`<pre class="m-0 p-3" style="max-height:65vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${retroStyle}">${escapeHtml(diz)}</pre>`);
+                return;
+            }
+            // Both DIZ and PRGs
+            body.html(`
+                <pre class="m-0 p-3" style="font-size:0.85em;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #333;${retroStyle}">${escapeHtml(diz)}</pre>
+                <div id="prgGalleryContainer"></div>
+            `);
+            renderPrgGallery($('#prgGalleryContainer'), prgs, fileId);
+        });
+
+    } else {
+        body.css('background', '').html(`
+            <div class="p-5 text-center text-muted">
+                <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                <p class="mb-2">${escapeHtml(filename)}</p>
+                <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+            </div>
+        `);
+    }
+}
+
+/**
+ * Render a C64 PRG art gallery into a jQuery container.
+ * Each entry in prgs: {name, load_address, data_b64}
+ */
+function renderPrgGallery(container, prgs, fileId) {
+    let idx = 0;
+
+    function show(i) {
+        const prg     = prgs[i];
+        const byteStr = byteStringFromBase64(prg.data_b64);
+        const uBytes  = new Uint8Array(byteStr.length);
+        for (let _i = 0; _i < byteStr.length; _i++) uBytes[_i] = byteStr.charCodeAt(_i) & 0xff;
+
+        let canvasData = null;
+        if (prg.load_address === 0x0400) {
+            canvasData = uBytes;
+        } else {
+            const offset = findScreenRamOffset(uBytes);
+            if (offset >= 0) canvasData = uBytes.slice(offset);
+        }
+
+        const isFirst = i === 0;
+        const isLast  = i === prgs.length - 1;
+
+        container.css('background', '#000').empty();
+
+        const artWrap = $('<div>').css({
+            overflow: 'auto', maxHeight: '65vh',
+            background: '#000', textAlign: 'center', padding: '8px',
+        });
+
+        const drawArt = () => {
+            if (canvasData) {
+                const cvs = renderPrgToCanvas(canvasData, 40, 25);
+                cvs.style.imageRendering = 'pixelated';
+                cvs.style.width   = '640px';
+                cvs.style.height  = '400px';
+                cvs.style.maxWidth = '100%';
+                artWrap.empty().append(cvs);
+            } else {
+                const html = renderPetsciiBuffer(byteStr, 40, 500);
+                artWrap.empty().append(
+                    $('<pre>').addClass('m-0 p-2 d-inline-block text-start')
+                        .css({ background: '#000', letterSpacing: '0',
+                               fontFamily: "'Pet Me 64',Consolas,'DejaVu Sans Mono',monospace" })
+                        .html(html)
+                );
+            }
+        };
+
+        if (document.fonts && document.fonts.load) {
+            document.fonts.load('8px "Pet Me 64"').then(drawArt, drawArt);
+        } else {
+            drawArt();
+        }
+
+        container.append(artWrap);
+
+        const fidelityNote = `<small class="text-muted fst-italic ms-2">${_fpT('ui.files.prg_low_fidelity', 'low-fidelity preview')}</small>`;
+        let navBar;
+        if (prgs.length > 1) {
+            navBar = $('<div>').addClass('d-flex align-items-center justify-content-between px-3 py-2 border-top')
+                .css({ background: '#111', minHeight: '42px' })
+                .append(
+                    $('<button>').addClass('btn btn-sm btn-outline-secondary').attr('id', 'prgPrev').prop('disabled', isFirst)
+                        .html('<i class="fas fa-chevron-left"></i>'),
+                    $('<small>').addClass('text-muted text-truncate mx-2')
+                        .html(escapeHtml(prg.name) + ` (${i + 1}\u202f/\u202f${prgs.length})`),
+                    $(fidelityNote),
+                    $('<button>').addClass('btn btn-sm btn-outline-secondary').attr('id', 'prgNext').prop('disabled', isLast)
+                        .html('<i class="fas fa-chevron-right"></i>')
+                );
+        } else {
+            navBar = $('<div>').addClass('px-3 py-2 text-center border-top')
+                .css('background', '#111')
+                .html(`<small class="text-muted">${escapeHtml(prg.name)}</small>${fidelityNote}`);
+        }
+        container.append(navBar);
+
+        if (prgs.length > 1) {
+            container.find('#prgPrev').on('click', function() { idx--; show(idx); });
+            container.find('#prgNext').on('click', function() { idx++; show(idx); });
+        }
+    }
+
+    show(idx);
+}

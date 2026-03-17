@@ -2763,6 +2763,110 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     /**
+     * GET /api/files/{id}/prgs
+     * Return all PRG files found in a .prg or .zip file as base64-encoded JSON.
+     * Used by the file preview modal to render PETSCII art.
+     *
+     * The 2-byte PRG load address header is stripped before base64 encoding.
+     *
+     * Response: {"prgs":[{"name":"...","data_b64":"..."},...]}
+     */
+    SimpleRouter::get('/files/{id}/prgs', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
+            return;
+        }
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file    = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        $userId  = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied']);
+            return;
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $filename = basename($file['filename']);
+        $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if ($ext === 'prg') {
+            $bytes = file_get_contents($storagePath);
+            if ($bytes === false || strlen($bytes) < 3) {
+                http_response_code(422);
+                echo json_encode(['error' => 'File too short to be a valid PRG']);
+                return;
+            }
+            $loadAddress = ord($bytes[0]) | (ord($bytes[1]) << 8);
+            echo json_encode(['prgs' => [[
+                'name'         => $filename,
+                'load_address' => $loadAddress,
+                'data_b64'     => base64_encode(substr($bytes, 2)),
+            ]]]);
+            return;
+        }
+
+        if ($ext === 'zip') {
+            $zip = new ZipArchive();
+            if ($zip->open($storagePath) !== true) {
+                http_response_code(422);
+                echo json_encode(['error' => 'Cannot open ZIP']);
+                return;
+            }
+
+            $prgs = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entryName = $zip->getNameIndex($i);
+                if (strtolower(pathinfo($entryName, PATHINFO_EXTENSION)) !== 'prg') {
+                    continue;
+                }
+                $data = $zip->getFromIndex($i);
+                if ($data === false || strlen($data) < 3) {
+                    continue;
+                }
+                $loadAddress = ord($data[0]) | (ord($data[1]) << 8);
+                $prgs[] = [
+                    'name'         => basename($entryName),
+                    'load_address' => $loadAddress,
+                    'data_b64'     => base64_encode(substr($data, 2)),
+                ];
+            }
+            $zip->close();
+
+            if (empty($prgs)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'No PRG files found in ZIP']);
+                return;
+            }
+
+            echo json_encode(['prgs' => $prgs]);
+            return;
+        }
+
+        http_response_code(404);
+        echo json_encode(['error' => 'Not a PRG or ZIP file']);
+    })->where(['id' => '[0-9]+']);
+
+    /**
      * POST /api/files/{id}/share
      * Create a share link for a file (auth required). Returns existing share if one exists.
      */
