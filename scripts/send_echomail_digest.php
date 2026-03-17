@@ -265,13 +265,13 @@ foreach ($users as $user) {
     $maxPerArea = 20; // Show at most this many messages per area
 
     // Determine the lookback window.
-    // Use last_sent when available; on first run fall back to the frequency window
-    // so the user only sees recent activity, not the entire message history.
-    if ($lastSent !== null) {
+    // --resend always uses the full frequency window so there are messages to show.
+    // Normal runs use last_sent when available; first run falls back to the frequency window.
+    $lookback = $frequency === 'weekly' ? '7 days' : '24 hours';
+    if (!$resend && $lastSent !== null) {
         $since = $lastSent;
     } else {
-        $lookback = $frequency === 'weekly' ? '7 days' : '24 hours';
-        $since    = (new DateTimeImmutable("-{$lookback}"))->format('Y-m-d H:i:s');
+        $since = (new DateTimeImmutable("-{$lookback}"))->format('Y-m-d H:i:s');
     }
 
     // Fetch new echomail in subscribed areas, ordered so the most active areas
