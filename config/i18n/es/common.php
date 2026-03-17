@@ -174,6 +174,12 @@ return [
     'ui.footer.powered_by' => 'Desarrollado por',
     'ui.footer.registered_to' => 'Registrado para {name}',
 
+    // 403 Page
+    'ui.error403.title' => 'Funcion registrada',
+    'ui.error403.heading' => 'Esta funcion requiere registro',
+    'ui.error403.description' => 'Esta pagina solo esta disponible para instalaciones registradas. Visite la pagina de licencias para obtener mas informacion sobre el registro y los beneficios que ofrece.',
+    'ui.error403.licensing_link' => 'Licencias',
+
     // 404 Page
     'ui.error404.title' => 'Pagina no encontrada',
     'ui.error404.description' => 'La pagina que busca no existe o se movio a otra ubicacion.',

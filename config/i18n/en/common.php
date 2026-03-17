@@ -174,6 +174,12 @@ return [
     'ui.footer.powered_by' => 'Powered by',
     'ui.footer.registered_to' => 'Registered to {name}',
 
+    // 403 Page
+    'ui.error403.title' => 'Registered Feature',
+    'ui.error403.heading' => 'This feature requires registration',
+    'ui.error403.description' => 'This page is only available to registered installations. Visit the Licensing page to learn more about registration and the benefits it provides.',
+    'ui.error403.licensing_link' => 'Licensing',
+
     // 404 Page
     'ui.error404.title' => 'Page Not Found',
     'ui.error404.description' => "The page you're looking for doesn't exist or has been moved to another location.",

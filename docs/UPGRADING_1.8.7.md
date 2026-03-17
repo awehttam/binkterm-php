@@ -56,6 +56,16 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Subscription Toggle in Echomail Reader](#subscription-toggle-in-echomail-reader)
   - [BinkP Filenames with Spaces](#binkp-filenames-with-spaces)
 - [Footer Registration Display](#footer-registration-display)
+- [Premium Features and Registration](#premium-features-and-registration)
+  - [Registration Badge on Admin Dashboard](#registration-badge-on-admin-dashboard)
+  - [Branding Controls](#branding-controls)
+  - [Message Templates](#message-templates)
+  - [Economy Viewer Now Requires Registration](#economy-viewer-now-requires-registration)
+  - [Referral Analytics](#referral-analytics)
+  - [How to Register](#how-to-register)
+- [Shared File Preview for Unauthenticated Visitors](#shared-file-preview-for-unauthenticated-visitors)
+- [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
+- [Admin Menu Reorganization](#admin-menu-reorganization)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -195,6 +205,32 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   use the primary key index instead of a full table count.
 - Echo area management table now has sortable column headers and a **Subs**
   column showing the subscriber count per area.
+- Admin menu reorganized: new **Analytics** and **Community** submenus; Auto
+  Feed moved into Area Management.
+
+**Premium / Registration**
+- Registration status row added to the admin dashboard.
+- Registered sysops can now set custom footer text and hide the "Powered by
+  BinktermPHP" attribution line from the site footer.
+- **Message Templates** — compose form now includes a Templates button for
+  registered installations. Save and reuse subject/body templates, filterable
+  by message type (netmail, echomail, or both).
+- **Economy Viewer** now requires a valid license.
+- **Referral Analytics** — new premium admin page showing top referrers, recent
+  signups, bonus credits earned, and summary totals.
+- Admin licensing page now shows a **Why Register?** panel explaining the value
+  of registration, with a **How to Register** modal that renders `REGISTER.md`.
+
+**Telnet / SSH**
+- Telnet file area browser now supports virtual subfolders.
+- Telnet file area listing now shows all areas (pagination was previously capped
+  at one page).
+- ISO-backed file areas can now be downloaded via ZMODEM over telnet.
+- SSH server now correctly identifies the connected user.
+
+**Shared Files**
+- File preview on shared file pages now works for visitors who are not logged in,
+  including PETSCII/PRG rendering and the Run on C64 emulator button.
 
 ## Enhanced Message Search
 
@@ -1108,6 +1144,165 @@ BinktermPHP" line. It is now displayed inline:
 
 The badge icon has been removed. The change applies when a valid licence is
 present; unlicensed installations are unaffected.
+
+## Premium Features and Registration
+
+This release introduces **Registration** as a way for sysops to support the
+continued development of BinktermPHP. BinktermPHP remains fully functional
+without registration — it is never required to run a BBS. Registered
+installations unlock a small set of extras as a thank-you for contributing.
+
+For registration options and instructions, see [REGISTER.md](../REGISTER.md).
+
+### Registration Badge on Admin Dashboard
+
+The admin dashboard (`/admin`) now includes a **Registration Status** row in the
+system information section. It shows the current tier (Community Edition,
+Registered, or Sponsor), the licensee name, and the system name when a valid
+license is present. No action is required to enable this display.
+
+### Branding Controls
+
+Registered installations can now customise the site footer from the **Admin →
+Settings → Branding** panel:
+
+- **Custom footer text** — replace or supplement the default footer with any
+  text you choose (plain text; rendered beneath the powered-by line).
+- **Hide "Powered by BinktermPHP" attribution** — optionally remove the
+  attribution line entirely for a fully branded experience.
+
+These options are stored in `data/bbs.json` and take effect immediately on save.
+
+### Message Templates
+
+A **Templates** button (bookmark icon) now appears in the compose form toolbar
+for registered installations. Templates are reusable subject/body pairs that
+can be saved, named, and filtered by message type (netmail, echomail, or both).
+
+To create a template: compose a message, click **Templates → Save as Template**,
+give it a name and choose its type. To use a template: click **Templates** and
+select one from the list to pre-fill the subject and body fields.
+
+Templates are stored per-user in the database. No migration is required for
+existing users — the table was added in a prior release.
+
+### Economy Viewer Now Requires Registration
+
+The **Economy Viewer** admin page (`/admin/economy-viewer`) now requires a valid
+license. Unlicensed installations will see an upgrade prompt in place of the
+data table. The Economy Viewer displays credit transaction volume, top earners
+and spenders, and economy health metrics.
+
+### Referral Analytics
+
+A new **Referral Analytics** admin page (`/admin/referral-analytics`) is
+available to registered installations. It shows:
+
+- Top referrers (users who have brought in the most sign-ups)
+- Recent referred sign-ups with join dates
+- Bonus credits earned through referrals
+- Summary totals (total referrals, total bonus credits awarded)
+
+This page requires a valid license and is accessible via **Admin → Analytics →
+Referral Analytics**.
+
+### How to Register
+
+Visit the **Admin → Licensing** page and click **How to Register** to open the
+registration modal, which displays the `REGISTER.md` document with current
+registration options and contact information.
+
+The **Why Register?** panel on the licensing page summarises the benefits:
+sustaining the project, custom branding controls, access to premium features,
+and a perpetual license for the current version line.
+
+## Shared File Preview for Unauthenticated Visitors
+
+Shared file links (`/shared/file/{area}/{filename}`) previously displayed file
+metadata but required the visitor to be logged in to see any preview. The inline
+preview (images, video, audio, text/NFO, ANSI art, PETSCII/PRG) now works for
+unauthenticated visitors who arrive via a valid, non-expired share link.
+
+This covers all preview types, including:
+
+- **PETSCII / PRG rendering** — the `/api/files/{id}/prgs` endpoint now accepts
+  `share_area` and `share_filename` query parameters. When the share is valid
+  and the file ID matches, the request is served without requiring a session.
+- **Run on C64 emulator** — the C64 emulator iframe (`c64emu/index.html`) reads
+  the share parameters from its own URL and forwards them to the `/prgs` fetch,
+  so the emulator loads correctly for unauthenticated visitors too.
+
+No configuration or migration is required.
+
+## Telnet and SSH File Area Fixes
+
+### Virtual Subfolder Navigation
+
+The Telnet file area browser now supports the same virtual subfolder structure
+as the web interface. Users navigating the file area over Telnet can enter
+subfolders (e.g. *Netmail Attachments*, *FREQ Responses*, ISO subdirectories)
+and return to the parent level, matching the web experience.
+
+### Pagination Fix
+
+The Telnet file area listing was previously capped at a single page of results,
+meaning only the first N files in an area were shown. The listing now iterates
+all pages and displays every file in the area.
+
+### ISO File Download via ZMODEM
+
+Files stored in ISO-backed file areas can now be downloaded over Telnet using
+ZMODEM. Previously ZMODEM transfers from ISO areas were blocked because the
+Telnet server did not resolve the physical path for ISO-backed files. The
+transfer path is now resolved correctly before initiating the ZMODEM session.
+
+### SSH User Identification
+
+The SSH server now correctly identifies the connected user and associates the
+session with their account. This fixes a regression where SSH sessions appeared
+as anonymous or misidentified the user in session logs.
+
+## Admin Menu Reorganization
+
+The admin navigation dropdown has been reorganized to reduce clutter and group
+related items into logical submenus.
+
+### Analytics Submenu
+
+A new **Analytics** submenu consolidates reporting pages:
+
+| Page | Requires License |
+|---|---|
+| Activity Statistics | No |
+| Economy Viewer | Yes |
+| Referral Analytics | Yes |
+
+License-gated items are displayed in a muted grey style and are not clickable
+when no valid license is present. A tooltip reading *Registered Feature* appears
+on hover to explain why the item is inactive. Items remain visible (not hidden)
+so administrators know what is available with registration.
+
+### Community Submenu
+
+A new **Community** submenu groups interactive community features:
+
+- BBS Directory
+- Ads
+- Chat (sub-submenu: Chat Rooms, MRC Settings)
+- Polls
+- Shoutbox
+
+### Area Management Submenu Changes
+
+**Auto Feed** has been moved inside the **Area Management** submenu (below a
+divider), since it is directly related to echo area configuration. It was
+previously a top-level item in the Admin dropdown.
+
+### Chat Submenu Renamed
+
+The admin submenu previously labelled *Local Chat* has been renamed to **Chat**,
+since it contains configuration for both local chat rooms and remote MRC (Multi
+Relay Chat) settings.
 
 ## Upgrade Instructions
 
