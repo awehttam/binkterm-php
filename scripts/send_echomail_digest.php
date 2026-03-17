@@ -10,12 +10,15 @@
  * frequency (daily / weekly) internally.
  *
  * Usage:
- *   php scripts/send_echomail_digest.php [--dry-run] [--verbose] [--user=ID]
+ *   php scripts/send_echomail_digest.php [--dry-run] [--verbose] [--resend] [--user=ID]
  *
  * Options:
  *   --dry-run    Show what would be sent without actually sending or updating
  *                last-sent timestamps.
  *   --verbose    Print per-user status to stdout.
+ *   --resend     Force send even if the frequency window has not elapsed yet.
+ *                Lookback window is still based on last_sent (or the frequency
+ *                period if never sent). Useful for support and testing.
  *   --user=ID    Process only the specified user ID (useful for testing).
  *
  * Requirements:
@@ -36,19 +39,25 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 
 // ── Argument parsing ────────────────────────────────────────────────────────
 
-$dryRun  = false;
-$verbose = false;
+$dryRun   = false;
+$verbose  = false;
+$resend   = false;
 $onlyUser = null;
 
 foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--dry-run')   { $dryRun  = true; continue; }
     if ($arg === '--verbose')   { $verbose = true; continue; }
+    if ($arg === '--resend')    { $resend  = true; continue; }
     if (str_starts_with($arg, '--user=')) {
         $onlyUser = (int) substr($arg, 7);
         continue;
     }
     if ($arg === '--help') {
-        echo "Usage: php scripts/send_echomail_digest.php [--dry-run] [--verbose] [--user=ID]\n";
+        echo "Usage: php scripts/send_echomail_digest.php [--dry-run] [--verbose] [--resend] [--user=ID]\n";
+        echo "\n";
+        echo "  --resend   Force send even if the frequency window has not elapsed.\n";
+        echo "             Lookback window is still based on last_sent (or the\n";
+        echo "             frequency period if never sent). Useful for support/testing.\n";
         exit(0);
     }
 }
@@ -245,7 +254,7 @@ foreach ($users as $user) {
     $frequency = $user['echomail_digest'];
     $lastSent  = $user['echomail_digest_last_sent'];
 
-    if (!isDue($frequency, $lastSent)) {
+    if (!$resend && !isDue($frequency, $lastSent)) {
         log_msg("User {$userId} ({$user['username']}): not due yet, skipping.", $verbose);
         $skipped++;
         continue;
