@@ -2797,7 +2797,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * (disk_name only present for .d64 files)
      */
     SimpleRouter::get('/files/{id}/prgs', function($id) {
-        $user = RouteHelper::requireAuth();
+        // Allow unauthenticated access for valid active file shares
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        if (!$user && !$viaShare) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
         header('Content-Type: application/json');
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
@@ -2806,8 +2827,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $manager = new \BinktermPHP\FileAreaManager();
-        $file    = $manager->getFileById((int)$id);
+        $file = $manager->getFileById((int)$id);
 
         if (!$file || $file['status'] !== 'approved') {
             http_response_code(404);
@@ -2815,13 +2835,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $userId  = $user['user_id'] ?? $user['id'] ?? null;
-        $isAdmin = !empty($user['is_admin']);
+        if (!$viaShare) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
 
-        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Access denied']);
-            return;
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
         }
 
         $storagePath = $manager->resolveFilePath($file);

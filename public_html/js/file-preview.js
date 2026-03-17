@@ -45,11 +45,12 @@ function _fpT(key, fallback, params) {
 function renderPreviewContent(fileId, filename, container, shareParams) {
     const body = container;
     const type = getFileType(filename);
-    let previewUrl = `/api/files/${fileId}/preview`;
-    if (shareParams && shareParams.share_area && shareParams.share_filename) {
-        previewUrl += '?share_area=' + encodeURIComponent(shareParams.share_area)
-                   + '&share_filename=' + encodeURIComponent(shareParams.share_filename);
-    }
+    const shareQs = (shareParams && shareParams.share_area && shareParams.share_filename)
+        ? '?share_area=' + encodeURIComponent(shareParams.share_area)
+          + '&share_filename=' + encodeURIComponent(shareParams.share_filename)
+        : '';
+    const previewUrl = `/api/files/${fileId}/preview` + shareQs;
+    const prgsUrl    = `/api/files/${fileId}/prgs`    + shareQs;
 
     body.find('video,audio').each(function() { this.pause(); this.src = ''; });
 
@@ -124,7 +125,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
         body.css('background', '#0000aa').html(
             `<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x" style="color:#55ffff;"></i></div>`
         );
-        fetch(`/api/files/${fileId}/prgs`, {credentials: 'same-origin'})
+        fetch(prgsUrl, {credentials: 'same-origin'})
             .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
             .then(data => {
                 if (!data.prgs || !data.prgs.length) throw new Error('empty');
@@ -183,7 +184,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
         body.css('background', '').html(
             `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
         );
-        fetch(`/api/files/${fileId}/prgs`, {credentials: 'same-origin'})
+        fetch(prgsUrl, {credentials: 'same-origin'})
             .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
             .then(data => {
                 if (!data.prgs || !data.prgs.length) throw new Error('empty');
@@ -224,7 +225,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                     if (!ct.includes('text/')) throw new Error('no-diz');
                     return r.text();
                 }),
-            fetch(`/api/files/${fileId}/prgs`, {credentials: 'same-origin'})
+            fetch(prgsUrl, {credentials: 'same-origin'})
                 .then(r => r.ok ? r.json() : Promise.reject())
         ]).then(([dizResult, prgsResult]) => {
             const diz     = dizResult.status  === 'fulfilled' ? dizResult.value        : null;
