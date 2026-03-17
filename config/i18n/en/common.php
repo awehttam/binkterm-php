@@ -239,6 +239,7 @@ return [
     'ui.base.admin.doors_native' => 'Native Doors',
     'ui.base.admin.doors_web' => 'Web Doors',
     'ui.base.admin.analytics' => 'Analytics',
+    'ui.base.admin.registered_feature' => 'Registered Feature',
     'ui.base.admin.activity_stats' => 'Activity Statistics',
     'ui.base.admin.economy_viewer' => 'Economy Viewer',
     'ui.base.admin.referrals' => 'Referral Analytics',
