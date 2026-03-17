@@ -1,0 +1,225 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.licensing.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-id-card"></i>
+        {{ t('ui.admin.licensing.heading', {}, 'common') }}
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-7">
+
+        <!-- Current License Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.licensing.current_status', {}, 'common') }}</h6>
+            </div>
+            <div class="card-body" id="licenseStatusBody">
+                <div class="text-center py-3">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload / Replace License -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.licensing.upload_heading', {}, 'common') }}</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">{{ t('ui.admin.licensing.upload_help', {}, 'common') }}</p>
+
+                <div id="licenseUploadAlert" class="alert d-none" role="alert"></div>
+
+                <div class="mb-3">
+                    <label for="licenseJson" class="form-label">{{ t('ui.admin.licensing.license_json_label', {}, 'common') }}</label>
+                    <textarea class="form-control font-monospace" id="licenseJson" rows="10"
+                              placeholder='{"payload": {...}, "signature": "..."}'></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-fidonet" onclick="uploadLicense()">
+                        <i class="fas fa-upload me-1"></i>
+                        {{ t('ui.admin.licensing.upload_btn', {}, 'common') }}
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="removeLicense()">
+                        <i class="fas fa-trash me-1"></i>
+                        {{ t('ui.admin.licensing.remove_btn', {}, 'common') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.licensing.how_to_heading', {}, 'common') }}</h6>
+            </div>
+            <div class="card-body">
+                <ol class="small mb-0">
+                    <li class="mb-1">{{ t('ui.admin.licensing.how_to_step1', {}, 'common') }}</li>
+                    <li class="mb-1">{{ t('ui.admin.licensing.how_to_step2', {}, 'common') }}</li>
+                    <li class="mb-1">{{ t('ui.admin.licensing.how_to_step3', {}, 'common') }}</li>
+                    <li>{{ t('ui.admin.licensing.how_to_step4', {}, 'common') }}</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadLicenseStatus();
+});
+
+function loadLicenseStatus() {
+    $.get('/admin/api/license')
+        .done(function(data) {
+            renderLicenseStatus(data);
+        })
+        .fail(function() {
+            $('#licenseStatusBody').html('<div class="text-danger">Failed to load license status.</div>');
+        });
+}
+
+function renderLicenseStatus(data) {
+    const status = data.status || {};
+    const valid = status.valid === true;
+    const tier = status.tier || 'community';
+    const reason = status.reason || '';
+
+    let badgeClass = 'bg-secondary';
+    let tierLabel = 'Community Edition';
+    if (tier === 'registered') { badgeClass = 'bg-primary'; tierLabel = 'Registered'; }
+    if (tier === 'sponsor')    { badgeClass = 'bg-warning text-dark'; tierLabel = 'Sponsor'; }
+
+    let stateHtml = '';
+    if (valid) {
+        const expiry = status.expires_at
+            ? `<br><small class="text-muted">Expires: ${escapeHtml(status.expires_at)}</small>`
+            : `<br><small class="text-muted">Perpetual license</small>`;
+        stateHtml = `
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <i class="fas fa-check-circle text-success fa-2x"></i>
+                <div>
+                    <strong>${escapeHtml(status.licensee || '')}</strong>
+                    ${status.system_name ? ` &mdash; ${escapeHtml(status.system_name)}` : ''}
+                    ${expiry}
+                </div>
+            </div>`;
+    } else {
+        const reasonMap = {
+            missing:           'No license file found.',
+            malformed:         'License file is malformed.',
+            invalid_signature: 'Signature verification failed.',
+            expired:           'License has expired.',
+            unreadable:        'License file is not readable.',
+            invalid_key:       'License key data is invalid.',
+        };
+        const reasonText = reasonMap[reason] || `License invalid (${escapeHtml(reason)}).`;
+        stateHtml = `
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <i class="fas fa-times-circle text-muted fa-2x"></i>
+                <div>
+                    <span class="text-muted">${reasonText}</span>
+                </div>
+            </div>`;
+    }
+
+    let featuresHtml = '';
+    if (valid && Array.isArray(status.features) && status.features.length > 0) {
+        const items = status.features.map(f => `<span class="badge bg-light text-dark border me-1 mb-1">${escapeHtml(f)}</span>`).join('');
+        featuresHtml = `<div class="mt-3"><small class="text-muted d-block mb-1">Features:</small>${items}</div>`;
+    }
+
+    let detailsHtml = '';
+    if (status.license_id) {
+        detailsHtml = `<small class="text-muted">License ID: ${escapeHtml(status.license_id)}</small>`;
+        if (status.issued_at) {
+            detailsHtml += `<small class="text-muted ms-3">Issued: ${escapeHtml(status.issued_at)}</small>`;
+        }
+    }
+
+    $('#licenseStatusBody').html(`
+        ${stateHtml}
+        <div><span class="badge ${badgeClass}">${escapeHtml(tierLabel)}</span></div>
+        ${featuresHtml}
+        ${detailsHtml ? `<div class="mt-2">${detailsHtml}</div>` : ''}
+    `);
+}
+
+function uploadLicense() {
+    const json = $('#licenseJson').val().trim();
+    if (!json) {
+        showUploadAlert('danger', 'Please paste the license JSON.');
+        return;
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(json);
+    } catch (e) {
+        showUploadAlert('danger', 'Invalid JSON: ' + e.message);
+        return;
+    }
+
+    $.ajax({
+        url: '/admin/api/license',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ license: parsed }),
+        success: function(data) {
+            if (data.success) {
+                showUploadAlert('success', data.message || 'License installed successfully.');
+                $('#licenseJson').val('');
+                loadLicenseStatus();
+            } else {
+                showUploadAlert('danger', data.error || 'Failed to install license.');
+            }
+        },
+        error: function(xhr) {
+            const msg = xhr.responseJSON && xhr.responseJSON.error
+                ? xhr.responseJSON.error
+                : 'Request failed.';
+            showUploadAlert('danger', msg);
+        }
+    });
+}
+
+function removeLicense() {
+    if (!confirm(window.t('ui.admin.licensing.remove_confirm', {}, 'Remove the current license file? The system will revert to Community Edition.'))) {
+        return;
+    }
+
+    $.ajax({
+        url: '/admin/api/license',
+        method: 'DELETE',
+        success: function(data) {
+            if (data.success) {
+                showUploadAlert('success', 'License removed. Now running Community Edition.');
+                loadLicenseStatus();
+            } else {
+                showUploadAlert('danger', data.error || 'Failed to remove license.');
+            }
+        },
+        error: function(xhr) {
+            const msg = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Request failed.';
+            showUploadAlert('danger', msg);
+        }
+    });
+}
+
+function showUploadAlert(type, message) {
+    $('#licenseUploadAlert')
+        .removeClass('d-none alert-success alert-danger alert-warning')
+        .addClass('alert-' + type)
+        .text(message);
+}
+</script>
+{% endblock %}

@@ -94,6 +94,108 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // Licensing management page
+    SimpleRouter::get('/licensing', function() {
+        RouteHelper::requireAdmin();
+        $template = new Template();
+        $template->renderResponse('admin/licensing.twig');
+    });
+
+    // License API — GET: current status
+    SimpleRouter::get('/api/license', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+        echo json_encode(['status' => \BinktermPHP\License::getStatus()]);
+    });
+
+    // License API — POST: install a new license
+    SimpleRouter::post('/api/license', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $licenseData = $input['license'] ?? null;
+
+        if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid license format. Expected {payload: {...}, signature: "..."}.']);
+            return;
+        }
+
+        // Verify signature before passing to the daemon for installation.
+        // Write to a temp file so License::getStatus() can parse and verify it.
+        $tmpPath = tempnam(sys_get_temp_dir(), 'binklic_');
+        file_put_contents($tmpPath, json_encode($licenseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+        \BinktermPHP\License::clearCache();
+        $originalEnv = $_ENV['LICENSE_FILE'] ?? null;
+        $_ENV['LICENSE_FILE'] = $tmpPath;
+        putenv('LICENSE_FILE=' . $tmpPath);
+
+        $status = \BinktermPHP\License::getStatus();
+
+        if ($originalEnv !== null) {
+            $_ENV['LICENSE_FILE'] = $originalEnv;
+            putenv('LICENSE_FILE=' . $originalEnv);
+        } else {
+            unset($_ENV['LICENSE_FILE']);
+            putenv('LICENSE_FILE');
+        }
+        \BinktermPHP\License::clearCache();
+        @unlink($tmpPath);
+
+        if (!$status['valid']) {
+            $reason = $status['reason'] ?? 'unknown';
+            $reasonMessages = [
+                'invalid_signature' => 'Signature verification failed. This license was not issued by the BinktermPHP project.',
+                'expired'           => 'This license has expired.',
+                'malformed'         => 'License file is malformed or missing required fields.',
+                'invalid_key'       => 'License key data is invalid.',
+            ];
+            $msg = $reasonMessages[$reason] ?? "License is not valid (reason: {$reason}).";
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => $msg]);
+            return;
+        }
+
+        // Delegate the actual file write to the admin daemon (web process has no write access).
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $daemon->setLicense($licenseData);
+            $daemon->close();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Admin daemon error: ' . $e->getMessage()]);
+            return;
+        }
+
+        \BinktermPHP\License::clearCache();
+        echo json_encode([
+            'success' => true,
+            'message' => 'License installed successfully. ' . ucfirst($status['tier']) . ' edition activated.',
+            'status'  => \BinktermPHP\License::getStatus(),
+        ]);
+    });
+
+    // License API — DELETE: remove license file
+    SimpleRouter::delete('/api/license', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $daemon->deleteLicense();
+            $daemon->close();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Admin daemon error: ' . $e->getMessage()]);
+            return;
+        }
+
+        \BinktermPHP\License::clearCache();
+        echo json_encode(['success' => true, 'message' => 'License removed. Running Community Edition.']);
+    });
+
     // Database statistics page
     SimpleRouter::get('/database-stats', function() {
         $user = RouteHelper::requireAdmin();
@@ -961,6 +1063,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config['branding']['lock_theme'] = !empty($branding['lock_theme']);
                 $config['branding']['logo_url'] = $logoUrl;
                 $config['branding']['footer_text'] = $footerText;
+                $config['branding']['show_registration_badge'] = isset($branding['show_registration_badge']) ? (bool)$branding['show_registration_badge'] : true;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);

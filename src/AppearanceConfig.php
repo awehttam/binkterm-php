@@ -67,6 +67,7 @@ class AppearanceConfig
                 'lock_theme' => false,
                 'logo_url' => '',
                 'footer_text' => '',
+                'show_registration_badge' => true,
             ],
             'content' => [
                 'announcement' => [

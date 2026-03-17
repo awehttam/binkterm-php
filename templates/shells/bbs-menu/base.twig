@@ -235,7 +235,7 @@
                     {{ system_name }} - Node {{ fidonet_origin }} - Sysop: {{ sysop_name }}
                 {% endif %}
                 | <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">{{ t('ui.about.house_rules', {}, 'common') }}</a>
-                | {{ t('ui.footer.powered_by', {}, 'common') }} <a href="https://lovelybits.org/binktermphp">BinktermPHP</a> <a href="https://github.com/awehttam/binkterm-php">{{ app_version }}</a>
+                {% if license_valid and license_system_name and appearance.branding.show_registration_badge != false %}| <i class="fas fa-id-card me-1"></i>{{ t('ui.footer.registered_to', {'name': license_system_name}, 'common') }} {% endif %}| {{ t('ui.footer.powered_by', {}, 'common') }} <a href="https://lovelybits.org/binktermphp">BinktermPHP</a> <a href="https://github.com/awehttam/binkterm-php">{{ app_version }}</a>
             </small>
         </div>
     </footer>

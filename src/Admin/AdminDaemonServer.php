@@ -653,6 +653,19 @@ class AdminDaemonServer
                     $this->spawnCommand([PHP_BINARY, 'scripts/import_iso.php', "--area={$areaId}", '--update']);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['spawned' => true]]);
                     break;
+                case 'set_license':
+                    $licenseData = $data['license'] ?? null;
+                    if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_license_format']);
+                        break;
+                    }
+                    $this->writeLicenseFile($licenseData);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'delete_license':
+                    $this->deleteLicenseFile();
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -1776,6 +1789,36 @@ class AdminDaemonServer
         $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         if ($json === false || @file_put_contents($overlayPath, $json, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write overlay file');
+        }
+    }
+
+    /**
+     * Write a validated license payload to data/license.json.
+     *
+     * @param array<string,mixed> $licenseData
+     */
+    private function writeLicenseFile(array $licenseData): void
+    {
+        $path = __DIR__ . '/../../data/license.json';
+        $dir  = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+            throw new \RuntimeException('Failed to create data directory');
+        }
+
+        $json = json_encode($licenseData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false || @file_put_contents($path, $json . "\n", LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write license file');
+        }
+    }
+
+    /**
+     * Remove the license file, reverting the installation to Community Edition.
+     */
+    private function deleteLicenseFile(): void
+    {
+        $path = __DIR__ . '/../../data/license.json';
+        if (file_exists($path) && !@unlink($path)) {
+            throw new \RuntimeException('Failed to remove license file');
         }
     }
 

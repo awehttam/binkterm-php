@@ -207,6 +207,19 @@ class Template
         $this->twig->addGlobal('credit_balance', $creditBalance);
         $this->twig->addGlobal('referral_enabled', $referralEnabled);
 
+        // License state — verified once per request, cached in memory.
+        // Failure is always safe; community tier is the fallback.
+        try {
+            $licenseStatus = License::getStatus();
+        } catch (\Throwable $e) {
+            $licenseStatus = ['valid' => false, 'tier' => 'community', 'reason' => 'error', 'features' => []];
+        }
+        $this->twig->addGlobal('license_valid', (bool)($licenseStatus['valid'] ?? false));
+        $this->twig->addGlobal('license_tier', (string)($licenseStatus['tier'] ?? 'community'));
+        $this->twig->addGlobal('license_licensee', $licenseStatus['licensee'] ?? null);
+        $this->twig->addGlobal('license_system_name', $licenseStatus['system_name'] ?? null);
+        $this->twig->addGlobal('license_features', (array)($licenseStatus['features'] ?? []));
+
         // Add available themes
         $availableThemes = Config::getThemes();
         $this->twig->addGlobal('available_themes', $availableThemes);

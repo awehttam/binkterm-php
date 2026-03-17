@@ -91,6 +91,16 @@
                     <div class="form-text">{{ t('ui.admin.appearance.branding.footer_help', {}, locale, ['common']) }}</div>
                 </div>
 
+                {% if license_valid and 'registered_badge' in license_features %}
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showRegistrationBadge">
+                        <label class="form-check-label" for="showRegistrationBadge">{{ t('ui.admin.appearance.branding.show_registration_badge', {}, locale, ['common']) }}</label>
+                    </div>
+                    <div class="form-text">{{ t('ui.admin.appearance.branding.show_registration_badge_help', {}, locale, ['common']) }}</div>
+                </div>
+                {% endif %}
+
                 <button type="button" class="btn btn-primary" onclick="saveBranding()">
                     <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.branding.save', {}, locale, ['common']) }}
                 </button>
@@ -485,6 +495,7 @@ function loadAppearanceConfig() {
             $('#lockTheme').prop('checked', !!b.lock_theme);
             $('#logoUrl').val(b.logo_url || '');
             $('#footerText').val(b.footer_text || '');
+            $('#showRegistrationBadge').prop('checked', b.show_registration_badge !== false);
 
             // Content
             const ann = (config.content || {}).announcement || {};
@@ -589,7 +600,8 @@ function saveBranding() {
             default_theme: $('#defaultTheme').val(),
             lock_theme: $('#lockTheme').is(':checked'),
             logo_url: $('#logoUrl').val().trim(),
-            footer_text: $('#footerText').val().trim()
+            footer_text: $('#footerText').val().trim(),
+            show_registration_badge: $('#showRegistrationBadge').is(':checked')
         }
     };
     showStatus('brandingStatus', 'info', uiT('ui.common.saving', 'Saving...'));

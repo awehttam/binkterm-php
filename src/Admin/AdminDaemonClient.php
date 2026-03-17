@@ -264,6 +264,24 @@ class AdminDaemonClient
         return $this->sendCommand('delete_shell_art', ['name' => $name]);
     }
 
+    /**
+     * Write a license payload to data/license.json via the daemon.
+     *
+     * @param array<string,mixed> $licenseData Already-validated license array with 'payload' and 'signature' keys.
+     */
+    public function setLicense(array $licenseData): array
+    {
+        return $this->sendCommand('set_license', ['license' => $licenseData]);
+    }
+
+    /**
+     * Remove data/license.json via the daemon, reverting to Community Edition.
+     */
+    public function deleteLicense(): array
+    {
+        return $this->sendCommand('delete_license');
+    }
+
     public function stopServices(): array
     {
         return $this->sendCommand('stop_services');

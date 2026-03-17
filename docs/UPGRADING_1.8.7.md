@@ -43,6 +43,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Page Position Memory](#page-position-memory)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
+- [Echo Area Management Improvements](#echo-area-management-improvements)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
@@ -159,6 +160,8 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Database performance improvements: new indexes on `mrc_outbound`, `users`,
   `shared_messages`, and `saved_messages`. Chat notification polling rewritten to
   use the primary key index instead of a full table count.
+- Echo area management table now has sortable column headers and a **Subs**
+  column showing the subscriber count per area.
 
 ## Enhanced Message Search
 
@@ -840,6 +843,24 @@ filename as required by the BinkP protocol.
 
 Previously a collision would clobber the existing inbound file with no
 warning.
+
+## Echo Area Management Improvements
+
+The echo area management table (Admin → Echo Areas) has been updated with two
+quality-of-life improvements:
+
+**Sortable columns** — clicking any column header sorts the table by that
+column. Clicking the same header again reverses the sort direction. An arrow
+indicator shows the active sort column and direction. Numeric columns (`ID`,
+`Messages`, `Subs`) sort numerically; all other columns sort alphabetically.
+The default sort is by ID ascending.
+
+**Subscriber count (Subs)** — a new **Subs** column shows how many users are
+actively subscribed to each echo area, making it easy to see which areas are
+most popular at a glance.
+
+No database migration is required; subscriber counts are derived from the
+existing `user_echoarea_subscriptions` table.
 
 ## Bug Fixes
 
