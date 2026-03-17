@@ -238,6 +238,7 @@ return [
     'ui.base.admin.doors_dos' => 'Puertas DOS',
     'ui.base.admin.doors_native' => 'Puertas nativas',
     'ui.base.admin.doors_web' => 'Puertas web',
+    'ui.base.admin.analytics' => 'Analitica',
     'ui.base.admin.activity_stats' => 'Estadisticas de actividad',
     'ui.base.admin.economy_viewer' => 'Visor de economia',
     'ui.base.admin.referrals' => 'Analitica de referidos',
