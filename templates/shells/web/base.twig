@@ -310,6 +310,10 @@
                                         {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> {{ t('ui.base.admin.upgrade_notes', {'version': app_version}, 'common') }}</a></li>{% endif %}
                                         <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> {{ t('ui.base.admin.claudes_bbs', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> {{ t('ui.base.admin.report_issue', {}, 'common') }}</a></li>
+                                        {% if not license_valid %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-primary" href="/admin/register"><i class="fas fa-id-card me-1"></i> {{ t('ui.base.admin.register', {}, 'common') }}</a></li>
+                                        {% endif %}
                                     </ul>
                                 </li>
 

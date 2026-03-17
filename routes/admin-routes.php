@@ -356,6 +356,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     });
 
     // Upgrade notes viewer
+    SimpleRouter::get('/register', function() {
+        RouteHelper::requireAdmin();
+
+        $docPath = __DIR__ . '/../REGISTER.md';
+        $raw  = file_exists($docPath) ? file_get_contents($docPath) : null;
+        $html = $raw !== null ? \BinktermPHP\MarkdownRenderer::toHtml($raw) : null;
+
+        $template = new Template();
+        $template->renderResponse('admin/upgrade_notes.twig', [
+            'version' => 'Registration',
+            'content' => $html,
+        ]);
+    });
+
     SimpleRouter::get('/upgrade-notes', function() {
         RouteHelper::requireAdmin();
 

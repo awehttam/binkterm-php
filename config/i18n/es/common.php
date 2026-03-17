@@ -263,6 +263,7 @@ return [
     'ui.base.admin.upgrade_notes' => 'Notas de actualizacion v{version}',
     'ui.base.admin.claudes_bbs' => 'BBS de Claude',
     'ui.base.admin.report_issue' => 'Reportar problema',
+    'ui.base.admin.register' => 'Registrar BinktermPHP',
 
     // Admin Licensing
     'ui.admin.licensing.page_title' => 'Licencias',

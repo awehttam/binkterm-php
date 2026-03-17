@@ -263,6 +263,7 @@ return [
     'ui.base.admin.upgrade_notes' => 'Upgrade Notes v{version}',
     'ui.base.admin.claudes_bbs' => "Claude's BBS",
     'ui.base.admin.report_issue' => 'Report Issue',
+    'ui.base.admin.register' => 'Register BinktermPHP',
 
     // Admin Licensing
     'ui.admin.licensing.page_title' => 'Licensing',
