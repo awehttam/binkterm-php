@@ -230,6 +230,7 @@ return [
     'ui.base.admin.file_area_rules' => 'Reglas de areas de archivos',
     'ui.base.admin.subscriptions' => 'Suscripciones',
     'ui.base.admin.auto_feed' => 'Auto Feed',
+    'ui.base.admin.chat' => 'Chat',
     'ui.base.admin.chat_rooms' => 'Salas de chat',
     'ui.base.admin.mrc_settings' => 'Configuracion de MRC',
     'ui.base.admin.polls' => 'Encuestas',
