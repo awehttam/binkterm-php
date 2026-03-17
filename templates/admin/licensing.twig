@@ -60,12 +60,13 @@
                 <h6 class="mb-0">{{ t('ui.admin.licensing.how_to_heading', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
-                <ol class="small mb-3">
-                    <li class="mb-1">{{ t('ui.admin.licensing.how_to_step1', {}, 'common') }}</li>
-                    <li class="mb-1">{{ t('ui.admin.licensing.how_to_step2', {}, 'common') }}</li>
-                    <li class="mb-1">{{ t('ui.admin.licensing.how_to_step3', {}, 'common') }}</li>
-                    <li>{{ t('ui.admin.licensing.how_to_step4', {}, 'common') }}</li>
-                </ol>
+                <p class="small text-muted mb-3">{{ t('ui.admin.licensing.why_intro', {}, 'common') }}</p>
+                <ul class="small mb-3 ps-3">
+                    <li class="mb-1"><strong>{{ t('ui.admin.licensing.why_sustain', {}, 'common') }}</strong></li>
+                    <li class="mb-1"><strong>{{ t('ui.admin.licensing.why_branding', {}, 'common') }}</strong></li>
+                    <li class="mb-1"><strong>{{ t('ui.admin.licensing.why_features', {}, 'common') }}</strong></li>
+                    <li><strong>{{ t('ui.admin.licensing.why_perpetual', {}, 'common') }}</strong></li>
+                </ul>
                 <a href="#" class="btn btn-sm btn-outline-primary" onclick="openRegisterModal(); return false;">
                     <i class="fas fa-info-circle me-1"></i>{{ t('ui.admin.licensing.how_to_register_link', {}, 'common') }}
                 </a>
