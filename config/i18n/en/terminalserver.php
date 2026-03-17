@@ -188,6 +188,9 @@ return [
     'ui.terminalserver.files.upload_duplicate'         => 'This file already exists in this area.',
     'ui.terminalserver.files.upload_readonly'          => 'This area is read-only. Uploads are not permitted.',
     'ui.terminalserver.files.upload_admin_only'        => 'Only administrators can upload to this area.',
+    'ui.terminalserver.files.files_back_hint'          => 'B)ack to parent folder',
+    'ui.terminalserver.files.not_a_file'               => 'That entry is a folder, not a file.',
+    'ui.terminalserver.files.enter_folder_or_file'     => 'Enter a folder number to browse, or a file number to view details.',
 
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Terminal Settings',

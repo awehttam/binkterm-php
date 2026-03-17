@@ -1230,7 +1230,7 @@ class FileAreaManager
     public function getFileById(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag, fa.domain,
+            SELECT f.*, fa.tag as area_tag, fa.domain, fa.iso_mount_point,
                    u.username as owner_username,
                    COALESCE(
                        NULLIF(TRIM(f.uploaded_from_address), ''),

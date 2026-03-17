@@ -101,10 +101,10 @@ class ZmodemTransfer
         self::$lastZdleSent = 0;
         self::$rxBuffer = '';
         self::$rxBufferPos = 0;
-        self::dbg("SEND start name={$name} path={$path} telnetIac=" . ($escapeTelnetIac ? '1' : '0'));
+        self::info("SEND start name={$name} path={$path} telnetIac=" . ($escapeTelnetIac ? '1' : '0'));
 
         if (!is_readable($path)) {
-            self::dbg("SEND fail unreadable path");
+            self::info("SEND fail unreadable/missing path={$path} exists=" . (file_exists($path) ? 'yes' : 'no') . " readable=" . (is_readable($path) ? 'yes' : 'no'));
             return false;
         }
 

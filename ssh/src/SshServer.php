@@ -245,7 +245,9 @@ class SshServer
                 $this->insecure,
                 false, true, false, 0,
                 $this->logger,
-                $preAuth
+                $preAuth,
+                $peer ?: 'unknown',
+                $peerIp
             );
             $bbsSession->run($forked);
 
@@ -281,7 +283,9 @@ class SshServer
             false,   // tlsEnabled (no hint needed for SSH)
             0,       // tlsPort
             $this->logger,
-            $preAuth
+            $preAuth,
+            $peer ?: 'unknown',
+            $peerIp
         );
 
         $bbsSession->run(true);
