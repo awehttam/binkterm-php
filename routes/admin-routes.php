@@ -3853,5 +3853,101 @@ SimpleRouter::get('/admin/api/bbs-directory/processor-types', function() {
     echo json_encode(['processors' => $processors]);
 });
 
+// ============================================================================
+// LovlyNet subscription management
+// ============================================================================
+
+/**
+ * GET /admin/lovlynet
+ * Admin page for managing LovlyNet echo/file area subscriptions.
+ */
+SimpleRouter::get('/admin/lovlynet', function() {
+    RouteHelper::requireAdmin();
+    $client   = new \BinktermPHP\LovlyNetClient();
+    $template = new Template();
+    $template->renderResponse('admin/lovlynet.twig', [
+        'lovlynet_configured'  => $client->isConfigured(),
+        'lovlynet_node_number' => $client->getNodeNumber(),
+        'lovlynet_base_url'    => $client->getBaseUrl(),
+    ]);
+});
+
+/**
+ * GET /admin/api/lovlynet/areas
+ * Proxy: fetch echo and file areas with subscription status from LovlyNet.
+ */
+SimpleRouter::get('/admin/api/lovlynet/areas', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $client->getAreas();
+
+    if (!$result['success']) {
+        http_response_code(502);
+        echo json_encode(['error' => $result['error']]);
+        return;
+    }
+
+    echo json_encode([
+        'echoareas'   => $result['echoareas'],
+        'fileareas'   => $result['fileareas'],
+        'ftn_address' => $result['ftn_address'] ?? '',
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/subscription
+ * Proxy: subscribe or unsubscribe from a LovlyNet area.
+ *
+ * Body: { "action": "subscribe"|"unsubscribe", "area_type": "echo"|"file", "area_tag": "TAG" }
+ */
+SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid JSON']);
+        return;
+    }
+
+    $action   = trim($body['action']   ?? '');
+    $areaType = trim($body['area_type'] ?? '');
+    $areaTag  = trim($body['area_tag']  ?? '');
+
+    if (!in_array($action, ['subscribe', 'unsubscribe'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid action']);
+        return;
+    }
+    if (!in_array($areaType, ['echo', 'file'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid area_type']);
+        return;
+    }
+    if ($areaTag === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'area_tag is required']);
+        return;
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $client->setSubscription($action, $areaType, $areaTag);
+
+    if (!$result['success']) {
+        http_response_code(502);
+        echo json_encode(['error' => $result['error']]);
+        return;
+    }
+
+    echo json_encode([
+        'success'    => true,
+        'echoareas'  => $result['echoareas'],
+        'fileareas'  => $result['fileareas'],
+    ]);
+});
+
 
 

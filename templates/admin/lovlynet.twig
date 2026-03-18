@@ -1,0 +1,227 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.lovlynet.page_title') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-network-wired"></i>
+        {{ t('ui.admin.lovlynet.heading') }}
+    </h2>
+    <button class="btn btn-outline-secondary" onclick="loadAreas()">
+        <i class="fas fa-sync-alt"></i>
+        {{ t('ui.common.refresh') }}
+    </button>
+</div>
+
+{% if not lovlynet_configured %}
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>{{ t('ui.admin.lovlynet.not_configured_title') }}</strong>
+    {{ t('ui.admin.lovlynet.not_configured_body') }}
+</div>
+{% else %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.node_number') }}</h6>
+                <p class="mb-0 fw-bold font-monospace">{{ lovlynet_node_number }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.server') }}</h6>
+                <p class="mb-0 small text-truncate font-monospace">{{ lovlynet_base_url }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.subscribed_areas') }}</h6>
+                <p class="mb-0 fw-bold" id="subscribedCount">—</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="areasTabs">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#echoTab">
+            <i class="fas fa-comments me-1"></i>
+            {{ t('ui.admin.lovlynet.tab_echo') }}
+            <span class="badge bg-secondary ms-1" id="echoCount">—</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#fileTab">
+            <i class="fas fa-folder-open me-1"></i>
+            {{ t('ui.admin.lovlynet.tab_file') }}
+            <span class="badge bg-secondary ms-1" id="fileCount">—</span>
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="echoTab">
+        <div class="card">
+            <div class="card-body p-0" id="echoAreasContainer">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="fileTab">
+        <div class="card">
+            <div class="card-body p-0" id="fileAreasContainer">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+
+$(document).ready(function() {
+    const init = function() { loadAreas(); };
+    if (typeof loadUserSettings === 'function') {
+        loadUserSettings().finally(init);
+    } else {
+        init();
+    }
+});
+
+let _allAreas = { echoareas: [], fileareas: [] };
+
+function loadAreas() {
+    ['echoAreasContainer', 'fileAreasContainer'].forEach(id => {
+        $('#' + id).html('<div class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
+    });
+
+    $.get('/admin/api/lovlynet/areas')
+        .done(function(data) {
+            _allAreas = data;
+            renderAreas('echo', data.echoareas || [], '#echoAreasContainer', '#echoCount');
+            renderAreas('file', data.fileareas || [], '#fileAreasContainer', '#fileCount');
+            updateSubscribedCount();
+        })
+        .fail(function(xhr) {
+            const msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error
+                      : uiT('ui.admin.lovlynet.load_failed', 'Failed to load areas from LovlyNet');
+            ['echoAreasContainer', 'fileAreasContainer'].forEach(id => {
+                $('#' + id).html(`<div class="alert alert-danger m-3">${escapeHtml(msg)}</div>`);
+            });
+        });
+}
+
+function renderAreas(type, areas, containerSel, countSel) {
+    const $c = $(containerSel);
+    $(countSel).text(areas.length);
+
+    if (areas.length === 0) {
+        $c.html(`<p class="text-muted text-center py-4">${uiT('ui.admin.lovlynet.no_areas', 'No areas available')}</p>`);
+        return;
+    }
+
+    let html = `<div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>${uiT('ui.admin.lovlynet.col_tag', 'Tag')}</th>
+                    <th>${uiT('ui.admin.lovlynet.col_description', 'Description')}</th>
+                    <th class="text-center" style="width:120px;">${uiT('ui.admin.lovlynet.col_status', 'Status')}</th>
+                    <th style="width:120px;"></th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    areas.forEach(function(area) {
+        const tag  = escapeHtml(area.tag);
+        const desc = escapeHtml(area.description || '');
+        const sub  = area.subscribed;
+        const statusBadge = sub
+            ? `<span class="badge bg-success">${uiT('ui.admin.lovlynet.subscribed', 'Subscribed')}</span>`
+            : `<span class="badge bg-secondary">${uiT('ui.admin.lovlynet.not_subscribed', 'Not subscribed')}</span>`;
+        const btnClass  = sub ? 'btn-outline-danger' : 'btn-outline-success';
+        const btnLabel  = sub
+            ? uiT('ui.admin.lovlynet.btn_unsubscribe', 'Unsubscribe')
+            : uiT('ui.admin.lovlynet.btn_subscribe', 'Subscribe');
+        const btnAction = sub ? 'unsubscribe' : 'subscribe';
+
+        html += `<tr>
+            <td><code>${tag}</code></td>
+            <td class="text-muted small">${desc}</td>
+            <td class="text-center">${statusBadge}</td>
+            <td>
+                <button class="btn btn-sm ${btnClass} w-100 toggle-btn"
+                        data-tag="${tag}" data-type="${type}" data-action="${btnAction}">
+                    ${btnLabel}
+                </button>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    $c.html(html);
+
+    $c.find('.toggle-btn').on('click', function() {
+        const $btn   = $(this);
+        const tag    = $btn.data('tag');
+        const atype  = $btn.data('type');
+        const action = $btn.data('action');
+        toggleSubscription($btn, atype, tag, action);
+    });
+}
+
+function toggleSubscription($btn, areaType, areaTag, action) {
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: '/admin/api/lovlynet/subscription',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ action: action, area_type: areaType, area_tag: areaTag }),
+        success: function(data) {
+            _allAreas.echoareas = data.echoareas || _allAreas.echoareas;
+            _allAreas.fileareas = data.fileareas || _allAreas.fileareas;
+            renderAreas('echo', _allAreas.echoareas, '#echoAreasContainer', '#echoCount');
+            renderAreas('file', _allAreas.fileareas, '#fileAreasContainer', '#fileCount');
+            updateSubscribedCount();
+            const msg = action === 'subscribe'
+                ? uiT('ui.admin.lovlynet.subscribed_ok', 'Subscribed to {tag}', { tag: areaTag })
+                : uiT('ui.admin.lovlynet.unsubscribed_ok', 'Unsubscribed from {tag}', { tag: areaTag });
+            showSuccess(msg);
+        },
+        error: function(xhr) {
+            $btn.prop('disabled', false);
+            const msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error
+                      : uiT('ui.admin.lovlynet.toggle_failed', 'Operation failed');
+            showError(msg);
+            // Restore button label
+            const newLabel = action === 'subscribe'
+                ? uiT('ui.admin.lovlynet.btn_subscribe', 'Subscribe')
+                : uiT('ui.admin.lovlynet.btn_unsubscribe', 'Unsubscribe');
+            $btn.html(newLabel);
+        }
+    });
+}
+
+function updateSubscribedCount() {
+    const total = (_allAreas.echoareas || []).filter(a => a.subscribed).length
+                + (_allAreas.fileareas || []).filter(a => a.subscribed).length;
+    $('#subscribedCount').text(total);
+}
+</script>
+{% endblock %}

@@ -36,6 +36,8 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [PETSCII / PRG Rendering](#petscii--prg-rendering)
   - [D64 Disk Image Preview](#d64-disk-image-preview)
   - [C64 Emulator](#c64-emulator)
+  - [RIPscrip File Preview](#ripscrip-file-preview)
+  - [ZIP File Browser](#zip-file-browser)
   - [Shared File Preview](#shared-file-preview)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
   - [Behaviour](#behaviour)
@@ -46,6 +48,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Importing files (CLI)](#importing-files-cli)
   - [Migration](#migration)
 - [File Area Comments](#file-area-comments)
+- [LovlyNet Subscriptions](#lovlynet-subscriptions)
 - [Global File Search](#global-file-search)
 - [Page Position Memory](#page-position-memory)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
@@ -183,7 +186,21 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   the same echo. A back-reference banner appears in the echomail reader when
   viewing a comment, linking back to the file it refers to. LovlyNet sysops
   should link their file areas to the `LVLY_FILECHAT` echo area.
+- **RIPscrip file preview** — `.rip` files now render inline in the preview
+  modal using the server-side `RipScriptRenderer`. RIP files inside ZIP
+  archives are also supported and shown as a gallery.
+- **ZIP file browser** — opening a ZIP file in the preview modal now shows a
+  browsable listing of all entries. Previewable entries (images, video, audio,
+  text/NFO, ANSI, RIPscrip, PETSCII/PRG) open inline; all entries have a
+  download button. Entries using legacy DOS compression methods (implode,
+  shrink) are flagged with a `legacy` badge and extracted via `unzip` on the
+  server, falling back to a graceful notice if `unzip` is unavailable.
 
+**LovlyNet**
+- New admin page **LovlyNet Subscriptions** (`/admin/lovlynet`) shows all
+  available echo and file areas on LovlyNet with subscription status and
+  one-click subscribe/unsubscribe toggles. Credentials are read from
+  `config/lovlynet.json`.
 
 **Nodelist**
 - New interactive map tab powered by Leaflet, with network colour coding and marker
@@ -760,6 +777,8 @@ going straight to a download.
 | PETSCII / PRG | prg | Rendered using the C64 screen RAM decoder with the exact C64 16-colour palette; **Run on C64** button in nav bar |
 | PETSCII Stream | seq | Rendered using the PETSCII decoder; **Run on C64** button loads the emulator inline |
 | D64 Disk Image | d64 | Parsed as a C64 floppy image; PRG files extracted and shown as a gallery |
+| RIPscrip | rip | Rendered server-side to SVG by `RipScriptRenderer` and displayed on a dark background |
+| ZIP Archive | zip | Browsable file listing; previewable entries open inline; all entries have a download button |
 | Unknown | everything else | Download prompt with a Download button |
 
 The modal header includes:
@@ -872,6 +891,57 @@ Character ROM binaries. These are included in the vendor directory
 (`public_html/vendor/jsc64/js/assets/`).
 
 **No configuration or migration is required.**
+
+### RIPscrip File Preview
+
+Files with the `.rip` extension now render inline in the preview modal.
+The server-side `RipScriptRenderer` class converts the RIPscrip data to an SVG
+image, which is returned by the `/api/files/{id}/preview` endpoint as
+`text/html` and displayed on a dark background.
+
+**RIP files inside ZIP archives** are also supported:
+
+- Opening a ZIP in the preview modal now detects all `.rip` entries.
+- If one or more RIP files are found, a gallery view is shown with previous/next
+  navigation (accessible via the `/api/files/{id}/rips` endpoint).
+- Individual `.rip` entries can also be opened from the ZIP file browser.
+
+No configuration or migration is required.
+
+### ZIP File Browser
+
+Opening a ZIP file in the preview modal now shows a **browsable file listing**
+instead of only displaying `FILE_ID.DIZ`.
+
+**How it works:**
+
+- The `/api/files/{id}/zip-contents` endpoint lists up to 500 non-directory
+  entries, sorted by path, each with filename, size, and compression method.
+- Clicking a previewable entry opens it inline via
+  `/api/files/{id}/zip-entry?path=…`, applying the same type detection used by
+  the main file preview (images, video, audio, text/NFO, ANSI, RIPscrip,
+  PETSCII/PRG).
+- All entries show a **Download** button regardless of whether they can be
+  previewed.
+- Unsupported or unknown file types show a download-only panel.
+
+**Legacy DOS compression (implode, shrink, etc.):**
+
+Old BBS-era ZIP files often use compression methods not supported by PHP's
+built-in `ZipArchive` (libzip). For these entries:
+
+1. The server first attempts extraction via `ZipArchive`.
+2. If that fails, it falls back to the system `unzip` binary (`unzip -p`),
+   which supports all legacy methods.
+3. If `unzip` is unavailable or the method is still unsupported, the server
+   returns HTTP 415 and the browser shows a graceful notice with a
+   "Download full ZIP" button.
+
+Entries with non-standard compression are marked with a `legacy` badge in the
+ZIP browser listing.
+
+No configuration or migration is required. For legacy ZIP support, `unzip`
+must be installed on the server (standard on most Linux systems).
 
 ### Shared File Preview
 
@@ -1465,6 +1535,41 @@ previously a top-level item in the Admin dropdown.
 The admin submenu previously labelled *Local Chat* has been renamed to **Chat**,
 since it contains configuration for both local chat rooms and remote MRC (Multi
 Relay Chat) settings.
+
+## LovlyNet Subscriptions
+
+A new admin page at **Admin → Area Management → LovlyNet Areas**
+(`/admin/lovlynet`) provides a central view of all echo and file areas
+available on the LovlyNet hub, with one-click subscribe and unsubscribe
+controls.
+
+### Features
+
+- **Echo Areas** and **File Areas** tabs, each listing every area published by
+  the LovlyNet hub.
+- Each row shows the area tag, description, current subscription status
+  (Subscribed / Not subscribed), and a toggle button.
+- A summary card at the top shows how many areas you are currently subscribed to.
+- The page reads credentials from `config/lovlynet.json`, which is written
+  automatically when your node is registered with LovlyNet.
+
+### Requirements
+
+`config/lovlynet.json` must exist and contain valid credentials:
+
+```json
+{
+    "api_key": "...",
+    "ftn_address": "227:1/N",
+    "hub_hostname": "lovlynet.lovelybits.org"
+}
+```
+
+These values are provided when your node registers with LovlyNet. If the file
+is missing or incomplete, the page shows a configuration notice instead of the
+area list.
+
+No database migration is required for this feature.
 
 ## Upgrade Instructions
 
