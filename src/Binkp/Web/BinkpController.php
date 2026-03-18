@@ -470,11 +470,13 @@ class BinkpController
                 substr($hdr, 0, 26)
             );
 
-            $password  = rtrim(substr($hdr, 26, 10), "\x00");
-            $origZone  = unpack('v', substr($hdr, 36, 2))[1];
-            $destZone  = unpack('v', substr($hdr, 38, 2))[1];
-            $origPoint = unpack('v', substr($hdr, 52, 2))[1];
-            $destPoint = unpack('v', substr($hdr, 54, 2))[1];
+            // FTS-0001: password is 8 bytes (offsets 26–33)
+            // origZone/destZone at 34/36, origPoint/destPoint at 50/52
+            $password  = rtrim(substr($hdr, 26, 8), "\x00");
+            $origZone  = unpack('v', substr($hdr, 34, 2))[1];
+            $destZone  = unpack('v', substr($hdr, 36, 2))[1];
+            $origPoint = unpack('v', substr($hdr, 50, 2))[1];
+            $destPoint = unpack('v', substr($hdr, 52, 2))[1];
 
             $month = ($h['month'] < 12) ? $h['month'] + 1 : $h['month']; // 0-based in spec
             $created = sprintf('%04d-%02d-%02d %02d:%02d:%02d',
