@@ -2202,6 +2202,8 @@ return [
     'ui.binkp.uplinks_tab' => 'Uplinks',
     'ui.binkp.queues_tab' => 'Colas',
     'ui.binkp.kept_packets_tab' => 'Paquetes guardados',
+    'ui.binkp.kept_packets_locked' => 'Esta funcion requiere una licencia registrada.',
+    'ui.binkp.kept_packets_register' => 'Registrarse para desbloquear',
     'ui.binkp.logs_tab' => 'Logs',
     'ui.binkp.kept_inbound' => 'Entrantes guardados',
     'ui.binkp.kept_outbound' => 'Salientes guardados',

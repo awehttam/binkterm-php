@@ -58,11 +58,11 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">{{ t('ui.binkp.queues_tab') }}</button>
         </li>
-        {% if license_valid %}
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="kept-packets-tab" data-bs-toggle="tab" data-bs-target="#kept-packets" type="button" role="tab" onclick="onKeptPacketsTabOpen()">{{ t('ui.binkp.kept_packets_tab') }}</button>
+            <button class="nav-link" id="kept-packets-tab" data-bs-toggle="tab" data-bs-target="#kept-packets" type="button" role="tab"{% if license_valid %} onclick="onKeptPacketsTabOpen()"{% endif %}>
+                {{ t('ui.binkp.kept_packets_tab') }}{% if not license_valid %} <i class="fas fa-lock ms-1 text-warning small"></i>{% endif %}
+            </button>
         </li>
-        {% endif %}
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">{{ t('ui.binkp.logs_tab') }}</button>
         </li>
@@ -164,8 +164,8 @@
         </div>
 
         <!-- Kept Packets Tab -->
-        {% if license_valid %}
         <div class="tab-pane fade" id="kept-packets" role="tabpanel">
+            {% if license_valid %}
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>{{ t('ui.binkp.kept_packets_tab') }}</h5>
                 <div class="btn-group" role="group">
@@ -180,8 +180,55 @@
             <div id="kept-packets-content">
                 <div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>{{ t('ui.common.loading') }}</div>
             </div>
+            {% else %}
+            <div style="position:relative;">
+                <!-- Blurred placeholder content -->
+                <div style="filter:blur(4px); pointer-events:none; user-select:none; opacity:0.6;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary active" disabled>
+                                <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" disabled>
+                                <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="accordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" disabled>
+                                    <strong>Mar-18-2026</strong><span class="badge bg-secondary ms-2">12</span>
+                                </button>
+                            </h2>
+                            <div class="accordion-collapse collapse show">
+                                <div class="accordion-body p-0">
+                                    <table class="table table-sm mb-0">
+                                        <thead><tr><th>Filename</th><th>From</th><th>To</th><th>Messages</th><th>Size</th><th>Date</th></tr></thead>
+                                        <tbody>
+                                            <tr><td><code>69ba718d.pkt</code></td><td>1:1/100</td><td>1:2/200</td><td>3</td><td>4.2 KB</td><td>2026-03-18 09:15:00</td></tr>
+                                            <tr><td><code>69ba93c4.pkt</code></td><td>1:1/100</td><td>1:3/300</td><td>7</td><td>8.1 KB</td><td>2026-03-18 09:22:00</td></tr>
+                                            <tr><td><code>69bab14d.pkt</code></td><td>1:2/200</td><td>1:1/100</td><td>1</td><td>1.9 KB</td><td>2026-03-18 09:30:00</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Lock overlay -->
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.75rem;">
+                    <i class="fas fa-lock fa-3x text-warning"></i>
+                    <h5 class="mb-0">{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                    <p class="text-muted mb-0">{{ t('ui.binkp.kept_packets_locked') }}</p>
+                    <a href="/admin/licensing" class="btn btn-warning btn-sm mt-1">
+                        <i class="fas fa-key me-1"></i>{{ t('ui.binkp.kept_packets_register') }}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
 
         <!-- Logs Tab -->
         <div class="tab-pane fade" id="logs" role="tabpanel">

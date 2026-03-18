@@ -2200,6 +2200,8 @@ return [
     'ui.binkp.uplinks_tab' => 'Uplinks',
     'ui.binkp.queues_tab' => 'Queues',
     'ui.binkp.kept_packets_tab' => 'Kept Packets',
+    'ui.binkp.kept_packets_locked' => 'This feature requires a registered license.',
+    'ui.binkp.kept_packets_register' => 'Register to unlock',
     'ui.binkp.logs_tab' => 'Logs',
     'ui.binkp.kept_inbound' => 'Inbound Keep',
     'ui.binkp.kept_outbound' => 'Outbound Keep',
