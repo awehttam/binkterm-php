@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v342';
+const CACHE_NAME = 'binkcache-v343';
 
 // Static assets to precache
 const staticAssets = [
@@ -25,8 +25,7 @@ const staticAssets = [
     '/vendor/fontawesome-6.4.0/css/all.min.css',
     '/vendor/fontawesome-6.4.0/webfonts/fa-solid-900.woff2',
     '/vendor/fontawesome-6.4.0/webfonts/fa-regular-400.woff2',
-    '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2',
-    '/vendor/marked-13/marked.min.js'
+    '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2'
 ];
 
 // Keep a reference to the open cache to avoid re-opening on every fetch

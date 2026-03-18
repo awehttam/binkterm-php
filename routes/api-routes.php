@@ -2706,7 +2706,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'opus' => 'audio/ogg',
         ];
         $textExts = [
-            'txt', 'log', 'nfo', 'diz', 'md', 'cfg', 'ini', 'conf', 'lsm',
+            'txt', 'log', 'nfo', 'diz', 'cfg', 'ini', 'conf', 'lsm',
             'json', 'xml', 'bat', 'sh', 'readme', 'ans',
         ];
 
@@ -2771,6 +2771,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 http_response_code(500);
                 echo 'RIP render failed: ' . htmlspecialchars($e->getMessage());
             }
+            exit;
+        }
+
+        if ($ext === 'md') {
+            $markdown = (string)file_get_contents($storagePath);
+            $html     = \BinktermPHP\MarkdownRenderer::toHtml($markdown);
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $html;
             exit;
         }
 
@@ -3434,9 +3445,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Text (including ANSI — served as plain text; JS handles rendering)
         $textExts = [
-            'txt','log','nfo','diz','md','cfg','ini','conf','lsm',
+            'txt','log','nfo','diz','cfg','ini','conf','lsm',
             'json','xml','bat','sh','readme','ans',
         ];
+
+        if ($ext === 'md') {
+            $html = \BinktermPHP\MarkdownRenderer::toHtml($content);
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $html;
+            return;
+        }
+
         if (in_array($ext, $textExts)) {
             if (in_array($ext, ['nfo', 'diz', 'ans'])) {
                 $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);

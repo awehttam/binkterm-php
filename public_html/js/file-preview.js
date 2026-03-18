@@ -119,8 +119,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
         );
         fetch(previewUrl, {credentials: 'same-origin'})
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-            .then(text => {
-                const html = typeof marked !== 'undefined' ? marked.parse(text) : `<pre class="m-0 p-3" style="text-align:left;white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+            .then(html => {
                 body.html(`<div class="p-3 text-start" style="max-height:75vh;overflow:auto;">${html}</div>`);
             })
             .catch(() => {
@@ -699,8 +698,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
     } else if (type === 'markdown') {
         previewArea.css('background', '');
         fetchZipEntry(entryUrl, 'text')
-            .then(text => {
-                const html = typeof marked !== 'undefined' ? marked.parse(text) : `<pre class="m-0 p-3" style="text-align:left;white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+            .then(html => {
                 previewArea.html(`<div class="p-3 text-start" style="max-height:70vh;overflow:auto;">${html}</div>`);
             })
             .catch(err => {
