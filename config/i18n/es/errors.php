@@ -244,6 +244,8 @@ return [
     'errors.binkp.process_outbound_failed' => 'No se pudo procesar la cola de salida',
     'errors.binkp.connection_test_failed' => 'No se pudo probar la conexion BinkP',
     'errors.binkp.logs.failed' => 'No se pudieron cargar los registros de BinkP',
+    'errors.binkp.logs.search_failed' => 'La busqueda de registros fallo',
+    'errors.binkp.logs.search_query_too_short' => 'La consulta debe tener al menos 2 caracteres',
     'errors.binkp.uplink.address_hostname_required' => 'Se requieren direccion y hostname',
     'errors.binkp.uplink.poll_failed' => 'No se pudo consultar el uplink BinkP',
     'errors.binkp.uplink.poll_all_failed' => 'No se pudieron consultar todos los uplinks BinkP',

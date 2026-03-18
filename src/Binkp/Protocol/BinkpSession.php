@@ -475,11 +475,16 @@ class BinkpSession
                         false
                     );
                     $gotFreqResponse = $sentReqFile && !empty($this->filesReceived);
-                    if ($sentNothing || $freqOnlyDone || $gotFreqResponse || $inactivity >= 30) {
+                    // Once the remote has sent M_EOB it will never start a new transfer.
+                    // Response files (e.g. areafix replies) always arrive in a subsequent
+                    // session, not the current one, so there is nothing to wait for once
+                    // both sides have exchanged EOB and no transfer is active.
+                    $bothEobDone = true;
+                    if ($sentNothing || $freqOnlyDone || $gotFreqResponse || $bothEobDone) {
                         $reason = $sentNothing ? 'nothing sent'
                             : ($freqOnlyDone    ? 'FREQ-only session complete'
                             : ($gotFreqResponse ? 'FREQ response received, both EOBs done'
-                            : "no activity for {$inactivity}s"));
+                            : 'both EOBs exchanged, no active transfer'));
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;

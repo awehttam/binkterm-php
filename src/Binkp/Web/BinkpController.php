@@ -299,6 +299,31 @@ class BinkpController
         }
     }
     
+    /**
+     * Search all binkp-related log files for the given query, returning matched lines
+     * plus all lines sharing the same PID (session context).
+     *
+     * @param string $query Case-insensitive search term
+     * @return array
+     */
+    public function searchLogs(string $query): array
+    {
+        try {
+            $logFiles = [
+                'binkp_poll.log'      => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
+                'binkp_server.log'    => \BinktermPHP\Config::getLogPath('binkp_server.log'),
+                'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
+                'admin_daemon.log'    => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
+                'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
+                'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),
+            ];
+            $result = $this->logger->searchLogs($query, $logFiles);
+            return array_merge(['success' => true], $result);
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.logs.search_failed', $e->getMessage());
+        }
+    }
+
     public function getConfig()
     {
         return [

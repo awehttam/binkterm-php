@@ -7043,6 +7043,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($controller->getLogs($lines));
     });
 
+    SimpleRouter::get('/binkp/logs/search', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        header('Content-Type: application/json');
+
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) {
+            apiError('errors.binkp.logs.search_query_too_short', 'Query must be at least 2 characters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $result = $controller->searchLogs($q);
+        $encoded = json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($encoded === false) {
+            apiError('errors.binkp.logs.search_failed', 'Failed to encode search results', 500);
+            return;
+        }
+        echo $encoded;
+    });
+
     // Test endpoint to verify delete endpoint is accessible
     SimpleRouter::get('/messages/echomail/delete-test', function() {
         header('Content-Type: application/json');

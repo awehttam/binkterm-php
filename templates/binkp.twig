@@ -162,21 +162,62 @@
         <div class="tab-pane fade" id="logs" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>{{ t('ui.binkp.logs_heading') }}</h5>
-                <div>
-                    <select class="form-select form-select-sm d-inline-block w-auto" id="logLines">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="input-group input-group-sm" style="width: 220px;">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="logSearch" placeholder="{{ t('ui.common.search') }}" oninput="filterLogs()">
+                        <button class="btn btn-outline-secondary" type="button" id="logSearchClear" onclick="clearLogSearch()" style="display:none;" title="{{ t('ui.common.clear_search') }}"><i class="fas fa-times"></i></button>
+                    </div>
+                    <small class="text-muted" id="logMatchCount" style="display:none;"></small>
+                    <select class="form-select form-select-sm w-auto" id="logLines">
                         <option value="50">{{ t('ui.binkp.lines_option', {'count': 50}) }}</option>
                         <option value="100" selected>{{ t('ui.binkp.lines_option', {'count': 100}) }}</option>
                         <option value="200">{{ t('ui.binkp.lines_option', {'count': 200}) }}</option>
                         <option value="500">{{ t('ui.binkp.lines_option', {'count': 500}) }}</option>
                     </select>
-                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="refreshLogs()">
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshLogs()">
                         <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
                     </button>
                 </div>
             </div>
             <div class="card">
-                <div class="card-body">
-                    <pre id="log-content" style="height: 400px; overflow-y: auto; padding: 10px;">{{ t('ui.binkp.loading_logs') }}</pre>
+                <div class="card-body p-0">
+                    <pre id="log-content" style="height: 400px; overflow-y: auto; margin: 0; padding: 10px; font-size: 0.8em;"></pre>
+                </div>
+            </div>
+
+            <!-- Advanced Log Search -->
+            <div class="mt-3">
+                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleAdvancedLogSearch()">
+                    <i class="fas fa-search-plus"></i> {{ t('ui.binkp.advanced_log_search') }}
+                </button>
+            </div>
+            <div id="logAdvancedSearchPanel" style="display:none;" class="mt-2">
+                <div class="card border-secondary">
+                    <div class="card-header py-2 d-flex align-items-center gap-2">
+                        <i class="fas fa-search"></i>
+                        <strong>{{ t('ui.binkp.advanced_log_search') }}</strong>
+                        <small class="text-muted ms-auto" id="logSearchSummary"></small>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-2">{{ t('ui.binkp.advanced_log_search_help') }}</p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="logAdvancedQuery"
+                                   placeholder="{{ t('ui.binkp.advanced_log_search_placeholder') }}"
+                                   onkeydown="if(event.key==='Enter') runAdvancedLogSearch()">
+                            <button class="btn btn-primary" type="button" id="logAdvancedSearchBtn" onclick="runAdvancedLogSearch()">
+                                <i class="fas fa-search"></i> {{ t('ui.common.search') }}
+                            </button>
+                        </div>
+                        <div id="logAdvancedResults" style="display:none;">
+                            <small class="d-block mb-1">
+                                <span>{{ t('ui.binkp.log_search_legend_match') }}</span>
+                                &nbsp;·&nbsp;
+                                <span style="opacity:0.45;">{{ t('ui.binkp.log_search_legend_context') }}</span>
+                            </small>
+                            <pre id="log-search-content" style="height: 500px; overflow-y: auto; margin: 0; padding: 10px; font-size: 0.8em;"></pre>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -440,16 +481,124 @@ function updateOutboundFiles(data) {
     container.innerHTML = html;
 }
 
+let _logLines = [];
+
 function refreshLogs() {
     const lines = document.getElementById('logLines').value;
     fetch(`/api/binkp/logs?lines=${lines}`)
         .then(response => response.json())
         .then(data => {
-            const logContent = document.getElementById('log-content');
-            logContent.textContent = data.logs.join('\n');
-            logContent.scrollTop = logContent.scrollHeight;
+            _logLines = data.logs || [];
+            filterLogs();
         })
         .catch(error => console.error('Error fetching logs:', error));
+}
+
+function filterLogs() {
+    const query = document.getElementById('logSearch').value.trim();
+    const logContent = document.getElementById('log-content');
+    const matchCount = document.getElementById('logMatchCount');
+    const clearBtn = document.getElementById('logSearchClear');
+
+    if (!query) {
+        logContent.textContent = _logLines.join('\n');
+        logContent.scrollTop = logContent.scrollHeight;
+        matchCount.style.display = 'none';
+        clearBtn.style.display = 'none';
+        return;
+    }
+
+    clearBtn.style.display = '';
+
+    // Case-insensitive filter + highlight
+    const lowerQuery = query.toLowerCase();
+    const matched = _logLines.filter(line => line.toLowerCase().includes(lowerQuery));
+
+    // Build highlighted HTML
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(${escaped})`, 'gi');
+    logContent.innerHTML = matched
+        .map(line => line
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(re, '<mark>$1</mark>')
+        )
+        .join('\n');
+
+    matchCount.textContent = window.t('ui.binkp.log_matches', {count: matched.length, total: _logLines.length}, `${matched.length} / ${_logLines.length} lines`);
+    matchCount.style.display = '';
+    logContent.scrollTop = 0;
+}
+
+function clearLogSearch() {
+    document.getElementById('logSearch').value = '';
+    filterLogs();
+}
+
+function toggleAdvancedLogSearch() {
+    const panel = document.getElementById('logAdvancedSearchPanel');
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? '' : 'none';
+    if (isHidden) {
+        document.getElementById('logAdvancedQuery').focus();
+    }
+}
+
+function runAdvancedLogSearch() {
+    const q = document.getElementById('logAdvancedQuery').value.trim();
+    if (q.length < 2) return;
+
+    const btn         = document.getElementById('logAdvancedSearchBtn');
+    const resultsDiv  = document.getElementById('logAdvancedResults');
+    const content     = document.getElementById('log-search-content');
+    const summary     = document.getElementById('logSearchSummary');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    resultsDiv.style.display = '';
+    content.textContent = '';
+    summary.textContent = '';
+
+    fetch(`/api/binkp/logs/search?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search"></i> ' + window.t('ui.common.search', {}, 'Search');
+
+            if (!data.success) {
+                content.textContent = data.error || 'Search failed.';
+                return;
+            }
+            if (!data.lines || !data.lines.length) {
+                content.textContent = window.t('ui.binkp.log_search_no_results', {}, 'No results found.');
+                summary.textContent = '';
+                return;
+            }
+
+            summary.textContent = window.t('ui.binkp.log_search_summary',
+                {matches: data.match_count, sessions: data.pid_count},
+                `${data.match_count} matches across ${data.pid_count} session(s)`);
+
+            // Build highlighted HTML — match lines normal weight, context lines muted
+            const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const re = new RegExp(`(${escaped})`, 'gi');
+
+            content.innerHTML = data.lines.map(item => {
+                const safe = item.line
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(re, '<mark>$1</mark>');
+                if (item.is_match) {
+                    return `<span style="display:block;">${safe}</span>`;
+                }
+                return `<span style="display:block;opacity:0.55;">${safe}</span>`;
+            }).join('');
+
+            content.scrollTop = 0;
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search"></i> ' + window.t('ui.common.search', {}, 'Search');
+            content.textContent = 'Error: ' + err.message;
+        });
 }
 
 

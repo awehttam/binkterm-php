@@ -244,6 +244,8 @@ return [
     'errors.binkp.process_outbound_failed' => 'Failed to process outbound queue',
     'errors.binkp.connection_test_failed' => 'Failed to test BinkP connection',
     'errors.binkp.logs.failed' => 'Failed to load BinkP logs',
+    'errors.binkp.logs.search_failed' => 'Log search failed',
+    'errors.binkp.logs.search_query_too_short' => 'Search query must be at least 2 characters',
     'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',
     'errors.binkp.uplink.poll_failed' => 'Failed to poll BinkP uplink',
     'errors.binkp.uplink.poll_all_failed' => 'Failed to poll all BinkP uplinks',
