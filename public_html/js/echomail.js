@@ -1095,12 +1095,12 @@ function buildFileRefBanner(kludgeLines) {
     const href    = `/files?area=${encodeURIComponent(bareTag)}&search=${encodeURIComponent(ref.filename)}`;
 
     return `
-        <div class="alert alert-secondary py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size:.875rem;">
+        <div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size:.875rem;">
             <i class="fas fa-paperclip"></i>
             <span>${label}</span>
             <a href="${href}" class="fw-bold text-decoration-none">${file}</a>
-            <span class="text-muted">in</span>
-            <span class="badge bg-secondary font-monospace">${area}</span>
+            <span class="opacity-75">in</span>
+            <span class="badge bg-info text-dark font-monospace">${area}</span>
         </div>
     `;
 }
