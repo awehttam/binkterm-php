@@ -4102,13 +4102,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // via recursive reply_to_id traversal so replies without the kludge are included.
         $stmt = $db->prepare("
             WITH RECURSIVE thread AS (
-                -- Anchor: thread roots matched by kludge or subject
+                -- Anchor: thread roots matched by kludge or subject (case-insensitive).
+                -- Kludge match is not restricted to reply_to_id IS NULL because FTN
+                -- reply-matching on the receiving server may set reply_to_id even on
+                -- messages that were originally posted as thread roots.
                 SELECT em.id, em.from_name, em.subject, em.message_text,
                        em.date_written, em.reply_to_id
                 FROM echomail em
                 WHERE em.echoarea_id = ?
-                  AND em.reply_to_id IS NULL
-                  AND (em.subject = ? OR em.kludge_lines LIKE ? OR em.kludge_lines LIKE ?)
+                  AND (
+                      em.kludge_lines LIKE ?
+                      OR em.kludge_lines LIKE ?
+                      OR (em.reply_to_id IS NULL AND LOWER(em.subject) = LOWER(?))
+                  )
                 UNION ALL
                 -- Recursive: any reply whose parent is already in the thread
                 SELECT em.id, em.from_name, em.subject, em.message_text,
@@ -4117,9 +4123,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN thread t ON em.reply_to_id = t.id
                 WHERE em.echoarea_id = ?
             )
-            SELECT * FROM thread ORDER BY date_written ASC
+            SELECT DISTINCT * FROM thread ORDER BY date_written ASC
         ");
-        $stmt->execute([$echoareaId, $filename, $kludgePattern, $kludgePatternLegacy, $echoareaId]);
+        $stmt->execute([$echoareaId, $kludgePattern, $kludgePatternLegacy, $filename, $echoareaId]);
         $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         /**
@@ -4266,25 +4272,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } else {
             // Top-level comment — always posted with no parent so "Leave a Comment"
             // always starts a new thread root, never forced into a reply chain.
-            // The first top-level comment gets the FILEREF kludge for cross-node matching.
-            $result = $handler->postEchomail($userId, $echoTag, $echoDomain, 'All', $filename, $body, null, null, true);
-
-            // Prepend FILEREF kludge only on the very first comment (no prior thread root).
-            // Use lastInsertId on the echomail sequence — reliable because postEchomail()
-            // does no further INSERTs into sequenced tables after the echomail row.
-            if ($result && $threadRootId === null) {
-                $newId = (int)$db->lastInsertId('echomail_id_seq');
-                if ($newId > 0) {
-                    $stmt = $db->prepare("SELECT kludge_lines FROM echomail WHERE id = ?");
-                    $stmt->execute([$newId]);
-                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-                    if ($row !== false) {
-                        $filerefLine = "\x01FILEREF: {$qualifiedTag} {$filename} {$fileHash}\r\n";
-                        $db->prepare("UPDATE echomail SET kludge_lines = ? WHERE id = ?")
-                           ->execute([$filerefLine . ($row['kludge_lines'] ?? ''), $newId]);
-                    }
-                }
+            // The first top-level comment gets the FILEREF kludge prepended into
+            // kludge_lines before the INSERT so it is included in the outbound spool.
+            $prependKludges = '';
+            if ($threadRootId === null) {
+                $prependKludges = "\x01FILEREF: {$qualifiedTag} {$filename} {$fileHash}\r\n";
             }
+            $result = $handler->postEchomail($userId, $echoTag, $echoDomain, 'All', $filename, $body, null, null, true, null, $prependKludges);
         }
 
         if (!$result) {

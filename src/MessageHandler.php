@@ -1151,7 +1151,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '')
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1199,7 +1199,7 @@ class MessageHandler
             $markupAllowed = null;
         }
 
-        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain);
+        $kludgeLines = $prependKludges . $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
