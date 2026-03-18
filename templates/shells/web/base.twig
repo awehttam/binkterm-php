@@ -537,6 +537,11 @@
                         console.log('[Page] Service Worker registered! Scope is:', registration.scope);
                         swRegistration = registration;
 
+                        // Always check for SW updates on page load. Since HTML is served
+                        // fresh by PHP it bypasses the SW cache, making this an effective
+                        // substitute for a hard refresh — especially on mobile.
+                        registration.update();
+
                         // Check if there's already a waiting or installing SW
                         if (registration.waiting) {
                             console.log('[Page] SW already waiting, showing update notification');
