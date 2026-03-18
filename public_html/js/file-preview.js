@@ -246,13 +246,40 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
         renderZipBrowser(body, fileId, shareQs);
 
     } else {
-        body.css('background', '').html(`
-            <div class="p-5 text-center text-muted">
-                <i class="fas fa-file fa-3x mb-3 d-block"></i>
-                <p class="mb-2">${escapeHtml(filename)}</p>
-                <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
-            </div>
-        `);
+        // Unknown extension — probe the preview endpoint; if the server heuristically
+        // identifies the content as text it will respond with Content-Type: text/plain.
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok || !ct.startsWith('text/plain')) {
+                    // Not text — fall back to the standard "no preview" message
+                    body.html(`
+                        <div class="p-5 text-center text-muted">
+                            <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                            <p class="mb-2">${escapeHtml(filename)}</p>
+                            <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                        </div>
+                    `);
+                    return null;
+                }
+                return r.text();
+            })
+            .then(text => {
+                if (text === null) return;
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;">${escapeHtml(text)}</pre>`);
+            })
+            .catch(() => {
+                body.html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                        <p class="mb-2">${escapeHtml(filename)}</p>
+                        <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                    </div>
+                `);
+            });
     }
 }
 
@@ -728,8 +755,11 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             });
 
     } else {
-        // Unsupported type — download only
-        previewArea.css('background', '').html(`
+        // Unknown extension — probe the entry URL and check Content-Type.
+        // If the server heuristically identifies it as text/plain, render it;
+        // otherwise fall back to a download button.
+        previewArea.css('background', '');
+        const showDownload = () => previewArea.html(`
             <div class="p-5 text-center text-muted">
                 <i class="fas fa-file fa-3x mb-3 d-block"></i>
                 <p class="mb-3">${escapeHtml(entryName)}</p>
@@ -738,5 +768,25 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
                 </a>
             </div>
         `);
+        fetch(entryUrl, {credentials: 'same-origin'})
+            .then(r => {
+                if (r.status === 415) {
+                    return r.json().then(err => Promise.reject({ legacy: true, compMethod: err.comp_method }));
+                }
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok || !ct.startsWith('text/plain')) {
+                    showDownload();
+                    return null;
+                }
+                return r.text();
+            })
+            .then(text => {
+                if (text === null) return;
+                previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;">${escapeHtml(text)}</pre>`);
+            })
+            .catch(err => {
+                if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else showDownload();
+            });
     }
 }

@@ -2792,6 +2792,52 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             exit;
         }
 
+        // Unknown extension — heuristically detect if the file is plain text.
+        // Sample the first 4 KB: reject if null bytes are present, accept if
+        // ≥ 90% of bytes are printable (ASCII, common control chars, or high bytes).
+        $looksLikeText = false;
+        if ($fileSize > 0 && $fileSize <= 10 * 1024 * 1024) { // only probe files ≤ 10 MB
+            $fp = fopen($storagePath, 'rb');
+            if ($fp) {
+                $sample = (string)fread($fp, 4096);
+                fclose($fp);
+                if ($sample !== '' && !str_contains($sample, "\x00")) {
+                    $len = strlen($sample);
+                    $printable = 0;
+                    for ($i = 0; $i < $len; $i++) {
+                        $b = ord($sample[$i]);
+                        if (($b >= 0x20 && $b <= 0x7E) || $b === 0x09 || $b === 0x0A || $b === 0x0D || $b >= 0x80) {
+                            $printable++;
+                        }
+                    }
+                    $looksLikeText = ($printable / $len) >= 0.90;
+                }
+            }
+        }
+
+        if ($looksLikeText) {
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('X-Binkterm-Heuristic: text');
+            header('Cache-Control: private, max-age=3600');
+
+            // If the sample is valid UTF-8, stream the file directly — no memory spike.
+            // Otherwise attempt CP437 → UTF-8 conversion, capped at 1 MB (legacy text
+            // files are small; anything larger is served raw and the browser will cope).
+            if (mb_check_encoding($sample, 'UTF-8')) {
+                header('Content-Length: ' . $fileSize);
+                readfile($storagePath);
+            } else {
+                $raw = $fileSize <= 1024 * 1024
+                    ? (string)file_get_contents($storagePath)
+                    : $sample; // sample already in memory; serve partial rather than OOM
+                $converted = @iconv('CP437', 'UTF-8//IGNORE', $raw);
+                echo ($converted !== false && strlen($converted) > 0) ? $converted : $raw;
+            }
+            exit;
+        }
+
         // Unknown type — serve as attachment
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
@@ -3411,6 +3457,39 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             header('Content-Type: application/octet-stream');
             header('Content-Disposition: inline; filename="' . $safe . '"');
             header('Content-Length: ' . strlen($content));
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            return;
+        }
+
+        // Unknown extension — heuristically detect text.
+        // Content is already in memory: reject if null bytes present,
+        // accept if ≥ 90% of the sample bytes are printable.
+        $sample  = substr($content, 0, 4096);
+        $zipText = false;
+        if ($sample !== '' && !str_contains($sample, "\x00")) {
+            $len = strlen($sample);
+            $printable = 0;
+            for ($i = 0; $i < $len; $i++) {
+                $b = ord($sample[$i]);
+                if (($b >= 0x20 && $b <= 0x7E) || $b === 0x09 || $b === 0x0A || $b === 0x0D || $b >= 0x80) {
+                    $printable++;
+                }
+            }
+            $zipText = ($printable / $len) >= 0.90;
+        }
+
+        if ($zipText) {
+            if (!mb_check_encoding($content, 'UTF-8')) {
+                $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
+                if ($converted !== false && strlen($converted) > 0) {
+                    $content = $converted;
+                }
+            }
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('X-Content-Type-Options: nosniff');
+            header('X-Binkterm-Heuristic: text');
             header('Cache-Control: private, max-age=3600');
             echo $content;
             return;
