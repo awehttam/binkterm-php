@@ -1411,8 +1411,21 @@ function formatBytes(bytes) {
 
 function formatDate(dateStr) {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    if (typeof window.formatFullDate === 'function') {
+        return window.formatFullDate(dateStr);
+    }
+    const date = new Date(dateStr + 'Z');
+    const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
+    const userDateFormat = window.userSettings?.date_format || 'en-US';
+    return date.toLocaleString(userDateFormat, {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
 }
 
 function showUploadModal() {
