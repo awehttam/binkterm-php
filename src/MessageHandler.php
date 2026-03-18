@@ -4987,6 +4987,156 @@ class MessageHandler
     }
 
     /**
+     * Return visible AreaFix/FileFix request and response netmail for a user.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getLovlyNetRequests(int $userId, string $hubAddress): array
+    {
+        $user = $this->getUserById($userId);
+        $hubAddress = trim($hubAddress);
+        if (!$user || $hubAddress === '') {
+            return [];
+        }
+
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = $binkpConfig->getMyAddresses();
+            $systemAddress = $binkpConfig->getSystemAddress();
+            if ($systemAddress !== '') {
+                $myAddresses[] = $systemAddress;
+            }
+            $myAddresses = array_values(array_unique(array_filter($myAddresses, static function ($value) {
+                return trim((string)$value) !== '';
+            })));
+        } catch (\Throwable $e) {
+            $myAddresses = [];
+        }
+
+        if ($myAddresses === []) {
+            return [];
+        }
+
+        $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+        $sql = "
+            SELECT n.id, n.user_id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.message_text, n.date_written, n.date_received, n.is_sent,
+                   CASE
+                       WHEN LOWER(n.to_name) = 'areafix' OR LOWER(n.from_name) = 'areafix' THEN 'echo'
+                       ELSE 'file'
+                   END AS request_type,
+                   CASE
+                       WHEN n.from_address = ? AND LOWER(n.from_name) IN ('areafix', 'filefix') THEN 'incoming'
+                       ELSE 'outgoing'
+                   END AS direction
+            FROM netmail n
+            WHERE (
+                (
+                    n.from_address IN ($addressPlaceholders)
+                    AND n.to_address = ?
+                    AND LOWER(n.to_name) IN ('areafix', 'filefix')
+                    AND n.deleted_by_sender = FALSE
+                )
+                OR
+                (
+                    n.from_address = ?
+                    AND LOWER(n.from_name) IN ('areafix', 'filefix')
+                    AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                    AND n.to_address IN ($addressPlaceholders)
+                    AND n.deleted_by_recipient = FALSE
+                )
+            )
+            ORDER BY COALESCE(n.date_written, n.date_received) ASC, n.id ASC
+        ";
+
+        $params = [$hubAddress];
+        $params = array_merge($params, $myAddresses, [$hubAddress, $hubAddress, $user['username'], $user['real_name']], $myAddresses);
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        if (!$rows) {
+            return [];
+        }
+
+        $incomingByType = ['echo' => [], 'file' => []];
+        foreach ($rows as $index => $row) {
+            if (($row['direction'] ?? '') === 'incoming') {
+                $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
+                $incomingByType[$type][] = $index;
+            }
+        }
+
+        $usedIncoming = [];
+        foreach ($rows as $index => &$row) {
+            $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
+            $timestamp = $row['date_written'] ?: $row['date_received'];
+            $row['timestamp'] = $timestamp;
+            $row['excerpt'] = $this->buildLovlyNetExcerpt((string)($row['message_text'] ?? ''));
+            $row['status'] = ($row['direction'] ?? '') === 'incoming' ? 'response' : 'pending';
+            $row['response_message_id'] = null;
+
+            if (($row['direction'] ?? '') !== 'outgoing') {
+                continue;
+            }
+
+            foreach ($incomingByType[$type] as $incomingIndex) {
+                if (isset($usedIncoming[$incomingIndex])) {
+                    continue;
+                }
+
+                $incomingTimestamp = $rows[$incomingIndex]['date_written'] ?: $rows[$incomingIndex]['date_received'];
+                if ($incomingTimestamp < $timestamp) {
+                    continue;
+                }
+
+                $usedIncoming[$incomingIndex] = true;
+                $row['status'] = 'responded';
+                $row['response_message_id'] = (int)$rows[$incomingIndex]['id'];
+                $rows[$incomingIndex]['linked_request_id'] = (int)$row['id'];
+                break;
+            }
+        }
+        unset($row);
+
+        $rows = array_reverse($rows);
+        return array_map(function (array $row): array {
+            return [
+                'id' => (int)$row['id'],
+                'direction' => (string)$row['direction'],
+                'request_type' => (string)$row['request_type'],
+                'status' => (string)$row['status'],
+                'from_name' => (string)$row['from_name'],
+                'from_address' => (string)$row['from_address'],
+                'to_name' => (string)$row['to_name'],
+                'to_address' => (string)$row['to_address'],
+                'subject' => (string)($row['subject'] ?? ''),
+                'subject_hidden' => true,
+                'message_text' => (string)($row['message_text'] ?? ''),
+                'excerpt' => (string)($row['excerpt'] ?? ''),
+                'timestamp' => (string)($row['timestamp'] ?? ''),
+                'is_sent' => (bool)($row['is_sent'] ?? false),
+                'response_message_id' => isset($row['response_message_id']) ? (int)$row['response_message_id'] : null,
+                'linked_request_id' => isset($row['linked_request_id']) ? (int)$row['linked_request_id'] : null,
+            ];
+        }, $rows);
+    }
+
+    private function buildLovlyNetExcerpt(string $messageText, int $limit = 160): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($messageText)) ?? '';
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (mb_strlen($normalized) <= $limit) {
+            return $normalized;
+        }
+
+        return rtrim(mb_substr($normalized, 0, $limit - 3)) . '...';
+    }
+
+    /**
      * Get thread context for specific messages efficiently using reply_to_id
      */
     private function getThreadContextForMessages($pageMessages, $userId, $echoareaIds, $filterClause, $filterParams)

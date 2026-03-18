@@ -68,6 +68,12 @@
 <div class="tab-content">
     <div class="tab-pane fade show active" id="echoTab">
         <div class="card">
+            <div class="card-body border-bottom d-flex justify-content-end">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRequestModal('echo')">
+                    <i class="fas fa-paper-plane me-1"></i>
+                    {{ t('ui.admin.lovlynet.request_button_echo') }}
+                </button>
+            </div>
             <div class="card-body p-0" id="echoAreasContainer">
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
@@ -77,10 +83,57 @@
     </div>
     <div class="tab-pane fade" id="fileTab">
         <div class="card">
+            <div class="card-body border-bottom d-flex justify-content-end">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRequestModal('file')">
+                    <i class="fas fa-paper-plane me-1"></i>
+                    {{ t('ui.admin.lovlynet.request_button_file') }}
+                </button>
+            </div>
             <div class="card-body p-0" id="fileAreasContainer">
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="lovlynetRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="lovlynetRequestModalTitle">{{ t('ui.admin.lovlynet.request_modal_title_echo') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3" id="lovlynetRequestModalHelp">{{ t('ui.admin.lovlynet.request_modal_help_echo') }}</p>
+                <input type="hidden" id="lovlynetRequestType" value="echo">
+                <div class="mb-3 d-flex justify-content-end">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="lovlynetRequestHelpButton" onclick="loadLovlyNetHelp()">
+                        <i class="fas fa-circle-info me-1"></i>
+                        {{ t('ui.admin.lovlynet.request_help_button') }}
+                    </button>
+                </div>
+                <div class="border rounded p-3 d-none" id="lovlynetRequestHelpPanel">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>{{ t('ui.admin.lovlynet.request_help_title') }}</strong>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="hideLovlyNetHelp()">
+                            {{ t('ui.common.close') }}
+                        </button>
+                    </div>
+                    <pre class="mb-0 small font-monospace overflow-auto" id="lovlynetRequestHelpText" style="max-height: 45vh; white-space: pre; background: transparent; color: inherit; border: 0;"></pre>
+                </div>
+                <div class="mb-0">
+                    <label for="lovlynetRequestMessage" class="form-label">{{ t('ui.admin.lovlynet.request_message_label') }}</label>
+                    <textarea class="form-control font-monospace" id="lovlynetRequestMessage" rows="10" placeholder="{{ t('ui.admin.lovlynet.request_message_placeholder') }}"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="lovlynetRequestSubmit" onclick="submitLovlynetRequest()">
+                    <i class="fas fa-paper-plane me-1"></i>
+                    {{ t('ui.admin.lovlynet.request_send') }}
+                </button>
             </div>
         </div>
     </div>
@@ -90,11 +143,19 @@
 
 {% block scripts %}
 <script>
+let lovlynetRequestModal = null;
+let lovlynetHelpCache = { echo: null, file: null };
+
 function uiT(key, fallback, params = {}) {
     return window.t ? window.t(key, params, fallback) : fallback;
 }
 
 $(document).ready(function() {
+    const modalEl = document.getElementById('lovlynetRequestModal');
+    if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        lovlynetRequestModal = new bootstrap.Modal(modalEl);
+    }
+
     const init = function() { loadAreas(); };
     if (typeof loadUserSettings === 'function') {
         loadUserSettings().finally(init);
@@ -104,7 +165,6 @@ $(document).ready(function() {
 });
 
 let _allAreas = { echoareas: [], fileareas: [] };
-
 function loadAreas() {
     ['echoAreasContainer', 'fileAreasContainer'].forEach(id => {
         $('#' + id).html('<div class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
@@ -223,5 +283,226 @@ function updateSubscribedCount() {
                 + (_allAreas.fileareas || []).filter(a => a.subscribed).length;
     $('#subscribedCount').text(total);
 }
+
+// Intentionally disabled for now. AreaFix/FileFix response correlation is too
+// unreliable in practice, especially when FileFix replies do not include REPLY kludges.
+// Keep these helpers around for future work, but do not call them from the active UI.
+function loadLovlyNetRequests() {
+    $.get('/admin/api/lovlynet/requests')
+        .done(function(data) {
+            renderLovlyNetRequests(data.requests || []);
+        })
+        .fail(function(xhr) {
+            const fallback = uiT('ui.admin.lovlynet.requests_load_failed', 'Failed to load request status');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            $('#lovlynetRequestsContainer').html(`<div class="alert alert-danger m-3">${escapeHtml(msg)}</div>`);
+            $('#requestCount').text('-');
+        });
+}
+
+function renderLovlyNetRequests(requests) {
+    const $container = $('#lovlynetRequestsContainer');
+    $('#requestCount').text(requests.length);
+
+    if (!requests.length) {
+        $container.html(`<p class="text-muted text-center py-4">${uiT('ui.admin.lovlynet.no_requests', 'No matching requests or responses found')}</p>`);
+        return;
+    }
+
+    let html = `<div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>${uiT('ui.admin.lovlynet.requests_col_type', 'Type')}</th>
+                    <th>${uiT('ui.admin.lovlynet.requests_col_direction', 'Direction')}</th>
+                    <th>${uiT('ui.admin.lovlynet.requests_col_status', 'Status')}</th>
+                    <th>${uiT('ui.admin.lovlynet.requests_col_message', 'Message')}</th>
+                    <th>${uiT('ui.admin.lovlynet.requests_col_date', 'Date')}</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    requests.forEach(function(item) {
+        const typeLabel = item.request_type === 'file'
+            ? uiT('ui.admin.lovlynet.type_filefix', 'FILEFIX')
+            : uiT('ui.admin.lovlynet.type_areafix', 'AREAFIX');
+        const directionLabel = item.direction === 'incoming'
+            ? uiT('ui.admin.lovlynet.direction_response', 'Response')
+            : uiT('ui.admin.lovlynet.direction_request', 'Request');
+        const statusBadge = getLovlyNetStatusBadge(item.status);
+        const title = escapeHtml(getLovlyNetMessageTitle(item));
+        const excerpt = escapeHtml(item.excerpt || '');
+        const route = item.direction === 'incoming'
+            ? `${escapeHtml(item.from_name || '')} @ ${escapeHtml(item.from_address || '')}`
+            : `${escapeHtml(item.to_name || '')} @ ${escapeHtml(item.to_address || '')}`;
+        const bodyHtml = excerpt && excerpt !== title ? `<div class="small text-muted mt-1">${excerpt}</div>` : '';
+
+        html += `<tr>
+            <td><span class="badge bg-dark-subtle text-body border">${typeLabel}</span></td>
+            <td>${escapeHtml(directionLabel)}</td>
+            <td>${statusBadge}</td>
+            <td>
+                <div class="fw-semibold">${title}</div>
+                <div class="small text-muted">${route}</div>
+                ${bodyHtml}
+            </td>
+            <td class="text-nowrap small text-muted">${escapeHtml(formatLovlyNetDate(item.timestamp))}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    $container.html(html);
+}
+
+function getLovlyNetStatusBadge(status) {
+    if (status === 'responded') {
+        return `<span class="badge bg-success">${uiT('ui.admin.lovlynet.status_responded', 'Responded')}</span>`;
+    }
+    if (status === 'response') {
+        return `<span class="badge bg-info text-dark">${uiT('ui.admin.lovlynet.status_response', 'Response received')}</span>`;
+    }
+    return `<span class="badge bg-warning text-dark">${uiT('ui.admin.lovlynet.status_pending', 'Pending response')}</span>`;
+}
+
+function formatLovlyNetDate(value) {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toLocaleString();
+}
+
+function getLovlyNetMessageTitle(item) {
+    if (item.direction === 'incoming') {
+        return item.excerpt || uiT('ui.admin.lovlynet.requests_response_label', 'Hub response');
+    }
+    return item.excerpt || uiT('ui.admin.lovlynet.requests_request_label', 'Request sent');
+}
+
+function openRequestModal(areaType) {
+    const isFile = areaType === 'file';
+    $('#lovlynetRequestType').val(isFile ? 'file' : 'echo');
+    $('#lovlynetRequestModalTitle').text(
+        isFile
+            ? uiT('ui.admin.lovlynet.request_modal_title_file', 'FileFix Request')
+            : uiT('ui.admin.lovlynet.request_modal_title_echo', 'AreaFix Request')
+    );
+    $('#lovlynetRequestModalHelp').text(
+        isFile
+            ? uiT('ui.admin.lovlynet.request_modal_help_file', 'Enter the FileFix command text to send. The destination and password are filled in automatically. A response will be sent to you by netmail.')
+            : uiT('ui.admin.lovlynet.request_modal_help_echo', 'Enter the AreaFix command text to send. The destination and password are filled in automatically. A response will be sent to you by netmail.')
+    );
+    $('#lovlynetRequestMessage').val('').trigger('focus');
+    hideLovlyNetHelp();
+    $('#lovlynetRequestSubmit').prop('disabled', false).html(
+        `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.request_send', 'Send request')}`
+    );
+    $('#lovlynetRequestHelpButton').prop('disabled', false).html(
+        `<i class="fas fa-circle-info me-1"></i>${uiT('ui.admin.lovlynet.request_help_button', 'Help')}`
+    );
+
+    if (lovlynetRequestModal) {
+        lovlynetRequestModal.show();
+    }
+}
+
+function loadLovlyNetHelp() {
+    const areaType = $('#lovlynetRequestType').val() === 'file' ? 'file' : 'echo';
+    const cached = lovlynetHelpCache[areaType];
+    const $button = $('#lovlynetRequestHelpButton');
+
+    if (cached) {
+        showLovlyNetHelp(cached);
+        return;
+    }
+
+    $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>');
+
+    $.get('/admin/api/lovlynet/help', { type: areaType })
+        .done(function(data) {
+            const helpText = data.help || '';
+            lovlynetHelpCache[areaType] = helpText;
+            showLovlyNetHelp(helpText);
+        })
+        .fail(function(xhr) {
+            const fallback = uiT('ui.admin.lovlynet.request_help_failed', 'Failed to load help text');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            showError(msg);
+        })
+        .always(function() {
+            $button.prop('disabled', false).html(
+                `<i class="fas fa-circle-info me-1"></i>${uiT('ui.admin.lovlynet.request_help_button', 'Help')}`
+            );
+        });
+}
+
+function showLovlyNetHelp(helpText) {
+    $('#lovlynetRequestHelpText').text(helpText || uiT('ui.admin.lovlynet.request_help_empty', 'No help text available.'));
+    $('#lovlynetRequestHelpPanel').removeClass('d-none');
+}
+
+function hideLovlyNetHelp() {
+    $('#lovlynetRequestHelpPanel').addClass('d-none');
+    $('#lovlynetRequestHelpText').text('');
+}
+
+function submitLovlynetRequest() {
+    const areaType = $('#lovlynetRequestType').val();
+    const messageText = ($('#lovlynetRequestMessage').val() || '').trim();
+    const $submit = $('#lovlynetRequestSubmit');
+
+    if (!messageText) {
+        showError(uiT('ui.admin.lovlynet.request_message_required', 'Request message is required'));
+        $('#lovlynetRequestMessage').trigger('focus');
+        return;
+    }
+
+    $submit.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>');
+
+    $.ajax({
+        url: '/admin/api/lovlynet/request',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: getCsrfHeaders(),
+        data: JSON.stringify({ area_type: areaType, message_text: messageText }),
+        success: function() {
+            if (lovlynetRequestModal) {
+                lovlynetRequestModal.hide();
+            }
+            $('#lovlynetRequestMessage').val('');
+            showSuccess(
+                areaType === 'file'
+                    ? uiT('ui.admin.lovlynet.request_sent_file', 'FileFix request sent')
+                    : uiT('ui.admin.lovlynet.request_sent_echo', 'AreaFix request sent')
+            );
+            $submit.prop('disabled', false).html(
+                `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.request_send', 'Send request')}`
+            );
+        },
+        error: function(xhr) {
+            $submit.prop('disabled', false).html(
+                `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.request_send', 'Send request')}`
+            );
+            const fallback = uiT('ui.admin.lovlynet.request_send_failed', 'Failed to send request');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            showError(msg);
+        }
+    });
+}
+
+function getCsrfHeaders() {
+    const token = document.querySelector('meta[name="csrf-token"]');
+    return token && token.content ? { 'X-CSRF-Token': token.content } : {};
+}
 </script>
 {% endblock %}
+

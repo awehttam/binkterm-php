@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v355';
+const CACHE_NAME = 'binkcache-v364';
 
 // Static assets to precache
 const staticAssets = [
@@ -150,3 +150,4 @@ self.addEventListener('fetch', (event) => {
         );
     }
 });
+

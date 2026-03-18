@@ -502,4 +502,11 @@ return [
     'errors.files.iso_not_mounted' => 'File area is not mounted',
     'errors.files.iso_readonly' => 'ISO-backed files cannot be modified',
     'errors.fileareas.reindex_failed' => 'Failed to start ISO re-index',
+    'errors.admin.lovlynet.invalid_json' => 'Invalid request payload',
+    'errors.admin.lovlynet.invalid_area_type' => 'Invalid area type',
+    'errors.admin.lovlynet.request_message_required' => 'Request message is required',
+    'errors.admin.lovlynet.not_configured' => 'LovlyNet is not configured',
+    'errors.admin.lovlynet.request_config_missing' => 'LovlyNet request settings are incomplete',
+    'errors.admin.lovlynet.help_fetch_failed' => 'Failed to load help text',
+    'errors.admin.lovlynet.request_send_failed' => 'Failed to send request netmail',
 ];

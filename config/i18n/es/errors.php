@@ -502,5 +502,11 @@ return [
     'errors.files.iso_not_mounted' => 'El área de archivos no está montada',
     'errors.files.iso_readonly' => 'Los archivos ISO no se pueden modificar',
     'errors.fileareas.reindex_failed' => 'No se pudo iniciar la re-indexación ISO',
+    'errors.admin.lovlynet.invalid_json' => 'Carga de solicitud no válida',
+    'errors.admin.lovlynet.invalid_area_type' => 'Tipo de área no válido',
+    'errors.admin.lovlynet.request_message_required' => 'Se requiere un mensaje de solicitud',
+    'errors.admin.lovlynet.not_configured' => 'LovlyNet no está configurado',
+    'errors.admin.lovlynet.request_config_missing' => 'La configuración de solicitudes de LovlyNet está incompleta',
+    'errors.admin.lovlynet.help_fetch_failed' => 'No se pudo cargar el texto de ayuda',
+    'errors.admin.lovlynet.request_send_failed' => 'No se pudo enviar el netmail de solicitud',
 ];
-

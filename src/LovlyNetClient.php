@@ -55,6 +55,18 @@ class LovlyNetClient
         return $this->baseUrl;
     }
 
+    public function getHubAddress(): string
+    {
+        $cfg = self::loadConfig();
+        return (string)($cfg['hub_address'] ?? '');
+    }
+
+    public function getAreafixPassword(): string
+    {
+        $cfg = self::loadConfig();
+        return (string)($cfg['areafix_password'] ?? '');
+    }
+
     /**
      * Load and cache the lovlynet.json config.
      */
@@ -168,9 +180,50 @@ class LovlyNetClient
         ];
     }
 
+    /**
+     * Retrieve the remote AreaFix help text for this node.
+     *
+     * @return array{success:bool, help?:string, error?:string}
+     */
+    public function getAreaFixHelp(): array
+    {
+        return $this->getHelpText('/api/areafix_help.php');
+    }
+
+    /**
+     * Retrieve the remote FileFix help text for this node.
+     *
+     * @return array{success:bool, help?:string, error?:string}
+     */
+    public function getFileFixHelp(): array
+    {
+        return $this->getHelpText('/api/filefix_help.php');
+    }
+
     // -------------------------------------------------------------------------
     // Internal HTTP helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * @return array{success:bool, help?:string, error?:string}
+     */
+    private function getHelpText(string $path): array
+    {
+        if (!$this->isConfigured()) {
+            return $this->notConfigured();
+        }
+
+        $url = $this->baseUrl . $path;
+        $response = $this->get($url);
+        if (!$response['success']) {
+            return ['success' => false, 'error' => $response['error']];
+        }
+
+        return [
+            'success' => true,
+            'help' => (string)($response['data']['data']['help'] ?? ''),
+        ];
+    }
 
     /**
      * Perform an authenticated GET request.

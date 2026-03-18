@@ -3950,6 +3950,166 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
 });
 
 /**
+ * POST /admin/api/lovlynet/request
+ * Send an AreaFix or FileFix netmail request to the configured LovlyNet hub.
+ *
+ * Body: { "area_type": "echo"|"file", "message_text": "..." }
+ */
+SimpleRouter::post('/admin/api/lovlynet/request', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $areaType = trim((string)($body['area_type'] ?? ''));
+    $messageText = trim((string)($body['message_text'] ?? ''));
+
+    if (!in_array($areaType, ['echo', 'file'], true)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if ($messageText === '') {
+        apiError(
+            'errors.admin.lovlynet.request_message_required',
+            apiLocalizedText('errors.admin.lovlynet.request_message_required', 'Request message is required'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    if (!$client->isConfigured()) {
+        apiError(
+            'errors.admin.lovlynet.not_configured',
+            apiLocalizedText('errors.admin.lovlynet.not_configured', 'LovlyNet is not configured'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $hubAddress = trim($client->getHubAddress());
+    $areafixPassword = trim($client->getAreafixPassword());
+    if ($hubAddress === '' || $areafixPassword === '') {
+        apiError(
+            'errors.admin.lovlynet.request_config_missing',
+            apiLocalizedText('errors.admin.lovlynet.request_config_missing', 'LovlyNet request settings are incomplete'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $toName = $areaType === 'file' ? 'FileFix' : 'AreaFix';
+    $fromUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $fromName = trim((string)($user['real_name'] ?? $user['username'] ?? ''));
+
+    try {
+        $messageHandler = new \BinktermPHP\MessageHandler();
+        $messageHandler->sendNetmail(
+            $fromUserId,
+            $hubAddress,
+            $toName,
+            $areafixPassword,
+            $messageText,
+            $fromName !== '' ? $fromName : null
+        );
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.lovlynet.request_send_failed',
+            apiLocalizedText('errors.admin.lovlynet.request_send_failed', 'Failed to send request netmail', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /admin/api/lovlynet/help?type=echo|file
+ * Proxy: fetch AreaFix/FileFix help text from LovlyNet.
+ */
+SimpleRouter::get('/admin/api/lovlynet/help', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $type = trim((string)($_GET['type'] ?? ''));
+    if (!in_array($type, ['echo', 'file'], true)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $type === 'file' ? $client->getFileFixHelp() : $client->getAreaFixHelp();
+    if (!$result['success']) {
+        apiError(
+            'errors.admin.lovlynet.help_fetch_failed',
+            apiLocalizedText('errors.admin.lovlynet.help_fetch_failed', 'Failed to load help text', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode([
+        'success' => true,
+        'help' => $result['help'] ?? '',
+    ]);
+});
+
+/**
+ * GET /admin/api/lovlynet/requests
+ * Return outbound AreaFix/FileFix requests and inbound responses for the admin.
+ */
+SimpleRouter::get('/admin/api/lovlynet/requests', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    if (!$client->isConfigured()) {
+        apiError(
+            'errors.admin.lovlynet.not_configured',
+            apiLocalizedText('errors.admin.lovlynet.not_configured', 'LovlyNet is not configured', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $hubAddress = trim($client->getHubAddress());
+    if ($hubAddress === '') {
+        apiError(
+            'errors.admin.lovlynet.request_config_missing',
+            apiLocalizedText('errors.admin.lovlynet.request_config_missing', 'LovlyNet request settings are incomplete', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $messageHandler = new \BinktermPHP\MessageHandler();
+    $requests = $messageHandler->getLovlyNetRequests((int)($user['user_id'] ?? $user['id'] ?? 0), $hubAddress);
+
+    echo json_encode([
+        'success' => true,
+        'requests' => $requests,
+    ]);
+});
+
+/**
  * GET /admin/api/zip-diag?id=FILE_ID&path=ENTRY_PATH
  * Diagnostic: test whether a ZIP entry can be extracted via ZipArchive or unzip.
  */
