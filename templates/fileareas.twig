@@ -173,6 +173,21 @@
                                 <div class="form-text">{{ t('ui.fileareas.gemini_public_help', {}, 'List and serve files in this area via the Gemini capsule server') }}</div>
                             </div>
 
+                            {% if license_valid %}
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaIsPublic" name="is_public">
+                                <label class="form-check-label" for="fileareaIsPublic">
+                                    {{ t('ui.fileareas.is_public', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.is_public_help', {}, 'Allow unauthenticated visitors to browse and download files in this area') }}</div>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-secondary py-2 small mb-3">
+                                <i class="fas fa-lock me-1"></i>
+                                {{ t('ui.fileareas.is_public_requires_license', {}, locale, ['common']) }}
+                            </div>
+                            {% endif %}
+
                             {% if freq_experimental_enabled %}
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="fileareaFreqEnabled" name="freq_enabled">
@@ -590,6 +605,7 @@ function editFilearea(id) {
             $('#fileareaAllowDuplicateHash').prop('checked', area.allow_duplicate_hash);
             $('#fileareaIsLocal').prop('checked', area.is_local);
             $('#fileareaGeminiPublic').prop('checked', area.gemini_public);
+            $('#fileareaIsPublic').prop('checked', !!area.is_public);
             $('#fileareaFreqEnabled').prop('checked', area.freq_enabled);
             $('#fileareaFreqPassword').val(area.freq_password || '');
             $('#freqPasswordGroup').toggle(!!area.freq_enabled);
@@ -628,6 +644,7 @@ function saveFilearea() {
         allow_duplicate_hash: $('#fileareaAllowDuplicateHash').is(':checked'),
         is_local: $('#fileareaIsLocal').is(':checked'),
         gemini_public: $('#fileareaGeminiPublic').is(':checked'),
+        is_public: $('#fileareaIsPublic').is(':checked'),
         freq_enabled: $('#fileareaFreqEnabled').is(':checked'),
         freq_password: $('#fileareaFreqPassword').val(),
         upload_permission: parseInt($('#fileareaUploadPermission').val()),

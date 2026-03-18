@@ -7,7 +7,8 @@
         "chat": true,
         "file_areas": true,
         "guest_doors_page": false,
-        "bbs_directory": true
+        "bbs_directory": true,
+        "public_files_index": false
     },
     "default_echo_interface": "echolist",
     "max_cross_post_areas": 5,

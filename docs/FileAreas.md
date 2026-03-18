@@ -29,6 +29,11 @@ This document explains file area configuration, storage layout, and file area ru
   - [Database Records](#database-records)
   - [FILE_ID.DIZ Preview](#file_iddiz-preview)
   - [Limitations](#limitations)
+- [Public File Areas](#public-file-areas)
+  - [Enabling Public Access](#enabling-public-access)
+  - [Public File Area Index](#public-file-area-index)
+  - [What Guests Can and Cannot Do](#what-guests-can-and-cannot-do)
+  - [Security Notes](#security-notes)
 - [FREQ (File REQuest)](#freq-file-request)
   - [Enabling FREQ on a File Area](#enabling-freq-on-a-file-area)
   - [Enabling FREQ on Individual Files](#enabling-freq-on-individual-files)
@@ -67,7 +72,7 @@ Each file area is identified by:
   permanent after creation
 - `domain` (e.g., `fidonet`, `localnet`) — the FTN network the area belongs to,
   or blank for local areas
-- Flags such as `is_local`, `is_active`, `freq_enabled`, `gemini_public`, and
+- Flags such as `is_local`, `is_active`, `is_public`, `freq_enabled`, `gemini_public`, and
   `scan_virus`
 
 **Key features at a glance:**
@@ -83,6 +88,7 @@ Each file area is identified by:
 | ISO-backed areas | Mount a CD/DVD ISO image and expose its directory tree as a browsable area |
 | FREQ support | Serve files to remote FTN nodes that send file requests via BinkP or netmail |
 | Gemini support | Expose area contents to Gemini protocol clients |
+| Public access | Allow unauthenticated visitors to browse and download files without an account (registered feature) |
 
 File areas can be managed via **Admin → Area Management → File Areas** in the web UI.
 
@@ -687,6 +693,77 @@ preview panel with CP437→UTF-8 conversion applied. No extraction to disk occur
 | File deletion | Admin-only. Removes the database record; no disk change. Re-index with `--update` to refresh descriptions if the ISO changes. |
 | Move / rename | Filename and area moves are blocked. Description edits are allowed. |
 | ISO format | ISO 9660, Joliet, and Rock Ridge extensions are supported by the Linux kernel ISO driver. UDF discs can be mounted with `mount -t udf`. |
+
+---
+
+## Public File Areas
+
+> **Registered feature.** Requires a valid BinktermPHP license. The checkbox is
+> hidden and the setting is ignored on unlicensed installations.
+
+An individual file area can be marked **Public**, allowing unauthenticated
+visitors to browse its file listing and download files without a BBS account.
+All other interactive features — comments, uploads, and area navigation — remain
+login-gated.
+
+This is intended for sysops running shareware libraries, FTN file echo mirrors,
+or community software archives where open access to the files themselves is
+desirable but full account-based interaction is not.
+
+### Enabling Public Access
+
+1. Go to **Admin → Area Management → File Areas** and edit the area.
+2. Check **Public File Area** (visible only on registered installations).
+3. Save.
+
+The area is now accessible at `/files/AREATAG` without login. Guests see the
+file listing and can download files. The sidebar showing other areas, the upload
+button, and the comment form are all suppressed for unauthenticated visitors.
+
+Private areas (`is_private = true`) cannot be made public — the access check
+always rejects unauthenticated requests for private areas regardless of the
+`is_public` flag.
+
+### Public File Area Index
+
+When the **Enable Public Files Index** toggle is turned on in **Admin → BBS
+Settings → BBS Features**, a discoverable index page is available at
+`/public-files`. This page lists all active public areas with their tag,
+description, and file count. A **Public Files** navigation link is shown to
+unauthenticated visitors in the site header.
+
+This setting is off by default. Enable it only if you want guests to be able to
+discover all your public areas from a single landing page. Individual public
+areas are always reachable via their direct URL (`/files/AREATAG`) whether or
+not the index is enabled.
+
+### What Guests Can and Cannot Do
+
+| Action | Guest (public area) |
+|---|---|
+| Browse file listing | ✅ |
+| Download files | ✅ |
+| Preview files (images, text, ANSI, ZIP, etc.) | ✅ |
+| View file comments | ✗ (login required) |
+| Post file comments | ✗ (login required) |
+| Upload files | ✗ (login required) |
+| Navigate to other areas via sidebar | ✗ (sidebar hidden) |
+
+Credits are not charged or awarded for guest downloads.
+
+### Security Notes
+
+- Only non-private areas can be made public. `is_private = true` is always
+  enforced regardless of `is_public`.
+- Private user areas (tag format `PRIVATE_USER_{id}`) always have
+  `is_private = true` and are never reachable by guests.
+- The `is_public` flag is enforced server-side on every API request. There is no
+  client-side bypass.
+- On unlicensed installations the `is_public` flag is silently forced to `false`
+  on every save, even if set directly via the API.
+- Once an area is marked public, it remains accessible even if the license
+  subsequently lapses. This is intentional — it avoids breaking links shared
+  with visitors due to a lapsed license.
 
 ---
 

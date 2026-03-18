@@ -897,6 +897,66 @@ SimpleRouter::get('/files', function() {
     ]);
 });
 
+SimpleRouter::get('/files/{tag}', function($tag) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas')) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.files_feature_disabled'
+        ]);
+        return;
+    }
+
+    // Check if this area is public — if so, auth is optional
+    $manager  = new \BinktermPHP\FileAreaManager();
+    $area     = $manager->getFileAreaByTag(strtoupper($tag));
+    $isPublic = !empty($area['is_public']) && empty($area['is_private']);
+
+    if ($isPublic) {
+        $auth = new \BinktermPHP\Auth();
+        $user = $auth->getCurrentUser(); // may be null for guests
+    } else {
+        $user = RouteHelper::requireAuth();
+    }
+
+    $template = new Template();
+    $template->renderResponse('files.twig', [
+        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'initial_area_tag'    => strtoupper($tag),
+        'is_public_area'      => $isPublic,
+        'initial_area'        => $area ?: null,
+    ]);
+});
+
+SimpleRouter::get('/public-files', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas') ||
+        !\BinktermPHP\BbsConfig::isFeatureEnabled('public_files_index')) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.not_found'
+        ]);
+        return;
+    }
+
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->query("
+        SELECT id, tag, description, domain, is_active,
+               (SELECT COUNT(*) FROM files f WHERE f.file_area_id = fa.id AND f.status = 'approved') AS file_count
+        FROM file_areas fa
+        WHERE is_public = TRUE AND is_private = FALSE AND is_active = TRUE
+        ORDER BY tag ASC
+    ");
+    $publicAreas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    $template = new Template();
+    $template->renderResponse('public_files.twig', [
+        'public_areas' => $publicAreas,
+    ]);
+});
+
 SimpleRouter::get('/compose/{type}', function($type) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();

@@ -180,7 +180,7 @@
                         </li>
                         {% endif %}
 
-                        {% if bbs_feature_enabled('file_areas') %}
+                        {% if bbs_feature_enabled('file_areas') and current_user %}
                         <li class="nav-item">
                             <a class="nav-link" href="/files">
                                 <i class="fas fa-file"></i> {{ t('ui.base.files', {}, 'common') }}
@@ -343,6 +343,13 @@
                         <li class="nav-item">
                             <a class="nav-link" href="/guest-doors">
                                 <i class="fas fa-terminal"></i> {{ t('ui.base.guest_doors', {}, 'common') }}
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if bbs_feature_enabled('public_files_index') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/public-files">
+                                <i class="fas fa-folder-open"></i> {{ t('ui.base.public_files', {}, 'common') }}
                             </a>
                         </li>
                         {% endif %}

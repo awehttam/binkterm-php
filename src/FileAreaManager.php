@@ -153,7 +153,16 @@ class FileAreaManager
             return $area['tag'] === $expectedTag;
         }
 
-        // Public areas are accessible to everyone
+        // Areas flagged is_public allow unauthenticated (guest) access
+        if (!empty($area['is_public'])) {
+            return true;
+        }
+
+        // Non-public areas require a logged-in user
+        if ($userId === null) {
+            return false;
+        }
+
         return true;
     }
 
@@ -890,6 +899,7 @@ class FileAreaManager
         }
 
         $geminiPublic = (bool)($data['gemini_public'] ?? false);
+        $isPublic = \BinktermPHP\License::isValid() ? (bool)($data['is_public'] ?? false) : false;
         if ($this->isFreqExperimentalEnabled()) {
             $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
             $freqPassword = trim((string)($data['freq_password'] ?? ''));
@@ -927,7 +937,7 @@ class FileAreaManager
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
                 replace_existing = ?, allow_duplicate_hash = ?, password = ?,
-                upload_permission = ?, scan_virus = ?, gemini_public = ?,
+                upload_permission = ?, scan_virus = ?, gemini_public = ?, is_public = ?,
                 freq_enabled = ?, freq_password = ?,
                 area_type = ?
                 {$mountCols}
@@ -940,7 +950,7 @@ class FileAreaManager
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
             $allowDuplicateHash ? 1 : 0, $password,
-            $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
+            $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false', $isPublic ? 'true' : 'false',
             $freqEnabled ? 'true' : 'false', $freqPassword,
             $areaType,
             ...$mountParams,

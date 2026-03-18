@@ -1,6 +1,15 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.files.title', {}, 'common') }} - {{ parent() }}{% endblock %}
+{% block title %}{% if is_public_area is defined and is_public_area and initial_area %}{{ initial_area.tag }} - {% endif %}{{ t('ui.files.title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block meta_tags %}
+{% if is_public_area is defined and is_public_area and initial_area %}
+<meta property="og:title" content="{{ initial_area.tag }} — {{ system_name }}">
+<meta property="og:description" content="{{ initial_area.description }}{% if initial_area.file_count %} · {{ initial_area.file_count }} {{ t('ui.files.files_count_label', {}, 'common') }}{% endif %}">
+<meta property="og:url" content="{{ site_url }}/files/{{ initial_area.tag }}">
+<meta property="og:type" content="website">
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -43,7 +52,8 @@
         </div>
     </div>
 
-    <!-- File Areas (mobile and desktop) -->
+    <!-- File Areas sidebar (hidden for guests on public areas) -->
+    {% if current_user or not (is_public_area is defined and is_public_area) %}
     <div class="col-lg-3 order-1 order-lg-2">
         <div class="card mb-3">
             <div class="card-header">
@@ -100,8 +110,10 @@
             </div>
         </div>
     </div>
+    {% endif %}{# end sidebar guard for guests on public areas #}
 
     <!-- Statistics (mobile only - at bottom) -->
+    {% if current_user or not (is_public_area is defined and is_public_area) %}
     <div class="col-12 d-lg-none order-3">
         <div class="card">
             <div class="card-header">
@@ -121,6 +133,7 @@
             </div>
         </div>
     </div>
+    {% endif %}{# end mobile stats guard #}
 </div>
 
 <!-- File Preview Modal -->
@@ -295,9 +308,11 @@
                 <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showEditDialog()" style="display:none;">
                     <i class="fas fa-pencil-alt"></i> {{ t('ui.files.edit', {}, 'common') }}
                 </button>
+                {% if current_user %}
                 <button type="button" class="btn btn-outline-info" id="shareFileBtn" onclick="showFileShareDialog()">
                     <i class="fas fa-share-alt"></i> {{ t('ui.common.share', {}, 'common') }}
                 </button>
+                {% endif %}
                 <a href="#" class="btn btn-primary" id="downloadFileBtn" download>
                     <i class="fas fa-download"></i> {{ t('ui.files.download', {}, 'common') }}
                 </a>
@@ -490,10 +505,25 @@ function apiMessage(payload, fallback) {
     return payload && payload.message ? payload.message : fallback;
 }
 
+const isPublicAreaGuest = {{ (is_public_area is defined and is_public_area and not current_user) ? 'true' : 'false' }};
+const guestPublicArea   = {{ (is_public_area is defined and is_public_area and initial_area is defined and initial_area) ? initial_area|json_encode|raw : 'null' }};
+
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
-        loadFileAreas();
-        loadStats();
+        if (isPublicAreaGuest && guestPublicArea) {
+            // Guest on a public area: load files directly without calling /api/fileareas
+            allFileAreas = [guestPublicArea];
+            currentAreaId = guestPublicArea.id;
+            const displayTag = escapeHtml(guestPublicArea.tag);
+            $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
+            if (guestPublicArea.description) {
+                $('#currentAreaMeta').html(`<small class="text-muted">${escapeHtml(guestPublicArea.description)}</small>`).show();
+            }
+            loadFiles(guestPublicArea.id, null);
+        } else {
+            loadFileAreas();
+            loadStats();
+        }
     });
 
     $('#searchFiles').on('input', function() {
@@ -563,6 +593,10 @@ function displayRecentFiles(files) {
     $('#currentAreaTitle').html(`<i class="fas fa-clock"></i> ${uiT('ui.files.recent_uploads', 'Recent Uploads')}`);
     $('#currentAreaMeta').hide();
     $('#uploadFileBtn').hide();
+    // Return URL to /files when showing recent uploads
+    if (window.location.pathname !== '/files') {
+        history.replaceState(null, '', '/files');
+    }
 
     if (files.length === 0) {
         $('#filesContainer').html(`<div class="p-4 text-center text-muted">${uiT('ui.files.no_recent_uploads', 'No files have been uploaded yet')}</div>`);
@@ -797,10 +831,11 @@ function renderFileAreaList(areas) {
 
     $('#fileAreasList').html(html);
 
-    // Auto-select area from URL query param — supports numeric ID or tag string
-    // e.g. /files?area=6  or  /files?area=MYAREA&search=filename.zip
+    // Auto-select area from server-supplied tag (e.g. /files/AREATAG)
+    // or legacy ?area= query param for backwards compatibility
+    const initialTag = {{ initial_area_tag is defined ? initial_area_tag|json_encode|raw : 'null' }};
     const params = new URLSearchParams(window.location.search);
-    const areaParam = params.get('area');
+    const areaParam = initialTag || params.get('area');
     const searchParam = params.get('search');
     if (areaParam) {
         const targetId = parseInt(areaParam, 10);
@@ -817,7 +852,7 @@ function renderFileAreaList(areas) {
         }
     }
 
-    // No area param — show recent uploads
+    // No area — show recent uploads
     loadRecentFiles();
 }
 
@@ -883,6 +918,11 @@ function selectFileArea(areaId, subfolder) {
         // Highlight selected area
         $('#fileAreasList .list-group-item').removeClass('active');
         $(`#fileAreasList .list-group-item[data-area-id="${areaId}"]`).addClass('active');
+
+        // Update URL so this area can be linked to directly
+        if (area.tag) {
+            history.replaceState(null, '', '/files/' + encodeURIComponent(area.tag));
+        }
     }
 
     loadFiles(areaId, currentSubfolder);
@@ -1203,7 +1243,7 @@ function showFileDetails(fileId) {
             $('#leaveCommentBtn').show();
             cancelCommentReply();
             $('#commentBodyInput').val('');
-            loadFileComments(fileId);
+            if (!isPublicAreaGuest) { loadFileComments(fileId); }
 
             if (!$('#fileDetailsModal').hasClass('show')) {
                 new bootstrap.Modal('#fileDetailsModal').show();
@@ -1259,7 +1299,7 @@ function previewFile(fileId) {
     $('#previewLeaveCommentBtn').show();
     cancelCommentReply();
     $('#previewCommentBodyInput').val('');
-    loadFileComments(fileId);
+    if (!isPublicAreaGuest) { loadFileComments(fileId); }
 
     if (!$('#filePreviewModal').hasClass('show')) {
         new bootstrap.Modal('#filePreviewModal').show();
@@ -1295,7 +1335,7 @@ function navigatePreview(direction) {
     $('#previewLeaveCommentBtn').show();
     cancelCommentReply();
     $('#previewCommentBodyInput').val('');
-    loadFileComments(file.id);
+    if (!isPublicAreaGuest) { loadFileComments(file.id); }
 }
 
 function openDetailsFromPreview() {

@@ -2276,11 +2276,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Files API routes
     SimpleRouter::get('/files', function() {
-        $user = RouteHelper::requireAuth();
-
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            apiError('errors.files.feature_disabled', 'File areas feature is disabled');
             return;
         }
 
@@ -2289,12 +2287,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $areaId = $_GET['area_id'] ?? null;
         if (!$areaId) {
             http_response_code(400);
-            apiError('errors.files.area_id_required', apiLocalizedText('errors.files.area_id_required', 'File area ID is required', $user));
+            apiError('errors.files.area_id_required', 'File area ID is required');
             return;
         }
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        // Allow guest access for public areas; otherwise require auth
+        $area = $manager->getFileAreaById((int)$areaId);
+        $isPublicArea = !empty($area['is_public']) && empty($area['is_private']);
+
+        if ($isPublicArea) {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser(); // may be null
+        } else {
+            $user = RouteHelper::requireAuth();
+        }
+
+        $userId  = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
         $isAdmin = !empty($user['is_admin']);
 
         // Check if user has access to this file area
@@ -2320,7 +2330,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $subfolderLabel = $manager->getSubfolderLabel((int)$areaId, $subfolder);
         }
 
-        ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+        if ($userId) {
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+        }
 
         echo json_encode([
             'files'           => $files,
@@ -2424,7 +2436,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/files/{id}', function($id) {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        // Allow guests on public areas
+        if (!$user) {
+            $checkFile = $manager->getFileById((int)$id);
+            $viaPublicArea = false;
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+            if (!$viaPublicArea) {
+                RouteHelper::requireAuth();
+                return;
+            }
+        }
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -2434,7 +2465,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
-        $manager = new \BinktermPHP\FileAreaManager();
         $file = $manager->getFileById((int)$id);
 
         if ($file) {
@@ -2446,25 +2476,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/files/{id}/download', function($id) {
-        $user = RouteHelper::requireAuth();
-
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user);
+            echo 'File areas feature is disabled';
             return;
         }
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $file = $manager->getFileById((int)$id);
+        $file    = $manager->getFileById((int)$id);
 
         if (!$file || $file['status'] !== 'approved') {
             http_response_code(404);
-            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            echo 'File not found';
             return;
         }
 
+        // Allow guest access for public areas; otherwise require auth
+        $fileArea    = $manager->getFileAreaById($file['file_area_id']);
+        $isPublicArea = !empty($fileArea['is_public']) && empty($fileArea['is_private']);
+
+        if ($isPublicArea) {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser(); // may be null
+        } else {
+            $user = RouteHelper::requireAuth();
+            if (!$user) return; // requireAuth already responded
+        }
+
         // Check if user has access to this file's area
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $userId  = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
         $isAdmin = !empty($user['is_admin']);
 
         $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
@@ -2502,40 +2542,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Set headers for file download
         // Properly encode filename for Content-Disposition header (RFC 6266 & RFC 5987)
-        $filename = basename($file['filename']);
+        $filename        = basename($file['filename']);
         $encodedFilename = rawurlencode($filename);
-        $downloadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
-        $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
 
-        if ($downloadCost > 0) {
-            $debitSuccess = UserCredit::debit(
-                (int)$userId,
-                $downloadCost,
-                "Downloaded file: {$filename}",
-                null,
-                UserCredit::TYPE_PAYMENT
-            );
-            if (!$debitSuccess) {
-                http_response_code(402);
-                echo apiLocalizedText('errors.files.download.insufficient_credits', 'Insufficient credits to download this file', $user);
-                return;
+        // Credits only apply to authenticated users
+        if ($userId) {
+            $downloadCost   = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
+            $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
+
+            if ($downloadCost > 0) {
+                $debitSuccess = UserCredit::debit(
+                    (int)$userId,
+                    $downloadCost,
+                    "Downloaded file: {$filename}",
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$debitSuccess) {
+                    http_response_code(402);
+                    echo apiLocalizedText('errors.files.download.insufficient_credits', 'Insufficient credits to download this file', $user);
+                    return;
+                }
             }
-        }
 
-        if ($downloadReward > 0) {
-            $creditSuccess = UserCredit::credit(
-                (int)$userId,
-                $downloadReward,
-                "Download reward: {$filename}",
-                null,
-                UserCredit::TYPE_SYSTEM_REWARD
-            );
-            if (!$creditSuccess) {
-                error_log("Failed to award file download credits for user {$userId} and file {$id}");
+            if ($downloadReward > 0) {
+                $creditSuccess = UserCredit::credit(
+                    (int)$userId,
+                    $downloadReward,
+                    "Download reward: {$filename}",
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    error_log("Failed to award file download credits for user {$userId} and file {$id}");
+                }
             }
-        }
 
-        ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
+        }
 
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
@@ -2555,7 +2599,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * file is served as an attachment (triggers a download in the browser).
      */
     SimpleRouter::get('/files/{id}/preview', function($id) {
-        // Allow unauthenticated access for valid active file shares
+        // Allow unauthenticated access for valid active file shares or public areas
         $shareArea     = trim($_GET['share_area'] ?? '');
         $shareFilename = trim($_GET['share_filename'] ?? '');
         $viaShare      = false;
@@ -2573,7 +2617,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
+        // Check if the file belongs to a public area (allows unauthenticated preview)
+        $viaPublicArea = false;
         if (!$user && !$viaShare) {
+            $previewFile = $manager->getFileById((int)$id);
+            if ($previewFile) {
+                $previewArea = $manager->getFileAreaById($previewFile['file_area_id']);
+                if (!empty($previewArea['is_public']) && empty($previewArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
             RouteHelper::requireAuth(); // triggers 401/redirect
             return;
         }
@@ -2591,8 +2647,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Shared-file access bypasses per-area access controls
-        if ($viaShare) {
+        // Shared-file access and public-area access bypass per-area access controls
+        if ($viaShare || $viaPublicArea) {
             $hasAccess = true;
         } else {
             $userId  = $user['user_id'] ?? $user['id'] ?? null;
@@ -3181,7 +3237,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
+        // Allow guests on public areas
+        $viaPublicArea = false;
         if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
             RouteHelper::requireAuth();
             return;
         }
@@ -3276,7 +3344,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
+        // Allow guests on public areas
+        $viaPublicArea = false;
         if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
             RouteHelper::requireAuth();
             return;
         }
@@ -3294,7 +3374,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        if (!$viaShare) {
+        if (!$viaShare && !$viaPublicArea) {
             $userId  = $user['user_id'] ?? $user['id'] ?? null;
             $isAdmin = !empty($user['is_admin']);
             if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {

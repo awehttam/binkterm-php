@@ -55,6 +55,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Echo Area Management Improvements](#echo-area-management-improvements)
 - [File Upload Filename Sanitization](#file-upload-filename-sanitization)
+- [Public File Areas](#public-file-areas)
 - [Echo List Network Filter](#echo-list-network-filter)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
@@ -197,6 +198,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   download button. Entries using legacy DOS compression methods (implode,
   shrink) are flagged with a `legacy` badge and extracted via `unzip` on the
   server, falling back to a graceful notice if `unzip` is unavailable.
+- **Public file areas** *(registered feature)* — individual file areas can be
+  flagged as public, allowing unauthenticated visitors to browse and download
+  files without a BBS account. An optional index page (`/public-files`) lists
+  all public areas and can be enabled from BBS Settings.
 
 **LovlyNet**
 - New admin page **LovlyNet Subscriptions** (`/admin/lovlynet`) shows all
@@ -1602,6 +1607,45 @@ file contained `Pw ` with an empty value. Many TIC processors treat an empty
 
 Fixed — TIC files now emit `Pw -` when no password is set, following the
 conventional placeholder used by other TIC-compliant software.
+
+## Public File Areas
+
+Individual file areas can now be flagged as **public**, allowing unauthenticated
+visitors to browse the file listing and download files without a BBS account.
+This is a registered (premium) feature.
+
+### What guests can do on a public area
+
+- Browse the file listing (filename, description, size, date)
+- Download files
+- Open the file preview modal (images, text/NFO, ANSI, ZIP browser, etc.)
+
+### What guests cannot do
+
+- Post or view file comments
+- Upload files
+- Access any area that is not flagged public
+
+### Enabling public access on an area
+
+In **Admin → Area Management → File Areas**, edit the area and check the
+**Public** checkbox. The checkbox is only shown on registered installations;
+on unregistered installations a lock notice appears in its place.
+
+### Public file area index page
+
+A new BBS setting **Enable Public Files Index** (Admin → BBS Settings → BBS
+Features) controls whether an index page at `/public-files` is available.
+When enabled, the index lists all public areas in a card grid and a
+**Public Files** link appears in the navigation bar for guests.
+
+When disabled (the default), public areas are still accessible via their
+direct URL (`/files/AREATAG`) — they simply are not listed on a discovery page.
+
+### Database migration
+
+Migration `v1.11.0.33_public_file_areas.sql` adds an `is_public` boolean
+column to the `file_areas` table. Run `php scripts/setup.php` to apply it.
 
 ## Upgrade Instructions
 
