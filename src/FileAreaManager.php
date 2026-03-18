@@ -187,6 +187,117 @@ class FileAreaManager
     }
 
     /**
+     * Create a file area if one with the same tag/domain does not already exist.
+     *
+     * @param array $data File area data
+     * @return int Existing or newly created file area ID
+     */
+    public function createIfMissing(array $data): int
+    {
+        $tag = strtoupper(trim((string)($data['tag'] ?? '')));
+        if ($tag === '') {
+            throw new \InvalidArgumentException('File area tag is required');
+        }
+
+        $domain = trim((string)($data['domain'] ?? ''));
+        $existing = $this->getFileAreaByTag($tag, $domain);
+        if ($existing) {
+            return (int)$existing['id'];
+        }
+
+        $defaults = [
+            'tag' => $tag,
+            'description' => trim((string)($data['description'] ?? '')) ?: $tag,
+            'domain' => $domain,
+            'is_local' => false,
+            'is_active' => true,
+            'upload_permission' => self::UPLOAD_READ_ONLY,
+            'replace_existing' => true,
+            'allow_duplicate_hash' => false,
+            'scan_virus' => true,
+            'max_file_size' => 10485760,
+            'allowed_extensions' => '',
+            'blocked_extensions' => '',
+            'password' => null,
+            'area_type' => 'normal',
+            'gemini_public' => false,
+        ];
+
+        return $this->createFileArea(array_merge($defaults, $data, [
+            'tag' => $tag,
+            'domain' => $domain,
+        ]));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $areas
+     * @return array<int, array<string, mixed>>
+     */
+    public function annotateAreasWithLocalStatus(array $areas, array $domains = []): array
+    {
+        if ($areas === []) {
+            return $areas;
+        }
+
+        $tags = array_values(array_unique(array_filter(array_map(static function ($area) {
+            return strtoupper(trim((string)($area['tag'] ?? '')));
+        }, $areas))));
+
+        if ($tags === []) {
+            return $areas;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($tags), '?'));
+        [$domainClause, $domainParams] = $this->buildDomainWhereClause($domains);
+        $stmt = $this->db->prepare("
+            SELECT UPPER(tag) AS tag_key, id, domain, description
+            FROM file_areas
+            WHERE UPPER(tag) IN ($placeholders)
+              AND {$domainClause}
+        ");
+        $stmt->execute(array_merge($tags, $domainParams));
+        $localRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $localByTag = [];
+        foreach ($localRows as $row) {
+            $tagKey = (string)($row['tag_key'] ?? '');
+            if ($tagKey !== '' && !isset($localByTag[$tagKey])) {
+                $localByTag[$tagKey] = $row;
+            }
+        }
+
+        foreach ($areas as &$area) {
+            $tagKey = strtoupper(trim((string)($area['tag'] ?? '')));
+            $local = $localByTag[$tagKey] ?? null;
+            $area['local_exists'] = $local !== null;
+            $area['local_filearea_id'] = $local !== null ? (int)$local['id'] : null;
+            $area['local_domain'] = $local['domain'] ?? null;
+            $area['local_description'] = $local['description'] ?? null;
+            $remoteDescription = trim((string)($area['description'] ?? ''));
+            $localDescription = trim((string)($local['description'] ?? ''));
+            $area['description_mismatch'] = $local !== null && $remoteDescription !== '' && $remoteDescription !== $localDescription;
+        }
+        unset($area);
+
+        return $areas;
+    }
+
+    public function updateDescription(int $id, string $description): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        $normalizedDescription = trim($description);
+        if ($normalizedDescription === '') {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("UPDATE file_areas SET description = ?, updated_at = NOW() WHERE id = ?");
+        return $stmt->execute([$normalizedDescription, $id]);
+    }
+
+    /**
      * Get the domain for a file area tag
      *
      * @param string $tag
@@ -199,6 +310,39 @@ class FileAreaManager
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $row['domain'] ?? 'fidonet';
+    }
+
+    /**
+     * @return array{0:string,1:array<int,string>}
+     */
+    private function buildDomainWhereClause(array $domains): array
+    {
+        $normalized = [];
+        foreach ($domains as $domain) {
+            $value = strtolower(trim((string)$domain));
+            if ($value === '') {
+                $normalized[] = '';
+            } elseif (!in_array($value, $normalized, true)) {
+                $normalized[] = $value;
+            }
+        }
+
+        if ($normalized === []) {
+            return ['1=1', []];
+        }
+
+        $parts = [];
+        $params = [];
+        foreach ($normalized as $domain) {
+            if ($domain === '') {
+                $parts[] = "(domain IS NULL OR domain = '')";
+            } else {
+                $parts[] = "LOWER(domain) = ?";
+                $params[] = $domain;
+            }
+        }
+
+        return ['(' . implode(' OR ', $parts) . ')', $params];
     }
 
     /**

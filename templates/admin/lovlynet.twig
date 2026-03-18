@@ -315,8 +315,10 @@ function renderAreas(type, areas, containerSel, countSel) {
 
     areas.forEach(function(area) {
         const tag  = escapeHtml(area.tag);
+        const rawTag = String(area.tag || '').trim();
         const desc = escapeHtml(area.description || '');
         const sub  = area.subscribed;
+        const syncNeeded = sub && (!area.local_exists || !!area.description_mismatch);
         const statusBadge = sub
             ? `<span class="badge bg-success">${uiT('ui.admin.lovlynet.subscribed', 'Subscribed')}</span>`
             : `<span class="badge bg-secondary">${uiT('ui.admin.lovlynet.not_subscribed', 'Not subscribed')}</span>`;
@@ -328,16 +330,37 @@ function renderAreas(type, areas, containerSel, countSel) {
 
         const rescanButton = type === 'echo' ? `
                 <button class="btn btn-sm btn-outline-secondary rescan-btn"
-                        data-tag="${tag}" ${sub ? '' : 'disabled'}>
+                        data-tag="${tag}"
+                        title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.btn_rescan_title', 'Request rescan of messages'))}"
+                        ${sub ? '' : 'disabled'}>
                     ${uiT('ui.admin.lovlynet.btn_rescan', 'Rescan')}
                 </button>` : '';
+        const syncTitle = !area.local_exists
+            ? uiT('ui.admin.lovlynet.sync_title_create_and_description', 'Create group and sync description')
+            : uiT('ui.admin.lovlynet.sync_title_description', 'Sync description');
+        const syncButton = syncNeeded ? `
+                <button class="btn btn-sm btn-outline-primary sync-btn"
+                        data-type="${escapeHtmlAttr(type)}"
+                        data-tag="${escapeHtmlAttr(rawTag)}"
+                        title="${escapeHtmlAttr(syncTitle)}">
+                    ${uiT('ui.echoareas.lovlynet_sync_button', 'Sync')}
+                </button>` : '';
+
+        const editTagTitle = uiT('ui.admin.lovlynet.edit_tag_title', 'Edit {tag}', { tag: rawTag });
+        let tagCell = `<code>${tag}</code>`;
+        if (area.local_exists) {
+            tagCell = type === 'echo'
+                ? `<a href="/echoareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>`
+                : `<a href="/fileareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>`;
+        }
 
         html += `<tr>
-            <td><code>${tag}</code></td>
+            <td>${tagCell}</td>
             <td class="text-muted small">${desc}</td>
             <td class="text-center">${statusBadge}</td>
             <td class="text-end">
                 <div class="d-inline-flex gap-2">
+                ${syncButton}
                 ${rescanButton}
                 <button class="btn btn-sm ${btnClass} toggle-btn"
                         data-tag="${tag}" data-type="${type}" data-action="${btnAction}">
@@ -361,6 +384,11 @@ function renderAreas(type, areas, containerSel, countSel) {
 
     $c.find('.rescan-btn').on('click', function() {
         openRescanModal($(this).data('tag') || '');
+    });
+
+    $c.find('.sync-btn').on('click', function() {
+        const $btn = $(this);
+        syncLovlyNetArea($btn, $btn.data('type') || '', $btn.data('tag') || '');
     });
 }
 
@@ -717,6 +745,40 @@ function submitLovlynetRescan() {
             $submit.prop('disabled', false).html(
                 `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.rescan_send', 'Send rescan request')}`
             );
+        }
+    });
+}
+
+function syncLovlyNetArea($btn, areaType, areaTag) {
+    if (!areaType || !areaTag) {
+        return;
+    }
+
+    const originalHtml = $btn.html();
+    $btn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i>`);
+
+    $.ajax({
+        url: '/admin/api/lovlynet/area-sync',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ area_type: areaType, area_tag: areaTag }),
+        success: function(response) {
+            const fallbackMessage = uiT('ui.echoareas.lovlynet_sync_success', 'Description updated from LovlyNet');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallbackMessage)
+                : fallbackMessage;
+            showSuccess(successMessage);
+            loadAreas();
+        },
+        error: function(xhr) {
+            const fallback = uiT('ui.echoareas.lovlynet_sync_failed', 'Failed to sync description from LovlyNet');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            showError(msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html(originalHtml);
         }
     });
 }

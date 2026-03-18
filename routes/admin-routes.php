@@ -3890,9 +3890,14 @@ SimpleRouter::get('/admin/api/lovlynet/areas', function() {
         return;
     }
 
+    $echoareaManager = new \BinktermPHP\EchoareaManager();
+    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+    $echoareas = $echoareaManager->annotateAreasWithLocalStatus($result['echoareas'], ['', 'lovlynet']);
+    $fileareas = $fileAreaManager->annotateAreasWithLocalStatus($result['fileareas'], ['', 'lovlynet']);
+
     echo json_encode([
-        'echoareas'   => $result['echoareas'],
-        'fileareas'   => $result['fileareas'],
+        'echoareas'   => $echoareas,
+        'fileareas'   => $fileareas,
         'ftn_address' => $result['ftn_address'] ?? '',
     ]);
 });
@@ -3935,6 +3940,42 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
     }
 
     $client = new \BinktermPHP\LovlyNetClient();
+
+    if ($action === 'subscribe' && $areaType === 'echo') {
+        $areasResult = $client->getAreas();
+        if (!$areasResult['success']) {
+            http_response_code(502);
+            echo json_encode(['error' => $areasResult['error']]);
+            return;
+        }
+
+        $remoteArea = null;
+        foreach (($areasResult['echoareas'] ?? []) as $candidate) {
+            if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+                $remoteArea = $candidate;
+                break;
+            }
+        }
+
+        if ($remoteArea === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Unknown LovlyNet echo area']);
+            return;
+        }
+
+        $echoareaManager = new \BinktermPHP\EchoareaManager();
+        $echoareaManager->createIfMissing([
+            'tag' => $remoteArea['tag'] ?? $areaTag,
+            'description' => $remoteArea['description'] ?? '',
+            'domain' => 'lovlynet',
+            'uplink_address' => $client->getHubAddress(),
+            'is_local' => false,
+            'is_active' => true,
+            'is_sysop_only' => false,
+            'gemini_public' => false,
+        ], ['', 'lovlynet']);
+    }
+
     $result = $client->setSubscription($action, $areaType, $areaTag);
 
     if (!$result['success']) {
@@ -3943,10 +3984,42 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
         return;
     }
 
+    if ($action === 'subscribe' && $areaType === 'file') {
+        $remoteArea = null;
+        foreach (($result['fileareas'] ?? []) as $candidate) {
+            if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+                $remoteArea = $candidate;
+                break;
+            }
+        }
+
+        if ($remoteArea !== null) {
+            $fileAreaManager = new \BinktermPHP\FileAreaManager();
+            $fileAreaManager->createIfMissing([
+                'tag' => $remoteArea['tag'] ?? $areaTag,
+                'description' => $remoteArea['description'] ?? '',
+                'domain' => 'lovlynet',
+                'is_local' => false,
+                'is_active' => true,
+                'upload_permission' => \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY,
+            ]);
+        }
+    }
+
+    $echoareas = $result['echoareas'] ?? [];
+    $fileareas = $result['fileareas'] ?? [];
+    if ($areaType === 'echo') {
+        $echoareaManager = new \BinktermPHP\EchoareaManager();
+        $echoareas = $echoareaManager->annotateAreasWithLocalStatus($echoareas, ['', 'lovlynet']);
+    } elseif ($areaType === 'file') {
+        $fileAreaManager = new \BinktermPHP\FileAreaManager();
+        $fileareas = $fileAreaManager->annotateAreasWithLocalStatus($fileareas, ['', 'lovlynet']);
+    }
+
     echo json_encode([
         'success'    => true,
-        'echoareas'  => $result['echoareas'],
-        'fileareas'  => $result['fileareas'],
+        'echoareas'  => $echoareas,
+        'fileareas'  => $fileareas,
     ]);
 });
 
@@ -4070,6 +4143,226 @@ SimpleRouter::get('/admin/api/lovlynet/help', function() {
     echo json_encode([
         'success' => true,
         'help' => $result['help'] ?? '',
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/echoarea-sync
+ * Fetch the current LovlyNet description for a local LovlyNet echoarea.
+ */
+SimpleRouter::post('/admin/api/lovlynet/echoarea-sync', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $echoareaId = (int)($body['echoarea_id'] ?? 0);
+    if ($echoareaId <= 0) {
+        apiError(
+            'errors.echoareas.not_found',
+            apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $echoareaManager = new \BinktermPHP\EchoareaManager();
+    $echoarea = $echoareaManager->getById($echoareaId);
+    if (!$echoarea) {
+        apiError(
+            'errors.echoareas.not_found',
+            apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    if (strcasecmp((string)($echoarea['domain'] ?? ''), 'lovlynet') !== 0) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $areasResult = $client->getAreas();
+    if (!$areasResult['success']) {
+        apiError(
+            'errors.admin.lovlynet.help_fetch_failed',
+            apiLocalizedText('errors.admin.lovlynet.help_fetch_failed', 'Failed to load help text', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    $remoteArea = null;
+    foreach (($areasResult['echoareas'] ?? []) as $candidate) {
+        if (strcasecmp(trim((string)($candidate['tag'] ?? '')), trim((string)($echoarea['tag'] ?? ''))) === 0) {
+            $remoteArea = $candidate;
+            break;
+        }
+    }
+
+    if ($remoteArea === null) {
+        apiError(
+            'errors.echoareas.not_found',
+            apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $description = trim((string)($remoteArea['description'] ?? ''));
+    if ($description === '') {
+        apiError(
+            'errors.admin.lovlynet.request_send_failed',
+            apiLocalizedText('errors.admin.lovlynet.request_send_failed', 'Failed to send request netmail', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode([
+        'success' => true,
+        'description' => $description,
+        'message_code' => 'ui.echoareas.lovlynet_sync_success',
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/area-sync
+ * Ensure a subscribed LovlyNet area exists locally and has the current description.
+ */
+SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $areaType = trim((string)($body['area_type'] ?? 'echo'));
+    if (!in_array($areaType, ['echo', 'file'], true)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $areaTag = strtoupper(trim((string)($body['area_tag'] ?? '')));
+    if ($areaTag === '') {
+        apiError(
+            $areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found',
+            apiLocalizedText($areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found', $areaType === 'file' ? 'File area not found' : 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $areasResult = $client->getAreas();
+    if (!$areasResult['success']) {
+        apiError(
+            'errors.admin.lovlynet.help_fetch_failed',
+            apiLocalizedText('errors.admin.lovlynet.help_fetch_failed', 'Failed to load help text', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    $remoteArea = null;
+    $remoteAreas = $areaType === 'file' ? ($areasResult['fileareas'] ?? []) : ($areasResult['echoareas'] ?? []);
+    foreach ($remoteAreas as $candidate) {
+        if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+            $remoteArea = $candidate;
+            break;
+        }
+    }
+
+    if ($remoteArea === null) {
+        apiError(
+            $areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found',
+            apiLocalizedText($areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found', $areaType === 'file' ? 'File area not found' : 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $description = trim((string)($remoteArea['description'] ?? ''));
+    if ($description === '') {
+        apiError(
+            $areaType === 'file' ? 'errors.fileareas.update_failed' : 'errors.echoareas.update_failed',
+            apiLocalizedText($areaType === 'file' ? 'errors.fileareas.update_failed' : 'errors.echoareas.update_failed', $areaType === 'file' ? 'Failed to update file area' : 'Failed to update echo area', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    if ($areaType === 'file') {
+        $fileAreaManager = new \BinktermPHP\FileAreaManager();
+        $fileAreaId = $fileAreaManager->createIfMissing([
+            'tag' => $remoteArea['tag'] ?? $areaTag,
+            'description' => $description,
+            'domain' => 'lovlynet',
+            'is_local' => false,
+            'is_active' => true,
+            'upload_permission' => \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY,
+            'replace_existing' => true,
+        ]);
+
+        if (!$fileAreaManager->updateDescription($fileAreaId, $description)) {
+            apiError(
+                'errors.fileareas.update_failed',
+                apiLocalizedText('errors.fileareas.update_failed', 'Failed to update file area', $user),
+                500,
+                ['success' => false]
+            );
+        }
+    } else {
+        $echoareaManager = new \BinktermPHP\EchoareaManager();
+        $echoareaId = $echoareaManager->createIfMissing([
+            'tag' => $remoteArea['tag'] ?? $areaTag,
+            'description' => $description,
+            'domain' => 'lovlynet',
+            'uplink_address' => $client->getHubAddress(),
+            'is_local' => false,
+            'is_active' => true,
+            'is_sysop_only' => false,
+            'gemini_public' => false,
+        ], ['', 'lovlynet']);
+
+        if (!$echoareaManager->updateDescription($echoareaId, $description)) {
+            apiError(
+                'errors.echoareas.update_failed',
+                apiLocalizedText('errors.echoareas.update_failed', 'Failed to update echo area', $user),
+                500,
+                ['success' => false]
+            );
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'description' => $description,
+        'message_code' => 'ui.echoareas.lovlynet_sync_success',
     ]);
 });
 

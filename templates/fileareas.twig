@@ -375,6 +375,8 @@
 {% block scripts %}
 <script>
 let currentFileareaId = null;
+let pendingFileareaTag = null;
+let pendingFileareaDomain = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -391,6 +393,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
+    const params = new URLSearchParams(window.location.search);
+    pendingFileareaTag = (params.get('tag') || '').trim().toUpperCase();
+    pendingFileareaDomain = (params.get('domain') || '').trim().toLowerCase();
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadFileareas();
         loadStats();
@@ -414,10 +420,32 @@ function loadFileareas() {
     $.get(url)
         .done(function(data) {
             displayFileareas(data.fileareas);
+            openPendingFileareaFromUrl(data.fileareas || []);
         })
         .fail(function() {
             $('#fileareasContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.fileareas.load_failed', 'Failed to load file areas')}</div>`);
         });
+}
+
+function openPendingFileareaFromUrl(fileareas) {
+    if (!pendingFileareaTag) {
+        return;
+    }
+
+    const match = (fileareas || []).find(function(area) {
+        const areaTag = String(area.tag || '').trim().toUpperCase();
+        const areaDomain = String(area.domain || '').trim().toLowerCase();
+        return areaTag === pendingFileareaTag
+            && (pendingFileareaDomain === '' || areaDomain === pendingFileareaDomain);
+    });
+
+    if (!match) {
+        return;
+    }
+
+    pendingFileareaTag = null;
+    pendingFileareaDomain = null;
+    editFilearea(match.id);
 }
 
 function displayFileareas(fileareas) {

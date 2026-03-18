@@ -39,6 +39,7 @@
                 </div>
                 <input type="text" class="form-control form-control-sm" id="echoareaSearch"
                        placeholder="{{ t('ui.echoareas.search_tags_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
+                <div class="mt-2" id="echoareaDomainFilters"></div>
             </div>
             <div class="card-body p-0">
                 <div id="echoareasContainer">
@@ -137,7 +138,13 @@
                             </div>
 
                             <div class="mb-3">
-                                <label for="echoareaDescription" class="form-label">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="echoareaDescription" class="form-label mb-0">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="echoareaLovlyNetSyncButton" onclick="syncLovlyNetEchoareaDescription()">
+                                        <i class="fas fa-sync-alt me-1"></i>
+                                        {{ t('ui.echoareas.lovlynet_sync_button', {}, locale, ['common']) }}
+                                    </button>
+                                </div>
                                 <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
                                 <div class="form-text">{{ t('ui.echoareas.description_help', {}, locale, ['common']) }}</div>
                             </div>
@@ -325,6 +332,11 @@ let allEchoareas = [];
 let searchQuery = '';
 let sortColumn = 'id';
 let sortDirection = 'asc';
+let selectedDomains = [];
+let availableDomains = [];
+let pendingEchoareaTag = null;
+let pendingEchoareaDomain = null;
+let pendingEchoareaOpenHandled = false;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -341,6 +353,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
+    const params = new URLSearchParams(window.location.search);
+    pendingEchoareaTag = (params.get('tag') || '').trim().toUpperCase();
+    pendingEchoareaDomain = (params.get('domain') || '').trim().toLowerCase();
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadEchoareas();
         loadStats();
@@ -380,15 +396,87 @@ function loadEchoareas() {
     $.get(url)
         .done(function(data) {
             allEchoareas = data.echoareas;
+            updateAvailableDomains();
+            renderDomainFilters();
             applySearchFilter();
+            openPendingEchoareaFromUrl();
         })
         .fail(function() {
             $('#echoareasContainer').html(`<div class="text-center text-danger py-4">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
         });
 }
 
+function openPendingEchoareaFromUrl() {
+    if (pendingEchoareaOpenHandled || !pendingEchoareaTag) {
+        return;
+    }
+
+    const match = allEchoareas.find(function(area) {
+        const areaTag = String(area.tag || '').trim().toUpperCase();
+        const areaDomain = String(area.domain || '').trim().toLowerCase();
+        return areaTag === pendingEchoareaTag && areaDomain === pendingEchoareaDomain;
+    });
+
+    if (!match) {
+        return;
+    }
+
+    pendingEchoareaOpenHandled = true;
+    editEchoarea(match.id);
+}
+
 function searchEchoareas(query) {
     searchQuery = query.toLowerCase();
+    applySearchFilter();
+}
+
+function updateAvailableDomains() {
+    const domains = new Set();
+    allEchoareas.forEach(function(area) {
+        const domain = String(area.domain || '').trim().toLowerCase();
+        domains.add(domain);
+    });
+    availableDomains = Array.from(domains).sort();
+    selectedDomains = selectedDomains.filter(function(domain) {
+        return availableDomains.includes(domain);
+    });
+}
+
+function renderDomainFilters() {
+    const $container = $('#echoareaDomainFilters');
+    if (!availableDomains.length) {
+        $container.empty();
+        return;
+    }
+
+    let html = `<div class="small text-muted mb-1">${uiT('ui.common.domain', 'Domain')}</div>`;
+    html += '<div class="d-flex flex-wrap gap-2">';
+    html += `<button type="button" class="btn btn-sm ${selectedDomains.length === 0 ? 'btn-primary' : 'btn-outline-secondary'}" onclick="clearDomainFilters()">${uiT('ui.common.all', 'All')}</button>`;
+
+    availableDomains.forEach(function(domain) {
+        const selected = selectedDomains.includes(domain);
+        const label = domain === '' ? uiT('ui.echoareas.local', 'Local') : domain;
+        html += `<button type="button" class="btn btn-sm ${selected ? 'btn-primary' : 'btn-outline-secondary'}" onclick="toggleDomainFilter('${escapeJsString(domain)}')">${escapeHtml(label)}</button>`;
+    });
+
+    html += '</div>';
+    $container.html(html);
+}
+
+function toggleDomainFilter(domain) {
+    if (selectedDomains.includes(domain)) {
+        selectedDomains = selectedDomains.filter(function(value) { return value !== domain; });
+    } else {
+        selectedDomains.push(domain);
+        selectedDomains.sort();
+    }
+    renderDomainFilters();
+    applySearchFilter();
+}
+
+function clearDomainFilters() {
+    selectedDomains = [];
+    renderDomainFilters();
     applySearchFilter();
 }
 
@@ -419,8 +507,15 @@ function sortableHeader(label, col, width) {
 function applySearchFilter() {
     let filtered = allEchoareas;
 
+    if (selectedDomains.length > 0) {
+        filtered = filtered.filter(function(area) {
+            const domain = String(area.domain || '').trim().toLowerCase();
+            return selectedDomains.includes(domain);
+        });
+    }
+
     if (searchQuery.length > 0) {
-        filtered = allEchoareas.filter(area =>
+        filtered = filtered.filter(area =>
             area.tag.toLowerCase().includes(searchQuery) ||
             (area.description && area.description.toLowerCase().includes(searchQuery))
         );
@@ -547,6 +642,9 @@ function showAddEchoareaModal() {
     $('#echoareaGeminiPublic').prop('checked', false);
     $('#echoareaPostingNamePolicy').val('inherit');
     $('#echoareaArtFormatHint').val('inherit');
+    $('#echoareaLovlyNetSyncButton').addClass('d-none').prop('disabled', false).html(
+        `<i class="fas fa-sync-alt me-1"></i>${uiT('ui.echoareas.lovlynet_sync_button', 'Sync')}`
+    );
     updateColorSelection('#28a745');
     $('#echoareaModal').modal('show');
 }
@@ -572,12 +670,52 @@ function editEchoarea(id) {
             $('#echoareaGeminiPublic').prop('checked', area.gemini_public);
             $('#echoareaPostingNamePolicy').val(area.posting_name_policy || 'inherit');
             $('#echoareaArtFormatHint').val(area.art_format_hint || 'inherit');
+            toggleLovlyNetSyncButton(area);
             updateColorSelection(area.color || '#28a745');
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
             showError(uiT('ui.echoareas.load_details_failed', 'Failed to load echo area details'));
         });
+}
+
+function toggleLovlyNetSyncButton(area) {
+    const isLovlyNet = String(area.domain || '').trim().toLowerCase() === 'lovlynet';
+    $('#echoareaLovlyNetSyncButton').toggleClass('d-none', !isLovlyNet);
+}
+
+function syncLovlyNetEchoareaDescription() {
+    if (!currentEchoareaId) {
+        return;
+    }
+
+    const $button = $('#echoareaLovlyNetSyncButton');
+    $button.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.echoareas.lovlynet_sync_button_loading', 'Syncing...')}`);
+
+    $.ajax({
+        url: '/admin/api/lovlynet/echoarea-sync',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ echoarea_id: currentEchoareaId }),
+        success: function(response) {
+            $('#echoareaDescription').val(response.description || '');
+            const fallbackMessage = uiT('ui.echoareas.lovlynet_sync_success', 'Description updated from LovlyNet');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallbackMessage)
+                : fallbackMessage;
+            showSuccess(successMessage);
+            loadEchoareas();
+        },
+        error: function(xhr) {
+            const error = apiError(xhr.responseJSON, uiT('ui.echoareas.lovlynet_sync_failed', 'Failed to sync description from LovlyNet'));
+            $('#echoareaModalError').text(error).removeClass('d-none');
+        },
+        complete: function() {
+            $button.prop('disabled', false).html(
+                `<i class="fas fa-sync-alt me-1"></i>${uiT('ui.echoareas.lovlynet_sync_button', 'Sync')}`
+            );
+        }
+    });
 }
 
 function saveEchoarea() {
@@ -695,6 +833,12 @@ function updateColorSelection(color) {
     // Update selected state on swatches
     $('.color-swatch').removeClass('selected');
     $(`.color-swatch[data-color="${color}"]`).addClass('selected');
+}
+
+function escapeJsString(value) {
+    return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
 }
 </script>
 {% endblock %}
