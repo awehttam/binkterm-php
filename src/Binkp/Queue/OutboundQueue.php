@@ -257,13 +257,17 @@ class OutboundQueue
             
             // Read and parse packet header
             $header = fread($handle, 58);
-            if (strlen($header) >= 22) { // Minimum needed for basic parsing
+            if (strlen($header) >= 58) { // Full header needed for zone extraction
                 $packetInfo = $this->parsePacketHeader($header);
                 if ($packetInfo['destNet'] > 0 && $packetInfo['destNode'] > 0) {
-                    $stats['dest_address'] = $packetInfo['destNet'] . ':' . $packetInfo['destNode'];
+                    $dz = $packetInfo['destZone'];
+                    $stats['dest_address'] = ($dz > 0 ? "{$dz}:" : '')
+                        . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
                 }
                 if ($packetInfo['origNet'] > 0 && $packetInfo['origNode'] > 0) {
-                    $stats['orig_address'] = $packetInfo['origNet'] . ':' . $packetInfo['origNode'];
+                    $oz = $packetInfo['origZone'];
+                    $stats['orig_address'] = ($oz > 0 ? "{$oz}:" : '')
+                        . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
                 }
             }
             
@@ -354,28 +358,38 @@ class OutboundQueue
             return [
                 'origNode' => 0,
                 'destNode' => 0,
-                'origNet' => 0,
-                'destNet' => 0,
+                'origNet'  => 0,
+                'destNet'  => 0,
+                'origZone' => 0,
+                'destZone' => 0,
             ];
         }
-        
+
         // Parse the standard 58-byte FTS-0001 header
+        // Offsets 0-23: origNode/destNode/date-time/baud/version/origNet/destNet
         $data = unpack('vorigNode/vdestNode/vyear/vmonth/vday/vhour/vminute/vsecond/vbaud/vpacketVersion/vorigNet/vdestNet', substr($header, 0, 24));
-        
+
         if ($data === false) {
             return [
                 'origNode' => 0,
                 'destNode' => 0,
-                'origNet' => 0,
-                'destNet' => 0,
+                'origNet'  => 0,
+                'destNet'  => 0,
+                'origZone' => 0,
+                'destZone' => 0,
             ];
         }
-        
+
+        // Offset 34: origZone (2 bytes), offset 36: destZone (2 bytes)
+        $zones = unpack('vorigZone/vdestZone', substr($header, 34, 4));
+
         return [
             'origNode' => $data['origNode'] ?? 0,
             'destNode' => $data['destNode'] ?? 0,
-            'origNet' => $data['origNet'] ?? 0,
-            'destNet' => $data['destNet'] ?? 0,
+            'origNet'  => $data['origNet']  ?? 0,
+            'destNet'  => $data['destNet']  ?? 0,
+            'origZone' => $zones['origZone'] ?? 0,
+            'destZone' => $zones['destZone'] ?? 0,
         ];
     }
     
