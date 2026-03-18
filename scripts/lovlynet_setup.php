@@ -174,7 +174,6 @@ function syncSubscribedLovlyNetAreas(string $hubAddress): void {
                 'domain' => LOVLYNET_DOMAIN,
                 'is_local' => false,
                 'is_active' => true,
-                'upload_permission' => FileAreaManager::UPLOAD_READ_ONLY,
                 'replace_existing' => true,
             ]);
 

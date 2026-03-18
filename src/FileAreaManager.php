@@ -45,6 +45,24 @@ class FileAreaManager
     }
 
     /**
+     * LovlyNet file areas are generally uploadable, except the project release
+     * area which must stay read-only.
+     */
+    public static function getDefaultUploadPermissionForArea(string $tag, string $domain = ''): int
+    {
+        $normalizedTag = strtoupper(trim($tag));
+        $normalizedDomain = strtolower(trim($domain));
+
+        if ($normalizedDomain === 'lovlynet') {
+            return $normalizedTag === 'LVLY_BINKTERMPHP'
+                ? self::UPLOAD_READ_ONLY
+                : self::UPLOAD_USERS_ALLOWED;
+        }
+
+        return self::UPLOAD_READ_ONLY;
+    }
+
+    /**
      * Check if file areas feature is enabled
      *
      * @return bool
@@ -211,7 +229,7 @@ class FileAreaManager
             'domain' => $domain,
             'is_local' => false,
             'is_active' => true,
-            'upload_permission' => self::UPLOAD_READ_ONLY,
+            'upload_permission' => self::getDefaultUploadPermissionForArea($tag, $domain),
             'replace_existing' => true,
             'allow_duplicate_hash' => false,
             'scan_virus' => true,

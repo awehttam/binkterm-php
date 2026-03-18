@@ -4001,7 +4001,6 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
                 'domain' => 'lovlynet',
                 'is_local' => false,
                 'is_active' => true,
-                'upload_permission' => \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY,
             ]);
         }
     }
@@ -4324,7 +4323,6 @@ SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
             'domain' => 'lovlynet',
             'is_local' => false,
             'is_active' => true,
-            'upload_permission' => \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY,
             'replace_existing' => true,
         ]);
 
