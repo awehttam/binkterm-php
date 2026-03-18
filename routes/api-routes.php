@@ -3967,7 +3967,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Load file and its linked comment echo area
         $stmt = $db->prepare("
             SELECT f.id, f.filename, f.file_hash, f.file_area_id,
-                   fa.tag AS area_tag, fa.comment_echoarea_id,
+                   fa.tag AS area_tag, fa.domain AS area_domain, fa.comment_echoarea_id,
                    e.tag AS echo_tag, e.domain AS echo_domain
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
@@ -3991,18 +3991,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoareaId    = (int)$file['comment_echoarea_id'];
         $filename      = $file['filename'];
         $areaTag       = $file['area_tag'];
-        $kludgePattern = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
+        $areaDomain    = $file['area_domain'] ?? '';
+        $qualifiedTag  = $areaDomain !== '' ? "{$areaTag}@{$areaDomain}" : $areaTag;
+        // Match both new format (AREANAME@domain FILENAME) and legacy format (AREANAME FILENAME)
+        $kludgePattern        = '%' . "\x01" . 'FILEREF: ' . $qualifiedTag . ' ' . $filename . '%';
+        $kludgePatternLegacy  = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
 
-        // Fetch all messages in this echoarea matching by kludge or subject
+        // Find thread root(s) by FILEREF kludge or subject, then fetch entire thread
+        // via recursive reply_to_id traversal so replies without the kludge are included.
         $stmt = $db->prepare("
-            SELECT em.id, em.from_name, em.subject, em.message_text,
-                   em.date_written, em.reply_to_id
-            FROM echomail em
-            WHERE em.echoarea_id = ?
-              AND (em.subject = ? OR em.kludge_lines LIKE ?)
-            ORDER BY em.date_written ASC
+            WITH RECURSIVE thread AS (
+                -- Anchor: thread roots matched by kludge or subject
+                SELECT em.id, em.from_name, em.subject, em.message_text,
+                       em.date_written, em.reply_to_id
+                FROM echomail em
+                WHERE em.echoarea_id = ?
+                  AND em.reply_to_id IS NULL
+                  AND (em.subject = ? OR em.kludge_lines LIKE ? OR em.kludge_lines LIKE ?)
+                UNION ALL
+                -- Recursive: any reply whose parent is already in the thread
+                SELECT em.id, em.from_name, em.subject, em.message_text,
+                       em.date_written, em.reply_to_id
+                FROM echomail em
+                JOIN thread t ON em.reply_to_id = t.id
+                WHERE em.echoarea_id = ?
+            )
+            SELECT * FROM thread ORDER BY date_written ASC
         ");
-        $stmt->execute([$echoareaId, $filename, $kludgePattern]);
+        $stmt->execute([$echoareaId, $filename, $kludgePattern, $kludgePatternLegacy, $echoareaId]);
         $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         /**
@@ -4080,7 +4096,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Load file and its linked comment echo area
         $stmt = $db->prepare("
             SELECT f.id, f.filename, f.file_hash, f.file_area_id,
-                   fa.tag AS area_tag, fa.comment_echoarea_id,
+                   fa.tag AS area_tag, fa.domain AS area_domain, fa.comment_echoarea_id,
                    e.tag AS echo_tag, e.domain AS echo_domain, e.is_sysop_only
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
@@ -4109,24 +4125,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $echoareaId = (int)$file['comment_echoarea_id'];
-        $echoTag    = $file['echo_tag'];
-        $echoDomain = $file['echo_domain'] ?? '';
-        $filename   = $file['filename'];
-        $areaTag    = $file['area_tag'];
-        $fileHash   = $file['file_hash'] ?? '';
-        $userId     = (int)($user['user_id'] ?? $user['id']);
+        $echoareaId  = (int)$file['comment_echoarea_id'];
+        $echoTag     = $file['echo_tag'];
+        $echoDomain  = $file['echo_domain'] ?? '';
+        $filename    = $file['filename'];
+        $areaTag     = $file['area_tag'];
+        $areaDomain  = $file['area_domain'] ?? '';
+        $qualifiedTag = $areaDomain !== '' ? "{$areaTag}@{$areaDomain}" : $areaTag;
+        $fileHash    = $file['file_hash'] ?? '';
+        $userId      = (int)($user['user_id'] ?? $user['id']);
 
-        // Find existing thread root (by FILEREF kludge or subject, no parent)
-        $kludgePattern = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
+        // Find existing thread root (by FILEREF kludge or subject, no parent).
+        // Match both new qualified format (AREANAME@domain FILENAME) and legacy format.
+        $kludgePattern       = '%' . "\x01" . 'FILEREF: ' . $qualifiedTag . ' ' . $filename . '%';
+        $kludgePatternLegacy = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
         $stmt = $db->prepare("
             SELECT id FROM echomail
             WHERE echoarea_id = ?
-              AND (kludge_lines LIKE ? OR subject = ?)
+              AND (kludge_lines LIKE ? OR kludge_lines LIKE ? OR subject = ?)
               AND reply_to_id IS NULL
             ORDER BY id ASC LIMIT 1
         ");
-        $stmt->execute([$echoareaId, $kludgePattern, $filename]);
+        $stmt->execute([$echoareaId, $kludgePattern, $kludgePatternLegacy, $filename]);
         $existingRoot = $stmt->fetch(\PDO::FETCH_ASSOC);
         $threadRootId = $existingRoot ? (int)$existingRoot['id'] : null;
 
@@ -4158,7 +4178,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $stmt->execute([$newId]);
                     $row = $stmt->fetch(\PDO::FETCH_ASSOC);
                     if ($row !== false) {
-                        $filerefLine = "\x01FILEREF: {$areaTag} {$filename} {$fileHash}\r\n";
+                        $filerefLine = "\x01FILEREF: {$qualifiedTag} {$filename} {$fileHash}\r\n";
                         $db->prepare("UPDATE echomail SET kludge_lines = ? WHERE id = ?")
                            ->execute([$filerefLine . ($row['kludge_lines'] ?? ''), $newId]);
                     }

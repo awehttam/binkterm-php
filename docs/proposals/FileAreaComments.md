@@ -15,7 +15,7 @@ Because the backing store is real echomail, FTN users on other systems participa
 - Each file area has an optional linked echomail area configured by the sysop
 - When a user posts the first comment on a file, a new echomail post is created in the linked area with:
   - **Subject** set to the filename, so the thread is human-readable on any FTN software
-  - **Kludge line** `^AFILEREF: <area_tag> <filename> <sha256>` embedded in the message, carrying the networked file area tag, filename, and a SHA-256 hash of the file content
+  - **Kludge line** `^AFILEREF: <area_tag>@<domain> <filename> <sha256>` embedded in the message, carrying the fully qualified networked file area identifier, filename, and a SHA-256 hash of the file content as defined by `docs/LSC/LSC2 - FILEREF Kludge.txt`
 - Subsequent comments are standard echomail replies to that thread root, building the comment tree naturally using normal FTN threading
 
 ---

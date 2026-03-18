@@ -1065,7 +1065,7 @@ function checkAndDisplayEchomailMessage(message, parsedMessage) {
 
 /**
  * Parse a ^AFILEREF kludge from a raw kludge_lines string.
- * Format: \x01FILEREF: <area_tag> <filename> [<sha256>]
+ * Format: \x01FILEREF: <area_tag[@domain]> <filename> [<sha256>]
  * Returns { areaTag, filename, hash } or null if not present.
  */
 function parseFileRefKludge(kludgeLines) {
@@ -1086,11 +1086,13 @@ function buildFileRefBanner(kludgeLines) {
     const ref = parseFileRefKludge(kludgeLines);
     if (!ref) return '';
 
-    const label  = uiT('ui.echomail.fileref_label', 'File comment:');
-    const area   = escapeHtml(ref.areaTag);
-    const file   = escapeHtml(ref.filename);
+    const label   = uiT('ui.echomail.fileref_label', 'File comment:');
+    const area    = escapeHtml(ref.areaTag);
+    const file    = escapeHtml(ref.filename);
+    // Strip @domain from area tag for the files page area filter (tag-only lookup)
+    const bareTag = ref.areaTag.split('@')[0];
     // Link to the files page with the area pre-selected via query string
-    const href   = `/files?area=${encodeURIComponent(ref.areaTag)}&search=${encodeURIComponent(ref.filename)}`;
+    const href    = `/files?area=${encodeURIComponent(bareTag)}&search=${encodeURIComponent(ref.filename)}`;
 
     return `
         <div class="alert alert-secondary py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size:.875rem;">
