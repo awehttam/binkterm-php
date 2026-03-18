@@ -10,7 +10,10 @@
 const previewImageExts   = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif'];
 const previewVideoExts   = ['mp4','webm','mov','ogv','m4v'];
 const previewAudioExts   = ['mp3','wav','ogg','flac','aac','m4a','opus'];
-const previewTextExts    = ['txt','log','nfo','diz','cfg','ini','conf','lsm','json','xml','bat','sh'];
+const previewHtmlExts    = ['htm','html'];
+const previewModExts     = ['mod'];
+const previewHeuristicTextExts = ['doc','msg'];
+const previewTextExts    = ['txt','log','nfo','diz','asc','cfg','ini','conf','lsm','json','xml','bat','sh'];
 const previewMarkdownExts = ['md'];
 const previewAnsiExts          = ['ans'];
 const previewPetsciiExts       = ['prg'];
@@ -23,6 +26,9 @@ function getFileType(filename) {
     if (previewImageExts.includes(ext))          return 'image';
     if (previewVideoExts.includes(ext))          return 'video';
     if (previewAudioExts.includes(ext))          return 'audio';
+    if (previewHtmlExts.includes(ext))           return 'html';
+    if (previewModExts.includes(ext))            return 'mod';
+    if (previewHeuristicTextExts.includes(ext))  return 'text_probe';
     if (previewTextExts.includes(ext))           return 'text';
     if (previewMarkdownExts.includes(ext))       return 'markdown';
     if (previewAnsiExts.includes(ext))           return 'ansi';
@@ -44,6 +50,18 @@ function _fpBytes(bytes) {
     const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function renderHtmlPreview(container, url) {
+    container.css('background', '#fff').html(`
+        <iframe
+            src="${url}"
+            sandbox=""
+            referrerpolicy="no-referrer"
+            style="display:block;width:100%;height:75vh;border:0;background:#fff;"
+            title="HTML preview">
+        </iframe>
+    `);
 }
 
 
@@ -95,6 +113,12 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                 </audio>
             </div>
         `);
+
+    } else if (type === 'html') {
+        renderHtmlPreview(body, previewUrl);
+
+    } else if (type === 'mod') {
+        renderModPlayer(body, previewUrl, filename);
 
     } else if (type === 'text') {
         const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
@@ -260,6 +284,39 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
         );
         renderZipBrowser(body, fileId, shareQs);
+
+    } else if (type === 'text_probe') {
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok || !ct.startsWith('text/plain')) {
+                    body.html(`
+                        <div class="p-5 text-center text-muted">
+                            <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                            <p class="mb-2">${escapeHtml(filename)}</p>
+                            <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                        </div>
+                    `);
+                    return null;
+                }
+                return r.text();
+            })
+            .then(text => {
+                if (text === null) return;
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;">${escapeHtml(text)}</pre>`);
+            })
+            .catch(() => {
+                body.html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                        <p class="mb-2">${escapeHtml(filename)}</p>
+                        <p class="small mb-4">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                    </div>
+                `);
+            });
 
     } else {
         // Unknown extension — probe the preview endpoint; if the server heuristically
@@ -457,6 +514,93 @@ function renderRipGallery(container, rips) {
 }
 
 // ---------------------------------------------------------------------------
+// MOD tracker player
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a MOD tracker player UI into a container, loading from the given URL.
+ * Unloads any previously active MOD player first.
+ *
+ * @param {jQuery} container
+ * @param {string} url       - URL to fetch the MOD file from
+ * @param {string} label     - Display name (filename or entry name)
+ */
+function renderModPlayer(container, url, label) {
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch(e) {}
+        window._modPlayer = null;
+    }
+
+    container.css('background', '').html(`
+        <div class="p-4 text-center" id="modPlayerUI">
+            <i class="fas fa-music fa-3x text-muted mb-3 d-block"></i>
+            <p class="text-muted mb-1 fw-semibold">${escapeHtml(label)}</p>
+            <p class="text-muted small mb-3" id="modSongName">&nbsp;</p>
+            <div class="text-center py-3"><i class="fas fa-spinner fa-spin text-muted"></i></div>
+        </div>
+    `);
+
+    import('/js/mod-player/player.js').then(({ ModPlayer }) => {
+        const player = new ModPlayer();
+        window._modPlayer = player;
+        return player.load(url).then(() => {
+            const songName = (player.mod && player.mod.name) ? player.mod.name : '';
+            container.find('#modPlayerUI').html(`
+                <i class="fas fa-music fa-3x text-muted mb-3 d-block"></i>
+                <p class="text-muted mb-1 fw-semibold">${escapeHtml(label)}</p>
+                <p class="text-muted small mb-3">${escapeHtml(songName)}</p>
+                <div class="d-flex justify-content-center align-items-center gap-3 mb-4">
+                    <button id="modPlayBtn" class="btn btn-primary btn-lg" style="min-width:56px;">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button id="modStopBtn" class="btn btn-outline-secondary">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                </div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="fas fa-volume-low text-muted"></i>
+                    <input type="range" id="modVolume" class="form-range" style="width:160px;" min="0" max="100" value="30">
+                    <i class="fas fa-volume-high text-muted"></i>
+                </div>
+            `);
+
+            player.setVolume(0.3);
+
+            container.find('#modPlayBtn').on('click', function() {
+                if (player.playing) {
+                    player.stop();
+                    $(this).html('<i class="fas fa-play"></i>').removeClass('btn-warning').addClass('btn-primary');
+                } else {
+                    player.play();
+                    $(this).html('<i class="fas fa-pause"></i>').removeClass('btn-primary').addClass('btn-warning');
+                }
+            });
+
+            container.find('#modStopBtn').on('click', function() {
+                player.stop();
+                container.find('#modPlayBtn').html('<i class="fas fa-play"></i>').removeClass('btn-warning').addClass('btn-primary');
+            });
+
+            container.find('#modVolume').on('input', function() {
+                player.setVolume(parseInt(this.value, 10) / 100);
+            });
+
+            player.watchStop(() => {
+                container.find('#modPlayBtn').html('<i class="fas fa-play"></i>').removeClass('btn-warning').addClass('btn-primary');
+            });
+        });
+    }).catch((e) => {
+        console.error('MOD player load failed:', e);
+        if (e && e.modLoadInfo) {
+            console.error('MOD player diagnostics:', e.modLoadInfo);
+        }
+        container.css('background', '').html(
+            `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load MOD file')}</div>`
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
 // ZIP file browser
 // ---------------------------------------------------------------------------
 
@@ -466,6 +610,9 @@ function zipEntryIcon(type) {
         case 'image':          return 'fa-image';
         case 'video':          return 'fa-film';
         case 'audio':          return 'fa-music';
+        case 'html':           return 'fa-code';
+        case 'mod':            return 'fa-music';
+        case 'text_probe':     return 'fa-file-lines';
         case 'text':           return 'fa-file-lines';
         case 'ansi':           return 'fa-terminal';
         case 'rip':            return 'fa-paint-brush';
@@ -478,7 +625,7 @@ function zipEntryIcon(type) {
 
 /**
  * Render a browsable listing of a ZIP file's contents into a container.
- * Clicking a previewable entry opens it via renderZipEntry().
+ * Clicking an entry opens it via renderZipEntry().
  *
  * @param {jQuery}  container
  * @param {number}  fileId
@@ -509,7 +656,6 @@ function renderZipBrowser(container, fileId, shareQs) {
             entries.forEach(function(entry) {
                 const type       = getFileType(entry.name);
                 const icon       = zipEntryIcon(type);
-                const canPreview = type !== 'download';
                 // Entries with non-standard compression may require shell fallback;
                 // flag them visually but still allow click (server will attempt unzip)
                 const legacyComp = !SUPPORTED_COMP.includes(entry.comp_method ?? 0);
@@ -526,7 +672,7 @@ function renderZipBrowser(container, fileId, shareQs) {
 
                 rows += `
                     <div class="d-flex align-items-center px-3 py-2 border-bottom zip-entry-row"
-                         style="cursor:${canPreview ? 'pointer' : 'default'}; min-width:0;"
+                         style="cursor:pointer; min-width:0;"
                          data-path="${escapeHtml(entry.path)}" data-name="${escapeHtml(entry.name)}">
                         <i class="fas ${icon} text-muted me-2 flex-shrink-0" style="width:16px;"></i>
                         <span class="flex-grow-1 text-truncate small" style="min-width:0;">${escapeHtml(entry.path)}</span>
@@ -547,17 +693,13 @@ function renderZipBrowser(container, fileId, shareQs) {
                 </div>
             `);
 
-            // Only previewable entries participate in arrow navigation
-            const previewable = entries.filter(e => getFileType(e.name) !== 'download');
-
             container.find('.zip-entry-row').on('click', function() {
                 const path = $(this).data('path');
                 const name = $(this).data('name');
-                if (getFileType(name) === 'download') return;
-                const idx = previewable.findIndex(e => e.path === path);
+                const idx = entries.findIndex(e => e.path === path);
                 renderZipEntry(container, fileId, path, name, shareQs,
                     () => renderZipBrowser(container, fileId, shareQs),
-                    previewable, idx);
+                    entries, idx);
             });
         })
         .catch(function() {
@@ -653,6 +795,12 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
     const previewArea = $('<div>').css({ minHeight: '200px' })
         .html(`<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`);
 
+    // Unload any active MOD player before switching entries
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch(e) {}
+        window._modPlayer = null;
+    }
+
     container.empty().append(backBar, previewArea);
 
     if (type === 'image') {
@@ -679,6 +827,12 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
                 <audio controls class="w-100" style="max-width:520px;"><source src="${entryUrl}"></audio>
             </div>
         `);
+
+    } else if (type === 'html') {
+        renderHtmlPreview(previewArea, entryUrl);
+
+    } else if (type === 'mod') {
+        renderModPlayer(previewArea, entryUrl, entryName);
 
     } else if (type === 'text') {
         const ext2     = entryName.includes('.') ? entryName.split('.').pop().toLowerCase() : '';
@@ -781,6 +935,39 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
+    } else if (type === 'text_probe') {
+        previewArea.css('background', '');
+        const showDownload = () => previewArea.html(`
+            <div class="p-5 text-center text-muted">
+                <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                <p class="mb-3">${escapeHtml(entryName)}</p>
+                <p class="small mb-3">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                <a href="${entryUrl}" download="${escapeHtml(entryName)}" class="btn btn-outline-secondary">
+                    <i class="fas fa-download me-1"></i>${_fpT('ui.files.download', 'Download')}
+                </a>
+            </div>
+        `);
+        fetch(entryUrl, {credentials: 'same-origin'})
+            .then(r => {
+                if (r.status === 415) {
+                    return r.json().then(err => Promise.reject({ legacy: true, compMethod: err.comp_method }));
+                }
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok || !ct.startsWith('text/plain')) {
+                    showDownload();
+                    return null;
+                }
+                return r.text();
+            })
+            .then(text => {
+                if (text === null) return;
+                previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;">${escapeHtml(text)}</pre>`);
+            })
+            .catch(err => {
+                if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else showDownload();
+            });
+
     } else {
         // Unknown extension — probe the entry URL and check Content-Type.
         // If the server heuristically identifies it as text/plain, render it;
@@ -790,6 +977,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             <div class="p-5 text-center text-muted">
                 <i class="fas fa-file fa-3x mb-3 d-block"></i>
                 <p class="mb-3">${escapeHtml(entryName)}</p>
+                <p class="small mb-3">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
                 <a href="${entryUrl}" download="${escapeHtml(entryName)}" class="btn btn-outline-secondary">
                     <i class="fas fa-download me-1"></i>${_fpT('ui.files.download', 'Download')}
                 </a>

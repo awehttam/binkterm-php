@@ -33,6 +33,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
 - [File Preview](#file-preview)
   - [ANSI Art Rendering](#ansi-art-rendering)
+  - [MOD Tracker Preview](#mod-tracker-preview)
   - [PETSCII / PRG Rendering](#petscii--prg-rendering)
   - [D64 Disk Image Preview](#d64-disk-image-preview)
   - [C64 Emulator](#c64-emulator)
@@ -145,6 +146,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   text and NFO files (including CP437-encoded ANSI art) render in a scrollable
   panel. Unknown file types prompt a download. Navigation arrows and keyboard
   shortcuts cycle through files without closing the modal.
+- `.mod` tracker music files now play inline in the preview modal with
+  play/pause, stop, and volume controls. MOD files inside ZIP archives can be
+  previewed the same way.
 - `.ans` files render inline in the preview modal using the ANSI decoder.
 - `.prg` files and ZIP bundles containing `.prg` files render using the C64
   screen RAM decoder with the exact C64 16-colour palette. Multi-file bundles
@@ -199,10 +203,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   archives are also supported and shown as a gallery.
 - **ZIP file browser** — opening a ZIP file in the preview modal now shows a
   browsable listing of all entries. Previewable entries (images, video, audio,
-  text/NFO, ANSI, RIPscrip, PETSCII/PRG) open inline; all entries have a
-  download button. Entries using legacy DOS compression methods (implode,
-  shrink) are flagged with a `legacy` badge and extracted via `unzip` on the
-  server, falling back to a graceful notice if `unzip` is unavailable.
+  MOD tracker music, text/NFO, ANSI, RIPscrip, PETSCII/PRG) open inline; all
+  entries have a download button. Entries using legacy DOS compression methods
+  (implode, shrink) are flagged with a `legacy` badge and extracted via
+  external archive tools on the server, falling back to a graceful notice if
+  extraction is unavailable.
 - **Public file areas** *(registered feature)* — individual file areas can be
   flagged as public, allowing unauthenticated visitors to browse and download
   files without a BBS account. An optional index page (`/public-files`) lists
@@ -789,6 +794,7 @@ going straight to a download.
 | Image | jpg, jpeg, png, gif, webp, svg, bmp, ico, tiff, avif | Displayed inline; click to open full size in a new tab |
 | Video | mp4, webm, mov, ogv, m4v | Plays in a `<video>` element with full controls and seek support |
 | Audio | mp3, wav, ogg, flac, aac, m4a, opus | Plays in an `<audio>` element |
+| MOD Tracker | mod | Plays inline in a tracker player with play/pause, stop, and volume controls |
 | Text / NFO | txt, log, nfo, diz, md, cfg, ini, json, xml, … | Rendered in a scrollable panel; NFO and DIZ files are automatically converted from CP437 to UTF-8 so ANSI art displays correctly |
 | ANSI Art | ans | Rendered inline using the ANSI decoder with the full 16-colour ANSI palette |
 | PETSCII / PRG | prg | Rendered using the C64 screen RAM decoder with the exact C64 16-colour palette; **Run on C64** button in nav bar |
@@ -813,6 +819,24 @@ Files with the `.ans` extension are fetched as text (the backend converts them
 from CP437 to UTF-8 automatically) and passed to the ANSI decoder. The result
 is displayed in the preview modal with the standard ANSI colour palette on a
 dark background, identically to how ANSI art in message bodies is rendered.
+
+### MOD Tracker Preview
+
+Files with the `.mod` extension now open in an inline tracker player in the
+preview modal.
+
+The player:
+
+1. Fetches the module as raw bytes for browser-side playback.
+2. Parses 4-channel ProTracker-style modules in the browser.
+3. Provides **Play/Pause**, **Stop**, and **Volume** controls directly in the
+   preview modal.
+
+`.mod` files inside ZIP archives are also supported. Legacy ZIP compression
+methods such as **implode** are handled via the same ZIP-entry extraction path
+used for other previewable files.
+
+No configuration or migration is required.
 
 ### PETSCII / PRG Rendering
 
@@ -936,8 +960,8 @@ instead of only displaying `FILE_ID.DIZ`.
   entries, sorted by path, each with filename, size, and compression method.
 - Clicking a previewable entry opens it inline via
   `/api/files/{id}/zip-entry?path=…`, applying the same type detection used by
-  the main file preview (images, video, audio, text/NFO, ANSI, RIPscrip,
-  PETSCII/PRG).
+  the main file preview (images, video, audio, MOD tracker, text/NFO, ANSI,
+  RIPscrip, PETSCII/PRG).
 - All entries show a **Download** button regardless of whether they can be
   previewed.
 - Unsupported or unknown file types show a download-only panel.
@@ -948,17 +972,18 @@ Old BBS-era ZIP files often use compression methods not supported by PHP's
 built-in `ZipArchive` (libzip). For these entries:
 
 1. The server first attempts extraction via `ZipArchive`.
-2. If that fails, it falls back to the system `unzip` binary (`unzip -p`),
-   which supports all legacy methods.
-3. If `unzip` is unavailable or the method is still unsupported, the server
-   returns HTTP 415 and the browser shows a graceful notice with a
+2. If that fails, it falls back to external archive tools such as `unzip` or
+   `7z`, extracting the requested member to a temporary location first so
+   binary files are not truncated on Windows.
+3. If no supported extractor is available or the method is still unsupported,
+   the server returns HTTP 415 and the browser shows a graceful notice with a
    "Download full ZIP" button.
 
 Entries with non-standard compression are marked with a `legacy` badge in the
 ZIP browser listing.
 
-No configuration or migration is required. For legacy ZIP support, `unzip`
-must be installed on the server (standard on most Linux systems).
+No configuration or migration is required. For legacy ZIP support, install at
+least one supported extractor such as `unzip` or `7z`.
 
 ### Shared File Preview
 

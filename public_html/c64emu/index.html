@@ -126,6 +126,14 @@ var JSC64_BASEPATH = '/vendor/jsc64/js/';
         err.style.display = 'block';
     }
 
+    function normalizePrgName(name) {
+        return String(name || '')
+            .trim()
+            .replace(/\.prg$/i, '')
+            .replace(/\s+/g, ' ')
+            .toLowerCase();
+    }
+
     function loadPrgBytes(prgEntry) {
         try {
             // Decode base64 payload (load address already stripped by API)
@@ -206,8 +214,12 @@ var JSC64_BASEPATH = '/vendor/jsc64/js/';
                 }
                 var prg = null;
                 if (prgName) {
+                    var wanted = normalizePrgName(prgName);
                     for (var i = 0; i < data.prgs.length; i++) {
-                        if (data.prgs[i].name === prgName) { prg = data.prgs[i]; break; }
+                        if (normalizePrgName(data.prgs[i].name) === wanted) {
+                            prg = data.prgs[i];
+                            break;
+                        }
                     }
                 }
                 if (!prg) prg = data.prgs[0];

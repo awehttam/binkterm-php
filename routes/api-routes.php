@@ -2762,9 +2762,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'opus' => 'audio/ogg',
         ];
         $textExts = [
-            'txt', 'log', 'nfo', 'diz', 'cfg', 'ini', 'conf', 'lsm',
+            'txt', 'log', 'nfo', 'diz', 'asc', 'cfg', 'ini', 'conf', 'lsm',
             'json', 'xml', 'bat', 'sh', 'readme', 'ans',
         ];
+        $htmlExts = ['htm', 'html'];
 
         $safeFilename    = addslashes($filename);
         $encodedFilename = rawurlencode($filename);
@@ -2838,6 +2839,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, max-age=3600');
             echo $html;
+            exit;
+        }
+
+        if (in_array($ext, $htmlExts, true)) {
+            $content = (string)file_get_contents($storagePath);
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('Content-Security-Policy: default-src \'none\'; img-src data: blob: http: https:; style-src \'unsafe-inline\'; font-src data: http: https:; media-src data: blob: http: https:; frame-ancestors \'self\'; base-uri \'none\'; form-action \'none\'');
+            header('Referrer-Policy: no-referrer');
+            header('Cross-Origin-Resource-Policy: same-origin');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
             exit;
         }
 
@@ -3416,50 +3430,125 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Normalize path separators (some ZIPs use backslashes)
         $entryPath = str_replace('\\', '/', $entryPath);
 
-        // Try exact match first (FL_NOCASE handles simple case differences)
-        $content       = $zip->getFromName($entryPath, 0, ZipArchive::FL_NOCASE);
-        $exactZipName  = null; // the actual stored name, needed for shell fallback
+        $exactZipName    = null;
         $entryCompMethod = null;
+        $expectedSize    = -1;
 
-        // Case-insensitive manual scan — also records the exact stored name and
-        // compression method so we can attempt a shell fallback for legacy formats.
-        if ($content === false) {
-            $lowerTarget = strtolower($entryPath);
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $stat = $zip->statIndex($i);
-                if ($stat !== false && strtolower(str_replace('\\', '/', $stat['name'])) === $lowerTarget) {
-                    $exactZipName    = $stat['name'];
-                    $entryCompMethod = $stat['comp_method'] ?? null;
-                    $content         = $zip->getFromIndex($i);
-                    break;
-                }
+        // Find the entry by case-insensitive scan so we always have the exact
+        // stored name, compression method, and expected uncompressed size.
+        $lowerTarget = strtolower($entryPath);
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            if ($stat !== false && strtolower(str_replace('\\', '/', $stat['name'])) === $lowerTarget) {
+                $exactZipName    = $stat['name'];
+                $entryCompMethod = $stat['comp_method'] ?? null;
+                $expectedSize    = (int)($stat['size'] ?? -1); // uncompressed size from central dir
+                break;
             }
+        }
+
+        // Extract using ZipArchive.  Some old compression methods (shrink=1,
+        // reduce=2-5, implode=6) are unsupported by libzip: instead of returning
+        // false, libzip may silently return truncated/partial data.  Guard against
+        // this by comparing the result length to the expected uncompressed size.
+        $content = ($exactZipName !== null)
+            ? $zip->getFromName($exactZipName)   // exact name — no FL_NOCASE needed
+            : $zip->getFromName($entryPath, 0, ZipArchive::FL_NOCASE);
+
+        if ($content !== false && $expectedSize >= 0 && strlen($content) !== $expectedSize) {
+            // Partial extraction — treat as failure and let the shell fallback handle it
+            $content = false;
         }
 
         $zip->close();
 
+        $contentSource = $content === false ? 'none' : 'ziparchive';
+
         // Fallback for legacy compression methods (implode=6, shrink=1, etc.) that
-        // libzip/ZipArchive cannot decompress.  Try external tools in order:
-        //   1. unzip  (standard on Linux/Mac)
-        //   2. 7z / 7za  (7-Zip, common on Windows and available on Linux)
+        // libzip/ZipArchive cannot decompress. Extract to a temp directory and read
+        // the file back from disk; piping binary data through shell stdout on Windows
+        // can truncate at control characters such as DOS EOF (0x1A).
         if ($content === false && $exactZipName !== null && function_exists('shell_exec')) {
-            $zipArg   = escapeshellarg($storagePath);
-            $nameArg  = escapeshellarg($exactZipName);
-            $null     = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-            $commands = [
-                "unzip -p $zipArg $nameArg 2>$null",
-                "unzip.exe -p $zipArg $nameArg 2>$null",
-                "7z e -so $zipArg $nameArg 2>$null",
-                "7za e -so $zipArg $nameArg 2>$null",
-            ];
-            foreach ($commands as $cmd) {
-                $result = @shell_exec($cmd);
-                if ($result !== null && $result !== '') {
-                    $content = $result;
-                    break;
+            $zipArg    = escapeshellarg($storagePath);
+            $nameArg   = escapeshellarg($exactZipName);
+            $null      = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+            $extractDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'bink_zip_' . bin2hex(random_bytes(8));
+
+            $deleteTree = function($path) use (&$deleteTree) {
+                if (!is_dir($path)) {
+                    if (is_file($path)) {
+                        @unlink($path);
+                    }
+                    return;
+                }
+
+                $items = scandir($path);
+                if ($items === false) {
+                    @rmdir($path);
+                    return;
+                }
+
+                foreach ($items as $item) {
+                    if ($item === '.' || $item === '..') continue;
+                    $child = $path . DIRECTORY_SEPARATOR . $item;
+                    if (is_dir($child)) {
+                        $deleteTree($child);
+                    } else {
+                        @unlink($child);
+                    }
+                }
+
+                @rmdir($path);
+            };
+
+            if (@mkdir($extractDir, 0700, true)) {
+                $destArg = escapeshellarg($extractDir);
+                $sevenZipDestArg = '-o' . escapeshellarg($extractDir);
+                $commands = [
+                    'unzip'     => "unzip -o $zipArg $nameArg -d $destArg 2>$null",
+                    'unzip.exe' => "unzip.exe -o $zipArg $nameArg -d $destArg 2>$null",
+                    '7z'        => "7z x -y $sevenZipDestArg $zipArg $nameArg 2>$null",
+                    '7za'       => "7za x -y $sevenZipDestArg $zipArg $nameArg 2>$null",
+                ];
+
+                try {
+                    foreach ($commands as $tool => $cmd) {
+                        @shell_exec($cmd);
+                        $extractedPath = $extractDir . DIRECTORY_SEPARATOR
+                            . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $exactZipName);
+                        if (is_file($extractedPath)) {
+                            $result = @file_get_contents($extractedPath);
+                            if ($result !== false) {
+                                $content = $result;
+                                $contentSource = $tool;
+                                break;
+                            }
+                        }
+                    }
+                } finally {
+                    $deleteTree($extractDir);
                 }
             }
         }
+
+        if ($content !== false && $expectedSize >= 0 && strlen($content) !== $expectedSize) {
+            error_log(sprintf(
+                'ZIP entry extraction size mismatch for file_id=%d path=%s method=%s source=%s expected=%d got=%d',
+                (int)$id,
+                $entryPath,
+                (string)$entryCompMethod,
+                $contentSource,
+                $expectedSize,
+                strlen($content)
+            ));
+            $content = false;
+            $contentSource = 'mismatch';
+        }
+
+        header('X-Zip-Entry-Method: ' . ($entryCompMethod ?? 'unknown'));
+        header('X-Zip-Entry-Expected-Size: ' . $expectedSize);
+        header('X-Zip-Entry-Actual-Size: ' . ($content === false ? -1 : strlen($content)));
+        header('X-Zip-Entry-Source: ' . $contentSource);
 
         if ($content === false) {
             http_response_code(415);
@@ -3525,9 +3614,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Text (including ANSI — served as plain text; JS handles rendering)
         $textExts = [
-            'txt','log','nfo','diz','cfg','ini','conf','lsm',
+            'txt','log','nfo','diz','asc','cfg','ini','conf','lsm',
             'json','xml','bat','sh','readme','ans',
         ];
+        $htmlExts = ['htm', 'html'];
 
         if ($ext === 'md') {
             $html = \BinktermPHP\MarkdownRenderer::toHtml($content);
@@ -3536,6 +3626,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, max-age=3600');
             echo $html;
+            return;
+        }
+
+        if (in_array($ext, $htmlExts, true)) {
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('Content-Security-Policy: default-src \'none\'; img-src data: blob: http: https:; style-src \'unsafe-inline\'; font-src data: http: https:; media-src data: blob: http: https:; frame-ancestors \'self\'; base-uri \'none\'; form-action \'none\'');
+            header('Referrer-Policy: no-referrer');
+            header('Cross-Origin-Resource-Policy: same-origin');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
             return;
         }
 
@@ -3554,8 +3656,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // PRG — serve raw bytes for client-side PETSCII rendering
-        if ($ext === 'prg') {
+        // PRG / MOD — serve raw bytes for client-side rendering
+        if ($ext === 'prg' || $ext === 'mod') {
             header('Content-Type: application/octet-stream');
             header('Content-Disposition: inline; filename="' . $safe . '"');
             header('Content-Length: ' . strlen($content));

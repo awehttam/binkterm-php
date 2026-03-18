@@ -139,7 +139,7 @@
 <!-- File Preview Modal -->
 <div class="modal fade" id="filePreviewModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content" style="max-height:90vh;">
             <div class="modal-header py-2">
                 <div class="d-flex align-items-center gap-2 flex-shrink-0">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="prevPreviewBtn" onclick="navigatePreview(-1)" title="{{ t('ui.files.previous_file', {}, 'common') }}">
@@ -160,13 +160,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0 text-center" id="previewModalBody" style="min-height:200px;background:#1a1a1a;">
+            <div class="modal-body p-0 text-center" id="previewModalBody" style="min-height:200px;height:60vh;flex:0 0 auto;background:#1a1a1a;overflow:auto;">
                 <div class="py-5 text-muted">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
             </div>
             <!-- File comments section (preview modal) -->
-            <div id="previewFileCommentsSection" class="px-3 pt-2 pb-3" style="display:none;">
+            <div id="previewFileCommentsSection" class="px-3 pt-2 pb-3" style="display:none;max-height:28vh;overflow:auto;">
                 <hr class="mt-0">
                 <h6><i class="fas fa-comments me-1"></i>{{ t('ui.files.comments', {}, 'common') }}</h6>
                 <div id="previewFileCommentsBody">
@@ -475,6 +475,7 @@ let pendingFileSearch = null;   // applied once after the next displayFiles() ca
 let allFiles = [];
 let displayedFiles = [];
 let currentFileIndex = -1;
+let previewNavigationFiles = [];
 let loadedAreas = [];
 let allFileAreas = [];
 let fileAreaSearchQuery = '';
@@ -568,6 +569,10 @@ $(document).ready(function() {
             this.pause();
             this.src = '';
         });
+        if (window._modPlayer) {
+            try { window._modPlayer.unload(); } catch (e) {}
+            window._modPlayer = null;
+        }
         $('#previewModalBody').css('background', '#1a1a1a').html(
             '<div class="py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
         );
@@ -590,6 +595,7 @@ function loadRecentFiles() {
 
 function displayRecentFiles(files) {
     displayedFiles = files;
+    setPreviewNavigationFiles(files);
     $('#currentAreaTitle').html(`<i class="fas fa-clock"></i> ${uiT('ui.files.recent_uploads', 'Recent Uploads')}`);
     $('#currentAreaMeta').hide();
     $('#uploadFileBtn').hide();
@@ -974,6 +980,7 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
     subfolder          = subfolder          !== undefined ? subfolder          : currentSubfolder;
     subfolderDisplayLabel = subfolderDisplayLabel !== undefined ? subfolderDisplayLabel : null;
     displayedFiles = files;
+    setPreviewNavigationFiles(files);
 
     if (files.length === 0 && subfolders.length === 0) {
         let emptyHtml = '';
@@ -1275,23 +1282,48 @@ function navigateFile(direction) {
 
 let currentPreviewFileId = null;
 
-function previewFile(fileId) {
-    const file = displayedFiles.find(f => f.id == fileId);
-    if (!file) return;
-    const filename = file.filename;
+function setPreviewNavigationFiles(files) {
+    previewNavigationFiles = Array.isArray(files) ? files : [];
+}
+
+function getPreviewPositionHtml(fileIndex) {
+    return previewNavigationFiles.length > 1 && fileIndex >= 0
+        ? ` <small class="text-muted">(${fileIndex + 1}/${previewNavigationFiles.length})</small>`
+        : '';
+}
+
+/**
+ * Open the file preview modal.
+ *
+ * When called from the normal file list, only fileId is needed — the filename
+ * and list position are resolved from displayedFiles.  When called from search
+ * results (where the file is not in displayedFiles), pass filename explicitly;
+ * prev/next navigation is disabled automatically when the file is not found in
+ * the list.
+ *
+ * @param {number} fileId
+ * @param {string} [filename] - Optional; resolved from displayedFiles when omitted
+ */
+function previewFile(fileId, filename) {
+    if (!previewNavigationFiles.length) {
+        setPreviewNavigationFiles(displayedFiles);
+    }
+
+    let fileIndex = previewNavigationFiles.findIndex(f => f.id == fileId);
+    if (!filename) {
+        if (fileIndex === -1) return;
+        filename = previewNavigationFiles[fileIndex].filename;
+    }
 
     currentPreviewFileId = fileId;
-    currentFileIndex = displayedFiles.findIndex(f => f.id == fileId);
+    currentFileIndex = fileIndex;
 
-    const position = displayedFiles.length > 1 && currentFileIndex >= 0
-        ? ` <small class="text-muted">(${currentFileIndex + 1}/${displayedFiles.length})</small>`
-        : '';
+    const position = getPreviewPositionHtml(fileIndex);
     $('#previewModalTitle').html(escapeHtml(filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
     updatePreviewNavButtons();
     renderPreviewContent(fileId, filename, $('#previewModalBody'));
 
-    // Load comments into the preview modal's comments section
     commentCtxPrefix = 'preview';
     currentCommentFileId = fileId;
     $('#previewFileCommentsSection').hide();
@@ -1308,20 +1340,18 @@ function previewFile(fileId) {
 
 function updatePreviewNavButtons() {
     $('#prevPreviewBtn').prop('disabled', currentFileIndex <= 0);
-    $('#nextPreviewBtn').prop('disabled', currentFileIndex < 0 || currentFileIndex >= displayedFiles.length - 1);
+    $('#nextPreviewBtn').prop('disabled', currentFileIndex < 0 || currentFileIndex >= previewNavigationFiles.length - 1);
 }
 
 function navigatePreview(direction) {
-    if (displayedFiles.length === 0) return;
+    if (previewNavigationFiles.length === 0) return;
     const newIndex = currentFileIndex + direction;
-    if (newIndex < 0 || newIndex >= displayedFiles.length) return;
-    const file = displayedFiles[newIndex];
+    if (newIndex < 0 || newIndex >= previewNavigationFiles.length) return;
+    const file = previewNavigationFiles[newIndex];
     if (!file) return;
     currentFileIndex = newIndex;
     currentPreviewFileId = file.id;
-    const position = displayedFiles.length > 1
-        ? ` <small class="text-muted">(${currentFileIndex + 1}/${displayedFiles.length})</small>`
-        : '';
+    const position = getPreviewPositionHtml(currentFileIndex);
     $('#previewModalTitle').html(escapeHtml(file.filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
     updatePreviewNavButtons();
@@ -1997,6 +2027,7 @@ function clearFileSearch() {
     $('#globalFileSearch').val('');
     $('#clearFileSearch').hide();
     $('#fileSearchStatus').hide();
+    setPreviewNavigationFiles(displayedFiles);
     if (currentAreaId) {
         loadFiles(currentAreaId, currentSubfolder);
     } else {
@@ -2034,6 +2065,8 @@ function runFileSearch(query) {
  * @param {string} query   - Original search query (reserved for future highlighting)
  */
 function displaySearchResults(results, query) {
+    setPreviewNavigationFiles(results);
+
     if (results.length === 0) {
         $('#filesContainer').html('<div class="p-4 text-center text-muted">' + uiT('ui.files.search_no_results', 'No files found') + '</div>');
         return;
@@ -2069,7 +2102,7 @@ function displaySearchResults(results, query) {
         html += `
             <tr>
                 <td class="font-monospace small">
-                    <a href="#" onclick="previewFile(${file.id}); return false;">${filename}</a>
+                    <a href="#" onclick="previewFile(${file.id}, ${escapeHtml(JSON.stringify(file.filename))}); return false;">${filename}</a>
                 </td>
                 <td class="small">
                     <a href="#" onclick="${areaOnclick} return false;" class="text-muted">${areaTag}</a>
