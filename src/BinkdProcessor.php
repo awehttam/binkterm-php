@@ -1525,7 +1525,8 @@ class BinkdProcessor
         
         // Remaining 34 bytes - FSC-0048 Type 2+ format (Binkd-compatible)
         // Bytes 24-25: Product code and revision
-        $header .= pack('CC', 0, 0);         // 24-25: prodCode, prodRev
+        // 0xFE is reserved by FTS-0001 for products without an allocated FTSC product code
+        $header .= pack('CC', 0xFE, 0);      // 24-25: prodCodeLo (0xFE = unregistered), prodRev
 
         // Bytes 26-33: Packet password (8 bytes, null-padded)
         $pktPassword = $this->config->getPktPasswordForAddress($destAddr);
@@ -1541,7 +1542,7 @@ class BinkdProcessor
         $header .= pack('vv', 0, $cwCopy);   // 38-41: auxNet, cwCopy
 
         // Bytes 42-45: Extended product info and capability word
-        $header .= pack('CCv', 0, 0, $capWord); // 42-45: prodCodeHi, revision, capWord
+        $header .= pack('CCv', 0xFE, 0, $capWord); // 42-45: prodCodeHi (0xFE = unregistered), revision, capWord
 
         // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
         $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_

@@ -259,12 +259,12 @@ class OutboundQueue
             $header = fread($handle, 58);
             if (strlen($header) >= 58) { // Full header needed for zone extraction
                 $packetInfo = $this->parsePacketHeader($header);
-                if ($packetInfo['destNet'] > 0 && $packetInfo['destNode'] > 0) {
+                if ($packetInfo['destNet'] > 0) {
                     $dz = $packetInfo['destZone'];
                     $stats['dest_address'] = ($dz > 0 ? "{$dz}:" : '')
                         . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
                 }
-                if ($packetInfo['origNet'] > 0 && $packetInfo['origNode'] > 0) {
+                if ($packetInfo['origNet'] > 0) {
                     $oz = $packetInfo['origZone'];
                     $stats['orig_address'] = ($oz > 0 ? "{$oz}:" : '')
                         . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
