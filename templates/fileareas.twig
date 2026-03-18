@@ -861,14 +861,13 @@ function populateCommentAreaUI(area) {
                 ? allEchoareas.find(e => e.tag.toUpperCase() === suggestedTag.toUpperCase())
                 : null;
 
-            if (existing) {
-                $('#fileareaCommentEchoareaSelect').val(existing.id);
-                $('#fileareaCommentNewTagGroup').hide();
-            } else {
-                $('#fileareaCommentEchoareaSelect').val('');
-                $('#fileareaCommentTagInput').val(suggestedTag);
-                $('#fileareaCommentNewTagGroup').hide();
-            }
+            // Don't auto-select an existing echoarea — that would make it appear
+            // configured when comment_echoarea_id is actually NULL in the database.
+            // Just leave the select blank and pre-fill the suggested tag so the
+            // sysop can review and explicitly save the link.
+            $('#fileareaCommentEchoareaSelect').val('');
+            $('#fileareaCommentTagInput').val(suggestedTag);
+            $('#fileareaCommentNewTagGroup').hide();
         }
     });
 }

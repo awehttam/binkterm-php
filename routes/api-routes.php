@@ -4169,9 +4169,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
+        $total = count($messages);
+
+        // Lazily sync comment_count so the badge in the file listing stays accurate
+        // even for comments received via FTN (which bypass the normal post path).
+        if ((int)($file['comment_count'] ?? 0) !== $total) {
+            $db->prepare("UPDATE files SET comment_count = ? WHERE id = ?")
+               ->execute([$total, (int)$id]);
+        }
+
         echo json_encode([
             'enabled'  => true,
-            'total'    => count($messages),
+            'total'    => $total,
             'comments' => $tree,
         ]);
     })->where(['id' => '[0-9]+']);
@@ -4391,6 +4400,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Persist the link
         $stmt = $db->prepare("UPDATE file_areas SET comment_echoarea_id = ? WHERE id = ?");
         $stmt->execute([$echoareaId, (int)$id]);
+
+        // Backfill comment_count for all files in this area so badges appear
+        // immediately without requiring each file to be viewed individually.
+        if ($echoareaId !== null) {
+            $areaTag      = $fileArea['tag'];
+            $areaDomain   = $fileArea['domain'] ?? '';
+            $qualifiedTag = $areaDomain !== '' ? "{$areaTag}@{$areaDomain}" : $areaTag;
+
+            $filesStmt = $db->prepare("SELECT id, filename FROM files WHERE file_area_id = ?");
+            $filesStmt->execute([(int)$id]);
+            $areaFiles = $filesStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $countStmt = $db->prepare("
+                SELECT COUNT(*) FROM echomail
+                WHERE echoarea_id = ?
+                  AND (kludge_lines LIKE ? OR kludge_lines LIKE ?)
+            ");
+            $updateStmt = $db->prepare("UPDATE files SET comment_count = ? WHERE id = ?");
+
+            foreach ($areaFiles as $af) {
+                $pat1 = '%' . "\x01" . 'FILEREF: ' . $qualifiedTag . ' ' . $af['filename'] . '%';
+                $pat2 = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $af['filename'] . '%';
+                $countStmt->execute([$echoareaId, $pat1, $pat2]);
+                $cnt = (int)$countStmt->fetchColumn();
+                if ($cnt > 0) {
+                    $updateStmt->execute([$cnt, $af['id']]);
+                }
+            }
+        }
 
         echo json_encode(['success' => true, 'echoarea_id' => $echoareaId]);
     })->where(['id' => '[0-9]+']);
