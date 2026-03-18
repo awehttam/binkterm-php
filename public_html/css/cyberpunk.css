@@ -1633,4 +1633,4 @@ tbody, td, tfoot, th, thead, tr {
 }
 
 /* Disabled dropdown items — grayed out but readable */
-.dropdown-item-locked { color: #888 !important; pointer-events: none; cursor: default; }
+.dropdown-item-locked { color: #888 !important; pointer-events: auto; cursor: not-allowed; }

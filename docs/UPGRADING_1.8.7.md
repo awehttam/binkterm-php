@@ -234,7 +234,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Telnet file area listing now shows all areas (pagination was previously capped
   at one page).
 - ISO-backed file areas can now be downloaded via ZMODEM over telnet.
-- SSH server now correctly identifies the connected user.
+- SSH server now correctly associates sessions with the authenticated user's account.
 
 **Shared Files**
 - File preview on shared file pages now works for visitors who are not logged in,
@@ -1166,9 +1166,10 @@ For registration options and instructions, see [REGISTER.md](../REGISTER.md).
 ### Registration Badge on Admin Dashboard
 
 The admin dashboard (`/admin`) now includes a **Registration Status** row in the
-system information section. It shows the current tier (Community Edition,
-Registered, or Sponsor), the licensee name, and the system name when a valid
-license is present. No action is required to enable this display.
+system information section. It shows either an **Unregistered** badge with a
+link to the licensing page, or a **Registered** badge with the licensed system
+name and licensee when a valid license is present. No action is required to
+enable this display.
 
 ### Branding Controls
 
@@ -1197,10 +1198,11 @@ existing users — the table was added in a prior release.
 
 ### Economy Viewer Now Requires Registration
 
-The **Economy Viewer** admin page (`/admin/economy-viewer`) now requires a valid
-license. Unlicensed installations will see an upgrade prompt in place of the
-data table. The Economy Viewer displays credit transaction volume, top earners
-and spenders, and economy health metrics.
+The **Economy Viewer** admin page (`/admin/economy`) now requires a valid
+license. Unlicensed installations receive a 403 response. The Economy Viewer
+displays credit transaction volume, top earners and spenders, richest accounts,
+recent transactions, and overall economy health metrics (credits in circulation,
+average and median balances).
 
 ### Referral Analytics
 
@@ -1347,9 +1349,9 @@ transfer path is now resolved correctly before initiating the ZMODEM session.
 
 ### SSH User Identification
 
-The SSH server now correctly identifies the connected user and associates the
-session with their account. This fixes a regression where SSH sessions appeared
-as anonymous or misidentified the user in session logs.
+The SSH server now correctly associates the session with the authenticated user's
+account. This fixes a regression where SSH sessions appeared as anonymous in
+session logs despite the user having logged in successfully.
 
 ## Admin Menu Reorganization
 
@@ -1366,10 +1368,9 @@ A new **Analytics** submenu consolidates reporting pages:
 | Economy Viewer | Yes |
 | Referral Analytics | Yes |
 
-License-gated items are displayed in a muted grey style and are not clickable
-when no valid license is present. A tooltip reading *Registered Feature* appears
-on hover to explain why the item is inactive. Items remain visible (not hidden)
-so administrators know what is available with registration.
+License-gated items remain visible in both the nav menu and the admin dashboard
+but are non-functional — they link to `#`, show a lock icon, and carry a
+`title` attribute reading *Registered Feature*.
 
 ### Community Submenu
 

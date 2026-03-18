@@ -922,6 +922,6 @@ a.file-preview-link:hover {
 /* Disabled dropdown items — grayed out but readable across all themes */
 .dropdown-item-locked {
     color: #888 !important;
-    pointer-events: none;
-    cursor: default;
+    pointer-events: auto;
+    cursor: not-allowed;
 }

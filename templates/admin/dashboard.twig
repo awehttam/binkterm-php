@@ -112,6 +112,13 @@
                         <a href="/admin/referrals" class="btn btn-outline-success">
                             <i class="fas fa-user-plus me-2"></i>{{ t('ui.base.admin.referrals', {}, locale, ['common']) }}
                         </a>
+                        {% else %}
+                        <a href="#" class="btn btn-outline-secondary disabled" style="pointer-events:auto;cursor:not-allowed;" title="{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}" onclick="return false;">
+                            <i class="fas fa-lock me-2"></i>{{ t('ui.base.admin.economy_viewer', {}, locale, ['common']) }}
+                        </a>
+                        <a href="#" class="btn btn-outline-secondary disabled" style="pointer-events:auto;cursor:not-allowed;" title="{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}" onclick="return false;">
+                            <i class="fas fa-lock me-2"></i>{{ t('ui.base.admin.referrals', {}, locale, ['common']) }}
+                        </a>
                         {% endif %}
                     </div>
                 </div>
