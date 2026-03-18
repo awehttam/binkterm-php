@@ -26,7 +26,7 @@
 </div>
 {% else %}
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.node_number') }}</h6>
@@ -34,7 +34,15 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.hub_address') }}</h6>
+                <p class="mb-0 fw-bold font-monospace">{{ lovlynet_hub_address }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.server') }}</h6>
@@ -42,11 +50,11 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <h6 class="card-title text-muted small text-uppercase mb-1">{{ t('ui.admin.lovlynet.subscribed_areas') }}</h6>
-                <p class="mb-0 fw-bold" id="subscribedCount">—</p>
+                <p class="mb-0 fw-bold" id="subscribedCount">-</p>
             </div>
         </div>
     </div>
@@ -57,14 +65,21 @@
         <a class="nav-link active" data-bs-toggle="tab" href="#echoTab">
             <i class="fas fa-comments me-1"></i>
             {{ t('ui.admin.lovlynet.tab_echo') }}
-            <span class="badge bg-secondary ms-1" id="echoCount">—</span>
+            <span class="badge bg-secondary ms-1" id="echoCount">-</span>
         </a>
     </li>
     <li class="nav-item">
         <a class="nav-link" data-bs-toggle="tab" href="#fileTab">
             <i class="fas fa-folder-open me-1"></i>
             {{ t('ui.admin.lovlynet.tab_file') }}
-            <span class="badge bg-secondary ms-1" id="fileCount">—</span>
+            <span class="badge bg-secondary ms-1" id="fileCount">-</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#requestsTab">
+            <i class="fas fa-envelope me-1"></i>
+            {{ t('ui.admin.lovlynet.tab_requests') }}
+            <span class="badge bg-secondary ms-1" id="requestCount">-</span>
         </a>
     </li>
 </ul>
@@ -94,6 +109,15 @@
                 </button>
             </div>
             <div class="card-body p-0" id="fileAreasContainer">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="requestsTab">
+        <div class="card">
+            <div class="card-body p-0" id="lovlynetRequestsContainer">
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
@@ -142,22 +166,47 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="lovlynetMessageViewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="lovlynetMessageViewTitle">{{ t('ui.admin.lovlynet.message_view_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-3" id="lovlynetMessageViewMeta"></div>
+                <pre class="mb-0 small font-monospace overflow-auto" id="lovlynetMessageViewBody" style="max-height: 55vh; white-space: pre-wrap; background: transparent; color: inherit; border: 0;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 let lovlynetRequestModal = null;
+let lovlynetMessageViewModal = null;
 let lovlynetHelpCache = { echo: null, file: null };
+let _lovlynetRequests = [];
 
 function uiT(key, fallback, params = {}) {
     return window.t ? window.t(key, params, fallback) : fallback;
 }
 
 $(document).ready(function() {
-    const modalEl = document.getElementById('lovlynetRequestModal');
-    if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-        lovlynetRequestModal = new bootstrap.Modal(modalEl);
+    const requestModalEl = document.getElementById('lovlynetRequestModal');
+    if (requestModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        lovlynetRequestModal = new bootstrap.Modal(requestModalEl);
+    }
+
+    const messageViewModalEl = document.getElementById('lovlynetMessageViewModal');
+    if (messageViewModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        lovlynetMessageViewModal = new bootstrap.Modal(messageViewModalEl);
     }
 
     const init = function() { loadAreas(); };
@@ -166,13 +215,18 @@ $(document).ready(function() {
     } else {
         init();
     }
+
+    $('a[data-bs-toggle="tab"][href="#requestsTab"]').on('shown.bs.tab', function() {
+        loadLovlyNetRequests();
+    });
 });
 
 let _allAreas = { echoareas: [], fileareas: [] };
 function loadAreas() {
-    ['echoAreasContainer', 'fileAreasContainer'].forEach(id => {
+    ['echoAreasContainer', 'fileAreasContainer', 'lovlynetRequestsContainer'].forEach(id => {
         $('#' + id).html('<div class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
     });
+    $("#requestCount").text('-');
 
     $.get('/admin/api/lovlynet/areas')
         .done(function(data) {
@@ -180,11 +234,12 @@ function loadAreas() {
             renderAreas('echo', data.echoareas || [], '#echoAreasContainer', '#echoCount');
             renderAreas('file', data.fileareas || [], '#fileAreasContainer', '#fileCount');
             updateSubscribedCount();
+            loadLovlyNetRequests();
         })
         .fail(function(xhr) {
             const msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error
                       : uiT('ui.admin.lovlynet.load_failed', 'Failed to load areas from LovlyNet');
-            ['echoAreasContainer', 'fileAreasContainer'].forEach(id => {
+            ['echoAreasContainer', 'fileAreasContainer', 'lovlynetRequestsContainer'].forEach(id => {
                 $('#' + id).html(`<div class="alert alert-danger m-3">${escapeHtml(msg)}</div>`);
             });
         });
@@ -288,9 +343,6 @@ function updateSubscribedCount() {
     $('#subscribedCount').text(total);
 }
 
-// Intentionally disabled for now. AreaFix/FileFix response correlation is too
-// unreliable in practice, especially when FileFix replies do not include REPLY kludges.
-// Keep these helpers around for future work, but do not call them from the active UI.
 function loadLovlyNetRequests() {
     $.get('/admin/api/lovlynet/requests')
         .done(function(data) {
@@ -308,9 +360,13 @@ function loadLovlyNetRequests() {
 
 function renderLovlyNetRequests(requests) {
     const $container = $('#lovlynetRequestsContainer');
-    $('#requestCount').text(requests.length);
+    _lovlynetRequests = Array.isArray(requests) ? requests : [];
+    const visibleRequests = _lovlynetRequests.filter(function(item) {
+        return item.direction === 'outgoing';
+    });
+    $('#requestCount').text(visibleRequests.length);
 
-    if (!requests.length) {
+    if (!visibleRequests.length) {
         $container.html(`<p class="text-muted text-center py-4">${uiT('ui.admin.lovlynet.no_requests', 'No matching requests or responses found')}</p>`);
         return;
     }
@@ -328,24 +384,20 @@ function renderLovlyNetRequests(requests) {
             </thead>
             <tbody>`;
 
-    requests.forEach(function(item) {
+    visibleRequests.forEach(function(item) {
         const typeLabel = item.request_type === 'file'
             ? uiT('ui.admin.lovlynet.type_filefix', 'FILEFIX')
             : uiT('ui.admin.lovlynet.type_areafix', 'AREAFIX');
-        const directionLabel = item.direction === 'incoming'
-            ? uiT('ui.admin.lovlynet.direction_response', 'Response')
-            : uiT('ui.admin.lovlynet.direction_request', 'Request');
         const statusBadge = getLovlyNetStatusBadge(item.status);
         const title = escapeHtml(getLovlyNetMessageTitle(item));
         const excerpt = escapeHtml(item.excerpt || '');
-        const route = item.direction === 'incoming'
-            ? `${escapeHtml(item.from_name || '')} @ ${escapeHtml(item.from_address || '')}`
-            : `${escapeHtml(item.to_name || '')} @ ${escapeHtml(item.to_address || '')}`;
+        const route = `${escapeHtml(item.to_name || '')} @ ${escapeHtml(item.to_address || '')}`;
         const bodyHtml = excerpt && excerpt !== title ? `<div class="small text-muted mt-1">${excerpt}</div>` : '';
 
-        html += `<tr>
+        html += `<tr class="lovlynet-message-row" role="button" tabindex="0"
+            data-id="${escapeHtmlAttr(item.id)}">
             <td><span class="badge bg-dark-subtle text-body border">${typeLabel}</span></td>
-            <td>${escapeHtml(directionLabel)}</td>
+            <td>${uiT('ui.admin.lovlynet.direction_request', 'Request')}</td>
             <td>${statusBadge}</td>
             <td>
                 <div class="fw-semibold">${title}</div>
@@ -358,6 +410,21 @@ function renderLovlyNetRequests(requests) {
 
     html += '</tbody></table></div>';
     $container.html(html);
+    $container.find('.lovlynet-message-row').on('click keydown', function(event) {
+        if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+        if (event.type === 'keydown') {
+            event.preventDefault();
+        }
+        const itemId = Number($(this).data('id') || 0);
+        const item = _lovlynetRequests.find(function(requestItem) {
+            return Number(requestItem.id) === itemId;
+        });
+        if (item) {
+            openLovlyNetMessageView(item);
+        }
+    });
 }
 
 function getLovlyNetStatusBadge(status) {
@@ -374,6 +441,9 @@ function formatLovlyNetDate(value) {
     if (!value) {
         return '';
     }
+    if (typeof window.formatFullDate === 'function') {
+        return window.formatFullDate(value);
+    }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
         return value;
@@ -386,6 +456,85 @@ function getLovlyNetMessageTitle(item) {
         return item.excerpt || uiT('ui.admin.lovlynet.requests_response_label', 'Hub response');
     }
     return item.excerpt || uiT('ui.admin.lovlynet.requests_request_label', 'Request sent');
+}
+
+function openLovlyNetMessageView(item) {
+    const linkedItem = getLinkedLovlyNetMessage(item);
+    const viewItems = [];
+    const typeLabel = item.request_type === 'file'
+        ? uiT('ui.admin.lovlynet.type_filefix', 'FILEFIX')
+        : uiT('ui.admin.lovlynet.type_areafix', 'AREAFIX');
+
+    if (item.direction === 'incoming' && linkedItem) {
+        viewItems.push(linkedItem);
+        viewItems.push(item);
+    } else {
+        viewItems.push(item);
+        if (linkedItem) {
+            viewItems.push(linkedItem);
+        }
+    }
+
+    if (viewItems.length > 1) {
+        $('#lovlynetMessageViewTitle').text(uiT('ui.admin.lovlynet.message_view_title', 'Message'));
+    } else if (item.direction === 'incoming') {
+        $('#lovlynetMessageViewTitle').text(uiT('ui.admin.lovlynet.message_view_title_response', 'Response Message'));
+    } else {
+        $('#lovlynetMessageViewTitle').text(uiT('ui.admin.lovlynet.message_view_title_request', 'Request Message'));
+    }
+    $('#lovlynetMessageViewMeta').text(typeLabel);
+    $('#lovlynetMessageViewBody').text(buildLovlyNetMessageViewBody(viewItems));
+    if (lovlynetMessageViewModal) {
+        lovlynetMessageViewModal.show();
+    }
+}
+
+function getLinkedLovlyNetMessage(item) {
+    if (!item) {
+        return null;
+    }
+    if (item.direction === 'incoming' && item.linked_request_id) {
+        return _lovlynetRequests.find(function(requestItem) {
+            return Number(requestItem.id) === Number(item.linked_request_id);
+        }) || null;
+    }
+    if (item.response_message_id) {
+        return _lovlynetRequests.find(function(requestItem) {
+            return Number(requestItem.id) === Number(item.response_message_id);
+        }) || null;
+    }
+    return null;
+}
+
+function buildLovlyNetMessageViewBody(items) {
+    return items.map(function(item) {
+        const isIncoming = item.direction === 'incoming';
+        const heading = isIncoming
+            ? uiT('ui.admin.lovlynet.message_view_title_response', 'Response Message')
+            : uiT('ui.admin.lovlynet.message_view_title_request', 'Request Message');
+        const route = isIncoming
+            ? `${item.from_name || ''} @ ${item.from_address || ''}`
+            : `${item.to_name || ''} @ ${item.to_address || ''}`;
+        const sectionLines = [heading];
+        if (route.trim() !== '') {
+            sectionLines.push(route);
+        }
+        if (item.timestamp) {
+            sectionLines.push(formatLovlyNetDate(item.timestamp));
+        }
+        sectionLines.push('');
+        sectionLines.push(item.message_text || '');
+        return sectionLines.join('\n');
+    }).join('\n\n');
+}
+
+function escapeHtmlAttr(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 function openRequestModal(areaType) {
@@ -481,6 +630,7 @@ function submitLovlynetRequest() {
                 lovlynetRequestModal.hide();
             }
             $('#lovlynetRequestMessage').val('');
+            loadLovlyNetRequests();
             showSuccess(
                 areaType === 'file'
                     ? uiT('ui.admin.lovlynet.request_sent_file', 'FileFix request sent')
@@ -509,4 +659,6 @@ function getCsrfHeaders() {
 }
 </script>
 {% endblock %}
+
+
 

@@ -61,6 +61,12 @@ class LovlyNetClient
         return (string)($cfg['hub_address'] ?? '');
     }
 
+    public function getFtnAddress(): string
+    {
+        $cfg = self::loadConfig();
+        return (string)($cfg['ftn_address'] ?? '');
+    }
+
     public function getAreafixPassword(): string
     {
         $cfg = self::loadConfig();

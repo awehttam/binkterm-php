@@ -3867,8 +3867,9 @@ SimpleRouter::get('/admin/lovlynet', function() {
     $template = new Template();
     $template->renderResponse('admin/lovlynet.twig', [
         'lovlynet_configured'  => $client->isConfigured(),
-        'lovlynet_node_number' => $client->getNodeNumber(),
+        'lovlynet_node_number' => $client->getFtnAddress(),
         'lovlynet_base_url'    => $client->getBaseUrl(),
+        'lovlynet_hub_address' => $client->getHubAddress(),
     ]);
 });
 

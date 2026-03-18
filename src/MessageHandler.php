@@ -4993,9 +4993,8 @@ class MessageHandler
      */
     public function getLovlyNetRequests(int $userId, string $hubAddress): array
     {
-        $user = $this->getUserById($userId);
         $hubAddress = trim($hubAddress);
-        if (!$user || $hubAddress === '') {
+        if ($hubAddress === '') {
             return [];
         }
 
@@ -5021,16 +5020,18 @@ class MessageHandler
         $sql = "
             SELECT n.id, n.user_id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.message_text, n.date_written, n.date_received, n.is_sent,
+                   n.message_id, n.kludge_lines, n.bottom_kludges,
                    CASE
-                       WHEN LOWER(n.to_name) = 'areafix' OR LOWER(n.from_name) = 'areafix' THEN 'echo'
+                       WHEN LOWER(n.to_name) = 'areafix' OR LOWER(n.from_name) LIKE 'areafix%' THEN 'echo'
                        ELSE 'file'
                    END AS request_type,
                    CASE
-                       WHEN n.from_address = ? AND LOWER(n.from_name) IN ('areafix', 'filefix') THEN 'incoming'
+                       WHEN n.from_address = ? AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%') THEN 'incoming'
                        ELSE 'outgoing'
                    END AS direction
             FROM netmail n
             WHERE (
+                -- Requests are messages sent to AreaFix/FileFix at the configured hub address.
                 (
                     n.from_address IN ($addressPlaceholders)
                     AND n.to_address = ?
@@ -5038,10 +5039,10 @@ class MessageHandler
                     AND n.deleted_by_sender = FALSE
                 )
                 OR
+                -- Responses are messages from AreaFix/FileFix at the configured hub address.
                 (
                     n.from_address = ?
-                    AND LOWER(n.from_name) IN ('areafix', 'filefix')
-                    AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                    AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%')
                     AND n.to_address IN ($addressPlaceholders)
                     AND n.deleted_by_recipient = FALSE
                 )
@@ -5050,7 +5051,7 @@ class MessageHandler
         ";
 
         $params = [$hubAddress];
-        $params = array_merge($params, $myAddresses, [$hubAddress, $hubAddress, $user['username'], $user['real_name']], $myAddresses);
+        $params = array_merge($params, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -5059,45 +5060,51 @@ class MessageHandler
             return [];
         }
 
-        $incomingByType = ['echo' => [], 'file' => []];
-        foreach ($rows as $index => $row) {
-            if (($row['direction'] ?? '') === 'incoming') {
-                $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
-                $incomingByType[$type][] = $index;
-            }
-        }
-
-        $usedIncoming = [];
         foreach ($rows as $index => &$row) {
             $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
-            $timestamp = $row['date_written'] ?: $row['date_received'];
+            $timestamp = (string)($row['date_written'] ?: $row['date_received']);
             $row['timestamp'] = $timestamp;
             $row['excerpt'] = $this->buildLovlyNetExcerpt((string)($row['message_text'] ?? ''));
             $row['status'] = ($row['direction'] ?? '') === 'incoming' ? 'response' : 'pending';
             $row['response_message_id'] = null;
+            $row['linked_request_id'] = null;
+            $row['reply_msgid'] = null;
+            $row['normalized_message_id'] = $this->normalizeNetmailMsgId((string)($row['message_id'] ?? ''));
 
-            if (($row['direction'] ?? '') !== 'outgoing') {
-                continue;
-            }
-
-            foreach ($incomingByType[$type] as $incomingIndex) {
-                if (isset($usedIncoming[$incomingIndex])) {
-                    continue;
-                }
-
-                $incomingTimestamp = $rows[$incomingIndex]['date_written'] ?: $rows[$incomingIndex]['date_received'];
-                if ($incomingTimestamp < $timestamp) {
-                    continue;
-                }
-
-                $usedIncoming[$incomingIndex] = true;
-                $row['status'] = 'responded';
-                $row['response_message_id'] = (int)$rows[$incomingIndex]['id'];
-                $rows[$incomingIndex]['linked_request_id'] = (int)$row['id'];
-                break;
+            if (($row['direction'] ?? '') === 'incoming') {
+                $replyMsgId = $this->extractReplyFromKludge($this->buildNetmailKludgeText($row));
+                $row['reply_msgid'] = is_string($replyMsgId) ? trim($replyMsgId) : null;
+                $row['normalized_reply_msgid'] = $this->normalizeNetmailMsgId((string)$row['reply_msgid']);
+            } else {
+                $row['normalized_reply_msgid'] = null;
             }
         }
         unset($row);
+
+        $outgoingByMsgId = [];
+        foreach ($rows as $index => $row) {
+            $normalizedMessageId = (string)($row['normalized_message_id'] ?? '');
+            if (($row['direction'] ?? '') === 'outgoing' && $normalizedMessageId !== '') {
+                $outgoingByMsgId[$normalizedMessageId] = $index;
+            }
+        }
+
+        foreach ($rows as $incomingIndex => &$incomingRow) {
+            if (($incomingRow['direction'] ?? '') !== 'incoming') {
+                continue;
+            }
+
+            $replyMsgId = trim((string)($incomingRow['normalized_reply_msgid'] ?? ''));
+            if ($replyMsgId === '' || !isset($outgoingByMsgId[$replyMsgId])) {
+                continue;
+            }
+
+            $outgoingIndex = $outgoingByMsgId[$replyMsgId];
+            $rows[$outgoingIndex]['status'] = 'responded';
+            $rows[$outgoingIndex]['response_message_id'] = (int)$incomingRow['id'];
+            $incomingRow['linked_request_id'] = (int)$rows[$outgoingIndex]['id'];
+        }
+        unset($incomingRow);
 
         $rows = array_reverse($rows);
         return array_map(function (array $row): array {
@@ -5114,12 +5121,42 @@ class MessageHandler
                 'subject_hidden' => true,
                 'message_text' => (string)($row['message_text'] ?? ''),
                 'excerpt' => (string)($row['excerpt'] ?? ''),
+                'message_id' => (string)($row['message_id'] ?? ''),
+                'reply_msgid' => (string)($row['reply_msgid'] ?? ''),
                 'timestamp' => (string)($row['timestamp'] ?? ''),
                 'is_sent' => (bool)($row['is_sent'] ?? false),
                 'response_message_id' => isset($row['response_message_id']) ? (int)$row['response_message_id'] : null,
                 'linked_request_id' => isset($row['linked_request_id']) ? (int)$row['linked_request_id'] : null,
             ];
         }, $rows);
+    }
+
+    private function buildNetmailKludgeText(array $message): string
+    {
+        $parts = [];
+        if (!empty($message['kludge_lines'])) {
+            $parts[] = (string)$message['kludge_lines'];
+        }
+        if (!empty($message['bottom_kludges'])) {
+            $parts[] = (string)$message['bottom_kludges'];
+        }
+        if ($parts !== []) {
+            return implode("\n", $parts);
+        }
+
+        return (string)($message['message_text'] ?? '');
+    }
+
+    private function normalizeNetmailMsgId(string $msgId): string
+    {
+        $normalized = trim($msgId);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $normalized = trim($normalized, "<> \t\r\n");
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        return strtolower($normalized);
     }
 
     private function buildLovlyNetExcerpt(string $messageText, int $limit = 160): string
