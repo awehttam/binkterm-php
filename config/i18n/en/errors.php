@@ -156,6 +156,12 @@ return [
     'errors.files.upload.insufficient_credits' => 'Insufficient credits to upload this file',
     'errors.files.upload.failed' => 'Failed to upload file',
     'errors.files.download.insufficient_credits' => 'Insufficient credits to download this file',
+    'errors.files.comments_not_enabled' => 'Comments are not enabled for this file area',
+    'errors.files.comments_forbidden' => 'You do not have permission to comment here',
+    'errors.files.comment_body_required' => 'Comment body is required',
+    'errors.files.comment_post_failed' => 'Failed to post comment',
+    'errors.files.invalid_reply_target' => 'Invalid reply target',
+    'errors.fileareas.comment_area_failed' => 'Failed to create or link comment area',
 
     // Admin Users
     'errors.admin.users.not_found' => 'User not found',

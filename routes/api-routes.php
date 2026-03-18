@@ -2759,6 +2759,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             exit;
         }
 
+        if ($ext === 'rip') {
+            $content = (string)file_get_contents($storagePath);
+            try {
+                $renderer = new \BinktermPHP\RipScriptRenderer($content);
+                $svg = $renderer->getHTML();
+                header('Content-Type: text/html; charset=utf-8');
+                header('Cache-Control: private, max-age=3600');
+                echo $svg;
+            } catch (\Exception $e) {
+                http_response_code(500);
+                echo 'RIP render failed: ' . htmlspecialchars($e->getMessage());
+            }
+            exit;
+        }
+
         if (in_array($ext, $textExts)) {
             $content = (string)file_get_contents($storagePath);
             $charset = 'utf-8';
@@ -2982,6 +2997,418 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         http_response_code(404);
         echo json_encode(['error' => 'Not a PRG, ZIP, D64, or SEQ file']);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/rips
+     * Render all RIPscrip (.rip) files found inside a .zip archive as SVG HTML.
+     * Used by the file preview modal to display RIP art from ZIP bundles.
+     *
+     * Response: {"rips":[{"name":"...","html":"<svg...>"},...]}
+     */
+    SimpleRouter::get('/files/{id}/rips', function($id) {
+        // Allow unauthenticated access for valid active file shares
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        if (!$user && !$viaShare) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        if (!$viaShare) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $ext = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
+
+        if ($ext !== 'zip') {
+            echo json_encode(['rips' => []]);
+            return;
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($storagePath) !== true) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Cannot open ZIP']);
+            return;
+        }
+
+        $rips = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entryName = $zip->getNameIndex($i);
+            if (strtolower(pathinfo($entryName, PATHINFO_EXTENSION)) !== 'rip') {
+                continue;
+            }
+            $content = $zip->getFromIndex($i);
+            if ($content === false) {
+                continue;
+            }
+            try {
+                $renderer = new \BinktermPHP\RipScriptRenderer($content);
+                $rips[] = [
+                    'name' => basename($entryName),
+                    'html' => $renderer->getHTML(),
+                ];
+            } catch (\Exception $e) {
+                // Skip unrenderable entries
+            }
+        }
+        $zip->close();
+
+        echo json_encode(['rips' => $rips]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/zip-contents
+     * List non-directory entries inside a .zip file.
+     * Response: {"entries":[{"path":"...","name":"...","size":int},...]}
+     */
+    SimpleRouter::get('/files/{id}/zip-contents', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        if (!$user && !$viaShare) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        if (!$viaShare) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $ext = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
+        if ($ext !== 'zip') {
+            echo json_encode(['entries' => []]);
+            return;
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($storagePath) !== true) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Cannot open ZIP']);
+            return;
+        }
+
+        $entries = [];
+        $limit   = 500;
+        for ($i = 0; $i < $zip->numFiles && count($entries) < $limit; $i++) {
+            $stat = $zip->statIndex($i);
+            if ($stat === false) continue;
+            $name = $stat['name'];
+            if (str_ends_with($name, '/')) continue; // directory entry
+            $entries[] = [
+                'path'        => $name,
+                'name'        => basename($name),
+                'size'        => (int)$stat['size'],
+                'comp_method' => (int)($stat['comp_method'] ?? 0),
+            ];
+        }
+        $total = $zip->numFiles;
+        $zip->close();
+
+        usort($entries, fn($a, $b) => strcmp($a['path'], $b['path']));
+
+        echo json_encode(['entries' => $entries, 'total' => $total]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/zip-entry?path=subdir/file.txt
+     * Serve a single entry from inside a .zip file for inline preview.
+     * Applies the same content-type / encoding logic as /preview for known types.
+     * Unknown types are served as attachment (download).
+     */
+    SimpleRouter::get('/files/{id}/zip-entry', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        if (!$user && !$viaShare) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo 'Feature disabled';
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        if (!$viaShare) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo 'Access denied';
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        $zipExt = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
+        if ($zipExt !== 'zip') {
+            http_response_code(400);
+            echo 'Not a ZIP file';
+            return;
+        }
+
+        $entryPath = $_GET['path'] ?? '';
+        // Basic safety: reject empty paths or anything with directory traversal
+        if ($entryPath === '' || str_contains($entryPath, '..')) {
+            http_response_code(400);
+            echo 'Invalid path';
+            return;
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($storagePath) !== true) {
+            http_response_code(422);
+            echo 'Cannot open ZIP';
+            return;
+        }
+
+        // Normalize path separators (some ZIPs use backslashes)
+        $entryPath = str_replace('\\', '/', $entryPath);
+
+        // Try exact match first (FL_NOCASE handles simple case differences)
+        $content       = $zip->getFromName($entryPath, 0, ZipArchive::FL_NOCASE);
+        $exactZipName  = null; // the actual stored name, needed for shell fallback
+        $entryCompMethod = null;
+
+        // Case-insensitive manual scan — also records the exact stored name and
+        // compression method so we can attempt a shell fallback for legacy formats.
+        if ($content === false) {
+            $lowerTarget = strtolower($entryPath);
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                if ($stat !== false && strtolower(str_replace('\\', '/', $stat['name'])) === $lowerTarget) {
+                    $exactZipName    = $stat['name'];
+                    $entryCompMethod = $stat['comp_method'] ?? null;
+                    $content         = $zip->getFromIndex($i);
+                    break;
+                }
+            }
+        }
+
+        $zip->close();
+
+        // Fallback for legacy compression methods (implode=6, shrink=1, etc.) that
+        // libzip/ZipArchive cannot decompress.  Try the system `unzip` binary.
+        if ($content === false && $exactZipName !== null) {
+            $cmd    = 'unzip -p ' . escapeshellarg($storagePath) . ' ' . escapeshellarg($exactZipName) . ' 2>/dev/null';
+            $result = function_exists('shell_exec') ? @shell_exec($cmd) : null;
+            if ($result !== null && $result !== '') {
+                $content = $result;
+            }
+        }
+
+        if ($content === false) {
+            http_response_code(415);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error'       => 'legacy_compression',
+                'comp_method' => $entryCompMethod,
+                'message'     => 'Entry uses an unsupported legacy compression method and cannot be extracted.',
+            ]);
+            return;
+        }
+
+        $entryName = basename($entryPath);
+        $ext       = strtolower(pathinfo($entryName, PATHINFO_EXTENSION));
+        $safe      = addslashes($entryName);
+        $encoded   = rawurlencode($entryName);
+
+        // RIPscrip — render server-side to SVG
+        if ($ext === 'rip') {
+            try {
+                $renderer = new \BinktermPHP\RipScriptRenderer($content);
+                header('Content-Type: text/html; charset=utf-8');
+                header('Cache-Control: private, max-age=3600');
+                echo $renderer->getHTML();
+            } catch (\Exception $e) {
+                http_response_code(500);
+                echo 'RIP render failed';
+            }
+            return;
+        }
+
+        // Images
+        $imageMimes = [
+            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+            'gif' => 'image/gif',  'webp' => 'image/webp', 'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp',  'ico'  => 'image/x-icon', 'avif' => 'image/avif',
+        ];
+        if (isset($imageMimes[$ext])) {
+            header('Content-Type: ' . $imageMimes[$ext]);
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('Content-Length: ' . strlen($content));
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            return;
+        }
+
+        // Video / Audio
+        $mediaMimes = [
+            'mp4' => 'video/mp4',   'webm' => 'video/webm',  'mov' => 'video/quicktime',
+            'ogv' => 'video/ogg',   'm4v'  => 'video/mp4',
+            'mp3' => 'audio/mpeg',  'wav'  => 'audio/wav',   'ogg' => 'audio/ogg',
+            'flac'=> 'audio/flac',  'aac'  => 'audio/aac',   'm4a' => 'audio/mp4',
+            'opus'=> 'audio/ogg',
+        ];
+        if (isset($mediaMimes[$ext])) {
+            header('Content-Type: ' . $mediaMimes[$ext]);
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('Content-Length: ' . strlen($content));
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            return;
+        }
+
+        // Text (including ANSI — served as plain text; JS handles rendering)
+        $textExts = [
+            'txt','log','nfo','diz','md','cfg','ini','conf','lsm',
+            'json','xml','bat','sh','readme','ans',
+        ];
+        if (in_array($ext, $textExts)) {
+            if (in_array($ext, ['nfo', 'diz', 'ans'])) {
+                $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
+                if ($converted !== false && strlen($converted) > 0) {
+                    $content = $converted;
+                }
+            }
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            return;
+        }
+
+        // PRG — serve raw bytes for client-side PETSCII rendering
+        if ($ext === 'prg') {
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: inline; filename="' . $safe . '"');
+            header('Content-Length: ' . strlen($content));
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            return;
+        }
+
+        // Unknown — serve as download
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+        header('Content-Length: ' . strlen($content));
+        header('Cache-Control: no-cache, must-revalidate');
+        echo $content;
     })->where(['id' => '[0-9]+']);
 
     /**
@@ -3505,6 +3932,353 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
+
+    // -----------------------------------------------------------------------
+    // File comments API
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /api/files/{id}/comments
+     * Fetch threaded echomail comments for a file.
+     */
+    SimpleRouter::get('/files/{id}/comments', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404); return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Load file and its linked comment echo area
+        $stmt = $db->prepare("
+            SELECT f.id, f.filename, f.file_hash, f.file_area_id,
+                   fa.tag AS area_tag, fa.comment_echoarea_id,
+                   e.tag AS echo_tag, e.domain AS echo_domain
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN echoareas e ON e.id = fa.comment_echoarea_id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([(int)$id]);
+        $file = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$file) {
+            http_response_code(404);
+            apiError('errors.files.not_found', 'File not found');
+            return;
+        }
+
+        if (empty($file['comment_echoarea_id'])) {
+            echo json_encode(['enabled' => false, 'comments' => [], 'total' => 0]);
+            return;
+        }
+
+        $echoareaId    = (int)$file['comment_echoarea_id'];
+        $filename      = $file['filename'];
+        $areaTag       = $file['area_tag'];
+        $kludgePattern = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
+
+        // Fetch all messages in this echoarea matching by kludge or subject
+        $stmt = $db->prepare("
+            SELECT em.id, em.from_name, em.subject, em.message_text,
+                   em.date_written, em.reply_to_id
+            FROM echomail em
+            WHERE em.echoarea_id = ?
+              AND (em.subject = ? OR em.kludge_lines LIKE ?)
+            ORDER BY em.date_written ASC
+        ");
+        $stmt->execute([$echoareaId, $filename, $kludgePattern]);
+        $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        /**
+         * Recursively build threaded comment tree up to 3 levels (0-indexed).
+         * Replies beyond level 2 are rendered flat at level 2 on the frontend.
+         */
+        $buildTree = null;
+        $buildTree = function(array $msgs, ?int $parentId, int $depth) use (&$buildTree): array {
+            $children = [];
+            foreach ($msgs as $msg) {
+                $msgParent = $msg['reply_to_id'] !== null ? (int)$msg['reply_to_id'] : null;
+                if ($msgParent === $parentId) {
+                    $childDepth = min($depth, 2);
+                    $children[] = [
+                        'id'           => (int)$msg['id'],
+                        'from_name'    => $msg['from_name'],
+                        'date_written' => $msg['date_written'],
+                        'body'         => $msg['message_text'],
+                        'level'        => $childDepth,
+                        'children'     => $depth < 2 ? $buildTree($msgs, (int)$msg['id'], $depth + 1) : [],
+                    ];
+                }
+            }
+            return $children;
+        };
+
+        // Identify thread roots: no reply_to_id, or parent not in result set
+        $msgIds = array_map('intval', array_column($messages, 'id'));
+        $tree   = [];
+        foreach ($messages as $root) {
+            $parentId = $root['reply_to_id'] !== null ? (int)$root['reply_to_id'] : null;
+            if ($parentId === null || !in_array($parentId, $msgIds, true)) {
+                $tree[] = [
+                    'id'           => (int)$root['id'],
+                    'from_name'    => $root['from_name'],
+                    'date_written' => $root['date_written'],
+                    'body'         => $root['message_text'],
+                    'level'        => 0,
+                    'children'     => $buildTree($messages, (int)$root['id'], 1),
+                ];
+            }
+        }
+
+        echo json_encode([
+            'enabled'  => true,
+            'total'    => count($messages),
+            'comments' => $tree,
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/files/{id}/comments
+     * Post a comment on a file (creates thread root if none exists).
+     */
+    SimpleRouter::post('/files/{id}/comments', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404); return;
+        }
+
+        $input     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body      = trim($input['body'] ?? '');
+        $replyToId = isset($input['reply_to_id']) ? (int)$input['reply_to_id'] : null;
+
+        if ($body === '') {
+            http_response_code(400);
+            apiError('errors.files.comment_body_required', 'Comment body is required');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Load file and its linked comment echo area
+        $stmt = $db->prepare("
+            SELECT f.id, f.filename, f.file_hash, f.file_area_id,
+                   fa.tag AS area_tag, fa.comment_echoarea_id,
+                   e.tag AS echo_tag, e.domain AS echo_domain, e.is_sysop_only
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN echoareas e ON e.id = fa.comment_echoarea_id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([(int)$id]);
+        $file = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$file) {
+            http_response_code(404);
+            apiError('errors.files.not_found', 'File not found');
+            return;
+        }
+
+        if (empty($file['comment_echoarea_id'])) {
+            http_response_code(403);
+            apiError('errors.files.comments_not_enabled', 'Comments are not enabled for this file area');
+            return;
+        }
+
+        // Respect area's sysop-only restriction
+        if (!empty($file['is_sysop_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.files.comments_forbidden', 'You do not have permission to comment here');
+            return;
+        }
+
+        $echoareaId = (int)$file['comment_echoarea_id'];
+        $echoTag    = $file['echo_tag'];
+        $echoDomain = $file['echo_domain'] ?? '';
+        $filename   = $file['filename'];
+        $areaTag    = $file['area_tag'];
+        $fileHash   = $file['file_hash'] ?? '';
+        $userId     = (int)($user['user_id'] ?? $user['id']);
+
+        // Find existing thread root (by FILEREF kludge or subject, no parent)
+        $kludgePattern = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
+        $stmt = $db->prepare("
+            SELECT id FROM echomail
+            WHERE echoarea_id = ?
+              AND (kludge_lines LIKE ? OR subject = ?)
+              AND reply_to_id IS NULL
+            ORDER BY id ASC LIMIT 1
+        ");
+        $stmt->execute([$echoareaId, $kludgePattern, $filename]);
+        $existingRoot = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $threadRootId = $existingRoot ? (int)$existingRoot['id'] : null;
+
+        $handler = new MessageHandler();
+
+        if ($replyToId !== null) {
+            // Replying to a specific message — verify it belongs to this echoarea
+            $stmt = $db->prepare("SELECT id FROM echomail WHERE id = ? AND echoarea_id = ?");
+            $stmt->execute([$replyToId, $echoareaId]);
+            if (!$stmt->fetch()) {
+                http_response_code(400);
+                apiError('errors.files.invalid_reply_target', 'Invalid reply target');
+                return;
+            }
+            $result = $handler->postEchomail($userId, $echoTag, $echoDomain, 'All', $filename, $body, $replyToId, null, true);
+        } else {
+            // Top-level comment — always posted with no parent so "Leave a Comment"
+            // always starts a new thread root, never forced into a reply chain.
+            // The first top-level comment gets the FILEREF kludge for cross-node matching.
+            $result = $handler->postEchomail($userId, $echoTag, $echoDomain, 'All', $filename, $body, null, null, true);
+
+            // Prepend FILEREF kludge only on the very first comment (no prior thread root).
+            // Use lastInsertId on the echomail sequence — reliable because postEchomail()
+            // does no further INSERTs into sequenced tables after the echomail row.
+            if ($result && $threadRootId === null) {
+                $newId = (int)$db->lastInsertId('echomail_id_seq');
+                if ($newId > 0) {
+                    $stmt = $db->prepare("SELECT kludge_lines FROM echomail WHERE id = ?");
+                    $stmt->execute([$newId]);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                    if ($row !== false) {
+                        $filerefLine = "\x01FILEREF: {$areaTag} {$filename} {$fileHash}\r\n";
+                        $db->prepare("UPDATE echomail SET kludge_lines = ? WHERE id = ?")
+                           ->execute([$filerefLine . ($row['kludge_lines'] ?? ''), $newId]);
+                    }
+                }
+            }
+        }
+
+        if (!$result) {
+            http_response_code(500);
+            apiError('errors.files.comment_post_failed', 'Failed to post comment');
+            return;
+        }
+
+        // Increment cached comment count
+        $db->prepare("UPDATE files SET comment_count = comment_count + 1 WHERE id = ?")
+           ->execute([(int)$id]);
+
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/fileareas/{id}/comment-area
+     * Admin: link, create, or unlink a comment echo area for a file area.
+     * Body: { action: 'link', echoarea_id: 123 }
+     *    OR { action: 'create', tag: 'MY-TAG', description: 'Optional' }
+     *    OR { action: 'unlink' }
+     */
+    SimpleRouter::post('/fileareas/{id}/comment-area', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $action = $input['action'] ?? '';
+
+        // Load file area
+        $stmt = $db->prepare("SELECT id, tag, domain FROM file_areas WHERE id = ?");
+        $stmt->execute([(int)$id]);
+        $fileArea = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$fileArea) {
+            http_response_code(404);
+            apiError('errors.fileareas.not_found', apiLocalizedText('errors.fileareas.not_found', 'File area not found', $user));
+            return;
+        }
+
+        $echoareaId = null;
+
+        if ($action === 'unlink') {
+            $echoareaId = null;
+
+        } elseif ($action === 'link') {
+            $echoareaId = (int)($input['echoarea_id'] ?? 0);
+            if ($echoareaId <= 0) {
+                http_response_code(400);
+                apiError('errors.fileareas.comment_area_failed', 'echoarea_id is required');
+                return;
+            }
+            $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+            $stmt->execute([$echoareaId]);
+            if (!$stmt->fetch()) {
+                http_response_code(404);
+                apiError('errors.fileareas.comment_area_failed', 'Echo area not found');
+                return;
+            }
+
+        } elseif ($action === 'create') {
+            $tag         = strtoupper(trim($input['tag'] ?? ''));
+            $description = trim($input['description'] ?? '');
+
+            if ($tag === '') {
+                http_response_code(400);
+                apiError('errors.fileareas.comment_area_failed', 'Tag is required');
+                return;
+            }
+
+            if (!preg_match("/^[A-Z0-9._'-]+$/", $tag)) {
+                http_response_code(400);
+                apiError('errors.fileareas.comment_area_failed', 'Invalid tag format');
+                return;
+            }
+
+            if ($description === '') {
+                $description = 'File comments for ' . $fileArea['tag'];
+            }
+
+            // LVLY_FILECHAT always gets lovlynet domain; other new areas are local
+            $fileAreaDomain = strtolower(trim($fileArea['domain'] ?? ''));
+            $isLovlynet     = ($fileAreaDomain === 'lovlynet' && $tag === 'LVLY_FILECHAT');
+            $domain         = $isLovlynet ? 'lovlynet' : '';
+            $isLocal        = !$isLovlynet;
+
+            // Re-use existing area if tag already exists
+            $stmt = $db->prepare("SELECT id FROM echoareas WHERE UPPER(tag) = ?");
+            $stmt->execute([$tag]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                $echoareaId = (int)$existing['id'];
+            } else {
+                $stmt = $db->prepare("
+                    INSERT INTO echoareas (tag, description, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                    VALUES (?, ?, '#28a745', TRUE, ?, FALSE, ?, FALSE)
+                ");
+                $stmt->execute([$tag, $description, $isLocal ? 'true' : 'false', $domain]);
+                $echoareaId = (int)$db->lastInsertId();
+            }
+
+        } else {
+            http_response_code(400);
+            apiError('errors.fileareas.comment_area_failed', 'Invalid action');
+            return;
+        }
+
+        // Persist the link
+        $stmt = $db->prepare("UPDATE file_areas SET comment_echoarea_id = ? WHERE id = ?");
+        $stmt->execute([$echoareaId, (int)$id]);
+
+        echo json_encode(['success' => true, 'echoarea_id' => $echoareaId]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/echoareas/simple-list
+     * Lightweight list of all echoareas for admin comboboxes (id, tag, description, domain).
+     */
+    SimpleRouter::get('/echoareas/simple-list', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->query("SELECT id, tag, description, domain FROM echoareas ORDER BY tag ASC");
+        echo json_encode(['echoareas' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
 
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {

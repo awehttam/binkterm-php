@@ -92,14 +92,53 @@ Comments are not shown in the file preview — users are focused on the file con
 ### File area admin
 
 Two options for linking a comments area:
-- **Create and link a new area** — creates a new local echomail area on the spot. The suggested tag is `<FILEAREATAG>-COMMENTS` if the file area tag is 31 characters or fewer (so the result stays within the 40-character FTN area tag limit); otherwise just `<FILEAREATAG>`. The sysop can edit the suggested name before confirming. The new area is created as local (not networked) by default.
-- **Select an existing area** — pick any existing echomail area from a dropdown.
+The UI uses a combobox-style control — the sysop can either select an existing echomail area from the dropdown or type a new tag to create one:
 
+- **Selecting an existing area** — links it directly, no area is created
+- **Typing a new tag** — creates the area. New areas are local by default, with one exception: if the file area's domain is `lovlynet` and the tag is `LVLY_FILECHAT`, the area is created with domain `lovlynet` (never local)
+
+The pre-filled suggested tag when the sysop opens the control:
+- `LVLY_FILECHAT` if the file area's domain is `lovlynet`
+- `<FILEAREATAG>-COMMENTS` if the file area tag is 31 characters or fewer
+- `<FILEAREATAG>` otherwise
 The linked echomail area can also be cleared to disable comments for that file area.
 
 ### Echomail area view
 
 Messages posted via file comments appear as normal echomail and are readable in the echomail area view on any node.
+
+---
+
+## Permissions
+
+Posting comments requires the user to be logged in. Posting permissions otherwise follow the linked echomail area — if the area is sysop-only, only sysops can comment.
+
+Guests see a blurred mock comment section with a "Login to read" overlay in place of the real thread and reply form.
+
+---
+
+## Moderation
+
+Comment moderation is handled through the echomail area itself — sysops delete unwanted comments via the normal echomail admin interface. There is no dedicated moderation UI in the file area view at this time; this may be revisited in a future iteration.
+
+---
+
+## SHA-256 Hashing
+
+- Computed and stored on file upload
+- Computed and stored on TIC file ingest
+- One-time backfill migration for existing files; files that cannot be read during backfill fall back to subject matching only
+
+---
+
+## Comment Count Caching
+
+The comment count badge in the file listing must not query the echomail table live per file row. Counts are cached — either as a denormalised column on the files table or in a small summary table — and updated when:
+
+- A new comment is posted via the file area UI
+- Echomail is received from the network and matched to a file via kludge or subject
+
+Cache invalidation strategy and storage details to be determined at implementation time.
 
 ---
 

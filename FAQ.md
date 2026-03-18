@@ -1,5 +1,45 @@
 # BinktermPHP Frequently Asked Questions
 
+## Troubleshooting
+
+### Q: The page looks broken after an upgrade — missing features, broken menus, or "loadI18nNamespaces is not defined" errors
+
+**A:** This is a stale service worker cache issue. The old service worker is still serving cached JavaScript and CSS from before the upgrade. You need to unregister the service worker so the browser fetches fresh files.
+
+**Desktop browsers (Chrome / Edge)**
+
+1. Open DevTools — press `F12` or right-click → Inspect
+2. Go to **Application** → **Service Workers**
+3. Click **Unregister** next to the BinktermPHP service worker
+4. Reload the page (`F5`)
+
+**Desktop browsers (Firefox)**
+
+1. Open `about:debugging#/runtime/this-firefox` in the address bar
+2. Find the BinktermPHP worker and click **Unregister**
+3. Reload the page
+
+**Desktop — quick alternative (all browsers)**
+
+A hard refresh bypasses the cache without unregistering the service worker:
+- Windows/Linux: `Ctrl + Shift + R`
+- Mac: `Cmd + Shift + R`
+
+**Mobile (Chrome on Android)**
+
+1. Open Chrome's menu (three dots) → **Settings** → **Privacy and security** → **Clear browsing data**
+2. Select **Cached images and files** and **Cookies and site data** for the BinktermPHP site
+3. Tap **Clear data**, then reload
+
+**Mobile (Safari on iOS)**
+
+1. Go to **Settings** → **Safari** → **Clear History and Website Data**
+2. Reload the BinktermPHP site
+
+**Note:** After clearing, you will be logged out and will need to sign in again. This is normal.
+
+---
+
 ## Support
 
 ### Q: Where can I get support?

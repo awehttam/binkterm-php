@@ -263,6 +263,9 @@ function normalizeViewerRenderMode(mode) {
     if (normalized === 'plain') {
         return 'plain';
     }
+    if (normalized === 'rip' || normalized === 'ripscript') {
+        return 'rip';
+    }
     if (window.normalizeArtFormat) {
         return window.normalizeArtFormat(normalized);
     }
@@ -270,7 +273,7 @@ function normalizeViewerRenderMode(mode) {
 }
 
 function getNextViewerRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
     const normalized = normalizeViewerRenderMode(mode);
     const currentIndex = modes.indexOf(normalized);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
@@ -279,6 +282,8 @@ function getNextViewerRenderMode(mode) {
 function getViewerRenderModeLabel(mode) {
     const normalized = normalizeViewerRenderMode(mode);
     switch (normalized) {
+        case 'rip':
+            return window.t ? window.t('ui.echomail.viewer_mode_rip', {}, 'RIPscrip') : 'RIPscrip';
         case 'ansi':
             return window.t ? window.t('ui.echomail.viewer_mode_ansi', {}, 'ANSI') : 'ANSI';
         case 'amiga_ansi':
@@ -324,6 +329,35 @@ function getViewerModeToastLabel(mode, message = null) {
         : `${markupLabel} Source (${modeLabel})`;
 }
 
+function looksLikeRipScript(text) {
+    if (!text || text.trim() === '') {
+        return false;
+    }
+
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    let ripLineCount = 0;
+    let supportedCommandCount = 0;
+
+    for (const line of lines) {
+        const trimmed = line.replace(/^\s+/, '');
+        if (!trimmed.startsWith('!|')) {
+            continue;
+        }
+
+        ripLineCount++;
+
+        if (/\|c\d{2}\b/i.test(trimmed)
+            || /\|L[0-9A-Z]{8,}/i.test(trimmed)
+            || /\|@[0-9A-Z]{4}/i.test(trimmed)
+        ) {
+            supportedCommandCount++;
+        }
+    }
+
+    return ripLineCount > 0 && supportedCommandCount > 0;
+}
+
 function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
     const text = bodyText || '';
     let forcePlainText = !!forcePlain;
@@ -336,6 +370,7 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const messageArtFormat = window.normalizeArtFormat ? window.normalizeArtFormat(message?.art_format || 'auto') : (message?.art_format || 'auto');
     const requestedFormat = normalizeViewerRenderMode(formatOverride || messageArtFormat || 'auto');
     const rawBytesB64 = message?.message_bytes_b64 || null;
+    const ripDetected = looksLikeRipScript(text);
 
     if (!text || text.trim() === '') {
         return '';
@@ -347,6 +382,15 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
 
     if (forcePlainText || requestedFormat === 'plain') {
         return formatPlainMessageText(text, searchTerms);
+    }
+
+    const shouldRenderRip = !forcePlainText && (
+        requestedFormat === 'rip'
+        || (requestedFormat === 'auto' && ripDetected)
+    );
+
+    if (shouldRenderRip && message?.rip_html) {
+        return message.rip_html;
     }
 
     const hasAnsi = /\x1b\[[0-9;]*m/.test(text);

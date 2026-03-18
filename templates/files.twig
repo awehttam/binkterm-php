@@ -152,6 +152,43 @@
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
             </div>
+            <!-- File comments section (preview modal) -->
+            <div id="previewFileCommentsSection" class="px-3 pt-2 pb-3" style="display:none;">
+                <hr class="mt-0">
+                <h6><i class="fas fa-comments me-1"></i>{{ t('ui.files.comments', {}, 'common') }}</h6>
+                <div id="previewFileCommentsBody">
+                    <div class="text-muted small">{{ t('ui.files.loading_comments', {}, 'common') }}</div>
+                </div>
+                {% if current_user %}
+                <div id="previewFileCommentReplyForm" class="mt-3" style="display:none;">
+                    <input type="hidden" id="previewCommentReplyToId" value="">
+                    <div id="previewCommentReplyToLabel" class="small text-muted mb-1" style="display:none;"></div>
+                    <div class="input-group">
+                        <textarea class="form-control form-control-sm" id="previewCommentBodyInput" rows="3"
+                                  placeholder="{{ t('ui.files.leave_comment', {}, 'common') }}…" maxlength="4096"></textarea>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="submitFileComment()">
+                            <i class="fas fa-paper-plane me-1"></i>{{ t('ui.files.post_comment', {}, 'common') }}
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" id="previewCancelReplyBtn" onclick="cancelCommentReply()" style="display:none;">
+                            {{ t('ui.common.cancel', {}, 'common') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="previewLeaveCommentBtn" onclick="showCommentForm()">
+                        <i class="fas fa-comment me-1"></i>{{ t('ui.files.leave_comment', {}, 'common') }}
+                    </button>
+                </div>
+                {% else %}
+                <div class="mt-2">
+                    <div class="alert alert-secondary py-2 small">
+                        <i class="fas fa-lock me-1"></i>{{ t('ui.files.login_to_comment', {}, 'common') }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
@@ -209,6 +246,44 @@
                 </dl>
 
                 <div id="detailLongDescription" class="mt-3"></div>
+
+                <!-- File comments section -->
+                <div id="fileCommentsSection" class="mt-4" style="display:none;">
+                    <hr>
+                    <h6><i class="fas fa-comments me-1"></i>{{ t('ui.files.comments', {}, 'common') }}</h6>
+                    <div id="fileCommentsBody">
+                        <div class="text-muted small">{{ t('ui.files.loading_comments', {}, 'common') }}</div>
+                    </div>
+                    {% if current_user %}
+                    <div id="fileCommentReplyForm" class="mt-3" style="display:none;">
+                        <input type="hidden" id="commentReplyToId" value="">
+                        <div id="commentReplyToLabel" class="small text-muted mb-1" style="display:none;"></div>
+                        <div class="input-group">
+                            <textarea class="form-control form-control-sm" id="commentBodyInput" rows="3"
+                                      placeholder="{{ t('ui.files.leave_comment', {}, 'common') }}…" maxlength="4096"></textarea>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-primary" onclick="submitFileComment()">
+                                <i class="fas fa-paper-plane me-1"></i>{{ t('ui.files.post_comment', {}, 'common') }}
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="cancelReplyBtn" onclick="cancelCommentReply()" style="display:none;">
+                                {{ t('ui.common.cancel', {}, 'common') }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" id="leaveCommentBtn" onclick="showCommentForm()">
+                            <i class="fas fa-comment me-1"></i>{{ t('ui.files.leave_comment', {}, 'common') }}
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="mt-2">
+                        <div class="alert alert-secondary py-2 small">
+                            <i class="fas fa-lock me-1"></i>{{ t('ui.files.login_to_comment', {}, 'common') }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
@@ -381,6 +456,7 @@
 <script>
 let currentAreaId = null;
 let currentSubfolder = null;
+let pendingFileSearch = null;   // applied once after the next displayFiles() call
 let allFiles = [];
 let displayedFiles = [];
 let currentFileIndex = -1;
@@ -426,6 +502,10 @@ $(document).ready(function() {
 
     // Keyboard navigation for file details modal
     $(document).on('keydown', function(e) {
+        // Don't intercept keys when focus is inside a text input or textarea
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
         if ($('#fileDetailsModal').hasClass('show')) {
             switch (e.key) {
                 case 'ArrowLeft':
@@ -560,11 +640,16 @@ function displayRecentFiles(files) {
 
         const shareIcon = file.is_shared ? `<i class="fas fa-share-alt text-success ms-1" title="${uiT('ui.files.shared', 'Shared')}"></i>` : '';
 
+        const commentCount0 = parseInt(file.comment_count || 0, 10);
+        const commentBadge0 = commentCount0 > 0
+            ? `<a href="#" class="badge bg-secondary ms-1 text-decoration-none" onclick="showFileDetails(${file.id}); return false;" title="${uiT('ui.files.comments', 'Comments')}"><i class="fas fa-comment me-1"></i>${commentCount0}</a>`
+            : '';
+
         html += `
             <tr>
                 <td>
                     ${scanIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge0}
                 </td>
                 <td>${fileSize}</td>
                 <td><small>${uploadDate}</small></td>
@@ -712,13 +797,21 @@ function renderFileAreaList(areas) {
 
     $('#fileAreasList').html(html);
 
-    // Auto-select area from URL query param (e.g. /files?area=6)
+    // Auto-select area from URL query param — supports numeric ID or tag string
+    // e.g. /files?area=6  or  /files?area=MYAREA&search=filename.zip
     const params = new URLSearchParams(window.location.search);
     const areaParam = params.get('area');
+    const searchParam = params.get('search');
     if (areaParam) {
         const targetId = parseInt(areaParam, 10);
-        const target = sortedAreas.find(a => a.id === targetId);
+        const allAreas = [...sortedAreas, ...(privateFileArea ? [privateFileArea] : [])];
+        const target = isNaN(targetId)
+            ? allAreas.find(a => (a.tag || '').toUpperCase() === areaParam.toUpperCase())
+            : allAreas.find(a => a.id === targetId);
         if (target) {
+            if (searchParam) {
+                pendingFileSearch = searchParam;
+            }
             selectFileArea(target.id);
             return;
         }
@@ -934,11 +1027,16 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
 
         const shareIcon = file.is_shared ? `<i class="fas fa-share-alt text-success ms-1" title="${uiT('ui.files.shared', 'Shared')}"></i>` : '';
 
+        const commentCount1 = parseInt(file.comment_count || 0, 10);
+        const commentBadge1 = commentCount1 > 0
+            ? `<a href="#" class="badge bg-secondary ms-1 text-decoration-none" onclick="showFileDetails(${file.id}); return false;" title="${uiT('ui.files.comments', 'Comments')}"><i class="fas fa-comment me-1"></i>${commentCount1}</a>`
+            : '';
+
         html += `
             <tr>
                 <td>
                     ${scanIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge1}
                 </td>
                 <td><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
@@ -962,6 +1060,14 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
 
     html += '</tbody></table></div>';
     $('#filesContainer').html(html);
+
+    // Apply any pending search from URL params (set before files were loaded)
+    if (pendingFileSearch !== null) {
+        const q = pendingFileSearch;
+        pendingFileSearch = null;
+        $('#searchFiles').val(q);
+        filterFiles(q);
+    }
 }
 
 function buildBreadcrumb(subfolder, label) {
@@ -1089,6 +1195,16 @@ function showFileDetails(fileId) {
             $('#renameFileBtn').toggle(canEdit);
             $('#virusScanBtn').toggle(isAdmin).data('file-id', fileId);
 
+            // Reset and load comments
+            commentCtxPrefix = '';
+            currentCommentFileId = fileId;
+            $('#fileCommentsSection').hide();
+            $('#fileCommentReplyForm').hide();
+            $('#leaveCommentBtn').show();
+            cancelCommentReply();
+            $('#commentBodyInput').val('');
+            loadFileComments(fileId);
+
             if (!$('#fileDetailsModal').hasClass('show')) {
                 new bootstrap.Modal('#fileDetailsModal').show();
             }
@@ -1135,6 +1251,16 @@ function previewFile(fileId) {
     updatePreviewNavButtons();
     renderPreviewContent(fileId, filename, $('#previewModalBody'));
 
+    // Load comments into the preview modal's comments section
+    commentCtxPrefix = 'preview';
+    currentCommentFileId = fileId;
+    $('#previewFileCommentsSection').hide();
+    $('#previewFileCommentReplyForm').hide();
+    $('#previewLeaveCommentBtn').show();
+    cancelCommentReply();
+    $('#previewCommentBodyInput').val('');
+    loadFileComments(fileId);
+
     if (!$('#filePreviewModal').hasClass('show')) {
         new bootstrap.Modal('#filePreviewModal').show();
     }
@@ -1160,6 +1286,16 @@ function navigatePreview(direction) {
     $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
     updatePreviewNavButtons();
     renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
+
+    // Reload comments for the new file
+    commentCtxPrefix = 'preview';
+    currentCommentFileId = file.id;
+    $('#previewFileCommentsSection').hide();
+    $('#previewFileCommentReplyForm').hide();
+    $('#previewLeaveCommentBtn').show();
+    cancelCommentReply();
+    $('#previewCommentBodyInput').val('');
+    loadFileComments(file.id);
 }
 
 function openDetailsFromPreview() {
@@ -1334,6 +1470,179 @@ function saveScanStatus() {
             showError(msg);
         }
     });
+}
+
+// ---------------------------------------------------------------------------
+// File comments
+// ---------------------------------------------------------------------------
+
+const COMMENTS_PREVIEW_COUNT = 5;
+let allComments = [];
+let showingAllComments = false;
+// 'details' or 'preview' — determines which modal's comment DOM nodes are targeted
+let commentCtxPrefix = '';
+let currentCommentFileId = null;
+
+/**
+ * jQuery selector helper that targets the correct modal's comment elements.
+ * With prefix='preview', prepends 'preview' + capitalises the first letter of id.
+ * e.g. $cc('fileCommentsSection') → $('#previewFileCommentsSection')
+ */
+function $cc(id) {
+    return $('#' + (commentCtxPrefix ? commentCtxPrefix + id.charAt(0).toUpperCase() + id.slice(1) : id));
+}
+
+/**
+ * Load comments for the currently open file and render them.
+ */
+function loadFileComments(fileId) {
+    $cc('fileCommentsSection').hide();
+    allComments = [];
+    showingAllComments = false;
+
+    $.get(`/api/files/${fileId}/comments`)
+        .done(function(data) {
+            if (!data.enabled) return; // No linked echo area — hide section
+
+            $cc('fileCommentsSection').show();
+            allComments = flattenCommentTree(data.comments || []);
+            renderComments();
+        })
+        .fail(function() {
+            // Silently skip — comments are supplementary
+        });
+}
+
+/**
+ * Flatten the nested comment tree to a flat array preserving level metadata.
+ */
+function flattenCommentTree(nodes) {
+    const result = [];
+    function walk(list) {
+        list.forEach(function(node) {
+            result.push(node);
+            if (node.children && node.children.length) walk(node.children);
+        });
+    }
+    walk(nodes);
+    return result;
+}
+
+function renderComments() {
+    const container = $cc('fileCommentsBody');
+    if (allComments.length === 0) {
+        container.html(`<div class="text-muted small">${uiT('ui.files.no_comments_yet', 'No comments yet. Be the first to leave one.')}</div>`);
+        return;
+    }
+
+    const visible = showingAllComments ? allComments : allComments.slice(-COMMENTS_PREVIEW_COUNT);
+    let html = '';
+
+    visible.forEach(function(msg) {
+        const indent = Math.min(msg.level || 0, 2) * 20;
+        const dateStr = msg.date_written ? new Date(msg.date_written).toLocaleString() : '';
+        const body    = escapeHtml(msg.body || '');
+        const id      = msg.id;
+
+        html += `
+            <div class="border-start border-2 ps-2 mb-2" style="margin-left:${indent}px;" data-comment-id="${id}">
+                <div class="d-flex gap-2 align-items-baseline">
+                    <strong class="small">${escapeHtml(msg.from_name || '')}</strong>
+                    <span class="text-muted" style="font-size:.75em;">${escapeHtml(dateStr)}</span>
+                    <a href="#" class="ms-auto text-muted" style="font-size:.75em;" onclick="startCommentReply(${id}, '${escapeHtml(msg.from_name || '')}'); return false;">↩</a>
+                </div>
+                <div class="small mt-1" style="white-space:pre-wrap;">${body}</div>
+            </div>
+        `;
+    });
+
+    if (!showingAllComments && allComments.length > COMMENTS_PREVIEW_COUNT) {
+        const hidden = allComments.length - COMMENTS_PREVIEW_COUNT;
+        const label  = uiT('ui.files.show_all_comments', 'Show all {count} comments', { count: allComments.length });
+        html += `<a href="#" class="small" onclick="expandAllComments(); return false;">${label}</a>`;
+    } else if (showingAllComments && allComments.length > COMMENTS_PREVIEW_COUNT) {
+        html += `<a href="#" class="small" onclick="collapseComments(); return false;">${uiT('ui.files.show_fewer_comments', 'Show fewer')}</a>`;
+    }
+
+    container.html(html);
+}
+
+function expandAllComments() {
+    showingAllComments = true;
+    renderComments();
+}
+
+function collapseComments() {
+    showingAllComments = false;
+    renderComments();
+}
+
+function showCommentForm() {
+    cancelCommentReply();
+    $cc('leaveCommentBtn').hide();
+    $cc('fileCommentReplyForm').show();
+    $cc('commentBodyInput').focus();
+}
+
+function startCommentReply(replyToId, fromName) {
+    showCommentForm();
+    $cc('commentReplyToId').val(replyToId);
+    $cc('commentReplyToLabel').text('↩ ' + fromName).show();
+    $cc('cancelReplyBtn').show();
+    $cc('commentBodyInput').focus();
+}
+
+function cancelCommentReply() {
+    $cc('commentReplyToId').val('');
+    $cc('commentReplyToLabel').hide();
+    $cc('cancelReplyBtn').hide();
+}
+
+function submitFileComment() {
+    const body      = $cc('commentBodyInput').val().trim();
+    const replyToId = parseInt($cc('commentReplyToId').val(), 10) || null;
+
+    if (!body) return;
+    if (!currentCommentFileId) return;
+
+    const btn = $('[onclick="submitFileComment()"]').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/files/${currentCommentFileId}/comments`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ body, reply_to_id: replyToId }),
+        success: function() {
+            btn.prop('disabled', false);
+            $cc('commentBodyInput').val('');
+            cancelCommentReply();
+            $cc('fileCommentReplyForm').hide();
+            $cc('leaveCommentBtn').show();
+            showSuccess(uiT('ui.files.comment_posted', 'Comment posted'));
+            // Reload comments and bump the badge in file listing
+            loadFileComments(currentCommentFileId);
+            updateFileBadge(currentCommentFileId);
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false);
+            showError(apiError(xhr.responseJSON, uiT('ui.files.comment_post_failed', 'Failed to post comment')));
+        }
+    });
+}
+
+/**
+ * After posting a comment, increment the badge counter in the file listing.
+ */
+function updateFileBadge(fileId) {
+    const file = displayedFiles.find(f => f.id == fileId);
+    if (file) {
+        file.comment_count = (parseInt(file.comment_count || 0, 10)) + 1;
+        // Re-render happens naturally on next loadFiles() — for now update the badge in-place
+        $(`.badge[onclick*="showFileDetails(${fileId})"]`).each(function() {
+            const count = parseInt($(this).text(), 10) + 1;
+            $(this).html(`<i class="fas fa-comment me-1"></i>${count}`);
+        });
+    }
 }
 
 /**

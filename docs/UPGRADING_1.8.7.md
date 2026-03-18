@@ -16,6 +16,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Existing Misdetected Messages](#existing-misdetected-messages)
   - [psql Instructions](#psql-instructions)
   - [Notes](#notes)
+- [RIPscrip Detection and Rendering](#ripscrip-detection-and-rendering)
 - [Database Statistics Page](#database-statistics-page)
 - [Credits System Updates](#credits-system-updates)
 - [Database Performance Improvements](#database-performance-improvements)
@@ -44,6 +45,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Subfolder navigation](#subfolder-navigation)
   - [Importing files (CLI)](#importing-files-cli)
   - [Migration](#migration)
+- [File Area Comments](#file-area-comments)
 - [Global File Search](#global-file-search)
 - [Page Position Memory](#page-position-memory)
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
@@ -111,6 +113,8 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   and date range support.
 - Search performance significantly improved via trigram GIN indexes.
 - Sysops can edit artwork encoding metadata directly from the message reader.
+- RIPscrip messages are now detected in the echomail reader and rendered inline
+  using the built-in RIP renderer.
 - Fixed a false-positive PETSCII detection bug on import.
 
 **Netmail**
@@ -171,6 +175,14 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   launches the emulator inline), and PETSCII stream (`.seq`) files (in a bar
   below the rendered art). Clicking it loads a jsc64-based C64 emulator
   directly inside the preview panel without leaving the page.
+- **File area comments** — each file area can now be linked to an echomail echo
+  area that serves as a comment thread for its files. Users can leave threaded
+  comments on individual files directly from the file detail panel and the file
+  preview modal. Comments are stored as standard FTN echomail messages with a
+  `^AFILEREF` kludge line, so they are visible to other FTN nodes that carry
+  the same echo. A back-reference banner appears in the echomail reader when
+  viewing a comment, linking back to the file it refers to. LovlyNet sysops
+  should link their file areas to the `LVLY_FILECHAT` echo area.
 
 
 **Nodelist**
@@ -364,6 +376,20 @@ Then exit `psql`:
 - It does not alter the message body text itself.
 - For individual messages the in-browser editor (see above) is easier and safer
   than direct SQL. Use the SQL approach for bulk resets or scripted corrections.
+
+## RIPscrip Detection and Rendering
+
+The echomail reader now detects RIPscrip content automatically and renders it
+inline in the message modal instead of showing the raw RIP command stream.
+
+Detection is based on RIP command lines beginning with `!|` plus recognised
+RIP drawing/text opcodes used by the bundled renderer. Messages that do not
+match that command structure continue to use the existing ANSI/PETSCII/plain
+text rendering path.
+
+No database migration is required for this feature. Existing messages are
+eligible automatically after upgrade because detection happens when the message
+is viewed.
 
 ## Database Statistics Page
 
@@ -958,6 +984,52 @@ directory. If no catalogue is present, the filename is used as the description.
 This feature requires database migrations. Run `php scripts/setup.php` as
 part of the standard upgrade procedure.
 
+## File Area Comments
+
+Each file area can now be linked to an echomail echo area that acts as a
+comment thread for all files in that area.
+
+### How it works
+
+- When a user opens the file detail panel or the file preview modal, a
+  **Comments** section appears below the file information (or below the
+  preview content).
+- Logged-in users can leave top-level comments or reply to existing ones
+  (threaded up to three levels deep).
+- Each comment is posted as a standard FTN echomail message in the linked
+  echo area with a `^AFILEREF` kludge line identifying the file area tag,
+  filename, and SHA-256 hash.  This means the comments propagate to other
+  nodes that carry the echo, and other FTN software can see them.
+- When a comment message is opened in the echomail reader, a banner appears
+  at the top linking back to the file it refers to.
+- A comment count badge is displayed next to filenames that have comments in
+  the file listing.
+
+### Setup — linking an echo area
+
+1. In the admin panel, open **File Areas** and edit the file area you want to
+   enable comments for.
+2. In the **Comments Echo Area** dropdown at the bottom of the form, choose an
+   existing echo area or select **✚ Create new echo area…** and enter a tag.
+   The setting is saved together with the rest of the file area when you click
+   **Save**.
+3. For LovlyNet file areas the dropdown automatically pre-selects
+   `LVLY_FILECHAT` if that echo area already exists.  If it does not exist
+   yet, select **✚ Create new echo area…** — the tag `LVLY_FILECHAT` will be
+   pre-filled and the area will be created with the correct LovlyNet domain
+   and description on save.
+4. To disable comments, choose **— None (Disabled) —** from the dropdown and
+   save.
+
+### Database migration
+
+The migration `v1.11.0.32_file_area_comments.sql` adds:
+
+- `comment_echoarea_id` column on `file_areas` (nullable FK to `echoareas`)
+- `comment_count` column on `files` (integer, default 0)
+
+This migration runs automatically as part of `php scripts/setup.php`.
+
 ## Global File Search
 
 A **Search Files** card now appears in the file browser sidebar, between the
@@ -1423,8 +1495,7 @@ still serving an older cached copy of `app.js` that pre-dates the i18n system.
 
 - Press **Ctrl+Shift+R** (Windows/Linux) or **Cmd+Shift+R** (Mac) to perform a
   hard refresh, bypassing the service worker cache.
-- Alternatively: open DevTools → Application → Service Workers → click
-  **Unregister**, then reload the page.
+- On mobile or if a hard refresh doesn't help, see **[FAQ: The page looks broken after an upgrade](../FAQ.md#q-the-page-looks-broken-after-an-upgrade--missing-features-broken-menus-or-loadi18nnamespaces-is-not-defined-errors)** for full browser-by-browser instructions including mobile.
 
 After the first hard refresh the service worker will update automatically and
 subsequent loads will work normally without any manual intervention.

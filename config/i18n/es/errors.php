@@ -156,6 +156,12 @@ return [
     'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
     'errors.files.download.insufficient_credits' => 'No tiene creditos suficientes para descargar este archivo',
+    'errors.files.comments_not_enabled' => 'Los comentarios no están habilitados para esta área de archivos',
+    'errors.files.comments_forbidden' => 'No tiene permiso para comentar aquí',
+    'errors.files.comment_body_required' => 'El texto del comentario es obligatorio',
+    'errors.files.comment_post_failed' => 'Error al publicar el comentario',
+    'errors.files.invalid_reply_target' => 'Destino de respuesta no válido',
+    'errors.fileareas.comment_area_failed' => 'Error al crear o vincular el área de comentarios',
 
     // Admin Users
     'errors.admin.users.not_found' => 'Usuario no encontrado',

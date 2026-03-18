@@ -813,15 +813,19 @@ class FileAreaManager
             $freqPassword = null;
         }
 
+        $commentEchoareaId = isset($data['comment_echoarea_id']) && $data['comment_echoarea_id'] !== '' && $data['comment_echoarea_id'] !== null
+            ? (int)$data['comment_echoarea_id']
+            : null;
+
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
                 allow_duplicate_hash, password,
                 upload_permission, scan_virus, gemini_public, freq_enabled, freq_password,
-                area_type, iso_mount_point,
+                area_type, iso_mount_point, comment_echoarea_id,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
@@ -831,7 +835,7 @@ class FileAreaManager
             $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0, $geminiPublic ? 'true' : 'false',
             $freqEnabled ? 'true' : 'false', $freqPassword,
-            $areaType, $isoMountPoint
+            $areaType, $isoMountPoint, $commentEchoareaId
         ]);
 
         $result = $stmt->fetch();
@@ -907,6 +911,17 @@ class FileAreaManager
             $mountCols = ', iso_mount_point = NULL';
         }
 
+        // comment_echoarea_id: only update if key is present in the input data
+        $commentEchoareaCols   = '';
+        $commentEchoareaParams = [];
+        if (array_key_exists('comment_echoarea_id', $data)) {
+            $commentEchoareaId = ($data['comment_echoarea_id'] !== null && $data['comment_echoarea_id'] !== '')
+                ? (int)$data['comment_echoarea_id']
+                : null;
+            $commentEchoareaCols   = ', comment_echoarea_id = ?';
+            $commentEchoareaParams = [$commentEchoareaId];
+        }
+
         $sql = "
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
@@ -915,7 +930,8 @@ class FileAreaManager
                 upload_permission = ?, scan_virus = ?, gemini_public = ?,
                 freq_enabled = ?, freq_password = ?,
                 area_type = ?
-                {$mountCols},
+                {$mountCols}
+                {$commentEchoareaCols},
                 updated_at = NOW()
             WHERE id = ?
         ";
@@ -928,6 +944,7 @@ class FileAreaManager
             $freqEnabled ? 'true' : 'false', $freqPassword,
             $areaType,
             ...$mountParams,
+            ...$commentEchoareaParams,
             $id
         ];
 

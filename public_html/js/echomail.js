@@ -1063,6 +1063,46 @@ function checkAndDisplayEchomailMessage(message, parsedMessage) {
         });
 }
 
+/**
+ * Parse a ^AFILEREF kludge from a raw kludge_lines string.
+ * Format: \x01FILEREF: <area_tag> <filename> [<sha256>]
+ * Returns { areaTag, filename, hash } or null if not present.
+ */
+function parseFileRefKludge(kludgeLines) {
+    if (!kludgeLines) return null;
+    const match = kludgeLines.match(/\x01FILEREF:\s+(\S+)\s+(\S+)(?:\s+([0-9a-fA-F]{64}))?/);
+    if (!match) return null;
+    return {
+        areaTag:  match[1],
+        filename: match[2],
+        hash:     match[3] || null,
+    };
+}
+
+/**
+ * Build an informational banner when the current message is a file comment.
+ */
+function buildFileRefBanner(kludgeLines) {
+    const ref = parseFileRefKludge(kludgeLines);
+    if (!ref) return '';
+
+    const label  = uiT('ui.echomail.fileref_label', 'File comment:');
+    const area   = escapeHtml(ref.areaTag);
+    const file   = escapeHtml(ref.filename);
+    // Link to the files page with the area pre-selected via query string
+    const href   = `/files?area=${encodeURIComponent(ref.areaTag)}&search=${encodeURIComponent(ref.filename)}`;
+
+    return `
+        <div class="alert alert-secondary py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size:.875rem;">
+            <i class="fas fa-paperclip"></i>
+            <span>${label}</span>
+            <a href="${href}" class="fw-bold text-decoration-none">${file}</a>
+            <span class="text-muted">in</span>
+            <span class="badge bg-secondary font-monospace">${area}</span>
+        </div>
+    `;
+}
+
 function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     currentParsedMessage = parsedMessage;
     currentRenderMode = 'auto';
@@ -1127,6 +1167,8 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
             <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
         </div>
+
+        ${buildFileRefBanner(message.kludge_lines || '')}
 
         <div class="message-text">
             <div id="ansiRenderBadge" style="display:none;" class="mb-2">

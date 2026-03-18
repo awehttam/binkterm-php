@@ -247,6 +247,26 @@
                             </div>
                         </div>
                     </div>
+
+                    <hr>
+
+                    <div class="mb-0">
+                        <label class="form-label" for="fileareaCommentEchoareaSelect">
+                            <i class="fas fa-comments me-1"></i>
+                            {{ t('ui.fileareas.comment_area', {}, locale, ['common']) }}
+                        </label>
+                        <select class="form-select" id="fileareaCommentEchoareaSelect">
+                            <option value="">— {{ t('ui.common.none', {}, locale, ['common']) }} ({{ t('ui.common.disabled', {}, locale, ['common']) }}) —</option>
+                            <option value="__new__" id="fileareaCommentCreateOpt">✚ {{ t('ui.fileareas.comment_area_create_new', {}, locale, ['common']) }}…</option>
+                        </select>
+                        <div id="fileareaCommentNewTagGroup" class="mt-2" style="display:none;">
+                            <input type="text" class="form-control form-control-sm text-uppercase" id="fileareaCommentTagInput"
+                                   placeholder="{{ t('ui.fileareas.comment_area_placeholder', {}, locale, ['common']) }}"
+                                   maxlength="40">
+                            <div class="form-text">{{ t('ui.fileareas.comment_area_create_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="form-text mt-1">{{ t('ui.fileareas.comment_area_help', {}, locale, ['common']) }}</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -542,6 +562,10 @@ function showAddFileareaModal() {
     $('#fileareaTagHelp').show();
     $('#fileareaTagReadonlyNote').hide();
     resetFileareaPasswordVisibility();
+    $('#fileareaCommentEchoareaSelect').val('');
+    $('#fileareaCommentNewTagGroup').hide();
+    $('#fileareaCommentTagInput').val('');
+    loadEchoareasForCombobox();
     new bootstrap.Modal('#fileareaModal').show();
 }
 
@@ -579,6 +603,7 @@ function editFilearea(id) {
             updateIsoFieldsVisibility();
             updateIsoMountStatusUI(area);
             resetFileareaPasswordVisibility();
+            populateCommentAreaUI(area);
             new bootstrap.Modal('#fileareaModal').show();
         })
         .fail(function() {
@@ -621,16 +646,21 @@ function saveFilearea() {
         contentType: 'application/json',
         data: JSON.stringify(data),
         success: function(response) {
-            bootstrap.Modal.getInstance('#fileareaModal').hide();
+            const areaId = currentFileareaId || response.id;
             const fallbackMessage = currentFileareaId
                 ? uiT('ui.fileareas.updated_success', 'File area updated')
                 : uiT('ui.fileareas.created_success', 'File area created');
             const successMessage = window.getApiMessage
                 ? window.getApiMessage(response, fallbackMessage)
                 : fallbackMessage;
-            showSuccess(successMessage);
-            loadFileareas();
-            loadStats();
+
+            // Save comment area setting, then close modal and refresh
+            saveCommentAreaForFilearea(areaId, function() {
+                bootstrap.Modal.getInstance('#fileareaModal').hide();
+                showSuccess(successMessage);
+                loadFileareas();
+                loadStats();
+            });
         },
         error: function(xhr) {
             const error = apiError(
@@ -788,6 +818,105 @@ function renderIsoPreview(data) {
 function isoPreviewSelectAll(checked) {
     $('.iso-preview-check').prop('checked', checked);
 }
+
+// -----------------------------------------------------------------------
+// Comment echo area management
+// -----------------------------------------------------------------------
+
+let allEchoareas = [];
+
+function loadEchoareasForCombobox() {
+    if (allEchoareas.length > 0) return Promise.resolve();
+    return $.get('/api/echoareas/simple-list')
+        .done(function(data) {
+            allEchoareas = data.echoareas || [];
+            const sel = $('#fileareaCommentEchoareaSelect');
+            // Preserve the "Create new" option while inserting existing areas before it
+            const createOpt = sel.find('#fileareaCommentCreateOpt').detach();
+            sel.find('option:not(:first)').remove();
+            allEchoareas.forEach(function(ea) {
+                sel.append(new Option(ea.tag + (ea.description ? ' — ' + ea.description : ''), ea.id));
+            });
+            sel.append(createOpt);
+        });
+}
+
+function suggestCommentTag(areaTag, domain) {
+    if (!areaTag) return '';
+    const lcDomain = (domain || '').toLowerCase();
+    if (lcDomain === 'lovlynet') return 'LVLY_FILECHAT';
+    if (areaTag.length <= 31) return areaTag + '-COMMENTS';
+    return areaTag;
+}
+
+function populateCommentAreaUI(area) {
+    loadEchoareasForCombobox().then(function() {
+        if (area.comment_echoarea_id) {
+            $('#fileareaCommentEchoareaSelect').val(area.comment_echoarea_id);
+            $('#fileareaCommentNewTagGroup').hide();
+        } else {
+            // For lovlynet areas, default to the existing LVLY_FILECHAT area if present
+            const suggestedTag = suggestCommentTag(area.tag, area.domain);
+            const existing = suggestedTag
+                ? allEchoareas.find(e => e.tag.toUpperCase() === suggestedTag.toUpperCase())
+                : null;
+
+            if (existing) {
+                $('#fileareaCommentEchoareaSelect').val(existing.id);
+                $('#fileareaCommentNewTagGroup').hide();
+            } else {
+                $('#fileareaCommentEchoareaSelect').val('');
+                $('#fileareaCommentTagInput').val(suggestedTag);
+                $('#fileareaCommentNewTagGroup').hide();
+            }
+        }
+    });
+}
+
+/**
+ * Save comment echo area link as part of the file area save flow.
+ * Called by saveFilearea() after the main save succeeds.
+ * @param {number} areaId - The file area ID
+ * @param {function} callback - Called when done (success or non-fatal error)
+ */
+function saveCommentAreaForFilearea(areaId, callback) {
+    const selVal = $('#fileareaCommentEchoareaSelect').val();
+    const tagVal = $('#fileareaCommentTagInput').val().trim().toUpperCase();
+
+    let payload;
+    if (selVal && selVal !== '__new__') {
+        payload = { action: 'link', echoarea_id: parseInt(selVal) };
+    } else if (selVal === '__new__' && tagVal) {
+        const description = tagVal === 'LVLY_FILECHAT'
+            ? 'Comments and discussions about files posted on LovlyNet'
+            : 'File comments for ' + $('#fileareaTag').val();
+        payload = {
+            action: 'create',
+            tag: tagVal,
+            description: description,
+        };
+    } else {
+        payload = { action: 'unlink' };
+    }
+
+    $.ajax({
+        url: '/api/fileareas/' + areaId + '/comment-area',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() { callback(); },
+        error: function(xhr) {
+            // Non-fatal: proceed but show a warning
+            callback();
+            showError(apiError(xhr.responseJSON, uiT('errors.fileareas.comment_area_failed', 'Failed to save comment area setting')));
+        }
+    });
+}
+
+// Show/hide the "Create new" tag input based on select value
+$(document).on('change', '#fileareaCommentEchoareaSelect', function() {
+    $('#fileareaCommentNewTagGroup').toggle($(this).val() === '__new__');
+});
 
 function submitIsoImport() {
     if (!currentFileareaId) return;

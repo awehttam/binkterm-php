@@ -707,6 +707,7 @@ class MessageHandler
 
             $message = $this->appendRawMessagePayload($message, $rawMessageBytes, $rawMessageCharset, $rawArtFormat);
             $message = $this->appendMarkdownRendering($message);
+            $message = $this->appendRipRendering($message);
         }
 
         return $message;
@@ -4142,6 +4143,59 @@ class MessageHandler
                 // Unknown format - do not attempt rendering; display as plain text
                 $message['is_markdown'] = 0;
                 break;
+        }
+
+        return $message;
+    }
+
+    private function looksLikeRipScript(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $lines = explode("\n", $normalized);
+        $ripLineCount = 0;
+        $supportedCommandCount = 0;
+
+        foreach ($lines as $line) {
+            $trimmed = ltrim($line);
+            if (!str_starts_with($trimmed, '!|')) {
+                continue;
+            }
+
+            $ripLineCount++;
+
+            if (preg_match('/\|c\d{2}\b/i', $trimmed) === 1
+                || preg_match('/\|L[0-9A-Z]{8,}/i', $trimmed) === 1
+                || preg_match('/\|@[0-9A-Z]{4}/i', $trimmed) === 1
+            ) {
+                $supportedCommandCount++;
+            }
+        }
+
+        return $ripLineCount > 0 && $supportedCommandCount > 0;
+    }
+
+    private function appendRipRendering(array $message): array
+    {
+        $message['is_rip'] = 0;
+
+        if (($message['message_type'] ?? 'echomail') !== 'echomail') {
+            return $message;
+        }
+
+        $rawText = (string)($message['message_text'] ?? '');
+        if (!$this->looksLikeRipScript($rawText)) {
+            return $message;
+        }
+
+        try {
+            $message['rip_html'] = \BinktermPHP\RipScriptRenderer::fromString($rawText)->getHTML();
+            $message['is_rip'] = 1;
+        } catch (\Throwable $e) {
+            $message['rip_html'] = null;
         }
 
         return $message;
