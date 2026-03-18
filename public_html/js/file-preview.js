@@ -10,7 +10,8 @@
 const previewImageExts   = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif'];
 const previewVideoExts   = ['mp4','webm','mov','ogv','m4v'];
 const previewAudioExts   = ['mp3','wav','ogg','flac','aac','m4a','opus'];
-const previewTextExts    = ['txt','log','nfo','diz','md','cfg','ini','conf','lsm','json','xml','bat','sh'];
+const previewTextExts    = ['txt','log','nfo','diz','cfg','ini','conf','lsm','json','xml','bat','sh'];
+const previewMarkdownExts = ['md'];
 const previewAnsiExts          = ['ans'];
 const previewPetsciiExts       = ['prg'];
 const previewPetsciiStreamExts = ['seq'];
@@ -23,6 +24,7 @@ function getFileType(filename) {
     if (previewVideoExts.includes(ext))          return 'video';
     if (previewAudioExts.includes(ext))          return 'audio';
     if (previewTextExts.includes(ext))           return 'text';
+    if (previewMarkdownExts.includes(ext))       return 'markdown';
     if (previewAnsiExts.includes(ext))           return 'ansi';
     if (previewPetsciiExts.includes(ext))        return 'petscii';
     if (previewPetsciiStreamExts.includes(ext))  return 'petscii_stream';
@@ -105,7 +107,21 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
         fetch(previewUrl, {credentials: 'same-origin'})
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
             .then(text => {
-                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${preStyle}">${escapeHtml(text)}</pre>`);
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;${preStyle}">${escapeHtml(text)}</pre>`);
+            })
+            .catch(() => {
+                body.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
+            });
+
+    } else if (type === 'markdown') {
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(text => {
+                const html = typeof marked !== 'undefined' ? marked.parse(text) : `<pre class="m-0 p-3" style="text-align:left;white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+                body.html(`<div class="p-3 text-start" style="max-height:75vh;overflow:auto;">${html}</div>`);
             })
             .catch(() => {
                 body.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
@@ -269,7 +285,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             })
             .then(text => {
                 if (text === null) return;
-                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;">${escapeHtml(text)}</pre>`);
+                body.html(`<pre class="m-0 p-3" style="max-height:75vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;">${escapeHtml(text)}</pre>`);
             })
             .catch(() => {
                 body.html(`
@@ -673,7 +689,19 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
         previewArea.css('background', '');
         fetchZipEntry(entryUrl, 'text')
             .then(text => {
-                previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;${preStyle}">${escapeHtml(text)}</pre>`);
+                previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;${preStyle}">${escapeHtml(text)}</pre>`);
+            })
+            .catch(err => {
+                if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
+            });
+
+    } else if (type === 'markdown') {
+        previewArea.css('background', '');
+        fetchZipEntry(entryUrl, 'text')
+            .then(text => {
+                const html = typeof marked !== 'undefined' ? marked.parse(text) : `<pre class="m-0 p-3" style="text-align:left;white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+                previewArea.html(`<div class="p-3 text-start" style="max-height:70vh;overflow:auto;">${html}</div>`);
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
@@ -782,7 +810,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             })
             .then(text => {
                 if (text === null) return;
-                previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;">${escapeHtml(text)}</pre>`);
+                previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;">${escapeHtml(text)}</pre>`);
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
