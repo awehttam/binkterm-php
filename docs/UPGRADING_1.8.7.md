@@ -57,6 +57,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [File Upload Filename Sanitization](#file-upload-filename-sanitization)
 - [Public File Areas](#public-file-areas)
 - [Echo List Network Filter](#echo-list-network-filter)
+- [BinkP Status Page Improvements](#binkp-status-page-improvements)
+  - [Log Search](#log-search)
+  - [Advanced Log Search](#advanced-log-search)
+  - [Kept Packets Viewer](#kept-packets-viewer)
+  - [Faster Poll Session Termination](#faster-poll-session-termination)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
@@ -1646,6 +1651,65 @@ direct URL (`/files/AREATAG`) — they simply are not listed on a discovery page
 
 Migration `v1.11.0.33_public_file_areas.sql` adds an `is_public` boolean
 column to the `file_areas` table. Run `php scripts/setup.php` to apply it.
+
+## BinkP Status Page Improvements
+
+### Log Search
+
+The Logs tab now has an inline search box. Type any term to filter the
+currently-loaded log lines in real time. Non-matching lines are hidden;
+matching lines remain visible with the search term highlighted. A match
+count (`N / M lines`) is shown while a filter is active. Click the × button
+or clear the box to restore the full view.
+
+### Advanced Log Search
+
+A new **Advanced Search** panel (toggle button below the log view) searches
+the **entire** log across all BinkP-related log files — `binkp_poll.log`,
+`binkp_server.log`, `binkp_scheduler.log`, `admin_daemon.log`,
+`mrc_daemon.log`, and `packets.log` — regardless of the line-count selector.
+
+When a match is found, the search automatically expands the results to include
+**all lines from the same PID** (i.e. the full session that produced the
+match). Direct matches are shown at full brightness; session-context lines are
+dimmed. The header shows a summary such as `4 matches across 2 session(s)`.
+
+### Kept Packets Viewer
+
+> **Registered feature** — requires a valid license.
+
+A new **Kept Packets** tab appears in the BinkP status page for registered
+installations. It lets you browse preserved packets in `data/inbound/keep/`
+and `data/outbound/keep/` without needing shell access.
+
+Packets are grouped by date directory (newest first). Each packet row shows:
+
+| Column | Description |
+|--------|-------------|
+| Filename | Clickable — opens the packet inspector |
+| From | Originating FTN address (from packet header) |
+| To | Destination FTN address (from packet header) |
+| Messages | Number of messages parsed from the packet |
+| Size | File size |
+| Date | Last-modified timestamp |
+
+**Packet Inspector** — clicking a filename opens a modal with:
+
+- Full packet header: from/to FTN addresses (with zone and point), creation
+  timestamp, packet version, product code, and whether a password is set
+- A table of every message header in the packet: from/to names, net:node
+  addresses, subject, date string, and decoded attribute flags (Pvt, Crash,
+  Att, Local, etc.)
+
+Message body text is never shown or transmitted to the browser.
+
+### Faster Poll Session Termination
+
+BinkP poll sessions now terminate immediately once both sides have exchanged
+`M_EOB` and no file transfer is active. Previously the mailer waited up to 30
+seconds for a same-session response file that never materialises in practice —
+response packets (e.g. areafix replies) always arrive in a subsequent poll.
+This change removes the unnecessary wait from every outbound poll.
 
 ## Upgrade Instructions
 

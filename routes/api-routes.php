@@ -7032,6 +7032,51 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/binkp/kept-packets/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectPacket($type, $date, $filename));
+    });
+
+    SimpleRouter::get('/binkp/kept-packets', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type = $_GET['type'] ?? 'inbound';
+        if (!in_array($type, ['inbound', 'outbound'], true)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'type must be inbound or outbound', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->getKeptPackets($type));
+    });
+
     SimpleRouter::get('/binkp/logs', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);

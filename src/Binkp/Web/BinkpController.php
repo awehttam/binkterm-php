@@ -300,6 +300,298 @@ class BinkpController
     }
     
     /**
+     * List kept (preserved) packets from inbound/keep or outbound/keep, grouped by
+     * date directory, sorted newest-first.  Requires a valid registered license.
+     *
+     * @param string $type 'inbound' or 'outbound'
+     * @return array
+     */
+    public function getKeptPackets(string $type): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing kept packets requires a registered license',
+            ];
+        }
+
+        try {
+            $basePath = $type === 'inbound'
+                ? $this->config->getInboundPath() . DIRECTORY_SEPARATOR . 'keep'
+                : $this->config->getOutboundPath() . DIRECTORY_SEPARATOR . 'keep';
+
+            if (!is_dir($basePath)) {
+                return ['success' => true, 'groups' => [], 'total' => 0];
+            }
+
+            $analyzer = new \BinktermPHP\Binkp\Queue\OutboundQueue($this->config, $this->logger);
+            $groups   = [];
+            $total    = 0;
+
+            // Collect entries: date subdirs + any loose .pkt files at root
+            $entries = array_diff(scandir($basePath), ['.', '..']);
+
+            // Sort newest-first (date dirs are "Mon-DD-YYYY"; string sort works after reverse)
+            usort($entries, fn($a, $b) => filemtime($basePath . DIRECTORY_SEPARATOR . $b)
+                                        - filemtime($basePath . DIRECTORY_SEPARATOR . $a));
+
+            foreach ($entries as $entry) {
+                $entryPath = $basePath . DIRECTORY_SEPARATOR . $entry;
+                $packets   = [];
+
+                if (is_dir($entryPath)) {
+                    foreach (glob($entryPath . DIRECTORY_SEPARATOR . '*.pkt') ?: [] as $pkt) {
+                        $info      = $analyzer->analyzePacket($pkt);
+                        $packets[] = $this->buildPacketRecord($pkt, $info);
+                    }
+                    $label = $entry;
+                } elseif (is_file($entryPath) && str_ends_with(strtolower($entry), '.pkt')) {
+                    $info      = $analyzer->analyzePacket($entryPath);
+                    $packets[] = $this->buildPacketRecord($entryPath, $info);
+                    $label     = ''; // loose file — no date group label
+                } else {
+                    continue;
+                }
+
+                if (!empty($packets)) {
+                    $total   += count($packets);
+                    $groups[] = ['date' => $label, 'packets' => $packets];
+                }
+            }
+
+            return ['success' => true, 'groups' => $groups, 'total' => $total];
+
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.kept_packets.failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * Build a normalised packet record from a file path and its analysed metadata.
+     *
+     * @param string $path Absolute path to the .pkt file
+     * @param array  $info Output of OutboundQueue::analyzePacket()
+     * @return array
+     */
+    private function buildPacketRecord(string $path, array $info): array
+    {
+        return [
+            'filename'      => basename($path),
+            'size'          => filesize($path),
+            'modified'      => date('Y-m-d H:i:s', filemtime($path)),
+            'message_count' => $info['message_count'],
+            'dest_address'  => $info['dest_address'],
+            'orig_address'  => $info['orig_address'],
+        ];
+    }
+
+    /**
+     * Parse a kept packet file and return full header info plus per-message headers
+     * (no message body text).  Requires a valid registered license.
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $date     Date directory name (e.g. "Mar-18-2026") or '' for root
+     * @param string $filename Packet filename (e.g. "69ba4f19.pkt")
+     * @return array
+     */
+    public function inspectPacket(string $type, string $date, string $filename): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing kept packets requires a registered license',
+            ];
+        }
+
+        // Strip any path components first — basename() ensures we only ever have
+        // a bare filename/directory name regardless of what the caller sent.
+        $date     = basename($date);
+        $filename = basename($filename);
+
+        // Then enforce strict allowlists — only alphanumeric, hyphens, underscores.
+        if (!preg_match('/^[A-Za-z0-9\-]*$/', $date)) {
+            return ['success' => false, 'error' => 'Invalid date parameter'];
+        }
+        if (!preg_match('/^[A-Za-z0-9_\-]+\.pkt$/i', $filename)) {
+            return ['success' => false, 'error' => 'Invalid filename parameter'];
+        }
+
+        try {
+            $basePath = $type === 'inbound'
+                ? $this->config->getInboundPath() . DIRECTORY_SEPARATOR . 'keep'
+                : $this->config->getOutboundPath() . DIRECTORY_SEPARATOR . 'keep';
+
+            $filepath = $date
+                ? $basePath . DIRECTORY_SEPARATOR . $date . DIRECTORY_SEPARATOR . $filename
+                : $basePath . DIRECTORY_SEPARATOR . $filename;
+
+            // Resolve and confirm the file is inside the keep directory
+            $realBase = realpath($basePath);
+            $realFile = realpath($filepath);
+            if (!$realFile || !$realBase || !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
+                return ['success' => false, 'error' => 'File not found'];
+            }
+
+            return $this->parsePacketFull($realFile);
+
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.kept_packets.inspect_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * Parse the FTS-0001 packet binary: full 58-byte packet header plus every
+     * message header (from/to names, subject, date, attribute flags).
+     * Message body text is skipped entirely.
+     *
+     * @param string $filepath Absolute, validated path to the .pkt file
+     * @return array
+     */
+    private function parsePacketFull(string $filepath): array
+    {
+        $handle = fopen($filepath, 'rb');
+        if (!$handle) {
+            return ['success' => false, 'error' => 'Cannot open packet file'];
+        }
+
+        try {
+            // ── Packet header (58 bytes, FTS-0001) ───────────────────────────
+            $hdr = fread($handle, 60);
+            if (strlen($hdr) < 58) {
+                fclose($handle);
+                return ['success' => false, 'error' => 'File too small to be a valid FTS-0001 packet'];
+            }
+
+            $h = unpack(
+                'vorigNode/vdestNode/vyear/vmonth/vday/vhour/vminute/vsecond/' .
+                'vbaud/vpacketVersion/vorigNet/vdestNet/CprodCodeLo/CrevMajor',
+                substr($hdr, 0, 26)
+            );
+
+            $password  = rtrim(substr($hdr, 26, 10), "\x00");
+            $origZone  = unpack('v', substr($hdr, 36, 2))[1];
+            $destZone  = unpack('v', substr($hdr, 38, 2))[1];
+            $origPoint = unpack('v', substr($hdr, 52, 2))[1];
+            $destPoint = unpack('v', substr($hdr, 54, 2))[1];
+
+            $month = ($h['month'] < 12) ? $h['month'] + 1 : $h['month']; // 0-based in spec
+            $created = sprintf('%04d-%02d-%02d %02d:%02d:%02d',
+                $h['year'], $month, $h['day'], $h['hour'], $h['minute'], $h['second']);
+
+            $fmtAddr = function(int $zone, int $net, int $node, int $point): string {
+                $addr = "{$zone}:{$net}/{$node}";
+                if ($point > 0) $addr .= ".{$point}";
+                return $addr;
+            };
+
+            $packet = [
+                'orig_address'   => $fmtAddr($origZone, $h['origNet'], $h['origNode'], $origPoint),
+                'dest_address'   => $fmtAddr($destZone, $h['destNet'], $h['destNode'], $destPoint),
+                'created'        => $created,
+                'has_password'   => $password !== '',
+                'packet_version' => $h['packetVersion'],
+                'product_code'   => sprintf('%02X', $h['prodCodeLo']),
+                'file_size'      => filesize($filepath),
+            ];
+
+            // ── Message headers ───────────────────────────────────────────────
+            fseek($handle, 58);
+            $messages   = [];
+            $maxMsgs    = 1000;
+            $attrLabels = [
+                0  => 'Pvt',  1 => 'Crash', 2 => 'Rcvd', 3 => 'Sent',
+                4  => 'Att',  5 => 'Trs',   6 => 'Orphn', 7 => 'K/S',
+                8  => 'Local', 9 => 'Hold', 11 => 'FReq', 12 => 'RReq',
+                13 => 'RRec', 14 => 'Audit', 15 => 'FUpd',
+            ];
+
+            while (!feof($handle) && count($messages) < $maxMsgs) {
+                $typeBytes = fread($handle, 2);
+                if (strlen($typeBytes) < 2) break;
+                $msgType = unpack('v', $typeBytes)[1];
+                if ($msgType === 0) break;          // end-of-packet marker
+                if ($msgType !== 2) break;           // unexpected type
+
+                // 12-byte message header: origNode destNode origNet destNet attr cost
+                $mhBytes = fread($handle, 12);
+                if (strlen($mhBytes) < 12) break;
+                $mh = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $mhBytes);
+
+                $datetime = $this->pktReadString($handle, 20);
+                $toName   = $this->pktReadString($handle, 36);
+                $fromName = $this->pktReadString($handle, 36);
+                $subject  = $this->pktReadString($handle, 72);
+
+                // Skip message body (null-terminated)
+                if (!$this->pktSkipBody($handle, 65536)) break;
+
+                $flags = [];
+                foreach ($attrLabels as $bit => $label) {
+                    if ($mh['attr'] & (1 << $bit)) {
+                        $flags[] = $label;
+                    }
+                }
+
+                $cp437 = fn(string $s): string =>
+                    (@iconv('CP437', 'UTF-8//IGNORE', $s) ?: mb_convert_encoding($s, 'UTF-8', 'UTF-8'));
+
+                $messages[] = [
+                    'from'      => $cp437($fromName),
+                    'to'        => $cp437($toName),
+                    'subject'   => $cp437($subject),
+                    'date'      => $datetime,
+                    'orig_addr' => $mh['origNet'] . ':' . $mh['origNode'],
+                    'dest_addr' => $mh['destNet'] . ':' . $mh['destNode'],
+                    'flags'     => $flags,
+                    'cost'      => $mh['cost'],
+                ];
+            }
+
+            fclose($handle);
+
+            return [
+                'success'  => true,
+                'packet'   => $packet,
+                'messages' => $messages,
+            ];
+
+        } catch (\Exception $e) {
+            if (is_resource($handle)) fclose($handle);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Read a null-terminated string from $handle, consuming at most $maxLen bytes.
+     */
+    private function pktReadString($handle, int $maxLen): string
+    {
+        $result = '';
+        for ($i = 0; $i < $maxLen; $i++) {
+            $ch = fread($handle, 1);
+            if ($ch === false || $ch === '' || $ch === "\x00") break;
+            $result .= $ch;
+        }
+        return $result;
+    }
+
+    /**
+     * Skip a null-terminated message body, consuming at most $maxLen bytes.
+     * Returns false if the read failed before finding the null terminator.
+     */
+    private function pktSkipBody($handle, int $maxLen): bool
+    {
+        for ($i = 0; $i < $maxLen; $i++) {
+            $ch = fread($handle, 1);
+            if ($ch === false || $ch === '') return false;
+            if ($ch === "\x00") return true;
+        }
+        return true; // Reached limit — treat as terminated
+    }
+
+    /**
      * Search all binkp-related log files for the given query, returning matched lines
      * plus all lines sharing the same PID (session context).
      *

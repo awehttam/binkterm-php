@@ -227,6 +227,19 @@ class OutboundQueue
         return $fileInfo;
     }
     
+    /**
+     * Public wrapper — allows BinkpController and other callers to analyse any
+     * on-disk packet file (inbound keep, outbound keep, etc.) without duplicating
+     * the header-parsing logic.
+     *
+     * @param string $filepath Absolute path to the .pkt file
+     * @return array{message_count:int, dest_address:string, orig_address:string}
+     */
+    public function analyzePacket(string $filepath): array
+    {
+        return $this->analyzePacketFile($filepath);
+    }
+
     private function analyzePacketFile($filepath)
     {
         $stats = [
