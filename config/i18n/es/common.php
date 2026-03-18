@@ -194,6 +194,7 @@ return [
 
     // Generic Error Page
     'ui.error.title' => 'Error',
+    'ui.error.not_found' => 'No encontrado',
     'ui.error.access_error' => 'Error de acceso',
     'ui.error.processing_request_failed' => 'Ocurrio un error mientras se procesaba su solicitud.',
     'ui.error.return_to_dashboard' => 'Volver al panel',
@@ -207,6 +208,7 @@ return [
     'ui.web.errors.polls_disabled' => 'El modulo de votacion esta deshabilitado.',
     'ui.web.errors.shoutbox_disabled' => 'El shoutbox esta deshabilitado.',
     'ui.web.errors.compose_type_invalid' => 'Destino de composicion invalido.',
+    'ui.web.errors.not_found' => 'La pagina solicitada no pudo encontrarse.',
     'ui.web.fallback.system_name' => 'Sistema BinktermPHP',
 
     // Base Layout / Navigation

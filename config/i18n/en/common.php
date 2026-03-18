@@ -194,6 +194,7 @@ return [
 
     // Generic Error Page
     'ui.error.title' => 'Error',
+    'ui.error.not_found' => 'Not Found',
     'ui.error.access_error' => 'Access Error',
     'ui.error.processing_request_failed' => 'An error occurred while processing your request.',
     'ui.error.return_to_dashboard' => 'Return to Dashboard',
@@ -207,6 +208,7 @@ return [
     'ui.web.errors.polls_disabled' => 'Voting booth is disabled.',
     'ui.web.errors.shoutbox_disabled' => 'Shoutbox is disabled.',
     'ui.web.errors.compose_type_invalid' => 'Invalid compose destination.',
+    'ui.web.errors.not_found' => 'The page you requested could not be found.',
     'ui.web.fallback.system_name' => 'BinktermPHP System',
 
     // Base Layout / Navigation
