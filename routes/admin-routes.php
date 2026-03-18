@@ -364,8 +364,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $html = $raw !== null ? \BinktermPHP\MarkdownRenderer::toHtml($raw) : null;
 
         $template = new Template();
-        $template->renderResponse('admin/upgrade_notes.twig', [
-            'version' => 'Registration',
+        $template->renderResponse('admin/register_info.twig', [
             'content' => $html,
         ]);
     });
