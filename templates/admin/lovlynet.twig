@@ -18,7 +18,11 @@
 <div class="alert alert-warning">
     <i class="fas fa-exclamation-triangle me-2"></i>
     <strong>{{ t('ui.admin.lovlynet.not_configured_title') }}</strong>
-    {{ t('ui.admin.lovlynet.not_configured_body') }}
+    <div class="mt-2">{{ t('ui.admin.lovlynet.not_configured_body') }}</div>
+    <div class="mt-2">{{ t('ui.admin.lovlynet.not_configured_synopsis') }}</div>
+    <div class="mt-2">{{ t('ui.admin.lovlynet.not_configured_setup_intro') }}</div>
+    <pre class="mb-2 mt-2"><code>php scripts/lovlynet_setup.php</code></pre>
+    <div>{{ t('ui.admin.lovlynet.not_configured_docs_intro') }} <code>docs/LovlyNet.md</code>.</div>
 </div>
 {% else %}
 <div class="row mb-4">

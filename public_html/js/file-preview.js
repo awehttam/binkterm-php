@@ -84,6 +84,10 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
     const prgsUrl    = `/api/files/${fileId}/prgs`    + shareQs;
 
     body.find('video,audio').each(function() { this.pause(); this.src = ''; });
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch (e) {}
+        window._modPlayer = null;
+    }
 
     if (type === 'image') {
         body.css('background', '#1a1a1a').html(`
