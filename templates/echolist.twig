@@ -89,8 +89,18 @@
                             {{ t('ui.echolist.show_unread_only') }}
                         </label>
                     </div>
-                    <input type="text" class="form-control" id="areaSearch" placeholder="{{ t('ui.echolist.area_filter_placeholder') }}" onkeyup="searchEchoAreas(this.value)">
-                    <small class="text-muted d-block mt-1">{{ t('ui.echolist.area_filter_help') }}</small>
+                    <input type="text" class="form-control mb-2" id="areaSearch" placeholder="{{ t('ui.echolist.area_filter_placeholder') }}" onkeyup="searchEchoAreas(this.value)">
+                    <small class="text-muted d-block mt-1 mb-3">{{ t('ui.echolist.area_filter_help') }}</small>
+                    <div class="dropdown" id="networkPickerWrap">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
+                                type="button" id="networkPickerBtn"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <span id="networkPickerLabel">{{ t('ui.echolist.all_networks') }}</span>
+                        </button>
+                        <ul class="dropdown-menu p-2" id="networkDropdown" style="min-width:220px;max-height:260px;overflow-y:auto;">
+                            <li><span class="dropdown-item-text text-muted small" id="networkDropdownEmpty">{{ t('ui.echolist.loading') }}</span></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -202,6 +212,7 @@ function loadEchoAreas() {
     $.get(url)
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
+            populateNetworkFilter();
             searchEchoAreas(searchQuery);
             const networks = new Set();
             allEchoAreas.forEach(f => {
@@ -212,6 +223,58 @@ function loadEchoAreas() {
         .fail(function() {
             $('#forumsContainer').html(`<div class="alert alert-danger">${uiT('ui.echolist.load_failed', 'Failed to load echo areas')}</div>`);
         });
+}
+
+function populateNetworkFilter() {
+    const localLabel = uiT('ui.echolist.local', 'Local');
+    const networks = new Set();
+    let hasLocal = false;
+
+    allEchoAreas.forEach(f => {
+        if (f.is_local) {
+            hasLocal = true;
+        } else {
+            networks.add(f.domain || uiT('ui.echolist.unknown', 'Unknown'));
+        }
+    });
+
+    // Remember current selections before rebuilding
+    const prevChecked = new Set(
+        $('#networkDropdown .network-cb:checked').map(function() { return this.value; }).get()
+    );
+
+    const ul = $('#networkDropdown');
+    ul.empty();
+
+    const makeItem = (value, label) => {
+        const checked = prevChecked.has(value) ? ' checked' : '';
+        return $(`<li><label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">
+            <input type="checkbox" class="form-check-input network-cb flex-shrink-0" value="${escapeHtml(value)}"${checked}>
+            <span class="small">${escapeHtml(label)}</span>
+        </label></li>`);
+    };
+
+    if (hasLocal) ul.append(makeItem('__local__', localLabel));
+    [...networks].sort().forEach(net => ul.append(makeItem(net, net.toUpperCase())));
+
+    if (!hasLocal && networks.size === 0) {
+        ul.append('<li><span class="dropdown-item-text text-muted small">No networks</span></li>');
+    }
+
+    ul.find('.network-cb').on('change', function() {
+        updateNetworkPickerLabel();
+        searchEchoAreas($('#areaSearch').val());
+    });
+
+    updateNetworkPickerLabel();
+}
+
+function updateNetworkPickerLabel() {
+    const allNetworksLabel = uiT('ui.echolist.all_networks', 'All Networks');
+    const checked = $('#networkDropdown .network-cb:checked').map(function() {
+        return $(this).closest('label').find('span').text().trim();
+    }).get();
+    $('#networkPickerLabel').text(checked.length > 0 ? checked.join(', ') : allNetworksLabel);
 }
 
 function toggleSubscribedFilter() {
@@ -354,9 +417,18 @@ function searchEchoAreas(query) {
 
     let filtered = allEchoAreas;
 
-    // Apply unread filter first
+    // Apply unread filter
     if ($('#unreadOnlyCheck').is(':checked')) {
         filtered = filtered.filter(f => (f.unread_count || 0) > 0);
+    }
+
+    // Apply network filter
+    const selectedNets = new Set($('#networkDropdown .network-cb:checked').map(function() { return this.value; }).get());
+    if (selectedNets.size > 0) {
+        filtered = filtered.filter(f => {
+            if (f.is_local) return selectedNets.has('__local__');
+            return selectedNets.has(f.domain || uiT('ui.echolist.unknown', 'Unknown'));
+        });
     }
 
     // Apply search query

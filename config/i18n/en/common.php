@@ -2277,6 +2277,7 @@ return [
     'ui.echolist.show_unread_only' => 'Show only areas with unread messages',
     'ui.echolist.area_filter_placeholder' => 'Type to filter by name or description...',
     'ui.echolist.area_filter_help' => 'Filters the list below in real-time',
+    'ui.echolist.all_networks' => 'All Networks',
     'ui.echolist.search_heading' => 'Search Messages',
     'ui.echolist.search_placeholder' => 'Search message content...',
     'ui.echolist.search_help' => 'Search all echomail message content',

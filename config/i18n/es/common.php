@@ -2279,6 +2279,7 @@ return [
     'ui.echolist.show_unread_only' => 'Mostrar solo areas con mensajes sin leer',
     'ui.echolist.area_filter_placeholder' => 'Escriba para filtrar por nombre o descripcion...',
     'ui.echolist.area_filter_help' => 'Filtra la lista de abajo en tiempo real',
+    'ui.echolist.all_networks' => 'Todas las redes',
     'ui.echolist.search_heading' => 'Buscar mensajes',
     'ui.echolist.search_placeholder' => 'Buscar en el contenido del mensaje...',
     'ui.echolist.search_help' => 'Buscar en todo el contenido de mensajes echomail',

@@ -55,11 +55,13 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Echo Area Management Improvements](#echo-area-management-improvements)
 - [File Upload Filename Sanitization](#file-upload-filename-sanitization)
+- [Echo List Network Filter](#echo-list-network-filter)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Maximized Message Reader Gap](#maximized-message-reader-gap)
   - [Subscription Toggle in Echomail Reader](#subscription-toggle-in-echomail-reader)
   - [BinkP Filenames with Spaces](#binkp-filenames-with-spaces)
+  - [TIC File Password Field](#tic-file-password-field)
 - [Footer Registration Display](#footer-registration-display)
 - [Premium Features and Registration](#premium-features-and-registration)
   - [Registration Badge on Admin Dashboard](#registration-badge-on-admin-dashboard)
@@ -226,6 +228,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - The "Registered to" line in the page footer is now displayed inline with the
   "Powered by BinktermPHP" line (e.g. *Powered by BinktermPHP 1.8.7 - Registered
   to My BBS*) and no longer shows a separate badge icon.
+
+**Echo List**
+- The `/echolist` page now includes a network filter dropdown. Select one or
+  more networks (including Local) to limit the listing to those networks only.
+  Selecting nothing shows all networks, matching the existing behaviour.
 
 **Admin**
 - New **Database Statistics** page (`/admin/database-stats`) showing size and
@@ -1536,6 +1543,22 @@ The admin submenu previously labelled *Local Chat* has been renamed to **Chat**,
 since it contains configuration for both local chat rooms and remote MRC (Multi
 Relay Chat) settings.
 
+## Echo List Network Filter
+
+The `/echolist` page now includes a **network filter** dropdown in the Filter
+card alongside the existing subscribed-only, unread-only, and text search
+controls.
+
+Clicking the dropdown shows a checkbox list of all networks present in your echo
+area list, including **Local** areas. Check one or more networks to restrict the
+listing to those networks. Unchecking everything (the default) shows all
+networks.
+
+The filter composes with the other controls — for example, you can show only
+unread messages in FidoNet areas simultaneously.
+
+No configuration or migration is required.
+
 ## LovlyNet Subscriptions
 
 A new admin page at **Admin → Area Management → LovlyNet Areas**
@@ -1570,6 +1593,15 @@ is missing or incomplete, the page shows a configuration notice instead of the
 area list.
 
 No database migration is required for this feature.
+
+### TIC File Password Field
+
+When no password was configured for an uplink or file area, the generated TIC
+file contained `Pw ` with an empty value. Many TIC processors treat an empty
+`Pw` field as "password missing" and reject the file with a password error.
+
+Fixed — TIC files now emit `Pw -` when no password is set, following the
+conventional placeholder used by other TIC-compliant software.
 
 ## Upgrade Instructions
 
