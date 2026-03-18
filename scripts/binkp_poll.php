@@ -60,27 +60,32 @@ function formatResult($result, $quiet = false)
     if ($quiet) {
         return $result['success'] ? 'OK' : 'FAIL';
     }
+    // Non-quiet callers should use logResult() instead.
+    return '';
+}
 
+function logResult($result, $logger, $address = null)
+{
+    $prefix = $address ? "[{$address}] " : '';
     if ($result['success']) {
-        $output = "SUCCESS\n";
+        $logger->log('INFO', $prefix . 'SUCCESS');
         if (isset($result['remote_address'])) {
-            $output .= "  Remote: {$result['remote_address']}\n";
+            $logger->log('INFO', $prefix . "  Remote: {$result['remote_address']}");
         }
         if (isset($result['auth_method'])) {
-            $output .= "  Auth: {$result['auth_method']}\n";
+            $logger->log('INFO', $prefix . "  Auth: {$result['auth_method']}");
         }
         if (isset($result['files_sent']) && !empty($result['files_sent'])) {
-            $output .= "  Files sent: " . implode(', ', $result['files_sent']) . "\n";
+            $logger->log('INFO', $prefix . '  Files sent: ' . implode(', ', $result['files_sent']));
         }
         if (isset($result['files_received']) && !empty($result['files_received'])) {
-            $output .= "  Files received: " . implode(', ', $result['files_received']) . "\n";
+            $logger->log('INFO', $prefix . '  Files received: ' . implode(', ', $result['files_received']));
         }
         if (isset($result['connect_time'])) {
-            $output .= "  Connection time: " . number_format($result['connect_time'], 3) . "s\n";
+            $logger->log('INFO', $prefix . '  Connection time: ' . number_format($result['connect_time'], 3) . 's');
         }
-        return $output;
     } else {
-        return "FAILED: " . ($result['error'] ?? 'Unknown error') . "\n";
+        $logger->log('ERROR', $prefix . 'FAILED: ' . ($result['error'] ?? 'Unknown error'));
     }
 }
 
@@ -126,7 +131,7 @@ try {
     };
     
     if (isset($args['all'])) {
-        if (!$quiet) echo "Polling all configured uplinks...\n";
+        if (!$quiet) $logger->log('INFO', 'Polling all configured uplinks...');
 
         $results = $client->pollAllUplinks($queued_only);
         
@@ -135,8 +140,7 @@ try {
             if ($quiet) {
                 echo "{$address}: " . formatResult($result, true) . "\n";
             } else {
-                echo "\n=== {$address} ===\n";
-                echo formatResult($result);
+                logResult($result, $logger, $address);
             }
         }
         
@@ -144,7 +148,7 @@ try {
         $totalCount = count($results);
         
         if (!$quiet) {
-            echo "\nSummary: {$successCount}/{$totalCount} successful\n";
+            $logger->log('INFO', "Summary: {$successCount}/{$totalCount} successful");
         }
         
         exit($successCount === $totalCount ? 0 : 1);
@@ -153,7 +157,7 @@ try {
         $address = $positional[0];
         
         if (isset($args['test'])) {
-            if (!$quiet) echo "Testing connection to {$address}...\n";
+            if (!$quiet) $logger->log('INFO', "Testing connection to {$address}...");
 
             $uplink = $config->getUplinkByAddress($address);
             $hostname = isset($args['hostname']) ? $args['hostname'] : ($uplink['hostname'] ?? null);
@@ -169,13 +173,13 @@ try {
             if ($quiet) {
                 echo formatResult($result, true) . "\n";
             } else {
-                echo formatResult($result);
+                logResult($result, $logger, $address);
             }
-            
+
             exit($result['success'] ? 0 : 1);
-            
+
         } else {
-            if (!$quiet) echo "Polling {$address}...\n";
+            if (!$quiet) $logger->log('INFO', "Polling {$address}...");
             
             $hostname = isset($args['hostname']) ? $args['hostname'] : null;
             $port = isset($args['port']) ? (int) $args['port'] : null;
@@ -187,12 +191,12 @@ try {
             if ($quiet) {
                 echo formatResult($result, true) . "\n";
             } else {
-                echo formatResult($result);
+                logResult($result, $logger, $address);
             }
 
             exit($result['success'] ? 0 : 1);
         }
-        
+
     } else {
         echo "Error: No address specified and --all not used\n";
         showUsage();
