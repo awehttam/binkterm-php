@@ -475,9 +475,7 @@ function renderZipBrowser(container, fileId, shareQs) {
                     : '?path='           + encodeURIComponent(entry.path);
                 const entryUrl  = `/api/files/${fileId}/zip-entry` + entryQs;
 
-                const dlBtn = !canPreview
-                    ? `<a href="${entryUrl}" class="btn btn-sm btn-outline-secondary ms-2 flex-shrink-0" download="${escapeHtml(entry.name)}" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a>`
-                    : '';
+                const dlBtn = `<a href="${entryUrl}" class="btn btn-sm btn-outline-secondary ms-2 flex-shrink-0" download="${escapeHtml(entry.name)}" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a>`;
 
                 const legacyBadge = legacyComp
                     ? `<span class="badge bg-secondary ms-2 flex-shrink-0" title="${_fpT('ui.files.zip_legacy_badge', 'Legacy compression')}" style="font-size:0.65em;">legacy</span>`
