@@ -6,7 +6,7 @@ Thank you for using BinktermPHP! Registration supports continued development and
 
 BinktermPHP is open source and the community edition is fully functional — registration is never required to run a BBS. But if BinktermPHP has been valuable to your system, registering is the right thing to do. It keeps the project alive and gives you some genuinely useful extras:
 
-- **"Registered to \<system name\>"** badge in the site footer and admin dashboard
+- **"Registered to [system name]"** badge in the site footer and admin dashboard
 - **Custom footer branding** — replace the "Powered by BinktermPHP" line with your own text, or hide it entirely
 - **Custom splash pages** — display your own Markdown or HTML content above the login and registration forms
 - **Netmail email forwarding** — have incoming netmail forwarded to your users' email addresses
