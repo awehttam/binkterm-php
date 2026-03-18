@@ -3302,12 +3302,25 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $zip->close();
 
         // Fallback for legacy compression methods (implode=6, shrink=1, etc.) that
-        // libzip/ZipArchive cannot decompress.  Try the system `unzip` binary.
-        if ($content === false && $exactZipName !== null) {
-            $cmd    = 'unzip -p ' . escapeshellarg($storagePath) . ' ' . escapeshellarg($exactZipName) . ' 2>/dev/null';
-            $result = function_exists('shell_exec') ? @shell_exec($cmd) : null;
-            if ($result !== null && $result !== '') {
-                $content = $result;
+        // libzip/ZipArchive cannot decompress.  Try external tools in order:
+        //   1. unzip  (standard on Linux/Mac)
+        //   2. 7z / 7za  (7-Zip, common on Windows and available on Linux)
+        if ($content === false && $exactZipName !== null && function_exists('shell_exec')) {
+            $zipArg   = escapeshellarg($storagePath);
+            $nameArg  = escapeshellarg($exactZipName);
+            $null     = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+            $commands = [
+                "unzip -p $zipArg $nameArg 2>$null",
+                "unzip.exe -p $zipArg $nameArg 2>$null",
+                "7z e -so $zipArg $nameArg 2>$null",
+                "7za e -so $zipArg $nameArg 2>$null",
+            ];
+            foreach ($commands as $cmd) {
+                $result = @shell_exec($cmd);
+                if ($result !== null && $result !== '') {
+                    $content = $result;
+                    break;
+                }
             }
         }
 

@@ -498,18 +498,23 @@ function renderZipBrowser(container, fileId, shareQs) {
                 : '';
 
             container.css('background', '').html(`
-                <div style="overflow-y:auto; max-height:78vh;">
+                <div>
                     ${rows}
                     ${truncNote}
                 </div>
             `);
 
+            // Only previewable entries participate in arrow navigation
+            const previewable = entries.filter(e => getFileType(e.name) !== 'download');
+
             container.find('.zip-entry-row').on('click', function() {
                 const path = $(this).data('path');
                 const name = $(this).data('name');
                 if (getFileType(name) === 'download') return;
+                const idx = previewable.findIndex(e => e.path === path);
                 renderZipEntry(container, fileId, path, name, shareQs,
-                    () => renderZipBrowser(container, fileId, shareQs));
+                    () => renderZipBrowser(container, fileId, shareQs),
+                    previewable, idx);
             });
         })
         .catch(function() {
@@ -560,17 +565,27 @@ function renderLegacyCompressionNotice(container, fileId, entryName, shareQs) {
  *
  * @param {jQuery}   container
  * @param {number}   fileId
- * @param {string}   entryPath  - full path within the ZIP
- * @param {string}   entryName  - basename
+ * @param {string}   entryPath    - full path within the ZIP
+ * @param {string}   entryName    - basename
  * @param {string}   shareQs
- * @param {function} onBack     - called when the back button is clicked
+ * @param {function} onBack       - called when the back button is clicked
+ * @param {Array}    [entries]    - previewable entries list for prev/next nav
+ * @param {number}   [entryIndex] - index of current entry within entries
  */
-function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack) {
+function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack, entries, entryIndex) {
     const entryQs  = shareQs
         ? shareQs + '&path=' + encodeURIComponent(entryPath)
         : '?path='           + encodeURIComponent(entryPath);
     const entryUrl = `/api/files/${fileId}/zip-entry` + entryQs;
     const type     = getFileType(entryName);
+
+    const hasList  = Array.isArray(entries) && entries.length > 1;
+    const idx      = hasList ? (entryIndex ?? 0) : 0;
+    const prevEntry = hasList && idx > 0                  ? entries[idx - 1] : null;
+    const nextEntry = hasList && idx < entries.length - 1 ? entries[idx + 1] : null;
+
+    const navTo = (e) => renderZipEntry(container, fileId, e.path, e.name, shareQs, onBack, entries,
+        entries.indexOf(e));
 
     const backBar = $('<div>').addClass('d-flex align-items-center px-3 py-2 border-bottom flex-shrink-0')
         .css({ background: '#111' })
@@ -578,7 +593,18 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             $('<button>').addClass('btn btn-sm btn-outline-secondary me-2 flex-shrink-0')
                 .html('<i class="fas fa-chevron-left me-1"></i>' + _fpT('ui.common.back', 'Back'))
                 .on('click', onBack),
-            $('<small>').addClass('text-muted text-truncate').text(entryPath)
+            $('<small>').addClass('text-muted text-truncate flex-grow-1').text(entryPath),
+            hasList ? $('<span>').addClass('text-muted small ms-3 flex-shrink-0').text((idx + 1) + ' / ' + entries.length) : null,
+            hasList ? $('<button>').addClass('btn btn-sm btn-outline-secondary ms-2 flex-shrink-0')
+                .html('<i class="fas fa-chevron-left"></i>')
+                .prop('disabled', !prevEntry)
+                .attr('title', prevEntry ? prevEntry.name : '')
+                .on('click', () => prevEntry && navTo(prevEntry)) : null,
+            hasList ? $('<button>').addClass('btn btn-sm btn-outline-secondary ms-1 flex-shrink-0')
+                .html('<i class="fas fa-chevron-right"></i>')
+                .prop('disabled', !nextEntry)
+                .attr('title', nextEntry ? nextEntry.name : '')
+                .on('click', () => nextEntry && navTo(nextEntry)) : null,
         );
 
     const previewArea = $('<div>').css({ minHeight: '200px' })

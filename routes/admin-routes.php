@@ -3949,5 +3949,100 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
     ]);
 });
 
+/**
+ * GET /admin/api/zip-diag?id=FILE_ID&path=ENTRY_PATH
+ * Diagnostic: test whether a ZIP entry can be extracted via ZipArchive or unzip.
+ */
+SimpleRouter::get('/admin/api/zip-diag', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $id        = (int)($_GET['id']   ?? 0);
+    $entryPath = $_GET['path'] ?? '';
+
+    if (!$id || $entryPath === '') {
+        echo json_encode(['error' => 'id and path are required']);
+        return;
+    }
+
+    $manager     = new \BinktermPHP\FileAreaManager();
+    $file        = $manager->getFileById($id);
+    $storagePath = $file ? $manager->resolveFilePath($file) : null;
+
+    if (!$storagePath || !file_exists($storagePath)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'File not found']);
+        return;
+    }
+
+    $entryPath = str_replace('\\', '/', $entryPath);
+    $result    = ['entry' => $entryPath, 'ziparchive' => null, 'unzip_available' => null, 'unzip_result' => null];
+
+    // Test ZipArchive
+    $zip = new ZipArchive();
+    if ($zip->open($storagePath) === true) {
+        $exactName   = null;
+        $compMethod  = null;
+        $lowerTarget = strtolower($entryPath);
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            if ($stat && strtolower(str_replace('\\', '/', $stat['name'])) === $lowerTarget) {
+                $exactName  = $stat['name'];
+                $compMethod = $stat['comp_method'];
+                $content    = $zip->getFromIndex($i);
+                $result['ziparchive'] = [
+                    'found'       => true,
+                    'exact_name'  => $exactName,
+                    'comp_method' => $compMethod,
+                    'extracted'   => $content !== false,
+                    'bytes'       => $content !== false ? strlen($content) : 0,
+                ];
+                break;
+            }
+        }
+        if ($exactName === null) {
+            $result['ziparchive'] = ['found' => false];
+        }
+        $zip->close();
+
+        // Test available extraction tools
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+        $null      = $isWindows ? 'NUL' : '/dev/null';
+        $whichCmd  = $isWindows ? 'where' : 'which';
+        // On Windows check both "unzip" and "unzip.exe" since where.exe may
+        // not find extensionless names depending on PATHEXT configuration.
+        $bins = $isWindows ? ['unzip', 'unzip.exe', '7z', '7za'] : ['unzip', '7z', '7za'];
+        $tools = [];
+        foreach ($bins as $bin) {
+            $path = trim((string)@shell_exec("$whichCmd $bin 2>$null"));
+            $tools[$bin] = $path !== '' ? $path : null;
+        }
+        $result['tools'] = $tools;
+
+        if ($exactName !== null) {
+            $zipArg  = escapeshellarg($storagePath);
+            $nameArg = escapeshellarg($exactName);
+            $tried   = [];
+            foreach ([
+                'unzip'     => "unzip -p $zipArg $nameArg 2>$null",
+                'unzip.exe' => "unzip.exe -p $zipArg $nameArg 2>$null",
+                '7z'        => "7z e -so $zipArg $nameArg 2>$null",
+                '7za'       => "7za e -so $zipArg $nameArg 2>$null",
+            ] as $tool => $cmd) {
+                $out = @shell_exec($cmd);
+                $tried[$tool] = [
+                    'success' => $out !== null && $out !== '',
+                    'bytes'   => $out !== null ? strlen($out) : 0,
+                ];
+                if ($out !== null && $out !== '') break;
+            }
+            $result['extraction_attempts'] = $tried;
+        }
+    } else {
+        $result['ziparchive'] = ['error' => 'Cannot open ZIP'];
+    }
+
+    echo json_encode($result, JSON_PRETTY_PRINT);
+});
 
 
