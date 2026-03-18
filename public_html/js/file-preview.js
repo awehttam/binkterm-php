@@ -46,6 +46,7 @@ function _fpBytes(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
+
 /**
  * Render a file preview into the given jQuery container.
  *
