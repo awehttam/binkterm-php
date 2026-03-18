@@ -167,6 +167,45 @@
     </div>
 </div>
 
+<div class="modal fade" id="lovlynetRescanModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.lovlynet.rescan_modal_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-muted mb-3">{{ t('ui.admin.lovlynet.rescan_modal_help') }}</div>
+                <input type="hidden" id="lovlynetRescanAreaTag" value="">
+                <div class="mb-3">
+                    <label for="lovlynetRescanAreaDisplay" class="form-label">{{ t('ui.admin.lovlynet.rescan_area_label') }}</label>
+                    <input type="text" class="form-control font-monospace" id="lovlynetRescanAreaDisplay" readonly>
+                </div>
+                <div class="mb-3">
+                    <label for="lovlynetRescanMode" class="form-label">{{ t('ui.admin.lovlynet.rescan_mode_label') }}</label>
+                    <select class="form-select" id="lovlynetRescanMode">
+                        <option value="days">{{ t('ui.admin.lovlynet.rescan_mode_days') }}</option>
+                        <option value="messages">{{ t('ui.admin.lovlynet.rescan_mode_messages') }}</option>
+                        <option value="all">{{ t('ui.admin.lovlynet.rescan_mode_all') }}</option>
+                    </select>
+                </div>
+                <div class="mb-0" id="lovlynetRescanAmountGroup">
+                    <label for="lovlynetRescanAmount" class="form-label" id="lovlynetRescanAmountLabel">{{ t('ui.admin.lovlynet.rescan_amount_days_label') }}</label>
+                    <input type="number" class="form-control" id="lovlynetRescanAmount" min="1" step="1" value="7">
+                    <div class="form-text" id="lovlynetRescanAmountHelp">{{ t('ui.admin.lovlynet.rescan_amount_days_help') }}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="lovlynetRescanSubmit" onclick="submitLovlynetRescan()">
+                    <i class="fas fa-paper-plane me-1"></i>
+                    {{ t('ui.admin.lovlynet.rescan_send') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="lovlynetMessageViewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -190,6 +229,7 @@
 {% block scripts %}
 <script>
 let lovlynetRequestModal = null;
+let lovlynetRescanModal = null;
 let lovlynetMessageViewModal = null;
 let lovlynetHelpCache = { echo: null, file: null };
 let _lovlynetRequests = [];
@@ -202,6 +242,11 @@ $(document).ready(function() {
     const requestModalEl = document.getElementById('lovlynetRequestModal');
     if (requestModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
         lovlynetRequestModal = new bootstrap.Modal(requestModalEl);
+    }
+
+    const rescanModalEl = document.getElementById('lovlynetRescanModal');
+    if (rescanModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        lovlynetRescanModal = new bootstrap.Modal(rescanModalEl);
     }
 
     const messageViewModalEl = document.getElementById('lovlynetMessageViewModal');
@@ -219,6 +264,8 @@ $(document).ready(function() {
     $('a[data-bs-toggle="tab"][href="#requestsTab"]').on('shown.bs.tab', function() {
         loadLovlyNetRequests();
     });
+
+    $('#lovlynetRescanMode').on('change', updateLovlyNetRescanForm);
 });
 
 let _allAreas = { echoareas: [], fileareas: [] };
@@ -261,7 +308,7 @@ function renderAreas(type, areas, containerSel, countSel) {
                     <th>${uiT('ui.admin.lovlynet.col_tag', 'Tag')}</th>
                     <th>${uiT('ui.admin.lovlynet.col_description', 'Description')}</th>
                     <th class="text-center" style="width:120px;">${uiT('ui.admin.lovlynet.col_status', 'Status')}</th>
-                    <th style="width:120px;"></th>
+                    <th style="width:220px;"></th>
                 </tr>
             </thead>
             <tbody>`;
@@ -279,15 +326,24 @@ function renderAreas(type, areas, containerSel, countSel) {
             : uiT('ui.admin.lovlynet.btn_subscribe', 'Subscribe');
         const btnAction = sub ? 'unsubscribe' : 'subscribe';
 
+        const rescanButton = type === 'echo' ? `
+                <button class="btn btn-sm btn-outline-secondary rescan-btn"
+                        data-tag="${tag}" ${sub ? '' : 'disabled'}>
+                    ${uiT('ui.admin.lovlynet.btn_rescan', 'Rescan')}
+                </button>` : '';
+
         html += `<tr>
             <td><code>${tag}</code></td>
             <td class="text-muted small">${desc}</td>
             <td class="text-center">${statusBadge}</td>
-            <td>
-                <button class="btn btn-sm ${btnClass} w-100 toggle-btn"
+            <td class="text-end">
+                <div class="d-inline-flex gap-2">
+                ${rescanButton}
+                <button class="btn btn-sm ${btnClass} toggle-btn"
                         data-tag="${tag}" data-type="${type}" data-action="${btnAction}">
                     ${btnLabel}
                 </button>
+                </div>
             </td>
         </tr>`;
     });
@@ -301,6 +357,10 @@ function renderAreas(type, areas, containerSel, countSel) {
         const atype  = $btn.data('type');
         const action = $btn.data('action');
         toggleSubscription($btn, atype, tag, action);
+    });
+
+    $c.find('.rescan-btn').on('click', function() {
+        openRescanModal($(this).data('tag') || '');
     });
 }
 
@@ -562,6 +622,103 @@ function openRequestModal(areaType) {
     if (lovlynetRequestModal) {
         lovlynetRequestModal.show();
     }
+}
+
+function openRescanModal(areaTag) {
+    $('#lovlynetRescanAreaTag').val(areaTag);
+    $('#lovlynetRescanAreaDisplay').val(areaTag);
+    $('#lovlynetRescanMode').val('days');
+    $('#lovlynetRescanAmount').val('7');
+    $('#lovlynetRescanSubmit').prop('disabled', false).html(
+        `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.rescan_send', 'Send rescan request')}`
+    );
+    updateLovlyNetRescanForm();
+    if (lovlynetRescanModal) {
+        lovlynetRescanModal.show();
+    }
+}
+
+function updateLovlyNetRescanForm() {
+    const mode = $('#lovlynetRescanMode').val() || 'days';
+    const isAll = mode === 'all';
+    $('#lovlynetRescanAmountGroup').toggleClass('d-none', isAll);
+    if (mode === 'messages') {
+        $('#lovlynetRescanAmountLabel').text(uiT('ui.admin.lovlynet.rescan_amount_messages_label', 'Number of messages'));
+        $('#lovlynetRescanAmountHelp').text(uiT('ui.admin.lovlynet.rescan_amount_messages_help', 'Send the last N messages from this echo area.'));
+        if (!$('#lovlynetRescanAmount').val()) {
+            $('#lovlynetRescanAmount').val('100');
+        }
+    } else {
+        $('#lovlynetRescanAmountLabel').text(uiT('ui.admin.lovlynet.rescan_amount_days_label', 'Number of days'));
+        $('#lovlynetRescanAmountHelp').text(uiT('ui.admin.lovlynet.rescan_amount_days_help', 'Send messages from the last N days from this echo area.'));
+        if (!$('#lovlynetRescanAmount').val()) {
+            $('#lovlynetRescanAmount').val('7');
+        }
+    }
+}
+
+function buildLovlyNetRescanCommand() {
+    const areaTag = String($('#lovlynetRescanAreaTag').val() || '').trim();
+    const mode = String($('#lovlynetRescanMode').val() || 'days');
+    if (!areaTag) {
+        throw new Error(uiT('ui.admin.lovlynet.rescan_area_required', 'An echo area is required'));
+    }
+    if (mode === 'all') {
+        return `%RESCAN ${areaTag}`;
+    }
+
+    const rawAmount = String($('#lovlynetRescanAmount').val() || '').trim();
+    const amount = Number(rawAmount);
+    if (!Number.isInteger(amount) || amount <= 0) {
+        throw new Error(uiT('ui.admin.lovlynet.rescan_amount_required', 'Enter a whole number greater than zero'));
+    }
+
+    if (mode === 'messages') {
+        return `%RESCAN ${areaTag} ${amount}`;
+    }
+    return `%RESCAN ${areaTag} ${amount} days`;
+}
+
+function submitLovlynetRescan() {
+    let command = '';
+    try {
+        command = buildLovlyNetRescanCommand();
+    } catch (error) {
+        showError(error.message || uiT('ui.admin.lovlynet.rescan_send_failed', 'Failed to send rescan request'));
+        return;
+    }
+
+    const $submit = $('#lovlynetRescanSubmit');
+    $submit.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.common.loading', 'Loading...')}`);
+
+    $.ajax({
+        url: '/admin/api/lovlynet/request',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            area_type: 'echo',
+            message_text: command
+        }),
+        success: function() {
+            if (lovlynetRescanModal) {
+                lovlynetRescanModal.hide();
+            }
+            showSuccess(uiT('ui.admin.lovlynet.rescan_sent', 'AreaFix rescan request sent'));
+            loadLovlyNetRequests();
+        },
+        error: function(xhr) {
+            const fallback = uiT('ui.admin.lovlynet.rescan_send_failed', 'Failed to send rescan request');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            showError(msg);
+        },
+        complete: function() {
+            $submit.prop('disabled', false).html(
+                `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.rescan_send', 'Send rescan request')}`
+            );
+        }
+    });
 }
 
 function loadLovlyNetHelp() {
