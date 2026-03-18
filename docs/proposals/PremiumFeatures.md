@@ -57,6 +57,7 @@ The community edition already provides a generous feature set. The following are
 - Advanced message search with author, subject, and date filters
 - Enhanced compose editor with formatting toolbar and Markdown preview
 - Opt-in BBS directory listing
+- File area echomail comments (see `docs/proposals/FileAreaComments.md`)
 
 ---
 
@@ -78,27 +79,6 @@ The following are candidate features for future consideration. None are implemen
 - Configuration export/import via admin UI
 - Expanded database health dashboard
 - Admin audit log — web-viewable record of configuration and user management actions
-
-### File Area Echomail Comments
-
-A file area can be linked to an echomail area to enable threaded comments on individual files.
-
-**How it works:**
-
-- Each file area has an optional linked echomail area configured by the sysop
-- A database table (e.g. `file_comment_threads`) maps `file_id` to the echomail `message_id` of the thread root post
-- The file detail page shows a mini echomail reader displaying only threads that originated through the file area — not all posts in the linked echo
-- When a user posts the first comment on a file, a new echomail post is created in the linked area (subject = filename) and the resulting message ID is stored in the map
-- Subsequent comments reply to that thread root or to other replies using standard echomail threading, building the comment tree naturally
-- Because the backing store is a real echomail area, FTN users on other systems can participate transparently — their replies appear as comments in the file area view
-
-**Feature string:** `file_area_comments`
-
-**Scope:** configured per file area. All files in a linked area share the same echomail area for comments.
-
-**Schema note:** requires a `file_comment_threads` migration with at minimum `file_id` and `root_message_id` columns.
-
----
 
 ### Messaging
 
