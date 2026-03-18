@@ -1305,6 +1305,11 @@ function getPreviewPositionHtml(fileIndex) {
  * @param {string} [filename] - Optional; resolved from displayedFiles when omitted
  */
 function previewFile(fileId, filename) {
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch (e) {}
+        window._modPlayer = null;
+    }
+
     if (!previewNavigationFiles.length) {
         setPreviewNavigationFiles(displayedFiles);
     }
@@ -1344,6 +1349,11 @@ function updatePreviewNavButtons() {
 }
 
 function navigatePreview(direction) {
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch (e) {}
+        window._modPlayer = null;
+    }
+
     if (previewNavigationFiles.length === 0) return;
     const newIndex = currentFileIndex + direction;
     if (newIndex < 0 || newIndex >= previewNavigationFiles.length) return;
