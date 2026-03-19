@@ -8731,8 +8731,14 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             $qwke   = ($format === 'qwke');
             $meta->setValue($userId, 'qwk_format', $qwke ? 'qwke' : 'qwk');
 
+            $hardCap     = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
+            $savedLimit  = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
+            $requestedLimit = isset($_GET['limit']) ? (int)$_GET['limit'] : $savedLimit;
+            $limit = max(1, min($hardCap, $requestedLimit));
+            $meta->setValue($userId, 'qwk_limit', $limit);
+
             $builder  = new \BinktermPHP\Qwk\QwkBuilder();
-            $zipPath  = $builder->buildPacket($userId, $qwke);
+            $zipPath  = $builder->buildPacket($userId, $qwke, $limit);
             $bbsId    = $builder->getBbsId();
             $filename = $bbsId . '.QWK';
 
@@ -8911,14 +8917,18 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             $lastDlStmt->execute([$userId]);
             $lastDl = $lastDlStmt->fetchColumn();
 
-            $meta   = new \BinktermPHP\UserMeta();
-            $format = $meta->getValue($userId, 'qwk_format') ?? 'qwk';
+            $meta    = new \BinktermPHP\UserMeta();
+            $format  = $meta->getValue($userId, 'qwk_format') ?? 'qwk';
+            $limit   = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
+            $hardCap = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
 
             echo json_encode([
                 'total_new_messages' => $totalNew,
                 'last_download'      => $lastDl ?: null,
                 'conferences'        => $conferences,
                 'format'             => $format,
+                'limit'              => $limit,
+                'hard_cap'           => $hardCap,
             ]);
         } catch (\Exception $e) {
             error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());

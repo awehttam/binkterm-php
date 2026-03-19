@@ -14,7 +14,7 @@
     "default_echo_interface": "echolist",
     "max_cross_post_areas": 5,
     "qwk": {
-        "max_messages_per_download": 500
+        "max_messages_per_download": 2500
     },
     "credits": {
         "enabled": true,

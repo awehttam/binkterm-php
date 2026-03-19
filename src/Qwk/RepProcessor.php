@@ -84,7 +84,7 @@ class RepProcessor
         $tempDir = null;
 
         // Pre-flight: require a prior download so we have a conference map.
-        $conferenceMap = $this->getLatestConferenceMap($userId);
+        [$conferenceMap, $messageMap] = $this->getLatestDownloadMaps($userId);
         if ($conferenceMap === null) {
             $result['errors'][] = 'No prior QWK download found for this account. '
                 . 'Download a packet first before uploading replies.';
@@ -122,7 +122,7 @@ class RepProcessor
                 }
 
                 try {
-                    $imported = $this->importReply($msg, $conf, $userId);
+                    $imported = $this->importReply($msg, $conf, $userId, $messageMap);
                     if ($imported) {
                         $result['imported']++;
                     } else {
@@ -428,7 +428,7 @@ class RepProcessor
      *
      * Returns true if the message was imported, false if it was silently skipped.
      */
-    private function importReply(array $msg, array $conf, int $userId): bool
+    private function importReply(array $msg, array $conf, int $userId, array $messageMap): bool
     {
         if (!empty($msg['_skip'])) {
             return false;
@@ -441,25 +441,24 @@ class RepProcessor
         }
 
         if (!empty($conf['is_netmail'])) {
-            return $this->importNetmailReply($msg, $subject, $body, $userId);
+            return $this->importNetmailReply($msg, $subject, $body, $userId, $messageMap);
         } else {
-            return $this->importEchomailReply($msg, $conf, $subject, $body, $userId);
+            return $this->importEchomailReply($msg, $conf, $subject, $body, $userId, $messageMap);
         }
     }
 
-    private function importNetmailReply(array $msg, string $subject, string $body, int $userId): bool
+    private function importNetmailReply(array $msg, string $subject, string $body, int $userId, array $messageMap): bool
     {
         $toName = trim($msg['to_name']);
         if ($toName === '') {
             $toName = 'Sysop';
         }
 
-        // Resolve the To address: try to look the recipient up in the nodelist
-        // or default to the system address (local delivery).
-        $toAddress = $this->resolveNetmailToAddress($toName);
+        // Resolve to-address: prefer original message from_address via message map.
+        $toAddress = $this->resolveNetmailToAddress($toName, (int)$msg['reply_to_num'], $messageMap);
 
-        // Find the internal reply-to message ID if the reader quoted one.
-        $replyToId = $this->resolveReplyToId($msg['reply_to_num'], 'netmail', $userId);
+        // Find the internal reply-to message ID via the message map.
+        $replyToId = $this->resolveReplyToId((int)$msg['reply_to_num'], 'netmail', $messageMap);
 
         $this->messageHandler->sendNetmail(
             $userId,
@@ -476,7 +475,7 @@ class RepProcessor
         return true;
     }
 
-    private function importEchomailReply(array $msg, array $conf, string $subject, string $body, int $userId): bool
+    private function importEchomailReply(array $msg, array $conf, string $subject, string $body, int $userId, array $messageMap): bool
     {
         $tag    = (string)($conf['tag']    ?? '');
         $domain = (string)($conf['domain'] ?? '');
@@ -486,8 +485,8 @@ class RepProcessor
             throw new \RuntimeException('Conference has no echo area tag — cannot post.');
         }
 
-        // Find the internal reply-to message ID.
-        $replyToId = $this->resolveReplyToId($msg['reply_to_num'], 'echomail', $userId);
+        // Find the internal reply-to message ID via the message map.
+        $replyToId = $this->resolveReplyToId((int)$msg['reply_to_num'], 'echomail', $messageMap);
 
         $this->messageHandler->postEchomail(
             $userId,
@@ -504,55 +503,66 @@ class RepProcessor
     }
 
     /**
-     * Resolve a QWK logical reply-to message number to a BinktermPHP DB id.
+     * Resolve a QWK logical message number to a BinktermPHP DB id for reply
+     * threading.  Looks up the per-user qwk_message_index table.
      *
-     * QWK reply-to numbers are per-packet logical indices and do not map
-     * directly to database IDs.  We therefore only attempt a match if the
-     * number is non-zero and falls within a plausible range — otherwise
-     * we return null so MessageHandler posts without a reply chain.
-     *
-     * A more robust implementation could store the logical→db mapping in
-     * qwk_download_log at build time; that is left as a future enhancement.
+     * Returns null if the number is 0, not found, or is for a different type.
      */
-    private function resolveReplyToId(int $logicalNumber, string $type, int $userId): ?int
+    private function resolveReplyToId(int $logicalNumber, string $type, array $messageIndex): ?int
     {
-        // 0 means "no reply".
         if ($logicalNumber === 0) {
             return null;
         }
-        // We cannot reliably reverse-map logical numbers without a stored
-        // per-download index, so return null to avoid incorrect threading.
-        return null;
+
+        $entry = $messageIndex[$logicalNumber] ?? null;
+        if ($entry === null || $entry['type'] !== $type) {
+            return null;
+        }
+
+        $id = (int)$entry['db_id'];
+        return $id > 0 ? $id : null;
     }
 
     /**
-     * Attempt to resolve the To address for a netmail reply.
+     * Resolve the To FTN address for an outbound netmail reply.
      *
-     * If the recipient name matches a local user, return the system address.
-     * Otherwise return the system address as a safe default (local delivery
-     * to sysop is the only reliable route for a web BBS without full nodelist
-     * address resolution at this layer).
+     * Looks up reply_to_num in the per-user qwk_message_index to find the
+     * from_address of the original message.  Falls back to the system address
+     * for new netmails or when no matching index entry exists.
      */
-    private function resolveNetmailToAddress(string $toName): string
+    private function resolveNetmailToAddress(string $toName, int $replyToNum, array $messageIndex): string
     {
+        if ($replyToNum > 0) {
+            $entry = $messageIndex[$replyToNum] ?? null;
+            if ($entry !== null
+                && $entry['type'] === 'netmail'
+                && !empty($entry['from_address'])
+            ) {
+                return $entry['from_address'];
+            }
+        }
+
         try {
-            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            return $config->getSystemAddress();
+            return \BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemAddress();
         } catch (\Exception $e) {
             return '1:999/999';
         }
     }
 
     // -------------------------------------------------------------------------
-    // Conference map
+    // Download log / message index
     // -------------------------------------------------------------------------
 
     /**
-     * Load the conference map from the most recent download log entry for
-     * this user, or return null if no prior download exists.
+     * Load the conference map from the most recent download log entry and the
+     * per-user message index from qwk_message_index.
+     *
+     * Returns [conferenceMap, messageIndex] where conferenceMap is null if no
+     * prior download exists.  messageIndex is keyed by integer qwk_msg_num.
      */
-    private function getLatestConferenceMap(int $userId): ?array
+    private function getLatestDownloadMaps(int $userId): array
     {
+        // Conference map — most recent download.
         $stmt = $this->db->prepare("
             SELECT conference_map
             FROM qwk_download_log
@@ -564,15 +574,31 @@ class RepProcessor
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$row || empty($row['conference_map'])) {
-            return null;
+            return [null, []];
         }
 
-        $map = json_decode($row['conference_map'], true);
-        if (!is_array($map)) {
-            return null;
+        $conferenceMap = json_decode($row['conference_map'], true);
+        if (!is_array($conferenceMap)) {
+            return [null, []];
         }
 
-        return $map;
+        // Message index — single table, always current for this user.
+        $stmt = $this->db->prepare("
+            SELECT qwk_msg_num, type, db_id, from_address
+            FROM qwk_message_index
+            WHERE user_id = ?
+        ");
+        $stmt->execute([$userId]);
+        $messageIndex = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $messageIndex[(int)$r['qwk_msg_num']] = [
+                'type'         => $r['type'],
+                'db_id'        => (int)$r['db_id'],
+                'from_address' => $r['from_address'],
+            ];
+        }
+
+        return [$conferenceMap, $messageIndex];
     }
 
     // -------------------------------------------------------------------------

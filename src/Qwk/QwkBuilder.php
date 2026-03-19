@@ -77,23 +77,35 @@ class QwkBuilder
      *
      * @throws \RuntimeException on failure to build or write the packet.
      */
-    public function buildPacket(int $userId, bool $qwke = false): string
+    /** Maximum messages fetchable in a single download regardless of $limit. */
+    public const MAX_MESSAGES_HARD_CAP = 10000;
+
+    /**
+     * Build a complete QWK packet for the given user.
+     *
+     * @param int  $limit  Maximum messages to include across all conferences.
+     *                     Capped server-side at MAX_MESSAGES_HARD_CAP.
+     *                     0 means "use the configured default".
+     */
+    public function buildPacket(int $userId, bool $qwke = false, int $limit = 0): string
     {
         $user = $this->getUserById($userId);
         if (!$user) {
             throw new \RuntimeException('User not found.');
         }
 
-        $maxMessages = (int)(BbsConfig::getConfig()['qwk']['max_messages_per_download'] ?? 500);
-        $conferences = $this->buildConferenceList($userId);
+        $configDefault = (int)(BbsConfig::getConfig()['qwk']['max_messages_per_download'] ?? 2500);
+        $maxMessages   = $limit > 0 ? $limit : $configDefault;
+        $maxMessages   = min($maxMessages, self::MAX_MESSAGES_HARD_CAP);
+        $conferences   = $this->buildConferenceList($userId);
 
         // Fetch new messages per conference, respecting the per-download limit.
         [$conferenceMessages, $lastIds] = $this->fetchConferenceMessages($userId, $conferences, $maxMessages);
 
         // Build in-memory file contents.
-        $controlDat  = $this->buildControlDat($user, $conferences, $conferenceMessages);
-        $doorId      = $this->buildDoorId($qwke);
-        $messagesDat = $this->buildMessagesDat($conferences, $conferenceMessages, $qwke);
+        $controlDat              = $this->buildControlDat($user, $conferences, $conferenceMessages);
+        $doorId                  = $this->buildDoorId($qwke);
+        [$messagesDat, $messageMap] = $this->buildMessagesDat($conferences, $conferenceMessages, $qwke);
 
         // Write to a temp ZIP.
         $bbsId    = $this->getBbsId();
@@ -117,6 +129,7 @@ class QwkBuilder
 
         $conferenceMap = $this->buildConferenceMapJson($conferences);
         $this->persistDownloadLog($userId, $totalMessages, filesize($zipPath), $conferenceMap);
+        $this->persistMessageIndex($userId, $messageMap);
         $this->updateConferenceStateWithList($userId, $conferences, $lastIds);
 
         return $zipPath;
@@ -293,7 +306,19 @@ class QwkBuilder
      * Block 0 is the reserved header block.  Subsequent blocks contain
      * the encoded messages in conference order.
      */
-    private function buildMessagesDat(array $conferences, array $conferenceMessages, bool $qwke): string
+    /**
+     * Build the MESSAGES.DAT binary content.
+     *
+     * Block 0 is the reserved header block.  Subsequent blocks contain
+     * the encoded messages in conference order.
+     *
+     * Returns [string $dat, array $messageMap] where $messageMap is keyed by
+     * the 1-based logical QWK message number and each value contains:
+     *   'type'         => 'netmail'|'echomail'
+     *   'id'           => (int) database primary key
+     *   'from_address' => (string|null) FTN address of the original sender
+     */
+    private function buildMessagesDat(array $conferences, array $conferenceMessages, bool $qwke): array
     {
         // Block 0: reserved header.
         $header = str_pad('Produced by BinktermPHP v' . Version::getVersion(), self::BLOCK_SIZE, "\x00");
@@ -301,18 +326,26 @@ class QwkBuilder
 
         // Global logical message counter (1-based, sequential across all conferences).
         $logicalNumber = 1;
+        $messageMap    = [];
 
         foreach ($conferences as $conf) {
             $confNumber = $conf['number'];
             $messages   = $conferenceMessages[$confNumber] ?? [];
 
             foreach ($messages as $msg) {
-                $data         .= $this->encodeMessage($msg, $confNumber, $logicalNumber, ' ', $qwke);
+                $data .= $this->encodeMessage($msg, $confNumber, $logicalNumber, ' ', $qwke);
+
+                $messageMap[$logicalNumber] = [
+                    'type'         => !empty($msg['_is_netmail']) ? 'netmail' : 'echomail',
+                    'id'           => (int)($msg['id'] ?? 0),
+                    'from_address' => $msg['from_address'] ?? null,
+                ];
+
                 $logicalNumber++;
             }
         }
 
-        return $data;
+        return [$data, $messageMap];
     }
 
     /**
@@ -713,8 +746,12 @@ class QwkBuilder
         return json_encode($map, JSON_UNESCAPED_UNICODE);
     }
 
-    private function persistDownloadLog(int $userId, int $messageCount, int $packetSize, string $conferenceMap): void
-    {
+    private function persistDownloadLog(
+        int    $userId,
+        int    $messageCount,
+        int    $packetSize,
+        string $conferenceMap
+    ): void {
         $stmt = $this->db->prepare("
             INSERT INTO qwk_download_log (user_id, downloaded_at, message_count, packet_size, conference_map)
             VALUES (:user_id, NOW(), :message_count, :packet_size, :conference_map::jsonb)
@@ -725,6 +762,38 @@ class QwkBuilder
             ':packet_size'    => $packetSize,
             ':conference_map' => $conferenceMap,
         ]);
+    }
+
+    /**
+     * Replace the per-user message index with the entries from the current
+     * download.  Keyed by 1-based QWK logical message number.
+     *
+     * @param array $messageMap  [qwk_msg_num => ['type', 'id', 'from_address']]
+     */
+    private function persistMessageIndex(int $userId, array $messageMap): void
+    {
+        $this->db->prepare(
+            "DELETE FROM qwk_message_index WHERE user_id = ?"
+        )->execute([$userId]);
+
+        if (empty($messageMap)) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO qwk_message_index (user_id, qwk_msg_num, type, db_id, from_address)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
+        foreach ($messageMap as $num => $entry) {
+            $stmt->execute([
+                $userId,
+                (int)$num,
+                $entry['type'],
+                $entry['id'],
+                $entry['from_address'] ?? null,
+            ]);
+        }
     }
 
     // -------------------------------------------------------------------------

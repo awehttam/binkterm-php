@@ -34,7 +34,7 @@
                     <strong>subscribed echo areas</strong>.
                 </p>
 
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label fw-semibold">Packet format</label>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="qwkFormat" id="fmtQwk" value="qwk">
@@ -50,15 +50,31 @@
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-3">
-                    <a id="downloadBtn"
-                       href="/api/qwk/download?format=qwk"
-                       class="btn btn-fidonet btn-lg">
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Messages per download</label>
+                    <select class="form-select form-select-sm w-auto" id="qwkLimit">
+                        <option value="500">500</option>
+                        <option value="2500">2,500</option>
+                        <option value="5000">5,000</option>
+                        <option value="10000">10,000 (max)</option>
+                    </select>
+                </div>
+
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <button id="downloadBtn"
+                            class="btn btn-fidonet btn-lg"
+                            onclick="doDownload()">
                         <i class="fas fa-download me-2"></i>Download <span id="bbsIdLabel"></span>.QWK
-                    </a>
+                    </button>
                     <span class="text-muted small" id="lastDownloadLabel">
                         <i class="fas fa-clock me-1"></i>Checking last download…
                     </span>
+                </div>
+
+                <div class="alert alert-info mt-3 d-none" id="pendingNotice">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="pendingNoticeText"></span>
+                    Download again to get the next batch.
                 </div>
             </div>
         </div>
@@ -203,6 +219,15 @@ async function loadStatus() {
         if (radio) radio.checked = true;
         updateDownloadHref(fmt);
 
+        // Limit preference.
+        const limitEl = document.getElementById('qwkLimit');
+        if (limitEl && data.limit) {
+            // Select the closest option that is <= saved limit.
+            const opts = Array.from(limitEl.options).map(o => parseInt(o.value));
+            const best = opts.filter(v => v <= data.limit).pop() || opts[0];
+            limitEl.value = String(best);
+        }
+
         // Last download.
         if (data.last_download) {
             const dt = new Date(data.last_download + 'Z');
@@ -217,7 +242,7 @@ async function loadStatus() {
         const conferences = data.conferences ?? [];
         if (conferences.length === 0) {
             listEl.innerHTML = '<div class="p-3 text-muted">No conferences available. Subscribe to echo areas first.</div>';
-            return;
+            return data;
         }
 
         let html = '<table class="table table-sm table-hover mb-0">'
@@ -235,6 +260,8 @@ async function loadStatus() {
         }
         html += '</tbody></table>';
         listEl.innerHTML = html;
+
+        return data;
 
     } catch (err) {
         listEl.innerHTML = '<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load status: ' + escapeHtml(err.message) + '</div>';
@@ -312,9 +339,68 @@ function initUploadForm() {
     });
 }
 
+let currentDownloadFormat = 'qwk';
+
 function updateDownloadHref(format) {
-    const btn = document.getElementById('downloadBtn');
-    if (btn) btn.href = '/api/qwk/download?format=' + encodeURIComponent(format);
+    currentDownloadFormat = format;
+}
+
+async function doDownload() {
+    const btn     = document.getElementById('downloadBtn');
+    const origHtml = btn.innerHTML;
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building packet…';
+    document.getElementById('pendingNotice')?.classList.add('d-none');
+
+    const limit = document.getElementById('qwkLimit')?.value ?? '2500';
+    const params = new URLSearchParams({
+        format: currentDownloadFormat,
+        limit:  limit,
+    });
+
+    try {
+        const resp = await fetch('/api/qwk/download?' + params.toString());
+        if (!resp.ok) {
+            throw new Error('Server error ' + resp.status);
+        }
+
+        // Derive filename from Content-Disposition or fall back to format-based default.
+        let filename = currentDownloadFormat === 'qwke' ? 'mail.qwk' : 'mail.qwk';
+        const disposition = resp.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename[^;=\n]*=(['"]?)([^'";\n]+)\1/i);
+        if (match) filename = match[2].trim();
+
+        const blob = await resp.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Refresh conferences now that a download has been recorded.
+        loadStatus().then(statusData => {
+            const pending       = statusData?.total_new_messages ?? 0;
+            const noticeEl      = document.getElementById('pendingNotice');
+            const noticeTextEl  = document.getElementById('pendingNoticeText');
+            if (noticeEl && noticeTextEl) {
+                if (pending > 0) {
+                    noticeTextEl.textContent = pending.toLocaleString()
+                        + ' message' + (pending !== 1 ? 's' : '') + ' still pending.';
+                    noticeEl.classList.remove('d-none');
+                } else {
+                    noticeEl.classList.add('d-none');
+                }
+            }
+        });
+    } catch (err) {
+        alert('Download failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
 }
 
 function initFormatRadios() {

@@ -83,6 +83,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Shared File Preview for Unauthenticated Visitors](#shared-file-preview-for-unauthenticated-visitors)
 - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
 - [Admin Menu Reorganization](#admin-menu-reorganization)
+- [QWK/QWKE Offline Mail](#qwkqwke-offline-mail)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -115,6 +116,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 **Echomail / Netmail**
 - Last-visited page is remembered per echo area (including All Messages) and
   for the netmail inbox, and restored automatically on return.
+- New **QWK/QWKE offline mail** feature: download a QWK packet of all new
+  netmail and echomail, read and reply offline, then upload the resulting REP
+  packet to post replies. Supports both standard QWK (MultiMail, OLX, etc.)
+  and QWKE extended format with full FidoNet metadata.
 
 **Echomail**
 - An info bar now appears above the message list when an echo area is selected,
@@ -1739,6 +1744,51 @@ BinkP poll sessions now terminate immediately once both sides have exchanged
 seconds for a same-session response file that never materialises in practice —
 response packets (e.g. areafix replies) always arrive in a subsequent poll.
 This change removes the unnecessary wait from every outbound poll.
+
+## QWK/QWKE Offline Mail
+
+BinktermPHP now supports **QWK offline mail** — the classic BBS offline mail
+exchange format popular since 1987. Users can download a QWK packet containing
+all new messages from their personal mail (netmail) and every subscribed echo
+area, take it offline to read and reply in a local mail reader, then upload the
+resulting REP reply packet to post their replies.
+
+### Supported Formats
+
+| Format | Description |
+|--------|-------------|
+| **QWK** | Standard QWK format; compatible with most offline readers (MultiMail, OLX, Yarn, etc.) |
+| **QWKE** | QWK Extended; backward-compatible with QWK readers, adds full FidoNet metadata (MSGID, REPLY, address kludges) for readers that support threading and netmail addressing (MultiMail, NeoQWK, Synchronet, etc.) |
+
+### How to Use
+
+1. Navigate to **QWK Offline Mail** in the web interface sidebar.
+2. Select your preferred format (QWK or QWKE).
+3. Click **Download .QWK** — the packet is built on demand and downloads
+   immediately. The conference list on the right refreshes after each download
+   to show how many new messages remain.
+4. Open the packet in your offline reader, read messages, and compose replies.
+5. Export the reply packet (`.REP` or `.ZIP`) from your reader.
+6. Return to the **QWK Offline Mail** page and upload the REP packet.
+   Replies are posted to the appropriate echo areas and your outbound netmail
+   queue automatically.
+
+### Database Migration
+
+Migration `v1.11.0.34_qwk_support.sql` creates two new tables:
+
+- **`qwk_conference_state`** — tracks the highest message ID seen per user per
+  conference so successive downloads include only new messages.
+- **`qwk_download_log`** — records every download with a conference-number map
+  used to reverse-map conference numbers when a REP upload arrives.
+
+This migration is applied automatically by `php scripts/setup.php`.
+
+### Recommended Readers
+
+- **MultiMail** (cross-platform, Windows/Linux/macOS) — full QWK and QWKE support
+- **OLX** / **Yarn** — good QWK compatibility
+- **NeoQWK** / **Synchronet** — recommended for QWKE extended format
 
 ## Upgrade Instructions
 
