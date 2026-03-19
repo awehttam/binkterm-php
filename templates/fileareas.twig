@@ -31,6 +31,9 @@
                         <label class="btn btn-outline-secondary" for="inactive">{{ t('ui.common.inactive', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
+                <input type="text" class="form-control form-control-sm mt-2" id="fileareaSearch"
+                       placeholder="{{ t('ui.common.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchFileareas(this.value)">
+                <div class="mt-2" id="fileareaDomainFilters"></div>
             </div>
             <div class="card-body p-0">
                 <div id="fileareasContainer">
@@ -375,6 +378,11 @@
 {% block scripts %}
 <script>
 let currentFileareaId = null;
+let currentFilter = 'active';
+let allFileareas = [];
+let searchQuery = '';
+let selectedDomains = [];
+let availableDomains = [];
 let pendingFileareaTag = null;
 let pendingFileareaDomain = null;
 
@@ -403,6 +411,7 @@ $(document).ready(function() {
     });
 
     $('input[name="filter"]').change(function() {
+        currentFilter = $(this).val();
         loadFileareas();
     });
 
@@ -414,17 +423,109 @@ $(document).ready(function() {
 function loadFileareas() {
     $('#fileareasContainer').html(`<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}</div>`);
 
-    let filter = $('input[name="filter"]:checked').val();
-    let url = '/api/fileareas?filter=' + filter;
+    let url = '/api/fileareas?filter=' + currentFilter;
 
     $.get(url)
         .done(function(data) {
-            displayFileareas(data.fileareas);
-            openPendingFileareaFromUrl(data.fileareas || []);
+            allFileareas = data.fileareas || [];
+            updateAvailableDomains();
+            renderDomainFilters();
+            applySearchFilter();
+            openPendingFileareaFromUrl(allFileareas);
         })
         .fail(function() {
             $('#fileareasContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.fileareas.load_failed', 'Failed to load file areas')}</div>`);
         });
+}
+
+function searchFileareas(query) {
+    searchQuery = query.toLowerCase();
+    applySearchFilter();
+}
+
+function updateAvailableDomains() {
+    const domains = new Set();
+    allFileareas.forEach(function(area) {
+        const domain = String(area.domain || '').trim().toLowerCase();
+        domains.add(domain);
+    });
+    availableDomains = Array.from(domains).sort();
+    selectedDomains = selectedDomains.filter(function(domain) {
+        return availableDomains.includes(domain);
+    });
+}
+
+function renderDomainFilters() {
+    const $container = $('#fileareaDomainFilters');
+    if (!availableDomains.length) {
+        $container.empty();
+        return;
+    }
+
+    let html = `<div class="small text-muted mb-1">${uiT('ui.common.domain', 'Domain')}</div>`;
+    html += '<div class="d-flex flex-wrap gap-2">';
+    html += `<button type="button" class="btn btn-sm ${selectedDomains.length === 0 ? 'btn-primary' : 'btn-outline-secondary'}" onclick="clearDomainFilters()">${uiT('ui.common.all', 'All')}</button>`;
+
+    availableDomains.forEach(function(domain) {
+        const selected = selectedDomains.includes(domain);
+        const label = domain === '' ? uiT('ui.fileareas.local', 'Local') : domain;
+        html += `<button type="button" class="btn btn-sm ${selected ? 'btn-primary' : 'btn-outline-secondary'}" onclick="toggleDomainFilter('${escapeJsString(domain)}')">${escapeHtml(label)}</button>`;
+    });
+
+    html += '</div>';
+    $container.html(html);
+}
+
+function toggleDomainFilter(domain) {
+    if (selectedDomains.includes(domain)) {
+        selectedDomains = selectedDomains.filter(function(value) { return value !== domain; });
+    } else {
+        selectedDomains.push(domain);
+        selectedDomains.sort();
+    }
+    renderDomainFilters();
+    applySearchFilter();
+}
+
+function clearDomainFilters() {
+    selectedDomains = [];
+    renderDomainFilters();
+    applySearchFilter();
+}
+
+function escapeJsString(value) {
+    return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/</g, '\\x3C')
+        .replace(/>/g, '\\x3E');
+}
+
+function applySearchFilter() {
+    let filtered = allFileareas;
+
+    if (selectedDomains.length > 0) {
+        filtered = filtered.filter(function(area) {
+            const domain = String(area.domain || '').trim().toLowerCase();
+            return selectedDomains.includes(domain);
+        });
+    }
+
+    if (searchQuery.length > 0) {
+        filtered = filtered.filter(function(area) {
+            const tag = String(area.tag || '').toLowerCase();
+            const domain = String(area.domain || '').toLowerCase();
+            const description = String(area.description || '').toLowerCase();
+            return tag.includes(searchQuery)
+                || domain.includes(searchQuery)
+                || description.includes(searchQuery);
+        });
+    }
+
+    displayFileareas(filtered);
 }
 
 function openPendingFileareaFromUrl(fileareas) {
