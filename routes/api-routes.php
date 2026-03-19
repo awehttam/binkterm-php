@@ -2818,11 +2818,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if ($ext === 'rip') {
             $content = (string)file_get_contents($storagePath);
-            header('Content-Type: text/plain; charset=utf-8');
+            $html = \BinktermPHP\RipScriptRenderer::fromString($content)->getHTML();
+            header('Content-Type: text/html; charset=utf-8');
             header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, max-age=3600');
-            echo $content;
+            echo $html;
             exit;
         }
 
@@ -3556,13 +3557,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $safe      = addslashes($entryName);
         $encoded   = rawurlencode($entryName);
 
-        // RIPscrip — render server-side to SVG
+        // RIPscrip — render server-side to HTML/SVG wrapper
         if ($ext === 'rip') {
-            header('Content-Type: text/plain; charset=utf-8');
+            $html = \BinktermPHP\RipScriptRenderer::fromString($content)->getHTML();
+            header('Content-Type: text/html; charset=utf-8');
             header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, max-age=3600');
-            echo $content;
+            echo $html;
             return;
         }
 

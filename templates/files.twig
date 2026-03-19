@@ -425,7 +425,7 @@
 
 <!-- Upload File Modal -->
 <div class="modal fade" id="uploadFileModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">{{ t('ui.files.upload_file', {}, 'common') }}</h5>
@@ -435,14 +435,30 @@
                 <form id="uploadFileForm" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="uploadFile" class="form-label">{{ t('ui.files.select_file_required', {}, 'common') }}</label>
-                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required multiple>
                         <div class="form-text">{{ t('ui.files.maximum_file_size', {}, 'common') }}: <span id="maxFileSize">10 MB</span></div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3" id="uploadDescriptionGroup">
                         <label for="uploadDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
                         <div class="form-text">{{ t('ui.files.short_description_help', {}, 'common') }}</div>
+                    </div>
+
+                    <div class="mb-3 d-none" id="uploadBatchDescriptionsGroup">
+                        <label class="form-label">{{ t('ui.files.upload_descriptions', {}, 'common') }}</label>
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>{{ t('ui.common.filename') }}</th>
+                                        <th>{{ t('ui.files.short_description_required', {}, 'common') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uploadBatchDescriptionsBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="form-text">{{ t('ui.files.upload_descriptions_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
@@ -1439,41 +1455,86 @@ function showUploadModal() {
     }
 
     $('#uploadFileForm')[0].reset();
+    resetUploadDescriptions();
     $('#uploadProgress').hide();
     $('#uploadProgress .progress-bar').css('width', '0%');
     $('#uploadErrorBox').addClass('d-none').text('');
     new bootstrap.Modal('#uploadFileModal').show();
 }
 
-function uploadFile() {
-    if (!currentAreaId) {
-        showError(uiT('ui.files.select_area_first', 'Please select a file area first'));
+function escapeAttribute(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+}
+
+function resetUploadDescriptions() {
+    $('#uploadDescriptionGroup').removeClass('d-none');
+    $('#uploadDescription').prop('required', true).val('');
+    $('#uploadBatchDescriptionsGroup').addClass('d-none');
+    $('#uploadBatchDescriptionsBody').empty();
+}
+
+function rebuildUploadDescriptions() {
+    const files = Array.from($('#uploadFile')[0]?.files || []);
+
+    if (files.length <= 1) {
+        $('#uploadBatchDescriptionsGroup').addClass('d-none');
+        $('#uploadBatchDescriptionsBody').empty();
+        $('#uploadDescriptionGroup').removeClass('d-none');
+        $('#uploadDescription').prop('required', true);
+        if (files.length === 1 && !$('#uploadDescription').val().trim()) {
+            $('#uploadDescription').val(files[0].name);
+        }
         return;
     }
 
-    const form = $('#uploadFileForm')[0];
-    $('#uploadErrorBox').addClass('d-none').text('');
-    if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
+    $('#uploadDescriptionGroup').addClass('d-none');
+    $('#uploadDescription').prop('required', false);
+    $('#uploadBatchDescriptionsGroup').removeClass('d-none');
+
+    const rows = files.map((file, index) => `
+        <tr>
+            <td class="font-monospace small">${escapeHtml(file.name)}</td>
+            <td>
+                <input
+                    type="text"
+                    class="form-control form-control-sm upload-batch-description"
+                    data-index="${index}"
+                    maxlength="255"
+                    value="${escapeAttribute(file.name)}"
+                    required
+                >
+            </td>
+        </tr>
+    `).join('');
+
+    $('#uploadBatchDescriptionsBody').html(rows);
+}
+
+function collectUploadEntries() {
+    const files = Array.from($('#uploadFile')[0]?.files || []);
+    if (!files.length) {
+        return [];
     }
 
-    const fileInput = $('#uploadFile')[0];
-    const file = fileInput.files[0];
-    if (!file) {
-        showError(uiT('ui.files.select_file_prompt', 'Please select a file'));
-        return;
+    if (files.length === 1) {
+        return [{
+            file: files[0],
+            shortDescription: $('#uploadDescription').val().trim()
+        }];
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('file_area_id', currentAreaId);
-    formData.append('short_description', $('#uploadDescription').val());
-    formData.append('long_description', $('#uploadLongDescription').val());
+    return files.map((file, index) => ({
+        file,
+        shortDescription: ($(`.upload-batch-description[data-index="${index}"]`).val() || '').trim()
+    }));
+}
 
-    $('#uploadProgress').show();
-
-    $.ajax({
+function uploadSingleFile(formData, totalFiles, fileIndex) {
+    return $.ajax({
         url: '/api/files/upload',
         method: 'POST',
         data: formData,
@@ -1483,26 +1544,80 @@ function uploadFile() {
             const xhr = new window.XMLHttpRequest();
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    $('#uploadProgress .progress-bar').css('width', percentComplete + '%');
+                    const overallPercent = ((fileIndex + (e.loaded / e.total)) / totalFiles) * 100;
+                    $('#uploadProgress .progress-bar').css('width', overallPercent + '%');
                 }
             }, false);
             return xhr;
-        },
-        success: function(response) {
-            bootstrap.Modal.getInstance('#uploadFileModal').hide();
-            $('#uploadErrorBox').addClass('d-none').text('');
-            showSuccess(apiMessage(response, uiT('ui.api.files.uploaded', 'File uploaded successfully')));
-            loadFiles(currentAreaId);
-            loadStats();
-        },
-        error: function(xhr) {
-            const error = apiError(xhr.responseJSON, uiT('errors.files.upload.failed', 'Failed to upload file'));
-            $('#uploadErrorBox').removeClass('d-none').text(error);
-            $('#uploadProgress').hide();
         }
     });
 }
+
+async function uploadFile() {
+    if (!currentAreaId) {
+        showError(uiT('ui.files.select_area_first', 'Please select a file area first'));
+        return;
+    }
+
+    $('#uploadErrorBox').addClass('d-none').text('');
+    const entries = collectUploadEntries();
+    if (!entries.length) {
+        showError(uiT('ui.files.select_file_prompt', 'Please select a file'));
+        return;
+    }
+
+    const missingDescription = entries.find(entry => !entry.shortDescription);
+    if (missingDescription) {
+        $('#uploadErrorBox').removeClass('d-none').text(uiT('errors.files.upload.short_description_required', 'Short description is required'));
+        return;
+    }
+
+    $('#uploadProgress').show();
+    $('#uploadProgress .progress-bar').css('width', '0%');
+
+    const sharedLongDescription = $('#uploadLongDescription').val();
+    let uploadedCount = 0;
+
+    try {
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const formData = new FormData();
+            formData.append('file', entry.file);
+            formData.append('file_area_id', currentAreaId);
+            formData.append('short_description', entry.shortDescription);
+            formData.append('long_description', sharedLongDescription);
+
+            await uploadSingleFile(formData, entries.length, i);
+            uploadedCount++;
+            $('#uploadProgress .progress-bar').css('width', ((uploadedCount / entries.length) * 100) + '%');
+        }
+
+        bootstrap.Modal.getInstance('#uploadFileModal').hide();
+        $('#uploadErrorBox').addClass('d-none').text('');
+        if (uploadedCount === 1) {
+            showSuccess(uiT('ui.files.upload_success', 'File uploaded successfully'));
+        } else {
+            showSuccess(uiT('ui.files.upload_success_multiple', '{count} files uploaded successfully').replace('{count}', uploadedCount));
+        }
+        loadFiles(currentAreaId);
+        loadStats();
+    } catch (xhr) {
+        const error = apiError(xhr.responseJSON, uiT('errors.files.upload.failed', 'Failed to upload file'));
+        const message = uploadedCount > 0
+            ? uiT('ui.files.upload_partial_failure', 'Upload stopped after {count} file(s): {error}')
+                .replace('{count}', uploadedCount)
+                .replace('{error}', error)
+            : error;
+        $('#uploadErrorBox').removeClass('d-none').text(message);
+        $('#uploadProgress').hide();
+        if (uploadedCount > 0) {
+            loadFiles(currentAreaId);
+            loadStats();
+        }
+    }
+}
+
+$('#uploadFile').on('change', rebuildUploadDescriptions);
 
 function requestVirusScan() {
     const fileId = $('#virusScanBtn').data('file-id');

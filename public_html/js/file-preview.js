@@ -267,7 +267,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             });
 
     } else if (type === 'rip') {
-        renderRipPreview(body, previewUrl, filename);
+        renderRipPreview(body, previewUrl);
 
     } else if (filename.toLowerCase().endsWith('.zip')) {
         body.css('background', '').html(
@@ -502,49 +502,18 @@ function loadRiptermJs() {
     return _riptermLoaderPromise;
 }
 
-function renderRipPreview(container, ripUrl, label) {
-    const canvasId = `ripCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function renderRipPreview(container, ripUrl) {
+    container.css('background', '').html(
+        `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+    );
 
-    container.css('background', '#0a0a0a').html(`
-        <div class="text-center py-4 text-muted" data-rip-loading>
-            <i class="fas fa-spinner fa-spin fa-2x"></i>
-        </div>
-        <div class="d-none" data-rip-stage style="overflow:auto;max-height:78vh;padding:8px;text-align:center;">
-            <canvas id="${canvasId}" width="640" height="350"
-                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
-        </div>
-        <div class="small text-muted text-center px-3 pb-3 d-none" data-rip-label>${escapeHtml(label)}</div>
-    `);
-
-    loadRiptermJs()
-        .then(() => fetch(ripUrl, { credentials: 'same-origin' }))
+    fetch(ripUrl, { credentials: 'same-origin' })
         .then(r => {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.text();
         })
-        .then(async (ripText) => {
-            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
-            const ripterm = new window.RIPterm({
-                canvasId: canvasId,
-                timeInterval: 0,
-                refreshInterval: 25,
-                fontsPath: '/vendor/riptermjs/fonts',
-                iconsPath: '/vendor/riptermjs/icons',
-                logQuiet: true
-            });
-
-            await ripterm.initFonts();
-            ripterm.reset();
-            try {
-                await ripterm.openURL(blobUrl);
-                await ripterm.play();
-            } finally {
-                URL.revokeObjectURL(blobUrl);
-            }
-
-            container.find('[data-rip-loading]').remove();
-            container.find('[data-rip-stage]').removeClass('d-none');
-            container.find('[data-rip-label]').removeClass('d-none');
+        .then(html => {
+            container.html(`<div class="p-3 text-start" style="max-height:75vh;overflow:auto;">${html}</div>`);
         })
         .catch((err) => {
             console.error('RIP preview failed:', err);
