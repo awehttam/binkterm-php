@@ -372,4 +372,130 @@ return [
     'errors.admin.i18n_overrides.missing_params' => 'Le paramètre régional et le nom du catalogue sont requis',
     'errors.admin.i18n_overrides.load_failed' => 'Échec du chargement du catalogue',
     'errors.admin.i18n_overrides.save_failed' => 'Échec de l\'enregistrement des substitutions',
+
+    // Ad Campaigns
+    'errors.admin.ad_campaigns.create_failed' => 'Échec de la création de la campagne publicitaire',
+    'errors.admin.ad_campaigns.delete_failed' => 'Échec de la suppression de la campagne publicitaire',
+    'errors.admin.ad_campaigns.invalid_payload' => 'Charge utile de campagne publicitaire invalide',
+    'errors.admin.ad_campaigns.list_failed' => 'Échec du chargement des campagnes publicitaires',
+    'errors.admin.ad_campaigns.load_one_failed' => 'Échec du chargement de la campagne publicitaire',
+    'errors.admin.ad_campaigns.log_failed' => 'Échec du chargement du journal de la campagne publicitaire',
+    'errors.admin.ad_campaigns.meta_failed' => 'Échec du chargement des métadonnées de la campagne publicitaire',
+    'errors.admin.ad_campaigns.not_found' => 'Campagne publicitaire introuvable',
+    'errors.admin.ad_campaigns.run_failed' => 'Échec de l\'exécution de la campagne publicitaire',
+    'errors.admin.ad_campaigns.save_failed' => 'Échec de l\'enregistrement de la campagne publicitaire',
+
+    // Advertisements
+    'errors.admin.ads.invalid_payload' => 'Charge utile d\'annonce invalide',
+    'errors.admin.ads.load_one_failed' => 'Échec du chargement de l\'annonce',
+    'errors.admin.ads.not_found' => 'Annonce introuvable',
+    'errors.admin.ads.save_failed' => 'Échec de l\'enregistrement de l\'annonce',
+
+    // Appearance - Splash
+    'errors.admin.appearance.splash.license_required' => 'Une licence valide est requise pour configurer les pages d\'accueil',
+    'errors.admin.appearance.splash.save_failed' => 'Échec de l\'enregistrement des paramètres de page d\'accueil',
+
+    // BBS Directory
+    'errors.admin.bbs_directory.duplicate_name' => 'Un BBS portant ce nom existe déjà',
+    'errors.admin.bbs_directory.invalid_processor_type' => 'Type de processeur inconnu ou non pris en charge',
+    'errors.admin.bbs_directory.merge_failed' => 'Échec de la fusion',
+    'errors.admin.bbs_directory.merge_missing_discard' => 'discard_id est requis',
+    'errors.admin.bbs_directory.name_required' => 'Le nom du BBS est requis',
+    'errors.admin.bbs_directory.not_found' => 'Entrée du répertoire BBS introuvable',
+    'errors.admin.bbs_directory.robot_not_found' => 'Règle de robot introuvable',
+    'errors.admin.bbs_directory.robot_required_fields' => 'Le nom, la zone echo et le type de processeur sont requis',
+    'errors.admin.bbs_directory.run_failed' => 'Échec de l\'exécution du robot',
+
+    // Echomail Robots
+    'errors.admin.echomail_robots.invalid_config_json' => 'La configuration du processeur n\'est pas du JSON valide',
+
+    // LovlyNet
+    'errors.admin.lovlynet.filearea_files_failed' => 'Échec du chargement des fichiers de la zone de fichiers',
+    'errors.admin.lovlynet.hatch_failed' => 'Échec du Hatch du fichier',
+    'errors.admin.lovlynet.help_fetch_failed' => 'Échec du chargement du texte d\'aide',
+    'errors.admin.lovlynet.invalid_area_type' => 'Type de zone invalide',
+    'errors.admin.lovlynet.invalid_file_id' => 'Identifiant de fichier invalide',
+    'errors.admin.lovlynet.invalid_json' => 'Charge utile de demande invalide',
+    'errors.admin.lovlynet.not_configured' => 'LovlyNet n\'est pas configuré',
+    'errors.admin.lovlynet.request_config_missing' => 'Les paramètres de demande LovlyNet sont incomplets',
+    'errors.admin.lovlynet.request_message_required' => 'Le message de demande est requis',
+    'errors.admin.lovlynet.request_send_failed' => 'Échec de l\'envoi du netmail de demande',
+
+    // BBS Directory (user-facing)
+    'errors.bbs_directory.duplicate_name' => 'Un BBS portant ce nom existe déjà',
+    'errors.bbs_directory.name_required' => 'Le nom du BBS est requis',
+    'errors.bbs_directory.submit_failed' => 'Échec de la soumission. Veuillez réessayer.',
+
+    // BinkP - Kept Packets
+    'errors.binkp.kept_packets.failed' => 'Échec du chargement des paquets conservés',
+    'errors.binkp.kept_packets.inspect_failed' => 'Échec de l\'inspection du paquet',
+    'errors.binkp.kept_packets.invalid_type' => 'Le type doit être inbound ou outbound',
+    'errors.binkp.kept_packets.license_required' => 'La consultation des paquets conservés nécessite une licence enregistrée',
+
+    // BinkP - Logs
+    'errors.binkp.logs.search_failed' => 'Échec de la recherche dans les journaux',
+    'errors.binkp.logs.search_query_too_short' => 'La requête de recherche doit comporter au moins 2 caractères',
+
+    // Economy
+    'errors.economy.not_licensed' => 'Le visualiseur d\'économie nécessite une licence enregistrée',
+
+    // File Areas
+    'errors.fileareas.comment_area_failed' => 'Échec de la création ou de la liaison de la zone de commentaires',
+    'errors.fileareas.reindex_failed' => 'Échec du démarrage de la réindexation ISO',
+
+    // Files
+    'errors.files.comment_body_required' => 'Le corps du commentaire est requis',
+    'errors.files.comment_post_failed' => 'Échec de la publication du commentaire',
+    'errors.files.comments_forbidden' => 'Vous n\'avez pas la permission de commenter ici',
+    'errors.files.comments_not_enabled' => 'Les commentaires ne sont pas activés pour cette zone de fichiers',
+    'errors.files.edit_failed' => 'Échec de la mise à jour du fichier',
+    'errors.files.edit_forbidden' => 'Vous n\'avez pas la permission de modifier ce fichier',
+    'errors.files.invalid_reply_target' => 'Cible de réponse invalide',
+    'errors.files.invalid_scan_status' => 'Valeur de statut d\'analyse invalide',
+    'errors.files.iso_not_mounted' => 'La zone de fichiers n\'est pas montée',
+    'errors.files.iso_readonly' => 'Les fichiers basés sur ISO ne peuvent pas être modifiés',
+    'errors.files.move_conflict' => 'Un fichier portant ce nom existe déjà dans la zone cible',
+    'errors.files.move_failed' => 'Échec du déplacement du fichier',
+    'errors.files.move_forbidden' => 'Seuls les administrateurs peuvent déplacer des fichiers entre les zones',
+    'errors.files.rehatch_failed' => 'Échec du Rehatch',
+    'errors.files.rehatch_local' => 'Impossible de re-hatcher un fichier dans une zone locale uniquement',
+    'errors.files.rehatch_private' => 'Impossible de re-hatcher un fichier dans une zone privée',
+    'errors.files.short_description_required' => 'Une description courte est requise',
+
+    // Messages - Echomail
+    'errors.messages.echomail.edit.admin_required' => 'Des privilèges administrateur sont requis',
+    'errors.messages.echomail.edit.invalid_art_format' => 'Valeur de format artistique invalide',
+    'errors.messages.echomail.edit.nothing_to_update' => 'Aucun champ à mettre à jour',
+    'errors.messages.echomail.edit.save_failed' => 'Échec de l\'enregistrement des modifications',
+    'errors.messages.echomail.save_ad.admin_required' => 'Des privilèges administrateur sont requis',
+    'errors.messages.echomail.save_ad.failed' => 'Échec de l\'enregistrement du message dans la bibliothèque d\'annonces',
+    'errors.messages.echomail.save_ad.not_ansi' => 'Seuls les messages echomail ANSI peuvent être enregistrés dans la bibliothèque d\'annonces',
+
+    // Messages - Netmail
+    'errors.messages.netmail.edit.forbidden' => 'Vous n\'avez pas la permission de modifier ce message',
+
+    // Messages - Templates
+    'errors.messages.templates.name_required' => 'Le nom du modèle est requis',
+    'errors.messages.templates.name_too_long' => 'Le nom du modèle ne doit pas dépasser 100 caractères',
+    'errors.messages.templates.not_found' => 'Modèle introuvable',
+    'errors.messages.templates.not_licensed' => 'Les modèles de messages nécessitent une licence enregistrée',
+
+    // QWK
+    'errors.qwk.disabled' => 'Le courrier hors ligne QWK n\'est pas activé sur ce système',
+    'errors.qwk.invalid_extension' => 'Veuillez envoyer un fichier .REP ou .ZIP',
+    'errors.qwk.invalid_format' => 'Le format doit être "qwk" ou "qwke"',
+    'errors.qwk.no_file' => 'Aucun fichier REP reçu. Envoyez le fichier dans le champ "rep".',
+    'errors.qwk.processing_failed' => 'Échec du traitement du paquet REP',
+    'errors.qwk.status_failed' => 'Échec de la récupération du statut QWK',
+    'errors.qwk.upload_error' => 'Erreur lors du téléversement du fichier',
+
+    // Referrals
+    'errors.referrals.not_licensed' => 'Les analytiques de parrainage nécessitent une licence enregistrée',
+
+    // VirusTotal
+    'errors.virustotal.analysis_pending' => 'Analyse VirusTotal toujours en cours ; réessayez plus tard',
+    'errors.virustotal.api_error' => 'Erreur de l\'API VirusTotal',
+    'errors.virustotal.file_too_large' => 'Fichier trop volumineux pour le téléversement VirusTotal (max 32 Mo)',
+    'errors.virustotal.not_configured' => 'Clé API VirusTotal non configurée',
+    'errors.virustotal.upload_failed' => 'Échec du téléversement du fichier vers VirusTotal',
 ];
