@@ -101,7 +101,7 @@
                     <div class="mb-3">
                         <label for="repFile" class="form-label">REP packet file</label>
                         <input class="form-control" type="file" id="repFile" name="rep"
-                               accept=".rep,.REP,.zip,.ZIP">
+                               accept=".rep,.REP,.zip,.ZIP" disabled>
                         <div class="form-text">Accepts <code>.REP</code> or <code>.ZIP</code> files.</div>
                     </div>
 
@@ -191,6 +191,27 @@ document.addEventListener('DOMContentLoaded', function() {
     initFormatRadios();
 });
 
+function updateUploadAvailability(hasDownloaded) {
+    const fileInput = document.getElementById('repFile');
+    const warningEl = document.getElementById('noDownloadWarning');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    if (fileInput) {
+        fileInput.disabled = !hasDownloaded;
+        if (!hasDownloaded) {
+            fileInput.value = '';
+        }
+    }
+
+    if (uploadBtn) {
+        uploadBtn.disabled = !hasDownloaded;
+    }
+
+    if (warningEl) {
+        warningEl.classList.toggle('d-none', hasDownloaded);
+    }
+}
+
 async function loadStatus() {
     const listEl  = document.getElementById('conferenceList');
     const badgeEl = document.getElementById('newMessagesBadge');
@@ -233,9 +254,10 @@ async function loadStatus() {
             const dt = new Date(data.last_download + 'Z');
             lastDlEl.innerHTML = '<i class="fas fa-clock me-1"></i>Last download: '
                 + dt.toLocaleString();
+            updateUploadAvailability(true);
         } else {
             lastDlEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>No prior download';
-            document.getElementById('noDownloadWarning').classList.remove('d-none');
+            updateUploadAvailability(false);
         }
 
         // Conference table.

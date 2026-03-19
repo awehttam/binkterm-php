@@ -28,6 +28,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Log Rotate](#log-rotate)
 - [Post Ad](#post-ad)
 - [Post File to File Area](#post-file-to-file-area)
+- [Re-Hatch File to Outbound](#re-hatch-file-to-outbound)
 - [Restart Daemons](#restart-daemons)
 - [Who](#who)
 
@@ -321,6 +322,32 @@ php scripts/debug_binkp.php 1:153/149
 # Process inbound packets
 php scripts/process_packets.php
 ```
+
+## Re-Hatch File to Outbound
+Regenerate TIC file(s) for an existing stored file and queue the file plus TICs
+into `data/outbound` for re-sending to the area's uplinks:
+
+```bash
+# Re-hatch by file ID
+php scripts/file_hatch.php --file-id=123
+
+# Re-hatch by filename and area tag
+php scripts/file_hatch.php CHEVY.RIP LVLY_RIPSCRIP --domain=lovlynet
+
+# Allow rehatching a file that is not in approved status
+php scripts/file_hatch.php --file-id=123 --allow-nonapproved
+```
+
+Notes:
+
+- The script looks up an existing file record and resolves the current stored
+  file from disk; it does not re-upload the file.
+- It only works for non-local, non-private file areas, because it generates
+  outbound TIC files for configured uplinks.
+- Generated TIC passwords follow the normal TIC password precedence used by the
+  application.
+- Output is written to `data/outbound/`, including the file copy and one TIC
+  per matching uplink.
 
 By default, leftover unprocessed files in `data/inbound/` are moved to `data/inbound/unprocessed/` after they have been untouched for 24 hours.
 Set `BINKP_DELETE_UNPROCESSED_FILES=true` in `.env` to delete those stale files instead.

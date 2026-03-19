@@ -41,6 +41,7 @@ This document explains file area configuration, storage layout, and file area ru
   - [Magic Names](#magic-names)
   - [FREQ Response Delivery](#freq-response-delivery)
   - [FREQ Log](#freq-log)
+- [Re-Hatching Existing Files](#re-hatching-existing-files)
 
 ## Overview
 
@@ -144,6 +145,30 @@ always go to the directory matching the current tag, so renaming a tag (which is
 not permitted via the UI or API) would split files across two directories.
 
 New uploads and TIC imports will automatically create the directory if it does not exist.
+
+## Re-Hatching Existing Files
+
+If you need to re-send a file that is already stored in a file area, use the
+CLI rehatch helper instead of uploading it again:
+
+```bash
+php scripts/file_hatch.php --file-id=123
+php scripts/file_hatch.php CHEVY.RIP LVLY_RIPSCRIP --domain=lovlynet
+```
+
+The script:
+
+- looks up the existing file record
+- resolves the current stored file on disk
+- copies the file back into `data/outbound/`
+- regenerates TIC file(s) for the file area's configured uplinks
+
+Limitations:
+
+- local-only file areas cannot be rehatch targets
+- private file areas cannot be rehatch targets
+- by default the file must be in `approved` status unless you pass
+  `--allow-nonapproved`
 
 ## File Area Rules
 
