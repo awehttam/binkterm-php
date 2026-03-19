@@ -79,6 +79,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
 - [Admin Menu Reorganization](#admin-menu-reorganization)
 - [QWK/QWKE Offline Mail](#qwkqwke-offline-mail)
+- [Advertising System](#advertising-system)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -262,6 +263,17 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - New **Sharing** admin page (`/admin/sharing`) under **Admin → Analytics**
   listing active shared messages and shared files sorted by view count, with
   separate tabs for each.
+
+**Advertising**
+- Legacy `bbs_ads/` ANSI ads are imported into a new database-backed ad library
+  and enabled by default.
+- New **Advertisements** admin page for uploading, editing, previewing, tagging,
+  and managing ANSI ads.
+- Dashboard advertising now uses the managed library with per-session rotation
+  and keyboard/arrow navigation.
+- New **Ad Campaigns** admin page for schedule-based echomail ad posting with
+  per-target subject templates, weighted ad assignment, and post history.
+- `binkp_scheduler` now processes due ad campaigns automatically.
 
 **Premium / Registration**
 - Registration status row added to the admin dashboard.
@@ -1457,10 +1469,16 @@ but are non-functional — they link to `#`, show a lock icon, and carry a
 A new **Community** submenu groups interactive community features:
 
 - BBS Directory
-- Ads
 - Chat (sub-submenu: Chat Rooms, MRC Settings)
 - Polls
 - Shoutbox
+
+### Ads Top-Level Menu
+
+Advertising management now lives under a separate **Ads** top-level admin menu:
+
+- Advertisements
+- Ad Campaigns
 
 ### Area Management Submenu Changes
 
@@ -1473,6 +1491,57 @@ previously a top-level item in the Admin dropdown.
 The admin submenu previously labelled *Local Chat* has been renamed to **Chat**,
 since it contains configuration for both local chat rooms and remote MRC (Multi
 Relay Chat) settings.
+
+## Advertising System
+
+The old flat-file `bbs_ads/` ad store has been replaced by a database-backed
+advertising library.
+
+### Migration
+
+Running `php scripts/setup.php` applies the advertising migrations and imports
+existing ANSI ads from `bbs_ads/`. Imported ads are marked enabled by default
+so current dashboard inventory remains available after upgrade.
+
+Existing flat-file ads from the legacy `bbs_ads/` directory are migrated into
+the database automatically on upgrade, so you don't lose content switching from
+the old system.
+
+### Advertisements
+
+A new admin page at **Admin -> Ads -> Advertisements** lets the sysop:
+
+- upload ANSI ads into the library
+- edit ANSI content and metadata in the browser
+- preview ads in a modal
+- tag ads with freeform labels
+- choose whether an ad is eligible for dashboard display and/or campaign posting
+
+### Campaigns
+
+A new admin page at **Admin -> Ads -> Ad Campaigns** manages scheduled ad
+posting.
+
+Campaigns support:
+
+- multiple targets (`echoarea@domain`)
+- separate subject templates per target
+- multiple schedules by day, time, and timezone
+- weighted ad assignment
+- post history for both manual and automatic runs
+
+### Scheduler
+
+`scripts/binkp_scheduler.php` now processes due advertising campaigns
+automatically. For testing or manual execution, use:
+
+```bash
+php scripts/run_ad_campaigns.php
+php scripts/run_ad_campaigns.php --campaign-id=3
+php scripts/run_ad_campaigns.php --dry-run
+```
+
+For full operational details, see [docs/Advertising.md](Advertising.md).
 
 ## Echo List Network Filter
 

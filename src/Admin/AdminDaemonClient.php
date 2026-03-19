@@ -151,25 +151,6 @@ class AdminDaemonClient
         return $this->sendCommand('save_taglines', ['text' => $text]);
     }
 
-    public function listAds(): array
-    {
-        return $this->sendCommand('list_ads');
-    }
-
-    public function uploadAd(string $contentBase64, string $name = '', string $originalName = ''): array
-    {
-        return $this->sendCommand('upload_ad', [
-            'content_base64' => $contentBase64,
-            'name' => $name,
-            'original_name' => $originalName
-        ]);
-    }
-
-    public function deleteAd(string $name): array
-    {
-        return $this->sendCommand('delete_ad', ['name' => $name]);
-    }
-
     public function listCustomTemplates(): array
     {
         return $this->sendCommand('list_custom_templates');

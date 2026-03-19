@@ -6,19 +6,22 @@
 
 1. [Overview](#overview)
 2. [Current State](#current-state)
-3. [Goals](#goals)
-4. [Non-Goals](#non-goals)
-5. [Proposed Model](#proposed-model)
+3. [Implementation Progress](#implementation-progress)
+4. [Goals](#goals)
+5. [Non-Goals](#non-goals)
+6. [Proposed Model](#proposed-model)
    - [Ad Library](#ad-library)
    - [Dashboard Selection](#dashboard-selection)
    - [Auto-Posting Tie-In](#auto-posting-tie-in)
    - [Future Sources](#future-sources)
-6. [Data Model](#data-model)
-7. [Admin Experience](#admin-experience)
-8. [Dashboard Experience](#dashboard-experience)
-9. [Auto-Posting Workflow](#auto-posting-workflow)
-10. [Migration Plan](#migration-plan)
-11. [Open Questions](#open-questions)
+7. [Data Model](#data-model)
+8. [Admin Experience](#admin-experience)
+9. [Dashboard Experience](#dashboard-experience)
+10. [Community Positioning](#community-positioning)
+11. [Auto-Posting Workflow](#auto-posting-workflow)
+12. [Migration Plan](#migration-plan)
+13. [Next Steps](#next-steps)
+14. [Open Questions](#open-questions)
 
 ---
 
@@ -45,25 +48,57 @@ files on disk.
 
 Current implementation:
 
-- [`src/Advertising.php`](/C:/devel/binktest/src/Advertising.php) reads `.ans`
-  files from `bbs_ads/`
-- [`templates/admin/ads.twig`](/C:/devel/binktest/templates/admin/ads.twig)
-  provides upload/list/delete only
-- [`templates/dashboard.twig`](/C:/devel/binktest/templates/dashboard.twig)
-  shows one random ad when advertising is enabled
-- [`scripts/post_ad.php`](/C:/devel/binktest/scripts/post_ad.php) posts either
-  a selected ad or a random ad to echomail
-- [`scripts/generate_ad.php`](/C:/devel/binktest/scripts/generate_ad.php)
-  generates ANSI ads from system metadata
+- ads now live in the database rather than the legacy flat `bbs_ads/` store
+- migration `v1.11.0.38_advertising_library.php` imports existing `bbs_ads/*.ans`
+  as enabled ads
+- `src/Advertising.php` manages the ad library, dashboard selection, campaign
+  execution, post history, duplicate hash warnings, and SAUCE stripping for
+  outbound posts
+- `templates/admin/ads.twig` provides library upload, edit, delete, ANSI
+  preview, and browser-based ANSI editing helpers
+- `templates/dashboard.twig` shows a per-session ad carousel with arrow controls
+  and keyboard navigation
+- `scripts/post_ad.php` posts from the database-backed library
+- `templates/admin/ad_campaigns.twig` provides campaign CRUD, schedule editing,
+  target management, assigned-ad management, and post history
+- `scripts/run_ad_campaigns.php` supports manual campaign execution
+- `scripts/binkp_scheduler.php` and `src/Binkp/Connection/Scheduler.php` process
+  due ad campaigns automatically
 
-Limitations:
+Remaining limitations:
 
-- no metadata beyond filename
-- no distinction between stored ads and dashboard-enabled ads
-- no concept of campaigns, scheduling, or rotation policy
-- no tracking of which ads have been posted where
-- no way to pin, weight, or exclude specific ads from the dashboard
-- no future-proof source model for ads imported from echomail or elsewhere
+- no terminal server advertising yet
+- no tag-based campaign filtering in the campaign UI
+- no saved-from-echomail import flow yet
+- no dedicated eligibility preview explaining why a given ad will or will not
+  be selected by a campaign
+- no richer history detail for matched schedule slot or message-body snapshot
+
+---
+
+## Implementation Progress
+
+Completed work:
+
+- Database-backed ad library implemented
+- Legacy `bbs_ads/` import migration implemented and imported ads enabled by default
+- Admin ad library page implemented
+- ANSI preview modal and editor preview implemented
+- Browser-side ANSI editing helpers implemented
+- Duplicate-hash warning support implemented
+- Dashboard carousel implemented with per-session rotation
+- Dashboard arrow-button and keyboard navigation implemented
+- Duplicate ANSI payload de-duplication in dashboard selection implemented
+- Manual posting via `scripts/post_ad.php` updated to use the library
+- SAUCE stripping for preview and posting implemented
+- Campaign tables and campaign admin UI implemented
+- Multiple targets with per-target subject templates implemented
+- Day/time/timezone schedule rows implemented
+- Timezone selector implemented
+- Scheduler integration implemented through `binkp_scheduler`
+- Campaign post history table implemented
+- Admin navigation updated with a top-level `Ads` menu
+- Documentation added in `docs/Advertising.md`
 
 ---
 
@@ -178,7 +213,7 @@ Recommended concept:
 
 - an **Ad Campaign** targets one or more area+domain destinations
 - a campaign chooses ads from an eligible pool
-- a campaign defines posting cadence and subject policy
+- a campaign defines posting schedule and subject policy
 
 Example campaign fields:
 
@@ -186,12 +221,26 @@ Example campaign fields:
 - enabled flag
 - from-user
 - to-name
-- posting interval
-- minimum spacing between repeats of the same ad
 - ad selection mode
 - eligible ads
 - optional tag filter
 - one or more area+domain targets, each with its own subject template
+- one or more schedule entries, each with days of week, post time, and timezone
+
+Recommended schedule model:
+
+- campaigns should use explicit schedule rows rather than a raw minute interval
+- a schedule row defines:
+  - enabled flag
+  - one or more days of week
+  - time of day
+  - timezone
+- a campaign may have multiple schedule rows
+
+Example:
+
+- Monday, Wednesday, Friday at `10:00`
+- Saturday at `20:00`
 
 This lets the same library feed both the local dashboard and outbound ad posts
 without coupling those two concerns too tightly.
@@ -261,12 +310,27 @@ Suggested fields:
 - `from_user_id`
 - `to_name`
 - `selection_mode`
-- `post_interval_minutes`
-- `min_repeat_gap_minutes`
 - `last_posted_at` nullable
 - `last_posted_ad_id` nullable
 - `created_at`
 - `updated_at`
+
+### `advertisement_campaign_schedules`
+
+Per-campaign schedule rows.
+
+Suggested fields:
+
+- `id`
+- `campaign_id`
+- `days_mask`
+- `time_of_day`
+- `timezone`
+- `is_active`
+
+`days_mask` can be a simple bitmask for Sunday through Saturday. A normalized
+one-row-per-day model would also work, but a bitmask keeps the admin UI simpler
+when a sysop wants one time to apply to multiple days.
 
 ### `advertisement_campaign_targets`
 
@@ -416,6 +480,7 @@ A dedicated admin page for posting campaigns:
 - assign ads to campaign
 - optionally filter ads by tags
 - manage multiple area+domain targets with separate subject templates
+- manage one or more schedule rows with day-of-week and time selection
 - test post / post now
 - enable/disable schedule
 - inspect post history
@@ -469,6 +534,25 @@ Optional later improvements:
 
 ---
 
+## Community Positioning
+
+This proposal should be treated as a **community-edition feature**.
+
+That means the full advertising workflow described here should be available to
+all installations, including:
+
+- the ANSI ad library
+- dashboard pool management
+- carousel display modes
+- schedule-based auto-posting
+- multi-target campaigns
+- posting history
+- future echomail-based ad import
+
+This keeps the advertising system aligned with the project principle that core
+BBS/community-building features should remain broadly available.
+
+---
 ## Auto-Posting Workflow
 
 Auto-posting should reuse the library rather than reading arbitrary filenames
@@ -477,14 +561,13 @@ from disk.
 Proposed flow:
 
 1. Scheduler daemon or cron job asks for active ad campaigns.
-2. For each campaign, determine whether it is due.
+2. For each campaign, determine whether one or more schedule rows are due.
 3. Choose an eligible ad using the campaign selection rules.
 4. Post it via the existing echomail posting pipeline.
 5. Log the result in `advertisement_post_log`.
 6. Update campaign `last_posted_at` and last-posted ad metadata.
 
-This could eventually replace or wrap the current
-[`scripts/post_ad.php`](/C:/devel/binktest/scripts/post_ad.php).
+This could eventually replace or wrap the current `scripts/post_ad.php`.
 
 Recommended CLI evolution:
 
@@ -492,6 +575,15 @@ Recommended CLI evolution:
 - teach it to accept either `--ad=slug-or-id` or legacy filename
 - add a new scheduler-oriented script such as `scripts/run_ad_campaigns.php`
 - ensure manual CLI posts also write to `advertisement_post_log`
+
+Schedule runner behavior:
+
+- the runner should evaluate each campaign schedule row in its configured
+  timezone
+- the runner should allow a small grace window so a periodic cron job does not
+  need to fire at the exact minute
+- the runner should record enough information to avoid duplicate posting for
+  the same campaign schedule slot if it runs multiple times in the same window
 
 Campaign selection modes worth supporting:
 
@@ -508,41 +600,73 @@ The first version only needs one or two.
 
 ### Phase 1: Library Foundation
 
-- Create the advertisement library tables.
-- Add a migration/import script that scans existing `bbs_ads/*.ans`.
-- Create one ad record per existing file.
-- Imported ads from `bbs_ads/` should be marked active/enabled by default so
-  existing systems keep showing their current ad inventory after migration.
-- Keep the old `bbs_ads/` reader working during transition.
+Status: completed
+
+- Advertisement library tables created.
+- Migration/import script added for `bbs_ads/*.ans`.
+- One ad record is created per existing legacy file.
+- Imported ads from `bbs_ads/` are marked active/enabled by default.
 
 ### Phase 2: Admin Library UI
 
-- Replace the current upload/list/delete page with a library manager.
-- Add preview and metadata editing.
-- Add `show_on_dashboard` and `allow_auto_post` toggles.
-- Add tags and duplicate-hash warning UI.
+Status: completed
+
+- Upload/list/delete page replaced with a library manager.
+- Preview and metadata editing added.
+- `show_on_dashboard` and `allow_auto_post` toggles added.
+- Tags and duplicate-hash warning UI added.
 
 ### Phase 3: Dashboard Pool
 
-- Change dashboard ad selection to use the library.
-- Add dashboard rotation settings.
-- Add per-session anti-repeat behavior.
-- Add single-card / carousel presentation mode.
-- Preserve existing dashboard rendering.
+Status: completed
+
+- Dashboard ad selection now uses the library.
+- Per-session anti-repeat behavior added.
+- Single-card / carousel presentation implemented.
+- Existing dashboard rendering preserved and enhanced.
 
 ### Phase 4: Post-Now and Auto-Post Integration
 
-- Update `post_ad.php` to read from the library.
-- Add campaign tables and admin pages.
-- Add multi-target campaigns with per-area subject templates and tag-based ad selection.
-- Add scheduler script for campaign posting.
-- Add post history and error tracking.
-- Process due campaign targets in a deterministic order.
+Status: mostly completed
+
+- `post_ad.php` updated to read from the library.
+- Campaign tables and admin pages added.
+- Multi-target campaigns with per-area subject templates added.
+- Raw minute intervals replaced in practice by explicit day/time schedule rows.
+- Scheduler script for campaign posting added.
+- Day-of-week and time editing in the campaign UI added.
+- Post history and error tracking added.
+- Due campaign targets are processed in a deterministic order.
+- Remaining item: optional tag-based ad selection/filtering is not yet implemented.
 
 ### Phase 5: Future Content Sources
 
-- Add “save ANSI from echomail to ad library”
+Status: not started
+
+- Add "save ANSI from echomail to ad library"
 - Add provenance UI and duplicate detection workflow
+
+---
+
+## Next Steps
+
+Recommended next work:
+
+- Add advertising support to the Terminal Server
+- Add tag-based campaign filtering / eligibility controls
+- Improve campaign history with matched schedule-slot detail
+- Add clearer campaign validation warnings for no active schedules, targets, or ads
+- Add "save ANSI from echomail" import into the ad library
+- Add a campaign eligibility preview to explain which ads can currently be selected
+
+### Future Phase: Terminal Server Advertising
+
+Status: not started
+
+- Add advertising display to the Terminal Server
+- Reuse the library-backed ad source rather than a separate terminal-only ad pool
+- Decide whether terminal ads should rotate per session, per login, or per screen refresh
+- Respect ANSI-safe rendering constraints in telnet and SSH sessions
 
 ---
 
@@ -554,3 +678,5 @@ The first version only needs one or two.
   or restart from the first selected ad on each dashboard load?
 - Should campaign logs keep only success/failure metadata, or also store a copy
   of the rendered subject/body that was posted?
+- Should schedule rows use the board timezone by default, or always require an
+  explicit timezone on each row?

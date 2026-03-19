@@ -16,6 +16,7 @@
 
 namespace BinktermPHP\Binkp\Connection;
 
+use BinktermPHP\Advertising;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
 use BinktermPHP\Crashmail\CrashmailService;
@@ -135,6 +136,66 @@ class Scheduler
         }
         
         return $results;
+    }
+
+    public function processAdvertisingCampaigns(bool $dryRun = false): array
+    {
+        try {
+            $advertising = new Advertising();
+            $results = $advertising->processDueCampaigns(null, $dryRun);
+
+            if ($results === []) {
+                $this->log("No ad campaigns due at this time", 'DEBUG');
+            } else {
+                $successCount = count(array_filter($results, static fn(array $result): bool => ($result['status'] ?? '') === 'success'));
+                $dryRunCount = count(array_filter($results, static fn(array $result): bool => ($result['status'] ?? '') === 'dry-run'));
+                $failureCount = count(array_filter($results, static fn(array $result): bool => ($result['status'] ?? '') === 'failed'));
+                $skippedCount = count(array_filter($results, static fn(array $result): bool => ($result['status'] ?? '') === 'skipped'));
+
+                foreach ($results as $result) {
+                    $campaign = (string)($result['campaign_name'] ?? ('Campaign #' . ($result['campaign_id'] ?? '?')));
+                    $target = (string)($result['target'] ?? '-');
+                    $ad = (string)($result['advertisement_title'] ?? '-');
+                    $subject = (string)($result['subject'] ?? '-');
+                    $status = (string)($result['status'] ?? 'unknown');
+                    $scheduleTime = (string)($result['schedule_time_of_day'] ?? '-');
+                    $scheduleTimezone = (string)($result['schedule_timezone'] ?? '-');
+                    $scheduleSlotAt = (string)($result['schedule_slot_at'] ?? '-');
+                    $scheduleLocal = $scheduleSlotAt;
+                    if ($scheduleSlotAt !== '-' && $scheduleTimezone !== '-') {
+                        try {
+                            $scheduleLocal = (new \DateTimeImmutable($scheduleSlotAt))
+                                ->setTimezone(new \DateTimeZone($scheduleTimezone))
+                                ->format('D Y-m-d H:i T');
+                        } catch (\Throwable $e) {
+                            $scheduleLocal = $scheduleSlotAt;
+                        }
+                    }
+                    $scheduleLabel = "schedule=\"{$scheduleTime} {$scheduleTimezone}\" local_slot=\"{$scheduleLocal}\"";
+
+                    if ($status === 'failed') {
+                        $error = (string)($result['error'] ?? 'Unknown error');
+                        $this->log("Ad campaign failed: campaign=\"{$campaign}\" target=\"{$target}\" ad=\"{$ad}\" subject=\"{$subject}\" {$scheduleLabel} error=\"{$error}\"", 'ERROR');
+                    } elseif ($status === 'success') {
+                        $this->log("Ad campaign posted: campaign=\"{$campaign}\" target=\"{$target}\" ad=\"{$ad}\" subject=\"{$subject}\" {$scheduleLabel}", 'INFO');
+                    } elseif ($status === 'dry-run') {
+                        $this->log("Ad campaign dry-run: campaign=\"{$campaign}\" target=\"{$target}\" ad=\"{$ad}\" subject=\"{$subject}\" {$scheduleLabel}", 'INFO');
+                    } elseif ($status === 'skipped') {
+                        $reason = (string)($result['reason'] ?? 'No reason provided');
+                        $this->log("Ad campaign skipped: campaign=\"{$campaign}\" target=\"{$target}\" {$scheduleLabel} reason=\"{$reason}\"", 'WARNING');
+                    } else {
+                        $this->log("Ad campaign result: campaign=\"{$campaign}\" target=\"{$target}\" {$scheduleLabel} status=\"{$status}\"", 'INFO');
+                    }
+                }
+
+                $this->log("Processed " . count($results) . " ad campaign posts ({$successCount} success, {$dryRunCount} dry-run, {$failureCount} failed, {$skippedCount} skipped)");
+            }
+
+            return $results;
+        } catch (\Throwable $e) {
+            $this->log("Ad campaign processing error: " . $e->getMessage(), 'ERROR');
+            return [];
+        }
     }
     
     public function pollIfOutbound()
@@ -422,6 +483,7 @@ class Scheduler
                 $this->processInboundIfNeeded();
 
                 $this->runScheduledCrashmailPoll();
+                $this->processAdvertisingCampaigns();
                 
             } catch (\Exception $e) {
                 $this->log("Scheduler error: " . $e->getMessage(), 'ERROR');

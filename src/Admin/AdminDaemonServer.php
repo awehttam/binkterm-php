@@ -449,21 +449,6 @@ class AdminDaemonServer
                     $this->writeTaglinesConfig($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getTaglinesConfig()]);
                     break;
-                case 'list_ads':
-                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listAds()]);
-                    break;
-                case 'upload_ad':
-                    $name = $data['name'] ?? '';
-                    $originalName = $data['original_name'] ?? '';
-                    $contentBase64 = $data['content_base64'] ?? '';
-                    $result = $this->uploadAd((string)$contentBase64, (string)$name, (string)$originalName);
-                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
-                    break;
-                case 'delete_ad':
-                    $name = $data['name'] ?? '';
-                    $this->deleteAd((string)$name);
-                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
-                    break;
                 case 'list_shell_art':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->listShellArt()]);
                     break;
@@ -1231,105 +1216,6 @@ class AdminDaemonServer
         }
 
         return $merged;
-    }
-
-    private function listAds(): array
-    {
-        $adsDir = $this->getAdsDir();
-        if (!is_dir($adsDir)) {
-            return [];
-        }
-
-        $ads = [];
-        $files = glob($adsDir . DIRECTORY_SEPARATOR . '*.ans') ?: [];
-        foreach ($files as $file) {
-            $ads[] = [
-                'name' => basename($file),
-                'size' => filesize($file) ?: 0,
-                'updated_at' => date('c', filemtime($file) ?: time())
-            ];
-        }
-
-        usort($ads, function($a, $b) {
-            return strcmp($a['name'], $b['name']);
-        });
-
-        return $ads;
-    }
-
-    private function uploadAd(string $contentBase64, string $name, string $originalName): array
-    {
-        if ($contentBase64 === '') {
-            throw new \RuntimeException('Missing content');
-        }
-
-        $content = base64_decode($contentBase64, true);
-        if ($content === false) {
-            throw new \RuntimeException('Invalid content encoding');
-        }
-
-        $maxSize = 1024 * 1024;
-        if (strlen($content) > $maxSize) {
-            throw new \RuntimeException('File is too large (max 1MB)');
-        }
-
-        $safeName = $this->sanitizeAdFilename($name !== '' ? $name : $originalName);
-        if ($safeName === '') {
-            throw new \RuntimeException('Invalid file name');
-        }
-
-        $adsDir = $this->getAdsDir();
-        if (!is_dir($adsDir) && !@mkdir($adsDir, 0775, true)) {
-            throw new \RuntimeException('Failed to create ads directory');
-        }
-
-        $path = $adsDir . DIRECTORY_SEPARATOR . $safeName;
-        if (@file_put_contents($path, $content) === false) {
-            throw new \RuntimeException('Failed to save advertisement');
-        }
-
-        return [
-            'name' => $safeName,
-            'size' => filesize($path) ?: 0,
-            'updated_at' => date('c', filemtime($path) ?: time())
-        ];
-    }
-
-    private function deleteAd(string $name): void
-    {
-        $safeName = $this->sanitizeAdFilename($name);
-        if ($safeName === '') {
-            throw new \RuntimeException('Invalid file name');
-        }
-
-        $adsDir = $this->getAdsDir();
-        $path = $adsDir . DIRECTORY_SEPARATOR . $safeName;
-        if (!is_file($path)) {
-            throw new \RuntimeException('Advertisement not found');
-        }
-
-        if (!@unlink($path)) {
-            throw new \RuntimeException('Failed to delete advertisement');
-        }
-    }
-
-    private function sanitizeAdFilename(string $name): string
-    {
-        $safe = basename($name);
-        $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $safe);
-        $safe = trim($safe, '._');
-        if ($safe === '') {
-            return '';
-        }
-        if (substr($safe, -4) !== '.ans') {
-            $safe .= '.ans';
-        }
-        return $safe;
-    }
-
-    private function getAdsDir(): string
-    {
-        return __DIR__ . '/../../bbs_ads';
     }
 
     private function getCustomTemplatesBasePath(): string

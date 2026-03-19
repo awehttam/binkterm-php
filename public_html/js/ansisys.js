@@ -1361,6 +1361,24 @@ function renderAnsiSgrOnly(text, cols = 80, rows = 500) {
     return renderAnsiBuffer(stripped, cols, rows);
 }
 
+function stripSauce(text) {
+    if (!text) {
+        return text;
+    }
+
+    const sauceIndex = text.lastIndexOf('SAUCE00');
+    if (sauceIndex === -1) {
+        return text;
+    }
+
+    const trailerLength = text.length - sauceIndex;
+    if (trailerLength > 4096) {
+        return text;
+    }
+
+    return text.slice(0, sauceIndex).replace(/[\x1a\r\n ]+$/, '');
+}
+
 /**
  * Render ANSI text using terminal emulation
  * Falls back to simple parsing for non-ANSI text
@@ -1368,6 +1386,8 @@ function renderAnsiSgrOnly(text, cols = 80, rows = 500) {
  */
 function renderAnsiTerminal(text, cols = 80, rows = 500) {
     if (!text) return '';
+
+    text = stripSauce(text);
 
     // Check if ANSI parsing is enabled
     if (window.userSettings?.ansi_parsing === false) {
@@ -1402,6 +1422,8 @@ function renderAnsiTerminal(text, cols = 80, rows = 500) {
  */
 function parseAnsi(text) {
     if (!text) return text;
+
+    text = stripSauce(text);
 
     // Check if ANSI parsing is enabled in user settings (default: true)
     if (window.userSettings?.ansi_parsing === false) {

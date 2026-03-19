@@ -52,7 +52,8 @@ SimpleRouter::get('/', function() {
 
     $template = new Template();
     $ads = new Advertising();
-    $ad = $ads->getRandomAd();
+    $dashboardAds = $ads->getDashboardAds(5);
+    $ad = $dashboardAds[0] ?? null;
 
     // Generate system news content
     $systemNewsContent = $template->renderSystemNews();
@@ -78,6 +79,7 @@ SimpleRouter::get('/', function() {
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
         'dashboard_ad' => $ad,
+        'dashboard_ads' => $dashboardAds,
         'shell_art_content' => $shellArtContent,
     ]);
 });

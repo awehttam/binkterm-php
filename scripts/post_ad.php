@@ -15,7 +15,7 @@ function showUsage()
     echo "  --echoarea=TAG        Echo area tag (e.g., GENERAL)\n";
     echo "  --domain=DOMAIN       Network domain (e.g., fidonet)\n\n";
     echo "Optional:\n";
-    echo "  --ad=FILENAME         Ad file name in bbs_ads (e.g., sale.ans)\n";
+    echo "  --ad=ID_OR_SLUG       Ad id, slug, or legacy filename (e.g., sale.ans)\n";
     echo "  --subject=TEXT        Subject line (default: BBS Advertisement)\n";
     echo "  --subject-line=TEXT   Subject line (alias)\n";
     echo "  --to-name=NAME        To name (default: All)\n";
@@ -89,12 +89,12 @@ try {
     if (!empty($args['ad'])) {
         $ad = $ads->getAdByName($args['ad']);
         if (!$ad) {
-            throw new RuntimeException('Ad not found in bbs_ads: ' . $args['ad']);
+            throw new RuntimeException('Ad not found: ' . $args['ad']);
         }
     } else {
-        $ad = $ads->getRandomAd();
+        $ad = $ads->getRandomAutoPostAd();
         if (!$ad) {
-            throw new RuntimeException('No ads found in bbs_ads');
+            throw new RuntimeException('No auto-post-enabled ads found in the advertising library');
         }
     }
 
@@ -108,14 +108,21 @@ try {
         $args['domain'],
         $toName,
         $subject,
-        $ad['content']
+        Advertising::stripSauce((string)($ad['content'] ?? ''))
     );
 
     if (!$result) {
+        if (!empty($ad['id'])) {
+            $ads->logPostResult((int)$ad['id'], $args['echoarea'], $args['domain'], $subject, (int)$user['id'], 'manual', 'failed', 'Failed to post advertisement');
+        }
         throw new RuntimeException('Failed to post advertisement');
     }
 
-    $adLabel = $ad['name'] ?? 'random ad';
+    if (!empty($ad['id'])) {
+        $ads->logPostResult((int)$ad['id'], $args['echoarea'], $args['domain'], $subject, (int)$user['id'], 'manual', 'success');
+    }
+
+    $adLabel = $ad['title'] ?? ($ad['slug'] ?? ($ad['name'] ?? 'random ad'));
     echo "Posted {$adLabel} to {$args['echoarea']} ({$args['domain']}).\n";
     exit(0);
 } catch (Exception $e) {

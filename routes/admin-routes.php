@@ -311,6 +311,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/ads.twig');
     });
 
+    SimpleRouter::get('/ad-campaigns', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/ad_campaigns.twig');
+    });
+
     // BBS settings page
     SimpleRouter::get('/bbs-settings', function() {
         $user = RouteHelper::requireAdmin();
@@ -2140,30 +2147,44 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         // Advertisements
         SimpleRouter::get('/ads', function() {
-            $auth = new Auth();
-            $user = $auth->requireAuth();
-
-            $adminController = new AdminController();
-            $adminController->requireAdmin($user);
+            $user = RouteHelper::requireAdmin();
 
             header('Content-Type: application/json');
 
             try {
-                $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $ads = $client->listAds();
-                echo json_encode(['ads' => $ads]);
+                $ads = new \BinktermPHP\Advertising();
+                $items = $ads->listAds();
+                echo json_encode(['ads' => $items]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.ads.list_failed', apiLocalizedText('errors.admin.ads.list_failed', 'Failed to load advertisements'));
             }
         });
 
-        SimpleRouter::post('/ads/upload', function() {
-            $auth = new Auth();
-            $user = $auth->requireAuth();
+        SimpleRouter::get('/ads/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
 
-            $adminController = new AdminController();
-            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $ad = $ads->getAdById((int)$id);
+                if (!$ad) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                echo json_encode(['ad' => $ad]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ads.load_one_failed', apiLocalizedText('errors.admin.ads.load_one_failed', 'Failed to load advertisement'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ads/upload', function() {
+            $user = RouteHelper::requireAdmin();
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
 
             header('Content-Type: application/json');
 
@@ -2174,7 +2195,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
 
             $file = $_FILES['ad_file'];
-            if ($file['error'] !== UPLOAD_ERR_OK) {
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
                 http_response_code(400);
                 apiError('errors.admin.ads.upload.upload_error', apiLocalizedText('errors.admin.ads.upload.upload_error', 'Advertisement upload failed'));
                 return;
@@ -2194,14 +2215,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 return;
             }
 
-            $name = trim((string)($_POST['name'] ?? ''));
-
             try {
-                $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $ad = $client->uploadAd(base64_encode($content), $name, $file['name'] ?? '');
+                $ads = new \BinktermPHP\Advertising();
+                $duplicates = $ads->findDuplicatesByContent($content);
+                $created = $ads->createAd([
+                    'title' => trim((string)($_POST['title'] ?? pathinfo((string)($file['name'] ?? 'Advertisement'), PATHINFO_FILENAME))),
+                    'slug' => trim((string)($_POST['slug'] ?? '')),
+                    'description' => trim((string)($_POST['description'] ?? '')),
+                    'tags' => trim((string)($_POST['tags'] ?? '')),
+                    'content' => $content,
+                    'legacy_filename' => trim((string)($_POST['legacy_filename'] ?? ($file['name'] ?? ''))),
+                    'source_type' => 'upload',
+                    'is_active' => !isset($_POST['is_active']) || $_POST['is_active'] !== '0',
+                    'show_on_dashboard' => !empty($_POST['show_on_dashboard']),
+                    'allow_auto_post' => !empty($_POST['allow_auto_post']),
+                    'dashboard_weight' => max(1, (int)($_POST['dashboard_weight'] ?? 1)),
+                    'dashboard_priority' => (int)($_POST['dashboard_priority'] ?? 0)
+                ], $userId > 0 ? $userId : null);
                 echo json_encode([
                     'success' => true,
-                    'ad' => $ad,
+                    'ad' => $created,
+                    'duplicates' => $duplicates,
                     'message_code' => 'ui.admin.ads.uploaded'
                 ]);
             } catch (Exception $e) {
@@ -2210,18 +2244,62 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        SimpleRouter::delete('/ads/{name}', function($name) {
-            $auth = new Auth();
-            $user = $auth->requireAuth();
-
-            $adminController = new AdminController();
-            $adminController->requireAdmin($user);
+        SimpleRouter::post('/ads/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
 
             header('Content-Type: application/json');
 
             try {
-                $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $client->deleteAd($name);
+                $payload = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($payload)) {
+                    http_response_code(400);
+                    apiError('errors.admin.ads.invalid_payload', apiLocalizedText('errors.admin.ads.invalid_payload', 'Invalid advertisement payload'), 400);
+                    return;
+                }
+
+                $ads = new \BinktermPHP\Advertising();
+                $adId = (int)$id;
+                $existing = $ads->getAdById($adId);
+                if (!$existing) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                $duplicates = [];
+                if (array_key_exists('content', $payload)) {
+                    $duplicates = $ads->findDuplicatesByContent((string)$payload['content'], $adId);
+                }
+
+                $updated = $ads->updateAd($adId, $payload, $userId > 0 ? $userId : null);
+                echo json_encode([
+                    'success' => true,
+                    'ad' => $updated,
+                    'duplicates' => $duplicates,
+                    'message_code' => 'ui.admin.ads.saved'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ads.save_failed', apiLocalizedText('errors.admin.ads.save_failed', 'Failed to save advertisement'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::delete('/ads/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $ad = $ads->getAdById((int)$id);
+                if (!$ad) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                $ads->deleteAd((int)$id);
                 echo json_encode([
                     'success' => true,
                     'message_code' => 'ui.admin.ads.deleted'
@@ -2230,7 +2308,190 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 apiError('errors.admin.ads.delete_failed', apiLocalizedText('errors.admin.ads.delete_failed', 'Failed to delete advertisement'));
             }
-        })->where(['name' => '[A-Za-z0-9._-]+']);
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::get('/ad-campaigns', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                echo json_encode(['campaigns' => $ads->listCampaigns()]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.list_failed', apiLocalizedText('errors.admin.ad_campaigns.list_failed', 'Failed to load ad campaigns'));
+            }
+        });
+
+        SimpleRouter::get('/ad-campaigns/log', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $campaignId = isset($_GET['campaign_id']) ? (int)$_GET['campaign_id'] : null;
+                $limit = isset($_GET['limit']) ? max(1, min(500, (int)$_GET['limit'])) : 50;
+                $status = isset($_GET['status']) ? trim((string)$_GET['status']) : null;
+                $ads = new \BinktermPHP\Advertising();
+                echo json_encode(['log' => $ads->listPostLog($campaignId ?: null, $limit, $status ?: null)]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.log_failed', apiLocalizedText('errors.admin.ad_campaigns.log_failed', 'Failed to load ad campaign log'));
+            }
+        });
+
+        SimpleRouter::get('/ad-campaigns/meta', function() {
+            $user = RouteHelper::requireAdmin();
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $users = $db->query("SELECT id, username, real_name FROM users ORDER BY LOWER(username)")->fetchAll(PDO::FETCH_ASSOC);
+                $echoareas = $db->query("SELECT id, tag, domain FROM echoareas WHERE is_active = TRUE ORDER BY LOWER(tag), LOWER(domain)")->fetchAll(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'ads' => $ads->listAds(false),
+                    'users' => $users,
+                    'echoareas' => $echoareas,
+                    'timezones' => \DateTimeZone::listIdentifiers()
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.meta_failed', apiLocalizedText('errors.admin.ad_campaigns.meta_failed', 'Failed to load ad campaign metadata'));
+            }
+        });
+
+        SimpleRouter::get('/ad-campaigns/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->getCampaignById((int)$id);
+                if (!$campaign) {
+                    http_response_code(404);
+                    apiError('errors.admin.ad_campaigns.not_found', apiLocalizedText('errors.admin.ad_campaigns.not_found', 'Ad campaign not found'), 404);
+                    return;
+                }
+
+                echo json_encode(['campaign' => $campaign]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.load_one_failed', apiLocalizedText('errors.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ad-campaigns', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($payload)) {
+                    http_response_code(400);
+                    apiError('errors.admin.ad_campaigns.invalid_payload', apiLocalizedText('errors.admin.ad_campaigns.invalid_payload', 'Invalid ad campaign payload'), 400);
+                    return;
+                }
+
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->createCampaign($payload);
+                echo json_encode([
+                    'success' => true,
+                    'campaign' => $campaign,
+                    'message_code' => 'ui.admin.ad_campaigns.created'
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                http_response_code(400);
+                apiError('errors.admin.ad_campaigns.invalid_payload', $e->getMessage(), 400);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.create_failed', apiLocalizedText('errors.admin.ad_campaigns.create_failed', 'Failed to create ad campaign'));
+            }
+        });
+
+        SimpleRouter::post('/ad-campaigns/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($payload)) {
+                    http_response_code(400);
+                    apiError('errors.admin.ad_campaigns.invalid_payload', apiLocalizedText('errors.admin.ad_campaigns.invalid_payload', 'Invalid ad campaign payload'), 400);
+                    return;
+                }
+
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->updateCampaign((int)$id, $payload);
+                echo json_encode([
+                    'success' => true,
+                    'campaign' => $campaign,
+                    'message_code' => 'ui.admin.ad_campaigns.saved'
+                ]);
+            } catch (\RuntimeException $e) {
+                http_response_code(404);
+                apiError('errors.admin.ad_campaigns.not_found', $e->getMessage(), 404);
+            } catch (\InvalidArgumentException $e) {
+                http_response_code(400);
+                apiError('errors.admin.ad_campaigns.invalid_payload', $e->getMessage(), 400);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.save_failed', apiLocalizedText('errors.admin.ad_campaigns.save_failed', 'Failed to save ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::delete('/ad-campaigns/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->getCampaignById((int)$id);
+                if (!$campaign) {
+                    http_response_code(404);
+                    apiError('errors.admin.ad_campaigns.not_found', apiLocalizedText('errors.admin.ad_campaigns.not_found', 'Ad campaign not found'), 404);
+                    return;
+                }
+
+                $ads->deleteCampaign((int)$id);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.ad_campaigns.deleted'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.delete_failed', apiLocalizedText('errors.admin.ad_campaigns.delete_failed', 'Failed to delete ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ad-campaigns/run/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->getCampaignById((int)$id);
+                if (!$campaign) {
+                    http_response_code(404);
+                    apiError('errors.admin.ad_campaigns.not_found', apiLocalizedText('errors.admin.ad_campaigns.not_found', 'Ad campaign not found'), 404);
+                    return;
+                }
+
+                $results = $ads->processDueCampaigns((int)$id, false, true);
+                echo json_encode([
+                    'success' => true,
+                    'results' => $results,
+                    'message_code' => 'ui.admin.ad_campaigns.run_complete'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.run_failed', apiLocalizedText('errors.admin.ad_campaigns.run_failed', 'Failed to run ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
 
 
         SimpleRouter::post('/chat-rooms', function() {

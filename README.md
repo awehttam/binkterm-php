@@ -148,6 +148,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
+- **Advertising** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and scheduled echomail ad campaigns (see [docs/Advertising.md](docs/Advertising.md))
 - **Outbound FREQ** - Users can request files from other FTN nodes directly from the nodelist browser
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
@@ -676,19 +677,23 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 - Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
 ### BBS Advertising System
-ANSI ads can be placed in the `bbs_ads/` directory (files ending in `.ans`). A random ad will be displayed on the main dashboard and can be viewed full-screen via `/ads/random`.
+Advertising is now managed through the built-in ad library at **Admin -> Ads**.
+
+ANSI ads are stored in the database, can be previewed and edited in the browser, and can be used both for dashboard rotation and scheduled echomail posting.
+
+See [docs/Advertising.md](docs/Advertising.md) for full setup and operational details.
 
 Post a random ad to an echoarea using:
 
 ```bash
 php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
-php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1.ans --subject="BBS Advertisement"
+php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1 --subject="BBS Advertisement"
 ```
 
-Weekly cron example (every Tuesday at 6:00 AM):
+Manual or scheduled campaign processing is handled by:
 
 ```bash
-0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
+php scripts/run_ad_campaigns.php
 ```
 
 Generate ANSI ads from current system settings:
