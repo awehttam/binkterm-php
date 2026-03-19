@@ -4265,7 +4265,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $lastSeparator = -1;
 
             foreach ($lines as $index => $line) {
-                if (trim($line) === '---') {
+                if (str_starts_with(trim($line), '---')) {
                     $lastSeparator = $index;
                 }
             }
