@@ -276,6 +276,7 @@ let campaignHistoryPage = 1;
 const campaignHistoryPageSize = 25;
 const defaultCampaignTimezone = (window.userSettings && window.userSettings.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const defaultCampaignDaysMask = (1 << 1) | (1 << 3) | (1 << 5);
+const defaultCampaignSubjectTemplate = {{ system_name|json_encode|raw }};
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -624,7 +625,7 @@ function renderCampaignTagFilters(tagFilters) {
 
 function renderTargetRows(targets) {
     const container = document.getElementById('campaignTargets');
-    const rows = targets.length ? targets : [{ echoarea_tag: '', domain: '', subject_template: 'BBS Advertisement', is_active: true }];
+    const rows = targets.length ? targets : [{ echoarea_tag: '', domain: '', subject_template: defaultCampaignSubjectTemplate, is_active: true }];
     container.innerHTML = rows.map((target, index) => targetRowHtml(target, index)).join('');
 }
 
@@ -717,11 +718,32 @@ function renderTimezoneOptions(selectedTimezone) {
 }
 
 function targetRowHtml(target, index) {
-    const options = (campaignMeta.echoareas || []).map(area => {
+    const echoareas = Array.isArray(campaignMeta.echoareas) ? campaignMeta.echoareas : [];
+    const prioritizedAreas = [];
+    const remainingAreas = [];
+
+    echoareas.forEach(area => {
+        const haystack = `${area.tag || ''} ${area.domain || ''}`.toUpperCase();
+        if (haystack.includes('ADS')) {
+            prioritizedAreas.push(area);
+        } else {
+            remainingAreas.push(area);
+        }
+    });
+
+    const buildOption = (area) => {
         const value = `${area.tag}@${area.domain}`;
         const selected = target.echoarea_tag === area.tag && target.domain === area.domain ? 'selected' : '';
         return `<option value="${escapeHtml(value)}" ${selected}>${escapeHtml(area.tag)} @ ${escapeHtml(area.domain)}</option>`;
-    }).join('');
+    };
+
+    const optionParts = [];
+    prioritizedAreas.forEach(area => optionParts.push(buildOption(area)));
+    if (prioritizedAreas.length > 0 && remainingAreas.length > 0) {
+        optionParts.push('<option value="" disabled>----</option>');
+    }
+    remainingAreas.forEach(area => optionParts.push(buildOption(area)));
+    const options = optionParts.join('');
 
     return `
         <div class="row g-2 align-items-end border rounded p-2 mb-2 campaign-target-row">
@@ -734,7 +756,7 @@ function targetRowHtml(target, index) {
             </div>
             <div class="col-md-6">
                 <label class="form-label">${uiT('ui.admin.ad_campaigns.subject_template', 'Subject Template')}</label>
-                <input class="form-control campaign-target-subject" type="text" value="${escapeHtml(target.subject_template || 'BBS Advertisement')}">
+                <input class="form-control campaign-target-subject" type="text" value="${escapeHtml(target.subject_template || defaultCampaignSubjectTemplate)}">
             </div>
             <div class="col-md-1">
                 <div class="form-check mb-2">
@@ -751,7 +773,7 @@ function targetRowHtml(target, index) {
 function addTargetRow() {
     const container = document.getElementById('campaignTargets');
     const count = container.querySelectorAll('.campaign-target-row').length;
-    container.insertAdjacentHTML('beforeend', targetRowHtml({ echoarea_tag: '', domain: '', subject_template: 'BBS Advertisement', is_active: true }, count));
+    container.insertAdjacentHTML('beforeend', targetRowHtml({ echoarea_tag: '', domain: '', subject_template: defaultCampaignSubjectTemplate, is_active: true }, count));
 }
 
 function removeTargetRow(index) {
