@@ -4181,6 +4181,8 @@ class MessageHandler
     private function appendRipRendering(array $message): array
     {
         $message['is_rip'] = 0;
+        $message['rip_script'] = null;
+        $message['rip_html'] = null;
 
         if (($message['message_type'] ?? 'echomail') !== 'echomail') {
             return $message;
@@ -4191,12 +4193,8 @@ class MessageHandler
             return $message;
         }
 
-        try {
-            $message['rip_html'] = \BinktermPHP\RipScriptRenderer::fromString($rawText)->getHTML();
-            $message['is_rip'] = 1;
-        } catch (\Throwable $e) {
-            $message['rip_html'] = null;
-        }
+        $message['rip_script'] = $rawText;
+        $message['is_rip'] = 1;
 
         return $message;
     }

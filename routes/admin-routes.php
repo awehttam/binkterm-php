@@ -411,6 +411,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
+    SimpleRouter::get('/sharing', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/sharing.twig');
+    });
+
     SimpleRouter::get('/referrals', function() {
         RouteHelper::requireAdmin();
 
@@ -3366,6 +3373,110 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'top_users'             => $topUsers,
             'hourly'                => $hourly,
             'daily'                 => $daily,
+        ]);
+    });
+
+    SimpleRouter::get('/api/sharing', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $baseUrl = \BinktermPHP\Config::getSiteUrl();
+
+        $messageStmt = $db->query("
+            SELECT sm.message_type,
+                   sm.share_key,
+                   sm.area_identifier,
+                   sm.slug,
+                   sm.created_at,
+                   sm.expires_at,
+                   sm.access_count,
+                   sm.last_accessed_at,
+                   sm.is_public,
+                   u.username AS shared_by_username,
+                   u.real_name AS shared_by_real_name,
+                   COALESCE(em.subject, nm.subject, '') AS subject,
+                   CASE
+                       WHEN sm.message_type = 'echomail' THEN ea.tag
+                       ELSE 'netmail'
+                   END AS area_tag
+            FROM shared_messages sm
+            LEFT JOIN echomail em ON (sm.message_type = 'echomail' AND sm.message_id = em.id)
+            LEFT JOIN echoareas ea ON (sm.message_type = 'echomail' AND em.echoarea_id = ea.id)
+            LEFT JOIN netmail nm ON (sm.message_type = 'netmail' AND sm.message_id = nm.id)
+            JOIN users u ON sm.shared_by_user_id = u.id
+            WHERE sm.is_active = TRUE
+              AND (sm.expires_at IS NULL OR sm.expires_at > NOW())
+            ORDER BY sm.access_count DESC, sm.created_at DESC
+        ");
+        $messageRows = $messageStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $messages = [];
+        foreach ($messageRows as $row) {
+            $areaIdentifier = $row['area_identifier'] ?? null;
+            $slug = $row['slug'] ?? null;
+            $shareUrl = (!empty($areaIdentifier) && !empty($slug))
+                ? $baseUrl . '/shared/' . rawurlencode($areaIdentifier) . '/' . rawurlencode($slug)
+                : $baseUrl . '/shared/' . $row['share_key'];
+
+            $messages[] = [
+                'message_type' => $row['message_type'],
+                'subject' => $row['subject'],
+                'area_tag' => $row['area_tag'] ?? '',
+                'shared_by' => $row['shared_by_real_name'] ?: $row['shared_by_username'],
+                'created_at' => $row['created_at'],
+                'expires_at' => $row['expires_at'],
+                'access_count' => (int)$row['access_count'],
+                'last_accessed_at' => $row['last_accessed_at'],
+                'is_public' => filter_var($row['is_public'], FILTER_VALIDATE_BOOLEAN),
+                'share_url' => $shareUrl,
+            ];
+        }
+
+        $fileStmt = $db->query("
+            SELECT sf.created_at,
+                   sf.expires_at,
+                   sf.access_count,
+                   sf.last_accessed_at,
+                   sf.freq_accessible,
+                   u.username AS shared_by_username,
+                   u.real_name AS shared_by_real_name,
+                   f.filename,
+                   fa.tag AS area_tag
+            FROM shared_files sf
+            JOIN files f ON sf.file_id = f.id
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            JOIN users u ON sf.shared_by_user_id = u.id
+            WHERE sf.is_active = TRUE
+              AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+              AND f.status = 'approved'
+            ORDER BY sf.access_count DESC, sf.created_at DESC
+        ");
+        $fileRows = $fileStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $files = [];
+        foreach ($fileRows as $row) {
+            $files[] = [
+                'filename' => $row['filename'],
+                'area_tag' => $row['area_tag'],
+                'shared_by' => $row['shared_by_real_name'] ?: $row['shared_by_username'],
+                'created_at' => $row['created_at'],
+                'expires_at' => $row['expires_at'],
+                'access_count' => (int)$row['access_count'],
+                'last_accessed_at' => $row['last_accessed_at'],
+                'freq_accessible' => filter_var($row['freq_accessible'], FILTER_VALIDATE_BOOLEAN),
+                'share_url' => $baseUrl
+                    . '/shared/file/'
+                    . rawurlencode($row['area_tag'])
+                    . '/'
+                    . rawurlencode($row['filename']),
+            ];
+        }
+
+        echo json_encode([
+            'messages' => $messages,
+            'files' => $files,
         ]);
     });
 });

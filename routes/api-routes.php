@@ -2818,16 +2818,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if ($ext === 'rip') {
             $content = (string)file_get_contents($storagePath);
-            try {
-                $renderer = new \BinktermPHP\RipScriptRenderer($content);
-                $svg = $renderer->getHTML();
-                header('Content-Type: text/html; charset=utf-8');
-                header('Cache-Control: private, max-age=3600');
-                echo $svg;
-            } catch (\Exception $e) {
-                http_response_code(500);
-                echo 'RIP render failed: ' . htmlspecialchars($e->getMessage());
-            }
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
             exit;
         }
 
@@ -3214,15 +3209,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($content === false) {
                 continue;
             }
-            try {
-                $renderer = new \BinktermPHP\RipScriptRenderer($content);
-                $rips[] = [
-                    'name' => basename($entryName),
-                    'html' => $renderer->getHTML(),
-                ];
-            } catch (\Exception $e) {
-                // Skip unrenderable entries
-            }
+            $rips[] = [
+                'name' => basename($entryName),
+                'content' => $content,
+            ];
         }
         $zip->close();
 
@@ -3568,15 +3558,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // RIPscrip — render server-side to SVG
         if ($ext === 'rip') {
-            try {
-                $renderer = new \BinktermPHP\RipScriptRenderer($content);
-                header('Content-Type: text/html; charset=utf-8');
-                header('Cache-Control: private, max-age=3600');
-                echo $renderer->getHTML();
-            } catch (\Exception $e) {
-                http_response_code(500);
-                echo 'RIP render failed';
-            }
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
             return;
         }
 

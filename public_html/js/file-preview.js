@@ -267,21 +267,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             });
 
     } else if (type === 'rip') {
-        body.css('background', '#0a0a0a').html(
-            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
-        );
-        fetch(previewUrl, {credentials: 'same-origin'})
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-            .then(html => {
-                body.css('background', '#0a0a0a').html(`
-                    <div style="overflow:auto;max-height:78vh;padding:8px;text-align:center;">${html}</div>
-                `);
-            })
-            .catch(() => {
-                body.css('background', '').html(
-                    `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
-                );
-            });
+        renderRipPreview(body, previewUrl, filename);
 
     } else if (filename.toLowerCase().endsWith('.zip')) {
         body.css('background', '').html(
@@ -476,45 +462,96 @@ function renderPrgGallery(container, prgs, fileId, shareQs) {
     show(idx);
 }
 
-/**
- * Render a RIPscrip art gallery into a jQuery container.
- * Each entry in rips: {name, html} where html is server-rendered SVG.
- */
-function renderRipGallery(container, rips) {
-    let idx = 0;
+let _riptermLoaderPromise = null;
 
-    function show(i) {
-        const rip    = rips[i];
-        const isFirst = i === 0;
-        const isLast  = i === rips.length - 1;
-
-        container.css('background', '#0a0a0a').empty();
-
-        const artWrap = $('<div>').css({
-            overflow: 'auto', maxHeight: '65vh',
-            background: '#0a0a0a', textAlign: 'center', padding: '8px',
-        }).html(rip.html);
-
-        container.append(artWrap);
-
-        if (rips.length > 1) {
-            const navBar = $('<div>').addClass('d-flex align-items-center justify-content-between px-3 py-2 border-top')
-                .css({ background: '#111', minHeight: '42px' })
-                .append(
-                    $('<button>').addClass('btn btn-sm btn-outline-secondary').prop('disabled', isFirst)
-                        .html('<i class="fas fa-chevron-left"></i>')
-                        .on('click', function() { idx--; show(idx); }),
-                    $('<small>').addClass('text-muted text-truncate mx-2')
-                        .html(escapeHtml(rip.name) + ` (${i + 1}\u202f/\u202f${rips.length})`),
-                    $('<button>').addClass('btn btn-sm btn-outline-secondary').prop('disabled', isLast)
-                        .html('<i class="fas fa-chevron-right"></i>')
-                        .on('click', function() { idx++; show(idx); })
-                );
-            container.append(navBar);
-        }
+function loadRiptermJs() {
+    if (_riptermLoaderPromise) return _riptermLoaderPromise;
+    if (window.RIPterm && window.BGI) {
+        _riptermLoaderPromise = Promise.resolve();
+        return _riptermLoaderPromise;
     }
 
-    show(idx);
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[data-ripterm-src="${src}"]`);
+            if (existing) {
+                if (existing.dataset.loaded === 'true') {
+                    resolve();
+                    return;
+                }
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.dataset.riptermSrc = src;
+            script.addEventListener('load', () => {
+                script.dataset.loaded = 'true';
+                resolve();
+            }, { once: true });
+            script.addEventListener('error', reject, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    _riptermLoaderPromise = loadScript('/vendor/riptermjs/BGI.js')
+        .then(() => loadScript('/vendor/riptermjs/ripterm.js'));
+    return _riptermLoaderPromise;
+}
+
+function renderRipPreview(container, ripUrl, label) {
+    const canvasId = `ripCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    container.css('background', '#0a0a0a').html(`
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:78vh;padding:8px;text-align:center;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+        <div class="small text-muted text-center px-3 pb-3 d-none" data-rip-label>${escapeHtml(label)}</div>
+    `);
+
+    loadRiptermJs()
+        .then(() => fetch(ripUrl, { credentials: 'same-origin' }))
+        .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+        })
+        .then(async (ripText) => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId: canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+
+            container.find('[data-rip-loading]').remove();
+            container.find('[data-rip-stage]').removeClass('d-none');
+            container.find('[data-rip-label]').removeClass('d-none');
+        })
+        .catch((err) => {
+            console.error('RIP preview failed:', err);
+            container.css('background', '').html(
+                `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
+            );
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -882,15 +919,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             });
 
     } else if (type === 'rip') {
-        previewArea.css('background', '#0a0a0a');
-        fetchZipEntry(entryUrl, 'text')
-            .then(html => {
-                previewArea.html(`<div style="overflow:auto;max-height:70vh;padding:8px;text-align:center;">${html}</div>`);
-            })
-            .catch(err => {
-                if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
-                else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
-            });
+        renderRipPreview(previewArea, entryUrl, entryName);
 
     } else if (type === 'petscii') {
         previewArea.css('background', '#0000aa')

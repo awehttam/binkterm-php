@@ -262,6 +262,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   column showing the subscriber count per area.
 - Admin menu reorganized: new **Analytics** and **Community** submenus; Auto
   Feed moved into Area Management.
+- New **Sharing** admin page (`/admin/sharing`) under **Admin → Analytics**
+  listing active shared messages and shared files sorted by view count, with
+  separate tabs for each.
 
 **Premium / Registration**
 - Registration status row added to the admin dashboard.
@@ -1549,6 +1552,7 @@ A new **Analytics** submenu consolidates reporting pages:
 | Page | Requires License |
 |---|---|
 | Activity Statistics | No |
+| Sharing | No |
 | Economy Viewer | Yes |
 | Referral Analytics | Yes |
 

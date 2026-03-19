@@ -1,0 +1,199 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.sharing.page_title', {}, 'common') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.sharing.heading', {}, 'common') }}</h1>
+        <a href="/admin" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.sharing.dashboard', {}, 'common') }}
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-chart-line me-2"></i>{{ t('ui.admin.sharing.help', {}, 'common') }}
+    </div>
+
+    <div id="sharing-loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">{{ t('ui.common.loading', {}, 'common') }}</span>
+        </div>
+        <p class="mt-2 text-muted">{{ t('ui.admin.sharing.loading', {}, 'common') }}</p>
+    </div>
+
+    <div id="sharing-content" style="display:none;">
+        <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-shared-messages" type="button">{{ t('ui.admin.sharing.messages_tab', {}, 'common') }}</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-shared-files" type="button">{{ t('ui.admin.sharing.files_tab', {}, 'common') }}</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="pane-shared-messages" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-header"><strong>{{ t('ui.admin.sharing.messages_heading', {}, 'common') }}</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>{{ t('ui.admin.sharing.subject', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.area', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.shared_by', {}, 'common') }}</th>
+                                        <th class="text-end">{{ t('ui.admin.sharing.views', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.last_accessed', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.access', {}, 'common') }}</th>
+                                        <th class="text-end">{{ t('ui.admin.sharing.open', {}, 'common') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shared-message-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="pane-shared-files" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-header"><strong>{{ t('ui.admin.sharing.files_heading', {}, 'common') }}</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>{{ t('ui.admin.sharing.file', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.area', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.shared_by', {}, 'common') }}</th>
+                                        <th class="text-end">{{ t('ui.admin.sharing.views', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.last_accessed', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.access', {}, 'common') }}</th>
+                                        <th class="text-end">{{ t('ui.admin.sharing.open', {}, 'common') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shared-file-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    function uiT(key, fallback, params = {}) {
+        if (window.t) {
+            return window.t(key, params, fallback);
+        }
+        return fallback;
+    }
+
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        return payload && payload.error ? payload.error : fallback;
+    }
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined || str === '') {
+            return '&mdash;';
+        }
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return uiT('ui.admin.sharing.never', 'Never');
+        if (typeof window.formatFullDate === 'function') {
+            return window.formatFullDate(dateStr);
+        }
+        const date = new Date(dateStr + 'Z');
+        const userTimezone = window.userSettings?.timezone || 'UTC';
+        const userDateFormat = window.userSettings?.date_format || 'en-US';
+        return date.toLocaleString(userDateFormat, {
+            timeZone: userTimezone,
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    }
+
+    function renderAccessBadge(value, trueLabel, falseLabel, trueCls, falseCls) {
+        const cls = value ? trueCls : falseCls;
+        const label = value ? trueLabel : falseLabel;
+        return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+    }
+
+    function renderMessageRows(items) {
+        const tbody = document.getElementById('shared-message-rows');
+        if (!items || items.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-muted text-center py-3">${uiT('ui.admin.sharing.no_messages', 'No active shared messages')}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = items.map(item => `<tr>
+            <td class="text-truncate" style="max-width:320px">${escapeHtml(item.subject || uiT('messages.no_subject', '(No Subject)'))}</td>
+            <td>${escapeHtml(item.area_tag)}</td>
+            <td>${escapeHtml(item.shared_by)}</td>
+            <td class="text-end fw-semibold">${(item.access_count || 0).toLocaleString()}</td>
+            <td>${escapeHtml(formatDate(item.last_accessed_at))}</td>
+            <td>${renderAccessBadge(item.is_public, uiT('ui.admin.sharing.public', 'Public'), uiT('ui.admin.sharing.private', 'Private'), 'bg-success', 'bg-secondary')}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${escapeHtml(item.share_url)}" target="_blank" rel="noopener noreferrer">${uiT('ui.admin.sharing.open', 'Open')}</a></td>
+        </tr>`).join('');
+    }
+
+    function renderFileRows(items) {
+        const tbody = document.getElementById('shared-file-rows');
+        if (!items || items.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-muted text-center py-3">${uiT('ui.admin.sharing.no_files', 'No active shared files')}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = items.map(item => `<tr>
+            <td class="text-truncate" style="max-width:320px">${escapeHtml(item.filename)}</td>
+            <td>${escapeHtml(item.area_tag)}</td>
+            <td>${escapeHtml(item.shared_by)}</td>
+            <td class="text-end fw-semibold">${(item.access_count || 0).toLocaleString()}</td>
+            <td>${escapeHtml(formatDate(item.last_accessed_at))}</td>
+            <td>${renderAccessBadge(item.freq_accessible, uiT('ui.admin.sharing.freq_enabled', 'FREQ'), uiT('ui.admin.sharing.web_only', 'Web only'), 'bg-info', 'bg-secondary')}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${escapeHtml(item.share_url)}" target="_blank" rel="noopener noreferrer">${uiT('ui.admin.sharing.open', 'Open')}</a></td>
+        </tr>`).join('');
+    }
+
+    function loadSharing() {
+        $('#sharing-loading').show();
+        $('#sharing-content').hide();
+
+        $.getJSON('/admin/api/sharing')
+            .done(function(data) {
+                renderMessageRows(data.messages || []);
+                renderFileRows(data.files || []);
+                $('#sharing-loading').hide();
+                $('#sharing-content').show();
+            })
+            .fail(function(xhr) {
+                $('#sharing-loading').html(`<div class="alert alert-danger">${escapeHtml(apiError(xhr.responseJSON, uiT('ui.admin.sharing.load_failed', 'Failed to load sharing data')))}</div>`);
+            });
+    }
+
+    $(document).ready(function() {
+        loadI18nNamespaces(['common', 'errors']).then(function() {
+            loadSharing();
+        });
+    });
+})();
+</script>
+{% endblock %}

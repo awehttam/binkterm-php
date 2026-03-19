@@ -23,6 +23,7 @@ let searchFilterCounts = null;
 let originalFilterCounts = null;
 let isSearchActive = false;
 let currentPagination = null;
+let _messageRiptermLoaderPromise = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -916,9 +917,95 @@ function hideKeyboardHelp() {
 }
 
 function getNextRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    if (window.getNextViewerRenderMode) {
+        return window.getNextViewerRenderMode(mode);
+    }
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
+}
+
+function loadRiptermJsForMessages() {
+    if (_messageRiptermLoaderPromise) return _messageRiptermLoaderPromise;
+    if (window.RIPterm && window.BGI) {
+        _messageRiptermLoaderPromise = Promise.resolve();
+        return _messageRiptermLoaderPromise;
+    }
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[data-ripterm-src="${src}"]`);
+            if (existing) {
+                if (existing.dataset.loaded === 'true') {
+                    resolve();
+                    return;
+                }
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.dataset.riptermSrc = src;
+            script.addEventListener('load', () => {
+                script.dataset.loaded = 'true';
+                resolve();
+            }, { once: true });
+            script.addEventListener('error', reject, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    _messageRiptermLoaderPromise = loadScript('/vendor/riptermjs/BGI.js')
+        .then(() => loadScript('/vendor/riptermjs/ripterm.js'));
+    return _messageRiptermLoaderPromise;
+}
+
+function renderRipMessageBody(container, ripText) {
+    const canvasId = `messageRipCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    container.innerHTML = `
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:70vh;padding:8px;text-align:center;background:#0a0a0a;border-radius:6px;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+    `;
+
+    loadRiptermJsForMessages()
+        .then(async () => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId: canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+
+            const loading = container.querySelector('[data-rip-loading]');
+            const stage = container.querySelector('[data-rip-stage]');
+            if (loading) loading.remove();
+            if (stage) stage.classList.remove('d-none');
+        })
+        .catch((err) => {
+            console.error('RIP message render failed:', err);
+            container.innerHTML = `<div class="alert alert-danger m-3">${uiT('ui.echomail.rip_render_failed', 'Failed to render RIPscrip message')}</div>`;
+        });
 }
 
 function showRenderModeToast() {
@@ -979,6 +1066,18 @@ function renderCurrentMessageBody() {
     if (!currentMessageData || !currentParsedMessage) return;
 
     const body = currentParsedMessage.messageBody;
+    const detectedRipScript = currentMessageData.rip_script
+        || ((typeof looksLikeRipScript === 'function' && looksLikeRipScript(body)) ? body : null);
+    const isRipMode = !!detectedRipScript && (currentRenderMode === 'auto' || currentRenderMode === 'rip');
+    const container = document.getElementById('messageTextContainer');
+    if (!container) return;
+
+    if (isRipMode) {
+        renderRipMessageBody(container, detectedRipScript);
+        updateRenderModeBadge();
+        return;
+    }
+
     let bodyHtml;
     if (currentRenderMode === 'auto' && currentMessageData.markup_html) {
         bodyHtml = currentMessageData.markup_html;
@@ -988,9 +1087,6 @@ function renderCurrentMessageBody() {
             formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
         });
     }
-
-    const container = document.getElementById('messageTextContainer');
-    if (!container) return;
 
     container.innerHTML = '';
     const tmp = document.createElement('div');
@@ -1128,10 +1224,6 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         `;
     }
 
-    const bodyHtml = message.markup_html
-        ? message.markup_html
-        : formatMessageBodyForDisplay(message, parsedMessage.messageBody);
-
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
@@ -1176,7 +1268,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             <div id="ansiRenderBadge" style="display:none;" class="mb-2">
                 <span class="badge bg-secondary" id="ansiRenderBadgeText"></span>
             </div>
-            <div id="messageTextContainer">${bodyHtml}</div>
+            <div id="messageTextContainer"></div>
         </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;
@@ -1185,7 +1277,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);
-    updateRenderModeBadge();
+    renderCurrentMessageBody();
 
     // Set up reply button
     $('#replyButton').show().off('click').on('click', function() {
