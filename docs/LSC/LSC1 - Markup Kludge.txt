@@ -1,0 +1,322 @@
+**********************************************************************
+FIDONET STANDARDS PROPOSAL
+
+Title:   MARKUP Kludge for FidoNet-Compatible Echomail and Netmail
+Draft:   5
+Date:    2026-03-13
+Status:  Community Draft - Proposed for FTSC Consideration
+**********************************************************************
+
+
+1. INTRODUCTION
+---------------
+
+This document proposes the MARKUP kludge line for use in FidoNet-
+compatible echomail and netmail messages. Its purpose is to indicate
+that the body of a message is formatted using a named markup syntax,
+allowing capable reader software to render the message with appropriate
+formatting while remaining fully readable by legacy software that does
+not support this kludge.
+
+Unlike a Markdown-specific kludge, MARKUP provides a general mechanism
+for identifying the body format of a message. This allows the same
+extension point to be used for Markdown, BBCode, Gemtext, and other
+formats without requiring a new kludge definition for each syntax.
+
+This proposal is submitted to the FidoNet community for discussion and
+review, with the intent of submission to the FidoNet Technical
+Standards Committee (FTSC) for consideration as a FidoNet Technical
+Standard.
+
+
+2. DEFINITIONS
+--------------
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in FTA-1006.
+
+"Kludge line": A line in a FidoNet message body beginning with the
+ASCII SOH character (0x01), used to carry machine-readable metadata
+not intended for direct display to the end user.
+
+"Markup syntax": A textual formatting language used within the visible
+message body to express structure or presentation, such as Markdown,
+BBCode, or Gemtext.
+
+
+3. THE MARKUP KLUDGE
+--------------------
+
+3.1 Syntax
+
+The MARKUP kludge line has the following syntax:
+
+    ^AMARKUP: <format> <version>
+
+where ^A represents the ASCII SOH character (0x01), <format> is a
+registered or otherwise well-known markup format identifier, and
+<version> is a format version string meaningful within that format.
+
+Examples:
+
+    ^AMARKUP: Markdown 1.0
+    ^AMARKUP: BBCode 1.0
+    ^AMARKUP: Gemtext 1.0
+    ^AMARKUP: StyleCodes 1.0
+
+3.2 Placement
+
+The MARKUP kludge line SHOULD be placed with other kludge lines at
+the beginning of the message body, before any visible text content,
+in accordance with common FidoNet kludge conventions.
+
+A message body MUST NOT contain more than one MARKUP kludge line.
+If multiple MARKUP kludge lines are present, implementations SHOULD
+use the first one encountered and ignore the remainder.
+
+The MARKUP kludge applies to the entire visible message body
+regardless of where in the message the kludge line appears. The
+declared format is not limited to the text following the kludge;
+the complete body content MUST be interpreted and rendered as a
+single unit using the declared markup syntax.
+
+3.3 Format Identifier
+
+The format identifier MUST be a single token and SHOULD use a stable,
+widely recognized name for the markup syntax. Implementations SHOULD
+treat format identifiers case-insensitively for matching purposes,
+though they MAY preserve the original casing for display or logging.
+
+3.4 Version String
+
+The version string MUST follow the format identifier and SHOULD be
+included whenever the syntax has meaningful version distinctions.
+Implementations MAY treat the version as an opaque string. Software
+that recognizes a format but not its declared version SHOULD fall back
+to best-effort rendering or plain text display.
+
+
+4. BEHAVIOR OF CONFORMING SOFTWARE
+----------------------------------
+
+4.1 Message Authors and Editors
+
+A message editor that supports composition in a named markup syntax
+MAY insert the MARKUP kludge line when the user composes a message in
+that format. It SHOULD NOT insert the kludge unless the message body
+actually contains content intended for that markup syntax.
+
+4.2 Message Readers
+
+A message reader that encounters the MARKUP kludge:
+
+  - SHOULD inspect the declared format identifier before attempting
+    rendering.
+  - MAY render the body according to the declared format if that
+    format is supported.
+  - MUST apply the declared format to the entire visible message body,
+    not only the portion of the body following the kludge line.
+  - SHOULD provide plain text display when the declared format is not
+    supported, not recognized, or cannot be safely rendered.
+  - SHOULD provide a way for the user to view the raw source if
+    desired.
+
+4.3 Unknown or Unsupported Formats
+
+Software that does not recognize the declared markup format MUST
+ignore the semantic meaning of the kludge and display the message body
+as plain text. The original body content MUST be preserved unchanged.
+
+4.4 Tosser and Packer Behavior
+
+Tossers, packers, and other mail-handling software MUST NOT alter,
+strip, or otherwise modify the MARKUP kludge line during normal
+message handling. The kludge MUST be preserved through the normal
+FidoNet message routing process.
+
+4.5 Reply Quoting
+
+When replying to a message declared with the MARKUP kludge, software
+SHOULD preserve the original source structure as much as practical.
+
+Software SHOULD NOT mechanically convert the entire original body into
+legacy inline quote prefixes if doing so would damage the structure or
+readability of the declared markup syntax.
+
+For line-oriented or block-oriented formats such as Markdown and
+Gemtext, software SHOULD prefer quoting mechanisms native to that
+format.
+
+For Markdown specifically, implementations SHOULD prefer enclosing the
+original body in a Markdown blockquote while keeping any reply
+attribution line outside the quoted block.
+
+Example:
+
+    On 13 Mar 2026, Jane Doe wrote:
+
+    > # Heading
+    >
+    > - item one
+    > - item two
+    >
+    > ```text
+    > code block
+    > ```
+
+This approach improves round-trip fidelity for marked-up replies while
+remaining readable in plain-text environments.
+
+
+5. FORMAT-SPECIFIC GUIDANCE
+---------------------------
+
+This document defines only the transport-level declaration mechanism.
+It does not standardize the parsing rules of any specific markup
+syntax.
+
+Implementors supporting a given format SHOULD document which variant
+they support. For example:
+
+  - Markdown implementations SHOULD identify which dialect or baseline
+    they follow, such as CommonMark.
+  - BBCode implementations SHOULD document which tags are supported.
+  - Gemtext implementations SHOULD follow Gemtext line-oriented rules.
+  - StyleCodes implementations SHOULD follow the convention established
+    by GoldEd and compatible software. StyleCodes is also known as
+    "Rich Text" (SemPoint), "Structured Text" (Mozilla/Thunderbird),
+    and "markup" (Synchronet). The format identifier "StyleCodes" is
+    RECOMMENDED over these alternatives to avoid ambiguity with
+    Microsoft Rich Text Format (RTF) and reStructuredText (RST).
+
+When possible, authors SHOULD choose markup syntaxes that degrade
+gracefully in plain-text environments, since many FidoNet-compatible
+systems may display the raw message body without rendering.
+
+
+6. SECURITY CONSIDERATIONS
+--------------------------
+
+Rendering software MUST treat the declared markup format as untrusted
+input. Implementations SHOULD sanitize or restrict active content,
+embedded HTML, unsafe URLs, and any construct that could execute code,
+load remote resources, or mislead the user interface.
+
+Software rendering marked-up messages MUST NOT automatically fetch
+remote resources without explicit user consent, in order to protect
+user privacy and avoid unexpected network activity.
+
+
+7. IMPLEMENTATION NOTES
+-----------------------
+
+The MARKUP kludge is intended as a general extension mechanism for
+FidoNet-compatible software. A given implementation MAY support only
+a subset of markup syntaxes and still conform to this specification,
+provided unsupported formats are safely treated as plain text.
+
+An implementation that currently supports only Markdown may still emit:
+
+    ^AMARKUP: Markdown 1.0
+
+This preserves forward compatibility with other markup syntaxes while
+allowing immediate use for Markdown-aware readers.
+
+
+8. MARKUP FORMAT REGISTRY
+-------------------------
+
+This section defines the initial set of registered format identifiers
+for use with the MARKUP kludge. Additional identifiers MAY be used by
+mutual agreement between implementations; authors of new identifiers
+are ENCOURAGED to document them and submit them for inclusion here.
+
+Format identifiers are matched case-insensitively per section 3.3.
+The canonical capitalisation shown below SHOULD be used when emitting
+the kludge.
+
+8.1 Registered Identifiers
+
+  Identifier    Version   Description
+  ----------    -------   -----------
+  Markdown      1.0       CommonMark-compatible Markdown. Implementations
+                          SHOULD follow the CommonMark specification [5].
+                          See section 5 for guidance on dialect disclosure.
+
+  BBCode        1.0       Tag-based markup originating in bulletin board
+                          systems, using [tag] and [/tag] delimiters.
+                          Implementations SHOULD document which tag set
+                          is supported, as no single normative BBCode
+                          specification exists.
+
+  Gemtext       1.0       Line-oriented markup used by the Gemini protocol.
+                          Each line begins with an optional prefix character
+                          that determines its type (link, heading, list
+                          item, preformatted block, quote, or plain text).
+                          Implementations SHOULD follow the Gemini
+                          specification for line-type parsing.
+
+  StyleCodes    1.0       Character-sequence-based inline formatting
+                          originating in GoldEd and compatible FidoNet
+                          editors. Also known as "Rich Text" (SemPoint),
+                          "Structured Text" (Mozilla/Thunderbird), and
+                          "markup" (Synchronet). The identifier StyleCodes
+                          is RECOMMENDED over these alternatives; see
+                          section 5.
+
+8.2 Reserved Identifiers
+
+  The following identifiers are reserved and MUST NOT be used as
+  format identifiers in the MARKUP kludge, to avoid collision with
+  existing terminology:
+
+    RTF      (conflicts with Microsoft Rich Text Format)
+    RST      (conflicts with reStructuredText)
+    HTML     (conflicts with HyperText Markup Language; active content
+              rendering is explicitly discouraged by section 6)
+
+8.3 Registration Process
+
+  At this time no formal registration authority exists. Authors wishing
+  to use a new identifier SHOULD:
+
+    1. Choose a stable, unambiguous token not already in use.
+    2. Publish a definition of the format and the meaning of any
+       version strings used.
+    3. Submit the identifier and definition to the FidoNet community
+       for inclusion in this registry.
+
+
+9. REFERENCES
+-------------
+
+  [1] FTS-0001  - A Basic FidoNet(r) Technical Standard
+  [2] FTS-0009  - The MSGID and REPLY kludges
+  [3] FTS-5003  - Character set kludge (CHRS/CHARSET)
+  [4] FTA-1006  - Key words to indicate requirement levels
+  [5] CommonMark Specification
+      https://spec.commonmark.org/
+
+
+10. REVISION HISTORY
+--------------------
+
+  2026-02-27  Initial proposal for a Markdown-specific kludge.
+  2026-03-01  Revised to use the general MARKUP kludge mechanism.
+  2026-03-09  Clarified one-kludge-per-message rule and whole-body
+              scope of the declared markup format. Reframed as a
+              general FidoNet community proposal.
+  2026-03-10  Added section 8: Markup Format Registry, defining
+              initial registered identifiers (Markdown, BBCode,
+              Gemtext, StyleCodes), reserved identifiers, and
+              registration process guidance. Renumbered References
+              and Revision History to sections 9 and 10.
+  2026-03-13  Added reply-quoting guidance for marked-up messages,
+              recommending preservation of source structure and
+              format-native quoting where practical.
+
+
+**********************************************************************
+END OF DOCUMENT
+**********************************************************************
