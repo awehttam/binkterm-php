@@ -75,13 +75,6 @@
             <span class="badge bg-secondary ms-1" id="fileCount">-</span>
         </a>
     </li>
-    <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="tab" href="#requestsTab">
-            <i class="fas fa-envelope me-1"></i>
-            {{ t('ui.admin.lovlynet.tab_requests') }}
-            <span class="badge bg-secondary ms-1" id="requestCount">-</span>
-        </a>
-    </li>
 </ul>
 
 <div class="tab-content">
@@ -109,15 +102,6 @@
                 </button>
             </div>
             <div class="card-body p-0" id="fileAreasContainer">
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-spinner fa-spin fa-2x"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="tab-pane fade" id="requestsTab">
-        <div class="card">
-            <div class="card-body p-0" id="lovlynetRequestsContainer">
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
@@ -299,10 +283,6 @@ $(document).ready(function() {
         init();
     }
 
-    $('a[data-bs-toggle="tab"][href="#requestsTab"]').on('shown.bs.tab', function() {
-        loadLovlyNetRequests();
-    });
-
     $('#lovlynetRescanMode').on('change', updateLovlyNetRescanForm);
 });
 
@@ -319,7 +299,6 @@ function loadAreas() {
             renderAreas('echo', data.echoareas || [], '#echoAreasContainer', '#echoCount');
             renderAreas('file', data.fileareas || [], '#fileAreasContainer', '#fileCount');
             updateSubscribedCount();
-            loadLovlyNetRequests();
         })
         .fail(function(xhr) {
             const msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error
@@ -783,7 +762,6 @@ function submitLovlynetRescan() {
                 lovlynetRescanModal.hide();
             }
             showSuccess(uiT('ui.admin.lovlynet.rescan_sent', 'AreaFix rescan request sent'));
-            loadLovlyNetRequests();
         },
         error: function(xhr) {
             const fallback = uiT('ui.admin.lovlynet.rescan_send_failed', 'Failed to send rescan request');
@@ -900,7 +878,6 @@ function submitLovlynetRequest() {
                 lovlynetRequestModal.hide();
             }
             $('#lovlynetRequestMessage').val('');
-            loadLovlyNetRequests();
             showSuccess(
                 areaType === 'file'
                     ? uiT('ui.admin.lovlynet.request_sent_file', 'FileFix request sent')
@@ -1008,6 +985,14 @@ function renderResendFileList() {
     </div>
     <div class="border rounded" style="overflow-y: auto; max-height: 40vh;">
         <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:1px;"></th>
+                    <th>${uiT('ui.admin.lovlynet.resend_col_filename', 'Filename')}</th>
+                    <th>${uiT('ui.admin.lovlynet.resend_col_description', 'Description')}</th>
+                    <th class="text-center" style="width:90px;">${uiT('ui.admin.lovlynet.resend_col_local', 'Local')}</th>
+                </tr>
+            </thead>
             <tbody>`;
 
     pageFiles.forEach(function(file, idx) {
@@ -1015,6 +1000,9 @@ function renderResendFileList() {
         const desc = escapeHtml(file.description || '');
         const globalIdx = start + idx;
         const checked = _resendSelectedFiles.has(file.filename) ? 'checked' : '';
+        const localBadge = file.local_exists
+            ? `<span class="badge bg-success" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.resend_local_yes_title', 'File is in your local file area'))}"><i class="fas fa-check"></i></span>`
+            : `<span class="badge bg-secondary" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.resend_local_no_title', 'File is not in your local file area'))}"><i class="fas fa-minus"></i></span>`;
         html += `<tr>
             <td class="ps-3" style="width: 1px; white-space: nowrap;">
                 <input class="form-check-input resend-file-check" type="checkbox"
@@ -1023,6 +1011,7 @@ function renderResendFileList() {
             </td>
             <td><label class="form-check-label font-monospace mb-0" for="resendFile_${globalIdx}">${filename}</label></td>
             <td class="text-muted small">${desc}</td>
+            <td class="text-center">${localBadge}</td>
         </tr>`;
     });
 
@@ -1111,7 +1100,6 @@ function submitLovlynetResend() {
                 lovlynetResendModal.hide();
             }
             showSuccess(uiT('ui.admin.lovlynet.resend_sent', 'FileFix resend request sent'));
-            loadLovlyNetRequests();
         },
         error: function(xhr) {
             const fallback = uiT('ui.admin.lovlynet.resend_send_failed', 'Failed to send resend request');

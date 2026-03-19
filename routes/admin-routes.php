@@ -4820,9 +4820,33 @@ SimpleRouter::get('/admin/api/lovlynet/filearea-files', function() {
         );
     }
 
+    // Build a set of locally held filenames (case-insensitive) for this area tag.
+    $localFilenames = [];
+    try {
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT LOWER(f.filename) AS fn
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE LOWER(fa.tag) = LOWER(?)
+              AND f.status = 'approved'
+        ");
+        $stmt->execute([$areaTag]);
+        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $fn) {
+            $localFilenames[$fn] = true;
+        }
+    } catch (\Throwable $e) {
+        // Non-fatal — local_exists will default to false
+    }
+
+    $files = array_map(function (array $file) use ($localFilenames): array {
+        $file['local_exists'] = isset($localFilenames[strtolower($file['filename'] ?? '')]);
+        return $file;
+    }, $result['files']);
+
     echo json_encode([
         'success' => true,
-        'files'   => $result['files'],
+        'files'   => $files,
     ]);
 });
 
