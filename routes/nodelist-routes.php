@@ -11,12 +11,28 @@ SimpleRouter::get('/nodelist', function() {
     if (!is_array($flags)) {
         $flags = $flags !== '' ? [$flags] : [];
     }
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    if ($user) {
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $searchLabel = trim((string)($_GET['search'] ?? ''));
+        if ($searchLabel === '') {
+            $searchLabel = 'browse';
+        }
+        ActivityTracker::track($userId, ActivityTracker::TYPE_NODELIST_VIEW, null, $searchLabel);
+    }
     echo $controller->index($_GET['search'] ?? '', $_GET['zone'] ?? '', $_GET['net'] ?? '', $flags, (int)($_GET['page'] ?? 1));
 });
 
 SimpleRouter::get('/nodelist/view', function() {
     $controller = new BinktermPHP\Web\NodelistController();
     $address = $_GET['address'] ?? '';
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    if ($user && $address !== '') {
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        ActivityTracker::track($userId, ActivityTracker::TYPE_NODE_VIEW, null, $address);
+    }
     echo $controller->view($address);
 });
 
