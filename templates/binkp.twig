@@ -308,6 +308,12 @@
             <div class="modal-body" id="pktModalBody">
                 <div class="text-center py-4"><span class="spinner-border"></span></div>
             </div>
+            <div class="modal-footer">
+                <a id="pktDownloadBtn" class="btn btn-outline-primary" href="#">
+                    <i class="fas fa-download me-1"></i>{{ t('ui.files.download') }}
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
+            </div>
         </div>
     </div>
 </div>
@@ -736,6 +742,8 @@ function openPacketInspector(type, date, filename) {
     document.getElementById('pktModalTitle').textContent = decodeURIComponent(filename);
     document.getElementById('pktModalBody').innerHTML =
         '<div class="text-center py-4"><span class="spinner-border"></span></div>';
+    document.getElementById('pktDownloadBtn').href =
+        `/api/binkp/kept-packets/download?type=${type}&date=${date}&filename=${filename}`;
 
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('packetInspectorModal'));
     modal.show();

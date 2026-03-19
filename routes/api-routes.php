@@ -7146,6 +7146,38 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($controller->inspectPacket($type, $date, $filename));
     });
 
+    SimpleRouter::get('/binkp/kept-packets/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type'] ?? 'inbound';
+        $date     = $_GET['date'] ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->getKeptPacketDownloadPath($type, $date, $filename);
+        if ($filepath === null) {
+            apiError('errors.binkp.kept_packets.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
     SimpleRouter::get('/binkp/kept-packets', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);

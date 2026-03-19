@@ -161,7 +161,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Message Artwork Encoding Editor** - In-browser tool for correcting the character encoding of ANSI and PETSCII art in messages when automatic detection is wrong; available to sysops on any echomail and to senders/receivers on netmail
 - **Email Notifications** - Registered feature: users can opt in to have incoming netmail forwarded to their email address (including FTN file attachments), and/or receive a periodic echomail digest summarising new activity in their subscribed areas (daily or weekly)
 - **QWK/QWKE Offline Mail** - Download QWK or QWKE offline mail packets containing new netmail and echomail for reading in offline readers (MultiMail, OLX, etc.), then upload REP reply packets to post replies
-- **Registration** - Optional registration unlocks premium features including custom login/registration splash pages, netmail email forwarding, echomail digest emails, economy viewer, and referral analytics. See `REGISTER.md` for details.
+- **Registration** - Optional registration unlocks premium features including custom login/registration splash pages, netmail email forwarding, echomail digest emails, economy viewer, and referral analytics. See [REGISTER.md](REGISTER.md) for details.
 
 
 ## Native Binkp Protocol Support

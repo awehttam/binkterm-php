@@ -355,10 +355,18 @@ class BinkpController
                 }
 
                 if (!empty($packets)) {
+                    usort($packets, static fn(array $a, array $b): int => $b['modified_ts'] <=> $a['modified_ts']);
+
                     $total   += count($packets);
-                    $groups[] = ['date' => $label, 'packets' => $packets];
+                    $groups[] = [
+                        'date'               => $label,
+                        'packets'            => $packets,
+                        'latest_modified_ts' => $packets[0]['modified_ts'],
+                    ];
                 }
             }
+
+            usort($groups, static fn(array $a, array $b): int => $b['latest_modified_ts'] <=> $a['latest_modified_ts']);
 
             return ['success' => true, 'groups' => $groups, 'total' => $total];
 
@@ -376,10 +384,13 @@ class BinkpController
      */
     private function buildPacketRecord(string $path, array $info): array
     {
+        $modifiedTs = filemtime($path);
+
         return [
             'filename'      => basename($path),
             'size'          => filesize($path),
-            'modified'      => date('Y-m-d H:i:s', filemtime($path)),
+            'modified'      => date('Y-m-d H:i:s', $modifiedTs),
+            'modified_ts'   => $modifiedTs,
             'message_count' => $info['message_count'],
             'dest_address'  => $info['dest_address'],
             'orig_address'  => $info['orig_address'],
@@ -419,26 +430,54 @@ class BinkpController
         }
 
         try {
-            $basePath = $type === 'inbound'
-                ? $this->config->getInboundPath() . DIRECTORY_SEPARATOR . 'keep'
-                : $this->config->getOutboundPath() . DIRECTORY_SEPARATOR . 'keep';
-
-            $filepath = $date
-                ? $basePath . DIRECTORY_SEPARATOR . $date . DIRECTORY_SEPARATOR . $filename
-                : $basePath . DIRECTORY_SEPARATOR . $filename;
-
-            // Resolve and confirm the file is inside the keep directory
-            $realBase = realpath($basePath);
-            $realFile = realpath($filepath);
-            if (!$realFile || !$realBase || !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
+            $filepath = $this->resolveKeptPacketPath($type, $date, $filename);
+            if ($filepath === null) {
                 return ['success' => false, 'error' => 'File not found'];
             }
 
-            return $this->parsePacketFull($realFile);
+            return $this->parsePacketFull($filepath);
 
         } catch (\Exception $e) {
             return $this->apiErrorResponse('errors.binkp.kept_packets.inspect_failed', $e->getMessage());
         }
+    }
+
+    public function getKeptPacketDownloadPath(string $type, string $date, string $filename): ?string
+    {
+        return $this->resolveKeptPacketPath($type, $date, $filename);
+    }
+
+    private function resolveKeptPacketPath(string $type, string $date, string $filename): ?string
+    {
+        $date     = basename($date);
+        $filename = basename($filename);
+
+        if (!preg_match('/^[A-Za-z0-9\-]*$/', $date)) {
+            return null;
+        }
+        if (!preg_match('/^[A-Za-z0-9_\-]+\.pkt$/i', $filename)) {
+            return null;
+        }
+
+        $basePath = $type === 'inbound'
+            ? $this->config->getInboundPath() . DIRECTORY_SEPARATOR . 'keep'
+            : $this->config->getOutboundPath() . DIRECTORY_SEPARATOR . 'keep';
+
+        $filepath = $date
+            ? $basePath . DIRECTORY_SEPARATOR . $date . DIRECTORY_SEPARATOR . $filename
+            : $basePath . DIRECTORY_SEPARATOR . $filename;
+
+        $realBase = realpath($basePath);
+        $realFile = realpath($filepath);
+        if (!$realFile || !$realBase) {
+            return null;
+        }
+
+        if ($realFile !== $realBase && !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return is_file($realFile) ? $realFile : null;
     }
 
     /**
