@@ -396,7 +396,9 @@ async function doDownload() {
             }
         });
     } catch (err) {
-        alert('Download failed: ' + err.message);
+        alert(window.t
+            ? window.t('ui.qwk.download_failed_prefix', {}, 'Download failed: ') + err.message
+            : 'Download failed: ' + err.message);
     } finally {
         btn.disabled = false;
         btn.innerHTML = origHtml;

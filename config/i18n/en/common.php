@@ -1220,6 +1220,7 @@ return [
     'ui.admin.bbs_settings.features.bbs_directory_help' => 'Shows the public /bbs-directory page and BBS Lists nav menu. When disabled, the page returns 404.',
     'ui.admin.bbs_settings.features.enable_qwk' => 'Enable QWK Offline Mail',
     'ui.admin.bbs_settings.features.qwk_help' => 'Allows users to download QWK packets and upload REP reply packets for offline mail reading.',
+    'ui.qwk.download_failed_prefix' => 'Download failed: ',
     'ui.admin.bbs_settings.features.default_echo_interface' => 'Default Echo Interface',
     'ui.admin.bbs_settings.features.echo_list_forum' => 'Echo List (Forum view)',
     'ui.admin.bbs_settings.features.reader_message_list' => 'Reader (Message list)',

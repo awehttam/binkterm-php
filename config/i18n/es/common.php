@@ -1220,6 +1220,7 @@ return [
     'ui.admin.bbs_settings.features.bbs_directory_help' => 'Muestra la pagina publica /bbs-directory y el menu de navegacion de listas BBS. Cuando esta deshabilitado, la pagina devuelve 404.',
     'ui.admin.bbs_settings.features.enable_qwk' => 'Habilitar correo sin conexion QWK',
     'ui.admin.bbs_settings.features.qwk_help' => 'Permite a los usuarios descargar paquetes QWK y subir paquetes de respuesta REP para leer correo sin conexion.',
+    'ui.qwk.download_failed_prefix' => 'Descarga fallida: ',
     'ui.admin.bbs_settings.features.default_echo_interface' => 'Interfaz de echo predeterminada',
     'ui.admin.bbs_settings.features.echo_list_forum' => 'Lista de echo (vista foro)',
     'ui.admin.bbs_settings.features.reader_message_list' => 'Lector (lista de mensajes)',
