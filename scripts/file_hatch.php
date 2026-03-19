@@ -91,7 +91,7 @@ function findFileByName(PDO $db, int $fileAreaId, string $filename): ?array
 
 $args = parseArgs($argv);
 
-if (($args['file_id'] ?? null) === null && (!$args['filename'] || !$args['area_tag'])) {
+if (($args['file_id'] ?? null) === null && ($args['area_id'] ?? null) === null && (!$args['filename'] || !$args['area_tag'])) {
     printUsage();
     exit(1);
 }
@@ -100,6 +100,55 @@ $db = Database::getInstance()->getPdo();
 $manager = new FileAreaManager();
 
 try {
+    // Area-level rehatch: rehatch all approved files in the area
+    if (($args['area_id'] ?? null) !== null) {
+        $fileArea = $manager->getFileAreaById((int) $args['area_id']);
+        if (!$fileArea) {
+            throw new RuntimeException("File area ID {$args['area_id']} not found");
+        }
+
+        if (!empty($fileArea['is_local'])) {
+            throw new RuntimeException("File area {$fileArea['tag']} is local-only; no TICs will be generated");
+        }
+
+        if (!empty($fileArea['is_private'])) {
+            throw new RuntimeException("File area {$fileArea['tag']} is private; no TICs will be generated");
+        }
+
+        $files = $manager->getFiles((int) $fileArea['id']);
+
+        if (empty($files)) {
+            echo "No approved files found in area {$fileArea['tag']}.\n";
+            exit(0);
+        }
+
+        $generator = new TicFileGenerator();
+        $totalTics = 0;
+        $errors    = 0;
+
+        echo "Re-hatching {$fileArea['tag']}@{$fileArea['domain']} (" . count($files) . " file(s))...\n";
+
+        foreach ($files as $file) {
+            try {
+                $sourcePath = $manager->resolveFilePath($file);
+                if (!is_file($sourcePath)) {
+                    echo "  SKIP  {$file['filename']} (not on disk)\n";
+                    continue;
+                }
+
+                $createdTics = $generator->createTicFilesForUplinks($file, $fileArea);
+                $totalTics += count($createdTics);
+                echo "  OK    {$file['filename']} (" . count($createdTics) . " TIC(s))\n";
+            } catch (Throwable $e) {
+                echo "  ERROR {$file['filename']}: " . $e->getMessage() . "\n";
+                $errors++;
+            }
+        }
+
+        echo "\nDone. {$totalTics} TIC file(s) queued, {$errors} error(s).\n";
+        exit($errors > 0 ? 1 : 0);
+    }
+
     if ($args['file_id'] !== null) {
         $file = $manager->getFileById((int) $args['file_id']);
         if (!$file) {
