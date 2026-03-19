@@ -2019,6 +2019,8 @@ return [
     'ui.files.share_link' => 'Enlace para compartir',
     'ui.files.revoke_link' => 'Revocar enlace',
     'ui.files.create_share_link' => 'Crear enlace para compartir',
+    'ui.files.share_access_stats' => 'Accedido {count} veces. Ultimo acceso: {last_accessed}',
+    'ui.files.never_accessed' => 'Nunca',
     'ui.files.select_file_required' => 'Seleccionar archivo *',
     'ui.files.maximum_file_size' => 'Tamano maximo de archivo',
     'ui.files.short_description_required' => 'Descripcion corta *',

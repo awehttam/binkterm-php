@@ -2021,6 +2021,8 @@ return [
     'ui.files.share_link' => 'Share Link',
     'ui.files.revoke_link' => 'Revoke Link',
     'ui.files.create_share_link' => 'Create Share Link',
+    'ui.files.share_access_stats' => 'Accessed {count} times. Last accessed: {last_accessed}',
+    'ui.files.never_accessed' => 'Never',
     'ui.files.select_file_required' => 'Select File *',
     'ui.files.maximum_file_size' => 'Maximum file size',
     'ui.files.short_description_required' => 'Short Description *',

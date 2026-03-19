@@ -375,6 +375,10 @@
                         <i class="fas fa-info-circle me-1"></i>
                         {{ t('ui.files.active_share_exists', {}, 'common') }}
                     </div>
+                    <div id="shareAccessInfo" class="alert alert-secondary mb-3" style="display:none;">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        <span id="shareAccessText"></span>
+                    </div>
                     <div class="form-check mb-3" id="shareFreqGroup">
                         <input class="form-check-input" type="checkbox" id="shareFreqAccessible" checked>
                         <label class="form-check-label" for="shareFreqAccessible">
@@ -1912,6 +1916,8 @@ function showFileShareDialog() {
     $('#shareModalContent').hide();
     $('#shareModalError').hide();
     $('#existingShareInfo').hide();
+    $('#shareAccessInfo').hide();
+    $('#shareAccessText').text('');
     $('#shareLinkGroup').hide();
     $('#shareRevokeGroup').hide();
     $('#shareExpiryGroup').show();
@@ -1927,6 +1933,7 @@ function showFileShareDialog() {
                 // Existing global share found
                 currentShareId = data.share_id;
                 $('#existingShareInfo').show();
+                updateFileShareAccessInfo(data.access_count || 0, data.last_accessed_at || null);
                 $('#shareLinkGroup').show();
                 $('#shareUrlInput').val(data.share_url);
                 $('#shareExpiryGroup').hide();
@@ -1959,6 +1966,7 @@ function createFileShare() {
         success: function(data) {
             if (data.success) {
                 currentShareId = data.share_id;
+                updateFileShareAccessInfo(data.access_count || 0, data.last_accessed_at || null);
                 $('#shareUrlInput').val(data.share_url);
                 $('#shareLinkGroup').show();
                 $('#shareRevokeGroup').show();
@@ -1987,6 +1995,8 @@ function revokeFileShare() {
         method: 'DELETE',
         success: function(response) {
             currentShareId = null;
+            $('#shareAccessInfo').hide();
+            $('#shareAccessText').text('');
             $('#shareLinkGroup').hide();
             $('#shareRevokeGroup').hide();
             $('#shareExpiryGroup').show();
@@ -2011,6 +2021,19 @@ function copyFileShareUrl() {
         document.execCommand('copy');
         showSuccess(uiT('ui.files.share_link_copied', 'Share link copied'));
     });
+}
+
+function updateFileShareAccessInfo(count, lastAccessedAt) {
+    const lastAccessed = lastAccessedAt
+        ? formatDate(lastAccessedAt)
+        : uiT('ui.files.never_accessed', 'Never');
+
+    $('#shareAccessText')
+        .text(uiT('ui.files.share_access_stats', 'Accessed {count} times. Last accessed: {last_accessed}', {
+            count: count,
+            last_accessed: lastAccessed
+        }));
+    $('#shareAccessInfo').show();
 }
 
 // ---------------------------------------------------------------------------

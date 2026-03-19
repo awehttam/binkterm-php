@@ -2698,6 +2698,8 @@ class FileAreaManager
                 'success'   => true,
                 'share_url' => $shareUrl,
                 'share_id'  => (int)$existing['id'],
+                'access_count' => (int)($existing['access_count'] ?? 0),
+                'last_accessed_at' => $existing['last_accessed_at'] ?? null,
                 'existing'  => true,
             ];
         }
@@ -2728,6 +2730,8 @@ class FileAreaManager
             'success'   => true,
             'share_url' => $shareUrl,
             'share_id'  => (int)$row['id'],
+            'access_count' => 0,
+            'last_accessed_at' => null,
             'existing'  => false,
         ];
     }

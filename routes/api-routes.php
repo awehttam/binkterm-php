@@ -3773,6 +3773,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'success'    => true,
                 'share_id'   => (int)$share['id'],
                 'share_url'  => $shareUrl,
+                'access_count' => (int)($share['access_count'] ?? 0),
+                'last_accessed_at' => $share['last_accessed_at'] ?? null,
                 'can_revoke' => $isAdmin || (int)$share['shared_by_user_id'] === (int)$userId,
             ]);
         } else {
