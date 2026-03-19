@@ -1,0 +1,14 @@
+[binkterm-telnet-esc]
+enabled = true
+filter = binkterm-telnet-esc
+backend = auto
+logpath = /path/to/binkterm/data/logs/telnetd.log
+port = 2323,8023
+protocol = tcp
+findtime = 10m
+maxretry = 3
+bantime = 1h
+
+# If your distro does not use nftables by default, replace this with an
+# iptables-based action such as iptables-multiport.
+action = nftables-multiport[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]
