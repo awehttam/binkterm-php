@@ -4259,6 +4259,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $stmt->execute([$echoareaId, $kludgePattern, $kludgePatternLegacy, $filename, $echoareaId]);
         $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+        $trimCommentBody = static function (?string $body): string {
+            $text = str_replace(["\r\n", "\r"], "\n", (string)$body);
+            $lines = explode("\n", $text);
+            $lastSeparator = -1;
+
+            foreach ($lines as $index => $line) {
+                if (trim($line) === '---') {
+                    $lastSeparator = $index;
+                }
+            }
+
+            if ($lastSeparator >= 0) {
+                return implode("\n", array_slice($lines, 0, $lastSeparator));
+            }
+
+            return $text;
+        };
+
         /**
          * Recursively build threaded comment tree up to 3 levels (0-indexed).
          * Replies beyond level 2 are rendered flat at level 2 on the frontend.
@@ -4274,7 +4292,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                         'id'           => (int)$msg['id'],
                         'from_name'    => $msg['from_name'],
                         'date_written' => $msg['date_written'],
-                        'body'         => $msg['message_text'],
+                        'body'         => $trimCommentBody($msg['message_text']),
                         'level'        => $childDepth,
                         'children'     => $depth < 2 ? $buildTree($msgs, (int)$msg['id'], $depth + 1) : [],
                     ];
@@ -4293,7 +4311,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     'id'           => (int)$root['id'],
                     'from_name'    => $root['from_name'],
                     'date_written' => $root['date_written'],
-                    'body'         => $root['message_text'],
+                    'body'         => $trimCommentBody($root['message_text']),
                     'level'        => 0,
                     'children'     => $buildTree($messages, (int)$root['id'], 1),
                 ];
