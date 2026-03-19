@@ -4282,7 +4282,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
          * Replies beyond level 2 are rendered flat at level 2 on the frontend.
          */
         $buildTree = null;
-        $buildTree = function(array $msgs, ?int $parentId, int $depth) use (&$buildTree): array {
+        $buildTree = function(array $msgs, ?int $parentId, int $depth) use (&$buildTree, $trimCommentBody): array {
             $children = [];
             foreach ($msgs as $msg) {
                 $msgParent = $msg['reply_to_id'] !== null ? (int)$msg['reply_to_id'] : null;
