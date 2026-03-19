@@ -33,8 +33,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [D64 Disk Image Preview](#d64-disk-image-preview)
   - [C64 Emulator](#c64-emulator)
   - [RIPscrip File Preview](#ripscrip-file-preview)
+  - [Sixel Graphics](#sixel-graphics)
   - [ZIP File Browser](#zip-file-browser)
   - [Shared File Preview](#shared-file-preview)
+  - [Maximize Button](#file-preview-maximize-button)
 - [ISO-Backed File Areas](#iso-backed-file-areas)
   - [Behaviour](#behaviour)
   - [Creating an ISO area](#creating-an-iso-area)
@@ -50,6 +52,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Netmail Attachment Improvements](#netmail-attachment-improvements)
 - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
 - [Echo Area Management Improvements](#echo-area-management-improvements)
+- [Comment Echo Area Dropdown Grouping](#comment-echo-area-dropdown-grouping)
 - [File Upload Filename Sanitization](#file-upload-filename-sanitization)
 - [Public File Areas](#public-file-areas)
 - [Echo List Network Filter](#echo-list-network-filter)
@@ -64,6 +67,7 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Subscription Toggle in Echomail Reader](#subscription-toggle-in-echomail-reader)
   - [BinkP Filenames with Spaces](#binkp-filenames-with-spaces)
   - [TIC File Password Field](#tic-file-password-field)
+  - [File Comment Tearline Trimming](#file-comment-tearline-trimming)
 - [Footer Registration Display](#footer-registration-display)
 - [Premium Features and Registration](#premium-features-and-registration)
   - [Registration Badge on Admin Dashboard](#registration-badge-on-admin-dashboard)
@@ -148,6 +152,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   play/pause, stop, and volume controls. MOD files inside ZIP archives can be
   previewed the same way.
 - `.ans` files render inline in the preview modal using the ANSI decoder.
+- `.six` and `.sixel` files render inline as pixel-accurate canvas images using
+  the built-in sixel decoder. Sixel sequences embedded directly in echomail and
+  netmail message bodies are also detected and rendered inline.
 - `.prg` files and ZIP bundles containing `.prg` files render using the C64
   screen RAM decoder with the exact C64 16-colour palette. Multi-file bundles
   show a gallery with previous/next navigation arrows.
@@ -258,6 +265,8 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   use the primary key index instead of a full table count.
 - Echo area management table now has sortable column headers and a **Subs**
   column showing the subscriber count per area.
+- The **Comment Echo Area** dropdown in the file area editor now lists echo areas
+  from the same network first, with a divider separating them from the rest.
 - Admin menu reorganized: new **Analytics** and **Community** submenus; Auto
   Feed moved into Area Management.
 - New **Sharing** admin page (`/admin/sharing`) under **Admin → Analytics**
@@ -710,6 +719,7 @@ going straight to a download.
 | PETSCII Stream | seq | Rendered using the PETSCII decoder; **Run on C64** button loads the emulator inline |
 | D64 Disk Image | d64 | Parsed as a C64 floppy image; PRG files extracted and shown as a gallery |
 | RIPscrip | rip | Rendered server-side to SVG by `RipScriptRenderer` and displayed on a dark background |
+| Sixel Graphics | six, sixel | Decoded and rendered to canvas pixel-accurately on a black background |
 | ZIP Archive | zip | Browsable file listing; previewable entries open inline; all entries have a download button |
 | Unknown | everything else | Download prompt with a Download button |
 
@@ -719,6 +729,9 @@ The modal header includes:
 - **ⓘ (File Info)** button to switch to the full file-details view for the
   current file.
 - **⬇ (Download)** button to download the file at any time.
+- **⤢ (Maximize)** button to toggle the modal between its normal size and
+  fullscreen. The preference is remembered in `localStorage` and restored
+  automatically on the next file open.
 
 No configuration or migration is required for this feature.
 
@@ -856,6 +869,32 @@ image, which is returned by the `/api/files/{id}/preview` endpoint as
 
 No configuration or migration is required.
 
+### Sixel Graphics
+
+DEC sixel images are now decoded and rendered natively in the browser with no
+server-side processing and no external libraries.
+
+**Supported everywhere sixel images can appear:**
+
+- **Echomail and netmail message bodies** — DCS sixel sequences
+  (`ESC P … q … ESC \`) embedded directly in message text are detected,
+  extracted, and rendered as inline `<canvas>` elements between the surrounding
+  text segments.
+- **File area preview modal** — `.six` and `.sixel` files open in the preview
+  modal with pixel-accurate canvas rendering on a black background.
+- **ZIP file browser** — `.six` and `.sixel` entries inside ZIP archives are
+  previewable the same way.
+
+**Decoder features:**
+
+- HLS and RGB colour register definitions (`#n;1;h;l;s` and `#n;2;r;g;b`)
+- RLE repeat sequences (`!count char`)
+- Raster attributes (`"Pan;Pad;Ph;Pv`) for pre-allocated image dimensions
+- VT340-compatible default 16-colour palette for images that do not define their own colours
+- Dynamic pixel buffer that grows as the image is decoded
+
+No configuration or database migration is required.
+
 ### ZIP File Browser
 
 Opening a ZIP file in the preview modal now shows a **browsable file listing**
@@ -898,6 +937,19 @@ The shared file link page (`/shared/file/{area}/{filename}`) now renders the
 same inline preview as the file browser. All supported types work — images,
 video, audio, text/NFO, ANSI art, and PETSCII/PRG — without requiring the
 visitor to be logged in.
+
+No configuration or migration is required.
+
+### File Preview Maximize Button
+
+The file preview modal now has a **maximize** toggle button in the header
+(expand/compress icon), matching the existing maximize behaviour in the echomail
+and netmail message readers.
+
+Clicking the button switches the modal between its default `modal-xl` size and
+fullscreen. The preference is saved to `localStorage` as
+`previewModalFullscreen` and restored automatically the next time any file is
+opened. This preference is independent of the message reader fullscreen setting.
 
 No configuration or migration is required.
 
@@ -1150,6 +1202,20 @@ most popular at a glance.
 No database migration is required; subscriber counts are derived from the
 existing `user_echoarea_subscriptions` table.
 
+## Comment Echo Area Dropdown Grouping
+
+The **Comment Echo Area** dropdown in the file area editor now groups echo areas
+intelligently based on the network of the file area being edited.
+
+- Echo areas whose `domain` matches the file area's own domain are listed
+  **first**, making it easy to pick the correct echo for the same network.
+- A visual divider (`────────`) separates the same-network group from the
+  remaining echo areas.
+- If the file area has no domain set, or no echo areas share the same domain,
+  the full list is shown without a divider.
+
+No configuration or migration is required.
+
 ## File Upload Filename Sanitization
 
 Spaces in filenames are now replaced with underscores (`_`) when a file is
@@ -1233,6 +1299,13 @@ acknowledges receipt with `M_GOT`.
 
 The inbound `M_FILE` parser has also been made more defensive and will handle
 quoted filenames sent by other implementations that do use quoting.
+
+### File Comment Tearline Trimming
+
+File area comments displayed in the file detail and preview modals were
+sometimes showing FTN tearlines (`--- BinktermPHP vX.Y.Z`) appended to the
+comment body. Comments are now trimmed at the last tearline before display,
+matching the behaviour of the echomail and netmail message readers.
 
 ## Footer Registration Display
 

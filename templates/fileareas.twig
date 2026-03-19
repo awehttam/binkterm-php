@@ -976,15 +976,32 @@ function loadEchoareasForCombobox() {
     return $.get('/api/echoareas/simple-list')
         .done(function(data) {
             allEchoareas = data.echoareas || [];
-            const sel = $('#fileareaCommentEchoareaSelect');
-            // Preserve the "Create new" option while inserting existing areas before it
-            const createOpt = sel.find('#fileareaCommentCreateOpt').detach();
-            sel.find('option:not(:first)').remove();
-            allEchoareas.forEach(function(ea) {
-                sel.append(new Option(ea.tag + (ea.description ? ' — ' + ea.description : ''), ea.id));
-            });
-            sel.append(createOpt);
         });
+}
+
+function rebuildCommentEchoareaOptions(domain) {
+    const sel      = $('#fileareaCommentEchoareaSelect');
+    const createOpt = sel.find('#fileareaCommentCreateOpt').detach();
+    sel.find('option:not(:first)').remove();
+
+    const lcDomain = (domain || '').toLowerCase().trim();
+    const sameNet  = lcDomain ? allEchoareas.filter(function(ea) { return (ea.domain || '').toLowerCase() === lcDomain; }) : [];
+    const others   = lcDomain ? allEchoareas.filter(function(ea) { return (ea.domain || '').toLowerCase() !== lcDomain; }) : allEchoareas;
+
+    function appendOpt(ea) {
+        sel.append(new Option(ea.tag + (ea.description ? ' — ' + ea.description : ''), ea.id));
+    }
+
+    if (sameNet.length > 0) {
+        sameNet.forEach(appendOpt);
+        const sep = document.createElement('option');
+        sep.value    = '';
+        sep.text     = '────────────────────────────────';
+        sep.disabled = true;
+        sel[0].appendChild(sep);
+    }
+    others.forEach(appendOpt);
+    sel.append(createOpt);
 }
 
 function suggestCommentTag(areaTag, domain) {
@@ -997,6 +1014,7 @@ function suggestCommentTag(areaTag, domain) {
 
 function populateCommentAreaUI(area) {
     loadEchoareasForCombobox().then(function() {
+        rebuildCommentEchoareaOptions(area.domain);
         if (area.comment_echoarea_id) {
             $('#fileareaCommentEchoareaSelect').val(area.comment_echoarea_id);
             $('#fileareaCommentNewTagGroup').hide();

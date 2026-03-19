@@ -157,6 +157,9 @@
                     <a class="btn btn-outline-success btn-sm" id="previewDownloadBtn" href="#" download title="{{ t('ui.files.download', {}, 'common') }}">
                         <i class="fas fa-download"></i>
                     </a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="previewFullscreenToggle" onclick="togglePreviewFullscreen()" title="{{ t('ui.common.toggle_fullscreen', {}, 'common') }}">
+                        <i class="fas fa-expand"></i>
+                    </button>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
             </div>
@@ -599,6 +602,40 @@ $(document).ready(function() {
         );
     });
 });
+
+function togglePreviewFullscreen() {
+    const modal  = document.getElementById('filePreviewModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon   = document.querySelector('#previewFullscreenToggle i');
+
+    if (dialog.classList.contains('modal-fullscreen')) {
+        dialog.classList.remove('modal-fullscreen');
+        dialog.classList.add('modal-xl');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+        localStorage.setItem('previewModalFullscreen', 'false');
+    } else {
+        dialog.classList.remove('modal-xl');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        localStorage.setItem('previewModalFullscreen', 'true');
+    }
+}
+
+function applyPreviewFullscreenPreference() {
+    const isFullscreen = localStorage.getItem('previewModalFullscreen') === 'true';
+    const modal  = document.getElementById('filePreviewModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon   = document.querySelector('#previewFullscreenToggle i');
+
+    if (isFullscreen) {
+        dialog.classList.remove('modal-xl');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    }
+}
 
 function loadRecentFiles() {
     $.get('/api/files/recent?limit=25')
@@ -1359,6 +1396,7 @@ function previewFile(fileId, filename) {
     $('#previewCommentBodyInput').val('');
     if (!isPublicAreaGuest) { loadFileComments(fileId); }
 
+    applyPreviewFullscreenPreference();
     if (!$('#filePreviewModal').hasClass('show')) {
         new bootstrap.Modal('#filePreviewModal').show();
     }
