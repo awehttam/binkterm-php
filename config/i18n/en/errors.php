@@ -530,6 +530,8 @@ return [
     'errors.admin.lovlynet.help_fetch_failed' => 'Failed to load help text',
     'errors.admin.lovlynet.request_send_failed' => 'Failed to send request netmail',
     'errors.admin.lovlynet.filearea_files_failed' => 'Failed to load file area files',
+    'errors.admin.lovlynet.invalid_file_id' => 'Invalid file ID',
+    'errors.admin.lovlynet.hatch_failed' => 'Failed to hatch file',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'QWK offline mail is not enabled on this system',

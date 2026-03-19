@@ -4820,20 +4820,27 @@ SimpleRouter::get('/admin/api/lovlynet/filearea-files', function() {
         );
     }
 
-    // Build a set of locally held filenames (case-insensitive) for this area tag.
-    $localFilenames = [];
+    // Build a set of locally held filenames (case-insensitive) and collect full local file records.
+    $localFilenames = [];  // lowercase filename => true, for local_exists check
+    $allLocalFiles  = [];  // full records: id, filename, description
     try {
         $db   = \BinktermPHP\Database::getInstance()->getPdo();
         $stmt = $db->prepare("
-            SELECT LOWER(f.filename) AS fn
+            SELECT f.id, f.filename, f.short_description
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
             WHERE LOWER(fa.tag) = LOWER(?)
               AND f.status = 'approved'
+            ORDER BY f.filename
         ");
         $stmt->execute([$areaTag]);
-        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $fn) {
-            $localFilenames[$fn] = true;
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $localFilenames[strtolower($row['filename'])] = true;
+            $allLocalFiles[] = [
+                'id'          => (int)$row['id'],
+                'filename'    => $row['filename'],
+                'description' => $row['short_description'] ?? '',
+            ];
         }
     } catch (\Throwable $e) {
         // Non-fatal — local_exists will default to false
@@ -4844,10 +4851,50 @@ SimpleRouter::get('/admin/api/lovlynet/filearea-files', function() {
         return $file;
     }, $result['files']);
 
+    // Local-only files: present locally but not in the LovlyNet remote list.
+    $remoteFilenamesLower = array_map(fn($f) => strtolower($f['filename'] ?? ''), $result['files']);
+    $localOnlyFiles = array_values(array_filter($allLocalFiles, function (array $lf) use ($remoteFilenamesLower): bool {
+        return !in_array(strtolower($lf['filename']), $remoteFilenamesLower, true);
+    }));
+
     echo json_encode([
-        'success' => true,
-        'files'   => $files,
+        'success'          => true,
+        'files'            => $files,
+        'local_only_files' => $localOnlyFiles,
     ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/hatch-file
+ * Hatch a local file to LovlyNet uplinks via the admin daemon.
+ */
+SimpleRouter::post('/admin/api/lovlynet/hatch-file', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $data   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $fileId = (int)($data['file_id'] ?? 0);
+    if ($fileId <= 0) {
+        apiError(
+            'errors.admin.lovlynet.invalid_file_id',
+            apiLocalizedText('errors.admin.lovlynet.invalid_file_id', 'Invalid file ID', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+    $result = $daemon->rehatchFile($fileId);
+    if (!($result['ok'] ?? false)) {
+        apiError(
+            'errors.admin.lovlynet.hatch_failed',
+            apiLocalizedText('errors.admin.lovlynet.hatch_failed', 'Failed to hatch file', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true]);
 });
 
 /**

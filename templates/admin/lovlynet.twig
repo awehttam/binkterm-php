@@ -909,6 +909,7 @@ const RESEND_PAGE_SIZE = 25;
 let _resendAllFiles = [];
 let _resendCurrentPage = 0;
 let _resendSelectedFiles = new Set();
+let _localOnlyFiles = [];
 
 function openResendModal(areaTag) {
     if (!areaTag) {
@@ -917,6 +918,7 @@ function openResendModal(areaTag) {
     _resendAllFiles = [];
     _resendCurrentPage = 0;
     _resendSelectedFiles = new Set();
+    _localOnlyFiles = [];
     $('#lovlynetResendAreaTag').val(areaTag);
     $('#lovlynetResendAreaDisplay').val(areaTag);
     $('#lovlynetResendSubmit').prop('disabled', true).html(
@@ -942,6 +944,7 @@ function loadFileAreaFiles(areaTag) {
     $.get('/admin/api/lovlynet/filearea-files', { tag: areaTag })
         .done(function(data) {
             _resendAllFiles = data.files || [];
+            _localOnlyFiles = data.local_only_files || [];
             _resendCurrentPage = 0;
             renderResendFileList();
         })
@@ -957,80 +960,125 @@ function loadFileAreaFiles(areaTag) {
 }
 
 function renderResendFileList() {
-    if (_resendAllFiles.length === 0) {
+    if (_resendAllFiles.length === 0 && _localOnlyFiles.length === 0) {
         $('#lovlynetResendFilesWrapper').html(
             `<p class="text-muted text-center py-3">${uiT('ui.admin.lovlynet.resend_files_none', 'No files found in this area')}</p>`
         );
         return;
     }
 
-    const totalPages = Math.ceil(_resendAllFiles.length / RESEND_PAGE_SIZE);
-    const page = Math.max(0, Math.min(_resendCurrentPage, totalPages - 1));
-    const start = page * RESEND_PAGE_SIZE;
-    const pageFiles = _resendAllFiles.slice(start, start + RESEND_PAGE_SIZE);
-    const allSelected = _resendAllFiles.every(function(f) { return _resendSelectedFiles.has(f.filename); });
-    const selectAllLabel = allSelected
-        ? uiT('ui.admin.lovlynet.resend_files_deselect_all', 'Deselect all')
-        : uiT('ui.admin.lovlynet.resend_files_select_all', 'Select all');
+    let html = '';
 
-    let html = `<div class="mb-2 d-flex justify-content-between align-items-center">
-        <span class="small text-muted">
-            ${_resendSelectedFiles.size} ${uiT('ui.admin.lovlynet.resend_selected_label', 'selected')}
-            &nbsp;&bull;&nbsp;
-            ${_resendAllFiles.length} ${uiT('ui.admin.lovlynet.resend_file_count_label', 'file(s) available')}
-        </span>
-        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleResendSelectAll()">
-            ${selectAllLabel}
-        </button>
-    </div>
-    <div class="border rounded" style="overflow-y: auto; max-height: 40vh;">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th style="width:1px;"></th>
-                    <th>${uiT('ui.admin.lovlynet.resend_col_filename', 'Filename')}</th>
-                    <th>${uiT('ui.admin.lovlynet.resend_col_description', 'Description')}</th>
-                    <th class="text-center" style="width:90px;">${uiT('ui.admin.lovlynet.resend_col_local', 'Local')}</th>
-                </tr>
-            </thead>
-            <tbody>`;
+    // --- Local-only section (files present locally but not in LovlyNet) ---
+    html += `<h6 class="text-muted fw-semibold small text-uppercase mt-2 mb-2">
+        ${uiT('ui.admin.lovlynet.sync_local_only_section', 'Local Files (not in LovlyNet)')}
+    </h6>`;
 
-    pageFiles.forEach(function(file, idx) {
-        const filename = escapeHtml(file.filename || '');
-        const desc = escapeHtml(file.description || '');
-        const globalIdx = start + idx;
-        const checked = _resendSelectedFiles.has(file.filename) ? 'checked' : '';
-        const localBadge = file.local_exists
-            ? `<span class="badge bg-success" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.resend_local_yes_title', 'File is in your local file area'))}"><i class="fas fa-check"></i></span>`
-            : `<span class="badge bg-secondary" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.resend_local_no_title', 'File is not in your local file area'))}"><i class="fas fa-minus"></i></span>`;
-        html += `<tr>
-            <td class="ps-3" style="width: 1px; white-space: nowrap;">
-                <input class="form-check-input resend-file-check" type="checkbox"
-                       id="resendFile_${globalIdx}" value="${filename}" ${checked}
-                       onchange="onResendCheckChange(this)">
-            </td>
-            <td><label class="form-check-label font-monospace mb-0" for="resendFile_${globalIdx}">${filename}</label></td>
-            <td class="text-muted small">${desc}</td>
-            <td class="text-center">${localBadge}</td>
-        </tr>`;
-    });
+    if (_localOnlyFiles.length === 0) {
+        html += `<p class="text-muted small mb-3">${uiT('ui.admin.lovlynet.sync_no_local_only', 'All local files are already in LovlyNet')}</p>`;
+    } else {
+        html += `<div class="border rounded mb-3" style="overflow-y: auto; max-height: 25vh;">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>${uiT('ui.admin.lovlynet.resend_col_filename', 'Filename')}</th>
+                        <th>${uiT('ui.admin.lovlynet.resend_col_description', 'Description')}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>`;
+        _localOnlyFiles.forEach(function(file) {
+            const filename = escapeHtml(file.filename || '');
+            const desc = escapeHtml(file.description || '');
+            html += `<tr>
+                <td class="font-monospace small">${filename}</td>
+                <td class="text-muted small">${desc}</td>
+                <td class="text-end pe-3">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            onclick="hatchLocalFile(${file.id}, this)"
+                            title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.sync_hatch_btn_title', 'Hatch this file to LovlyNet'))}">
+                        ${uiT('ui.admin.lovlynet.sync_hatch_btn', 'Hatch')}
+                    </button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
 
-    html += '</tbody></table></div>';
+    // --- LovlyNet files section (checkboxes for %RESEND) ---
+    if (_resendAllFiles.length > 0) {
+        html += `<h6 class="text-muted fw-semibold small text-uppercase mb-2">
+            ${uiT('ui.admin.lovlynet.sync_lovlynet_section', 'LovlyNet Files')}
+        </h6>`;
 
-    if (totalPages > 1) {
-        const prevDisabled = page === 0 ? 'disabled' : '';
-        const nextDisabled = page >= totalPages - 1 ? 'disabled' : '';
-        html += `<div class="d-flex justify-content-between align-items-center mt-2">
-            <button class="btn btn-sm btn-outline-secondary" onclick="resendGoToPage(${page - 1})" ${prevDisabled}>
-                <i class="fas fa-chevron-left"></i>
-            </button>
+        const totalPages = Math.ceil(_resendAllFiles.length / RESEND_PAGE_SIZE);
+        const page = Math.max(0, Math.min(_resendCurrentPage, totalPages - 1));
+        const start = page * RESEND_PAGE_SIZE;
+        const pageFiles = _resendAllFiles.slice(start, start + RESEND_PAGE_SIZE);
+        const allSelected = _resendAllFiles.every(function(f) { return _resendSelectedFiles.has(f.filename); });
+        const selectAllLabel = allSelected
+            ? uiT('ui.admin.lovlynet.resend_files_deselect_all', 'Deselect all')
+            : uiT('ui.admin.lovlynet.resend_files_select_all', 'Select all');
+
+        html += `<div class="mb-2 d-flex justify-content-between align-items-center">
             <span class="small text-muted">
-                ${uiT('ui.admin.lovlynet.resend_page_label', 'Page')} ${page + 1} / ${totalPages}
+                ${_resendSelectedFiles.size} ${uiT('ui.admin.lovlynet.resend_selected_label', 'selected')}
+                &nbsp;&bull;&nbsp;
+                ${_resendAllFiles.length} ${uiT('ui.admin.lovlynet.resend_file_count_label', 'file(s) available')}
             </span>
-            <button class="btn btn-sm btn-outline-secondary" onclick="resendGoToPage(${page + 1})" ${nextDisabled}>
-                <i class="fas fa-chevron-right"></i>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleResendSelectAll()">
+                ${selectAllLabel}
             </button>
-        </div>`;
+        </div>
+        <div class="border rounded" style="overflow-y: auto; max-height: 30vh;">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:1px;"></th>
+                        <th>${uiT('ui.admin.lovlynet.resend_col_filename', 'Filename')}</th>
+                        <th>${uiT('ui.admin.lovlynet.resend_col_description', 'Description')}</th>
+                        <th class="text-center" style="width:90px;">${uiT('ui.admin.lovlynet.resend_col_local', 'Local')}</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        pageFiles.forEach(function(file, idx) {
+            const filename = escapeHtml(file.filename || '');
+            const desc = escapeHtml(file.description || '');
+            const globalIdx = start + idx;
+            const checked = _resendSelectedFiles.has(file.filename) ? 'checked' : '';
+            const localBadge = file.local_exists
+                ? `<span class="badge bg-success" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.resend_local_yes_title', 'File is in your local file area'))}"><i class="fas fa-check"></i></span>`
+                : `<span class="badge bg-secondary" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.resend_local_no_title', 'File is not in your local file area'))}"><i class="fas fa-minus"></i></span>`;
+            html += `<tr>
+                <td class="ps-3" style="width: 1px; white-space: nowrap;">
+                    <input class="form-check-input resend-file-check" type="checkbox"
+                           id="resendFile_${globalIdx}" value="${filename}" ${checked}
+                           onchange="onResendCheckChange(this)">
+                </td>
+                <td><label class="form-check-label font-monospace mb-0" for="resendFile_${globalIdx}">${filename}</label></td>
+                <td class="text-muted small">${desc}</td>
+                <td class="text-center">${localBadge}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div>';
+
+        if (totalPages > 1) {
+            const prevDisabled = page === 0 ? 'disabled' : '';
+            const nextDisabled = page >= totalPages - 1 ? 'disabled' : '';
+            html += `<div class="d-flex justify-content-between align-items-center mt-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="resendGoToPage(${page - 1})" ${prevDisabled}>
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="small text-muted">
+                    ${uiT('ui.admin.lovlynet.resend_page_label', 'Page')} ${page + 1} / ${totalPages}
+                </span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="resendGoToPage(${page + 1})" ${nextDisabled}>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>`;
+        }
     }
 
     $('#lovlynetResendFilesWrapper').html(html);
@@ -1067,6 +1115,31 @@ function toggleResendSelectAll() {
 
 function updateResendSubmitState() {
     $('#lovlynetResendSubmit').prop('disabled', _resendSelectedFiles.size === 0);
+}
+
+function hatchLocalFile(fileId, btn) {
+    const $btn = $(btn);
+    $btn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i>`);
+    $.ajax({
+        url: '/admin/api/lovlynet/hatch-file',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: getCsrfHeaders(),
+        data: JSON.stringify({ file_id: fileId }),
+        success: function() {
+            $btn.removeClass('btn-outline-secondary').addClass('btn-success')
+                .html(`<i class="fas fa-check me-1"></i>${uiT('ui.admin.lovlynet.sync_hatch_btn', 'Hatch')}`);
+            showSuccess(uiT('ui.admin.lovlynet.sync_hatch_success', 'File hatched to LovlyNet'));
+        },
+        error: function(xhr) {
+            const fallback = uiT('ui.admin.lovlynet.sync_hatch_failed', 'Failed to hatch file');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            showError(msg);
+            $btn.prop('disabled', false).html(uiT('ui.admin.lovlynet.sync_hatch_btn', 'Hatch'));
+        }
+    });
 }
 
 function submitLovlynetResend() {
