@@ -11,11 +11,6 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Summary of Changes](#summary-of-changes)
 - [Enhanced Message Search](#enhanced-message-search)
   - [Search Reindexing](#search-reindexing)
-- [Message Artwork Encoding Editor](#message-artwork-encoding-editor)
-- [Echomail Art Format Detection](#echomail-art-format-detection)
-  - [Existing Misdetected Messages](#existing-misdetected-messages)
-  - [psql Instructions](#psql-instructions)
-  - [Notes](#notes)
 - [RIPscrip Detection and Rendering](#ripscrip-detection-and-rendering)
 - [Database Statistics Page](#database-statistics-page)
 - [Credits System Updates](#credits-system-updates)
@@ -129,13 +124,10 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - Advanced message search with per-field filtering (poster name, subject, body)
   and date range support.
 - Search performance significantly improved via trigram GIN indexes.
-- Sysops can edit artwork encoding metadata directly from the message reader.
 - RIPscrip messages are now detected in the echomail reader and rendered inline
   using the built-in RIP renderer.
-- Fixed a false-positive PETSCII detection bug on import.
 
 **Netmail**
-- Netmail senders and receivers can correct artwork encoding on their own messages.
 - Fixed: crashmail FILE_ATTACH netmails sent the staged path as the attachment
   filename instead of the actual filename from the subject line.
 
@@ -320,109 +312,6 @@ databases the process may take a few minutes.** The upgrade will appear to pause
 at the migration step — this is normal. Do not interrupt it.
 
 A date range index on `echomail(date_received)` is also added in this release.
-
-## Message Artwork Encoding Editor
-
-The message reader now includes an **Edit** button (pencil icon) in the message
-header toolbar. This lets you correct artwork rendering metadata that was
-auto-detected incorrectly at import time, without touching the database manually.
-
-**Who can use it:**
-- **Echomail** — sysops (admin users) only.
-- **Netmail** — the sender or receiver of the message.
-
-**What you can change:**
-- **Art Format** — override the detected artwork type (`Auto`, `Plain Text`,
-  `ANSI`, `Amiga ANSI`, or `PETSCII / C64`). Setting it to `Auto` clears the
-  stored override and lets the renderer decide.
-- **Art Encoding** — the raw byte encoding used when rendering artwork
-  (e.g. `CP437`, `PETSCII`, `UTF-8`). Leave blank for the default.
-
-This is the **preferred way** to fix misdetected messages going forward. The SQL
-approach below remains available for bulk corrections or when direct database
-access is more convenient.
-
-## Echomail Art Format Detection
-
-- Fixed a false-positive PETSCII detection bug when importing echomail and
-  netmail without a valid `CHRS` kludge.
-- Previously, some non-UTF-8 messages containing arbitrary high-bit bytes could
-  be incorrectly stored with:
-  - `message_charset = null`
-  - `art_format = petscii`
-- This was most visible in file listing / file echo announcement messages whose
-  body included 8-bit text from other character sets.
-- PETSCII auto-detection is now more conservative. Messages are only tagged as
-  PETSCII when the raw body has stronger PETSCII-like characteristics. Unknown
-  8-bit text should now remain untagged instead of being misclassified.
-
-### Existing Misdetected Messages
-
-If you already imported messages that were incorrectly stored with
-`art_format = 'petscii'`, upgrading the code will not change those existing
-rows automatically.
-
-If you want those messages to fall back to normal text rendering, reset the
-stored metadata in PostgreSQL for the affected messages.
-
-### psql Instructions
-
-Start `psql` and connect to your BinktermPHP database:
-
-```bash
-psql -U your_db_user -d your_db_name
-```
-
-Preview the rows that currently look misdetected:
-
-```sql
-SELECT id, echoarea_id, subject, message_charset, art_format, date_written
-FROM echomail
-WHERE art_format = 'petscii'
-  AND message_charset IS NULL
-ORDER BY id;
-```
-
-If that result set matches what you want to fix, reset those columns:
-
-```sql
-UPDATE echomail
-SET message_charset = NULL,
-    art_format = NULL
-WHERE art_format = 'petscii'
-  AND message_charset IS NULL;
-```
-
-If you want to target only a specific message first, for example message
-`39898`, do this instead:
-
-```sql
-UPDATE echomail
-SET message_charset = NULL,
-    art_format = NULL
-WHERE id = 39898;
-```
-
-Check the result:
-
-```sql
-SELECT id, message_charset, art_format
-FROM echomail
-WHERE id = 39898;
-```
-
-Then exit `psql`:
-
-```sql
-\q
-```
-
-### Notes
-
-- Resetting these columns only affects rendering hints stored in the database.
-- It does not alter the message body text itself.
-- For individual messages the in-browser editor (see above) is easier and safer
-  than direct SQL. Use the SQL approach for bulk resets or scripted corrections.
 
 ## RIPscrip Detection and Rendering
 
@@ -862,8 +751,6 @@ The renderer:
 4. Color RAM values (0–15) are mapped to the exact C64 16-colour palette via
    CSS classes (`c64-fg-N` / `c64-bg-N`).
 
-A **low-fidelity preview** note is shown beneath the artwork — the browser
-renderer cannot perfectly replicate every aspect of the original C64 display.
 
 **ZIP bundles with multiple PRGs** show a gallery view with previous/next
 navigation arrows and a "N / total" counter. `FILE_ID.DIZ` (if present in

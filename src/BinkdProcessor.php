@@ -564,11 +564,6 @@ class BinkdProcessor
         return ArtFormatDetector::normalizeDetectedEncoding($encoding, $rawBody);
     }
 
-    private function detectArtFormat(?string $rawBody, ?string $detectedEncoding = null): ?string
-    {
-        return ArtFormatDetector::detectArtFormat($rawBody, $detectedEncoding);
-    }
-
     /**
      * Extract character encoding from CHRS kludge line
      * CHRS format: "CHRS: <charset> <level>"
@@ -831,7 +826,6 @@ class BinkdProcessor
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
         $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $messageTextRaw);
-        $artFormat = $this->detectArtFormat($cleanMessageRaw, $message['detectedEncoding'] ?? null);
 
         // Use addresses from kludges if available (more reliable than INTL kludge)
         // Priority: REPLYADDR > MSGID original author > message envelope
@@ -867,7 +861,7 @@ class BinkdProcessor
         $stmt->bindValue(':message_text', $cleanMessageText);
         $stmt->bindValue(':raw_message_bytes', $cleanMessageRaw !== '' ? $cleanMessageRaw : null, $cleanMessageRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
         $stmt->bindValue(':message_charset', $messageCharset);
-        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':art_format', null, \PDO::PARAM_NULL);
         $stmt->bindValue(':date_written', $dateWritten);
         $stmt->bindValue(':attributes', $message['attributes']);
         $stmt->bindValue(':message_id', $messageId);
@@ -1163,7 +1157,6 @@ class BinkdProcessor
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
         $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $message['textRaw'] ?? '');
-        $artFormat = $this->detectArtFormat($messageTextRaw, $message['detectedEncoding'] ?? null);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
         $replyToId = null;
@@ -1226,7 +1219,7 @@ class BinkdProcessor
         $stmt->bindValue(':message_text', $messageText);
         $stmt->bindValue(':raw_message_bytes', $messageTextRaw !== '' ? $messageTextRaw : null, $messageTextRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
         $stmt->bindValue(':message_charset', $messageCharset);
-        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':art_format', null, \PDO::PARAM_NULL);
         $stmt->bindValue(':date_written', $dateWritten);
         $stmt->bindValue(':message_id', $messageId);
         $stmt->bindValue(':origin_line', $originLine);
