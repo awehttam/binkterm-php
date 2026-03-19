@@ -24,7 +24,15 @@ Visit [https://paypal.me/awehttam](https://paypal.me/awehttam) and pay whatever 
 
 **Step 2 — Send your registration details**
 
-Email **awehttam@gmail.com** with the subject line **BinktermPHP Registration - Your BBS Name** and include the following:
+The easiest way is to run the included script from your BinktermPHP installation directory:
+
+```bash
+php scripts/license_request.php
+```
+
+It will prompt you for your PayPal transaction number and system details, then send the request automatically.
+
+Alternatively, email **awehttam@gmail.com** with the subject line **BinktermPHP Registration - Your BBS Name** and include the following:
 
 ---
 
