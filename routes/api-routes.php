@@ -2533,6 +2533,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    /**
+     * POST /api/files/{id}/rehatch
+     * Re-hatch a file by running file_hatch.php via the admin daemon. Admin only.
+     */
+    SimpleRouter::post('/files/{id}/rehatch', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file    = $manager->getFileById((int)$id);
+
+        if (!$file) {
+            http_response_code(404);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
+        }
+
+        if (!empty($file['is_local'])) {
+            http_response_code(400);
+            apiError('errors.files.rehatch_local', apiLocalizedText('errors.files.rehatch_local', 'Cannot rehatch a file in a local-only area', $user));
+            return;
+        }
+
+        if (!empty($file['is_private'])) {
+            http_response_code(400);
+            apiError('errors.files.rehatch_private', apiLocalizedText('errors.files.rehatch_private', 'Cannot rehatch a file in a private area', $user));
+            return;
+        }
+
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $daemon->rehatchFile((int)$id);
+
+            if (!($result['ok'] ?? false)) {
+                $detail = $result['result']['output'] ?? ($result['error'] ?? 'unknown error');
+                http_response_code(500);
+                apiError('errors.files.rehatch_failed', apiLocalizedText('errors.files.rehatch_failed', 'Rehatch failed', $user), 500, ['detail' => $detail]);
+                return;
+            }
+
+            echo json_encode(['success' => true, 'result' => $result['result'] ?? []]);
+        } catch (\Throwable $e) {
+            error_log('[Rehatch] ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.files.rehatch_failed', apiLocalizedText('errors.files.rehatch_failed', 'Rehatch failed', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::get('/files/{id}/download', function($id) {
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);

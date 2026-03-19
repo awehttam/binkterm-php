@@ -1420,6 +1420,7 @@ class FileAreaManager
     {
         $stmt = $this->db->prepare("
             SELECT f.*, fa.tag as area_tag, fa.domain, fa.iso_mount_point,
+                   fa.is_local, fa.is_private,
                    u.username as owner_username,
                    COALESCE(
                        NULLIF(TRIM(f.uploaded_from_address), ''),

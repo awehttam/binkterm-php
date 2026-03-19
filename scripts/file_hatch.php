@@ -6,10 +6,12 @@
  *
  * Usage:
  *   php scripts/file_hatch.php --file-id=123
+ *   php scripts/file_hatch.php --area-id=456
  *   php scripts/file_hatch.php FILENAME.ZIP AREATAG [--domain=DOMAIN]
  *
  * Lookup modes:
  *   --file-id=ID                 Re-hatch a file by files.id
+ *   --area-id=ID                 Re-hatch all approved files in a file area
  *   FILENAME AREATAG             Re-hatch the most recent matching file in area
  *
  * Options:
@@ -28,10 +30,12 @@ function printUsage(): void
 {
     echo "Usage:\n";
     echo "  php scripts/file_hatch.php --file-id=123\n";
+    echo "  php scripts/file_hatch.php --area-id=456\n";
     echo "  php scripts/file_hatch.php FILENAME.ZIP AREATAG [--domain=DOMAIN]\n";
     echo "\n";
     echo "Options:\n";
     echo "  --file-id=ID         Re-hatch a file by files.id\n";
+    echo "  --area-id=ID         Re-hatch all approved files in a file area\n";
     echo "  --domain=DOMAIN      File area domain for filename lookup\n";
     echo "  --allow-nonapproved  Allow rehatching files not in approved status\n";
 }
@@ -40,6 +44,7 @@ function parseArgs(array $argv): array
 {
     $args = [
         'file_id' => null,
+        'area_id' => null,
         'filename' => null,
         'area_tag' => null,
         'domain' => '',
@@ -50,6 +55,8 @@ function parseArgs(array $argv): array
     foreach (array_slice($argv, 1) as $arg) {
         if (str_starts_with($arg, '--file-id=')) {
             $args['file_id'] = (int) substr($arg, strlen('--file-id='));
+        } elseif (str_starts_with($arg, '--area-id=')) {
+            $args['area_id'] = (int) substr($arg, strlen('--area-id='));
         } elseif (str_starts_with($arg, '--domain=')) {
             $args['domain'] = substr($arg, strlen('--domain='));
         } elseif ($arg === '--allow-nonapproved') {
@@ -59,7 +66,7 @@ function parseArgs(array $argv): array
         }
     }
 
-    if ($args['file_id'] === null) {
+    if ($args['file_id'] === null && $args['area_id'] === null) {
         $args['filename'] = $positional[0] ?? null;
         $args['area_tag'] = isset($positional[1]) ? strtoupper($positional[1]) : null;
     }

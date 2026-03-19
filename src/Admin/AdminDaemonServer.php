@@ -647,6 +647,16 @@ class AdminDaemonServer
                     $this->logCommandResult('run_echomail_robot', $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'rehatch_file':
+                    $fileId = (int)($data['file_id'] ?? 0);
+                    if ($fileId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid file_id']);
+                        break;
+                    }
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/file_hatch.php', "--file-id={$fileId}"]);
+                    $this->logCommandResult('rehatch_file', $result);
+                    $this->writeResponse($client, ['ok' => $result['exit_code'] === 0, 'result' => $result]);
+                    break;
                 case 'reindex_iso':
                     $areaId = (int)($data['area_id'] ?? 0);
                     if ($areaId <= 0) {

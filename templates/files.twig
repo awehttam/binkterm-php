@@ -308,6 +308,13 @@
                     <i class="fas fa-shield-alt"></i> {{ t('ui.files.virus_scan_now', {}, 'common') }}
                 </button>
                 {% endif %}
+                {# Rehatch button — wired up but hidden until ready for use
+                {% if current_user.is_admin %}
+                <button type="button" class="btn btn-outline-secondary" id="rehatchFileBtn" onclick="rehatchFile()" style="display:none;">
+                    <i class="fas fa-retweet"></i> {{ t('ui.files.rehatch', {}, 'common') }}
+                </button>
+                {% endif %}
+                #}
                 <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showEditDialog()" style="display:none;">
                     <i class="fas fa-pencil-alt"></i> {{ t('ui.files.edit', {}, 'common') }}
                 </button>
@@ -1299,6 +1306,8 @@ function showFileDetails(fileId) {
             const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
             $('#renameFileBtn').toggle(canEdit);
             $('#virusScanBtn').toggle(isAdmin).data('file-id', fileId);
+            const canRehatch = isAdmin && !file.is_local && !file.is_private;
+            $('#rehatchFileBtn').toggle(canRehatch);
 
             // Reset and load comments
             commentCtxPrefix = '';
@@ -1657,6 +1666,30 @@ async function uploadFile() {
 }
 
 $('#uploadFile').on('change', rebuildUploadDescriptions);
+
+function rehatchFile() {
+    if (!currentFileId) return;
+
+    const $btn = $('#rehatchFileBtn');
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: `/api/files/${currentFileId}/rehatch`,
+        method: 'POST',
+        success: function() {
+            showSuccess(uiT('ui.files.rehatch_ok', 'File re-hatched successfully'));
+        },
+        error: function(xhr) {
+            const msg = window.getApiErrorMessage && xhr.responseJSON
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('ui.files.rehatch_failed', 'Rehatch failed'))
+                : uiT('ui.files.rehatch_failed', 'Rehatch failed');
+            showError(msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fas fa-retweet"></i> ' + uiT('ui.files.rehatch', 'Rehatch'));
+        }
+    });
+}
 
 function requestVirusScan() {
     const fileId = $('#virusScanBtn').data('file-id');

@@ -371,6 +371,17 @@ class AdminDaemonClient
         return $this->sendCommand('reindex_iso', ['area_id' => $areaId]);
     }
 
+    /**
+     * Re-hatch a single file by running file_hatch.php via the admin daemon.
+     *
+     * @param  int $fileId The files.id to re-hatch
+     * @return array{ok:bool, result?:array, error?:string}
+     */
+    public function rehatchFile(int $fileId): array
+    {
+        return $this->sendCommand('rehatch_file', ['file_id' => $fileId]);
+    }
+
     public function close(): void
     {
         if ($this->socket && is_resource($this->socket)) {
