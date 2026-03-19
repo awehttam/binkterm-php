@@ -126,6 +126,11 @@ class NodelistController
         }
         
         $node = $this->nodelistManager->findNode($address);
+        // If a point address wasn't found, fall back to the boss node (zone:net/node)
+        // so users are not shown a 404 for point systems not in the nodelist.
+        if (!$node && preg_match('/^(\d+:\d+\/\d+)\.\d+$/', $address, $m)) {
+            $node = $this->nodelistManager->findNode($m[1]);
+        }
         if (!$node) {
             http_response_code(404);
             return $this->template->render('error.twig', [
