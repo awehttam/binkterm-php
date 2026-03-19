@@ -228,14 +228,15 @@ class TicFileGenerator
         // Seenby (required by FSC-87) - at least our address
         $lines[] = 'Seenby ' . $fromAddress;
 
-        // Password (FSC-87 Pw field) - per-area password takes precedence,
-        // uplink tic_password is the fallback. Use '-' when no password is
-        // configured; many TIC processors treat an empty Pw line as missing.
+        // Password (FSC-87 Pw field) precedence:
+        // 1. file area TIC password
+        // 2. uplink TIC password
+        // If neither is set, emit a blank Pw field.
         $password = $fileArea['password'] ?? '';
         if ($password === '') {
             $password = $uplink['tic_password'] ?? '';
         }
-        $lines[] = 'Pw ' . ($password !== '' ? $password : '-');
+        $lines[] = 'Pw ' . $password;
 
         // Created by
         $lines[] = 'Created BinktermPHP ' . \BinktermPHP\Version::getVersion();

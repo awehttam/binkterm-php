@@ -1527,12 +1527,17 @@ No database migration is required for this feature.
 
 ### TIC File Password Field
 
-When no password was configured for an uplink or file area, the generated TIC
-file contained `Pw ` with an empty value. Many TIC processors treat an empty
-`Pw` field as "password missing" and reject the file with a password error.
+TIC password handling now uses this precedence when generating outbound TIC
+files:
 
-Fixed — TIC files now emit `Pw -` when no password is set, following the
-conventional placeholder used by other TIC-compliant software.
+1. file area TIC password
+2. uplink TIC password
+3. blank `Pw` value if neither is configured
+
+For LovlyNet systems, this upgrade also backfills the uplink TIC password from
+the configured Areafix password by taking the first 8 characters and converting
+them to uppercase. The derived value is written to both `config/lovlynet.json`
+and the LovlyNet uplink entry in `config/binkp.json`.
 
 ## Public File Areas
 

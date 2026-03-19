@@ -147,6 +147,27 @@ class BinkpSession
             $this->logger->log($level, "[{$this->remoteAddress}] {$message}");
         }
     }
+
+    private function formatReceivedFrameForLog(BinkpFrame $frame): string
+    {
+        $data = $frame->getData();
+        $hex = bin2hex($data);
+
+        if ($frame->isCommand()) {
+            return sprintf(
+                'command=%d length=%d data_hex=%s',
+                $frame->getCommand(),
+                $frame->getLength(),
+                $hex
+            );
+        }
+
+        return sprintf(
+            'data length=%d data_hex=%s',
+            $frame->getLength(),
+            $hex
+        );
+    }
     
     public function handshake()
     {
@@ -174,7 +195,7 @@ class BinkpSession
                     );
                 }
 
-                $this->log("Received: {$frame}", 'DEBUG');
+                $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                 $this->processHandshakeFrame($frame);
             }
 
@@ -318,7 +339,7 @@ class BinkpSession
                         }
 
                         $lastActivity = time();
-                        $this->log("Received while waiting for M_GOT: {$frame}", 'DEBUG');
+                        $this->log("Received while waiting for M_GOT: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                         $this->processTransferFrame($frame);
 
                         // If remote sent M_EOB, no more M_GOTs are coming - exit wait loop
@@ -395,7 +416,7 @@ class BinkpSession
                         continue;
                     }
 
-                    $this->log("Received: {$frame}", 'DEBUG');
+                    $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                     $this->processTransferFrame($frame);
                     // If a file transfer started (e.g. FREQ response), exit early
                     if ($this->currentFile) {
@@ -424,7 +445,7 @@ class BinkpSession
             while ($this->state === self::STATE_FILE_TRANSFER && time() - $waitStartTime < $maxWaitTime) {
                 $frame = BinkpFrame::parseFromSocket($this->socket, true);
                 if ($frame) {
-                    $this->log("Received during wait: {$frame}", 'DEBUG');
+                    $this->log("Received during wait: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                     $this->processTransferFrame($frame);
                     if ($this->currentFile || $this->state !== self::STATE_FILE_TRANSFER) {
                         break;
@@ -522,7 +543,7 @@ class BinkpSession
                     // Keep the EOB timeout anchored to idle/EOB time, not active transfer time.
                     $eobWaitStart = $lastActivity;
                 }
-                $this->log("Received: {$frame}", 'DEBUG');
+                $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                 $this->processTransferFrame($frame);
             }
 

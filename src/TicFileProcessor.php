@@ -385,7 +385,9 @@ class TicFileProcessor
      */
     protected function validateTicPassword(array $ticData, array $fileArea, string $fromAddress = ''): void
     {
-        // Per-area password takes precedence; fall back to uplink-level tic_password
+        // Password precedence:
+        // 1. file area TIC password
+        // 2. uplink TIC password
         $expected = $fileArea['password'] ?? '';
         $source = 'area';
         if ($expected === '' && $fromAddress !== '') {

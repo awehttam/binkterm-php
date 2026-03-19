@@ -104,6 +104,16 @@ function saveLovlyNetConfig($config) {
 }
 
 /**
+ * Derive the LovlyNet TIC password from the Areafix password.
+ *
+ * @param string $areafixPassword
+ * @return string
+ */
+function deriveLovlyNetTicPassword(string $areafixPassword): string {
+    return strtoupper(substr($areafixPassword, 0, 8));
+}
+
+/**
  * Pull currently subscribed LovlyNet areas from the API and ensure matching
  * local echo/file areas exist.
  *
@@ -452,6 +462,8 @@ function doRegistration($isUpdate = false) {
     echo "\n";
 
     // Save registration config
+    $ticPassword = deriveLovlyNetTicPassword((string)$regData['areafix_password']);
+
     $lovlyNetConfig = [
         'node_id' => $regData['node_id'] ?? ($existingConfig['node_id'] ?? null),
         'api_key' => $regData['api_key'] ?? ($existingConfig['api_key'] ?? ''),
@@ -461,6 +473,7 @@ function doRegistration($isUpdate = false) {
         'hub_port' => $regData['hub_port'],
         'binkp_password' => $regData['binkp_password'],
         'areafix_password' => $regData['areafix_password'],
+        'tic_password' => $ticPassword,
         'registered_at' => $existingConfig['registered_at'] ?? date('c'),
         'updated_at' => date('c')
     ];
@@ -487,6 +500,7 @@ function doRegistration($isUpdate = false) {
                 'hostname' => $regData['hub_hostname'],
                 'port' => $regData['hub_port'],
                 'password' => $regData['binkp_password'],
+                'tic_password' => $ticPassword,
                 'domain' => LOVLYNET_DOMAIN,
                 'networks' => ['227:*/*'],
                 'allow_markup' => true,
@@ -506,6 +520,7 @@ function doRegistration($isUpdate = false) {
                     'me' => $regData['ftn_address'],
                     'domain' => LOVLYNET_DOMAIN,
                     'networks' => ['227:*/*'],
+                    'tic_password' => $ticPassword,
                     'allow_markup' => true,
                     'compression' => false,
                     'crypt' => false,
