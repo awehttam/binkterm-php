@@ -206,6 +206,35 @@ class LovlyNetClient
         return $this->getHelpText('/api/filefix_help.php');
     }
 
+    /**
+     * Retrieve the list of files available in a LovlyNet file area.
+     *
+     * Calls GET /api/filearea_files.php?node_number=N&area_tag=TAG
+     *
+     * @param  string $areaTag File area tag (e.g. LVLY_NODELIST)
+     * @return array{success:bool, files?:array, error?:string}
+     */
+    public function getFileAreaFiles(string $areaTag): array
+    {
+        if (!$this->isConfigured()) {
+            return $this->notConfigured();
+        }
+
+        $url      = $this->baseUrl . '/api/filearea_files.php'
+                  . '?node_number=' . $this->nodeNumber
+                  . '&area_tag='    . urlencode(strtoupper($areaTag));
+        $response = $this->get($url);
+
+        if (!$response['success']) {
+            return ['success' => false, 'error' => $response['error']];
+        }
+
+        return [
+            'success' => true,
+            'files'   => $response['data']['data']['files'] ?? [],
+        ];
+    }
+
     // -------------------------------------------------------------------------
     // Internal HTTP helpers
     // -------------------------------------------------------------------------

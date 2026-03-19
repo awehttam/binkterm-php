@@ -526,6 +526,7 @@ return [
     'errors.admin.lovlynet.request_config_missing' => 'LovlyNet request settings are incomplete',
     'errors.admin.lovlynet.help_fetch_failed' => 'Failed to load help text',
     'errors.admin.lovlynet.request_send_failed' => 'Failed to send request netmail',
+    'errors.admin.lovlynet.filearea_files_failed' => 'Failed to load file area files',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'QWK offline mail is not enabled on this system',

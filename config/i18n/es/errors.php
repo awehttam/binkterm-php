@@ -526,6 +526,7 @@ return [
     'errors.admin.lovlynet.request_config_missing' => 'La configuración de solicitudes de LovlyNet está incompleta',
     'errors.admin.lovlynet.help_fetch_failed' => 'No se pudo cargar el texto de ayuda',
     'errors.admin.lovlynet.request_send_failed' => 'No se pudo enviar el netmail de solicitud',
+    'errors.admin.lovlynet.filearea_files_failed' => 'No se pudieron cargar los archivos del área',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'El correo sin conexion QWK no esta habilitado en este sistema',

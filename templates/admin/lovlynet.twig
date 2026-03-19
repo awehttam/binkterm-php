@@ -206,6 +206,38 @@
     </div>
 </div>
 
+<div class="modal fade" id="lovlynetResendModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.lovlynet.resend_modal_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.lovlynet.resend_modal_help') }}</p>
+                <input type="hidden" id="lovlynetResendAreaTag" value="">
+                <div class="mb-3">
+                    <label class="form-label">{{ t('ui.admin.lovlynet.resend_area_label') }}</label>
+                    <input type="text" class="form-control font-monospace" id="lovlynetResendAreaDisplay" readonly>
+                </div>
+                <div id="lovlynetResendFilesWrapper">
+                    <div class="text-center py-4 text-muted" id="lovlynetResendFilesLoading">
+                        <i class="fas fa-spinner fa-spin me-1"></i>
+                        {{ t('ui.admin.lovlynet.resend_files_loading') }}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="lovlynetResendSubmit" onclick="submitLovlynetResend()" disabled>
+                    <i class="fas fa-paper-plane me-1"></i>
+                    {{ t('ui.admin.lovlynet.resend_send') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="lovlynetMessageViewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -230,6 +262,7 @@
 <script>
 let lovlynetRequestModal = null;
 let lovlynetRescanModal = null;
+let lovlynetResendModal = null;
 let lovlynetMessageViewModal = null;
 let lovlynetHelpCache = { echo: null, file: null };
 let _lovlynetRequests = [];
@@ -247,6 +280,11 @@ $(document).ready(function() {
     const rescanModalEl = document.getElementById('lovlynetRescanModal');
     if (rescanModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
         lovlynetRescanModal = new bootstrap.Modal(rescanModalEl);
+    }
+
+    const resendModalEl = document.getElementById('lovlynetResendModal');
+    if (resendModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        lovlynetResendModal = new bootstrap.Modal(resendModalEl);
     }
 
     const messageViewModalEl = document.getElementById('lovlynetMessageViewModal');
@@ -335,6 +373,14 @@ function renderAreas(type, areas, containerSel, countSel) {
                         ${sub ? '' : 'disabled'}>
                     ${uiT('ui.admin.lovlynet.btn_rescan', 'Rescan')}
                 </button>` : '';
+
+        const resendButton = type === 'file' ? `
+                <button class="btn btn-sm btn-outline-secondary resend-btn"
+                        data-tag="${tag}"
+                        title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.btn_resend_title', 'Request resend of files'))}"
+                        ${sub ? '' : 'disabled'}>
+                    ${uiT('ui.admin.lovlynet.btn_resend', 'Resend File(s)')}
+                </button>` : '';
         const syncTitle = !area.local_exists
             ? uiT('ui.admin.lovlynet.sync_title_create_and_description', 'Create group and sync description')
             : uiT('ui.admin.lovlynet.sync_title_description', 'Sync description');
@@ -362,6 +408,7 @@ function renderAreas(type, areas, containerSel, countSel) {
                 <div class="d-inline-flex gap-2">
                 ${syncButton}
                 ${rescanButton}
+                ${resendButton}
                 <button class="btn btn-sm ${btnClass} toggle-btn"
                         data-tag="${tag}" data-type="${type}" data-action="${btnAction}">
                     ${btnLabel}
@@ -384,6 +431,10 @@ function renderAreas(type, areas, containerSel, countSel) {
 
     $c.find('.rescan-btn').on('click', function() {
         openRescanModal($(this).data('tag') || '');
+    });
+
+    $c.find('.resend-btn').on('click', function() {
+        openResendModal($(this).data('tag') || '');
     });
 
     $c.find('.sync-btn').on('click', function() {
@@ -875,6 +926,206 @@ function submitLovlynetRequest() {
 function getCsrfHeaders() {
     const token = document.querySelector('meta[name="csrf-token"]');
     return token && token.content ? { 'X-CSRF-Token': token.content } : {};
+}
+
+const RESEND_PAGE_SIZE = 25;
+let _resendAllFiles = [];
+let _resendCurrentPage = 0;
+let _resendSelectedFiles = new Set();
+
+function openResendModal(areaTag) {
+    if (!areaTag) {
+        return;
+    }
+    _resendAllFiles = [];
+    _resendCurrentPage = 0;
+    _resendSelectedFiles = new Set();
+    $('#lovlynetResendAreaTag').val(areaTag);
+    $('#lovlynetResendAreaDisplay').val(areaTag);
+    $('#lovlynetResendSubmit').prop('disabled', true).html(
+        `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.resend_send', 'Send resend request')}`
+    );
+    renderResendFilesLoading();
+    if (lovlynetResendModal) {
+        lovlynetResendModal.show();
+    }
+    loadFileAreaFiles(areaTag);
+}
+
+function renderResendFilesLoading() {
+    $('#lovlynetResendFilesWrapper').html(
+        `<div class="text-center py-4 text-muted">
+            <i class="fas fa-spinner fa-spin me-1"></i>
+            ${uiT('ui.admin.lovlynet.resend_files_loading', 'Loading files...')}
+        </div>`
+    );
+}
+
+function loadFileAreaFiles(areaTag) {
+    $.get('/admin/api/lovlynet/filearea-files', { tag: areaTag })
+        .done(function(data) {
+            _resendAllFiles = data.files || [];
+            _resendCurrentPage = 0;
+            renderResendFileList();
+        })
+        .fail(function(xhr) {
+            const fallback = uiT('ui.admin.lovlynet.resend_files_error', 'Failed to load files from LovlyNet');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            $('#lovlynetResendFilesWrapper').html(
+                `<div class="alert alert-danger">${escapeHtml(msg)}</div>`
+            );
+        });
+}
+
+function renderResendFileList() {
+    if (_resendAllFiles.length === 0) {
+        $('#lovlynetResendFilesWrapper').html(
+            `<p class="text-muted text-center py-3">${uiT('ui.admin.lovlynet.resend_files_none', 'No files found in this area')}</p>`
+        );
+        return;
+    }
+
+    const totalPages = Math.ceil(_resendAllFiles.length / RESEND_PAGE_SIZE);
+    const page = Math.max(0, Math.min(_resendCurrentPage, totalPages - 1));
+    const start = page * RESEND_PAGE_SIZE;
+    const pageFiles = _resendAllFiles.slice(start, start + RESEND_PAGE_SIZE);
+    const allSelected = _resendAllFiles.every(function(f) { return _resendSelectedFiles.has(f.filename); });
+    const selectAllLabel = allSelected
+        ? uiT('ui.admin.lovlynet.resend_files_deselect_all', 'Deselect all')
+        : uiT('ui.admin.lovlynet.resend_files_select_all', 'Select all');
+
+    let html = `<div class="mb-2 d-flex justify-content-between align-items-center">
+        <span class="small text-muted">
+            ${_resendSelectedFiles.size} ${uiT('ui.admin.lovlynet.resend_selected_label', 'selected')}
+            &nbsp;&bull;&nbsp;
+            ${_resendAllFiles.length} ${uiT('ui.admin.lovlynet.resend_file_count_label', 'file(s) available')}
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleResendSelectAll()">
+            ${selectAllLabel}
+        </button>
+    </div>
+    <div class="border rounded" style="overflow-y: auto; max-height: 40vh;">
+        <table class="table table-sm table-hover mb-0">
+            <tbody>`;
+
+    pageFiles.forEach(function(file, idx) {
+        const filename = escapeHtml(file.filename || '');
+        const desc = escapeHtml(file.description || '');
+        const globalIdx = start + idx;
+        const checked = _resendSelectedFiles.has(file.filename) ? 'checked' : '';
+        html += `<tr>
+            <td class="ps-3" style="width: 1px; white-space: nowrap;">
+                <input class="form-check-input resend-file-check" type="checkbox"
+                       id="resendFile_${globalIdx}" value="${filename}" ${checked}
+                       onchange="onResendCheckChange(this)">
+            </td>
+            <td><label class="form-check-label font-monospace mb-0" for="resendFile_${globalIdx}">${filename}</label></td>
+            <td class="text-muted small">${desc}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+
+    if (totalPages > 1) {
+        const prevDisabled = page === 0 ? 'disabled' : '';
+        const nextDisabled = page >= totalPages - 1 ? 'disabled' : '';
+        html += `<div class="d-flex justify-content-between align-items-center mt-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="resendGoToPage(${page - 1})" ${prevDisabled}>
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span class="small text-muted">
+                ${uiT('ui.admin.lovlynet.resend_page_label', 'Page')} ${page + 1} / ${totalPages}
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="resendGoToPage(${page + 1})" ${nextDisabled}>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>`;
+    }
+
+    $('#lovlynetResendFilesWrapper').html(html);
+    updateResendSubmitState();
+}
+
+function onResendCheckChange(el) {
+    if (el.checked) {
+        _resendSelectedFiles.add(el.value);
+    } else {
+        _resendSelectedFiles.delete(el.value);
+    }
+    updateResendSubmitState();
+    // Refresh just the header stats without re-rendering the whole list
+    renderResendFileList();
+}
+
+function resendGoToPage(page) {
+    const totalPages = Math.ceil(_resendAllFiles.length / RESEND_PAGE_SIZE);
+    _resendCurrentPage = Math.max(0, Math.min(page, totalPages - 1));
+    renderResendFileList();
+}
+
+function toggleResendSelectAll() {
+    const allSelected = _resendAllFiles.every(function(f) { return _resendSelectedFiles.has(f.filename); });
+    if (allSelected) {
+        _resendSelectedFiles.clear();
+    } else {
+        _resendAllFiles.forEach(function(f) { _resendSelectedFiles.add(f.filename); });
+    }
+    renderResendFileList();
+    updateResendSubmitState();
+}
+
+function updateResendSubmitState() {
+    $('#lovlynetResendSubmit').prop('disabled', _resendSelectedFiles.size === 0);
+}
+
+function submitLovlynetResend() {
+    const areaTag = String($('#lovlynetResendAreaTag').val() || '').trim();
+    if (!areaTag) {
+        return;
+    }
+
+    const selectedFiles = Array.from(_resendSelectedFiles);
+
+    if (selectedFiles.length === 0) {
+        showError(uiT('ui.admin.lovlynet.resend_select_required', 'Select at least one file'));
+        return;
+    }
+
+    const messageText = selectedFiles.map(function(filename) {
+        return `%RESEND ${filename} ${areaTag}`;
+    }).join('\n');
+
+    const $submit = $('#lovlynetResendSubmit');
+    $submit.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.common.loading', 'Loading...')}`);
+
+    $.ajax({
+        url: '/admin/api/lovlynet/request',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: getCsrfHeaders(),
+        data: JSON.stringify({ area_type: 'file', message_text: messageText }),
+        success: function() {
+            if (lovlynetResendModal) {
+                lovlynetResendModal.hide();
+            }
+            showSuccess(uiT('ui.admin.lovlynet.resend_sent', 'FileFix resend request sent'));
+            loadLovlyNetRequests();
+        },
+        error: function(xhr) {
+            const fallback = uiT('ui.admin.lovlynet.resend_send_failed', 'Failed to send resend request');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON || {}, fallback)
+                : ((xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : fallback);
+            showError(msg);
+        },
+        complete: function() {
+            $submit.prop('disabled', false).html(
+                `<i class="fas fa-paper-plane me-1"></i>${uiT('ui.admin.lovlynet.resend_send', 'Send resend request')}`
+            );
+        }
+    });
 }
 </script>
 {% endblock %}

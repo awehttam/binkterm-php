@@ -4783,6 +4783,50 @@ SimpleRouter::get('/admin/api/lovlynet/requests', function() {
 });
 
 /**
+ * GET /admin/api/lovlynet/filearea-files?tag=TAG
+ * Fetch the list of files available in a LovlyNet file area (parsed from files.bbs).
+ */
+SimpleRouter::get('/admin/api/lovlynet/filearea-files', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $areaTag = trim((string)($_GET['tag'] ?? ''));
+    if ($areaTag === '') {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Area tag is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    if (!$client->isConfigured()) {
+        apiError(
+            'errors.admin.lovlynet.not_configured',
+            apiLocalizedText('errors.admin.lovlynet.not_configured', 'LovlyNet is not configured', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $result = $client->getFileAreaFiles($areaTag);
+    if (!$result['success']) {
+        apiError(
+            'errors.admin.lovlynet.filearea_files_failed',
+            apiLocalizedText('errors.admin.lovlynet.filearea_files_failed', 'Failed to load file area files', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode([
+        'success' => true,
+        'files'   => $result['files'],
+    ]);
+});
+
+/**
  * GET /admin/api/zip-diag?id=FILE_ID&path=ENTRY_PATH
  * Diagnostic: test whether a ZIP entry can be extracted via ZipArchive or unzip.
  */
