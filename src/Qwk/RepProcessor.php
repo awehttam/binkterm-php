@@ -103,9 +103,13 @@ class RepProcessor
             return $result;
         }
 
+        // Hashes are kept indefinitely to prevent re-import of old REP packets.
+        // Uncomment the line below and schedule it via cron if you want periodic cleanup.
+        // $this->pruneImportedHashes($userId);
+
         try {
-            $tempDir = $this->createTempDir();
-            $msgPath = $this->extractMsgFile($zipPath, $tempDir);
+            $tempDir  = $this->createTempDir();
+            $msgPath  = $this->extractMsgFile($zipPath, $tempDir);
             $messages = $this->parseMsgFile($msgPath);
 
             foreach ($messages as $index => $msg) {
@@ -121,9 +125,19 @@ class RepProcessor
                     continue;
                 }
 
+                // Deduplicate: skip messages whose content hash we have already
+                // recorded for this user (same REP re-uploaded, or amended REP
+                // that still contains previously imported replies).
+                $hash = $this->computeMessageHash($userId, $msg);
+                if ($this->hashAlreadyImported($userId, $hash)) {
+                    $result['skipped']++;
+                    continue;
+                }
+
                 try {
                     $imported = $this->importReply($msg, $conf, $userId, $messageMap);
                     if ($imported) {
+                        $this->recordImportedHash($userId, $hash);
                         $result['imported']++;
                     } else {
                         $result['skipped']++;
@@ -599,6 +613,60 @@ class RepProcessor
         }
 
         return [$conferenceMap, $messageIndex];
+    }
+
+    // -------------------------------------------------------------------------
+    // Deduplication helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Compute a SHA-256 content hash for a parsed REP message.
+     *
+     * The hash covers the fields the user authored — conference number,
+     * recipient, subject, and body — so identical replies are detected
+     * regardless of when or how many times the REP is uploaded.
+     */
+    private function computeMessageHash(int $userId, array $msg): string
+    {
+        $parts = implode('|', [
+            $userId,
+            $msg['conference_number'],
+            mb_strtolower(trim($msg['to_name'])),
+            mb_strtolower(trim($msg['subject'])),
+            trim($msg['body']),
+        ]);
+        return hash('sha256', $parts);
+    }
+
+    private function hashAlreadyImported(int $userId, string $hash): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM qwk_imported_hashes WHERE user_id = ? AND msg_hash = ? LIMIT 1"
+        );
+        $stmt->execute([$userId, $hash]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function recordImportedHash(int $userId, string $hash): void
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO qwk_imported_hashes (user_id, msg_hash, imported_at)
+             VALUES (?, ?, NOW())
+             ON CONFLICT (user_id, msg_hash) DO NOTHING"
+        );
+        $stmt->execute([$userId, $hash]);
+    }
+
+    /**
+     * Remove hash entries older than 1 year for this user.
+     * Called once per upload to keep the table from growing indefinitely.
+     */
+    private function pruneImportedHashes(int $userId): void
+    {
+        $this->db->prepare(
+            "DELETE FROM qwk_imported_hashes
+              WHERE user_id = ? AND imported_at < NOW() - INTERVAL '1 year'"
+        )->execute([$userId]);
     }
 
     // -------------------------------------------------------------------------
