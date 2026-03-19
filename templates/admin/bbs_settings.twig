@@ -99,6 +99,11 @@
                             <label class="form-check-label" for="bbsBbsDirectory">{{ t('ui.admin.bbs_settings.features.enable_bbs_directory', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.bbs_directory_help', {}, locale, ['common']) }}</small></div>
                         </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsQwk">
+                            <label class="form-check-label" for="bbsQwk">{{ t('ui.admin.bbs_settings.features.enable_qwk', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_help', {}, locale, ['common']) }}</small></div>
+                        </div>
 
                         {% if license_valid %}
                         <div class="form-check mb-3">
@@ -289,6 +294,7 @@ function loadBbsSettings() {
             document.getElementById('bbsFileAreas').checked = !!features.file_areas;
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
             document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
+            document.getElementById('bbsQwk').checked = !!features.qwk;
             const bbsPublicFilesIndexEl = document.getElementById('bbsPublicFilesIndex');
             if (bbsPublicFilesIndexEl) bbsPublicFilesIndexEl.checked = !!features.public_files_index;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
@@ -355,7 +361,8 @@ function saveBbsSettings() {
                     file_areas: document.getElementById('bbsFileAreas').checked,
                     guest_doors_page: document.getElementById('bbsGuestDoorsPage').checked,
                     bbs_directory: document.getElementById('bbsBbsDirectory').checked,
-                    public_files_index: document.getElementById('bbsPublicFilesIndex') ? document.getElementById('bbsPublicFilesIndex').checked : false
+                    public_files_index: document.getElementById('bbsPublicFilesIndex') ? document.getElementById('bbsPublicFilesIndex').checked : false,
+                    qwk: document.getElementById('bbsQwk').checked
                 },
                 credits: credits,
                 max_cross_post_areas: maxCrossPost,

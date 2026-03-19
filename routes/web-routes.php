@@ -1359,6 +1359,21 @@ SimpleRouter::get('/about', function() {
     $template->renderResponse('about.twig');
 });
 
+// QWK Offline Mail page
+SimpleRouter::get('/qwk', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('qwk.twig');
+});
+
 // Include local/custom routes if they exist
 $localRoutes = __DIR__ . '/web-routes.local.php';
 if (file_exists($localRoutes)) {

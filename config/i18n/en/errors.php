@@ -509,4 +509,13 @@ return [
     'errors.admin.lovlynet.request_config_missing' => 'LovlyNet request settings are incomplete',
     'errors.admin.lovlynet.help_fetch_failed' => 'Failed to load help text',
     'errors.admin.lovlynet.request_send_failed' => 'Failed to send request netmail',
+
+    // QWK Offline Mail
+    'errors.qwk.disabled' => 'QWK offline mail is not enabled on this system',
+    'errors.qwk.no_file' => 'No REP file received. Send the file in the "rep" field.',
+    'errors.qwk.upload_error' => 'File upload error',
+    'errors.qwk.invalid_extension' => 'Please upload a .REP or .ZIP file',
+    'errors.qwk.processing_failed' => 'Failed to process REP packet',
+    'errors.qwk.status_failed' => 'Failed to retrieve QWK status',
+    'errors.qwk.invalid_format' => 'Format must be "qwk" or "qwke"',
 ];

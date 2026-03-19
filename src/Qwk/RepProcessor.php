@@ -1,0 +1,599 @@
+<?php
+
+/*
+ * Copright "Agent 57951" and BinktermPHP Contributors
+ *
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+ * following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ * Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ *
+ */
+
+namespace BinktermPHP\Qwk;
+
+use BinktermPHP\Database;
+use BinktermPHP\MessageHandler;
+use PDO;
+use ZipArchive;
+
+/**
+ * RepProcessor
+ *
+ * Parses an uploaded QWK REP packet (BBSID.REP) and imports the replies
+ * as echomail or netmail via the existing MessageHandler.
+ *
+ * REP packet structure:
+ *   A ZIP archive containing a single file named <BBSID>.MSG.
+ *   That file uses the same 128-byte block structure as MESSAGES.DAT.
+ *
+ * Block 0 is a reserved header (ignored).
+ * Each subsequent message starts at a 128-byte block boundary.  The first
+ * block of each message is the header; the block-count field (bytes 116–121)
+ * gives the total number of 128-byte blocks the message occupies including
+ * the header block itself.  The body follows in the remaining blocks.
+ *
+ * Conference 0 → netmail (addressed to the uplink address or sysop).
+ * Conference N → echomail in the area identified by the conference map
+ *               stored at download time in qwk_download_log.
+ *
+ * QWKE kludge lines (^A-prefixed) at the start of the body are stripped
+ * from the imported text and noted for metadata, but BinktermPHP regenerates
+ * its own kludges when spooling outbound packets so they are not re-used
+ * directly.
+ *
+ * Security:
+ *  - The user must have a prior download on record (conference map required).
+ *  - The BBSID in the uploaded MSG filename must match this installation.
+ *  - The MSG file size must be a non-zero multiple of 128 bytes.
+ *  - No ZIP entry path traversal: extraction targets a controlled temp dir.
+ */
+class RepProcessor
+{
+    private const BLOCK_SIZE        = 128;
+    private const QWK_LINE_TERM     = "\xE3";
+    private const MAX_UPLOAD_BYTES  = 10 * 1024 * 1024;  // 10 MB
+
+    private PDO            $db;
+    private MessageHandler $messageHandler;
+    private QwkBuilder     $builder;
+
+    public function __construct()
+    {
+        $this->db             = Database::getInstance()->getPdo();
+        $this->messageHandler = new MessageHandler();
+        $this->builder        = new QwkBuilder();
+    }
+
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
+
+    /**
+     * Process an uploaded REP ZIP file path (e.g. $_FILES['rep']['tmp_name']).
+     *
+     * Returns:
+     *   ['imported' => int, 'skipped' => int, 'errors' => string[]]
+     */
+    public function processRepPacket(string $zipPath, int $userId): array
+    {
+        $result  = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $tempDir = null;
+
+        // Pre-flight: require a prior download so we have a conference map.
+        $conferenceMap = $this->getLatestConferenceMap($userId);
+        if ($conferenceMap === null) {
+            $result['errors'][] = 'No prior QWK download found for this account. '
+                . 'Download a packet first before uploading replies.';
+            return $result;
+        }
+
+        // Validate file size.
+        $size = filesize($zipPath);
+        if ($size === false || $size === 0) {
+            $result['errors'][] = 'Uploaded file is empty or unreadable.';
+            return $result;
+        }
+        if ($size > self::MAX_UPLOAD_BYTES) {
+            $result['errors'][] = 'Uploaded file exceeds the maximum allowed size of '
+                . (self::MAX_UPLOAD_BYTES / 1024 / 1024) . ' MB.';
+            return $result;
+        }
+
+        try {
+            $tempDir = $this->createTempDir();
+            $msgPath = $this->extractMsgFile($zipPath, $tempDir);
+            $messages = $this->parseMsgFile($msgPath);
+
+            foreach ($messages as $index => $msg) {
+                $confNumber = $msg['conference_number'];
+                $conf       = $conferenceMap[(string)$confNumber] ?? null;
+
+                if ($conf === null) {
+                    $result['errors'][] = sprintf(
+                        'Message %d: conference %d not found in download map — skipped.',
+                        $index + 1, $confNumber
+                    );
+                    $result['skipped']++;
+                    continue;
+                }
+
+                try {
+                    $imported = $this->importReply($msg, $conf, $userId);
+                    if ($imported) {
+                        $result['imported']++;
+                    } else {
+                        $result['skipped']++;
+                    }
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf(
+                        'Message %d ("%s"): %s',
+                        $index + 1,
+                        substr($msg['subject'], 0, 40),
+                        $e->getMessage()
+                    );
+                    $result['skipped']++;
+                }
+            }
+        } finally {
+            if ($tempDir !== null && is_dir($tempDir)) {
+                $this->removeTempDir($tempDir);
+            }
+        }
+
+        return $result;
+    }
+
+    // -------------------------------------------------------------------------
+    // ZIP extraction
+    // -------------------------------------------------------------------------
+
+    /**
+     * Open the REP ZIP, locate the BBSID.MSG entry, and extract it to
+     * a controlled temp directory.
+     *
+     * @throws \RuntimeException if the archive is invalid or the MSG file
+     *                           cannot be located or validated.
+     */
+    private function extractMsgFile(string $zipPath, string $tempDir): string
+    {
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            throw new \RuntimeException('Failed to open uploaded file as a ZIP archive.');
+        }
+
+        $expectedBbsId = strtoupper($this->builder->getBbsId());
+        $msgEntry      = null;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat     = $zip->statIndex($i);
+            $entryName = $stat['name'] ?? '';
+
+            // Guard against path traversal entries.
+            if (strpbrk($entryName, '/\\') !== false) {
+                continue;
+            }
+
+            $upper = strtoupper($entryName);
+            if (str_ends_with($upper, '.MSG')) {
+                $msgEntry = $entryName;
+                break;
+            }
+        }
+
+        if ($msgEntry === null) {
+            $zip->close();
+            throw new \RuntimeException(
+                'No .MSG file found inside the uploaded archive. '
+                . 'Expected a file named ' . $expectedBbsId . '.MSG.'
+            );
+        }
+
+        // Validate BBSID in the filename.
+        $baseName     = strtoupper(pathinfo($msgEntry, PATHINFO_FILENAME));
+        if ($baseName !== $expectedBbsId) {
+            $zip->close();
+            throw new \RuntimeException(
+                "MSG file BBSID mismatch: found \"{$baseName}\", expected \"{$expectedBbsId}\". "
+                . 'Make sure you are uploading a reply packet created for this BBS.'
+            );
+        }
+
+        $destPath = $tempDir . DIRECTORY_SEPARATOR . basename($msgEntry);
+        if ($zip->extractTo($tempDir, $msgEntry) !== true) {
+            $zip->close();
+            throw new \RuntimeException('Failed to extract MSG file from archive.');
+        }
+        $zip->close();
+
+        if (!file_exists($destPath)) {
+            throw new \RuntimeException('Extracted MSG file not found at expected path.');
+        }
+
+        return $destPath;
+    }
+
+    // -------------------------------------------------------------------------
+    // MSG file parsing
+    // -------------------------------------------------------------------------
+
+    /**
+     * Parse a BBSID.MSG file into an array of message arrays.
+     *
+     * Block 0 is the reserved header — skipped.
+     * Each subsequent message occupies (block-count) × 128 bytes.
+     *
+     * @return array  Array of parsed message arrays.
+     * @throws \RuntimeException if the file cannot be read or is malformed.
+     */
+    private function parseMsgFile(string $msgPath): array
+    {
+        $data = file_get_contents($msgPath);
+        if ($data === false) {
+            throw new \RuntimeException('Cannot read MSG file.');
+        }
+
+        $len = strlen($data);
+        if ($len === 0 || $len % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException(
+                "MSG file size ({$len} bytes) is not a multiple of 128 — file is corrupt."
+            );
+        }
+
+        $messages = [];
+        $offset   = self::BLOCK_SIZE;  // Skip block 0 (reserved header).
+
+        while ($offset < $len) {
+            $msg = $this->parseMessage($data, $offset);
+            if ($msg === null) {
+                break;
+            }
+            $messages[] = $msg;
+            $offset     += $msg['_total_blocks'] * self::BLOCK_SIZE;
+        }
+
+        return $messages;
+    }
+
+    /**
+     * Parse one message starting at $offset within $data.
+     *
+     * Message header block layout:
+     *   Offset  Len  Field
+     *   0       1    Status byte
+     *   1       7    Message number (ASCII)
+     *   8       8    Date  (MM-DD-YY)
+     *   16      5    Time  (HH:MM)
+     *   21      25   To name
+     *   46      25   From name
+     *   71      25   Subject
+     *   96      12   Password (null/space padded)
+     *   108     8    Reply-to message number (ASCII)
+     *   116     6    Total block count (ASCII, includes this header block)
+     *   122     1    Activity flag
+     *   123     1    Conference number LSB
+     *   124     1    Conference number MSB
+     *   125     3    Reserved
+     */
+    private function parseMessage(string $data, int $offset): ?array
+    {
+        if ($offset + self::BLOCK_SIZE > strlen($data)) {
+            return null;
+        }
+
+        $header = substr($data, $offset, self::BLOCK_SIZE);
+
+        $statusByte       = $header[0];
+        $msgNumberRaw     = trim(substr($header, 1, 7));
+        $dateRaw          = trim(substr($header, 8, 8));
+        $timeRaw          = trim(substr($header, 16, 5));
+        $toName           = rtrim(substr($header, 21, 25), "\x00");
+        $fromName         = rtrim(substr($header, 46, 25), "\x00");
+        $subject          = rtrim(substr($header, 71, 25), "\x00");
+        $replyToRaw       = trim(substr($header, 108, 8));
+        $blockCountRaw    = trim(substr($header, 116, 6));
+        $activityFlag     = ord($header[122]);
+        $conferenceNumber = ord($header[123]) | (ord($header[124]) << 8);
+
+        // Skip inactive messages.
+        if ($activityFlag === 0x00) {
+            // If block count is also 0 or 1, treat as end-of-file padding.
+            $blockCount = (int)$blockCountRaw;
+            if ($blockCount <= 1) {
+                return null;
+            }
+        }
+
+        $blockCount = (int)$blockCountRaw;
+        if ($blockCount < 1) {
+            // Malformed entry — skip one block and continue.
+            return ['_total_blocks' => 1, '_skip' => true, 'conference_number' => $conferenceNumber,
+                    'to_name' => '', 'from_name' => '', 'subject' => '', 'body' => '', 'status' => $statusByte];
+        }
+
+        // Extract body blocks.
+        $bodyBlockCount = $blockCount - 1;
+        $bodyOffset     = $offset + self::BLOCK_SIZE;
+        $bodyLength     = $bodyBlockCount * self::BLOCK_SIZE;
+
+        if ($bodyOffset + $bodyLength > strlen($data)) {
+            // Truncated file — take whatever is left.
+            $bodyLength = strlen($data) - $bodyOffset;
+        }
+
+        $rawBody = substr($data, $bodyOffset, $bodyLength);
+        // Trim trailing null bytes and replace QWK line terminator with \n.
+        $rawBody = rtrim($rawBody, "\x00");
+        $body    = str_replace(self::QWK_LINE_TERM, "\n", $rawBody);
+
+        // Split QWKE kludge prefix from the body text.
+        [$kludgeLines, $cleanBody] = $this->splitQwkeBody($body);
+
+        // Attempt to recover charset from QWKE kludges; fall back to CP437→UTF-8.
+        $charset   = $this->detectCharset($kludgeLines);
+        $cleanBody = $this->normaliseEncoding($cleanBody, $charset);
+
+        return [
+            '_total_blocks'     => $blockCount,
+            '_skip'             => false,
+            'status'            => $statusByte,
+            'msg_number'        => (int)$msgNumberRaw,
+            'date'              => $dateRaw,
+            'time'              => $timeRaw,
+            'to_name'           => $this->normaliseEncoding(trim($toName), $charset),
+            'from_name'         => $this->normaliseEncoding(trim($fromName), $charset),
+            'subject'           => $this->normaliseEncoding(trim($subject), $charset),
+            'reply_to_num'      => (int)$replyToRaw,
+            'conference_number' => $conferenceNumber,
+            'kludge_lines'      => $kludgeLines,
+            'body'              => $cleanBody,
+        ];
+    }
+
+    /**
+     * Split QWKE ^A-prefixed kludge lines from the top of the message body.
+     *
+     * Returns [kludge_lines_string, body_without_kludges].
+     */
+    private function splitQwkeBody(string $body): array
+    {
+        $lines    = explode("\n", $body);
+        $kludges  = [];
+        $bodyLines = [];
+        $inKludges = true;
+
+        foreach ($lines as $line) {
+            if ($inKludges && strlen($line) > 0 && ord($line[0]) === 0x01) {
+                $kludges[] = $line;
+            } else {
+                $inKludges = false;
+                $bodyLines[] = $line;
+            }
+        }
+
+        return [implode("\n", $kludges), implode("\n", $bodyLines)];
+    }
+
+    /**
+     * Extract the charset label from a QWKE ^ACHRS kludge if present.
+     */
+    private function detectCharset(string $kludgeLines): ?string
+    {
+        if (preg_match('/\x01CHRS:\s+(\S+)/i', $kludgeLines, $m)) {
+            return strtoupper($m[1]);
+        }
+        return null;
+    }
+
+    /**
+     * Normalise $text to UTF-8.
+     *
+     * If the detected charset is UTF-8 (or null with valid UTF-8), return as-is.
+     * Otherwise attempt conversion from CP437 (the traditional QWK encoding).
+     */
+    private function normaliseEncoding(string $text, ?string $charset): string
+    {
+        if ($charset === 'UTF-8' || $charset === null) {
+            if (mb_check_encoding($text, 'UTF-8')) {
+                return $text;
+            }
+            // Fall through to CP437 conversion.
+        }
+
+        // Map QWK charset labels to iconv encoding names.
+        // mb_convert_encoding() does not support CP437/CP850; iconv() is required.
+        $from = match (strtoupper((string)$charset)) {
+            'CP437', 'IBM437', 'PC-8' => 'CP437',
+            'CP850', 'IBM850'         => 'CP850',
+            'ISO-8859-1', 'LATIN1'   => 'ISO-8859-1',
+            default                   => 'CP437',
+        };
+
+        $converted = @iconv($from, 'UTF-8//TRANSLIT//IGNORE', $text);
+        return ($converted !== false && $converted !== '') ? $converted : $text;
+    }
+
+    // -------------------------------------------------------------------------
+    // Import
+    // -------------------------------------------------------------------------
+
+    /**
+     * Import one parsed reply message into BinktermPHP.
+     *
+     * Conference 0 → sendNetmail via MessageHandler.
+     * Conference N → postEchomail via MessageHandler.
+     *
+     * Returns true if the message was imported, false if it was silently skipped.
+     */
+    private function importReply(array $msg, array $conf, int $userId): bool
+    {
+        if (!empty($msg['_skip'])) {
+            return false;
+        }
+
+        $subject = $msg['subject'] ?: '(no subject)';
+        $body    = rtrim($msg['body']);
+        if ($body === '') {
+            return false;
+        }
+
+        if (!empty($conf['is_netmail'])) {
+            return $this->importNetmailReply($msg, $subject, $body, $userId);
+        } else {
+            return $this->importEchomailReply($msg, $conf, $subject, $body, $userId);
+        }
+    }
+
+    private function importNetmailReply(array $msg, string $subject, string $body, int $userId): bool
+    {
+        $toName = trim($msg['to_name']);
+        if ($toName === '') {
+            $toName = 'Sysop';
+        }
+
+        // Resolve the To address: try to look the recipient up in the nodelist
+        // or default to the system address (local delivery).
+        $toAddress = $this->resolveNetmailToAddress($toName);
+
+        // Find the internal reply-to message ID if the reader quoted one.
+        $replyToId = $this->resolveReplyToId($msg['reply_to_num'], 'netmail', $userId);
+
+        $this->messageHandler->sendNetmail(
+            $userId,
+            $toAddress,
+            $toName,
+            $subject,
+            $body,
+            null,        // fromName — resolved by MessageHandler from user record
+            $replyToId,  // replyToId
+            false,       // crashmail
+            null         // tagline
+        );
+
+        return true;
+    }
+
+    private function importEchomailReply(array $msg, array $conf, string $subject, string $body, int $userId): bool
+    {
+        $tag    = (string)($conf['tag']    ?? '');
+        $domain = (string)($conf['domain'] ?? '');
+        $toName = trim($msg['to_name']) ?: 'All';
+
+        if ($tag === '') {
+            throw new \RuntimeException('Conference has no echo area tag — cannot post.');
+        }
+
+        // Find the internal reply-to message ID.
+        $replyToId = $this->resolveReplyToId($msg['reply_to_num'], 'echomail', $userId);
+
+        $this->messageHandler->postEchomail(
+            $userId,
+            $tag,
+            $domain,
+            $toName,
+            $subject,
+            $body,
+            $replyToId,  // replyToId
+            null         // tagline
+        );
+
+        return true;
+    }
+
+    /**
+     * Resolve a QWK logical reply-to message number to a BinktermPHP DB id.
+     *
+     * QWK reply-to numbers are per-packet logical indices and do not map
+     * directly to database IDs.  We therefore only attempt a match if the
+     * number is non-zero and falls within a plausible range — otherwise
+     * we return null so MessageHandler posts without a reply chain.
+     *
+     * A more robust implementation could store the logical→db mapping in
+     * qwk_download_log at build time; that is left as a future enhancement.
+     */
+    private function resolveReplyToId(int $logicalNumber, string $type, int $userId): ?int
+    {
+        // 0 means "no reply".
+        if ($logicalNumber === 0) {
+            return null;
+        }
+        // We cannot reliably reverse-map logical numbers without a stored
+        // per-download index, so return null to avoid incorrect threading.
+        return null;
+    }
+
+    /**
+     * Attempt to resolve the To address for a netmail reply.
+     *
+     * If the recipient name matches a local user, return the system address.
+     * Otherwise return the system address as a safe default (local delivery
+     * to sysop is the only reliable route for a web BBS without full nodelist
+     * address resolution at this layer).
+     */
+    private function resolveNetmailToAddress(string $toName): string
+    {
+        try {
+            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            return $config->getSystemAddress();
+        } catch (\Exception $e) {
+            return '1:999/999';
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Conference map
+    // -------------------------------------------------------------------------
+
+    /**
+     * Load the conference map from the most recent download log entry for
+     * this user, or return null if no prior download exists.
+     */
+    private function getLatestConferenceMap(int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT conference_map
+            FROM qwk_download_log
+            WHERE user_id = ?
+            ORDER BY downloaded_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row || empty($row['conference_map'])) {
+            return null;
+        }
+
+        $map = json_decode($row['conference_map'], true);
+        if (!is_array($map)) {
+            return null;
+        }
+
+        return $map;
+    }
+
+    // -------------------------------------------------------------------------
+    // Filesystem helpers
+    // -------------------------------------------------------------------------
+
+    private function createTempDir(): string
+    {
+        $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'binkterm_rep_' . bin2hex(random_bytes(8));
+        if (!mkdir($dir, 0700, true)) {
+            throw new \RuntimeException('Cannot create temporary directory for REP extraction.');
+        }
+        return $dir;
+    }
+
+    private function removeTempDir(string $dir): void
+    {
+        $files = glob($dir . DIRECTORY_SEPARATOR . '*') ?: [];
+        foreach ($files as $file) {
+            is_file($file) ? @unlink($file) : $this->removeTempDir($file);
+        }
+        @rmdir($dir);
+    }
+}

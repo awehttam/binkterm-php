@@ -8,10 +8,14 @@
         "file_areas": true,
         "guest_doors_page": false,
         "bbs_directory": true,
-        "public_files_index": false
+        "public_files_index": false,
+        "qwk": true
     },
     "default_echo_interface": "echolist",
     "max_cross_post_areas": 5,
+    "qwk": {
+        "max_messages_per_download": 500
+    },
     "credits": {
         "enabled": true,
         "symbol": "CR",

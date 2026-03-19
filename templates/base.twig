@@ -131,6 +131,13 @@
                                         <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> {{ t('ui.base.echomail', {}, 'common') }}
                                     </a>
                                 </li>
+                                {% if bbs_feature_enabled('qwk') %}
+                                <li>
+                                    <a class="dropdown-item" href="/qwk">
+                                        <i class="fas fa-envelope-open-text"></i> QWK Offline Mail
+                                    </a>
+                                </li>
+                                {% endif %}
                                 {% if appearance.message_reader.email_link_url %}
                                 <li>
                                     <a class="dropdown-item" href="{{ appearance.message_reader.email_link_url | e }}">

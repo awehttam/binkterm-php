@@ -509,4 +509,13 @@ return [
     'errors.admin.lovlynet.request_config_missing' => 'La configuración de solicitudes de LovlyNet está incompleta',
     'errors.admin.lovlynet.help_fetch_failed' => 'No se pudo cargar el texto de ayuda',
     'errors.admin.lovlynet.request_send_failed' => 'No se pudo enviar el netmail de solicitud',
+
+    // QWK Offline Mail
+    'errors.qwk.disabled' => 'El correo sin conexion QWK no esta habilitado en este sistema',
+    'errors.qwk.no_file' => 'No se recibio ningun archivo REP. Envie el archivo en el campo "rep".',
+    'errors.qwk.upload_error' => 'Error al subir el archivo',
+    'errors.qwk.invalid_extension' => 'Por favor suba un archivo .REP o .ZIP',
+    'errors.qwk.processing_failed' => 'No se pudo procesar el paquete REP',
+    'errors.qwk.status_failed' => 'No se pudo obtener el estado QWK',
+    'errors.qwk.invalid_format' => 'El formato debe ser "qwk" o "qwke"',
 ];

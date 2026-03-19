@@ -1,0 +1,340 @@
+{% extends "base.twig" %}
+
+{% block title %}QWK Offline Mail - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-envelope-open-text"></i>
+        QWK Offline Mail
+    </h2>
+    <span class="badge bg-secondary fs-6" id="newMessagesBadge">
+        <i class="fas fa-spinner fa-spin"></i> Loading…
+    </span>
+</div>
+
+<div class="row g-4">
+
+    {# ---- Left column: Download + Upload ---- #}
+    <div class="col-lg-7">
+
+        {# Download card #}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-download me-2"></i>Download QWK Packet</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted mb-3">
+                    Download a QWK packet containing all new messages since your last download.
+                    Open it in your offline mail reader, read and reply at your leisure, then
+                    upload the resulting <code>.REP</code> file below.
+                </p>
+                <p class="card-text text-muted mb-3">
+                    The packet includes your <strong>Personal Mail</strong> (netmail) and all
+                    <strong>subscribed echo areas</strong>.
+                </p>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Packet format</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="qwkFormat" id="fmtQwk" value="qwk">
+                        <label class="form-check-label" for="fmtQwk">
+                            <strong>QWK</strong> — compatible with most offline readers (MultiMail, OLX, etc.)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="qwkFormat" id="fmtQwke" value="qwke">
+                        <label class="form-check-label" for="fmtQwke">
+                            <strong>QWKE</strong> — extended format with full FidoNet metadata (NeoQWK, Synchronet, etc.)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-3">
+                    <a id="downloadBtn"
+                       href="/api/qwk/download?format=qwk"
+                       class="btn btn-fidonet btn-lg">
+                        <i class="fas fa-download me-2"></i>Download <span id="bbsIdLabel"></span>.QWK
+                    </a>
+                    <span class="text-muted small" id="lastDownloadLabel">
+                        <i class="fas fa-clock me-1"></i>Checking last download…
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {# Upload card #}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-upload me-2"></i>Upload REP Packet</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted mb-3">
+                    After composing replies in your offline reader, export the reply packet
+                    (<code>.REP</code> or <code>.ZIP</code>) and upload it here.
+                    Replies will be posted to the appropriate echo areas and your outbound
+                    netmail queue automatically.
+                </p>
+
+                <div class="alert alert-warning d-none" id="noDownloadWarning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    You must download a QWK packet at least once before uploading replies.
+                </div>
+
+                <form id="repUploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="repFile" class="form-label">REP packet file</label>
+                        <input class="form-control" type="file" id="repFile" name="rep"
+                               accept=".rep,.REP,.zip,.ZIP">
+                        <div class="form-text">Accepts <code>.REP</code> or <code>.ZIP</code> files.</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-fidonet" id="uploadBtn">
+                        <i class="fas fa-upload me-2"></i>Upload Replies
+                    </button>
+                </form>
+
+                {# Result area (hidden until upload completes) #}
+                <div id="uploadResult" class="mt-3 d-none">
+                    <div id="uploadResultAlert" class="alert mb-2"></div>
+                    <ul id="uploadErrorList" class="list-unstyled small text-danger mb-0 d-none"></ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {# ---- Right column: Conference status ---- #}
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Conferences</h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div id="conferenceList">
+                    <div class="p-3 text-center text-muted">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading…
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>{# /row #}
+
+{# ---- What is QWK? accordion ---- #}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="accordion" id="qwkHelp">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="helpHeading">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#helpBody"
+                            aria-expanded="false" aria-controls="helpBody">
+                        <i class="fas fa-question-circle me-2"></i>What is QWK offline mail?
+                    </button>
+                </h2>
+                <div id="helpBody" class="accordion-collapse collapse" aria-labelledby="helpHeading" data-bs-parent="#qwkHelp">
+                    <div class="accordion-body text-muted">
+                        <p>
+                            <strong>QWK</strong> is an offline mail format from the BBS era (1987–).
+                            Instead of reading messages online, you download a packet, disconnect,
+                            read everything in a local reader application, write replies, then
+                            reconnect and upload the reply packet.  It is efficient, pleasant on
+                            slow connections, and supported by a wide range of readers.
+                        </p>
+                        <p>
+                            <strong>QWKE</strong> (QWK Extended) is a backward-compatible extension
+                            that carries full FidoNet metadata (MSGID, REPLY, address information)
+                            inside the packet so your reader can properly thread replies and address
+                            netmail.
+                        </p>
+                        <p class="mb-0">
+                            Recommended readers:
+                            <a href="https://github.com/enckse/neoqwk" target="_blank" rel="noopener">NeoQWK</a>
+                            (cross-platform, full QWKE support).
+                            OLX and Yarn also work well.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadStatus();
+    initUploadForm();
+    initFormatRadios();
+});
+
+async function loadStatus() {
+    const listEl  = document.getElementById('conferenceList');
+    const badgeEl = document.getElementById('newMessagesBadge');
+    const lastDlEl = document.getElementById('lastDownloadLabel');
+    const bbsLabel = document.getElementById('bbsIdLabel');
+
+    listEl.innerHTML = '<div class="p-3 text-center text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>';
+
+    try {
+        const resp = await fetch('/api/qwk/status');
+        if (!resp.ok) {
+            throw new Error('HTTP ' + resp.status);
+        }
+        const data = await resp.json();
+
+        // Update badge.
+        const total = data.total_new_messages ?? 0;
+        badgeEl.innerHTML = total > 0
+            ? '<i class="fas fa-envelope me-1"></i>' + total + ' new message' + (total !== 1 ? 's' : '')
+            : '<i class="fas fa-check me-1"></i>No new messages';
+        badgeEl.className = total > 0 ? 'badge bg-success fs-6' : 'badge bg-secondary fs-6';
+
+        // Packet format preference.
+        const fmt = data.format ?? 'qwk';
+        const radio = document.querySelector('input[name="qwkFormat"][value="' + fmt + '"]');
+        if (radio) radio.checked = true;
+        updateDownloadHref(fmt);
+
+        // Last download.
+        if (data.last_download) {
+            const dt = new Date(data.last_download + 'Z');
+            lastDlEl.innerHTML = '<i class="fas fa-clock me-1"></i>Last download: '
+                + dt.toLocaleString();
+        } else {
+            lastDlEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>No prior download';
+            document.getElementById('noDownloadWarning').classList.remove('d-none');
+        }
+
+        // Conference table.
+        const conferences = data.conferences ?? [];
+        if (conferences.length === 0) {
+            listEl.innerHTML = '<div class="p-3 text-muted">No conferences available. Subscribe to echo areas first.</div>';
+            return;
+        }
+
+        let html = '<table class="table table-sm table-hover mb-0">'
+            + '<thead><tr><th>#</th><th>Conference</th><th class="text-end">New</th></tr></thead><tbody>';
+
+        for (const c of conferences) {
+            const newBadge = c.new_messages > 0
+                ? '<span class="badge bg-success">' + c.new_messages + '</span>'
+                : '<span class="text-muted">—</span>';
+            html += '<tr>'
+                + '<td class="text-muted small">' + c.number + '</td>'
+                + '<td>' + escapeHtml(c.name) + (c.is_netmail ? ' <span class="badge bg-secondary" style="font-size:.7em">mail</span>' : '') + '</td>'
+                + '<td class="text-end">' + newBadge + '</td>'
+                + '</tr>';
+        }
+        html += '</tbody></table>';
+        listEl.innerHTML = html;
+
+    } catch (err) {
+        listEl.innerHTML = '<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load status: ' + escapeHtml(err.message) + '</div>';
+        badgeEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+        badgeEl.className = 'badge bg-danger fs-6';
+    }
+}
+
+function initUploadForm() {
+    const form      = document.getElementById('repUploadForm');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const resultDiv = document.getElementById('uploadResult');
+    const alertDiv  = document.getElementById('uploadResultAlert');
+    const errorList = document.getElementById('uploadErrorList');
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const fileInput = document.getElementById('repFile');
+        if (!fileInput.files.length) {
+            alertDiv.className = 'alert alert-warning mb-2';
+            alertDiv.textContent = 'Please select a .REP or .ZIP file first.';
+            resultDiv.classList.remove('d-none');
+            errorList.classList.add('d-none');
+            return;
+        }
+
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading…';
+        resultDiv.classList.add('d-none');
+
+        const formData = new FormData();
+        formData.append('rep', fileInput.files[0]);
+
+        try {
+            const resp = await fetch('/api/qwk/upload', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await resp.json();
+
+            resultDiv.classList.remove('d-none');
+
+            if (data.imported > 0 || (data.errors && data.errors.length === 0)) {
+                alertDiv.className = 'alert alert-success mb-2';
+                alertDiv.innerHTML = '<i class="fas fa-check me-2"></i>'
+                    + data.imported + ' message' + (data.imported !== 1 ? 's' : '') + ' imported successfully.'
+                    + (data.skipped > 0 ? ' (' + data.skipped + ' skipped)' : '');
+            } else {
+                alertDiv.className = 'alert alert-warning mb-2';
+                alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>'
+                    + 'No messages were imported.'
+                    + (data.skipped > 0 ? ' (' + data.skipped + ' skipped)' : '');
+            }
+
+            if (data.errors && data.errors.length > 0) {
+                errorList.innerHTML = data.errors.map(e => '<li><i class="fas fa-times-circle me-1"></i>' + escapeHtml(e) + '</li>').join('');
+                errorList.classList.remove('d-none');
+            } else {
+                errorList.classList.add('d-none');
+            }
+
+            // Refresh conference status.
+            loadStatus();
+            fileInput.value = '';
+        } catch (err) {
+            resultDiv.classList.remove('d-none');
+            alertDiv.className = 'alert alert-danger mb-2';
+            alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Upload failed: ' + escapeHtml(err.message);
+            errorList.classList.add('d-none');
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload Replies';
+        }
+    });
+}
+
+function updateDownloadHref(format) {
+    const btn = document.getElementById('downloadBtn');
+    if (btn) btn.href = '/api/qwk/download?format=' + encodeURIComponent(format);
+}
+
+function initFormatRadios() {
+    document.querySelectorAll('input[name="qwkFormat"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const format = this.value;
+            updateDownloadHref(format);
+            fetch('/api/qwk/format', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ format: format })
+            });
+        });
+    });
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(text)));
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

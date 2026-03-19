@@ -33,6 +33,10 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
  - telnet/ - the telnet BBS server (separate from the web interface)
 
+## Credits
+
+ - **CREDITS.md must be kept up to date**: When merging commits from a new contributor, add them to the Contributors table. When adding a new vendor library via composer, add it to the Third-Party Libraries section with its license and authors.
+
 ## Important Notes
  - User authentication is simple username and password with long lived cookie
  - Both usernames and Real Names are considered unique. Two users cannot have the same username or real name

@@ -8699,3 +8699,264 @@ SimpleRouter::get('/admin/api/freq-log', function() {
     ]);
 });
 
+
+// ---------------------------------------------------------------------------
+// QWK Offline Mail routes
+// GET  /api/qwk/download  — build and stream a QWK packet to the browser
+// POST /api/qwk/upload    — accept an uploaded REP packet and import replies
+// GET  /api/qwk/status    — return download state (conferences, msg counts)
+// ---------------------------------------------------------------------------
+SimpleRouter::group(['prefix' => '/api/qwk'], function() {
+
+    /**
+     * GET /api/qwk/download
+     *
+     * Builds a QWK packet for the authenticated user and streams it as a
+     * binary ZIP download.  No JSON is returned — the response body IS the
+     * ZIP file.
+     */
+    SimpleRouter::get('/download', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            echo 'QWK offline mail is not enabled on this system.';
+            return;
+        }
+
+        try {
+            $meta   = new \BinktermPHP\UserMeta();
+            $format = $_GET['format'] ?? $meta->getValue($userId, 'qwk_format') ?? 'qwk';
+            $qwke   = ($format === 'qwke');
+            $meta->setValue($userId, 'qwk_format', $qwke ? 'qwke' : 'qwk');
+
+            $builder  = new \BinktermPHP\Qwk\QwkBuilder();
+            $zipPath  = $builder->buildPacket($userId, $qwke);
+            $bbsId    = $builder->getBbsId();
+            $filename = $bbsId . '.QWK';
+
+            $filesize = filesize($zipPath);
+
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . $filesize);
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+            header('Pragma: no-cache');
+
+            readfile($zipPath);
+            @unlink($zipPath);
+            exit;
+        } catch (\Exception $e) {
+            error_log('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
+        }
+    });
+
+    /**
+     * POST /api/qwk/upload
+     *
+     * Accepts a multipart upload of a REP packet (field name: "rep").
+     * Returns JSON: {success, imported, skipped, errors}.
+     */
+    SimpleRouter::post('/upload', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        if (empty($_FILES['rep'])) {
+            http_response_code(400);
+            apiError('errors.qwk.no_file', 'No REP file received. Send the file in the "rep" field.');
+            return;
+        }
+
+        $file = $_FILES['rep'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400);
+            apiError('errors.qwk.upload_error', 'File upload error code: ' . $file['error']);
+            return;
+        }
+
+        // Basic extension check — accept .rep and .zip
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, ['rep', 'zip'], true)) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_extension', 'Please upload a .REP or .ZIP file.');
+            return;
+        }
+
+        try {
+            $processor = new \BinktermPHP\Qwk\RepProcessor();
+            $result    = $processor->processRepPacket($file['tmp_name'], $userId);
+
+            echo json_encode([
+                'success'  => $result['imported'] > 0 || count($result['errors']) === 0,
+                'imported' => $result['imported'],
+                'skipped'  => $result['skipped'],
+                'errors'   => $result['errors'],
+            ]);
+        } catch (\Exception $e) {
+            error_log('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.qwk.processing_failed', 'Failed to process REP packet: ' . $e->getMessage());
+        }
+    });
+
+    /**
+     * GET /api/qwk/status
+     *
+     * Returns the user's current QWK state: subscribed conferences and how
+     * many new messages are waiting since the last download.
+     */
+    SimpleRouter::get('/status', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        try {
+            $db     = \BinktermPHP\Database::getInstance()->getPdo();
+            $subMgr = new \BinktermPHP\EchoareaSubscriptionManager();
+            $areas  = $subMgr->getUserSubscribedEchoareas($userId);
+
+            // Retrieve last-seen IDs for all subscribed areas.
+            $stateStmt = $db->prepare("
+                SELECT echoarea_id, is_netmail, last_msg_id, updated_at
+                FROM qwk_conference_state
+                WHERE user_id = ?
+            ");
+            $stateStmt->execute([$userId]);
+            $stateRows = $stateStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $stateByArea   = [];
+            $netmailLastId = 0;
+            foreach ($stateRows as $row) {
+                if ($row['is_netmail']) {
+                    $netmailLastId = (int)$row['last_msg_id'];
+                } else {
+                    $stateByArea[(int)$row['echoarea_id']] = (int)$row['last_msg_id'];
+                }
+            }
+
+            // Count new netmail.
+            try {
+                $binkpConfig   = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $myAddresses   = $binkpConfig->getMyAddresses();
+                $myAddresses[] = $binkpConfig->getSystemAddress();
+                $userRow       = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+                $userRow->execute([$userId]);
+                $userData = $userRow->fetch(PDO::FETCH_ASSOC);
+
+                $addrPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+                $nmStmt = $db->prepare("
+                    SELECT COUNT(*) AS cnt FROM netmail
+                    WHERE id > ?
+                      AND (LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?))
+                      AND to_address IN ({$addrPlaceholders})
+                      AND deleted_by_recipient IS NOT TRUE
+                ");
+                $nmParams = [$netmailLastId, $userData['username'] ?? '', $userData['real_name'] ?? ''];
+                $nmParams = array_merge($nmParams, $myAddresses);
+                $nmStmt->execute($nmParams);
+                $newNetmail = (int)$nmStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
+            } catch (\Exception $e) {
+                $newNetmail = 0;
+            }
+
+            // Count new echomail per area.
+            $conferences = [
+                [
+                    'number'      => 0,
+                    'name'        => 'Personal Mail',
+                    'is_netmail'  => true,
+                    'new_messages'=> $newNetmail,
+                ]
+            ];
+
+            $confNum = 1;
+            foreach ($areas as $area) {
+                $lastId  = $stateByArea[(int)$area['id']] ?? 0;
+                $emStmt  = $db->prepare("SELECT COUNT(*) AS cnt FROM echomail WHERE echoarea_id = ? AND id > ?");
+                $emStmt->execute([(int)$area['id'], $lastId]);
+                $newCount = (int)$emStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
+
+                $conferences[] = [
+                    'number'       => $confNum,
+                    'name'         => strtoupper($area['tag']) . (!empty($area['domain']) ? '@' . strtoupper($area['domain']) : ''),
+                    'is_netmail'   => false,
+                    'new_messages' => $newCount,
+                ];
+                $confNum++;
+            }
+
+            $totalNew = array_sum(array_column($conferences, 'new_messages'));
+
+            // Last download timestamp.
+            $lastDlStmt = $db->prepare("SELECT downloaded_at FROM qwk_download_log WHERE user_id = ? ORDER BY downloaded_at DESC LIMIT 1");
+            $lastDlStmt->execute([$userId]);
+            $lastDl = $lastDlStmt->fetchColumn();
+
+            $meta   = new \BinktermPHP\UserMeta();
+            $format = $meta->getValue($userId, 'qwk_format') ?? 'qwk';
+
+            echo json_encode([
+                'total_new_messages' => $totalNew,
+                'last_download'      => $lastDl ?: null,
+                'conferences'        => $conferences,
+                'format'             => $format,
+            ]);
+        } catch (\Exception $e) {
+            error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.qwk.status_failed', 'Failed to retrieve QWK status: ' . $e->getMessage());
+        }
+    });
+
+    /**
+     * POST /api/qwk/format
+     *
+     * Saves the user's preferred packet format ('qwk' or 'qwke') to UserMeta.
+     * Body: {"format": "qwk"} or {"format": "qwke"}
+     */
+    SimpleRouter::post('/format', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $input  = json_decode(file_get_contents('php://input'), true);
+        $format = $input['format'] ?? '';
+        if (!in_array($format, ['qwk', 'qwke'], true)) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_format', 'Format must be "qwk" or "qwke".');
+            return;
+        }
+
+        $meta = new \BinktermPHP\UserMeta();
+        $meta->setValue($userId, 'qwk_format', $format);
+        echo json_encode(['success' => true, 'format' => $format]);
+    });
+
+
+});
