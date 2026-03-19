@@ -217,6 +217,21 @@
 
                         <hr>
 
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="campaignIncludeTags">{{ t('ui.admin.ad_campaigns.include_tags') }}</label>
+                                <select class="form-select" id="campaignIncludeTags" multiple size="6"></select>
+                                <div class="form-text">{{ t('ui.admin.ad_campaigns.include_tags_help') }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="campaignExcludeTags">{{ t('ui.admin.ad_campaigns.exclude_tags') }}</label>
+                                <select class="form-select" id="campaignExcludeTags" multiple size="6"></select>
+                                <div class="form-text">{{ t('ui.admin.ad_campaigns.exclude_tags_help') }}</div>
+                            </div>
+                        </div>
+
+                        <hr>
+
                         <h6 class="mb-2">{{ t('ui.admin.ad_campaigns.assigned_ads') }}</h6>
                         <div id="campaignAdsList" class="border rounded p-3" style="max-height: 320px; overflow:auto;"></div>
                     </form>
@@ -254,7 +269,7 @@
 <script>
 let adCampaignModal = null;
 let campaignAdPreviewModal = null;
-let campaignMeta = { ads: [], users: [], echoareas: [], timezones: [] };
+let campaignMeta = { ads: [], tags: [], users: [], echoareas: [], timezones: [] };
 let adCampaigns = [];
 let campaignHistoryItems = [];
 let campaignHistoryPage = 1;
@@ -550,6 +565,7 @@ function showCampaignModal() {
     populateCampaignMeta();
     renderScheduleRows([]);
     renderTargetRows([]);
+    renderCampaignTagFilters({ include: [], exclude: [] });
     renderCampaignAds([]);
     adCampaignModal.show();
 }
@@ -570,6 +586,7 @@ function editCampaign(id) {
         populateCampaignMeta(campaign.from_user_id || '');
         renderScheduleRows(Array.isArray(campaign.schedules) ? campaign.schedules : []);
         renderTargetRows(Array.isArray(campaign.targets) ? campaign.targets : []);
+        renderCampaignTagFilters(campaign.tag_filters || { include: [], exclude: [] });
         renderCampaignAds(Array.isArray(campaign.ads) ? campaign.ads : []);
         adCampaignModal.show();
     }).catch(error => {
@@ -584,6 +601,25 @@ function populateCampaignMeta(selectedUserId = '') {
         return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
     }).join('');
     userSelect.value = selectedUserId ? String(selectedUserId) : '';
+}
+
+function renderCampaignTagFilters(tagFilters) {
+    const includeSelect = document.getElementById('campaignIncludeTags');
+    const excludeSelect = document.getElementById('campaignExcludeTags');
+    const includeIds = new Set((tagFilters?.include || []).map(item => String(Number(item.id || item))));
+    const excludeIds = new Set((tagFilters?.exclude || []).map(item => String(Number(item.id || item))));
+    const tags = Array.isArray(campaignMeta.tags) ? campaignMeta.tags : [];
+
+    const optionsHtml = tags.map(tag => `<option value="${Number(tag.id)}">${escapeHtml(tag.name || tag.slug || '')}</option>`).join('');
+    includeSelect.innerHTML = optionsHtml;
+    excludeSelect.innerHTML = optionsHtml;
+
+    Array.from(includeSelect.options).forEach(option => {
+        option.selected = includeIds.has(String(option.value));
+    });
+    Array.from(excludeSelect.options).forEach(option => {
+        option.selected = excludeIds.has(String(option.value));
+    });
 }
 
 function renderTargetRows(targets) {
@@ -732,6 +768,11 @@ function renderCampaignAds(assignedAds) {
     const assigned = {};
     (assignedAds || []).forEach(item => assigned[String(item.advertisement_id)] = item);
     const container = document.getElementById('campaignAdsList');
+    if (!Array.isArray(campaignMeta.ads) || campaignMeta.ads.length === 0) {
+        container.innerHTML = `<div class="text-muted small">${uiT('ui.admin.ad_campaigns.no_ads_available', 'No ads available yet.')}</div>`;
+        return;
+    }
+
     container.innerHTML = (campaignMeta.ads || []).map(ad => {
         const selected = assigned[String(ad.id)] || null;
         return `
@@ -794,6 +835,11 @@ function collectCampaignPayload() {
         };
     });
 
+    const tagFilters = {
+        include: Array.from(document.getElementById('campaignIncludeTags').selectedOptions).map(option => Number(option.value)),
+        exclude: Array.from(document.getElementById('campaignExcludeTags').selectedOptions).map(option => Number(option.value))
+    };
+
     return {
         name: document.getElementById('campaignName').value.trim(),
         description: document.getElementById('campaignDescription').value.trim(),
@@ -803,7 +849,8 @@ function collectCampaignPayload() {
         selection_mode: document.getElementById('campaignSelectionMode').value,
         schedules,
         targets,
-        ads
+        ads,
+        tag_filters: tagFilters
     };
 }
 

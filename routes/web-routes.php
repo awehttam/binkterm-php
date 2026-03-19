@@ -54,6 +54,11 @@ SimpleRouter::get('/', function() {
     $ads = new Advertising();
     $dashboardAds = $ads->getDashboardAds(5);
     $ad = $dashboardAds[0] ?? null;
+    $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+    $dashboardAdRotateInterval = (int)($bbsConfig['dashboard_ad_rotate_interval_seconds'] ?? 20);
+    if ($dashboardAdRotateInterval < 5 || $dashboardAdRotateInterval > 300) {
+        $dashboardAdRotateInterval = 20;
+    }
 
     // Generate system news content
     $systemNewsContent = $template->renderSystemNews();
@@ -80,6 +85,7 @@ SimpleRouter::get('/', function() {
         'system_news_content' => $systemNewsContent,
         'dashboard_ad' => $ad,
         'dashboard_ads' => $dashboardAds,
+        'dashboard_ad_rotate_interval_seconds' => $dashboardAdRotateInterval,
         'shell_art_content' => $shellArtContent,
     ]);
 });

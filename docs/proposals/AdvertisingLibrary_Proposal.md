@@ -18,29 +18,32 @@
 8. [Admin Experience](#admin-experience)
 9. [Dashboard Experience](#dashboard-experience)
 10. [Community Positioning](#community-positioning)
-11. [Auto-Posting Workflow](#auto-posting-workflow)
-12. [Migration Plan](#migration-plan)
-13. [Next Steps](#next-steps)
-14. [Open Questions](#open-questions)
+11. [Terminal Server Advertising](#terminal-server-advertising)
+12. [Auto-Posting Workflow](#auto-posting-workflow)
+13. [Migration Plan](#migration-plan)
+14. [Next Steps](#next-steps)
+15. [Open Questions](#open-questions)
 
 ---
 
 ## Overview
 
-BinktermPHP currently supports ANSI advertisements in a very simple form:
-sysops can upload `.ans` files into a flat `bbs_ads/` directory, one random ad
-is shown on the dashboard, and `scripts/post_ad.php` can post one ad to an
-echomail area.
+BinktermPHP now includes a structured ANSI advertising system. The legacy
+flat-file `bbs_ads/` workflow has been replaced in practice by a
+database-backed ad library, dashboard rotation, and schedule-based echomail
+campaigns.
 
-This proposal upgrades that into a structured advertising system with:
+This document now serves two purposes:
+
+- describe the implemented architecture
+- record the remaining gaps and future phases
+
+The implemented system provides:
 
 - a sysop-managed ANSI ad library
 - a curated dashboard advertising pool
-- future ingestion from other sources such as echomail
+- future expansion room for other sources such as echomail
 - campaign-oriented auto-posting controls
-
-The goal is to make ads manageable as content objects rather than just loose
-files on disk.
 
 ---
 
@@ -56,8 +59,8 @@ Current implementation:
   outbound posts
 - `templates/admin/ads.twig` provides library upload, edit, delete, ANSI
   preview, and browser-based ANSI editing helpers
-- `templates/dashboard.twig` shows a per-session ad carousel with arrow controls
-  and keyboard navigation
+- `templates/dashboard.twig` shows a multi-ad dashboard viewer with per-session
+  anti-repeat selection, manual previous/next controls, and keyboard navigation
 - `scripts/post_ad.php` posts from the database-backed library
 - `templates/admin/ad_campaigns.twig` provides campaign CRUD, schedule editing,
   target management, assigned-ad management, and post history
@@ -72,7 +75,7 @@ Remaining limitations:
 - no saved-from-echomail import flow yet
 - no dedicated eligibility preview explaining why a given ad will or will not
   be selected by a campaign
-- no richer history detail for matched schedule slot or message-body snapshot
+- no richer history detail for matched schedule slot or posted body snapshot
 
 ---
 
@@ -158,8 +161,8 @@ manage without a second storage layer.
 
 ### Dashboard Selection
 
-The dashboard should no longer pull from “all ads in storage.” Instead, it
-should pull from a sysop-managed dashboard pool.
+The dashboard no longer pulls from “all ads in storage.” Instead, it pulls from
+a sysop-managed dashboard pool.
 
 Each ad in the library can independently be:
 
@@ -168,38 +171,41 @@ Each ad in the library can independently be:
 - eligible for echomail auto-posting
 - both dashboard-eligible and auto-post-eligible
 
-Suggested dashboard selection controls per ad:
+Implemented dashboard selection controls per ad:
 
 - `enabled`
 - `show_on_dashboard`
 - `dashboard_weight`
 - `dashboard_priority`
-- `dashboard_start_at`
-- `dashboard_end_at`
+- `start_at`
+- `end_at`
 - tags
 
-Suggested rotation modes for the dashboard pool:
+These date-window fields are shared eligibility controls for presentation
+surfaces such as the dashboard and terminal slots, not terminal-only metadata.
+
+Future rotation modes the data model could support:
 
 - random
 - weighted random
 - round-robin
 - pinned-first then rotate remainder
 
-Only one mode needs to ship first, but the data model should not block later
-options.
+The current implementation ships weighted random selection and does not expose a
+configurable dashboard rotation mode.
 
 Dashboard rotation should be **user-session-aware** rather than purely global.
 That means the system should remember which dashboard ads have been shown during
 the current user session and avoid immediately repeating the same ad for that
 same user.
 
-Recommended first implementation:
+Current implementation:
 
 - weighted random selection from eligible dashboard ads
 - per-session memory to avoid showing the same ad twice in a row to the same
   user
-- store rotation memory in normal PHP session state
-- reset per-session rotation memory on login/logout
+- session-backed memory so the same ad is not immediately repeated when multiple
+  eligible ads exist
 
 This gives a better user experience for active users refreshing or revisiting
 the dashboard without requiring a globally synchronized rotation state.
@@ -215,7 +221,7 @@ Recommended concept:
 - a campaign chooses ads from an eligible pool
 - a campaign defines posting schedule and subject policy
 
-Example campaign fields:
+Implemented campaign fields:
 
 - campaign name
 - enabled flag
@@ -223,9 +229,14 @@ Example campaign fields:
 - to-name
 - ad selection mode
 - eligible ads
-- optional tag filter
 - one or more area+domain targets, each with its own subject template
 - one or more schedule entries, each with days of week, post time, and timezone
+
+Notes on current behavior:
+
+- campaign selection currently operates as weighted random
+- the campaign UI exposes `weighted_random` only
+- optional tag filtering is not implemented yet
 
 Recommended schedule model:
 
@@ -253,7 +264,7 @@ The library should anticipate future import flows:
 - import generated ads directly from the ad generator UI
 - clone an existing ad into a new edited version
 
-For future provenance, the ad record should include optional source fields such
+For future provenance, the ad record may later include optional source fields such
 as:
 
 - source type
@@ -274,7 +285,7 @@ Suggested new tables:
 
 Core ad records.
 
-Suggested fields:
+Implemented fields:
 
 - `id`
 - `slug`
@@ -283,8 +294,7 @@ Suggested fields:
 - `content`
 - `content_hash`
 - `source_type`
-- `source_message_id` nullable
-- `source_echoarea` nullable
+- `legacy_filename` nullable
 - `created_by_user_id` nullable
 - `updated_by_user_id` nullable
 - `is_active`
@@ -297,11 +307,16 @@ Suggested fields:
 - `created_at`
 - `updated_at`
 
+Deferred provenance fields for future echomail import work:
+
+- `source_message_id` nullable
+- `source_echoarea` nullable
+
 ### `advertisement_campaigns`
 
 Auto-post definitions.
 
-Suggested fields:
+Implemented fields:
 
 - `id`
 - `name`
@@ -315,11 +330,17 @@ Suggested fields:
 - `created_at`
 - `updated_at`
 
+Legacy compatibility fields still present in the current schema/service layer
+but no longer used by the scheduling model:
+
+- `post_interval_minutes`
+- `min_repeat_gap_minutes`
+
 ### `advertisement_campaign_schedules`
 
 Per-campaign schedule rows.
 
-Suggested fields:
+Implemented fields:
 
 - `id`
 - `campaign_id`
@@ -336,7 +357,7 @@ when a sysop wants one time to apply to multiple days.
 
 Per-campaign posting targets.
 
-Suggested fields:
+Implemented fields:
 
 - `id`
 - `campaign_id`
@@ -349,7 +370,7 @@ Suggested fields:
 
 Join table between campaigns and eligible ads.
 
-Suggested fields:
+Implemented fields:
 
 - `campaign_id`
 - `advertisement_id`
@@ -357,7 +378,7 @@ Suggested fields:
 
 ### `advertisement_tags`
 
-Suggested fields:
+Implemented fields:
 
 - `id`
 - `name`
@@ -375,7 +396,7 @@ above are suggestions, not required built-ins.
 
 ### `advertisement_tag_map`
 
-Suggested fields:
+Implemented fields:
 
 - `advertisement_id`
 - `tag_id`
@@ -390,7 +411,7 @@ This is the shared post history table for:
 - legacy CLI-triggered posts
 - scheduled campaign posts
 
-Suggested fields:
+Implemented fields:
 
 - `id`
 - `advertisement_id`
@@ -416,9 +437,9 @@ Only if dashboard analytics become important later. This should not be required
 
 ## Admin Experience
 
-The current Admin -> Advertisements page should become an ad library manager.
+The current Admin -> Advertisements page is now the ad library manager.
 
-Recommended sections:
+Current sections and capabilities:
 
 ### Library List
 
@@ -463,72 +484,70 @@ still allow the upload.
 
 This can either live inside the ad library or on a dedicated subpage.
 
-Needed controls:
+Implemented controls:
 
 - which ads are shown on the dashboard
 - ad weight / priority
-- preview of current eligible dashboard pool
+- upload/edit preview from the ad library UI
+
+Not yet implemented:
+
+- preview of the current eligible dashboard pool as a dedicated management view
 - rotation mode setting
-- single-card vs carousel display mode
+- automatic carousel timing or display mode controls
 
 ### Campaigns
 
-A dedicated admin page for posting campaigns:
+Implemented campaign page capabilities:
 
 - list campaigns
 - create/edit campaign
 - assign ads to campaign
-- optionally filter ads by tags
 - manage multiple area+domain targets with separate subject templates
 - manage one or more schedule rows with day-of-week and time selection
 - test post / post now
 - enable/disable schedule
 - inspect post history
 
+Not yet implemented:
+
+- tag-based campaign filtering
+- campaign eligibility preview / explanation
+
 ---
 
 ## Dashboard Experience
 
-The dashboard ad window should keep the current basic presentation:
+The dashboard ad window currently keeps the basic card presentation:
 
 - ANSI preview rendered in the existing dashboard ad card
 
-But its selection source changes from “all ads” to “eligible dashboard ads”.
+Its selection source now comes from eligible dashboard ads in the library.
 
-Selection order should be:
+Current selection order is effectively:
 
 1. active ads only
 2. `show_on_dashboard = true`
 3. within active time window
-4. within configured tags / dashboard eligibility
-5. choose using configured rotation mode
+4. de-duplicate duplicate ANSI payloads by content hash
+5. choose using weighted random with session-aware anti-repeat behavior
 
-Recommended first implementation:
-
-- weighted random with per-session anti-repeat memory
-
-Planned presentation modes:
+Implemented presentation:
 
 - single card
 - manual carousel
-- automatic carousel
 
 The carousel should be treated as a dashboard presentation mode over the same
 eligible ad pool, not as a separate ad type.
 
-Carousel controls should support:
+Current controls:
 
-- automatic advance
 - manual next/previous controls
 - keyboard advancement for accessibility and keyboard-centric use
 
-Automatic carousel timing should be a system-level setting so the sysop can
-choose how quickly ads rotate, or disable auto-advance entirely and use manual
-carousel mode only.
+Automatic advance is not implemented today.
 
 Optional later improvements:
-
-- avoid repeating the same ad twice in a row per user session
 - rotate after page refresh threshold
 - support dashboard categories or themed sets
 
@@ -553,6 +572,140 @@ This keeps the advertising system aligned with the project principle that core
 BBS/community-building features should remain broadly available.
 
 ---
+## Terminal Server Advertising
+
+Terminal server advertising should reuse the same ad library as the web
+dashboard and campaigns, but it should have its own presentation and eligibility
+controls. Terminal display is more constrained than the web UI, so this should
+be modeled as a separate delivery surface rather than reusing
+`show_on_dashboard`.
+
+### Recommended Placement
+
+First implementation should support two explicit terminal slots:
+
+- `login` - show once after successful login and before the main menu
+- `main_menu` - show in a dedicated framed area or panel on the main menu
+
+These are the highest-value placements because they are visible, predictable,
+and do not interrupt message reading, file browsing, or command entry.
+
+Not recommended for the first version:
+
+- inline ads inside message readers
+- inline ads inside file listings
+- prompt-time or command-entry ads
+- random interruption during navigation
+
+Possible later slot:
+
+- `transition` - show when returning to the main menu from major sections
+
+### Selection Model
+
+Terminal ads should be selected from a terminal-specific eligible pool.
+
+Recommended selection rules for a terminal slot:
+
+1. ad is active
+2. ad is enabled for terminal display in the requested slot
+3. ad is within its shared active date window (`start_at` / `end_at`)
+4. duplicate ANSI payloads are de-duplicated by content hash
+5. choose by weighted random
+6. avoid immediate repeat within the same terminal session when multiple ads are eligible
+
+Recommended session behavior:
+
+- `login` slot chooses one ad once per login session
+- `main_menu` slot keeps a stable ad for the session unless the user explicitly cycles
+- later enhancement: rotate after N returns to the main menu rather than every refresh
+
+Selection state should be per terminal session, not global.
+
+### Recommended Data Model
+
+Do not overload `show_on_dashboard` for terminal use. The cleanest model is a
+slot mapping table so terminal placements can grow without repeatedly changing
+the `advertisements` table.
+
+Recommended table:
+
+### `advertisement_terminal_slots`
+
+Suggested fields:
+
+- `advertisement_id`
+- `slot` - e.g. `login`, `main_menu`
+- `weight`
+- `priority`
+- `is_active`
+
+This is preferred over a simple `show_on_terminal` boolean because it supports:
+
+- per-slot eligibility
+- per-slot weight/priority
+- future slots without schema churn
+- cleaner divergence between web and terminal presentation
+
+### Admin Experience
+
+The ad editor should gain terminal-specific controls.
+
+Recommended controls:
+
+- enable ad for terminal display
+- assign one or more terminal slots
+- set per-slot weight
+- set per-slot priority
+- preview ad in terminal mode
+
+If the main menu slot has stricter size limits than the login slot, the admin UI
+should validate those constraints before save or clearly warn when an ad is too
+large for a slot.
+
+### Rendering Constraints
+
+Terminal ads should follow stricter rules than dashboard ads:
+
+- ANSI-only rendering
+- SAUCE stripped before display
+- fixed-width terminal-safe layout
+- slot-specific height limits
+- no browser-only presentation assumptions
+
+Recommended slot constraints:
+
+- `login` may allow a larger full-screen or near-full-screen ad
+- `main_menu` should use a smaller framed region with a strict height cap
+
+If an ad is too tall for a slot, prefer validation or exclusion over runtime
+cropping.
+
+### Shell Integration
+
+The terminal shell should ask the advertising service for a terminal ad by slot.
+The advertising system should decide eligibility and selection; the shell should
+own placement and framing.
+
+This keeps responsibilities clear:
+
+- `Advertising` owns content selection
+- terminal shell code owns layout and screen composition
+
+### Recommended First Implementation
+
+Phase 1 terminal support should include:
+
+- `login` and `main_menu` slots only
+- slot-based eligibility using a mapping table
+- weighted random selection with session anti-repeat
+- terminal preview in the admin UI
+- no inline ads inside readers, prompts, or file listings
+
+This gives terminal advertising real visibility without making the terminal UX
+feel noisy or intrusive.
+
+---
 ## Auto-Posting Workflow
 
 Auto-posting should reuse the library rather than reading arbitrary filenames
@@ -567,7 +720,7 @@ Proposed flow:
 5. Log the result in `advertisement_post_log`.
 6. Update campaign `last_posted_at` and last-posted ad metadata.
 
-This could eventually replace or wrap the current `scripts/post_ad.php`.
+This now complements `scripts/post_ad.php` rather than replacing it.
 
 Recommended CLI evolution:
 
@@ -585,14 +738,14 @@ Schedule runner behavior:
 - the runner should record enough information to avoid duplicate posting for
   the same campaign schedule slot if it runs multiple times in the same window
 
-Campaign selection modes worth supporting:
+Campaign selection modes worth supporting later:
 
 - random
 - weighted random
 - least recently posted
 - strict round-robin
 
-The first version only needs one or two.
+The current implementation uses weighted random only.
 
 ---
 
@@ -622,22 +775,25 @@ Status: completed
 
 - Dashboard ad selection now uses the library.
 - Per-session anti-repeat behavior added.
-- Single-card / carousel presentation implemented.
+- Single-card display plus manual next/previous browsing implemented.
 - Existing dashboard rendering preserved and enhanced.
 
 ### Phase 4: Post-Now and Auto-Post Integration
 
-Status: mostly completed
+Status: implemented with follow-up items remaining
 
 - `post_ad.php` updated to read from the library.
 - Campaign tables and admin pages added.
 - Multi-target campaigns with per-area subject templates added.
-- Raw minute intervals replaced in practice by explicit day/time schedule rows.
+- Explicit day/time/timezone schedule rows added and used by the scheduler.
 - Scheduler script for campaign posting added.
 - Day-of-week and time editing in the campaign UI added.
 - Post history and error tracking added.
 - Due campaign targets are processed in a deterministic order.
-- Remaining item: optional tag-based ad selection/filtering is not yet implemented.
+- Legacy interval fields remain in parts of the schema/service layer but are no
+  longer used by scheduling behavior.
+- Remaining items: tag-based ad selection/filtering, richer history detail, and
+  a campaign eligibility preview are not yet implemented.
 
 ### Phase 5: Future Content Sources
 
@@ -660,13 +816,7 @@ Recommended next work:
 - Add a campaign eligibility preview to explain which ads can currently be selected
 
 ### Future Phase: Terminal Server Advertising
-
-Status: not started
-
-- Add advertising display to the Terminal Server
-- Reuse the library-backed ad source rather than a separate terminal-only ad pool
-- Decide whether terminal ads should rotate per session, per login, or per screen refresh
-- Respect ANSI-safe rendering constraints in telnet and SSH sessions
+- moved to the dedicated **Terminal Server Advertising** section above
 
 ---
 

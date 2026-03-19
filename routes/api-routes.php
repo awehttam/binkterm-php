@@ -5251,6 +5251,80 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
+    $prepareEchomailAdBodyForSave = static function(array $message): string {
+        $body = \BinktermPHP\Advertising::stripSauce((string)($message['message_text'] ?? ''));
+        $bodyLines = preg_split('/\r\n|\r|\n/', $body) ?: [];
+        $trimmedBodyLines = [];
+        foreach ($bodyLines as $line) {
+            if (preg_match('/^\s*---\s+/', $line) === 1) {
+                break;
+            }
+            $trimmedBodyLines[] = $line;
+        }
+
+        return rtrim(implode("\n", $trimmedBodyLines));
+    };
+
+    $isEchomailAnsiAdCapable = static function(array $message, string $body): bool {
+        if ($body === '') {
+            return false;
+        }
+
+        $normalizedArtFormat = strtolower(trim((string)($message['art_format'] ?? '')));
+        $detectedArtFormat = strtolower((string)(\BinktermPHP\ArtFormatDetector::detectArtFormat($body, (string)($message['message_charset'] ?? '')) ?? ''));
+        $hasAnsiSequences = preg_match('/\x1b\[[0-9;?]*[A-Za-z]/', $body) === 1;
+        $hasPipeCodes = preg_match('/\|[0-9A-Fa-f]{2}/', $body) === 1;
+        $lines = preg_split('/\r?\n/', $body) ?: [];
+        $nonEmptyLines = count(array_filter($lines, static fn(string $line): bool => trim($line) !== ''));
+        $maxLineLength = 0;
+        $leadingSpaceArtLines = 0;
+        foreach ($lines as $line) {
+            $maxLineLength = max($maxLineLength, strlen($line));
+            if (preg_match('/^\s{5,}\S/', $line) === 1) {
+                $leadingSpaceArtLines++;
+            }
+        }
+        $hasLeadingSpaceArt = $nonEmptyLines >= 4 && $leadingSpaceArtLines >= 3 && $leadingSpaceArtLines >= ($nonEmptyLines * 0.5) && $maxLineLength >= 30;
+
+        return in_array($normalizedArtFormat, ['ansi', 'amiga_ansi'], true)
+            || in_array($detectedArtFormat, ['ansi', 'amiga_ansi'], true)
+            || $hasAnsiSequences
+            || ($hasPipeCodes && $nonEmptyLines >= 4 && $maxLineLength >= 30)
+            || $hasLeadingSpaceArt;
+    };
+
+    $buildEchomailAdSaveMetadata = static function(array $message, int $messageId): array {
+        $echoareaTag = trim((string)($message['echoarea'] ?? ''));
+        $domain = trim((string)($message['domain'] ?? ''));
+        $subject = trim((string)($message['subject'] ?? ''));
+        $title = $subject !== '' ? $subject : ('Echomail Ad #' . $messageId);
+
+        $descriptionParts = [];
+        if ($echoareaTag !== '') {
+            $descriptionParts[] = $echoareaTag . ($domain !== '' ? '@' . $domain : '');
+        }
+        if (!empty($message['from_name'])) {
+            $descriptionParts[] = 'from ' . trim((string)$message['from_name']);
+        }
+        if (!empty($message['date_written'])) {
+            $descriptionParts[] = 'saved from echomail dated ' . trim((string)$message['date_written']);
+        }
+
+        $tags = ['echomail'];
+        if ($echoareaTag !== '') {
+            $tags[] = $echoareaTag;
+        }
+        if ($domain !== '') {
+            $tags[] = $domain;
+        }
+
+        return [
+            'title' => $title,
+            'description' => implode(' ', $descriptionParts),
+            'tags' => implode(', ', $tags)
+        ];
+    };
+
     // Route for getting specific echomail message by ID only (when echoarea not known)
     SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
         $user = RouteHelper::requireAuth();
@@ -5284,6 +5358,70 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } else {
             http_response_code(404);
             apiError('', apiLocalizedText('', ''));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/messages/echomail/{id}/save-ad', function($id) use ($prepareEchomailAdBodyForSave, $isEchomailAnsiAdCapable, $buildEchomailAdSaveMetadata) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.echomail.save_ad.admin_required', apiLocalizedText('errors.messages.echomail.save_ad.admin_required', 'Admin privileges are required', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $message = $handler->getMessage((int)$id, 'echomail', $userId);
+
+        if (!$message) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        $body = $prepareEchomailAdBodyForSave($message);
+        if ($body === '') {
+            http_response_code(400);
+            apiError('errors.messages.echomail.save_ad.not_ansi', apiLocalizedText('errors.messages.echomail.save_ad.not_ansi', 'Only ANSI echomail messages can be saved to the ad library', $user));
+            return;
+        }
+
+        if (!$isEchomailAnsiAdCapable($message, $body)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.save_ad.not_ansi', apiLocalizedText('errors.messages.echomail.save_ad.not_ansi', 'Only ANSI echomail messages can be saved to the ad library', $user));
+            return;
+        }
+
+        try {
+            $ads = new \BinktermPHP\Advertising();
+            $metadata = $buildEchomailAdSaveMetadata($message, (int)$id);
+            $ad = $ads->createAd([
+                'title' => $metadata['title'],
+                'description' => $metadata['description'],
+                'content' => $body,
+                'source_type' => 'echoarea_saved',
+                'is_active' => false,
+                'show_on_dashboard' => false,
+                'allow_auto_post' => false,
+                'dashboard_weight' => 1,
+                'dashboard_priority' => 0,
+                'tags' => $metadata['tags']
+            ], (int)$userId);
+
+            echo json_encode([
+                'success' => true,
+                'ad' => $ad,
+                'message_code' => 'ui.echomail.save_to_ad_library_saved'
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            apiError('errors.admin.ads.invalid_payload', $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            apiError('errors.messages.echomail.save_ad.failed', apiLocalizedText('errors.messages.echomail.save_ad.failed', 'Failed to save message to ad library', $user));
         }
     })->where(['id' => '[0-9]+']);
 

@@ -37,6 +37,28 @@ Each ad is stored in the database with:
 
 Duplicate uploads are allowed. If the ANSI payload matches an existing ad, the system warns but does not block the upload.
 
+## Tags
+
+Ads can be tagged with freeform labels such as `general`, `door`, `network`, or
+`event`.
+
+Tags are used for organization in the library and can also be used by ad
+campaigns to control eligibility.
+
+Campaign tag filtering supports two modes:
+
+- **Include tags** - the campaign will only consider ads matching at least one
+  selected include tag
+- **Exclude tags** - the campaign will skip any ad matching an excluded tag
+
+Tag filters can be combined with explicitly assigned ads:
+
+- if a campaign has assigned ads and tag filters, the assigned ad list is
+  narrowed by the tag rules
+- if a campaign has no assigned ads but does have tag filters, the campaign can
+  source eligible ads from the library by tag
+- a campaign must have at least one assigned ad or at least one tag filter
+
 ## Dashboard Ads
 
 The dashboard advertising window pulls from ads marked for dashboard display.
@@ -58,6 +80,7 @@ Each campaign can define:
 - one or more active schedules
 - one or more active targets
 - one or more assigned ads with weights
+- optional include/exclude tag filters
 
 Each target contains:
 
@@ -74,6 +97,8 @@ Each schedule contains:
 - enabled/disabled state
 
 The campaign runner chooses an eligible ad using weighted random selection.
+Normal eligibility rules still apply, including active state, auto-post
+eligibility, and any configured date window on the ad.
 
 ## Scheduler Integration
 
@@ -109,4 +134,3 @@ Both manual and automatic campaign runs are recorded in the same history log.
 - Outbound ad posts strip SAUCE before the message body is posted
 - Subject templates are stored per target
 - Local-only areas are posted locally without uplink distribution
-

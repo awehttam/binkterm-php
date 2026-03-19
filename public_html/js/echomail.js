@@ -1093,6 +1093,51 @@ function renderCurrentMessageBody() {
     tmp.innerHTML = bodyHtml;
     while (tmp.firstChild) container.appendChild(tmp.firstChild);
     updateRenderModeBadge();
+    updateSaveToAdLibraryButton();
+}
+
+function isAnsiAdCandidate(message, bodyText) {
+    const text = bodyText || message?.message_text || '';
+    if (!text || text.trim() === '') {
+        return false;
+    }
+
+    const format = window.normalizeArtFormat ? window.normalizeArtFormat(message?.art_format || 'auto') : String(message?.art_format || 'auto').toLowerCase();
+    if (format === 'ansi' || format === 'amiga_ansi') {
+        return true;
+    }
+    if (format === 'petscii' || format === 'rip' || format === 'plain') {
+        return false;
+    }
+
+    if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(text)) {
+        return false;
+    }
+
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(text);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
+    const lines = text.split(/\r?\n/);
+    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
+    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
+
+    return hasCursorAnsi
+        || ((hasAnsi || hasPipes) && nonEmptyLines >= 4 && maxLineLength >= 30)
+        || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
+}
+
+function updateSaveToAdLibraryButton() {
+    const button = document.getElementById('saveToAdLibraryButton');
+    if (!button) {
+        return;
+    }
+
+    const body = currentParsedMessage?.messageBody || currentMessageData?.message_text || '';
+    const shouldShow = isAnsiAdCandidate(currentMessageData, body);
+    button.classList.toggle('d-none', !shouldShow);
+    button.disabled = !shouldShow;
 }
 
 function cycleRenderMode() {
@@ -1131,6 +1176,46 @@ function downloadCurrentMessage() {
     }
 
     window.location.href = `/api/messages/echomail/${encodeURIComponent(currentMessageId)}/download`;
+}
+
+function saveCurrentMessageToAdLibrary() {
+    if (!currentMessageId || !currentMessageData || !currentParsedMessage) {
+        return;
+    }
+
+    if (!isAnsiAdCandidate(currentMessageData, currentParsedMessage.messageBody || currentMessageData.message_text || '')) {
+        showError(uiT('ui.echomail.save_to_ad_library_not_ansi', 'This message is not eligible to save as an ANSI ad.'));
+        return;
+    }
+
+    const button = document.getElementById('saveToAdLibraryButton');
+    if (button) {
+        button.disabled = true;
+    }
+
+    fetch(`/api/messages/echomail/${encodeURIComponent(currentMessageId)}/save-ad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+        .then(readJsonResponse)
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, uiT('ui.echomail.save_to_ad_library_failed', 'Failed to save message to ad library')));
+            }
+
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.echomail.save_to_ad_library_saved', 'Message saved to ad library.'))
+                : uiT('ui.echomail.save_to_ad_library_saved', 'Message saved to ad library.');
+            showSuccess(successMessage);
+        })
+        .catch(error => {
+            showError(error.message || uiT('ui.echomail.save_to_ad_library_failed', 'Failed to save message to ad library'));
+        })
+        .finally(() => {
+            if (button) {
+                button.disabled = false;
+            }
+        });
 }
 
 function checkAndDisplayEchomailMessage(message, parsedMessage) {
@@ -1206,6 +1291,8 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     currentRenderMode = 'auto';
     hideKeyboardHelp();
     let addressBookButton;
+    const saveAdEligible = isAnsiAdCandidate(message, parsedMessage.messageBody || message.message_text || '');
+    let saveAdButton = '';
     if (isInAddressBook) {
         addressBookButton = `
             <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="${uiT('ui.common.already_in_address_book', 'Already in address book')}">
@@ -1220,6 +1307,14 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         addressBookButton = `
             <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="${uiT('ui.common.save_to_address_book', 'Save to address book')}">
                 <i class="fas fa-address-book"></i>
+            </button>
+        `;
+    }
+
+    if (document.getElementById('editMessageButton')) {
+        saveAdButton = `
+            <button class="btn btn-sm btn-outline-secondary ${saveAdEligible ? '' : 'd-none'}" id="saveToAdLibraryButton" onclick="saveCurrentMessageToAdLibrary()" title="${uiT('ui.echomail.save_to_ad_library_title', 'Save to ad library')}">
+                <i class="fas fa-bullhorn me-1"></i>${uiT('ui.echomail.save_to_ad_library', 'Save Ad')}
             </button>
         `;
     }
@@ -1247,8 +1342,11 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
                 </div>
             </div>
-            <div class="row mt-2">
-                <div class="col-12 text-end">
+            <div class="row mt-2 align-items-center">
+                <div class="col-md-6 d-flex align-items-center gap-2">
+                    ${saveAdButton}
+                </div>
+                <div class="col-md-6 text-end">
                     <i class="fas fa-bookmark modal-header-save-icon ${message.is_saved == 1 ? 'text-warning' : 'text-muted'}"
                        id="modalHeaderSaveIcon"
                        style="cursor: pointer;"

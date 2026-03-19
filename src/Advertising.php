@@ -217,6 +217,22 @@ class Advertising
         return array_map([$this, 'hydrateAd'], $rows);
     }
 
+    public function listTags(): array
+    {
+        $stmt = $this->db->query("
+            SELECT id, name, slug
+            FROM advertisement_tags
+            ORDER BY LOWER(name), id ASC
+        ");
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['id'] = (int)$row['id'];
+        }
+
+        return $rows;
+    }
+
     public function getAdById(int $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -470,6 +486,7 @@ class Advertising
         $campaign = $this->hydrateCampaign($row);
         $campaign['targets'] = $this->getCampaignTargets($id);
         $campaign['ads'] = $this->getCampaignAds($id);
+        $campaign['tag_filters'] = $this->getCampaignTagFilters($id);
         $campaign['schedules'] = $this->getCampaignSchedules($id);
         $campaign['schedule_count'] = count($campaign['schedules']);
         $campaign['schedule_summary'] = $this->summarizeCampaignSchedules($campaign['schedules']);
@@ -495,8 +512,9 @@ class Advertising
         }
 
         $ads = $this->normalizeCampaignAds($data['ads'] ?? []);
-        if ($ads === []) {
-            throw new \InvalidArgumentException('At least one advertisement must be assigned');
+        $tagFilters = $this->normalizeCampaignTagFilters($data['tag_filters'] ?? []);
+        if ($ads === [] && $tagFilters['include'] === [] && $tagFilters['exclude'] === []) {
+            throw new \InvalidArgumentException('At least one advertisement or tag filter is required');
         }
 
         $schedules = $this->normalizeCampaignSchedules($data['schedules'] ?? []);
@@ -533,6 +551,7 @@ class Advertising
         $campaignId = (int)$stmt->fetchColumn();
         $this->syncCampaignTargets($campaignId, $targets);
         $this->syncCampaignAds($campaignId, $ads);
+        $this->syncCampaignTagFilters($campaignId, $tagFilters);
         $this->syncCampaignSchedules($campaignId, $schedules);
         return $this->getCampaignById($campaignId);
     }
@@ -560,8 +579,11 @@ class Advertising
         }
 
         $ads = $this->normalizeCampaignAds($data['ads'] ?? $existing['ads'] ?? []);
-        if ($ads === []) {
-            throw new \InvalidArgumentException('At least one advertisement must be assigned');
+        $tagFilters = array_key_exists('tag_filters', $data)
+            ? $this->normalizeCampaignTagFilters($data['tag_filters'])
+            : ($existing['tag_filters'] ?? ['include' => [], 'exclude' => []]);
+        if ($ads === [] && ($tagFilters['include'] ?? []) === [] && ($tagFilters['exclude'] ?? []) === []) {
+            throw new \InvalidArgumentException('At least one advertisement or tag filter is required');
         }
 
         $schedules = array_key_exists('schedules', $data)
@@ -598,6 +620,7 @@ class Advertising
 
         $this->syncCampaignTargets($id, $targets);
         $this->syncCampaignAds($id, $ads);
+        $this->syncCampaignTagFilters($id, $tagFilters);
         $this->syncCampaignSchedules($id, $schedules);
         return $this->getCampaignById($id);
     }
@@ -895,6 +918,41 @@ class Advertising
         return $rows;
     }
 
+    private function getCampaignTagFilters(int $campaignId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT ctf.filter_mode,
+                   t.id,
+                   t.name,
+                   t.slug
+            FROM advertisement_campaign_tag_filters ctf
+            INNER JOIN advertisement_tags t ON t.id = ctf.tag_id
+            WHERE ctf.campaign_id = ?
+            ORDER BY ctf.filter_mode ASC, LOWER(t.name), t.id ASC
+        ");
+        $stmt->execute([$campaignId]);
+
+        $filters = [
+            'include' => [],
+            'exclude' => []
+        ];
+
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $mode = (string)($row['filter_mode'] ?? '');
+            if (!isset($filters[$mode])) {
+                continue;
+            }
+
+            $filters[$mode][] = [
+                'id' => (int)$row['id'],
+                'name' => (string)($row['name'] ?? ''),
+                'slug' => (string)($row['slug'] ?? '')
+            ];
+        }
+
+        return $filters;
+    }
+
     private function syncCampaignTargets(int $campaignId, array $targets): void
     {
         $delete = $this->db->prepare("DELETE FROM advertisement_campaign_targets WHERE campaign_id = ?");
@@ -937,6 +995,27 @@ class Advertising
                 (int)$ad['advertisement_id'],
                 max(1, (int)$ad['weight'])
             ]);
+        }
+    }
+
+    private function syncCampaignTagFilters(int $campaignId, array $tagFilters): void
+    {
+        $delete = $this->db->prepare("DELETE FROM advertisement_campaign_tag_filters WHERE campaign_id = ?");
+        $delete->execute([$campaignId]);
+
+        $insert = $this->db->prepare("
+            INSERT INTO advertisement_campaign_tag_filters (campaign_id, tag_id, filter_mode)
+            VALUES (?, ?, ?)
+        ");
+
+        foreach (['include', 'exclude'] as $mode) {
+            foreach ($tagFilters[$mode] ?? [] as $tagId) {
+                $insert->execute([
+                    $campaignId,
+                    (int)$tagId,
+                    $mode
+                ]);
+            }
         }
     }
 
@@ -1073,6 +1152,39 @@ class Advertising
         return $normalized;
     }
 
+    private function normalizeCampaignTagFilters($tagFilters): array
+    {
+        $normalized = [
+            'include' => [],
+            'exclude' => []
+        ];
+
+        if (!is_array($tagFilters)) {
+            return $normalized;
+        }
+
+        foreach (['include', 'exclude'] as $mode) {
+            $seen = [];
+            foreach ((array)($tagFilters[$mode] ?? []) as $item) {
+                $tagId = 0;
+                if (is_array($item)) {
+                    $tagId = (int)($item['id'] ?? 0);
+                } else {
+                    $tagId = (int)$item;
+                }
+
+                if ($tagId <= 0 || isset($seen[$tagId])) {
+                    continue;
+                }
+
+                $seen[$tagId] = true;
+                $normalized[$mode][] = $tagId;
+            }
+        }
+
+        return $normalized;
+    }
+
     private function hydrateCampaign(array $row): array
     {
         $row['id'] = (int)$row['id'];
@@ -1083,6 +1195,7 @@ class Advertising
         $row['ad_count'] = (int)($row['ad_count'] ?? 0);
         $row['schedule_count'] = (int)($row['schedule_count'] ?? 0);
         $row['is_active'] = $this->dbBool($row['is_active'] ?? false);
+        $row['tag_filters'] = $row['tag_filters'] ?? ['include' => [], 'exclude' => []];
         return $row;
     }
 
@@ -1227,24 +1340,76 @@ class Advertising
 
     private function selectCampaignAdvertisement(int $campaignId, int $lastPostedAdId): ?array
     {
-        $stmt = $this->db->prepare("
+        $tagFilters = $this->getCampaignTagFilters($campaignId);
+        $includeTagIds = array_map('intval', $tagFilters['include'] ?? []);
+        $excludeTagIds = array_map('intval', $tagFilters['exclude'] ?? []);
+
+        $params = [$campaignId];
+        $sql = "
             SELECT a.*,
-                   ca.weight AS campaign_weight,
+                   COALESCE(ca.weight, 1) AS campaign_weight,
                    COALESCE(STRING_AGG(t.name, ', ' ORDER BY LOWER(t.name)), '') AS tags_csv,
                    OCTET_LENGTH(a.content) AS size_bytes
-            FROM advertisement_campaign_ads ca
-            INNER JOIN advertisements a ON a.id = ca.advertisement_id
+            FROM advertisements a
+            LEFT JOIN advertisement_campaign_ads ca
+                ON ca.advertisement_id = a.id
+               AND ca.campaign_id = ?
             LEFT JOIN advertisement_tag_map atm ON atm.advertisement_id = a.id
             LEFT JOIN advertisement_tags t ON t.id = atm.tag_id
-            WHERE ca.campaign_id = ?
-              AND a.is_active = TRUE
+            WHERE a.is_active = TRUE
               AND a.allow_auto_post = TRUE
               AND (a.start_at IS NULL OR a.start_at <= NOW())
               AND (a.end_at IS NULL OR a.end_at >= NOW())
+              AND (
+                    ca.campaign_id IS NOT NULL
+                 OR EXISTS (
+                        SELECT 1
+                        FROM advertisement_tag_map atm_any
+                        WHERE atm_any.advertisement_id = a.id
+                    )
+                 OR " . ($includeTagIds === [] && $excludeTagIds !== [] ? 'TRUE' : 'FALSE') . "
+              )
+        ";
+
+        if ($includeTagIds !== []) {
+            $sql .= "
+              AND EXISTS (
+                    SELECT 1
+                    FROM advertisement_tag_map atm_include
+                    WHERE atm_include.advertisement_id = a.id
+                      AND atm_include.tag_id IN (" . implode(', ', array_fill(0, count($includeTagIds), '?')) . ")
+                )
+            ";
+            array_push($params, ...$includeTagIds);
+        }
+
+        if ($excludeTagIds !== []) {
+            $sql .= "
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM advertisement_tag_map atm_exclude
+                    WHERE atm_exclude.advertisement_id = a.id
+                      AND atm_exclude.tag_id IN (" . implode(', ', array_fill(0, count($excludeTagIds), '?')) . ")
+                )
+            ";
+            array_push($params, ...$excludeTagIds);
+        }
+
+        if ($includeTagIds === [] && $excludeTagIds === []) {
+            $sql .= " AND ca.campaign_id IS NOT NULL";
+        }
+
+        $sql .= "
             GROUP BY a.id, ca.weight
-            ORDER BY a.dashboard_priority DESC, a.updated_at DESC, a.id ASC
-        ");
-        $stmt->execute([$campaignId]);
+            ORDER BY
+                CASE WHEN ca.campaign_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+                a.dashboard_priority DESC,
+                a.updated_at DESC,
+                a.id ASC
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         $ads = $this->dedupeAdsByContentHash(array_map([$this, 'hydrateAd'], $stmt->fetchAll(PDO::FETCH_ASSOC)));
         if ($ads === []) {
             return null;

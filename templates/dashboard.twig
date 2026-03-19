@@ -106,6 +106,7 @@
                 {% endif %}
             </div>
             <div class="card-body d-flex flex-column align-items-center">
+                <div class="fw-semibold mb-2 text-center" id="dashboardAdTitle">{{ dashboard_ad.title }}</div>
                 <div class="ansi-art-container">
                     <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
                 </div>
@@ -252,6 +253,7 @@ function uiT(key, fallback, params = {}) {
 }
 
 const dashboardAds = {{ (dashboard_ads|default([]))|json_encode|raw }};
+const DASHBOARD_AD_ROTATE_INTERVAL_MS = {{ (dashboard_ad_rotate_interval_seconds|default(20) * 1000)|json_encode|raw }};
 let dashboardAdIndex = 0;
 
 $(document).ready(function() {
@@ -275,6 +277,16 @@ $(document).ready(function() {
     setInterval(function() {
         loadDashboardData();
     }, 30000);
+
+    if (Array.isArray(dashboardAds) && dashboardAds.length > 1) {
+        setInterval(function() {
+            if (document.hidden) {
+                return;
+            }
+
+            showDashboardAd(1);
+        }, DASHBOARD_AD_ROTATE_INTERVAL_MS);
+    }
 
     document.addEventListener('keydown', function(event) {
         if (!Array.isArray(dashboardAds) || dashboardAds.length <= 1) {
@@ -664,10 +676,14 @@ function showDashboardAd(delta) {
     dashboardAdIndex = (dashboardAdIndex + delta + dashboardAds.length) % dashboardAds.length;
     const current = dashboardAds[dashboardAdIndex];
     const pre = document.getElementById('dashboardAdAnsi');
+    const title = document.getElementById('dashboardAdTitle');
     if (!pre || !current) {
         return;
     }
 
+    if (title) {
+        title.textContent = current.title || '';
+    }
     pre.textContent = current.content || '';
     renderDashboardAd();
     updateDashboardAdPosition();

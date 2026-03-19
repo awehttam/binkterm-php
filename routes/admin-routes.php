@@ -1134,6 +1134,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['max_cross_post_areas'] = $maxCrossPost;
                 }
 
+                if (array_key_exists('dashboard_ad_rotate_interval_seconds', $config)) {
+                    $dashboardAdRotateInterval = (int)$config['dashboard_ad_rotate_interval_seconds'];
+                    if ($dashboardAdRotateInterval < 5 || $dashboardAdRotateInterval > 300) {
+                        throw new Exception('Dashboard ad rotation interval must be between 5 and 300 seconds');
+                    }
+                    $config['dashboard_ad_rotate_interval_seconds'] = $dashboardAdRotateInterval;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
@@ -2354,6 +2362,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 echo json_encode([
                     'ads' => $ads->listAds(false),
+                    'tags' => $ads->listTags(),
                     'users' => $users,
                     'echoareas' => $echoareas,
                     'timezones' => \DateTimeZone::listIdentifiers()
