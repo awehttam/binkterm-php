@@ -12,6 +12,7 @@
    - [Roles](#roles)
    - [Role Settings (Non-boolean Values)](#role-settings-non-boolean-values)
    - [User-Role Assignment](#user-role-assignment)
+   - [Guest Access](#guest-access)
 5. [Database Schema](#database-schema)
 6. [Built-in Roles](#built-in-roles)
 7. [Example Custom Roles](#example-custom-roles)
@@ -51,6 +52,8 @@ BinktermPHP currently has a binary privilege model: a user is either a regular u
   - **File Admin**: can manage uploaded files, but not define or delete file areas.
   - **Co-Sysop**: can manage file areas, echo areas, and users, but not doors or system config.
   - **Premium User**: access to premium taglines, time limit exemption, and possible credit perks.
+- Support a safe anonymous guest mode tied to the existing `_guest` system account.
+- Keep guest access deny-by-default so new user permissions do not silently expand guest capabilities.
 - Preserve backward compatibility with existing `is_admin` checks during a transition period.
 
 ---
@@ -86,14 +89,32 @@ Permission flags are string keys organized into namespaces. A role can have any 
 | `user.no_post_throttle` | Not subject to per-hour post rate limits |
 | `user.no_credit_cost` | Bypass credit costs for actions that would normally deduct credits |
 
+#### Guest Flags (`guest.*`)
+
+These flags are intended for the built-in guest role and other explicitly
+anonymous access scenarios. Guest access remains deny-by-default even if the
+regular `user` role grows broader over time.
+
+| Flag | Description |
+|------|-------------|
+| `guest.web_login` | May establish a guest web session |
+| `guest.terminal_login` | May establish a guest telnet terminal session |
+| `guest.use_guest_doors` | May launch doors marked for anonymous access |
+| `guest.read_public_echomail` | May read echo areas explicitly marked public-to-guests |
+| `guest.read_public_files` | May browse file areas explicitly marked public-to-guests |
+| `guest.download_public_files` | May download files from guest-visible public areas |
+
 ### Roles
 
 A role is a named set of permission flags plus optional scalar settings. Roles are stored in the database and managed via the admin interface.
 
-- **System roles** (`is_system = TRUE`) cannot be deleted or renamed. The only system role is `user`.
+- **System roles** (`is_system = TRUE`) cannot be deleted or renamed. The initial system roles are `user` and `guest`.
 - **Custom roles** are created by the sysop and can be freely modified.
 - A user's effective permissions are the **union** of all flags across all their assigned roles.
 - **`is_admin` is the authoritative superuser flag.** A user with `is_admin = TRUE` bypasses all permission checks entirely, regardless of their assigned roles. This is intentional — it provides a reliable "break glass" mechanism if roles are misconfigured. The `AccessControl` class reads `is_admin` directly from the user record and short-circuits on it; routes never inspect `is_admin` themselves.
+- Guest access is a special case layered on top of roles: the `_guest` system
+  user should only receive explicitly guest-safe capabilities, not the default
+  registered-user experience.
 
 ### Role Settings (Non-boolean Values)
 
@@ -110,6 +131,57 @@ When a user has multiple roles, the **most permissive** value applies (highest `
 ### User-Role Assignment
 
 A user may be assigned any number of roles. Assignments can optionally carry an expiration date (e.g., a temporary premium subscription). Assignments record who granted them and when, creating an audit trail.
+
+The `_guest` system account is special:
+
+- It should not be managed through the normal user-role editor.
+- It should not automatically inherit the `user` role.
+- It should instead be assigned only the built-in `guest` role (or another
+  explicitly guest-scoped system role if the design evolves).
+
+### Guest Access
+
+BinktermPHP already has a partial guest model for native doors using a shared
+`_guest` system account. This proposal extends that idea into the broader
+access-control design rather than inventing a parallel anonymous permission
+system.
+
+Principles:
+
+- Guest sessions are real sessions bound to the `_guest` user record.
+- Guest access is deny-by-default.
+- Guest permissions are explicitly granted via `guest.*` flags.
+- Regular `user.*` role growth must not silently broaden guest access.
+- `is_admin` remains the only superuser bypass; guest never bypasses anything.
+
+Initial scope should be intentionally narrow:
+
+- Web guest login, if enabled
+- Guest doors already supported by the native door system
+- Optional telnet guest login
+- Read-only access to explicitly public guest-safe content
+
+Out of scope for the first implementation:
+
+- Netmail
+- Echomail posting/replying
+- Uploads
+- Account settings or any user-profile mutation
+- Credits, purchases, or premium features
+- Admin access of any kind
+
+Implementation note:
+
+`AccessControl` should expose an `isGuest()` concept and guest-aware route
+helpers such as `requireNonGuest()` for state-changing operations. Permission
+evaluation should follow this order:
+
+1. `is_admin` superuser bypass
+2. Guest restrictions / guest allowlist
+3. Normal role-based permission resolution
+
+This keeps guest handling centralized instead of scattering one-off checks
+throughout routes.
 
 ---
 
@@ -160,7 +232,8 @@ CREATE INDEX IF NOT EXISTS idx_user_role_assignments_expires ON user_role_assign
 
 -- Seed built-in system role
 INSERT INTO roles (name, description, is_system) VALUES
-    ('user', 'Default role assigned to all registered users', TRUE)
+    ('user', 'Default role assigned to all registered users', TRUE),
+    ('guest', 'Restricted role used only by the _guest system account', TRUE)
 ON CONFLICT (name) DO NOTHING;
 
 -- Assign the user role to all existing users
@@ -169,6 +242,17 @@ SELECT u.id, r.id, NULL, NOW()
 FROM users u
 CROSS JOIN roles r
 WHERE r.name = 'user'
+  AND u.username <> '_guest'
+ON CONFLICT DO NOTHING;
+
+-- Assign the guest role to the shared guest account only
+INSERT INTO user_role_assignments (user_id, role_id, granted_by, granted_at)
+SELECT u.id, r.id, NULL, NOW()
+FROM users u
+CROSS JOIN roles r
+WHERE u.username = '_guest'
+  AND u.is_system = TRUE
+  AND r.name = 'guest'
 ON CONFLICT DO NOTHING;
 ```
 
@@ -179,8 +263,13 @@ ON CONFLICT DO NOTHING;
 | Role | System | Flags | Notes |
 |------|--------|-------|-------|
 | `user` | Yes | _(none by default)_ | Assigned to every registered user automatically on creation |
+| `guest` | Yes | guest-safe capabilities only | Assigned only to the `_guest` system account |
 
 Superuser access is not a role. It is conferred by `is_admin = TRUE` on the user record and is handled transparently by `AccessControl`. Custom roles named "sysop" or similar can be created for organizational clarity, but they carry no special treatment in code.
+
+The `_guest` account is a special system user used for anonymous sessions such
+as guest doors and any future guest web/telnet login flow. It should never be
+treated as a normal registered user for role seeding purposes.
 
 ---
 
@@ -235,6 +324,7 @@ class AccessControl
     private array $permissions = [];
     private array $settings    = [];
     private bool  $isSysop     = false;
+    private bool  $isGuest     = false;
 
     public function __construct(private int $userId) {
         $this->load();
@@ -250,14 +340,29 @@ class AccessControl
         if (!empty($user['is_admin'])) {
             $instance->isSysop = true;
         }
+        if (($user['username'] ?? '') === '_guest' || !empty($user['is_guest'])) {
+            $instance->isGuest = true;
+        }
         return $instance;
+    }
+
+    public function isGuest(): bool {
+        return $this->isGuest;
     }
 
     /**
      * Check whether the user has a specific permission flag.
      */
     public function can(string $permission): bool {
-        return $this->isSysop || in_array($permission, $this->permissions, true);
+        if ($this->isSysop) {
+            return true;
+        }
+
+        if ($this->isGuest && !$this->isGuestPermissionAllowed($permission)) {
+            return false;
+        }
+
+        return in_array($permission, $this->permissions, true);
     }
 
     /**
@@ -278,6 +383,15 @@ class AccessControl
      */
     public function getSetting(string $key, mixed $default = null): mixed {
         return $this->settings[$key] ?? $default;
+    }
+
+    public function requireNonGuest(): void {
+        if ($this->isGuest) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Guest access is read-only']);
+            exit;
+        }
     }
 
     private function load(): void {
@@ -326,6 +440,10 @@ class AccessControl
             $this->settings[$key] = max($existing, $value);
         }
     }
+
+    private function isGuestPermissionAllowed(string $permission): bool {
+        return str_starts_with($permission, 'guest.');
+    }
 }
 ```
 
@@ -334,6 +452,10 @@ class AccessControl
 `Auth::validateSession()` already returns `is_admin`. No changes are required to `Auth.php`. Callers that need fine-grained checks instantiate `AccessControl::forUser($user)`, passing the full user array. `AccessControl` reads `is_admin` from that array and sets the internal `$isSysop` flag before doing any role lookups — so a superuser never needs a role assignment to pass any permission check.
 
 For convenience, a helper method `Auth::requirePermission(string $permission)` can be added that calls `requireAuth()` and then checks the permission in one step.
+
+For guest support, `Auth` should also expose a helper for creating a normal
+session tied to the `_guest` system user, rather than bypassing the session
+layer for anonymous traffic.
 
 ### Route Guard Updates
 
@@ -357,6 +479,14 @@ $acl = AccessControl::forUser($user);
 if (!$acl->can('admin.access')) {
     return redirect('/');
 }
+```
+
+Guest-sensitive write paths should use an explicit guest guard in addition to
+feature permissions:
+
+```php
+$acl = AccessControl::forUser($user);
+$acl->requireNonGuest();
 ```
 
 ### Admin Interface
@@ -383,7 +513,7 @@ A new admin section **Roles & Permissions** is added at `/admin/roles` with the 
 ## Backward Compatibility
 
 1. **`is_admin` is permanent, not transitional.** It is the authoritative superuser flag and will not be removed. It replaces the need for a `sysop` role in code.
-2. **Migration seeds the `user` role** for all existing users. No other seeding is needed for existing admins — their `is_admin` flag already grants unrestricted access through `AccessControl`.
+2. **Migration seeds the `user` role** for all existing users except the `_guest` system account. The `_guest` account receives the `guest` role only.
 3. **Gradual route migration**: Routes can be migrated one at a time. Unmigrated routes continue to check `is_admin` directly. Migrated routes use `AccessControl::forUser($user)->can(...)` or `->require(...)` instead.
 4. **`AdminController::requireAdmin()`**: During the transition, this can check `is_admin` OR `admin.access` so delegated admins can reach the panel while the full migration is in progress.
 
@@ -393,19 +523,29 @@ A new admin section **Roles & Permissions** is added at `/admin/roles` with the 
 
 ### Phase 1 — Schema and Seed (single migration)
 - Create `roles`, `role_permissions`, `role_settings`, `user_role_assignments` tables.
-- Seed the `user` system role.
-- Assign the `user` role to all existing users.
+- Seed the `user` and `guest` system roles.
+- Assign the `user` role to all existing users except `_guest`.
+- Assign the `guest` role to `_guest`.
 - No action needed for existing `is_admin` users — their flag is already the superuser bypass.
 
 ### Phase 2 — New `AccessControl` Class
 - Implement `src/AccessControl.php`.
 - Add helper to `Auth` for convenience.
-- Write unit tests for permission resolution and setting merging.
+- Add guest awareness (`isGuest`, guest-safe allowlist, `requireNonGuest`).
+- Write unit tests for permission resolution, guest restrictions, and setting merging.
 
 ### Phase 3 — Admin Interface
 - Add Roles & Permissions admin page.
 - Add role assignment UI to user edit page.
 - Ensure new user creation automatically assigns the `user` role.
+- Exclude the `_guest` account from normal role-editing workflows.
+
+### Guest Rollout Overlay
+- Before broad route migration, add guest session creation helpers for web login
+  and optional telnet login.
+- Reuse the existing `_guest` system account rather than creating pseudo-users.
+- Migrate guest-safe public routes separately from authenticated write routes.
+- Limit guest sessions to explicitly whitelisted, read-only capabilities.
 
 ### Phase 4 — Route Migration
 - Migrate each `is_admin` check in routes to the appropriate `AccessControl` flag.
@@ -430,3 +570,5 @@ A new admin section **Roles & Permissions** is added at `/admin/roles` with the 
 - **Role inheritance / parent roles**: Allow a co-sysop role to extend the base user role without repeating flags.
 - **Telnet BBS integration**: The same role system applies to telnet sessions; `DoorDropFile` security levels can be derived from roles.
 - **API key scoping**: Future API keys issued to bots or external services could carry a role limiting what the key can do.
+- **Per-area guest overrides**: Allow selected echo areas and file areas to opt
+  into guest visibility/download without exposing the full regular-user view.
