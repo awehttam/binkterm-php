@@ -6,7 +6,7 @@
     </div>
     {% for item in menuItems %}
     <div class="mb-1">
-        <a href="{{ item.url | e }}" class="text-decoration-none" style="color: inherit;">
+        <a href="{{ item.url | e }}" class="text-decoration-none{% if item.url == '/files' %} file-menu-link{% endif %}" style="color: inherit;">
             <span style="color: #ff0;">[{{ item.key | upper | e }}]</span>
             {{ item.label | e }}
         </a>

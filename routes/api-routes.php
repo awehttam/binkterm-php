@@ -566,7 +566,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'mailLastCounts' => ['netmail' => 0, 'echomail' => 0],
             'mailUnread' => ['netmail' => false, 'echomail' => false],
             'chatLastTotal' => 0,
-            'chatUnread' => false
+            'chatUnread' => false,
+            'filesLastMaxId' => 0,
+            'filesUnread' => false
         ];
 
         $meta = new UserMeta();
@@ -612,7 +614,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'echomail' => !empty($state['mailUnread']['echomail'])
             ],
             'chatLastTotal' => max(0, (int)($state['chatLastTotal'] ?? 0)),
-            'chatUnread' => !empty($state['chatUnread'])
+            'chatUnread' => !empty($state['chatUnread']),
+            'filesLastMaxId' => max(0, (int)($state['filesLastMaxId'] ?? 0)),
+            'filesUnread' => !empty($state['filesUnread'])
         ];
 
         $meta = new UserMeta();
@@ -636,7 +640,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $target = strtolower((string)($input['target'] ?? ''));
-        if (!in_array($target, ['netmail', 'echomail', 'chat'], true)) {
+        if (!in_array($target, ['netmail', 'echomail', 'chat', 'files'], true)) {
             http_response_code(400);
             apiError('errors.notify.invalid_target', apiLocalizedText('errors.notify.invalid_target', 'Invalid notification target', $user));
             return;
@@ -648,6 +652,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Chat uses max message ID for efficient incremental polling; others use counts
         if ($target === 'chat') {
             $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
+        } elseif ($target === 'files') {
+            $meta->setValue((int)$userId, 'last_files_max_id', (string)$currentCount);
         } else {
             $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
         }
@@ -669,6 +675,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
         $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
         $lastChatMaxId = $meta->getValue((int)$userId, 'last_chat_max_id');
+        $lastFilesMaxId = $meta->getValue((int)$userId, 'last_files_max_id');
 
         // Get address list for netmail queries
         try {
@@ -745,6 +752,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $chatMaxId = (int)$chatRow['max_id'];
         }
 
+        // New files visible to this user since last seen max file ID
+        $fileAreaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL";
+        if ((int)$userId > 0) {
+            $privateTag = 'PRIVATE_USER_' . (int)$userId;
+            $fileAreaConditions .= " OR fa.tag = " . $db->quote($privateTag);
+        }
+        $fileAreaConditions .= ")";
+
+        if ($lastFilesMaxId === null) {
+            $filesMaxStmt = $db->query("
+                SELECT COALESCE(MAX(f.id), 0) AS max_id
+                FROM files f
+                JOIN file_areas fa ON fa.id = f.file_area_id
+                WHERE {$fileAreaConditions}
+                  AND f.status = 'approved'
+                  AND f.source_type <> 'iso_subdir'
+            ");
+            $filesMaxId = (int)($filesMaxStmt->fetch()['max_id'] ?? 0);
+            $meta->setValue((int)$userId, 'last_files_max_id', (string)$filesMaxId);
+            $filesBadge = 0;
+            $totalFiles = 0;
+        } else {
+            $lastFilesMaxId = (int)$lastFilesMaxId;
+            $filesStmt = $db->prepare("
+                SELECT COUNT(*) AS new_count, COALESCE(MAX(f.id), ?) AS max_id
+                FROM files f
+                JOIN file_areas fa ON fa.id = f.file_area_id
+                WHERE {$fileAreaConditions}
+                  AND f.status = 'approved'
+                  AND f.source_type <> 'iso_subdir'
+                  AND f.id > ?
+            ");
+            $filesStmt->execute([$lastFilesMaxId, $lastFilesMaxId]);
+            $filesRow = $filesStmt->fetch();
+            $filesBadge = (int)($filesRow['new_count'] ?? 0);
+            $filesMaxId = (int)($filesRow['max_id'] ?? $lastFilesMaxId);
+
+            $totalFilesStmt = $db->query("
+                SELECT COUNT(*) AS count
+                FROM files f
+                JOIN file_areas fa ON fa.id = f.file_area_id
+                WHERE {$fileAreaConditions}
+                  AND f.status = 'approved'
+                  AND f.source_type <> 'iso_subdir'
+            ");
+            $totalFiles = (int)($totalFilesStmt->fetch()['count'] ?? 0);
+        }
+
         // Notification badge shows ONLY if count increased
         $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
         $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
@@ -763,9 +818,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
             'chat_total' => $chatBadge,
+            'new_files' => $filesBadge,
             'total_netmail' => $unreadNetmail,
             'total_echomail' => $unreadEchomail,
             'chat_max_id' => $chatMaxId,
+            'files_max_id' => $filesMaxId,
+            'total_files' => $totalFiles,
             'credit_balance' => $creditBalance
         ]);
     });
@@ -2818,12 +2876,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if ($ext === 'rip') {
             $content = (string)file_get_contents($storagePath);
-            $html = \BinktermPHP\RipScriptRenderer::fromString($content)->getHTML();
-            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Type: text/plain; charset=utf-8');
             header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, max-age=3600');
-            echo $html;
+            echo $content;
             exit;
         }
 
@@ -3122,103 +3179,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['error' => 'Not a PRG, ZIP, D64, or SEQ file']);
     })->where(['id' => '[0-9]+']);
 
-    /**
-     * GET /api/files/{id}/rips
-     * Render all RIPscrip (.rip) files found inside a .zip archive as SVG HTML.
-     * Used by the file preview modal to display RIP art from ZIP bundles.
-     *
-     * Response: {"rips":[{"name":"...","html":"<svg...>"},...]}
-     */
-    SimpleRouter::get('/files/{id}/rips', function($id) {
-        // Allow unauthenticated access for valid active file shares
-        $shareArea     = trim($_GET['share_area'] ?? '');
-        $shareFilename = trim($_GET['share_filename'] ?? '');
-        $viaShare      = false;
-
-        $auth = new Auth();
-        $user = $auth->getCurrentUser();
-
-        $manager = new \BinktermPHP\FileAreaManager();
-
-        if (!$user && $shareArea !== '' && $shareFilename !== '') {
-            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
-            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
-                $viaShare = true;
-            }
-        }
-
-        if (!$user && !$viaShare) {
-            RouteHelper::requireAuth();
-            return;
-        }
-
-        header('Content-Type: application/json');
-
-        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Feature disabled']);
-            return;
-        }
-
-        $file = $manager->getFileById((int)$id);
-
-        if (!$file || $file['status'] !== 'approved') {
-            http_response_code(404);
-            echo json_encode(['error' => 'File not found']);
-            return;
-        }
-
-        if (!$viaShare) {
-            $userId  = $user['user_id'] ?? $user['id'] ?? null;
-            $isAdmin = !empty($user['is_admin']);
-
-            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
-                http_response_code(403);
-                echo json_encode(['error' => 'Access denied']);
-                return;
-            }
-        }
-
-        $storagePath = $manager->resolveFilePath($file);
-        if (!file_exists($storagePath)) {
-            http_response_code(404);
-            echo json_encode(['error' => 'File not found on disk']);
-            return;
-        }
-
-        $ext = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
-
-        if ($ext !== 'zip') {
-            echo json_encode(['rips' => []]);
-            return;
-        }
-
-        $zip = new ZipArchive();
-        if ($zip->open($storagePath) !== true) {
-            http_response_code(422);
-            echo json_encode(['error' => 'Cannot open ZIP']);
-            return;
-        }
-
-        $rips = [];
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $entryName = $zip->getNameIndex($i);
-            if (strtolower(pathinfo($entryName, PATHINFO_EXTENSION)) !== 'rip') {
-                continue;
-            }
-            $content = $zip->getFromIndex($i);
-            if ($content === false) {
-                continue;
-            }
-            $rips[] = [
-                'name' => basename($entryName),
-                'content' => $content,
-            ];
-        }
-        $zip->close();
-
-        echo json_encode(['rips' => $rips]);
-    })->where(['id' => '[0-9]+']);
 
     /**
      * GET /api/files/{id}/zip-contents
@@ -3557,14 +3517,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $safe      = addslashes($entryName);
         $encoded   = rawurlencode($entryName);
 
-        // RIPscrip — render server-side to HTML/SVG wrapper
+        // RIPscrip — serve raw text; the browser-side RIPtermJS renderer handles it.
         if ($ext === 'rip') {
-            $html = \BinktermPHP\RipScriptRenderer::fromString($content)->getHTML();
-            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Type: text/plain; charset=utf-8');
             header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, max-age=3600');
-            echo $html;
+            echo $content;
             return;
         }
 

@@ -503,18 +503,48 @@ function loadRiptermJs() {
 }
 
 function renderRipPreview(container, ripUrl) {
-    container.css('background', '').html(
-        `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
-    );
+    const canvasId = `fileRipCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    container.css('background', '').html(`
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:75vh;padding:8px;text-align:center;background:#0a0a0a;border-radius:6px;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+    `);
 
     fetch(ripUrl, { credentials: 'same-origin' })
         .then(r => {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.text();
         })
-        .then(html => {
-            container.html(`<div class="p-3 text-start" style="max-height:75vh;overflow:auto;">${html}</div>`);
-        })
+        .then(ripText => loadRiptermJs().then(async () => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId: canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+
+            const loading = container[0]?.querySelector('[data-rip-loading]');
+            const stage = container[0]?.querySelector('[data-rip-stage]');
+            if (loading) loading.remove();
+            if (stage) stage.classList.remove('d-none');
+        }))
         .catch((err) => {
             console.error('RIP preview failed:', err);
             container.css('background', '').html(

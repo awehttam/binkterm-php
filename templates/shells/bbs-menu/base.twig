@@ -101,6 +101,10 @@
         .bg-primary { background-color: {{ appearance.branding.accent_color | e }} !important; }
         .btn-fidonet { background-color: {{ appearance.branding.accent_color | e }}; border-color: {{ appearance.branding.accent_color | e }}; }
         {% endif %}
+        .file-menu-icon.unread,
+        .file-menu-link.unread {
+            color: #ffc107 !important;
+        }
     </style>
     <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
     <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>

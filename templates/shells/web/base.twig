@@ -40,6 +40,10 @@
         .mail-menu-icon.unread {
             color: #ffc107 !important;
         }
+        .file-menu-icon.unread,
+        .file-menu-link.unread {
+            color: #ffc107 !important;
+        }
 
         /* Nested dropdown submenu styles */
         .dropdown-submenu {
@@ -189,8 +193,8 @@
 
                         {% if bbs_feature_enabled('file_areas') and current_user %}
                         <li class="nav-item">
-                            <a class="nav-link" href="/files">
-                                <i class="fas fa-file"></i> {{ t('ui.base.files', {}, 'common') }}
+                            <a class="nav-link file-menu-link" href="/files">
+                                <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                         </li>
                         {% endif %}

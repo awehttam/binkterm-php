@@ -1,6 +1,7 @@
 (() => {
     let chatUnreadTotal = 0;
     let mailUnreadTotal = 0;
+    let filesUnread = false;
     let chatUnread = false;
     let mailUnread = { netmail: false, echomail: false };
     let initialized = false;
@@ -14,6 +15,20 @@
         } else {
             messagingIcon.classList.remove('unread');
         }
+    }
+
+    function updateFileIcon(stats, clearTarget = null) {
+        const fileMenuIcons = document.querySelectorAll('.file-menu-icon');
+        const fileMenuLinks = document.querySelectorAll('.file-menu-link');
+        const newFiles = parseInt(stats?.new_files || 0, 10) || 0;
+        filesUnread = newFiles > 0;
+
+        if (clearTarget === 'files') {
+            filesUnread = false;
+        }
+
+        fileMenuIcons.forEach((icon) => icon.classList.toggle('unread', filesUnread));
+        fileMenuLinks.forEach((link) => link.classList.toggle('unread', filesUnread));
     }
 
     function updateChatIcons() {
@@ -91,6 +106,7 @@
                 chatUnread = chatTotal > 0;
 
                 updateMailIcons(data, clearTarget);
+                updateFileIcon(data, clearTarget);
 
                 if (clearTarget === 'chat') {
                     chatUnread = false;
@@ -138,11 +154,14 @@
         } else if (isPathMatch('/echomail')) {
             await markSeen('echomail', stats.total_echomail);
             await refreshMailState('echomail');
+        } else if (isPathMatch('/files')) {
+            await markSeen('files', stats.files_max_id ?? 0);
+            await refreshMailState('files');
         }
         if (isPathMatch('/chat')) {
             await refreshMailState('chat');
         }
-        if (!isPathMatch('/netmail') && !isPathMatch('/echomail')) {
+        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/files')) {
             refreshMailState();
         }
 
