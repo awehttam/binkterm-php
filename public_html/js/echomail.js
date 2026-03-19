@@ -1078,6 +1078,19 @@ function renderCurrentMessageBody() {
         return;
     }
 
+    if (currentRenderMode !== 'plain'
+            && typeof looksLikeSixel === 'function'
+            && looksLikeSixel(body)) {
+        renderSixelChunks(container, body, function (textChunk) {
+            return formatMessageBodyForDisplay(currentMessageData, textChunk, currentSearchTerms, {
+                formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
+            });
+        });
+        updateRenderModeBadge();
+        updateSaveToAdLibraryButton();
+        return;
+    }
+
     let bodyHtml;
     if (currentRenderMode === 'auto' && currentMessageData.markup_html) {
         bodyHtml = currentMessageData.markup_html;

@@ -16,6 +16,7 @@ const previewHeuristicTextExts = ['doc','msg'];
 const previewTextExts    = ['txt','log','nfo','diz','asc','cfg','ini','conf','lsm','json','xml','bat','sh'];
 const previewMarkdownExts = ['md'];
 const previewAnsiExts          = ['ans'];
+const previewSixelExts         = ['six', 'sixel'];
 const previewPetsciiExts       = ['prg'];
 const previewPetsciiStreamExts = ['seq'];
 const previewD64Exts           = ['d64'];
@@ -32,6 +33,7 @@ function getFileType(filename) {
     if (previewTextExts.includes(ext))           return 'text';
     if (previewMarkdownExts.includes(ext))       return 'markdown';
     if (previewAnsiExts.includes(ext))           return 'ansi';
+    if (previewSixelExts.includes(ext))          return 'sixel';
     if (previewPetsciiExts.includes(ext))        return 'petscii';
     if (previewPetsciiStreamExts.includes(ext))  return 'petscii_stream';
     if (previewD64Exts.includes(ext))            return 'd64';
@@ -169,6 +171,19 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                     </div>
                 `);
             })
+            .catch(() => {
+                body.css('background', '').html(
+                    `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
+                );
+            });
+
+    } else if (type === 'sixel') {
+        body.css('background', '#000').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(text => { renderSixelFilePreview(body, text); })
             .catch(() => {
                 body.css('background', '').html(
                     `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
@@ -655,6 +670,7 @@ function zipEntryIcon(type) {
         case 'text_probe':     return 'fa-file-lines';
         case 'text':           return 'fa-file-lines';
         case 'ansi':           return 'fa-terminal';
+        case 'sixel':          return 'fa-image';
         case 'rip':            return 'fa-paint-brush';
         case 'petscii':        return 'fa-gamepad';
         case 'petscii_stream': return 'fa-gamepad';
@@ -912,6 +928,15 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
                     </div>
                 `);
             })
+            .catch(err => {
+                if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
+            });
+
+    } else if (type === 'sixel') {
+        previewArea.css('background', '#000');
+        fetchZipEntry(entryUrl, 'text')
+            .then(text => { renderSixelFilePreview(previewArea, text); })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);

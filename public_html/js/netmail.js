@@ -574,17 +574,30 @@ function renderCurrentMessageBody() {
         return;
     }
 
+    const body = currentParsedMessage.messageBody;
+    const container = document.getElementById('messageBodyContainer');
+    if (!container) return;
+
+    if (currentRenderMode !== 'plain'
+            && typeof looksLikeSixel === 'function'
+            && looksLikeSixel(body)) {
+        renderSixelChunks(container, body, function (textChunk) {
+            return formatMessageBodyForDisplay(currentMessageData, textChunk, currentSearchTerms, {
+                formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
+            });
+        });
+        updateRenderModeBadge();
+        return;
+    }
+
     const bodyHtml = currentMessageData.markup_html && currentRenderMode === 'auto'
         ? currentMessageData.markup_html
-        : formatMessageBodyForDisplay(currentMessageData, currentParsedMessage.messageBody, currentSearchTerms, {
+        : formatMessageBodyForDisplay(currentMessageData, body, currentSearchTerms, {
             forcePlain: currentRenderMode === 'plain',
             formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
         });
 
-    const container = document.getElementById('messageBodyContainer');
-    if (container) {
-        container.innerHTML = bodyHtml;
-    }
+    container.innerHTML = bodyHtml;
     updateRenderModeBadge();
 }
 
