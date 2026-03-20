@@ -9,6 +9,8 @@
   - [FILE_ID.DIZ Selection for Incoming TIC ZIPs](#file_iddiz-selection-for-incoming-tic-zips)
 - [FTN Networking](#ftn-networking)
   - [BinkP Handshake Timeout Handling](#binkp-handshake-timeout-handling)
+- [QWK Offline Mail](#qwk-offline-mail)
+  - [Stable Per-User Conference Numbers](#stable-per-user-conference-numbers)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -20,6 +22,9 @@
 
 **FTN Networking**
 - BinkP now handles exported socket timeouts more consistently during handshake reads.
+
+**QWK Offline Mail**
+- QWK conference numbers are now stored persistently per user so subscribe and unsubscribe changes do not renumber existing conferences.
 
 ## File Areas & TIC Processing
 
@@ -54,10 +59,30 @@ timeouts consistently instead of mixing native socket timeouts with stream I/O.
 This helps avoid false handshake timeouts where the remote has already sent a
 valid frame, but the local side fails the read during handshake processing.
 
+## QWK Offline Mail
+
+### Stable Per-User Conference Numbers
+
+Version 1.8.8 now stores QWK conference numbers in a persistent per-user map
+instead of rebuilding them from the current subscription order on every packet
+download.
+
+This means:
+
+- Existing conference numbers stay stable for a given user.
+- Unsubscribing from an area does not renumber later conferences.
+- Re-subscribing to a previously mapped area reuses the same conference number.
+- New subscriptions receive the next available conference number for that user.
+
+The system still records a per-download conference map in `qwk_download_log`
+for REP reply import safety, but packet generation and the QWK status view now
+use the persistent mapping table.
+
 ## Upgrade Instructions
 
-This release does not add database migrations or new required configuration for
-these fixes. A normal application upgrade is sufficient.
+This release adds a database migration for the persistent QWK conference map.
+Run setup during upgrade so existing users are backfilled from their latest QWK
+download state where available.
 
 ### From Git
 
