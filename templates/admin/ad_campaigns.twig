@@ -1116,7 +1116,7 @@ const WIZARD_PRESETS = {
         min_repeat_gap_minutes: 10080,
         subject_template: 'FILES: {title}',
         has_end_date: false,
-        default_content_command: {{ (constant('PHP_BINARY') ~ ' ' ~ app_base_dir ~ '/scripts/report_newfiles.php')|json_encode|raw }},
+        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/report_newfiles.php')|json_encode|raw }},
     },
     league_recruit: {
         label: 'Inter-BBS League Recruitment',
