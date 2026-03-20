@@ -566,7 +566,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'mailLastCounts' => ['netmail' => 0, 'echomail' => 0],
             'mailUnread' => ['netmail' => false, 'echomail' => false],
             'chatLastTotal' => 0,
-            'chatUnread' => false
+            'chatUnread' => false,
+            'filesLastMaxId' => 0,
+            'filesUnread' => false
         ];
 
         $meta = new UserMeta();
@@ -612,7 +614,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'echomail' => !empty($state['mailUnread']['echomail'])
             ],
             'chatLastTotal' => max(0, (int)($state['chatLastTotal'] ?? 0)),
-            'chatUnread' => !empty($state['chatUnread'])
+            'chatUnread' => !empty($state['chatUnread']),
+            'filesLastMaxId' => max(0, (int)($state['filesLastMaxId'] ?? 0)),
+            'filesUnread' => !empty($state['filesUnread'])
         ];
 
         $meta = new UserMeta();
@@ -636,7 +640,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $target = strtolower((string)($input['target'] ?? ''));
-        if (!in_array($target, ['netmail', 'echomail', 'chat'], true)) {
+        if (!in_array($target, ['netmail', 'echomail', 'chat', 'files'], true)) {
             http_response_code(400);
             apiError('errors.notify.invalid_target', apiLocalizedText('errors.notify.invalid_target', 'Invalid notification target', $user));
             return;
@@ -645,8 +649,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $meta = new UserMeta();
         $currentCount = (int)($input['current_count'] ?? 0);
 
-        // Store the current count - badge will only show if count increases
-        $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
+        // Chat uses max message ID for efficient incremental polling; others use counts
+        if ($target === 'chat') {
+            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
+        } elseif ($target === 'files') {
+            $meta->setValue((int)$userId, 'last_files_max_id', (string)$currentCount);
+        } else {
+            $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
+        }
 
         echo json_encode(['success' => true, 'target' => $target, 'count' => $currentCount]);
     });
@@ -664,7 +674,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Get last seen counts (not timestamps - we compare counts, not dates)
         $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
         $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
-        $lastChatCount = (int)($meta->getValue((int)$userId, 'last_chat_count') ?? 0);
+        $lastChatMaxId = $meta->getValue((int)$userId, 'last_chat_max_id');
+        $lastFilesMaxId = $meta->getValue((int)$userId, 'last_files_max_id');
 
         // Get address list for netmail queries
         try {
@@ -715,22 +726,83 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
-        // Total chat count
-        $chatTotalStmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM chat_messages m
-            LEFT JOIN chat_rooms r ON m.room_id = r.id
-            WHERE (m.room_id IS NOT NULL AND r.is_active = TRUE)
-               OR m.to_user_id = ?
-               OR m.from_user_id = ?
-        ");
-        $chatTotalStmt->execute([$userId, $userId]);
-        $chatTotal = $chatTotalStmt->fetch()['count'] ?? 0;
+        // New chat messages since last seen max ID (avoids full table scan)
+        if ($lastChatMaxId === null) {
+            // Not yet initialized — baseline to current max so no false badge on first load
+            $maxStmt = $db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM chat_messages");
+            $chatMaxId = (int)($maxStmt->fetch()['max_id'] ?? 0);
+            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$chatMaxId);
+            $chatBadge = 0;
+        } else {
+            $lastChatMaxId = (int)$lastChatMaxId;
+            $chatStmt = $db->prepare("
+                SELECT COUNT(*) as new_count, COALESCE(MAX(m.id), ?) as max_id
+                FROM chat_messages m
+                LEFT JOIN chat_rooms r ON m.room_id = r.id
+                WHERE m.id > ?
+                  AND (
+                      (m.room_id IS NOT NULL AND r.is_active = TRUE)
+                      OR m.to_user_id = ?
+                      OR m.from_user_id = ?
+                  )
+            ");
+            $chatStmt->execute([$lastChatMaxId, $lastChatMaxId, $userId, $userId]);
+            $chatRow = $chatStmt->fetch();
+            $chatBadge = (int)$chatRow['new_count'];
+            $chatMaxId = (int)$chatRow['max_id'];
+        }
+
+        // New files visible to this user since last seen max file ID
+        $fileAreaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL";
+        if ((int)$userId > 0) {
+            $privateTag = 'PRIVATE_USER_' . (int)$userId;
+            $fileAreaConditions .= " OR fa.tag = " . $db->quote($privateTag);
+        }
+        $fileAreaConditions .= ")";
+
+        if ($lastFilesMaxId === null) {
+            $filesMaxStmt = $db->query("
+                SELECT COALESCE(MAX(f.id), 0) AS max_id
+                FROM files f
+                JOIN file_areas fa ON fa.id = f.file_area_id
+                WHERE {$fileAreaConditions}
+                  AND f.status = 'approved'
+                  AND f.source_type <> 'iso_subdir'
+            ");
+            $filesMaxId = (int)($filesMaxStmt->fetch()['max_id'] ?? 0);
+            $meta->setValue((int)$userId, 'last_files_max_id', (string)$filesMaxId);
+            $filesBadge = 0;
+            $totalFiles = 0;
+        } else {
+            $lastFilesMaxId = (int)$lastFilesMaxId;
+            $filesStmt = $db->prepare("
+                SELECT COUNT(*) AS new_count, COALESCE(MAX(f.id), ?) AS max_id
+                FROM files f
+                JOIN file_areas fa ON fa.id = f.file_area_id
+                WHERE {$fileAreaConditions}
+                  AND f.status = 'approved'
+                  AND f.source_type <> 'iso_subdir'
+                  AND f.id > ?
+            ");
+            $filesStmt->execute([$lastFilesMaxId, $lastFilesMaxId]);
+            $filesRow = $filesStmt->fetch();
+            $filesBadge = (int)($filesRow['new_count'] ?? 0);
+            $filesMaxId = (int)($filesRow['max_id'] ?? $lastFilesMaxId);
+
+            $totalFilesStmt = $db->query("
+                SELECT COUNT(*) AS count
+                FROM files f
+                JOIN file_areas fa ON fa.id = f.file_area_id
+                WHERE {$fileAreaConditions}
+                  AND f.status = 'approved'
+                  AND f.source_type <> 'iso_subdir'
+            ");
+            $totalFiles = (int)($totalFilesStmt->fetch()['count'] ?? 0);
+        }
 
         // Notification badge shows ONLY if count increased
         $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
         $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
-        $chatBadge = $chatTotal > $lastChatCount ? $chatTotal : 0;
 
         // Get user's credit balance
         $creditBalance = 0;
@@ -745,10 +817,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode([
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
-            'chat_total' => (int)$chatBadge,
+            'chat_total' => $chatBadge,
+            'new_files' => $filesBadge,
             'total_netmail' => $unreadNetmail,
             'total_echomail' => $unreadEchomail,
-            'total_chat' => $chatTotal,
+            'chat_max_id' => $chatMaxId,
+            'files_max_id' => $filesMaxId,
+            'total_files' => $totalFiles,
             'credit_balance' => $creditBalance
         ]);
     });
@@ -1659,6 +1734,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.is_sysop_only,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count,
+                    COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
                     last_posts.last_subject,
                     last_posts.last_author,
                     last_posts.last_date
@@ -1694,7 +1770,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                         date_received as last_date
                     FROM echomail
                     ORDER BY echoarea_id, date_received DESC
-                ) last_posts ON e.id = last_posts.echoarea_id";
+                ) last_posts ON e.id = last_posts.echoarea_id
+                LEFT JOIN (
+                    SELECT echoarea_id, COUNT(*) as subscriber_count
+                    FROM user_echoarea_subscriptions
+                    WHERE is_active = TRUE
+                    GROUP BY echoarea_id
+                ) sub_counts ON e.id = sub_counts.echoarea_id";
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
@@ -1751,22 +1833,88 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoPolicy = strtolower(trim((string)($echoarea['posting_name_policy'] ?? '')));
             if (in_array($echoPolicy, ['real_name', 'username'], true)) {
                 $echoarea['effective_posting_name_policy'] = $echoPolicy;
+            } else {
+                $resolvedPolicy = 'real_name';
+                $domain = trim((string)($echoarea['domain'] ?? ''));
+                if ($domain !== '' && $binkpConfig !== null) {
+                    try {
+                        $resolvedPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
+                    } catch (\Throwable $e) {
+                        $resolvedPolicy = 'real_name';
+                    }
+                }
+
+                $echoarea['effective_posting_name_policy'] = in_array($resolvedPolicy, ['real_name', 'username'], true)
+                    ? $resolvedPolicy
+                    : 'real_name';
+            }
+        }
+        unset($echoarea);
+
+        $lovlyNetTags = [];
+        foreach ($echoareas as $echoarea) {
+            if (strcasecmp(trim((string)($echoarea['domain'] ?? '')), 'lovlynet') !== 0) {
                 continue;
             }
 
-            $resolvedPolicy = 'real_name';
-            $domain = trim((string)($echoarea['domain'] ?? ''));
-            if ($domain !== '' && $binkpConfig !== null) {
-                try {
-                    $resolvedPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
-                } catch (\Throwable $e) {
-                    $resolvedPolicy = 'real_name';
+            $tag = strtoupper(trim((string)($echoarea['tag'] ?? '')));
+            if ($tag !== '') {
+                $lovlyNetTags[] = $tag;
+            }
+        }
+        $lovlyNetTags = array_values(array_unique($lovlyNetTags));
+        $lovlyNetMetadataByTag = [];
+
+        if ($lovlyNetTags !== []) {
+            try {
+                $lovlyNetClient = new \BinktermPHP\LovlyNetClient();
+                if ($lovlyNetClient->isConfigured()) {
+                    $lovlyNetAreas = $lovlyNetClient->getAreas();
+                    if (!empty($lovlyNetAreas['success'])) {
+                        foreach (($lovlyNetAreas['echoareas'] ?? []) as $remoteArea) {
+                            $remoteTag = strtoupper(trim((string)($remoteArea['tag'] ?? '')));
+                            if ($remoteTag === '' || !in_array($remoteTag, $lovlyNetTags, true)) {
+                                continue;
+                            }
+
+                            $metadata = $remoteArea['metadata'] ?? [];
+                            $lovlyNetMetadataByTag[$remoteTag] = is_array($metadata) ? $metadata : [];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $lovlyNetMetadataByTag = [];
+            }
+        }
+
+        foreach ($echoareas as &$echoarea) {
+            $echoarea['lovlynet_metadata'] = [];
+            $echoarea['lovlynet_setting_issues'] = [];
+            $echoarea['lovlynet_has_setting_issues'] = false;
+
+            if (strcasecmp(trim((string)($echoarea['domain'] ?? '')), 'lovlynet') !== 0) {
+                continue;
+            }
+
+            $tag = strtoupper(trim((string)($echoarea['tag'] ?? '')));
+            $metadata = $lovlyNetMetadataByTag[$tag] ?? [];
+            $issues = [];
+
+            if (array_key_exists('sysop_only', $metadata)) {
+                $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualSysopOnly = !empty($echoarea['is_sysop_only']);
+                if ($recommendedSysopOnly !== null && $recommendedSysopOnly !== $actualSysopOnly) {
+                    $issues[] = [
+                        'setting' => 'sysop_only',
+                        'recommended' => $recommendedSysopOnly,
+                        'actual' => $actualSysopOnly,
+                    ];
                 }
             }
 
-            $echoarea['effective_posting_name_policy'] = in_array($resolvedPolicy, ['real_name', 'username'], true)
-                ? $resolvedPolicy
-                : 'real_name';
+            $echoarea['lovlynet_metadata'] = $metadata;
+            $echoarea['lovlynet_setting_issues'] = $issues;
+            $echoarea['lovlynet_has_setting_issues'] = $issues !== [];
         }
         unset($echoarea);
 
@@ -1790,6 +1938,53 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoarea = $stmt->fetch();
 
         if ($echoarea) {
+            $echoarea['lovlynet_metadata'] = [];
+            $echoarea['lovlynet_setting_issues'] = [];
+            $echoarea['lovlynet_has_setting_issues'] = false;
+            $echoarea['description_mismatch'] = false;
+
+            if (strcasecmp(trim((string)($echoarea['domain'] ?? '')), 'lovlynet') === 0) {
+                try {
+                    $lovlyNetClient = new \BinktermPHP\LovlyNetClient();
+                    if ($lovlyNetClient->isConfigured()) {
+                        $lovlyNetAreas = $lovlyNetClient->getAreas();
+                        if (!empty($lovlyNetAreas['success'])) {
+                            foreach (($lovlyNetAreas['echoareas'] ?? []) as $remoteArea) {
+                                if (strcasecmp(trim((string)($remoteArea['tag'] ?? '')), trim((string)($echoarea['tag'] ?? ''))) !== 0) {
+                                    continue;
+                                }
+
+                                $metadata = $remoteArea['metadata'] ?? [];
+                                $issues = [];
+                                $recommendedSysopOnly = array_key_exists('sysop_only', $metadata)
+                                    ? filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+                                    : null;
+                                $actualSysopOnly = !empty($echoarea['is_sysop_only']);
+
+                                if ($recommendedSysopOnly !== null && $recommendedSysopOnly !== $actualSysopOnly) {
+                                    $issues[] = [
+                                        'setting' => 'sysop_only',
+                                        'recommended' => $recommendedSysopOnly,
+                                        'actual' => $actualSysopOnly,
+                                    ];
+                                }
+
+                                $echoarea['lovlynet_metadata'] = is_array($metadata) ? $metadata : [];
+                                $echoarea['lovlynet_setting_issues'] = $issues;
+                                $echoarea['lovlynet_has_setting_issues'] = $issues !== [];
+
+                                $remoteDescription = trim((string)($remoteArea['description'] ?? ''));
+                                $localDescription = trim((string)($echoarea['description'] ?? ''));
+                                $echoarea['description_mismatch'] = $remoteDescription !== '' && $remoteDescription !== $localDescription;
+                                break;
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Leave LovlyNet sync metadata empty when the remote lookup fails.
+                }
+            }
+
             echo json_encode(['echoarea' => $echoarea]);
         } else {
             http_response_code(404);
@@ -2056,8 +2251,87 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
+        foreach ($fileareas as &$fa) {
+            if (($fa['area_type'] ?? '') === 'iso') {
+                $mp = $fa['iso_mount_point'] ?? '';
+                $fa['iso_accessible'] = !empty($mp) && is_dir($mp) && is_readable($mp);
+            }
+        }
+        unset($fa);
 
-        echo json_encode(['fileareas' => $fileareas]);
+        $lovlyNetTags = [];
+        foreach ($fileareas as $filearea) {
+            if (strcasecmp(trim((string)($filearea['domain'] ?? '')), 'lovlynet') !== 0) {
+                continue;
+            }
+
+            $tag = strtoupper(trim((string)($filearea['tag'] ?? '')));
+            if ($tag !== '') {
+                $lovlyNetTags[] = $tag;
+            }
+        }
+        $lovlyNetTags = array_values(array_unique($lovlyNetTags));
+        $lovlyNetMetadataByTag = [];
+
+        if ($lovlyNetTags !== []) {
+            try {
+                $lovlyNetClient = new \BinktermPHP\LovlyNetClient();
+                if ($lovlyNetClient->isConfigured()) {
+                    $lovlyNetAreas = $lovlyNetClient->getAreas();
+                    if (!empty($lovlyNetAreas['success'])) {
+                        foreach (($lovlyNetAreas['fileareas'] ?? []) as $remoteArea) {
+                            $remoteTag = strtoupper(trim((string)($remoteArea['tag'] ?? '')));
+                            if ($remoteTag === '' || !in_array($remoteTag, $lovlyNetTags, true)) {
+                                continue;
+                            }
+
+                            $metadata = $remoteArea['metadata'] ?? [];
+                            $lovlyNetMetadataByTag[$remoteTag] = is_array($metadata) ? $metadata : [];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $lovlyNetMetadataByTag = [];
+            }
+        }
+
+        foreach ($fileareas as &$filearea) {
+            $filearea['lovlynet_metadata'] = [];
+            $filearea['lovlynet_setting_issues'] = [];
+            $filearea['lovlynet_has_setting_issues'] = false;
+
+            if (strcasecmp(trim((string)($filearea['domain'] ?? '')), 'lovlynet') !== 0) {
+                continue;
+            }
+
+            $tag = strtoupper(trim((string)($filearea['tag'] ?? '')));
+            $metadata = $lovlyNetMetadataByTag[$tag] ?? [];
+            $issues = [];
+
+            if (array_key_exists('readonly', $metadata)) {
+                $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualReadonly = ((int)($filearea['upload_permission'] ?? -1)) === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY;
+                if ($recommendedReadonly !== null && $recommendedReadonly !== $actualReadonly) {
+                    $issues[] = [
+                        'setting' => 'readonly',
+                        'recommended' => $recommendedReadonly,
+                        'actual' => $actualReadonly,
+                    ];
+                }
+            }
+
+            $filearea['lovlynet_metadata'] = $metadata;
+            $filearea['lovlynet_setting_issues'] = $issues;
+            $filearea['lovlynet_has_setting_issues'] = $issues !== [];
+        }
+        unset($filearea);
+
+        $privateArea = $userId ? $manager->getPrivateFileArea((int)$userId) : null;
+        if ($privateArea) {
+            $privateArea['_username'] = $user['username'] ?? '';
+        }
+
+        echo json_encode(['fileareas' => $fileareas, 'private_area' => $privateArea]);
     });
 
     SimpleRouter::get('/fileareas/{id}', function($id) {
@@ -2069,6 +2343,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filearea = $manager->getFileAreaById((int)$id);
 
         if ($filearea) {
+            if (($filearea['area_type'] ?? '') === 'iso') {
+                $mp = $filearea['iso_mount_point'] ?? '';
+                $filearea['iso_accessible'] = !empty($mp) && is_dir($mp) && is_readable($mp);
+            }
             echo json_encode(['filearea' => $filearea]);
         } else {
             http_response_code(404);
@@ -2093,6 +2371,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
+            error_log('[FileArea create] ' . $e->getMessage());
             http_response_code(400);
             apiError('errors.fileareas.create_failed', apiLocalizedText('errors.fileareas.create_failed', 'Failed to create file area', $user));
         }
@@ -2150,13 +2429,94 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($stats);
     });
 
+    /**
+     * GET /api/fileareas/{id}/preview-iso
+     * Dry-run ISO scan returning directory entries with descriptions and status. Admin only.
+     */
+    SimpleRouter::get('/fileareas/{id}/preview-iso', function($id) {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $flat          = !empty($_GET['flat']);
+        $catalogueOnly = !empty($_GET['catalogue_only']);
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $preview = $manager->previewIsoImport((int)$id, $flat, $catalogueOnly);
+            echo json_encode(['success' => true] + $preview);
+        } catch (\Exception $e) {
+            error_log('[IsoPreview] ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/fileareas/{id}/reindex-iso
+     * Trigger a re-index of an ISO file area. Admin only.
+     * Spawns import_iso.php as a background job via admin_daemon.
+     */
+    SimpleRouter::post('/fileareas/{id}/reindex-iso', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        try {
+            $body          = json_decode(file_get_contents('php://input'), true) ?? [];
+            $flat          = !empty($body['flat']);
+            $catalogueOnly = !empty($body['catalogue_only']);
+            $overrides = [];
+            foreach ($body['overrides'] ?? [] as $item) {
+                $path = $item['rel_path'] ?? '';
+                if ($path === '') continue;
+                $overrides[$path] = [
+                    'description' => $item['description'] ?? '',
+                    'skip'        => !empty($item['skip']),
+                ];
+            }
+            $manager  = new \BinktermPHP\FileAreaManager();
+            $counters = $manager->importIsoFiles((int)$id, true, null, $flat, $overrides, $catalogueOnly);
+            echo json_encode(['success' => true, 'counters' => $counters]);
+        } catch (\Exception $e) {
+            error_log('[IsoReindex] ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.fileareas.reindex_failed', apiLocalizedText('errors.fileareas.reindex_failed', 'Failed to re-index ISO area', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * DELETE /api/fileareas/{id}/subfolder
+     * Remove all files (and iso_subdir records) belonging to a subfolder path,
+     * including any nested subfolders. Admin only.
+     * Body: { subfolder: string }
+     */
+    SimpleRouter::delete('/fileareas/{id}/subfolder', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $subfolder = trim($body['subfolder'] ?? '');
+
+        if ($subfolder === '') {
+            http_response_code(400);
+            apiError('errors.files.area_id_required', 'Subfolder is required');
+            return;
+        }
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $deleted = $manager->deleteSubfolder((int)$id, $subfolder);
+            echo json_encode(['success' => true, 'deleted' => $deleted]);
+        } catch (\Exception $e) {
+            error_log('[SubfolderDelete] ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.files.delete_failed', 'Failed to delete subfolder');
+        }
+    })->where(['id' => '[0-9]+']);
+
     // Files API routes
     SimpleRouter::get('/files', function() {
-        $user = RouteHelper::requireAuth();
-
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            apiError('errors.files.feature_disabled', 'File areas feature is disabled');
             return;
         }
 
@@ -2165,12 +2525,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $areaId = $_GET['area_id'] ?? null;
         if (!$areaId) {
             http_response_code(400);
-            apiError('errors.files.area_id_required', apiLocalizedText('errors.files.area_id_required', 'File area ID is required', $user));
+            apiError('errors.files.area_id_required', 'File area ID is required');
             return;
         }
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        // Allow guest access for public areas; otherwise require auth
+        $area = $manager->getFileAreaById((int)$areaId);
+        $isPublicArea = !empty($area['is_public']) && empty($area['is_private']);
+
+        if ($isPublicArea) {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser(); // may be null
+        } else {
+            $user = RouteHelper::requireAuth();
+        }
+
+        $userId  = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
         $isAdmin = !empty($user['is_admin']);
 
         // Check if user has access to this file area
@@ -2180,11 +2552,32 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $files = $manager->getFiles((int)$areaId);
+        // Optional subfolder filter. Pass ?subfolder= (empty string) to list root,
+        // or ?subfolder=incoming to list files in the 'incoming' subfolder.
+        // When not provided at all, behaves as root view (null = root).
+        $subfolderParam = isset($_GET['subfolder']) ? $_GET['subfolder'] : null;
+        // Treat empty string as null (root)
+        $subfolder = ($subfolderParam !== null && $subfolderParam !== '') ? $subfolderParam : null;
 
-        ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+        $subfolders = $manager->getSubfolders((int)$areaId, $subfolder);
+        $files = $manager->getFiles((int)$areaId, $subfolder);
 
-        echo json_encode(['files' => $files]);
+        // When inside a subfolder, resolve its display label from the iso_subdir record.
+        $subfolderLabel = null;
+        if ($subfolder !== null) {
+            $subfolderLabel = $manager->getSubfolderLabel((int)$areaId, $subfolder);
+        }
+
+        if ($userId) {
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+        }
+
+        echo json_encode([
+            'files'           => $files,
+            'subfolders'      => $subfolders,
+            'subfolder'       => $subfolder,
+            'subfolder_label' => $subfolderLabel,
+        ]);
     });
 
     SimpleRouter::get('/files/recent', function() {
@@ -2205,7 +2598,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['files' => $files]);
     });
 
-    SimpleRouter::get('/files/{id}', function($id) {
+    /**
+     * GET /api/files/search?q=QUERY
+     * Search filenames and short descriptions across all accessible file areas.
+     * Requires authentication. Returns up to 100 results ordered by area tag and filename.
+     */
+    SimpleRouter::get('/files/search', function() {
         $user = RouteHelper::requireAuth();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
@@ -2216,7 +2614,95 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        $q = trim($_GET['q'] ?? '');
+        if (mb_strlen($q) < 2) {
+            echo json_encode(['results' => []]);
+            return;
+        }
+
+        $db      = \BinktermPHP\Database::getInstance()->getPdo();
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $isAdmin = !empty($user['is_admin']);
+
+        // Build accessible-area conditions:
+        // - Area must be active
+        // - Exclude private areas that do not belong to this user
+        // - Admins can see all active non-private areas plus their own private area
+        $areaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL";
+        if ($userId > 0) {
+            $privateTag = 'PRIVATE_USER_' . $userId;
+            $areaConditions .= " OR fa.tag = " . $db->quote($privateTag);
+        }
+        $areaConditions .= ")";
+
+        $sql = "
+            SELECT
+                f.id,
+                f.filename,
+                f.short_description,
+                f.filesize,
+                f.created_at,
+                f.file_area_id AS area_id,
+                fa.tag         AS area_tag,
+                f.subfolder
+            FROM files f
+            JOIN file_areas fa ON fa.id = f.file_area_id
+            WHERE {$areaConditions}
+              AND f.status = 'approved'
+              AND f.source_type <> 'iso_subdir'
+              AND (
+                    f.filename          ILIKE '%' || :q1 || '%'
+                 OR f.short_description ILIKE '%' || :q2 || '%'
+              )
+            ORDER BY fa.tag ASC, f.filename ASC
+            LIMIT 100
+        ";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':q1' => $q, ':q2' => $q]);
+        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Cast numeric fields
+        foreach ($results as &$row) {
+            $row['id']       = (int)$row['id'];
+            $row['area_id']  = (int)$row['area_id'];
+            $row['filesize'] = (int)$row['filesize'];
+        }
+        unset($row);
+
+        echo json_encode(['results' => $results]);
+    });
+
+    SimpleRouter::get('/files/{id}', function($id) {
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
         $manager = new \BinktermPHP\FileAreaManager();
+
+        // Allow guests on public areas
+        if (!$user) {
+            $checkFile = $manager->getFileById((int)$id);
+            $viaPublicArea = false;
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+            if (!$viaPublicArea) {
+                RouteHelper::requireAuth();
+                return;
+            }
+        }
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
         $file = $manager->getFileById((int)$id);
 
         if ($file) {
@@ -2227,26 +2713,84 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
-    SimpleRouter::get('/files/{id}/download', function($id) {
-        $user = RouteHelper::requireAuth();
+    /**
+     * POST /api/files/{id}/rehatch
+     * Re-hatch a file by running file_hatch.php via the admin daemon. Admin only.
+     */
+    SimpleRouter::post('/files/{id}/rehatch', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
 
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file    = $manager->getFileById((int)$id);
+
+        if (!$file) {
+            http_response_code(404);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
+        }
+
+        if (!empty($file['is_local'])) {
+            http_response_code(400);
+            apiError('errors.files.rehatch_local', apiLocalizedText('errors.files.rehatch_local', 'Cannot rehatch a file in a local-only area', $user));
+            return;
+        }
+
+        if (!empty($file['is_private'])) {
+            http_response_code(400);
+            apiError('errors.files.rehatch_private', apiLocalizedText('errors.files.rehatch_private', 'Cannot rehatch a file in a private area', $user));
+            return;
+        }
+
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $daemon->rehatchFile((int)$id);
+
+            if (!($result['ok'] ?? false)) {
+                $detail = $result['result']['output'] ?? ($result['error'] ?? 'unknown error');
+                http_response_code(500);
+                apiError('errors.files.rehatch_failed', apiLocalizedText('errors.files.rehatch_failed', 'Rehatch failed', $user), 500, ['detail' => $detail]);
+                return;
+            }
+
+            echo json_encode(['success' => true, 'result' => $result['result'] ?? []]);
+        } catch (\Throwable $e) {
+            error_log('[Rehatch] ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.files.rehatch_failed', apiLocalizedText('errors.files.rehatch_failed', 'Rehatch failed', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/files/{id}/download', function($id) {
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
-            echo apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user);
+            echo 'File areas feature is disabled';
             return;
         }
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $file = $manager->getFileById((int)$id);
+        $file    = $manager->getFileById((int)$id);
 
         if (!$file || $file['status'] !== 'approved') {
             http_response_code(404);
-            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            echo 'File not found';
             return;
         }
 
+        // Allow guest access for public areas; otherwise require auth
+        $fileArea    = $manager->getFileAreaById($file['file_area_id']);
+        $isPublicArea = !empty($fileArea['is_public']) && empty($fileArea['is_private']);
+
+        if ($isPublicArea) {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser(); // may be null
+        } else {
+            $user = RouteHelper::requireAuth();
+            if (!$user) return; // requireAuth already responded
+        }
+
         // Check if user has access to this file's area
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $userId  = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
         $isAdmin = !empty($user['is_admin']);
 
         $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
@@ -2269,19 +2813,59 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $storagePath = $file['storage_path'];
+        // Resolve path at request time (ISO-backed areas reconstruct from mount point)
+        $storagePath = $manager->resolveFilePath($file);
         if (!file_exists($storagePath)) {
-            http_response_code(404);
-            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            if (($file['source_type'] ?? '') === 'iso_import') {
+                http_response_code(503);
+                echo apiLocalizedText('errors.files.iso_not_mounted', 'File area is not mounted', $user);
+            } else {
+                http_response_code(404);
+                echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            }
             return;
         }
 
         // Set headers for file download
         // Properly encode filename for Content-Disposition header (RFC 6266 & RFC 5987)
-        $filename = basename($file['filename']);
+        $filename        = basename($file['filename']);
         $encodedFilename = rawurlencode($filename);
 
-        ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
+        // Credits only apply to authenticated users
+        if ($userId) {
+            $downloadCost   = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
+            $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
+
+            if ($downloadCost > 0) {
+                $debitSuccess = UserCredit::debit(
+                    (int)$userId,
+                    $downloadCost,
+                    "Downloaded file: {$filename}",
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$debitSuccess) {
+                    http_response_code(402);
+                    echo apiLocalizedText('errors.files.download.insufficient_credits', 'Insufficient credits to download this file', $user);
+                    return;
+                }
+            }
+
+            if ($downloadReward > 0) {
+                $creditSuccess = UserCredit::credit(
+                    (int)$userId,
+                    $downloadReward,
+                    "Download reward: {$filename}",
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    error_log("Failed to award file download credits for user {$userId} and file {$id}");
+                }
+            }
+
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
+        }
 
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
@@ -2292,6 +2876,932 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Output file
         readfile($storagePath);
         exit;
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/preview
+     * Serve a file inline for in-browser preview (images, video, audio, text).
+     * No download credits are charged — this is view-only. For unknown types the
+     * file is served as an attachment (triggers a download in the browser).
+     */
+    SimpleRouter::get('/files/{id}/preview', function($id) {
+        // Allow unauthenticated access for valid active file shares or public areas
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            // Verify the share is active and matches the requested file
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        // Check if the file belongs to a public area (allows unauthenticated preview)
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $previewFile = $manager->getFileById((int)$id);
+            if ($previewFile) {
+                $previewArea = $manager->getFileAreaById($previewFile['file_area_id']);
+                if (!empty($previewArea['is_public']) && empty($previewArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth(); // triggers 401/redirect
+            return;
+        }
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user);
+            return;
+        }
+        $file = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            return;
+        }
+
+        // Shared-file access and public-area access bypass per-area access controls
+        if ($viaShare || $viaPublicArea) {
+            $hasAccess = true;
+        } else {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+
+            $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+
+            // Allow senders of netmail attachments to preview what they sent
+            if (!$hasAccess && $file['source_type'] === 'netmail_attachment' && $file['message_id'] !== null) {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $nmStmt = $db->prepare("SELECT user_id FROM netmail WHERE id = ? LIMIT 1");
+                $nmStmt->execute([$file['message_id']]);
+                $nm = $nmStmt->fetch();
+                if ($nm && (int)$nm['user_id'] === (int)$userId) {
+                    $hasAccess = true;
+                }
+            }
+        }
+
+        if (!$hasAccess) {
+            http_response_code(403);
+            echo apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user);
+            return;
+        }
+
+        // Resolve path at request time (ISO-backed areas reconstruct from mount point)
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            if (($file['source_type'] ?? '') === 'iso_import') {
+                http_response_code(503);
+                echo apiLocalizedText('errors.files.iso_not_mounted', 'File area is not mounted', $user);
+            } else {
+                http_response_code(404);
+                echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+            }
+            return;
+        }
+
+        $filename = basename($file['filename']);
+        $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        // For ZIP files, attempt to extract and serve FILE_ID.DIZ
+        if ($ext === 'zip') {
+            $zip = new ZipArchive();
+            if ($zip->open($storagePath) === true) {
+                // Determine search prefix: if no files exist at the true root
+                // (e.g. GitHub-style archives with a single top-level directory),
+                // look one level deep inside that directory instead.
+                $hasRootFiles = false;
+                $topDirs      = [];
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $n = $zip->getNameIndex($i);
+                    if (str_ends_with($n, '/')) {
+                        continue; // directory entry
+                    }
+                    $parts = explode('/', $n);
+                    if (count($parts) === 1) {
+                        $hasRootFiles = true;
+                        break;
+                    }
+                    $topDirs[$parts[0]] = true;
+                }
+
+                $prefix = '';
+                if (!$hasRootFiles && count($topDirs) === 1) {
+                    $prefix = array_key_first($topDirs) . '/';
+                }
+
+                $dizContent = null;
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $entryName  = $zip->getNameIndex($i);
+                    $entryLower = strtolower($entryName);
+                    if ($entryLower === strtolower($prefix) . 'file_id.diz') {
+                        $dizContent = $zip->getFromIndex($i);
+                        break;
+                    }
+                }
+                $zip->close();
+
+                if ($dizContent !== false && $dizContent !== null) {
+                    if (!mb_check_encoding($dizContent, 'UTF-8')) {
+                        $converted = @iconv('CP437', 'UTF-8//IGNORE', $dizContent);
+                        if ($converted !== false && strlen($converted) > 0) {
+                            $dizContent = $converted;
+                        }
+                    }
+                    header('Content-Type: text/plain; charset=utf-8');
+                    header('Content-Disposition: inline; filename="FILE_ID.DIZ"');
+                    header('X-Content-Type-Options: nosniff');
+                    header('Cache-Control: private, max-age=3600');
+                    echo $dizContent;
+                    exit;
+                }
+            }
+            // Fall through to octet-stream download if no FILE_ID.DIZ found
+        }
+
+        $imageMimes = [
+            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+            'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp', 'ico'  => 'image/x-icon', 'tiff' => 'image/tiff',
+            'tif' => 'image/tiff', 'avif' => 'image/avif',
+        ];
+        $videoMimes = [
+            'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
+            'ogv' => 'video/ogg', 'm4v'  => 'video/mp4',
+        ];
+        $audioMimes = [
+            'mp3' => 'audio/mpeg', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg',
+            'flac' => 'audio/flac', 'aac' => 'audio/aac', 'm4a' => 'audio/mp4',
+            'opus' => 'audio/ogg',
+        ];
+        $textExts = [
+            'txt', 'log', 'nfo', 'diz', 'asc', 'cfg', 'ini', 'conf', 'lsm',
+            'json', 'xml', 'bat', 'sh', 'readme', 'ans', 'bbs',
+        ];
+        $htmlExts = ['htm', 'html'];
+
+        $safeFilename    = addslashes($filename);
+        $encodedFilename = rawurlencode($filename);
+        $fileSize        = filesize($storagePath);
+
+        if (isset($imageMimes[$ext])) {
+            header('Content-Type: ' . $imageMimes[$ext]);
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('Content-Length: ' . $fileSize);
+            header('Cache-Control: private, max-age=3600');
+            header('X-Content-Type-Options: nosniff');
+            readfile($storagePath);
+            exit;
+        }
+
+        if (isset($videoMimes[$ext]) || isset($audioMimes[$ext])) {
+            $mimeType = $videoMimes[$ext] ?? $audioMimes[$ext];
+            // Support HTTP range requests so browsers can seek in video/audio
+            header('Accept-Ranges: bytes');
+            $rangeHeader = $_SERVER['HTTP_RANGE'] ?? null;
+            if ($rangeHeader && preg_match('/bytes=(\d+)-(\d*)/', $rangeHeader, $m)) {
+                $start  = (int)$m[1];
+                $end    = $m[2] !== '' ? (int)$m[2] : $fileSize - 1;
+                $length = $end - $start + 1;
+                http_response_code(206);
+                header('Content-Type: ' . $mimeType);
+                header("Content-Range: bytes {$start}-{$end}/{$fileSize}");
+                header('Content-Length: ' . $length);
+                header('Content-Disposition: inline; filename="' . $safeFilename . '"');
+                header('Cache-Control: private, max-age=3600');
+                $fp = fopen($storagePath, 'rb');
+                fseek($fp, $start);
+                $remaining = $length;
+                while ($remaining > 0 && !feof($fp)) {
+                    $chunk = fread($fp, min(65536, $remaining));
+                    if ($chunk === false) break;
+                    echo $chunk;
+                    $remaining -= strlen($chunk);
+                }
+                fclose($fp);
+            } else {
+                header('Content-Type: ' . $mimeType);
+                header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+                header('Content-Length: ' . $fileSize);
+                header('Cache-Control: private, max-age=3600');
+                readfile($storagePath);
+            }
+            exit;
+        }
+
+        if ($ext === 'rip') {
+            $content = (string)file_get_contents($storagePath);
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            exit;
+        }
+
+        if ($ext === 'md') {
+            $markdown = (string)file_get_contents($storagePath);
+            $html     = \BinktermPHP\MarkdownRenderer::toHtml($markdown);
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $html;
+            exit;
+        }
+
+        if (in_array($ext, $htmlExts, true)) {
+            $content = (string)file_get_contents($storagePath);
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('Content-Security-Policy: default-src \'none\'; img-src data: blob: http: https:; style-src \'unsafe-inline\'; font-src data: http: https:; media-src data: blob: http: https:; frame-ancestors \'self\'; base-uri \'none\'; form-action \'none\'');
+            header('Referrer-Policy: no-referrer');
+            header('Cross-Origin-Resource-Policy: same-origin');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            exit;
+        }
+
+        if (in_array($ext, $textExts)) {
+            $content = (string)file_get_contents($storagePath);
+            $charset = 'utf-8';
+            // Attempt CP437 → UTF-8 conversion for NFO/DIZ/ANSI/BBS files
+            if (in_array($ext, ['nfo', 'diz', 'ans', 'bbs'])) {
+                $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
+                if ($converted !== false && strlen($converted) > 0) {
+                    $content = $converted;
+                }
+            }
+            header('Content-Type: text/plain; charset=' . $charset);
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, max-age=3600');
+            echo $content;
+            exit;
+        }
+
+        // Unknown extension — heuristically detect if the file is plain text.
+        // Sample the first 4 KB: reject if null bytes are present, accept if
+        // ≥ 90% of bytes are printable (ASCII, common control chars, or high bytes).
+        $looksLikeText = false;
+        if ($fileSize > 0 && $fileSize <= 10 * 1024 * 1024) { // only probe files ≤ 10 MB
+            $fp = fopen($storagePath, 'rb');
+            if ($fp) {
+                $sample = (string)fread($fp, 4096);
+                fclose($fp);
+                if ($sample !== '' && !str_contains($sample, "\x00")) {
+                    $len = strlen($sample);
+                    $printable = 0;
+                    for ($i = 0; $i < $len; $i++) {
+                        $b = ord($sample[$i]);
+                        if (($b >= 0x20 && $b <= 0x7E) || $b === 0x09 || $b === 0x0A || $b === 0x0D || $b >= 0x80) {
+                            $printable++;
+                        }
+                    }
+                    $looksLikeText = ($printable / $len) >= 0.90;
+                }
+            }
+        }
+
+        if ($looksLikeText) {
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-Content-Type-Options: nosniff');
+            header('X-Binkterm-Heuristic: text');
+            header('Cache-Control: private, max-age=3600');
+
+            // If the sample is valid UTF-8, stream the file directly — no memory spike.
+            // Otherwise attempt CP437 → UTF-8 conversion, capped at 1 MB (legacy text
+            // files are small; anything larger is served raw and the browser will cope).
+            if (mb_check_encoding($sample, 'UTF-8')) {
+                header('Content-Length: ' . $fileSize);
+                readfile($storagePath);
+            } else {
+                $raw = $fileSize <= 1024 * 1024
+                    ? (string)file_get_contents($storagePath)
+                    : $sample; // sample already in memory; serve partial rather than OOM
+                $converted = @iconv('CP437', 'UTF-8//IGNORE', $raw);
+                echo ($converted !== false && strlen($converted) > 0) ? $converted : $raw;
+            }
+            exit;
+        }
+
+        // Unknown type — serve as attachment
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+        header('Content-Length: ' . $fileSize);
+        header('Cache-Control: no-cache, must-revalidate');
+        readfile($storagePath);
+        exit;
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/prgs
+     * Return all PRG files found in a .prg, .zip, or .d64 file as base64-encoded JSON.
+     * Used by the file preview modal to render PETSCII art.
+     *
+     * The 2-byte PRG load address header is stripped before base64 encoding.
+     *
+     * Response: {"prgs":[{"name":"...","load_address":int,"data_b64":"..."},...], "disk_name":"..."}
+     * (disk_name only present for .d64 files)
+     */
+    SimpleRouter::get('/files/{id}/prgs', function($id) {
+        // Allow unauthenticated access for valid active file shares
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        if (!$user && !$viaShare) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        if (!$viaShare) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $filename = basename($file['filename']);
+        $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if ($ext === 'prg') {
+            $bytes = file_get_contents($storagePath);
+            if ($bytes === false || strlen($bytes) < 3) {
+                http_response_code(422);
+                echo json_encode(['error' => 'File too short to be a valid PRG']);
+                return;
+            }
+            $loadAddress = ord($bytes[0]) | (ord($bytes[1]) << 8);
+            echo json_encode(['prgs' => [[
+                'name'         => $filename,
+                'load_address' => $loadAddress,
+                'data_b64'     => base64_encode(substr($bytes, 2)),
+            ]]]);
+            return;
+        }
+
+        if ($ext === 'zip') {
+            $zip = new ZipArchive();
+            if ($zip->open($storagePath) !== true) {
+                http_response_code(422);
+                echo json_encode(['error' => 'Cannot open ZIP']);
+                return;
+            }
+
+            $prgs = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entryName = $zip->getNameIndex($i);
+                if (strtolower(pathinfo($entryName, PATHINFO_EXTENSION)) !== 'prg') {
+                    continue;
+                }
+                $data = $zip->getFromIndex($i);
+                if ($data === false || strlen($data) < 3) {
+                    continue;
+                }
+                $loadAddress = ord($data[0]) | (ord($data[1]) << 8);
+                $prgs[] = [
+                    'name'         => basename($entryName),
+                    'load_address' => $loadAddress,
+                    'data_b64'     => base64_encode(substr($data, 2)),
+                ];
+            }
+            $zip->close();
+
+            if (empty($prgs)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'No PRG files found in ZIP']);
+                return;
+            }
+
+            echo json_encode(['prgs' => $prgs]);
+            return;
+        }
+
+        if ($ext === 'd64') {
+            $bytes = file_get_contents($storagePath);
+            if ($bytes === false) {
+                http_response_code(422);
+                echo json_encode(['error' => 'Cannot read D64 file']);
+                return;
+            }
+            $parser = new \BinktermPHP\D64Parser($bytes);
+            $prgs = $parser->extractPrgs();
+            if (empty($prgs)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'No PRG files found in D64 image']);
+                return;
+            }
+            echo json_encode(['prgs' => $prgs, 'disk_name' => $parser->diskName()]);
+            return;
+        }
+
+        if ($ext === 'seq') {
+            $seqBytes = file_get_contents($storagePath);
+            if ($seqBytes === false) {
+                http_response_code(422);
+                echo json_encode(['error' => 'Cannot read SEQ file']);
+                return;
+            }
+            // Strip trailing CR/LF — many SEQ files end with $0D which CHROUT would
+            // render as an unwanted blank line before the program halts.
+            $seqBytes = rtrim($seqBytes, "\x0D\x0A");
+            // Build a 6502 machine-code wrapper that streams the SEQ bytes through
+            // the C64 CHROUT kernal routine ($FFD2), then halts.
+            // Load address: $2000; data appended starting at $2036 (54-byte stub).
+            $loadAddr   = 0x2000;
+            $dataOffset = 0x36;   // 54 bytes of stub
+            $dataLen    = strlen($seqBytes);
+            $lenLo      = $dataLen & 0xFF;
+            $lenHi      = ($dataLen >> 8) & 0xFF;
+            $dataLo     = ($loadAddr + $dataOffset) & 0xFF;        // $36
+            $dataHi     = (($loadAddr + $dataOffset) >> 8) & 0xFF; // $20
+            $loopCheck  = $loadAddr + 0x15;  // offset 21: ORA $FE check
+            $doneAddr   = $loadAddr + 0x33;  // offset 51: JMP * (halt)
+            $stub = pack('C*',
+                // Clear screen
+                0xA9, 0x93, 0x20, 0xD2, 0xFF,            // LDA #$93; JSR $FFD2   (+5 = $05)
+                // Set up 16-bit data pointer in $FB/$FC
+                0xA9, $dataLo, 0x85, 0xFB,               // LDA #lo; STA $FB      (+4 = $09)
+                0xA9, $dataHi, 0x85, 0xFC,               // LDA #hi; STA $FC      (+4 = $0D)
+                // Set up 16-bit counter in $FD/$FE
+                0xA9, $lenLo,  0x85, 0xFD,               // LDA #lo; STA $FD      (+4 = $11)
+                0xA9, $lenHi,  0x85, 0xFE,               // LDA #hi; STA $FE      (+4 = $15) <- loopCheck
+                // loop_check: if counter == 0 branch to done
+                0xA5, 0xFD, 0x05, 0xFE, 0xF0, 0x18,     // LDA $FD; ORA $FE; BEQ +24  (+6 = $1B)
+                // Read byte via ($FB),Y (Y=0) and output
+                0xA0, 0x00, 0xB1, 0xFB, 0x20, 0xD2, 0xFF, // LDY#0; LDA ($FB),Y; JSR $FFD2 (+7 = $22)
+                // Increment pointer
+                0xE6, 0xFB, 0xD0, 0x02, 0xE6, 0xFC,     // INC $FB; BNE +2; INC $FC    (+6 = $28)
+                // Decrement 16-bit counter
+                0xA5, 0xFD, 0xD0, 0x02, 0xC6, 0xFE,     // LDA $FD; BNE +2; DEC $FE    (+6 = $2E)
+                0xC6, 0xFD,                               // DEC $FD                     (+2 = $30)
+                // Jump back to loop_check
+                0x4C, $loopCheck & 0xFF, ($loopCheck >> 8) & 0xFF, // JMP loopCheck      (+3 = $33) <- doneAddr
+                // Halt (JMP *)
+                0x4C, $doneAddr & 0xFF,  ($doneAddr >> 8) & 0xFF   // JMP $2033          (+3 = $36) <- data
+            );
+            echo json_encode(['prgs' => [[
+                'name'         => $filename,
+                'load_address' => $loadAddr,
+                'data_b64'     => base64_encode($stub . $seqBytes),
+            ]]]);
+            return;
+        }
+
+        http_response_code(404);
+        echo json_encode(['error' => 'Not a PRG, ZIP, D64, or SEQ file']);
+    })->where(['id' => '[0-9]+']);
+
+
+    /**
+     * GET /api/files/{id}/zip-contents
+     * List non-directory entries inside a .zip file.
+     * Response: {"entries":[{"path":"...","name":"...","size":int},...]}
+     */
+    SimpleRouter::get('/files/{id}/zip-contents', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        // Allow guests on public areas
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        if (!$viaShare) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $ext = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
+        if ($ext !== 'zip') {
+            echo json_encode(['entries' => [], 'total' => 0]);
+            return;
+        }
+
+        $result = \BinktermPHP\ArchiveReader::listContents($storagePath, 'zip');
+        echo json_encode(['entries' => $result['entries'], 'total' => $result['total']]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/zip-entry?path=subdir/file.txt
+     * Serve a single entry from inside a .zip file for inline preview.
+     * Applies the same content-type / encoding logic as /preview for known types.
+     * Unknown types are served as attachment (download).
+     */
+    SimpleRouter::get('/files/{id}/zip-entry', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        // Allow guests on public areas
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo 'Feature disabled';
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        if (!$viaShare && !$viaPublicArea) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo 'Access denied';
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        $zipExt = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
+        if ($zipExt !== 'zip') {
+            http_response_code(400);
+            echo 'Not a ZIP file';
+            return;
+        }
+
+        $entryPath = $_GET['path'] ?? '';
+        // Basic safety: reject empty paths or anything with directory traversal
+        if ($entryPath === '' || str_contains($entryPath, '..')) {
+            http_response_code(400);
+            echo 'Invalid path';
+            return;
+        }
+
+        // Normalize path separators (some ZIPs use backslashes)
+        $entryPath = str_replace('\\', '/', $entryPath);
+
+        try {
+            $content = \BinktermPHP\ArchiveReader::extractEntry($storagePath, $entryPath, 'zip');
+        } catch (\BinktermPHP\ArchiveLegacyCompressionException $e) {
+            http_response_code(415);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error'       => 'legacy_compression',
+                'comp_method' => $e->compMethod,
+                'message'     => 'Entry uses an unsupported legacy compression method and cannot be extracted.',
+            ]);
+            return;
+        }
+
+        if ($content === false) {
+            http_response_code(404);
+            echo 'Entry not found';
+            return;
+        }
+
+        \BinktermPHP\ArchiveReader::serveContent($content, basename($entryPath));
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/archive-contents
+     * List entries in any supported archive format, detected by magic bytes.
+     * Response: {"type":"zip","label":"ZIP","entries":[...],"total":int}
+     */
+    SimpleRouter::get('/files/{id}/archive-contents', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        if (!$viaShare && !$viaPublicArea) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $type = \BinktermPHP\ArchiveReader::detectType($storagePath);
+        if ($type === null) {
+            http_response_code(415);
+            echo json_encode(['error' => 'not_an_archive']);
+            return;
+        }
+
+        $result = \BinktermPHP\ArchiveReader::listContents($storagePath, $type);
+
+        if (!empty($result['tool_unavailable'])) {
+            http_response_code(503);
+            echo json_encode(['error' => 'tool_unavailable', 'type' => $type, 'label' => \BinktermPHP\ArchiveReader::typeLabel($type)]);
+            return;
+        }
+
+        echo json_encode([
+            'type'    => $type,
+            'label'   => \BinktermPHP\ArchiveReader::typeLabel($type),
+            'entries' => $result['entries'],
+            'total'   => $result['total'],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/archive-entry?path=subdir/file.txt
+     * Serve a single entry from any supported archive, detected by magic bytes.
+     */
+    SimpleRouter::get('/files/{id}/archive-entry', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
+                }
+            }
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth();
+            return;
+        }
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo 'Feature disabled';
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        if (!$viaShare && !$viaPublicArea) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo 'Access denied';
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        $entryPath = $_GET['path'] ?? '';
+        if ($entryPath === '' || str_contains($entryPath, '..')) {
+            http_response_code(400);
+            echo 'Invalid path';
+            return;
+        }
+        $entryPath = str_replace('\\', '/', $entryPath);
+
+        $type = \BinktermPHP\ArchiveReader::detectType($storagePath);
+        if ($type === null) {
+            http_response_code(415);
+            echo 'Not a recognised archive';
+            return;
+        }
+
+        try {
+            $content = \BinktermPHP\ArchiveReader::extractEntry($storagePath, $entryPath, $type);
+        } catch (\BinktermPHP\ArchiveLegacyCompressionException $e) {
+            http_response_code(415);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error'       => 'legacy_compression',
+                'comp_method' => $e->compMethod,
+                'message'     => 'Entry uses an unsupported legacy compression method and cannot be extracted.',
+            ]);
+            return;
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'tool_unavailable') {
+                http_response_code(503);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'tool_unavailable']);
+                return;
+            }
+            throw $e;
+        }
+
+        if ($content === false) {
+            http_response_code(404);
+            echo 'Entry not found';
+            return;
+        }
+
+        \BinktermPHP\ArchiveReader::serveContent($content, basename($entryPath));
     })->where(['id' => '[0-9]+']);
 
     /**
@@ -2315,7 +3825,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $manager = new \BinktermPHP\FileAreaManager();
-        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours);
+        $freqAccessible = isset($input['freq_accessible']) ? (bool)$input['freq_accessible'] : true;
+        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours, $freqAccessible);
         $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
@@ -2359,6 +3870,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'success'    => true,
                 'share_id'   => (int)$share['id'],
                 'share_url'  => $shareUrl,
+                'access_count' => (int)($share['access_count'] ?? 0),
+                'last_accessed_at' => $share['last_accessed_at'] ?? null,
                 'can_revoke' => $isAdmin || (int)$share['shared_by_user_id'] === (int)$userId,
             ]);
         } else {
@@ -2438,6 +3951,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $uploadCostCharged = false;
+        $uploadCost = 0;
+
         try {
             if (!isset($_FILES['file'])) {
                 throw new \Exception('No file uploaded');
@@ -2475,7 +3992,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Get user's FidoNet address or username
             $uploadedBy = $user['username'] ?? 'Unknown';
-            $ownerId = $user['user_id'] ?? $user['id'] ?? null;
+            $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $uploadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
+            $uploadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+
+            if ($uploadCost > 0) {
+                $uploadCostCharged = UserCredit::debit(
+                    $ownerId,
+                    $uploadCost,
+                    "Uploaded file cost: " . ($_FILES['file']['name'] ?? 'unknown'),
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$uploadCostCharged) {
+                    throw new \Exception('Insufficient credits for file upload');
+                }
+            }
+
             $fileId = $manager->uploadFile(
                 $fileAreaId,
                 $_FILES['file'],
@@ -2484,6 +4017,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $uploadedBy,
                 $ownerId
             );
+
+            if ($uploadReward > 0) {
+                $creditSuccess = UserCredit::credit(
+                    $ownerId,
+                    $uploadReward,
+                    "Upload reward: " . ($_FILES['file']['name'] ?? 'unknown'),
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    error_log("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
+                }
+            }
 
             ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $_FILES['file']['name'] ?? null, ['file_area_id' => $fileAreaId]);
 
@@ -2494,6 +4040,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
+            if ($uploadCostCharged && $uploadCost > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $uploadCost,
+                    'Refund: File upload failed',
+                    null,
+                    UserCredit::TYPE_REFUND
+                );
+            }
+
             http_response_code(400);
             $message = $e->getMessage();
             if ($message === 'No file uploaded') {
@@ -2508,6 +4064,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
             } elseif ($message === 'Only administrators can upload files to this area.') {
                 apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Insufficient credits for file upload') {
+                apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
             } elseif ($message === 'File rejected: virus detected.') {
                 \BinktermPHP\Admin\AdminDaemonClient::log('WARNING', 'Infected file upload rejected', [
                     'username'  => $user['username'] ?? 'unknown',
@@ -2539,6 +4097,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isAdmin = !empty($user['is_admin']);
 
             $manager = new \BinktermPHP\FileAreaManager();
+
+            $fileToDelete = $manager->getFileById((int)$id);
+            $sourceType = $fileToDelete['source_type'] ?? '';
+            if ($fileToDelete && in_array($sourceType, ['iso_import', 'iso_subdir']) && !$isAdmin) {
+                http_response_code(403);
+                apiError('errors.files.iso_readonly', apiLocalizedText('errors.files.iso_readonly', 'ISO-backed files cannot be deleted', $user));
+                return;
+            }
+
             $manager->deleteFile((int)$id, $userId, $isAdmin);
 
             echo json_encode([
@@ -2601,6 +4168,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $userId   = $user['user_id'] ?? $user['id'] ?? 0;
             $manager  = new \BinktermPHP\FileAreaManager();
+
+            // ISO-backed files: block rename and move; allow description edits only
+            $fileToEdit = $manager->getFileById((int)$id);
+            if ($fileToEdit && ($fileToEdit['source_type'] ?? '') === 'iso_import') {
+                if ($newFilename !== null || $targetAreaId !== null) {
+                    http_response_code(403);
+                    apiError('errors.files.iso_readonly', apiLocalizedText('errors.files.iso_readonly', 'ISO-backed files cannot be renamed or moved', $user));
+                    return;
+                }
+            }
+
             $response = ['success' => true];
 
             if ($newFilename !== null) {
@@ -2750,6 +4328,423 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
+    // -----------------------------------------------------------------------
+    // File comments API
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /api/files/{id}/comments
+     * Fetch threaded echomail comments for a file.
+     */
+    SimpleRouter::get('/files/{id}/comments', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404); return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Load file and its linked comment echo area
+        $stmt = $db->prepare("
+            SELECT f.id, f.filename, f.file_hash, f.file_area_id,
+                   fa.tag AS area_tag, fa.domain AS area_domain, fa.comment_echoarea_id,
+                   e.tag AS echo_tag, e.domain AS echo_domain
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN echoareas e ON e.id = fa.comment_echoarea_id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([(int)$id]);
+        $file = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$file) {
+            http_response_code(404);
+            apiError('errors.files.not_found', 'File not found');
+            return;
+        }
+
+        if (empty($file['comment_echoarea_id'])) {
+            echo json_encode(['enabled' => false, 'comments' => [], 'total' => 0]);
+            return;
+        }
+
+        $echoareaId    = (int)$file['comment_echoarea_id'];
+        $filename      = $file['filename'];
+        $areaTag       = $file['area_tag'];
+        $areaDomain    = $file['area_domain'] ?? '';
+        $qualifiedTag  = $areaDomain !== '' ? "{$areaTag}@{$areaDomain}" : $areaTag;
+        // Match both new format (AREANAME@domain FILENAME) and legacy format (AREANAME FILENAME)
+        $kludgePattern        = '%' . "\x01" . 'FILEREF: ' . $qualifiedTag . ' ' . $filename . '%';
+        $kludgePatternLegacy  = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
+
+        // Find thread root(s) by FILEREF kludge or subject, then fetch entire thread
+        // via recursive reply_to_id traversal so replies without the kludge are included.
+        $stmt = $db->prepare("
+            WITH RECURSIVE thread AS (
+                -- Anchor: thread roots matched by kludge or subject (case-insensitive).
+                -- Kludge match is not restricted to reply_to_id IS NULL because FTN
+                -- reply-matching on the receiving server may set reply_to_id even on
+                -- messages that were originally posted as thread roots.
+                SELECT em.id, em.from_name, em.subject, em.message_text,
+                       em.date_written, em.reply_to_id
+                FROM echomail em
+                WHERE em.echoarea_id = ?
+                  AND (
+                      em.kludge_lines LIKE ?
+                      OR em.kludge_lines LIKE ?
+                      OR (em.reply_to_id IS NULL AND LOWER(em.subject) = LOWER(?))
+                  )
+                UNION ALL
+                -- Recursive: any reply whose parent is already in the thread
+                SELECT em.id, em.from_name, em.subject, em.message_text,
+                       em.date_written, em.reply_to_id
+                FROM echomail em
+                JOIN thread t ON em.reply_to_id = t.id
+                WHERE em.echoarea_id = ?
+            )
+            SELECT DISTINCT * FROM thread ORDER BY date_written ASC
+        ");
+        $stmt->execute([$echoareaId, $kludgePattern, $kludgePatternLegacy, $filename, $echoareaId]);
+        $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $trimCommentBody = static function (?string $body): string {
+            $text = str_replace(["\r\n", "\r"], "\n", (string)$body);
+            $lines = explode("\n", $text);
+            $lastSeparator = -1;
+
+            foreach ($lines as $index => $line) {
+                if (str_starts_with(trim($line), '---')) {
+                    $lastSeparator = $index;
+                }
+            }
+
+            if ($lastSeparator >= 0) {
+                return implode("\n", array_slice($lines, 0, $lastSeparator));
+            }
+
+            return $text;
+        };
+
+        /**
+         * Recursively build threaded comment tree up to 3 levels (0-indexed).
+         * Replies beyond level 2 are rendered flat at level 2 on the frontend.
+         */
+        $buildTree = null;
+        $buildTree = function(array $msgs, ?int $parentId, int $depth) use (&$buildTree, $trimCommentBody): array {
+            $children = [];
+            foreach ($msgs as $msg) {
+                $msgParent = $msg['reply_to_id'] !== null ? (int)$msg['reply_to_id'] : null;
+                if ($msgParent === $parentId) {
+                    $childDepth = min($depth, 2);
+                    $children[] = [
+                        'id'           => (int)$msg['id'],
+                        'from_name'    => $msg['from_name'],
+                        'date_written' => $msg['date_written'],
+                        'body'         => $trimCommentBody($msg['message_text']),
+                        'level'        => $childDepth,
+                        'children'     => $depth < 2 ? $buildTree($msgs, (int)$msg['id'], $depth + 1) : [],
+                    ];
+                }
+            }
+            return $children;
+        };
+
+        // Identify thread roots: no reply_to_id, or parent not in result set
+        $msgIds = array_map('intval', array_column($messages, 'id'));
+        $tree   = [];
+        foreach ($messages as $root) {
+            $parentId = $root['reply_to_id'] !== null ? (int)$root['reply_to_id'] : null;
+            if ($parentId === null || !in_array($parentId, $msgIds, true)) {
+                $tree[] = [
+                    'id'           => (int)$root['id'],
+                    'from_name'    => $root['from_name'],
+                    'date_written' => $root['date_written'],
+                    'body'         => $trimCommentBody($root['message_text']),
+                    'level'        => 0,
+                    'children'     => $buildTree($messages, (int)$root['id'], 1),
+                ];
+            }
+        }
+
+        $total = count($messages);
+
+        // Lazily sync comment_count so the badge in the file listing stays accurate
+        // even for comments received via FTN (which bypass the normal post path).
+        if ((int)($file['comment_count'] ?? 0) !== $total) {
+            $db->prepare("UPDATE files SET comment_count = ? WHERE id = ?")
+               ->execute([$total, (int)$id]);
+        }
+
+        echo json_encode([
+            'enabled'  => true,
+            'total'    => $total,
+            'comments' => $tree,
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/files/{id}/comments
+     * Post a comment on a file (creates thread root if none exists).
+     */
+    SimpleRouter::post('/files/{id}/comments', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404); return;
+        }
+
+        $input     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body      = trim($input['body'] ?? '');
+        $replyToId = isset($input['reply_to_id']) ? (int)$input['reply_to_id'] : null;
+
+        if ($body === '') {
+            http_response_code(400);
+            apiError('errors.files.comment_body_required', 'Comment body is required');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Load file and its linked comment echo area
+        $stmt = $db->prepare("
+            SELECT f.id, f.filename, f.file_hash, f.file_area_id,
+                   fa.tag AS area_tag, fa.domain AS area_domain, fa.comment_echoarea_id,
+                   e.tag AS echo_tag, e.domain AS echo_domain, e.is_sysop_only
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN echoareas e ON e.id = fa.comment_echoarea_id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([(int)$id]);
+        $file = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$file) {
+            http_response_code(404);
+            apiError('errors.files.not_found', 'File not found');
+            return;
+        }
+
+        if (empty($file['comment_echoarea_id'])) {
+            http_response_code(403);
+            apiError('errors.files.comments_not_enabled', 'Comments are not enabled for this file area');
+            return;
+        }
+
+        // Respect area's sysop-only restriction
+        if (!empty($file['is_sysop_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.files.comments_forbidden', 'You do not have permission to comment here');
+            return;
+        }
+
+        $echoareaId  = (int)$file['comment_echoarea_id'];
+        $echoTag     = $file['echo_tag'];
+        $echoDomain  = $file['echo_domain'] ?? '';
+        $filename    = $file['filename'];
+        $areaTag     = $file['area_tag'];
+        $areaDomain  = $file['area_domain'] ?? '';
+        $qualifiedTag = $areaDomain !== '' ? "{$areaTag}@{$areaDomain}" : $areaTag;
+        $fileHash    = $file['file_hash'] ?? '';
+        $userId      = (int)($user['user_id'] ?? $user['id']);
+
+        // Find existing thread root (by FILEREF kludge or subject, no parent).
+        // Match both new qualified format (AREANAME@domain FILENAME) and legacy format.
+        $kludgePattern       = '%' . "\x01" . 'FILEREF: ' . $qualifiedTag . ' ' . $filename . '%';
+        $kludgePatternLegacy = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $filename . '%';
+        $stmt = $db->prepare("
+            SELECT id FROM echomail
+            WHERE echoarea_id = ?
+              AND (kludge_lines LIKE ? OR kludge_lines LIKE ? OR subject = ?)
+              AND reply_to_id IS NULL
+            ORDER BY id ASC LIMIT 1
+        ");
+        $stmt->execute([$echoareaId, $kludgePattern, $kludgePatternLegacy, $filename]);
+        $existingRoot = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $threadRootId = $existingRoot ? (int)$existingRoot['id'] : null;
+
+        $handler = new MessageHandler();
+
+        if ($replyToId !== null) {
+            // Replying to a specific message — verify it belongs to this echoarea
+            $stmt = $db->prepare("SELECT id FROM echomail WHERE id = ? AND echoarea_id = ?");
+            $stmt->execute([$replyToId, $echoareaId]);
+            if (!$stmt->fetch()) {
+                http_response_code(400);
+                apiError('errors.files.invalid_reply_target', 'Invalid reply target');
+                return;
+            }
+            $result = $handler->postEchomail($userId, $echoTag, $echoDomain, 'All', $filename, $body, $replyToId, null, true);
+        } else {
+            // Top-level comment — always posted with no parent so "Leave a Comment"
+            // always starts a new thread root, never forced into a reply chain.
+            // The first top-level comment gets the FILEREF kludge prepended into
+            // kludge_lines before the INSERT so it is included in the outbound spool.
+            $prependKludges = '';
+            if ($threadRootId === null) {
+                $prependKludges = "\x01FILEREF: {$qualifiedTag} {$filename} {$fileHash}\r\n";
+            }
+            $result = $handler->postEchomail($userId, $echoTag, $echoDomain, 'All', $filename, $body, null, null, true, null, $prependKludges);
+        }
+
+        if (!$result) {
+            http_response_code(500);
+            apiError('errors.files.comment_post_failed', 'Failed to post comment');
+            return;
+        }
+
+        // Increment cached comment count
+        $db->prepare("UPDATE files SET comment_count = comment_count + 1 WHERE id = ?")
+           ->execute([(int)$id]);
+
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/fileareas/{id}/comment-area
+     * Admin: link, create, or unlink a comment echo area for a file area.
+     * Body: { action: 'link', echoarea_id: 123 }
+     *    OR { action: 'create', tag: 'MY-TAG', description: 'Optional' }
+     *    OR { action: 'unlink' }
+     */
+    SimpleRouter::post('/fileareas/{id}/comment-area', function($id) {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $action = $input['action'] ?? '';
+
+        // Load file area
+        $stmt = $db->prepare("SELECT id, tag, domain FROM file_areas WHERE id = ?");
+        $stmt->execute([(int)$id]);
+        $fileArea = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$fileArea) {
+            http_response_code(404);
+            apiError('errors.fileareas.not_found', apiLocalizedText('errors.fileareas.not_found', 'File area not found', $user));
+            return;
+        }
+
+        $echoareaId = null;
+
+        if ($action === 'unlink') {
+            $echoareaId = null;
+
+        } elseif ($action === 'link') {
+            $echoareaId = (int)($input['echoarea_id'] ?? 0);
+            if ($echoareaId <= 0) {
+                http_response_code(400);
+                apiError('errors.fileareas.comment_area_failed', 'echoarea_id is required');
+                return;
+            }
+            $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+            $stmt->execute([$echoareaId]);
+            if (!$stmt->fetch()) {
+                http_response_code(404);
+                apiError('errors.fileareas.comment_area_failed', 'Echo area not found');
+                return;
+            }
+
+        } elseif ($action === 'create') {
+            $tag         = strtoupper(trim($input['tag'] ?? ''));
+            $description = trim($input['description'] ?? '');
+
+            if ($tag === '') {
+                http_response_code(400);
+                apiError('errors.fileareas.comment_area_failed', 'Tag is required');
+                return;
+            }
+
+            if (!preg_match("/^[A-Z0-9._'-]+$/", $tag)) {
+                http_response_code(400);
+                apiError('errors.fileareas.comment_area_failed', 'Invalid tag format');
+                return;
+            }
+
+            if ($description === '') {
+                $description = 'File comments for ' . $fileArea['tag'];
+            }
+
+            // LVLY_FILECHAT always gets lovlynet domain; other new areas are local
+            $fileAreaDomain = strtolower(trim($fileArea['domain'] ?? ''));
+            $isLovlynet     = ($fileAreaDomain === 'lovlynet' && $tag === 'LVLY_FILECHAT');
+            $domain         = $isLovlynet ? 'lovlynet' : '';
+            $isLocal        = !$isLovlynet;
+
+            // Re-use existing area if tag already exists
+            $stmt = $db->prepare("SELECT id FROM echoareas WHERE UPPER(tag) = ?");
+            $stmt->execute([$tag]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                $echoareaId = (int)$existing['id'];
+            } else {
+                $stmt = $db->prepare("
+                    INSERT INTO echoareas (tag, description, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                    VALUES (?, ?, '#28a745', TRUE, ?, FALSE, ?, FALSE)
+                ");
+                $stmt->execute([$tag, $description, $isLocal ? 'true' : 'false', $domain]);
+                $echoareaId = (int)$db->lastInsertId();
+            }
+
+        } else {
+            http_response_code(400);
+            apiError('errors.fileareas.comment_area_failed', 'Invalid action');
+            return;
+        }
+
+        // Persist the link
+        $stmt = $db->prepare("UPDATE file_areas SET comment_echoarea_id = ? WHERE id = ?");
+        $stmt->execute([$echoareaId, (int)$id]);
+
+        // Backfill comment_count for all files in this area so badges appear
+        // immediately without requiring each file to be viewed individually.
+        if ($echoareaId !== null) {
+            $areaTag      = $fileArea['tag'];
+            $areaDomain   = $fileArea['domain'] ?? '';
+            $qualifiedTag = $areaDomain !== '' ? "{$areaTag}@{$areaDomain}" : $areaTag;
+
+            $filesStmt = $db->prepare("SELECT id, filename FROM files WHERE file_area_id = ?");
+            $filesStmt->execute([(int)$id]);
+            $areaFiles = $filesStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $countStmt = $db->prepare("
+                SELECT COUNT(*) FROM echomail
+                WHERE echoarea_id = ?
+                  AND (kludge_lines LIKE ? OR kludge_lines LIKE ?)
+            ");
+            $updateStmt = $db->prepare("UPDATE files SET comment_count = ? WHERE id = ?");
+
+            foreach ($areaFiles as $af) {
+                $pat1 = '%' . "\x01" . 'FILEREF: ' . $qualifiedTag . ' ' . $af['filename'] . '%';
+                $pat2 = '%' . "\x01" . 'FILEREF: ' . $areaTag . ' ' . $af['filename'] . '%';
+                $countStmt->execute([$echoareaId, $pat1, $pat2]);
+                $cnt = (int)$countStmt->fetchColumn();
+                if ($cnt > 0) {
+                    $updateStmt->execute([$cnt, $af['id']]);
+                }
+            }
+        }
+
+        echo json_encode(['success' => true, 'echoarea_id' => $echoareaId]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/echoareas/simple-list
+     * Lightweight list of all echoareas for admin comboboxes (id, tag, description, domain).
+     */
+    SimpleRouter::get('/echoareas/simple-list', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->query("SELECT id, tag, description, domain FROM echoareas ORDER BY tag ASC");
+        echo json_encode(['echoareas' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();
@@ -2760,7 +4755,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getNetmail($user['user_id'], $page, null, $filter, $threaded);
+        $validSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $validSorts, true) ? $_GET['sort'] : 'date_desc';
+        $result = $handler->getNetmail($user['user_id'], $page, null, $filter, $threaded, $sort);
         $result = apiLocalizeErrorPayload($result, $user);
         echo json_encode($result);
     });
@@ -2875,7 +4872,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
                 try {
                     $fileAreaManager = new \BinktermPHP\FileAreaManager();
-                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail');
+                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail', $userId ? (int)$userId : null);
                     $message['attachments'] = $attachments;
                 } catch (\Exception $e) {
                     $message['attachments'] = [];
@@ -2884,6 +4881,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $message['attachments'] = [];
             }
 
+            $message['can_edit'] = ((int)($message['user_id'] ?? 0) === (int)$userId);
             echo json_encode($message);
         } else {
             http_response_code(404);
@@ -2958,6 +4956,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo $content;
         exit;
+    })->where(['id' => '[0-9]+']);
+
+    // Netmail message meta edit endpoint (sender or receiver only)
+    SimpleRouter::post('/messages/netmail/{id}/edit', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db = Database::getInstance()->getPdo();
+
+        // Verify the message exists and belongs to the current user
+        $stmt = $db->prepare('SELECT user_id FROM netmail WHERE id = ?');
+        $stmt->execute([(int)$id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            http_response_code(404);
+            apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        if ((int)$row['user_id'] !== (int)$userId && empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.netmail.edit.forbidden', apiLocalizedText('errors.messages.netmail.edit.forbidden', 'You do not have permission to edit this message', $user));
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $validArtFormats = ['', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+        $artFormat = isset($input['art_format']) ? strtolower(trim((string)$input['art_format'])) : null;
+        $charset   = isset($input['message_charset']) ? strtoupper(trim((string)$input['message_charset'])) : null;
+
+        if ($artFormat !== null && !in_array($artFormat, $validArtFormats, true)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_art_format', apiLocalizedText('errors.messages.echomail.edit.invalid_art_format', 'Invalid art format', $user));
+            return;
+        }
+
+        $setClauses = [];
+        $params     = [];
+
+        if ($artFormat !== null) {
+            $setClauses[] = 'art_format = ?';
+            $params[]     = $artFormat === '' ? null : $artFormat;
+        }
+        if ($charset !== null) {
+            $setClauses[] = 'message_charset = ?';
+            $params[]     = $charset === '' ? null : $charset;
+        }
+
+        if (empty($setClauses)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.nothing_to_update', apiLocalizedText('errors.messages.echomail.edit.nothing_to_update', 'No fields to update', $user));
+            return;
+        }
+
+        $params[] = (int)$id;
+        $stmt = $db->prepare('UPDATE netmail SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+        $stmt->execute($params);
+
+        echo json_encode(['success' => true]);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/netmail/bulk-delete', function() {
@@ -3340,6 +5401,80 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
+    $prepareEchomailAdBodyForSave = static function(array $message): string {
+        $body = \BinktermPHP\Advertising::stripSauce((string)($message['message_text'] ?? ''));
+        $bodyLines = preg_split('/\r\n|\r|\n/', $body) ?: [];
+        $trimmedBodyLines = [];
+        foreach ($bodyLines as $line) {
+            if (preg_match('/^\s*---\s+/', $line) === 1) {
+                break;
+            }
+            $trimmedBodyLines[] = $line;
+        }
+
+        return rtrim(implode("\n", $trimmedBodyLines));
+    };
+
+    $isEchomailAnsiAdCapable = static function(array $message, string $body): bool {
+        if ($body === '') {
+            return false;
+        }
+
+        $normalizedArtFormat = strtolower(trim((string)($message['art_format'] ?? '')));
+        $detectedArtFormat = strtolower((string)(\BinktermPHP\ArtFormatDetector::detectArtFormat($body, (string)($message['message_charset'] ?? '')) ?? ''));
+        $hasAnsiSequences = preg_match('/\x1b\[[0-9;?]*[A-Za-z]/', $body) === 1;
+        $hasPipeCodes = preg_match('/\|[0-9A-Fa-f]{2}/', $body) === 1;
+        $lines = preg_split('/\r?\n/', $body) ?: [];
+        $nonEmptyLines = count(array_filter($lines, static fn(string $line): bool => trim($line) !== ''));
+        $maxLineLength = 0;
+        $leadingSpaceArtLines = 0;
+        foreach ($lines as $line) {
+            $maxLineLength = max($maxLineLength, strlen($line));
+            if (preg_match('/^\s{5,}\S/', $line) === 1) {
+                $leadingSpaceArtLines++;
+            }
+        }
+        $hasLeadingSpaceArt = $nonEmptyLines >= 4 && $leadingSpaceArtLines >= 3 && $leadingSpaceArtLines >= ($nonEmptyLines * 0.5) && $maxLineLength >= 30;
+
+        return in_array($normalizedArtFormat, ['ansi', 'amiga_ansi'], true)
+            || in_array($detectedArtFormat, ['ansi', 'amiga_ansi'], true)
+            || $hasAnsiSequences
+            || ($hasPipeCodes && $nonEmptyLines >= 4 && $maxLineLength >= 30)
+            || $hasLeadingSpaceArt;
+    };
+
+    $buildEchomailAdSaveMetadata = static function(array $message, int $messageId): array {
+        $echoareaTag = trim((string)($message['echoarea'] ?? ''));
+        $domain = trim((string)($message['domain'] ?? ''));
+        $subject = trim((string)($message['subject'] ?? ''));
+        $title = $subject !== '' ? $subject : ('Echomail Ad #' . $messageId);
+
+        $descriptionParts = [];
+        if ($echoareaTag !== '') {
+            $descriptionParts[] = $echoareaTag . ($domain !== '' ? '@' . $domain : '');
+        }
+        if (!empty($message['from_name'])) {
+            $descriptionParts[] = 'from ' . trim((string)$message['from_name']);
+        }
+        if (!empty($message['date_written'])) {
+            $descriptionParts[] = 'saved from echomail dated ' . trim((string)$message['date_written']);
+        }
+
+        $tags = ['echomail'];
+        if ($echoareaTag !== '') {
+            $tags[] = $echoareaTag;
+        }
+        if ($domain !== '') {
+            $tags[] = $domain;
+        }
+
+        return [
+            'title' => $title,
+            'description' => implode(' ', $descriptionParts),
+            'tags' => implode(', ', $tags)
+        ];
+    };
+
     // Route for getting specific echomail message by ID only (when echoarea not known)
     SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
         $user = RouteHelper::requireAuth();
@@ -3373,6 +5508,70 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } else {
             http_response_code(404);
             apiError('', apiLocalizedText('', ''));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/messages/echomail/{id}/save-ad', function($id) use ($prepareEchomailAdBodyForSave, $isEchomailAnsiAdCapable, $buildEchomailAdSaveMetadata) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.echomail.save_ad.admin_required', apiLocalizedText('errors.messages.echomail.save_ad.admin_required', 'Admin privileges are required', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $message = $handler->getMessage((int)$id, 'echomail', $userId);
+
+        if (!$message) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        $body = $prepareEchomailAdBodyForSave($message);
+        if ($body === '') {
+            http_response_code(400);
+            apiError('errors.messages.echomail.save_ad.not_ansi', apiLocalizedText('errors.messages.echomail.save_ad.not_ansi', 'Only ANSI echomail messages can be saved to the ad library', $user));
+            return;
+        }
+
+        if (!$isEchomailAnsiAdCapable($message, $body)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.save_ad.not_ansi', apiLocalizedText('errors.messages.echomail.save_ad.not_ansi', 'Only ANSI echomail messages can be saved to the ad library', $user));
+            return;
+        }
+
+        try {
+            $ads = new \BinktermPHP\Advertising();
+            $metadata = $buildEchomailAdSaveMetadata($message, (int)$id);
+            $ad = $ads->createAd([
+                'title' => $metadata['title'],
+                'description' => $metadata['description'],
+                'content' => $body,
+                'source_type' => 'echoarea_saved',
+                'is_active' => false,
+                'show_on_dashboard' => false,
+                'allow_auto_post' => false,
+                'dashboard_weight' => 1,
+                'dashboard_priority' => 0,
+                'tags' => $metadata['tags']
+            ], (int)$userId);
+
+            echo json_encode([
+                'success' => true,
+                'ad' => $ad,
+                'message_code' => 'ui.echomail.save_to_ad_library_saved'
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            apiError('errors.admin.ads.invalid_payload', $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            apiError('errors.messages.echomail.save_ad.failed', apiLocalizedText('errors.messages.echomail.save_ad.failed', 'Failed to save message to ad library', $user));
         }
     })->where(['id' => '[0-9]+']);
 
@@ -3430,6 +5629,63 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo $content;
     })->where(['id' => '[0-9]+']);
 
+    // Echomail message meta edit endpoint (admin only)
+    SimpleRouter::post('/messages/echomail/{id}/edit', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.messages.echomail.edit.admin_required', apiLocalizedText('errors.messages.echomail.edit.admin_required', 'Admin access required', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $validArtFormats = ['', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+        $artFormat = isset($input['art_format']) ? strtolower(trim((string)$input['art_format'])) : null;
+        $charset   = isset($input['message_charset']) ? strtoupper(trim((string)$input['message_charset'])) : null;
+
+        if ($artFormat !== null && !in_array($artFormat, $validArtFormats, true)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_art_format', apiLocalizedText('errors.messages.echomail.edit.invalid_art_format', 'Invalid art format', $user));
+            return;
+        }
+
+        // Build update
+        $setClauses = [];
+        $params     = [];
+
+        if ($artFormat !== null) {
+            $setClauses[] = 'art_format = ?';
+            $params[]     = $artFormat === '' ? null : $artFormat;
+        }
+        if ($charset !== null) {
+            $setClauses[] = 'message_charset = ?';
+            $params[]     = $charset === '' ? null : $charset;
+        }
+
+        if (empty($setClauses)) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.nothing_to_update', apiLocalizedText('errors.messages.echomail.edit.nothing_to_update', 'No fields to update', $user));
+            return;
+        }
+
+        $params[] = (int)$id;
+        $stmt = $db->prepare('UPDATE echomail SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+        $stmt->execute($params);
+
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {
         $user = RouteHelper::requireAuth();
 
@@ -3476,6 +5732,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
 
         if ($message) {
+            $messageTag = (string)($message['echoarea'] ?? '');
+            $messageDomain = (string)($message['domain'] ?? '');
+            $requestedTag = (string)$echoarea;
+            $requestedDomain = (string)$domain;
+
+            $tagMatches = strcasecmp($messageTag, $requestedTag) === 0;
+            $domainMatches = strcasecmp($messageDomain, $requestedDomain) === 0;
+
+            if (!$tagMatches || !$domainMatches) {
+                http_response_code(404);
+                apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+                return;
+            }
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -3495,7 +5765,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode($message);
         } else {
             http_response_code(404);
-            apiError('', apiLocalizedText('', ''));
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
         }
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
@@ -3927,10 +6197,164 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // -----------------------------------------------------------------------
+    // Message Templates (premium feature — requires valid license)
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /api/messages/templates[?type=netmail|echomail]
+     * List templates for the current user, optionally filtered by type.
+     */
+    SimpleRouter::get('/messages/templates', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $type   = $_GET['type'] ?? null;
+
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $sql  = "SELECT id, name, type, subject, created_at FROM message_templates WHERE user_id = ?";
+        $args = [$userId];
+
+        if ($type && in_array($type, ['netmail', 'echomail'], true)) {
+            $sql  .= " AND (type = ? OR type = 'both')";
+            $args[] = $type;
+        }
+
+        $sql .= " ORDER BY name ASC";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($args);
+        echo json_encode(['templates' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
+
+    /**
+     * GET /api/messages/templates/{id}
+     * Fetch a single template (full body) for the current user.
+     */
+    SimpleRouter::get('/messages/templates/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt   = $db->prepare("SELECT * FROM message_templates WHERE id = ? AND user_id = ?");
+        $stmt->execute([(int)$id, $userId]);
+        $template = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$template) {
+            http_response_code(404);
+            apiError('errors.messages.templates.not_found', apiLocalizedText('errors.messages.templates.not_found', 'Template not found', $user));
+            return;
+        }
+
+        echo json_encode(['template' => $template]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/messages/templates
+     * Create or update a template. Pass id to update an existing one.
+     * Body: { name, type, subject, body, id? }
+     */
+    SimpleRouter::post('/messages/templates', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $name    = trim((string)($input['name'] ?? ''));
+        $type    = $input['type'] ?? 'both';
+        $subject = trim((string)($input['subject'] ?? ''));
+        $body    = trim((string)($input['body'] ?? ''));
+        $editId  = isset($input['id']) ? (int)$input['id'] : null;
+
+        if ($name === '') {
+            http_response_code(400);
+            apiError('errors.messages.templates.name_required', apiLocalizedText('errors.messages.templates.name_required', 'Template name is required', $user));
+            return;
+        }
+        if (!in_array($type, ['netmail', 'echomail', 'both'], true)) {
+            $type = 'both';
+        }
+        if (mb_strlen($name) > 100) {
+            http_response_code(400);
+            apiError('errors.messages.templates.name_too_long', apiLocalizedText('errors.messages.templates.name_too_long', 'Template name must be 100 characters or less', $user));
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        if ($editId) {
+            // Update — verify ownership
+            $check = $db->prepare("SELECT id FROM message_templates WHERE id = ? AND user_id = ?");
+            $check->execute([$editId, $userId]);
+            if (!$check->fetch()) {
+                http_response_code(404);
+                apiError('errors.messages.templates.not_found', apiLocalizedText('errors.messages.templates.not_found', 'Template not found', $user));
+                return;
+            }
+            $stmt = $db->prepare("UPDATE message_templates SET name = ?, type = ?, subject = ?, body = ?, updated_at = NOW() WHERE id = ? AND user_id = ?");
+            $stmt->execute([$name, $type, $subject, $body, $editId, $userId]);
+            echo json_encode(['success' => true, 'id' => $editId, 'message_code' => 'ui.compose.templates.saved']);
+        } else {
+            $stmt = $db->prepare("INSERT INTO message_templates (user_id, name, type, subject, body) VALUES (?, ?, ?, ?, ?) RETURNING id");
+            $stmt->execute([$userId, $name, $type, $subject, $body]);
+            $newId = $stmt->fetchColumn();
+            echo json_encode(['success' => true, 'id' => $newId, 'message_code' => 'ui.compose.templates.saved']);
+        }
+    });
+
+    /**
+     * DELETE /api/messages/templates/{id}
+     */
+    SimpleRouter::delete('/messages/templates/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.messages.templates.not_licensed', apiLocalizedText('errors.messages.templates.not_licensed', 'Message templates require a registered license', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt   = $db->prepare("DELETE FROM message_templates WHERE id = ? AND user_id = ?");
+        $stmt->execute([(int)$id, $userId]);
+
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.messages.templates.not_found', apiLocalizedText('errors.messages.templates.not_found', 'Template not found', $user));
+            return;
+        }
+
+        echo json_encode(['success' => true, 'message_code' => 'ui.compose.templates.deleted']);
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::get('/messages/search', function() {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
+
+        try {
 
         $query = $_GET['q'] ?? '';
         $type = $_GET['type'] ?? null;
@@ -3941,7 +6365,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea = urldecode($echoarea);
         }
 
-        if (strlen($query) < 2) {
+        // Collect field-specific search params
+        $searchParams = [];
+        if (!empty($_GET['from_name'])) {
+            $searchParams['from_name'] = $_GET['from_name'];
+        }
+        if (!empty($_GET['subject'])) {
+            $searchParams['subject'] = $_GET['subject'];
+        }
+        if (!empty($_GET['body'])) {
+            $searchParams['body'] = $_GET['body'];
+        }
+        // Date range params — validate YYYY-MM-DD format
+        foreach (['date_from', 'date_to'] as $dateKey) {
+            if (!empty($_GET[$dateKey])) {
+                $val = $_GET[$dateKey];
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $val)) {
+                    $searchParams[$dateKey] = $val;
+                }
+            }
+        }
+
+        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasDateParams = !empty($searchParams['date_from']) || !empty($searchParams['date_to']);
+        $hasAdvancedParams = $hasTextParams || $hasDateParams;
+
+        // Validate: need a general query of 2+ chars, or at least one valid text/date field
+        if ($hasTextParams) {
+            foreach (['from_name', 'subject', 'body'] as $textKey) {
+                if (isset($searchParams[$textKey]) && strlen($searchParams[$textKey]) < 2) {
+                    http_response_code(400);
+                    apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
+                    return;
+                }
+            }
+        } elseif (!$hasDateParams && strlen($query) < 2) {
             http_response_code(400);
             apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
             return;
@@ -3952,21 +6410,47 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams);
 
-        // For echomail searches, also get per-echo-area counts and filter counts
+        // For echomail searches, derive per-echo-area counts from already-fetched results
+        // and compute filter counts by PK lookup — avoids re-running the expensive search query.
         $echoareaCounts = [];
         $filterCounts = [];
         if ($type === 'echomail' || $type === null) {
-            $echoareaCounts = $handler->getSearchResultCounts($query, $echoarea, $userId);
-            $filterCounts = $handler->getSearchFilterCounts($query, $echoarea, $userId);
+            $countMap = [];
+            foreach ($messages as $msg) {
+                $tag = $msg['echoarea'] ?? '';
+                $domain = $msg['echoarea_domain'] ?? '';
+                $key = "{$tag}@{$domain}";
+                if (!isset($countMap[$key])) {
+                    $countMap[$key] = ['tag' => $tag, 'domain' => $domain, 'message_count' => 0];
+                }
+                $countMap[$key]['message_count']++;
+            }
+            $echoareaCounts = array_values($countMap);
+
+            $messageIds = array_column($messages, 'id');
+            $filterCounts = $handler->getSearchFilterCountsByIds($messageIds, $userId);
         }
 
-        echo json_encode([
+        $json = json_encode([
             'messages' => $messages,
             'echoarea_counts' => $echoareaCounts,
             'filter_counts' => $filterCounts
-        ]);
+        ], JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($json === false) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to encode results: ' . json_last_error_msg()]);
+            return;
+        }
+
+        echo $json;
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage(), 'trace' => $e->getFile() . ':' . $e->getLine()]);
+        }
     });
 
     // Mark message as read
@@ -4919,6 +7403,83 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/binkp/kept-packets/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectPacket($type, $date, $filename));
+    });
+
+    SimpleRouter::get('/binkp/kept-packets/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type'] ?? 'inbound';
+        $date     = $_GET['date'] ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->getKeptPacketDownloadPath($type, $date, $filename);
+        if ($filepath === null) {
+            apiError('errors.binkp.kept_packets.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
+    SimpleRouter::get('/binkp/kept-packets', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type = $_GET['type'] ?? 'inbound';
+        if (!in_array($type, ['inbound', 'outbound'], true)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'type must be inbound or outbound', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->getKeptPackets($type));
+    });
+
     SimpleRouter::get('/binkp/logs', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
@@ -4928,6 +7489,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $lines = intval($_GET['lines'] ?? 100);
         $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->getLogs($lines));
+    });
+
+    SimpleRouter::get('/binkp/logs/search', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        header('Content-Type: application/json');
+
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) {
+            apiError('errors.binkp.logs.search_query_too_short', 'Query must be at least 2 characters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $result = $controller->searchLogs($q);
+        $encoded = json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($encoded === false) {
+            apiError('errors.binkp.logs.search_failed', 'Failed to encode search results', 500);
+            return;
+        }
+        echo $encoded;
     });
 
     // Test endpoint to verify delete endpoint is accessible
@@ -5192,6 +7775,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($userId) {
                 $meta = new \BinktermPHP\UserMeta();
                 $settings['shell'] = $meta->getValue((int)$userId, 'shell') ?? '';
+                $settings['chat_notification_sound'] = $meta->getValue((int)$userId, 'chat_notification_sound') ?? 'notify3';
+                $settings['echomail_notification_sound'] = $meta->getValue((int)$userId, 'echomail_notification_sound') ?? 'disabled';
+                $settings['netmail_notification_sound'] = $meta->getValue((int)$userId, 'netmail_notification_sound') ?? 'notify1';
+                $settings['file_notification_sound'] = $meta->getValue((int)$userId, 'file_notification_sound') ?? 'disabled';
             }
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -5215,6 +7802,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $settings = $input['settings'];
+            $metaSettingsUpdated = false;
 
             if (isset($settings['locale'])) {
                 $translator = new Translator();
@@ -5223,18 +7811,58 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $resolver->persistLocale($settings['locale']);
             }
 
+            $validNotificationSounds = ['disabled', 'notify1', 'notify2', 'notify3', 'notify4', 'notify5'];
+
             // Handle shell preference separately (stored in UserMeta, not user_settings table)
-            if (isset($settings['shell']) && $userId && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
-                $shellVal = (string)$settings['shell'];
-                if (in_array($shellVal, ['web', 'bbs-menu'], true)) {
-                    $meta = new \BinktermPHP\UserMeta();
-                    $meta->setValue((int)$userId, 'shell', $shellVal);
+            if ($userId) {
+                $meta = new \BinktermPHP\UserMeta();
+
+                if (isset($settings['shell']) && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
+                    $shellVal = (string)$settings['shell'];
+                    if (in_array($shellVal, ['web', 'bbs-menu'], true)) {
+                        $meta->setValue((int)$userId, 'shell', $shellVal);
+                        $metaSettingsUpdated = true;
+                    }
+                }
+
+                $notificationSoundMetaKeys = [
+                    'chat_notification_sound',
+                    'echomail_notification_sound',
+                    'netmail_notification_sound',
+                    'file_notification_sound'
+                ];
+
+                foreach ($notificationSoundMetaKeys as $key) {
+                    if (!isset($settings[$key])) {
+                        continue;
+                    }
+
+                    $soundVal = (string)$settings[$key];
+                    if (!in_array($soundVal, $validNotificationSounds, true)) {
+                        if ($key === 'chat_notification_sound') {
+                            $soundVal = 'notify3';
+                        } elseif ($key === 'netmail_notification_sound') {
+                            $soundVal = 'notify1';
+                        } else {
+                            $soundVal = 'disabled';
+                        }
+                    }
+
+                    $meta->setValue((int)$userId, $key, $soundVal);
+                    $metaSettingsUpdated = true;
                 }
             }
-            unset($settings['shell']);
+
+            unset(
+                $settings['shell'],
+                $settings['chat_notification_sound'],
+                $settings['echomail_notification_sound'],
+                $settings['netmail_notification_sound'],
+                $settings['file_notification_sound']
+            );
 
             $handler = new MessageHandler();
-            $result = $handler->updateUserSettings($userId, $settings);
+            $result = empty($settings) ? $metaSettingsUpdated : $handler->updateUserSettings($userId, $settings);
 
             if ($result) {
                 echo json_encode([
@@ -5388,6 +8016,88 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
             $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
+    // Web mail state API endpoints (web-specific page positions, separate from telnet)
+    SimpleRouter::get('/user/web-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $meta = new \BinktermPHP\UserMeta();
+
+        $settings = [
+            'web_netmail_page'        => $meta->getValue((int)$userId, 'web_netmail_page'),
+            'web_echomail_positions'  => $meta->getValue((int)$userId, 'web_echomail_positions'),
+        ];
+
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    });
+
+    SimpleRouter::post('/user/web-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = $body['settings'] ?? $body;
+        $meta = new \BinktermPHP\UserMeta();
+
+        // web_netmail_page — positive integer
+        if (array_key_exists('web_netmail_page', $settings)) {
+            $value = $settings['web_netmail_page'];
+            if ($value === null || $value === '') {
+                $meta->setValue((int)$userId, 'web_netmail_page', null);
+            } elseif (!is_numeric($value) || (int)$value < 1) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for web_netmail_page']);
+                return;
+            } else {
+                $meta->setValue((int)$userId, 'web_netmail_page', (string)((int)$value));
+            }
+        }
+
+        // web_echomail_positions — JSON object mapping area tag to {page: N}
+        if (array_key_exists('web_echomail_positions', $settings)) {
+            $positions = $settings['web_echomail_positions'];
+            if (is_string($positions)) {
+                $decoded = json_decode($positions, true);
+                if (!is_array($decoded)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for web_echomail_positions']);
+                    return;
+                }
+                $positions = $decoded;
+            }
+
+            if (!is_array($positions)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for web_echomail_positions']);
+                return;
+            }
+
+            $clean = [];
+            foreach ($positions as $area => $page) {
+                if (!is_string($area) || trim($area) === '' || strlen($area) > 128) {
+                    continue;
+                }
+                $pageInt = (int)$page;
+                if ($pageInt < 1) {
+                    $pageInt = 1;
+                }
+                $clean[$area] = $pageInt;
+            }
+
+            $encoded = json_encode($clean);
+            if ($encoded === false || strlen($encoded) > 64000) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for web_echomail_positions']);
+                return;
+            }
+            $meta->setValue((int)$userId, 'web_echomail_positions', $encoded);
         }
 
         echo json_encode(['success' => true]);
@@ -6292,3 +9002,329 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
     });
 });
 
+// ── FREQ Log API ─────────────────────────────────────────────────────────────
+
+SimpleRouter::get('/admin/api/freq-log', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = 50;
+    $offset  = ($page - 1) * $perPage;
+
+    $where  = '1=1';
+    $params = [];
+
+    if (!empty($_GET['node'])) {
+        $where .= ' AND requesting_node ILIKE ?';
+        $params[] = '%' . $_GET['node'] . '%';
+    }
+    if (!empty($_GET['filename'])) {
+        $where .= ' AND filename ILIKE ?';
+        $params[] = '%' . $_GET['filename'] . '%';
+    }
+    if (isset($_GET['served']) && $_GET['served'] !== '') {
+        $where .= ' AND served = ?';
+        $params[] = $_GET['served'] === '1' ? 'true' : 'false';
+    }
+    if (!empty($_GET['source'])) {
+        $where .= ' AND source = ?';
+        $params[] = $_GET['source'];
+    }
+
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM freq_log WHERE {$where}");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    $stmt = $db->prepare(
+        "SELECT id, requested_at, requesting_node, filename, served, deny_reason, file_size, source
+         FROM freq_log
+         WHERE {$where}
+         ORDER BY requested_at DESC
+         LIMIT {$perPage} OFFSET {$offset}"
+    );
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success' => true,
+        'entries' => $rows,
+        'total'   => $total,
+        'page'    => $page,
+        'per_page'=> $perPage,
+    ]);
+});
+
+
+// ---------------------------------------------------------------------------
+// QWK Offline Mail routes
+// GET  /api/qwk/download  — build and stream a QWK packet to the browser
+// POST /api/qwk/upload    — accept an uploaded REP packet and import replies
+// GET  /api/qwk/status    — return download state (conferences, msg counts)
+// ---------------------------------------------------------------------------
+SimpleRouter::group(['prefix' => '/api/qwk'], function() {
+
+    /**
+     * GET /api/qwk/download
+     *
+     * Builds a QWK packet for the authenticated user and streams it as a
+     * binary ZIP download.  No JSON is returned — the response body IS the
+     * ZIP file.
+     */
+    SimpleRouter::get('/download', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            echo 'QWK offline mail is not enabled on this system.';
+            return;
+        }
+
+        try {
+            $meta   = new \BinktermPHP\UserMeta();
+            $format = $_GET['format'] ?? $meta->getValue($userId, 'qwk_format') ?? 'qwk';
+            $qwke   = ($format === 'qwke');
+            $meta->setValue($userId, 'qwk_format', $qwke ? 'qwke' : 'qwk');
+
+            $hardCap     = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
+            $savedLimit  = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
+            $requestedLimit = isset($_GET['limit']) ? (int)$_GET['limit'] : $savedLimit;
+            $limit = max(1, min($hardCap, $requestedLimit));
+            $meta->setValue($userId, 'qwk_limit', $limit);
+
+            $builder  = new \BinktermPHP\Qwk\QwkBuilder();
+            $zipPath  = $builder->buildPacket($userId, $qwke, $limit);
+            $bbsId    = $builder->getBbsId();
+            $filename = $bbsId . '.QWK';
+
+            $filesize = filesize($zipPath);
+
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . $filesize);
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+            header('Pragma: no-cache');
+
+            readfile($zipPath);
+            @unlink($zipPath);
+            exit;
+        } catch (\Exception $e) {
+            error_log('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
+        }
+    });
+
+    /**
+     * POST /api/qwk/upload
+     *
+     * Accepts a multipart upload of a REP packet (field name: "rep").
+     * Returns JSON: {success, imported, skipped, errors}.
+     */
+    SimpleRouter::post('/upload', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        if (empty($_FILES['rep'])) {
+            http_response_code(400);
+            apiError('errors.qwk.no_file', 'No REP file received. Send the file in the "rep" field.');
+            return;
+        }
+
+        $file = $_FILES['rep'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400);
+            apiError('errors.qwk.upload_error', 'File upload error code: ' . $file['error']);
+            return;
+        }
+
+        // Basic extension check — accept .rep and .zip
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, ['rep', 'zip'], true)) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_extension', 'Please upload a .REP or .ZIP file.');
+            return;
+        }
+
+        try {
+            $processor = new \BinktermPHP\Qwk\RepProcessor();
+            $result    = $processor->processRepPacket($file['tmp_name'], $userId);
+
+            echo json_encode([
+                'success'  => $result['imported'] > 0 || count($result['errors']) === 0,
+                'imported' => $result['imported'],
+                'skipped'  => $result['skipped'],
+                'errors'   => $result['errors'],
+            ]);
+        } catch (\Exception $e) {
+            error_log('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.qwk.processing_failed', 'Failed to process REP packet: ' . $e->getMessage());
+        }
+    });
+
+    /**
+     * GET /api/qwk/status
+     *
+     * Returns the user's current QWK state: subscribed conferences and how
+     * many new messages are waiting since the last download.
+     */
+    SimpleRouter::get('/status', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        try {
+            $db     = \BinktermPHP\Database::getInstance()->getPdo();
+            $subMgr = new \BinktermPHP\EchoareaSubscriptionManager();
+            $areas  = $subMgr->getUserSubscribedEchoareas($userId);
+
+            // Retrieve last-seen IDs for all subscribed areas.
+            $stateStmt = $db->prepare("
+                SELECT echoarea_id, is_netmail, last_msg_id, updated_at
+                FROM qwk_conference_state
+                WHERE user_id = ?
+            ");
+            $stateStmt->execute([$userId]);
+            $stateRows = $stateStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $stateByArea   = [];
+            $netmailLastId = 0;
+            foreach ($stateRows as $row) {
+                if ($row['is_netmail']) {
+                    $netmailLastId = (int)$row['last_msg_id'];
+                } else {
+                    $stateByArea[(int)$row['echoarea_id']] = (int)$row['last_msg_id'];
+                }
+            }
+
+            // Count new netmail.
+            try {
+                $binkpConfig   = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $myAddresses   = $binkpConfig->getMyAddresses();
+                $myAddresses[] = $binkpConfig->getSystemAddress();
+                $userRow       = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+                $userRow->execute([$userId]);
+                $userData = $userRow->fetch(PDO::FETCH_ASSOC);
+
+                $addrPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+                $nmStmt = $db->prepare("
+                    SELECT COUNT(*) AS cnt FROM netmail
+                    WHERE id > ?
+                      AND (LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?))
+                      AND to_address IN ({$addrPlaceholders})
+                      AND deleted_by_recipient IS NOT TRUE
+                ");
+                $nmParams = [$netmailLastId, $userData['username'] ?? '', $userData['real_name'] ?? ''];
+                $nmParams = array_merge($nmParams, $myAddresses);
+                $nmStmt->execute($nmParams);
+                $newNetmail = (int)$nmStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
+            } catch (\Exception $e) {
+                $newNetmail = 0;
+            }
+
+            // Count new echomail per area.
+            $conferences = [
+                [
+                    'number'      => 0,
+                    'name'        => 'Personal Mail',
+                    'is_netmail'  => true,
+                    'new_messages'=> $newNetmail,
+                ]
+            ];
+
+            $confNum = 1;
+            foreach ($areas as $area) {
+                $lastId  = $stateByArea[(int)$area['id']] ?? 0;
+                $emStmt  = $db->prepare("SELECT COUNT(*) AS cnt FROM echomail WHERE echoarea_id = ? AND id > ?");
+                $emStmt->execute([(int)$area['id'], $lastId]);
+                $newCount = (int)$emStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
+
+                $conferences[] = [
+                    'number'       => $confNum,
+                    'name'         => strtoupper($area['tag']) . (!empty($area['domain']) ? '@' . strtoupper($area['domain']) : ''),
+                    'is_netmail'   => false,
+                    'new_messages' => $newCount,
+                ];
+                $confNum++;
+            }
+
+            $totalNew = array_sum(array_column($conferences, 'new_messages'));
+
+            // Last download timestamp.
+            $lastDlStmt = $db->prepare("SELECT downloaded_at FROM qwk_download_log WHERE user_id = ? ORDER BY downloaded_at DESC LIMIT 1");
+            $lastDlStmt->execute([$userId]);
+            $lastDl = $lastDlStmt->fetchColumn();
+
+            $meta    = new \BinktermPHP\UserMeta();
+            $format  = $meta->getValue($userId, 'qwk_format') ?? 'qwk';
+            $limit   = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
+            $hardCap = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
+
+            echo json_encode([
+                'total_new_messages' => $totalNew,
+                'last_download'      => $lastDl ?: null,
+                'conferences'        => $conferences,
+                'format'             => $format,
+                'limit'              => $limit,
+                'hard_cap'           => $hardCap,
+            ]);
+        } catch (\Exception $e) {
+            error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.qwk.status_failed', 'Failed to retrieve QWK status: ' . $e->getMessage());
+        }
+    });
+
+    /**
+     * POST /api/qwk/format
+     *
+     * Saves the user's preferred packet format ('qwk' or 'qwke') to UserMeta.
+     * Body: {"format": "qwk"} or {"format": "qwke"}
+     */
+    SimpleRouter::post('/format', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $input  = json_decode(file_get_contents('php://input'), true);
+        $format = $input['format'] ?? '';
+        if (!in_array($format, ['qwk', 'qwke'], true)) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_format', 'Format must be "qwk" or "qwke".');
+            return;
+        }
+
+        $meta = new \BinktermPHP\UserMeta();
+        $meta->setValue($userId, 'qwk_format', $format);
+        echo json_encode(['success' => true, 'format' => $format]);
+    });
+
+
+});

@@ -11,6 +11,67 @@ use BinktermPHP\UserMeta;
 use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
 
+if (!function_exists('extractUploadedLicenseData')) {
+    /**
+     * @param array<string,mixed> $file
+     * @return array<string,mixed>
+     */
+    function extractUploadedLicenseData(array $file): array
+    {
+        $tmpName = (string)($file['tmp_name'] ?? '');
+        $originalName = (string)($file['name'] ?? '');
+        $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('No uploaded file was received.');
+        }
+
+        if ($ext === 'json') {
+            $content = @file_get_contents($tmpName);
+            if ($content === false) {
+                throw new \RuntimeException('Failed to read uploaded license file.');
+            }
+        } elseif ($ext === 'zip') {
+            if (!class_exists('ZipArchive')) {
+                throw new \RuntimeException('ZIP uploads require the PHP zip extension.');
+            }
+
+            $zip = new \ZipArchive();
+            if ($zip->open($tmpName) !== true) {
+                throw new \RuntimeException('Failed to open uploaded ZIP file.');
+            }
+
+            $content = false;
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entryName = (string)$zip->getNameIndex($i);
+                $normalized = str_replace('\\', '/', $entryName);
+                if (strcasecmp(basename($normalized), 'license.json') !== 0) {
+                    continue;
+                }
+
+                $content = $zip->getFromIndex($i);
+                if ($content !== false) {
+                    break;
+                }
+            }
+            $zip->close();
+
+            if ($content === false) {
+                throw new \RuntimeException('ZIP file does not contain a readable license.json.');
+            }
+        } else {
+            throw new \RuntimeException('Please upload a license.json or a ZIP containing license.json.');
+        }
+
+        $licenseData = json_decode((string)$content, true);
+        if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+            throw new \RuntimeException('Invalid license format. Expected {payload: {...}, signature: "..."}.' );
+        }
+
+        return $licenseData;
+    }
+}
+
 if (!function_exists('apiError')) {
     function apiError(string $errorCode, string $message, ?int $status = null, array $extra = []): void
     {
@@ -82,13 +143,162 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         }
         $systemAddresses = array_values(array_unique(array_filter($systemAddresses)));
+        $dbStats = new \BinktermPHP\DatabaseStats(\BinktermPHP\Database::getInstance()->getPdo());
         $template->renderResponse('admin/dashboard.twig', [
             'stats' => $stats,
             'db_version' => $dbVersion,
             'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus(),
             'git_commit' => \BinktermPHP\SystemStatus::getGitCommitHash(),
             'git_branch' => \BinktermPHP\SystemStatus::getGitBranch(),
-            'system_addresses' => $systemAddresses
+            'system_addresses' => $systemAddresses,
+            'db_summary' => $dbStats->getDashboardSummary(),
+        ]);
+    });
+
+    // Licensing management page
+    SimpleRouter::get('/licensing', function() {
+        RouteHelper::requireAdmin();
+        $template = new Template();
+        $template->renderResponse('admin/licensing.twig');
+    });
+
+    // License registration info — serves REGISTER.md as HTML
+    SimpleRouter::get('/api/register-info', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+        $path = __DIR__ . '/../REGISTER.md';
+        if (!file_exists($path)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+        $html = \BinktermPHP\MarkdownRenderer::toHtml(file_get_contents($path));
+        echo json_encode(['html' => $html]);
+    });
+
+    // License API — GET: current status
+    SimpleRouter::get('/api/license', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+        echo json_encode(['status' => \BinktermPHP\License::getStatus()]);
+    });
+
+    // License API — POST: install a new license
+    SimpleRouter::post('/api/license', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        try {
+            if (!empty($_FILES['license_file'])) {
+                $upload = $_FILES['license_file'];
+                if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    throw new \RuntimeException('Failed to receive uploaded license file.');
+                }
+                $licenseData = extractUploadedLicenseData($upload);
+            } else {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $licenseData = $input['license'] ?? null;
+
+                if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+                    throw new \RuntimeException('Invalid license format. Expected {payload: {...}, signature: "..."}.' );
+                }
+            }
+        } catch (\RuntimeException $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            return;
+        }
+
+        // Verify signature before passing to the daemon for installation.
+        // Write to a temp file so License::getStatus() can parse and verify it.
+        $tmpPath = tempnam(sys_get_temp_dir(), 'binklic_');
+        file_put_contents($tmpPath, json_encode($licenseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+        \BinktermPHP\License::clearCache();
+        $originalEnv = $_ENV['LICENSE_FILE'] ?? null;
+        $_ENV['LICENSE_FILE'] = $tmpPath;
+        putenv('LICENSE_FILE=' . $tmpPath);
+
+        $status = \BinktermPHP\License::getStatus();
+
+        if ($originalEnv !== null) {
+            $_ENV['LICENSE_FILE'] = $originalEnv;
+            putenv('LICENSE_FILE=' . $originalEnv);
+        } else {
+            unset($_ENV['LICENSE_FILE']);
+            putenv('LICENSE_FILE');
+        }
+        \BinktermPHP\License::clearCache();
+        @unlink($tmpPath);
+
+        if (!$status['valid']) {
+            $reason = $status['reason'] ?? 'unknown';
+            $reasonMessages = [
+                'invalid_signature' => 'Signature verification failed. This license was not issued by the BinktermPHP project.',
+                'expired'           => 'This license has expired.',
+                'malformed'         => 'License file is malformed or missing required fields.',
+                'invalid_key'       => 'License key data is invalid.',
+            ];
+            $msg = $reasonMessages[$reason] ?? "License is not valid (reason: {$reason}).";
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => $msg]);
+            return;
+        }
+
+        // Delegate the actual file write to the admin daemon (web process has no write access).
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $daemon->setLicense($licenseData);
+            $daemon->close();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Admin daemon error: ' . $e->getMessage()]);
+            return;
+        }
+
+        \BinktermPHP\License::clearCache();
+        echo json_encode([
+            'success' => true,
+            'message' => 'License installed successfully. ' . ucfirst($status['tier']) . ' edition activated.',
+            'status'  => \BinktermPHP\License::getStatus(),
+        ]);
+    });
+
+    // License API — DELETE: remove license file
+    SimpleRouter::delete('/api/license', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $daemon->deleteLicense();
+            $daemon->close();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Admin daemon error: ' . $e->getMessage()]);
+            return;
+        }
+
+        \BinktermPHP\License::clearCache();
+        echo json_encode(['success' => true, 'message' => 'License removed. Running Community Edition.']);
+    });
+
+    // Database statistics page
+    SimpleRouter::get('/database-stats', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $dbStats = new \BinktermPHP\DatabaseStats($db);
+
+        $template = new Template();
+        $template->renderResponse('admin/database_stats.twig', [
+            'size'        => $dbStats->getSizeAndGrowth(),
+            'activity'    => $dbStats->getActivity(),
+            'queries'     => $dbStats->getQueryPerformance(),
+            'replication' => $dbStats->getReplication(),
+            'maintenance' => $dbStats->getMaintenanceHealth(),
+            'indexes'     => $dbStats->getIndexHealth(),
+            'i18n_catalogs' => $dbStats->getI18nCatalogStats(),
         ]);
     });
 
@@ -174,6 +384,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/ads.twig');
     });
 
+    SimpleRouter::get('/ad-campaigns', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/ad_campaigns.twig');
+    });
+
     // BBS settings page
     SimpleRouter::get('/bbs-settings', function() {
         $user = RouteHelper::requireAdmin();
@@ -219,6 +436,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     });
 
     // Upgrade notes viewer
+    SimpleRouter::get('/register', function() {
+        RouteHelper::requireAdmin();
+
+        $docPath = __DIR__ . '/../REGISTER.md';
+        $raw  = file_exists($docPath) ? file_get_contents($docPath) : null;
+        $html = $raw !== null ? \BinktermPHP\MarkdownRenderer::toHtml($raw) : null;
+
+        $template = new Template();
+        $template->renderResponse('admin/register_info.twig', [
+            'content' => $html,
+        ]);
+    });
+
     SimpleRouter::get('/upgrade-notes', function() {
         RouteHelper::requireAdmin();
 
@@ -245,6 +475,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // Documentation browser
+    SimpleRouter::get('/docs', function() {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->index();
+    });
+
+    SimpleRouter::get('/docs/view/{name}', function(string $name) {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->view($name);
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
@@ -261,8 +504,36 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
+    SimpleRouter::get('/sharing', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/sharing.twig');
+    });
+
+    SimpleRouter::get('/referrals', function() {
+        RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('errors/403.twig');
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('admin/referrals.twig');
+    });
+
     SimpleRouter::get('/economy', function() {
         RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('errors/403.twig');
+            return;
+        }
 
         $template = new Template();
         $template->renderResponse('admin/economy.twig');
@@ -403,6 +674,76 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        // Referral analytics (premium)
+        SimpleRouter::get('/referrals', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            if (!\BinktermPHP\License::isValid()) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                apiError('errors.referrals.not_licensed', apiLocalizedText('errors.referrals.not_licensed', 'Referral analytics require a registered license', $user));
+                return;
+            }
+
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            // Top referrers: users who have referred others
+            $referrersStmt = $db->query("
+                SELECT
+                    u.id,
+                    u.username,
+                    u.real_name,
+                    u.referral_code,
+                    COUNT(r.id) AS referral_count,
+                    COALESCE(SUM(ct.amount), 0) AS bonus_earned
+                FROM users u
+                LEFT JOIN users r ON r.referred_by = u.id
+                LEFT JOIN user_transactions ct
+                    ON ct.user_id = u.id AND ct.transaction_type = 'referral_bonus'
+                GROUP BY u.id, u.username, u.real_name, u.referral_code
+                HAVING COUNT(r.id) > 0
+                ORDER BY referral_count DESC, bonus_earned DESC
+                LIMIT 100
+            ");
+            $referrers = $referrersStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Recent referral signups
+            $recentStmt = $db->query("
+                SELECT
+                    u.id,
+                    u.username,
+                    u.real_name,
+                    u.created_at,
+                    ref.username AS referred_by_username,
+                    ref.real_name AS referred_by_real_name
+                FROM users u
+                JOIN users ref ON ref.id = u.referred_by
+                ORDER BY u.created_at DESC
+                LIMIT 50
+            ");
+            $recent = $recentStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Summary totals
+            $totalsStmt = $db->query("
+                SELECT
+                    COUNT(*) AS total_referred_users,
+                    COUNT(DISTINCT referred_by) AS total_referrers
+                FROM users
+                WHERE referred_by IS NOT NULL
+            ");
+            $totals = $totalsStmt->fetch(\PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'referrers' => $referrers,
+                'recent'    => $recent,
+                'totals'    => $totals,
+            ]);
+        });
+
         // Get system stats
         SimpleRouter::get('/stats', function() {
             $auth = new Auth();
@@ -422,6 +763,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             $adminController = new AdminController();
             $adminController->requireAdmin($user);
+
+            if (!\BinktermPHP\License::isValid()) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                apiError('errors.economy.not_licensed', apiLocalizedText('errors.economy.not_licensed', 'Economy viewer requires a registered license', $user));
+                return;
+            }
 
             $period = $_GET['period'] ?? '30d';
 
@@ -821,6 +1169,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['poll_creation_cost'] ?? null) || (int)$credits['poll_creation_cost'] < 0) {
                         throw new Exception('Poll creation cost must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['file_upload_cost'] ?? 0) || (int)($credits['file_upload_cost'] ?? 0) < 0) {
+                        throw new Exception('File upload cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_upload_reward'] ?? 0) || (int)($credits['file_upload_reward'] ?? 0) < 0) {
+                        throw new Exception('File upload reward must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_download_cost'] ?? 0) || (int)($credits['file_download_cost'] ?? 0) < 0) {
+                        throw new Exception('File download cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['file_download_reward'] ?? 0) || (int)($credits['file_download_reward'] ?? 0) < 0) {
+                        throw new Exception('File download reward must be a non-negative integer');
+                    }
                     if (!is_numeric($credits['return_14days'] ?? null) || (int)$credits['return_14days'] < 0) {
                         throw new Exception('14-day return bonus must be a non-negative integer');
                     }
@@ -840,6 +1200,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'echomail_reward' => (int)$credits['echomail_reward'],
                         'crashmail_cost' => (int)$credits['crashmail_cost'],
                         'poll_creation_cost' => (int)$credits['poll_creation_cost'],
+                        'file_upload_cost' => (int)($credits['file_upload_cost'] ?? 0),
+                        'file_upload_reward' => (int)($credits['file_upload_reward'] ?? 0),
+                        'file_download_cost' => (int)($credits['file_download_cost'] ?? 0),
+                        'file_download_reward' => (int)($credits['file_download_reward'] ?? 0),
                         'return_14days' => (int)$credits['return_14days'],
                         'transfer_fee_percent' => (float)$credits['transfer_fee_percent'],
                         'referral_enabled' => !empty($credits['referral_enabled']),
@@ -854,6 +1218,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         throw new Exception('Max cross-post areas must be between 2 and 20');
                     }
                     $config['max_cross_post_areas'] = $maxCrossPost;
+                }
+
+                if (array_key_exists('dashboard_ad_rotate_interval_seconds', $config)) {
+                    $dashboardAdRotateInterval = (int)$config['dashboard_ad_rotate_interval_seconds'];
+                    if ($dashboardAdRotateInterval < 5 || $dashboardAdRotateInterval > 300) {
+                        throw new Exception('Dashboard ad rotation interval must be between 5 and 300 seconds');
+                    }
+                    $config['dashboard_ad_rotate_interval_seconds'] = $dashboardAdRotateInterval;
                 }
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
@@ -924,6 +1296,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config['branding']['lock_theme'] = !empty($branding['lock_theme']);
                 $config['branding']['logo_url'] = $logoUrl;
                 $config['branding']['footer_text'] = $footerText;
+                $config['branding']['hide_powered_by'] = !empty($branding['hide_powered_by']);
+                $config['branding']['show_registration_badge'] = isset($branding['show_registration_badge']) ? (bool)$branding['show_registration_badge'] : true;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);
@@ -990,6 +1364,44 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.content.save_failed', apiLocalizedText('errors.admin.appearance.content.save_failed', 'Failed to save content settings'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/splash', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            if (!\BinktermPHP\License::isValid()) {
+                http_response_code(403);
+                apiError('errors.admin.appearance.splash.license_required', apiLocalizedText('errors.admin.appearance.splash.license_required', 'A valid license is required to configure splash pages'));
+                return;
+            }
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+
+                if (array_key_exists('login_splash', $payload)) {
+                    $text = (string)$payload['login_splash'];
+                    if (mb_strlen($text) > 10000) {
+                        throw new Exception('Splash content must be 10,000 characters or less');
+                    }
+                    $client->setLoginSplash($text);
+                }
+
+                if (array_key_exists('register_splash', $payload)) {
+                    $text = (string)$payload['register_splash'];
+                    if (mb_strlen($text) > 10000) {
+                        throw new Exception('Splash content must be 10,000 characters or less');
+                    }
+                    $client->setRegisterSplash($text);
+                }
+
+                echo json_encode(['success' => true, 'message_code' => 'ui.common.saved']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
             }
         });
 
@@ -1827,8 +2239,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        // Advertisements
-        SimpleRouter::get('/ads', function() {
+        // File area rules: filenames for pattern tester
+        SimpleRouter::get('/filearea-rules/filenames', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
 
@@ -1837,60 +2249,130 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
 
+            $tag    = strtoupper(trim((string)($_GET['tag'] ?? '')));
+            $domain = trim((string)($_GET['domain'] ?? ''));
+
+            if ($tag === '') {
+                echo json_encode(['success' => true, 'filenames' => []]);
+                return;
+            }
+
             try {
-                $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $ads = $client->listAds();
-                echo json_encode(['ads' => $ads]);
+                $manager = new \BinktermPHP\FileAreaManager();
+                $area = $manager->getFileAreaByTag($tag, $domain);
+                if (!$area) {
+                    echo json_encode(['success' => true, 'filenames' => [], 'area_found' => false]);
+                    return;
+                }
+                $files = $manager->getFiles((int)$area['id'], null, true);
+                $filenames = array_values(array_map(fn($f) => $f['filename'], $files));
+                echo json_encode(['success' => true, 'filenames' => $filenames, 'area_found' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.filearea_rules.load_failed', 'Failed to load filenames');
+            }
+        });
+
+        // Advertisements
+        SimpleRouter::get('/ads', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $items = $ads->listAds();
+                echo json_encode(['ads' => $items]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.ads.list_failed', apiLocalizedText('errors.admin.ads.list_failed', 'Failed to load advertisements'));
             }
         });
 
-        SimpleRouter::post('/ads/upload', function() {
-            $auth = new Auth();
-            $user = $auth->requireAuth();
-
-            $adminController = new AdminController();
-            $adminController->requireAdmin($user);
+        SimpleRouter::get('/ads/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
 
             header('Content-Type: application/json');
 
-            if (!isset($_FILES['ad_file'])) {
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $ad = $ads->getAdById((int)$id);
+                if (!$ad) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                echo json_encode(['ad' => $ad]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ads.load_one_failed', apiLocalizedText('errors.admin.ads.load_one_failed', 'Failed to load advertisement'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ads/upload', function() {
+            $user = RouteHelper::requireAdmin();
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+            header('Content-Type: application/json');
+
+            $contentCommand = trim((string)($_POST['content_command'] ?? ''));
+            $hasFile = isset($_FILES['ad_file']) && ($_FILES['ad_file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+
+            if (!$hasFile && $contentCommand === '') {
                 http_response_code(400);
                 apiError('errors.admin.ads.upload.no_file', apiLocalizedText('errors.admin.ads.upload.no_file', 'No advertisement file uploaded'));
                 return;
             }
 
-            $file = $_FILES['ad_file'];
-            if ($file['error'] !== UPLOAD_ERR_OK) {
-                http_response_code(400);
-                apiError('errors.admin.ads.upload.upload_error', apiLocalizedText('errors.admin.ads.upload.upload_error', 'Advertisement upload failed'));
-                return;
-            }
+            $content = '';
+            $legacyFilename = trim((string)($_POST['legacy_filename'] ?? ''));
+            $defaultTitle = 'Advertisement';
 
-            $maxSize = 1024 * 1024;
-            if (!empty($file['size']) && $file['size'] > $maxSize) {
-                http_response_code(400);
-                apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
-                return;
-            }
+            if ($hasFile) {
+                $file = $_FILES['ad_file'];
+                $maxSize = 1024 * 1024;
+                if (!empty($file['size']) && $file['size'] > $maxSize) {
+                    http_response_code(400);
+                    apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
+                    return;
+                }
 
-            $content = @file_get_contents($file['tmp_name']);
-            if ($content === false) {
-                http_response_code(400);
-                apiError('errors.admin.ads.upload.read_failed', apiLocalizedText('errors.admin.ads.upload.read_failed', 'Failed to read uploaded advertisement file'));
-                return;
-            }
+                $content = @file_get_contents($file['tmp_name']);
+                if ($content === false) {
+                    http_response_code(400);
+                    apiError('errors.admin.ads.upload.read_failed', apiLocalizedText('errors.admin.ads.upload.read_failed', 'Failed to read uploaded advertisement file'));
+                    return;
+                }
 
-            $name = trim((string)($_POST['name'] ?? ''));
+                if ($legacyFilename === '') {
+                    $legacyFilename = (string)($file['name'] ?? '');
+                }
+                $defaultTitle = pathinfo((string)($file['name'] ?? 'Advertisement'), PATHINFO_FILENAME);
+            }
 
             try {
-                $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $ad = $client->uploadAd(base64_encode($content), $name, $file['name'] ?? '');
+                $ads = new \BinktermPHP\Advertising();
+                $duplicates = $content !== '' ? $ads->findDuplicatesByContent($content) : [];
+                $created = $ads->createAd([
+                    'title' => trim((string)($_POST['title'] ?? $defaultTitle)),
+                    'slug' => trim((string)($_POST['slug'] ?? '')),
+                    'description' => trim((string)($_POST['description'] ?? '')),
+                    'tags' => trim((string)($_POST['tags'] ?? '')),
+                    'content' => $content,
+                    'content_command' => $contentCommand,
+                    'legacy_filename' => $legacyFilename,
+                    'source_type' => 'upload',
+                    'is_active' => !isset($_POST['is_active']) || $_POST['is_active'] !== '0',
+                    'show_on_dashboard' => !empty($_POST['show_on_dashboard']),
+                    'allow_auto_post' => !empty($_POST['allow_auto_post']),
+                    'dashboard_weight' => max(1, (int)($_POST['dashboard_weight'] ?? 1)),
+                    'dashboard_priority' => (int)($_POST['dashboard_priority'] ?? 0)
+                ], $userId > 0 ? $userId : null);
                 echo json_encode([
                     'success' => true,
-                    'ad' => $ad,
+                    'ad' => $created,
+                    'duplicates' => $duplicates,
                     'message_code' => 'ui.admin.ads.uploaded'
                 ]);
             } catch (Exception $e) {
@@ -1899,18 +2381,62 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        SimpleRouter::delete('/ads/{name}', function($name) {
-            $auth = new Auth();
-            $user = $auth->requireAuth();
-
-            $adminController = new AdminController();
-            $adminController->requireAdmin($user);
+        SimpleRouter::post('/ads/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
 
             header('Content-Type: application/json');
 
             try {
-                $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $client->deleteAd($name);
+                $payload = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($payload)) {
+                    http_response_code(400);
+                    apiError('errors.admin.ads.invalid_payload', apiLocalizedText('errors.admin.ads.invalid_payload', 'Invalid advertisement payload'), 400);
+                    return;
+                }
+
+                $ads = new \BinktermPHP\Advertising();
+                $adId = (int)$id;
+                $existing = $ads->getAdById($adId);
+                if (!$existing) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                $duplicates = [];
+                if (array_key_exists('content', $payload)) {
+                    $duplicates = $ads->findDuplicatesByContent((string)$payload['content'], $adId);
+                }
+
+                $updated = $ads->updateAd($adId, $payload, $userId > 0 ? $userId : null);
+                echo json_encode([
+                    'success' => true,
+                    'ad' => $updated,
+                    'duplicates' => $duplicates,
+                    'message_code' => 'ui.admin.ads.saved'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ads.save_failed', apiLocalizedText('errors.admin.ads.save_failed', 'Failed to save advertisement'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::delete('/ads/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $ad = $ads->getAdById((int)$id);
+                if (!$ad) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                $ads->deleteAd((int)$id);
                 echo json_encode([
                     'success' => true,
                     'message_code' => 'ui.admin.ads.deleted'
@@ -1919,7 +2445,191 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 apiError('errors.admin.ads.delete_failed', apiLocalizedText('errors.admin.ads.delete_failed', 'Failed to delete advertisement'));
             }
-        })->where(['name' => '[A-Za-z0-9._-]+']);
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::get('/ad-campaigns', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                echo json_encode(['campaigns' => $ads->listCampaigns()]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.list_failed', apiLocalizedText('errors.admin.ad_campaigns.list_failed', 'Failed to load ad campaigns'));
+            }
+        });
+
+        SimpleRouter::get('/ad-campaigns/log', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $campaignId = isset($_GET['campaign_id']) ? (int)$_GET['campaign_id'] : null;
+                $limit = isset($_GET['limit']) ? max(1, min(500, (int)$_GET['limit'])) : 50;
+                $status = isset($_GET['status']) ? trim((string)$_GET['status']) : null;
+                $ads = new \BinktermPHP\Advertising();
+                echo json_encode(['log' => $ads->listPostLog($campaignId ?: null, $limit, $status ?: null)]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.log_failed', apiLocalizedText('errors.admin.ad_campaigns.log_failed', 'Failed to load ad campaign log'));
+            }
+        });
+
+        SimpleRouter::get('/ad-campaigns/meta', function() {
+            $user = RouteHelper::requireAdmin();
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $users = $db->query("SELECT id, username, real_name FROM users ORDER BY LOWER(username)")->fetchAll(PDO::FETCH_ASSOC);
+                $echoareas = $db->query("SELECT id, tag, domain, is_local FROM echoareas WHERE is_active = TRUE ORDER BY LOWER(tag), LOWER(domain)")->fetchAll(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'ads' => $ads->listAds(false),
+                    'tags' => $ads->listTags(),
+                    'users' => $users,
+                    'echoareas' => $echoareas,
+                    'timezones' => \DateTimeZone::listIdentifiers()
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.meta_failed', apiLocalizedText('errors.admin.ad_campaigns.meta_failed', 'Failed to load ad campaign metadata'));
+            }
+        });
+
+        SimpleRouter::get('/ad-campaigns/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->getCampaignById((int)$id);
+                if (!$campaign) {
+                    http_response_code(404);
+                    apiError('errors.admin.ad_campaigns.not_found', apiLocalizedText('errors.admin.ad_campaigns.not_found', 'Ad campaign not found'), 404);
+                    return;
+                }
+
+                echo json_encode(['campaign' => $campaign]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.load_one_failed', apiLocalizedText('errors.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ad-campaigns', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($payload)) {
+                    http_response_code(400);
+                    apiError('errors.admin.ad_campaigns.invalid_payload', apiLocalizedText('errors.admin.ad_campaigns.invalid_payload', 'Invalid ad campaign payload'), 400);
+                    return;
+                }
+
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->createCampaign($payload);
+                echo json_encode([
+                    'success' => true,
+                    'campaign' => $campaign,
+                    'message_code' => 'ui.admin.ad_campaigns.created'
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                http_response_code(400);
+                apiError('errors.admin.ad_campaigns.invalid_payload', $e->getMessage(), 400);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.create_failed', apiLocalizedText('errors.admin.ad_campaigns.create_failed', 'Failed to create ad campaign'));
+            }
+        });
+
+        SimpleRouter::post('/ad-campaigns/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($payload)) {
+                    http_response_code(400);
+                    apiError('errors.admin.ad_campaigns.invalid_payload', apiLocalizedText('errors.admin.ad_campaigns.invalid_payload', 'Invalid ad campaign payload'), 400);
+                    return;
+                }
+
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->updateCampaign((int)$id, $payload);
+                echo json_encode([
+                    'success' => true,
+                    'campaign' => $campaign,
+                    'message_code' => 'ui.admin.ad_campaigns.saved'
+                ]);
+            } catch (\RuntimeException $e) {
+                http_response_code(404);
+                apiError('errors.admin.ad_campaigns.not_found', $e->getMessage(), 404);
+            } catch (\InvalidArgumentException $e) {
+                http_response_code(400);
+                apiError('errors.admin.ad_campaigns.invalid_payload', $e->getMessage(), 400);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.save_failed', apiLocalizedText('errors.admin.ad_campaigns.save_failed', 'Failed to save ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::delete('/ad-campaigns/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->getCampaignById((int)$id);
+                if (!$campaign) {
+                    http_response_code(404);
+                    apiError('errors.admin.ad_campaigns.not_found', apiLocalizedText('errors.admin.ad_campaigns.not_found', 'Ad campaign not found'), 404);
+                    return;
+                }
+
+                $ads->deleteCampaign((int)$id);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.ad_campaigns.deleted'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.delete_failed', apiLocalizedText('errors.admin.ad_campaigns.delete_failed', 'Failed to delete ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ad-campaigns/run/{id}', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $campaign = $ads->getCampaignById((int)$id);
+                if (!$campaign) {
+                    http_response_code(404);
+                    apiError('errors.admin.ad_campaigns.not_found', apiLocalizedText('errors.admin.ad_campaigns.not_found', 'Ad campaign not found'), 404);
+                    return;
+                }
+
+                $results = $ads->processDueCampaigns((int)$id, false, true);
+                echo json_encode([
+                    'success' => true,
+                    'results' => $results,
+                    'message_code' => 'ui.admin.ad_campaigns.run_complete'
+                ]);
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                apiError('errors.admin.ad_campaigns.run_failed', apiLocalizedText('errors.admin.ad_campaigns.run_failed', 'Failed to run ad campaign'));
+            }
+        })->where(['id' => '[0-9]+']);
 
 
         SimpleRouter::post('/chat-rooms', function() {
@@ -3064,8 +3774,124 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'daily'                 => $daily,
         ]);
     });
+
+    SimpleRouter::get('/api/sharing', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $baseUrl = \BinktermPHP\Config::getSiteUrl();
+
+        $messageStmt = $db->query("
+            SELECT sm.message_type,
+                   sm.share_key,
+                   sm.area_identifier,
+                   sm.slug,
+                   sm.created_at,
+                   sm.expires_at,
+                   sm.access_count,
+                   sm.last_accessed_at,
+                   sm.is_public,
+                   u.username AS shared_by_username,
+                   u.real_name AS shared_by_real_name,
+                   COALESCE(em.subject, nm.subject, '') AS subject,
+                   CASE
+                       WHEN sm.message_type = 'echomail' THEN ea.tag
+                       ELSE 'netmail'
+                   END AS area_tag
+            FROM shared_messages sm
+            LEFT JOIN echomail em ON (sm.message_type = 'echomail' AND sm.message_id = em.id)
+            LEFT JOIN echoareas ea ON (sm.message_type = 'echomail' AND em.echoarea_id = ea.id)
+            LEFT JOIN netmail nm ON (sm.message_type = 'netmail' AND sm.message_id = nm.id)
+            JOIN users u ON sm.shared_by_user_id = u.id
+            WHERE sm.is_active = TRUE
+              AND (sm.expires_at IS NULL OR sm.expires_at > NOW())
+            ORDER BY sm.access_count DESC, sm.created_at DESC
+        ");
+        $messageRows = $messageStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $messages = [];
+        foreach ($messageRows as $row) {
+            $areaIdentifier = $row['area_identifier'] ?? null;
+            $slug = $row['slug'] ?? null;
+            $shareUrl = (!empty($areaIdentifier) && !empty($slug))
+                ? $baseUrl . '/shared/' . rawurlencode($areaIdentifier) . '/' . rawurlencode($slug)
+                : $baseUrl . '/shared/' . $row['share_key'];
+
+            $messages[] = [
+                'message_type' => $row['message_type'],
+                'subject' => $row['subject'],
+                'area_tag' => $row['area_tag'] ?? '',
+                'shared_by' => $row['shared_by_real_name'] ?: $row['shared_by_username'],
+                'created_at' => $row['created_at'],
+                'expires_at' => $row['expires_at'],
+                'access_count' => (int)$row['access_count'],
+                'last_accessed_at' => $row['last_accessed_at'],
+                'is_public' => filter_var($row['is_public'], FILTER_VALIDATE_BOOLEAN),
+                'share_url' => $shareUrl,
+            ];
+        }
+
+        $fileStmt = $db->query("
+            SELECT sf.created_at,
+                   sf.expires_at,
+                   sf.access_count,
+                   sf.last_accessed_at,
+                   sf.freq_accessible,
+                   u.username AS shared_by_username,
+                   u.real_name AS shared_by_real_name,
+                   f.filename,
+                   fa.tag AS area_tag
+            FROM shared_files sf
+            JOIN files f ON sf.file_id = f.id
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            JOIN users u ON sf.shared_by_user_id = u.id
+            WHERE sf.is_active = TRUE
+              AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+              AND f.status = 'approved'
+            ORDER BY sf.access_count DESC, sf.created_at DESC
+        ");
+        $fileRows = $fileStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $files = [];
+        foreach ($fileRows as $row) {
+            $files[] = [
+                'filename' => $row['filename'],
+                'area_tag' => $row['area_tag'],
+                'shared_by' => $row['shared_by_real_name'] ?: $row['shared_by_username'],
+                'created_at' => $row['created_at'],
+                'expires_at' => $row['expires_at'],
+                'access_count' => (int)$row['access_count'],
+                'last_accessed_at' => $row['last_accessed_at'],
+                'freq_accessible' => filter_var($row['freq_accessible'], FILTER_VALIDATE_BOOLEAN),
+                'share_url' => $baseUrl
+                    . '/shared/file/'
+                    . rawurlencode($row['area_tag'])
+                    . '/'
+                    . rawurlencode($row['filename']),
+            ];
+        }
+
+        echo json_encode([
+            'messages' => $messages,
+            'files' => $files,
+        ]);
+    });
 });
 
+
+// FREQ Log admin page
+SimpleRouter::get('/admin/freq-log', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/freq_log.twig');
+});
 
 // Crashmail Queue page
 SimpleRouter::get('/admin/crashmail', function() {
@@ -3537,5 +4363,838 @@ SimpleRouter::get('/admin/api/bbs-directory/processor-types', function() {
     echo json_encode(['processors' => $processors]);
 });
 
+// ============================================================================
+// LovlyNet subscription management
+// ============================================================================
+
+if (!function_exists('annotateLovlyNetAreasWithMetadataIssues')) {
+    /**
+     * @param array<int, array<string, mixed>> $areas
+     * @param string $areaType
+     * @return array<int, array<string, mixed>>
+     */
+    function annotateLovlyNetAreasWithMetadataIssues(array $areas, string $areaType): array
+    {
+        foreach ($areas as &$area) {
+            $metadata = isset($area['metadata']) && is_array($area['metadata']) ? $area['metadata'] : [];
+            $issues = [];
+
+            if ($areaType === 'echo' && array_key_exists('sysop_only', $metadata) && !empty($area['local_exists'])) {
+                $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualSysopOnly = !empty($area['local_is_sysop_only']);
+                if ($recommendedSysopOnly !== null && $recommendedSysopOnly !== $actualSysopOnly) {
+                    $issues[] = [
+                        'setting' => 'sysop_only',
+                        'recommended' => $recommendedSysopOnly,
+                        'actual' => $actualSysopOnly,
+                    ];
+                }
+            }
+
+            if ($areaType === 'file' && array_key_exists('readonly', $metadata) && !empty($area['local_exists'])) {
+                $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualReadonly = ((int)($area['local_upload_permission'] ?? -1)) === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY;
+                if ($recommendedReadonly !== null && $recommendedReadonly !== $actualReadonly) {
+                    $issues[] = [
+                        'setting' => 'readonly',
+                        'recommended' => $recommendedReadonly,
+                        'actual' => $actualReadonly,
+                    ];
+                }
+            }
+
+            $area['setting_issues'] = $issues;
+            $area['has_setting_issues'] = $issues !== [];
+        }
+        unset($area);
+
+        return $areas;
+    }
+}
+
+/**
+ * GET /admin/lovlynet
+ * Admin page for managing LovlyNet echo/file area subscriptions.
+ */
+SimpleRouter::get('/admin/lovlynet', function() {
+    RouteHelper::requireAdmin();
+    $client   = new \BinktermPHP\LovlyNetClient();
+    $template = new Template();
+    $template->renderResponse('admin/lovlynet.twig', [
+        'lovlynet_configured'  => $client->isConfigured(),
+        'lovlynet_node_number' => $client->getFtnAddress(),
+        'lovlynet_base_url'    => $client->getBaseUrl(),
+        'lovlynet_hub_address' => $client->getHubAddress(),
+    ]);
+});
+
+/**
+ * GET /admin/api/lovlynet/areas
+ * Proxy: fetch echo and file areas with subscription status from LovlyNet.
+ */
+SimpleRouter::get('/admin/api/lovlynet/areas', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $client->getAreas();
+
+    if (!$result['success']) {
+        http_response_code(502);
+        echo json_encode(['error' => $result['error']]);
+        return;
+    }
+
+    $echoareaManager = new \BinktermPHP\EchoareaManager();
+    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+    $echoareas = $echoareaManager->annotateAreasWithLocalStatus($result['echoareas'], ['', 'lovlynet']);
+    $fileareas = $fileAreaManager->annotateAreasWithLocalStatus($result['fileareas'], ['', 'lovlynet']);
+    $echoareas = annotateLovlyNetAreasWithMetadataIssues($echoareas, 'echo');
+    $fileareas = annotateLovlyNetAreasWithMetadataIssues($fileareas, 'file');
+
+    echo json_encode([
+        'echoareas'   => $echoareas,
+        'fileareas'   => $fileareas,
+        'ftn_address' => $result['ftn_address'] ?? '',
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/subscription
+ * Proxy: subscribe or unsubscribe from a LovlyNet area.
+ *
+ * Body: { "action": "subscribe"|"unsubscribe", "area_type": "echo"|"file", "area_tag": "TAG" }
+ */
+SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid JSON']);
+        return;
+    }
+
+    $action   = trim($body['action']   ?? '');
+    $areaType = trim($body['area_type'] ?? '');
+    $areaTag  = trim($body['area_tag']  ?? '');
+
+    if (!in_array($action, ['subscribe', 'unsubscribe'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid action']);
+        return;
+    }
+    if (!in_array($areaType, ['echo', 'file'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid area_type']);
+        return;
+    }
+    if ($areaTag === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'area_tag is required']);
+        return;
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+
+    if ($action === 'subscribe' && $areaType === 'echo') {
+        $areasResult = $client->getAreas();
+        if (!$areasResult['success']) {
+            http_response_code(502);
+            echo json_encode(['error' => $areasResult['error']]);
+            return;
+        }
+
+        $remoteArea = null;
+        foreach (($areasResult['echoareas'] ?? []) as $candidate) {
+            if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+                $remoteArea = $candidate;
+                break;
+            }
+        }
+
+        if ($remoteArea === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Unknown LovlyNet echo area']);
+            return;
+        }
+
+        $echoareaManager = new \BinktermPHP\EchoareaManager();
+        $localEchoareaId = $echoareaManager->createIfMissing([
+            'tag' => $remoteArea['tag'] ?? $areaTag,
+            'description' => $remoteArea['description'] ?? '',
+            'domain' => 'lovlynet',
+            'uplink_address' => $client->getHubAddress(),
+            'is_local' => false,
+            'is_active' => true,
+            'is_sysop_only' => false,
+            'gemini_public' => false,
+        ], ['', 'lovlynet']);
+
+        $client->applyRecommendedSettings('echo', array_merge($remoteArea, [
+            'local_echoarea_id' => $localEchoareaId,
+        ]));
+    }
+
+    $result = $client->setSubscription($action, $areaType, $areaTag);
+
+    if (!$result['success']) {
+        http_response_code(502);
+        echo json_encode(['error' => $result['error']]);
+        return;
+    }
+
+    if ($action === 'subscribe' && $areaType === 'file') {
+        $remoteArea = null;
+        foreach (($result['fileareas'] ?? []) as $candidate) {
+            if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+                $remoteArea = $candidate;
+                break;
+            }
+        }
+
+        if ($remoteArea !== null) {
+            $fileAreaManager = new \BinktermPHP\FileAreaManager();
+            $localFileareaId = $fileAreaManager->createIfMissing([
+                'tag' => $remoteArea['tag'] ?? $areaTag,
+                'description' => $remoteArea['description'] ?? '',
+                'domain' => 'lovlynet',
+                'is_local' => false,
+                'is_active' => true,
+            ]);
+
+            $client->applyRecommendedSettings('file', array_merge($remoteArea, [
+                'local_filearea_id' => $localFileareaId,
+            ]));
+        }
+    }
+
+    $echoareas = $result['echoareas'] ?? [];
+    $fileareas = $result['fileareas'] ?? [];
+    if ($areaType === 'echo') {
+        $echoareaManager = new \BinktermPHP\EchoareaManager();
+        $echoareas = $echoareaManager->annotateAreasWithLocalStatus($echoareas, ['', 'lovlynet']);
+        $echoareas = annotateLovlyNetAreasWithMetadataIssues($echoareas, 'echo');
+    } elseif ($areaType === 'file') {
+        $fileAreaManager = new \BinktermPHP\FileAreaManager();
+        $fileareas = $fileAreaManager->annotateAreasWithLocalStatus($fileareas, ['', 'lovlynet']);
+        $fileareas = annotateLovlyNetAreasWithMetadataIssues($fileareas, 'file');
+    }
+
+    echo json_encode([
+        'success'    => true,
+        'echoareas'  => $echoareas,
+        'fileareas'  => $fileareas,
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/request
+ * Send an AreaFix or FileFix netmail request to the configured LovlyNet hub.
+ *
+ * Body: { "area_type": "echo"|"file", "message_text": "..." }
+ */
+SimpleRouter::post('/admin/api/lovlynet/request', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $areaType = trim((string)($body['area_type'] ?? ''));
+    $messageText = trim((string)($body['message_text'] ?? ''));
+
+    if (!in_array($areaType, ['echo', 'file'], true)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if ($messageText === '') {
+        apiError(
+            'errors.admin.lovlynet.request_message_required',
+            apiLocalizedText('errors.admin.lovlynet.request_message_required', 'Request message is required'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    if (!$client->isConfigured()) {
+        apiError(
+            'errors.admin.lovlynet.not_configured',
+            apiLocalizedText('errors.admin.lovlynet.not_configured', 'LovlyNet is not configured'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $hubAddress = trim($client->getHubAddress());
+    $areafixPassword = trim($client->getAreafixPassword());
+    if ($hubAddress === '' || $areafixPassword === '') {
+        apiError(
+            'errors.admin.lovlynet.request_config_missing',
+            apiLocalizedText('errors.admin.lovlynet.request_config_missing', 'LovlyNet request settings are incomplete'),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $toName = $areaType === 'file' ? 'FileFix' : 'AreaFix';
+    $fromUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $fromName = trim((string)($user['real_name'] ?? $user['username'] ?? ''));
+
+    try {
+        $messageHandler = new \BinktermPHP\MessageHandler();
+        $messageHandler->sendNetmail(
+            $fromUserId,
+            $hubAddress,
+            $toName,
+            $areafixPassword,
+            $messageText,
+            $fromName !== '' ? $fromName : null
+        );
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.lovlynet.request_send_failed',
+            apiLocalizedText('errors.admin.lovlynet.request_send_failed', 'Failed to send request netmail', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /admin/api/lovlynet/help?type=echo|file
+ * Proxy: fetch AreaFix/FileFix help text from LovlyNet.
+ */
+SimpleRouter::get('/admin/api/lovlynet/help', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $type = trim((string)($_GET['type'] ?? ''));
+    if (!in_array($type, ['echo', 'file'], true)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $type === 'file' ? $client->getFileFixHelp() : $client->getAreaFixHelp();
+    if (!$result['success']) {
+        apiError(
+            'errors.admin.lovlynet.help_fetch_failed',
+            apiLocalizedText('errors.admin.lovlynet.help_fetch_failed', 'Failed to load help text', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode([
+        'success' => true,
+        'help' => $result['help'] ?? '',
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/echoarea-sync
+ * Fetch the current LovlyNet description for a local LovlyNet echoarea.
+ */
+SimpleRouter::post('/admin/api/lovlynet/echoarea-sync', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $echoareaId = (int)($body['echoarea_id'] ?? 0);
+    if ($echoareaId <= 0) {
+        apiError(
+            'errors.echoareas.not_found',
+            apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $echoareaManager = new \BinktermPHP\EchoareaManager();
+    $echoarea = $echoareaManager->getById($echoareaId);
+    if (!$echoarea) {
+        apiError(
+            'errors.echoareas.not_found',
+            apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    if (strcasecmp((string)($echoarea['domain'] ?? ''), 'lovlynet') !== 0) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $areasResult = $client->getAreas();
+    if (!$areasResult['success']) {
+        apiError(
+            'errors.admin.lovlynet.help_fetch_failed',
+            apiLocalizedText('errors.admin.lovlynet.help_fetch_failed', 'Failed to load help text', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    $remoteArea = null;
+    foreach (($areasResult['echoareas'] ?? []) as $candidate) {
+        if (strcasecmp(trim((string)($candidate['tag'] ?? '')), trim((string)($echoarea['tag'] ?? ''))) === 0) {
+            $remoteArea = $candidate;
+            break;
+        }
+    }
+
+    if ($remoteArea === null) {
+        apiError(
+            'errors.echoareas.not_found',
+            apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $description = trim((string)($remoteArea['description'] ?? ''));
+    if ($description === '') {
+        apiError(
+            'errors.admin.lovlynet.request_send_failed',
+            apiLocalizedText('errors.admin.lovlynet.request_send_failed', 'Failed to send request netmail', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode([
+        'success' => true,
+        'description' => $description,
+        'message_code' => 'ui.echoareas.lovlynet_sync_success',
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/area-sync
+ * Ensure a subscribed LovlyNet area exists locally and has the current description.
+ */
+SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $areaType = trim((string)($body['area_type'] ?? 'echo'));
+    if (!in_array($areaType, ['echo', 'file'], true)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Invalid area type', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $areaTag = strtoupper(trim((string)($body['area_tag'] ?? '')));
+    if ($areaTag === '') {
+        apiError(
+            $areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found',
+            apiLocalizedText($areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found', $areaType === 'file' ? 'File area not found' : 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $areasResult = $client->getAreas();
+    if (!$areasResult['success']) {
+        apiError(
+            'errors.admin.lovlynet.help_fetch_failed',
+            apiLocalizedText('errors.admin.lovlynet.help_fetch_failed', 'Failed to load help text', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    $remoteArea = null;
+    $remoteAreas = $areaType === 'file' ? ($areasResult['fileareas'] ?? []) : ($areasResult['echoareas'] ?? []);
+    foreach ($remoteAreas as $candidate) {
+        if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+            $remoteArea = $candidate;
+            break;
+        }
+    }
+
+    if ($remoteArea === null) {
+        apiError(
+            $areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found',
+            apiLocalizedText($areaType === 'file' ? 'errors.fileareas.not_found' : 'errors.echoareas.not_found', $areaType === 'file' ? 'File area not found' : 'Echo area not found', $user),
+            404,
+            ['success' => false]
+        );
+    }
+
+    $description = trim((string)($remoteArea['description'] ?? ''));
+    if ($description === '') {
+        apiError(
+            $areaType === 'file' ? 'errors.fileareas.update_failed' : 'errors.echoareas.update_failed',
+            apiLocalizedText($areaType === 'file' ? 'errors.fileareas.update_failed' : 'errors.echoareas.update_failed', $areaType === 'file' ? 'Failed to update file area' : 'Failed to update echo area', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    if ($areaType === 'file') {
+        $fileAreaManager = new \BinktermPHP\FileAreaManager();
+        $existingFileArea = $fileAreaManager->getFileAreaByTag((string)($remoteArea['tag'] ?? $areaTag), 'lovlynet');
+        if ($existingFileArea) {
+            $fileAreaId = (int)$existingFileArea['id'];
+        } else {
+            $fileAreaId = $fileAreaManager->createIfMissing([
+                'tag' => $remoteArea['tag'] ?? $areaTag,
+                'description' => $description,
+                'domain' => 'lovlynet',
+                'is_local' => false,
+                'is_active' => true,
+                'replace_existing' => true,
+            ]);
+        }
+
+        if (!$fileAreaManager->updateDescription($fileAreaId, $description)) {
+            apiError(
+                'errors.fileareas.update_failed',
+                apiLocalizedText('errors.fileareas.update_failed', 'Failed to update file area', $user),
+                500,
+                ['success' => false]
+            );
+        }
+
+        $client->applyRecommendedSettings('file', array_merge($remoteArea, [
+            'local_filearea_id' => $fileAreaId,
+        ]));
+    } else {
+        $echoareaManager = new \BinktermPHP\EchoareaManager();
+        $existingEchoarea = $echoareaManager->findByTagAndDomains((string)($remoteArea['tag'] ?? $areaTag), ['', 'lovlynet']);
+        if ($existingEchoarea) {
+            $echoareaId = (int)$existingEchoarea['id'];
+        } else {
+            $echoareaId = $echoareaManager->createIfMissing([
+                'tag' => $remoteArea['tag'] ?? $areaTag,
+                'description' => $description,
+                'domain' => 'lovlynet',
+                'uplink_address' => $client->getHubAddress(),
+                'is_local' => false,
+                'is_active' => true,
+                'is_sysop_only' => false,
+                'gemini_public' => false,
+            ], ['', 'lovlynet']);
+        }
+
+        if (!$echoareaManager->updateDescription($echoareaId, $description)) {
+            apiError(
+                'errors.echoareas.update_failed',
+                apiLocalizedText('errors.echoareas.update_failed', 'Failed to update echo area', $user),
+                500,
+                ['success' => false]
+            );
+        }
+
+        $client->applyRecommendedSettings('echo', array_merge($remoteArea, [
+            'local_echoarea_id' => $echoareaId,
+        ]));
+    }
+
+    echo json_encode([
+        'success' => true,
+        'description' => $description,
+        'message_code' => 'ui.echoareas.lovlynet_sync_success',
+    ]);
+});
+
+/**
+ * GET /admin/api/lovlynet/requests
+ * Return outbound AreaFix/FileFix requests and inbound responses for the admin.
+ */
+SimpleRouter::get('/admin/api/lovlynet/requests', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    if (!$client->isConfigured()) {
+        apiError(
+            'errors.admin.lovlynet.not_configured',
+            apiLocalizedText('errors.admin.lovlynet.not_configured', 'LovlyNet is not configured', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $hubAddress = trim($client->getHubAddress());
+    if ($hubAddress === '') {
+        apiError(
+            'errors.admin.lovlynet.request_config_missing',
+            apiLocalizedText('errors.admin.lovlynet.request_config_missing', 'LovlyNet request settings are incomplete', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $messageHandler = new \BinktermPHP\MessageHandler();
+    $requests = $messageHandler->getLovlyNetRequests((int)($user['user_id'] ?? $user['id'] ?? 0), $hubAddress);
+
+    echo json_encode([
+        'success' => true,
+        'requests' => $requests,
+    ]);
+});
+
+/**
+ * GET /admin/api/lovlynet/filearea-files?tag=TAG
+ * Fetch the list of files available in a LovlyNet file area (parsed from files.bbs).
+ */
+SimpleRouter::get('/admin/api/lovlynet/filearea-files', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $areaTag = trim((string)($_GET['tag'] ?? ''));
+    if ($areaTag === '') {
+        apiError(
+            'errors.admin.lovlynet.invalid_area_type',
+            apiLocalizedText('errors.admin.lovlynet.invalid_area_type', 'Area tag is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    if (!$client->isConfigured()) {
+        apiError(
+            'errors.admin.lovlynet.not_configured',
+            apiLocalizedText('errors.admin.lovlynet.not_configured', 'LovlyNet is not configured', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $result = $client->getFileAreaFiles($areaTag);
+    if (!$result['success']) {
+        apiError(
+            'errors.admin.lovlynet.filearea_files_failed',
+            apiLocalizedText('errors.admin.lovlynet.filearea_files_failed', 'Failed to load file area files', $user),
+            502,
+            ['success' => false]
+        );
+    }
+
+    // Build a set of locally held filenames (case-insensitive) and collect full local file records.
+    $localFilenames = [];  // lowercase filename => true, for local_exists check
+    $allLocalFiles  = [];  // full records: id, filename, description
+    try {
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT f.id, f.filename, f.short_description
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE LOWER(fa.tag) = LOWER(?)
+              AND f.status = 'approved'
+            ORDER BY f.filename
+        ");
+        $stmt->execute([$areaTag]);
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $localFilenames[strtolower($row['filename'])] = true;
+            $allLocalFiles[] = [
+                'id'          => (int)$row['id'],
+                'filename'    => $row['filename'],
+                'description' => $row['short_description'] ?? '',
+            ];
+        }
+    } catch (\Throwable $e) {
+        // Non-fatal — local_exists will default to false
+    }
+
+    $files = array_map(function (array $file) use ($localFilenames): array {
+        $file['local_exists'] = isset($localFilenames[strtolower($file['filename'] ?? '')]);
+        return $file;
+    }, $result['files']);
+
+    // Local-only files: present locally but not in the LovlyNet remote list.
+    $remoteFilenamesLower = array_map(fn($f) => strtolower($f['filename'] ?? ''), $result['files']);
+    $localOnlyFiles = array_values(array_filter($allLocalFiles, function (array $lf) use ($remoteFilenamesLower): bool {
+        return !in_array(strtolower($lf['filename']), $remoteFilenamesLower, true);
+    }));
+
+    echo json_encode([
+        'success'          => true,
+        'files'            => $files,
+        'local_only_files' => $localOnlyFiles,
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/hatch-file
+ * Hatch a local file to LovlyNet uplinks via the admin daemon.
+ */
+SimpleRouter::post('/admin/api/lovlynet/hatch-file', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $data   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $fileId = (int)($data['file_id'] ?? 0);
+    if ($fileId <= 0) {
+        apiError(
+            'errors.admin.lovlynet.invalid_file_id',
+            apiLocalizedText('errors.admin.lovlynet.invalid_file_id', 'Invalid file ID', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+    $result = $daemon->rehatchFile($fileId);
+    if (!($result['ok'] ?? false)) {
+        apiError(
+            'errors.admin.lovlynet.hatch_failed',
+            apiLocalizedText('errors.admin.lovlynet.hatch_failed', 'Failed to hatch file', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /admin/api/zip-diag?id=FILE_ID&path=ENTRY_PATH
+ * Diagnostic: test whether a ZIP entry can be extracted via ZipArchive or unzip.
+ */
+SimpleRouter::get('/admin/api/zip-diag', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $id        = (int)($_GET['id']   ?? 0);
+    $entryPath = $_GET['path'] ?? '';
+
+    if (!$id || $entryPath === '') {
+        echo json_encode(['error' => 'id and path are required']);
+        return;
+    }
+
+    $manager     = new \BinktermPHP\FileAreaManager();
+    $file        = $manager->getFileById($id);
+    $storagePath = $file ? $manager->resolveFilePath($file) : null;
+
+    if (!$storagePath || !file_exists($storagePath)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'File not found']);
+        return;
+    }
+
+    $entryPath = str_replace('\\', '/', $entryPath);
+    $result    = ['entry' => $entryPath, 'ziparchive' => null, 'unzip_available' => null, 'unzip_result' => null];
+
+    // Test ZipArchive
+    $zip = new ZipArchive();
+    if ($zip->open($storagePath) === true) {
+        $exactName   = null;
+        $compMethod  = null;
+        $lowerTarget = strtolower($entryPath);
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            if ($stat && strtolower(str_replace('\\', '/', $stat['name'])) === $lowerTarget) {
+                $exactName  = $stat['name'];
+                $compMethod = $stat['comp_method'];
+                $content    = $zip->getFromIndex($i);
+                $result['ziparchive'] = [
+                    'found'       => true,
+                    'exact_name'  => $exactName,
+                    'comp_method' => $compMethod,
+                    'extracted'   => $content !== false,
+                    'bytes'       => $content !== false ? strlen($content) : 0,
+                ];
+                break;
+            }
+        }
+        if ($exactName === null) {
+            $result['ziparchive'] = ['found' => false];
+        }
+        $zip->close();
+
+        // Test available extraction tools
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+        $null      = $isWindows ? 'NUL' : '/dev/null';
+        $whichCmd  = $isWindows ? 'where' : 'which';
+        // On Windows check both "unzip" and "unzip.exe" since where.exe may
+        // not find extensionless names depending on PATHEXT configuration.
+        $bins = $isWindows ? ['unzip', 'unzip.exe', '7z', '7za'] : ['unzip', '7z', '7za'];
+        $tools = [];
+        foreach ($bins as $bin) {
+            $path = trim((string)@shell_exec("$whichCmd $bin 2>$null"));
+            $tools[$bin] = $path !== '' ? $path : null;
+        }
+        $result['tools'] = $tools;
+
+        if ($exactName !== null) {
+            $zipArg  = escapeshellarg($storagePath);
+            $nameArg = escapeshellarg($exactName);
+            $tried   = [];
+            foreach ([
+                'unzip'     => "unzip -p $zipArg $nameArg 2>$null",
+                'unzip.exe' => "unzip.exe -p $zipArg $nameArg 2>$null",
+                '7z'        => "7z e -so $zipArg $nameArg 2>$null",
+                '7za'       => "7za e -so $zipArg $nameArg 2>$null",
+            ] as $tool => $cmd) {
+                $out = @shell_exec($cmd);
+                $tried[$tool] = [
+                    'success' => $out !== null && $out !== '',
+                    'bytes'   => $out !== null ? strlen($out) : 0,
+                ];
+                if ($out !== null && $out !== '') break;
+            }
+            $result['extraction_attempts'] = $tried;
+        }
+    } else {
+        $result['ziparchive'] = ['error' => 'Cannot open ZIP'];
+    }
+
+    echo json_encode($result, JSON_PRETTY_PRINT);
+});
 
 

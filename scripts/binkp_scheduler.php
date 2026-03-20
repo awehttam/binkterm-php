@@ -4,6 +4,7 @@
 chdir(__DIR__."/../");
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Binkp\Connection\Scheduler;
 use BinktermPHP\Binkp\Config\BinkpConfig;
@@ -171,6 +172,14 @@ try {
             $successCount = count(array_filter($outboundResults, function($r) { return $r['success']; }));
             $totalCount = count($outboundResults);
             $logger->info("Processed outbound poll for {$totalCount} uplinks ({$successCount} successful)");
+        }
+
+        $campaignResults = $scheduler->processAdvertisingCampaigns();
+        if (!empty($campaignResults)) {
+            $successCount = count(array_filter($campaignResults, function($r) { return ($r['status'] ?? '') === 'success'; }));
+            $failureCount = count(array_filter($campaignResults, function($r) { return ($r['status'] ?? '') === 'failed'; }));
+            $totalCount = count($campaignResults);
+            $logger->info("Processed {$totalCount} ad campaign posts ({$successCount} successful, {$failureCount} failed)");
         }
         
         exit(0);

@@ -1,0 +1,1710 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.ad_campaigns.page_title') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <style>
+        @media (max-width: 991.98px) {
+            .campaigns-responsive-table thead,
+            .history-responsive-table thead {
+                display: none;
+            }
+
+            .campaigns-responsive-table,
+            .campaigns-responsive-table tbody,
+            .campaigns-responsive-table tr,
+            .campaigns-responsive-table td,
+            .history-responsive-table,
+            .history-responsive-table tbody,
+            .history-responsive-table tr,
+            .history-responsive-table td {
+                display: block;
+                width: 100%;
+            }
+
+            .campaigns-responsive-table tr,
+            .history-responsive-table tr {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 0.75rem 0;
+            }
+
+            .campaigns-responsive-table td,
+            .history-responsive-table td {
+                border: 0;
+                padding: 0.35rem 0.75rem;
+                white-space: normal !important;
+            }
+
+            .campaigns-responsive-table td[data-label],
+            .history-responsive-table td[data-label] {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .campaigns-responsive-table td[data-label]::before,
+            .history-responsive-table td[data-label]::before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: var(--bs-secondary-color);
+                flex: 0 0 8rem;
+            }
+
+            .campaigns-responsive-table td.text-end,
+            .history-responsive-table td.text-end {
+                text-align: left !important;
+            }
+
+            .campaigns-responsive-table .campaign-actions {
+                justify-content: flex-start !important;
+            }
+        }
+
+        .wizard-step-pip {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            flex-shrink: 0;
+            background-color: var(--bs-secondary-bg);
+            color: var(--bs-secondary-color);
+            border: 2px solid var(--bs-border-color);
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        .wizard-step-pip.active {
+            background-color: var(--bs-primary);
+            color: #fff;
+            border-color: var(--bs-primary);
+        }
+        .wizard-step-pip.done {
+            background-color: var(--bs-success);
+            color: #fff;
+            border-color: var(--bs-success);
+        }
+        .wizard-type-card {
+            cursor: pointer;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+        .wizard-type-card:hover {
+            border-color: var(--bs-primary);
+        }
+        .wizard-type-card.selected {
+            border-color: var(--bs-primary) !important;
+            border-width: 2px !important;
+            background-color: rgba(var(--bs-primary-rgb), 0.08);
+        }
+    </style>
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.ad_campaigns.heading') }}</h1>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="/admin/ads">{{ t('ui.admin.ad_campaigns.back_to_ads') }}</a>
+            <button class="btn btn-outline-primary" type="button" onclick="showCampaignWizard()">
+                <i class="fas fa-magic me-1"></i>{{ t('ui.admin.ad_campaigns.wizard_btn') }}
+            </button>
+            <button class="btn btn-primary" type="button" onclick="showCampaignModal()">
+                <i class="fas fa-plus"></i> {{ t('ui.admin.ad_campaigns.add_campaign') }}
+            </button>
+        </div>
+    </div>
+
+    <div id="campaignStatusAlert"></div>
+
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ t('ui.admin.ad_campaigns.campaigns') }}</h6>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadCampaignPage()">{{ t('ui.common.refresh') }}</button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0 campaigns-responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.common.title') }}</th>
+                                    <th>{{ t('ui.admin.ad_campaigns.targets') }}</th>
+                                    <th>{{ t('ui.admin.ad_campaigns.ads') }}</th>
+                                    <th>{{ t('ui.admin.ad_campaigns.schedule') }}</th>
+                                    <th>{{ t('ui.common.status') }}</th>
+                                    <th>{{ t('ui.admin.ad_campaigns.last_posted') }}</th>
+                                    <th>{{ t('ui.admin.ad_campaigns.next_run') }}</th>
+                                    <th class="text-end" style="width: 240px;">{{ t('ui.common.actions') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="campaignTableBody">
+                                <tr><td colspan="8" class="text-center text-muted py-4">{{ t('ui.admin.ad_campaigns.loading') }}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="mb-0">{{ t('ui.admin.ad_campaigns.post_history') }}</h6>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <select class="form-select form-select-sm" id="historyCampaignFilter" style="width: 220px;">
+                    <option value="">{{ t('ui.admin.ad_campaigns.all_campaigns') }}</option>
+                </select>
+                <select class="form-select form-select-sm" id="historyStatusFilter" style="width: 160px;">
+                    <option value="">{{ t('ui.admin.ad_campaigns.all_statuses') }}</option>
+                    <option value="success">{{ t('ui.admin.ad_campaigns.status_success') }}</option>
+                    <option value="failed">{{ t('ui.admin.ad_campaigns.status_failed') }}</option>
+                    <option value="dry-run">{{ t('ui.admin.ad_campaigns.status_dry_run') }}</option>
+                    <option value="skipped">{{ t('ui.admin.ad_campaigns.status_skipped') }}</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadDetailedHistory()">{{ t('ui.common.refresh') }}</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped mb-0 history-responsive-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('ui.common.time') }}</th>
+                            <th>{{ t('ui.admin.ad_campaigns.campaign') }}</th>
+                            <th>{{ t('ui.admin.ad_campaigns.ad') }}</th>
+                            <th>{{ t('ui.admin.ad_campaigns.target') }}</th>
+                            <th>{{ t('ui.common.status') }}</th>
+                            <th>{{ t('ui.common.subject') }}</th>
+                            <th>{{ t('ui.admin.ad_campaigns.posted_by') }}</th>
+                            <th>{{ t('ui.admin.ad_campaigns.error') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="campaignHistoryTableBody">
+                        <tr><td colspan="8" class="text-center text-muted py-4">{{ t('ui.admin.ad_campaigns.loading') }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+                <div class="small text-muted" id="campaignHistoryPageInfo"></div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('ui.admin.ad_campaigns.post_history') }}">
+                    <button class="btn btn-outline-secondary" type="button" id="campaignHistoryPrev" onclick="changeHistoryPage(-1)">{{ t('ui.common.previous') }}</button>
+                    <button class="btn btn-outline-secondary" type="button" id="campaignHistoryNext" onclick="changeHistoryPage(1)">{{ t('ui.common.next') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="campaignModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="campaignModalTitle">{{ t('ui.admin.ad_campaigns.add_campaign') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="campaignModalAlert"></div>
+                    <form id="campaignForm">
+                        <input type="hidden" id="campaignId">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="campaignName">{{ t('ui.common.title') }}</label>
+                                <input class="form-control" type="text" id="campaignName">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="campaignUser">{{ t('ui.admin.ad_campaigns.post_as_user') }}</label>
+                                <select class="form-select" id="campaignUser"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="campaignToName">{{ t('ui.admin.ad_campaigns.to_name') }}</label>
+                                <input class="form-control" type="text" id="campaignToName" value="All">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="campaignSelectionMode">{{ t('ui.admin.ad_campaigns.selection_mode') }}</label>
+                                <select class="form-select" id="campaignSelectionMode">
+                                    <option value="weighted_random">{{ t('ui.admin.ad_campaigns.selection_weighted_random') }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label" for="campaignDescription">{{ t('ui.common.description') }}</label>
+                                <input class="form-control" type="text" id="campaignDescription">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="campaignEndAt">{{ t('ui.admin.ad_campaigns.end_at') }}</label>
+                                <input class="form-control" type="date" id="campaignEndAt">
+                                <div class="form-text">{{ t('ui.admin.ad_campaigns.end_at_help') }}</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="campaignIsActive" checked>
+                                    <label class="form-check-label" for="campaignIsActive">{{ t('ui.common.enabled') }}</label>
+                                </div>
+                                <div class="small text-muted mt-2">
+                                    {{ t('ui.admin.ad_campaigns.next_run') }}:
+                                    <span id="campaignNextRunDisplay">{{ t('ui.admin.ad_campaigns.not_scheduled') }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">{{ t('ui.admin.ad_campaigns.schedules') }}</h6>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addScheduleRow()">{{ t('ui.admin.ad_campaigns.add_schedule') }}</button>
+                        </div>
+                        <div id="campaignSchedules"></div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">{{ t('ui.admin.ad_campaigns.targets') }}</h6>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addTargetRow()">{{ t('ui.admin.ad_campaigns.add_target') }}</button>
+                        </div>
+                        <div id="campaignTargets"></div>
+
+                        <hr>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="campaignIncludeTags">{{ t('ui.admin.ad_campaigns.include_tags') }}</label>
+                                <select class="form-select" id="campaignIncludeTags" multiple size="6"></select>
+                                <div class="form-text">{{ t('ui.admin.ad_campaigns.include_tags_help') }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="campaignExcludeTags">{{ t('ui.admin.ad_campaigns.exclude_tags') }}</label>
+                                <select class="form-select" id="campaignExcludeTags" multiple size="6"></select>
+                                <div class="form-text">{{ t('ui.admin.ad_campaigns.exclude_tags_help') }}</div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <h6 class="mb-2">{{ t('ui.admin.ad_campaigns.assigned_ads') }}</h6>
+                        <div id="campaignAdsList" class="border rounded p-3" style="max-height: 320px; overflow:auto;"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCampaign()">{{ t('ui.common.save') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="campaignAdPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="campaignAdPreviewModalTitle">{{ t('ui.admin.ads.view') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="ansi-art-container">
+                        <pre class="ansi-art" id="campaignAdPreviewAnsi"></pre>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="campaignWizardModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">{{ t('ui.admin.ad_campaigns.wizard_title') }}</h5>
+                        <div class="small text-muted" id="wizardStepLabel"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="px-4 pt-3 pb-0">
+                    <div class="d-flex align-items-center" id="wizardStepIndicator"></div>
+                </div>
+                <div class="modal-body" id="wizardBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                    <button type="button" class="btn btn-outline-secondary d-none" id="wizardBackBtn" onclick="wizardBack()">{{ t('ui.admin.ad_campaigns.wizard_back') }}</button>
+                    <button type="button" class="btn btn-primary" id="wizardNextBtn" onclick="wizardNext()">{{ t('ui.admin.ad_campaigns.wizard_next') }}</button>
+                    <button type="button" class="btn btn-success d-none" id="wizardFinishBtn" onclick="wizardFinish()">{{ t('ui.admin.ad_campaigns.wizard_finish') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let adCampaignModal = null;
+let campaignAdPreviewModal = null;
+let campaignMeta = { ads: [], tags: [], users: [], echoareas: [], timezones: [] };
+let adCampaigns = [];
+let campaignHistoryItems = [];
+let campaignHistoryPage = 1;
+const campaignHistoryPageSize = 25;
+const defaultCampaignTimezone = (window.userSettings && window.userSettings.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const defaultCampaignDaysMask = (1 << 1) | (1 << 3) | (1 << 5);
+const defaultCampaignSubjectTemplate = {{ system_name|json_encode|raw }};
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        adCampaignModal = new bootstrap.Modal(document.getElementById('campaignModal'));
+        campaignAdPreviewModal = new bootstrap.Modal(document.getElementById('campaignAdPreviewModal'));
+        campaignWizardModal = new bootstrap.Modal(document.getElementById('campaignWizardModal'));
+        document.getElementById('historyCampaignFilter').addEventListener('change', loadDetailedHistory);
+        document.getElementById('historyStatusFilter').addEventListener('change', loadDetailedHistory);
+        loadCampaignPage();
+    });
+});
+
+function loadCampaignPage() {
+    Promise.all([
+        fetch('/admin/api/ad-campaigns/meta').then(readJsonResponse),
+        fetch('/admin/api/ad-campaigns').then(readJsonResponse),
+        fetch('/admin/api/ad-campaigns/log?limit=500').then(readJsonResponse)
+    ]).then(([metaRes, listRes, logRes]) => {
+        if (!metaRes.response.ok || metaRes.data.error_code) throw new Error(apiError(metaRes.data, uiT('ui.admin.ad_campaigns.meta_failed', 'Failed to load campaign metadata')));
+        if (!listRes.response.ok || listRes.data.error_code) throw new Error(apiError(listRes.data, uiT('ui.admin.ad_campaigns.list_failed', 'Failed to load ad campaigns')));
+        if (!logRes.response.ok || logRes.data.error_code) throw new Error(apiError(logRes.data, uiT('ui.admin.ad_campaigns.log_failed', 'Failed to load ad campaign log')));
+
+        campaignMeta = metaRes.data || campaignMeta;
+        adCampaigns = Array.isArray(listRes.data.campaigns) ? listRes.data.campaigns : [];
+        renderCampaignTable(adCampaigns);
+        populateHistoryCampaignFilter(adCampaigns);
+        loadDetailedHistory();
+    }).catch(error => {
+        renderCampaignTable([]);
+        populateHistoryCampaignFilter([]);
+        campaignHistoryItems = [];
+        campaignHistoryPage = 1;
+        renderDetailedHistoryPage();
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.load_failed', 'Failed to load ad campaigns'), 'danger');
+    });
+}
+
+function renderCampaignTable(campaigns) {
+    const tbody = document.getElementById('campaignTableBody');
+    if (!campaigns.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${uiT('ui.admin.ad_campaigns.none', 'No ad campaigns configured.')}</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = campaigns.map(campaign => `
+        <tr>
+            <td data-label="${escapeHtml(uiT('ui.common.title', 'Title'))}">
+                <div class="fw-semibold">${escapeHtml(campaign.name || '')}</div>
+                <div class="small text-muted">${escapeHtml(campaign.username || '')}</div>
+            </td>
+            <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.targets', 'Targets'))}">${Number(campaign.target_count || 0)}</td>
+            <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.ads', 'Ads'))}">${Number(campaign.ad_count || 0)}</td>
+            <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.schedule', 'Schedule'))}">${renderCampaignScheduleSummary(campaign.schedules || [])}</td>
+            <td data-label="${escapeHtml(uiT('ui.common.status', 'Status'))}">${campaign.is_active ? `<span class="badge bg-success">${uiT('ui.common.enabled', 'Enabled')}</span>` : `<span class="badge bg-secondary">${uiT('ui.common.disabled', 'Disabled')}</span>`}</td>
+            <td class="text-nowrap small" data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.last_posted', 'Last Posted'))}">${campaign.last_posted_at ? escapeHtml(formatCompactDateTime(campaign.last_posted_at)) : '<span class="text-muted">-</span>'}</td>
+            <td class="text-nowrap small" data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.next_run', 'Next Run'))}">${escapeHtml(formatNextRun(campaign.next_run || null))}</td>
+            <td class="text-end" data-label="${escapeHtml(uiT('ui.common.actions', 'Actions'))}">
+                <div class="d-flex flex-wrap justify-content-end gap-2 campaign-actions">
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="runCampaign(${Number(campaign.id)})">${uiT('ui.admin.ad_campaigns.run_now', 'Run Now')}</button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="editCampaign(${Number(campaign.id)})">${uiT('ui.common.edit', 'Edit')}</button>
+                <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCampaign(${Number(campaign.id)}, '${escapeJs(campaign.name || '')}')">${uiT('ui.common.delete', 'Delete')}</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function populateHistoryCampaignFilter(campaigns) {
+    const select = document.getElementById('historyCampaignFilter');
+    const currentValue = select.value || '';
+    select.innerHTML = `<option value="">${uiT('ui.admin.ad_campaigns.all_campaigns', 'All Campaigns')}</option>` + campaigns.map(campaign => {
+        return `<option value="${Number(campaign.id)}">${escapeHtml(campaign.name || '')}</option>`;
+    }).join('');
+    select.value = currentValue;
+}
+
+function renderCampaignScheduleSummary(schedules) {
+    if (!Array.isArray(schedules) || schedules.length === 0) {
+        return '<span class="text-muted">-</span>';
+    }
+
+    return `
+        <div class="small">
+            ${schedules.map(schedule => {
+                const labels = getScheduleDayLabels(Number(schedule.days_mask || 0));
+                const offset = formatScheduleTimezoneOffset(schedule.timezone || defaultCampaignTimezone);
+                const time = escapeHtml(formatScheduleTime(schedule.time_of_day || ''));
+                return `
+                    <div class="d-flex justify-content-between gap-3 border-bottom py-1">
+                        <span>${escapeHtml(labels.join(', '))}</span>
+                        <span class="text-nowrap">${time} ${escapeHtml(offset)}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function getScheduleDayLabels(daysMask) {
+    const dayKeys = [
+        ['ui.admin.ad_campaigns.day_sun', 'Sun'],
+        ['ui.admin.ad_campaigns.day_mon', 'Mon'],
+        ['ui.admin.ad_campaigns.day_tue', 'Tue'],
+        ['ui.admin.ad_campaigns.day_wed', 'Wed'],
+        ['ui.admin.ad_campaigns.day_thu', 'Thu'],
+        ['ui.admin.ad_campaigns.day_fri', 'Fri'],
+        ['ui.admin.ad_campaigns.day_sat', 'Sat']
+    ];
+
+    return dayKeys
+        .filter((entry, index) => (daysMask & (1 << index)) !== 0)
+        .map(entry => uiT(entry[0], entry[1]));
+}
+
+function formatScheduleTimezoneOffset(timezone) {
+    try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            timeZoneName: 'shortOffset'
+        }).formatToParts(new Date());
+        const offset = parts.find(part => part.type === 'timeZoneName')?.value;
+        return offset || timezone;
+    } catch (error) {
+        return timezone;
+    }
+}
+
+function formatScheduleTime(value) {
+    const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+    if (!match) {
+        return value || '--:--';
+    }
+
+    const hour24 = Number(match[1]);
+    const minute = match[2];
+    const suffix = hour24 >= 12 ? 'PM' : 'AM';
+    let hour12 = hour24 % 12;
+    if (hour12 === 0) {
+        hour12 = 12;
+    }
+
+    return `${hour12}:${minute} ${suffix}`;
+}
+
+function formatCompactDateTime(value) {
+    try {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return String(value || '-');
+        }
+
+        return date.toLocaleString([], {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (error) {
+        return String(value || '-');
+    }
+}
+
+function formatNextRun(nextRun) {
+    if (!nextRun || !nextRun.slot_at_local) {
+        return uiT('ui.admin.ad_campaigns.not_scheduled', 'Not scheduled');
+    }
+
+    try {
+        const date = new Date(nextRun.slot_at_local);
+        if (Number.isNaN(date.getTime())) {
+            return String(nextRun.slot_at_local);
+        }
+
+        return formatCompactDateTime(date);
+    } catch (error) {
+        return String(nextRun.slot_at_local || uiT('ui.admin.ad_campaigns.not_scheduled', 'Not scheduled'));
+    }
+}
+
+function loadDetailedHistory() {
+    const campaignId = document.getElementById('historyCampaignFilter').value;
+    const status = document.getElementById('historyStatusFilter').value;
+    const query = new URLSearchParams({ limit: '500' });
+    if (campaignId) {
+        query.set('campaign_id', campaignId);
+    }
+    if (status) {
+        query.set('status', status);
+    }
+
+    fetch(`/admin/api/ad-campaigns/log?${query.toString()}`).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || data.error_code) {
+            throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.log_failed', 'Failed to load ad campaign log')));
+        }
+        campaignHistoryItems = Array.isArray(data.log) ? data.log : [];
+        campaignHistoryPage = 1;
+        renderDetailedHistoryPage();
+    }).catch(error => {
+        campaignHistoryItems = [];
+        campaignHistoryPage = 1;
+        renderDetailedHistoryPage();
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.log_failed', 'Failed to load ad campaign log'), 'danger');
+    });
+}
+
+function renderDetailedHistoryPage() {
+    const totalItems = campaignHistoryItems.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / campaignHistoryPageSize));
+    if (campaignHistoryPage > totalPages) {
+        campaignHistoryPage = totalPages;
+    }
+    if (campaignHistoryPage < 1) {
+        campaignHistoryPage = 1;
+    }
+
+    const startIndex = (campaignHistoryPage - 1) * campaignHistoryPageSize;
+    const items = campaignHistoryItems.slice(startIndex, startIndex + campaignHistoryPageSize);
+    const tbody = document.getElementById('campaignHistoryTableBody');
+    const pageInfo = document.getElementById('campaignHistoryPageInfo');
+    const prevButton = document.getElementById('campaignHistoryPrev');
+    const nextButton = document.getElementById('campaignHistoryNext');
+
+    if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${uiT('ui.admin.ad_campaigns.no_history_rows', 'No post history found for the current filters.')}</td></tr>`;
+        pageInfo.textContent = '';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+        const statusClass = item.status === 'success'
+            ? 'text-success'
+            : (item.status === 'failed' ? 'text-danger' : 'text-muted');
+        const target = `${item.echoarea_tag || ''}@${item.domain || ''}`;
+        const errorText = item.error_text
+            ? `<div class="small text-danger">${escapeHtml(item.error_text)}</div>`
+            : '<span class="text-muted">-</span>';
+
+        return `
+            <tr>
+                <td class="small" data-label="${escapeHtml(uiT('ui.common.time', 'Time'))}">${item.posted_at ? escapeHtml(new Date(item.posted_at).toLocaleString()) : '-'}</td>
+                <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.campaign', 'Campaign'))}">${escapeHtml(item.campaign_name || uiT('ui.admin.ad_campaigns.manual_post', 'Manual Post'))}</td>
+                <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.ad', 'Ad'))}">${escapeHtml(item.advertisement_title || '-')}</td>
+                <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.target', 'Target'))}">${escapeHtml(target)}</td>
+                <td data-label="${escapeHtml(uiT('ui.common.status', 'Status'))}"><span class="${statusClass}">${escapeHtml(item.status || '-')}</span></td>
+                <td class="small" data-label="${escapeHtml(uiT('ui.common.subject', 'Subject'))}">${escapeHtml(item.subject || '-')}</td>
+                <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.posted_by', 'Posted By'))}">${escapeHtml(item.posted_by_username || '-')}</td>
+                <td data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.error', 'Error'))}">${errorText}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const firstItem = startIndex + 1;
+    const lastItem = Math.min(startIndex + campaignHistoryPageSize, totalItems);
+    pageInfo.textContent = `${firstItem}-${lastItem} / ${totalItems}`;
+    prevButton.disabled = campaignHistoryPage <= 1;
+    nextButton.disabled = campaignHistoryPage >= totalPages;
+}
+
+function changeHistoryPage(delta) {
+    const totalPages = Math.max(1, Math.ceil(campaignHistoryItems.length / campaignHistoryPageSize));
+    const nextPage = campaignHistoryPage + Number(delta || 0);
+    if (nextPage < 1 || nextPage > totalPages) {
+        return;
+    }
+    campaignHistoryPage = nextPage;
+    renderDetailedHistoryPage();
+}
+
+function showCampaignModal() {
+    document.getElementById('campaignModalTitle').textContent = uiT('ui.admin.ad_campaigns.add_campaign', 'Add Campaign');
+    document.getElementById('campaignForm').reset();
+    document.getElementById('campaignModalAlert').innerHTML = '';
+    document.getElementById('campaignId').value = '';
+    document.getElementById('campaignToName').value = 'All';
+    document.getElementById('campaignIsActive').checked = true;
+    document.getElementById('campaignNextRunDisplay').textContent = uiT('ui.admin.ad_campaigns.not_scheduled', 'Not scheduled');
+    populateCampaignMeta();
+    renderScheduleRows([]);
+    renderTargetRows([]);
+    renderCampaignTagFilters({ include: [], exclude: [] });
+    renderCampaignAds([]);
+    adCampaignModal.show();
+}
+
+function editCampaign(id) {
+    fetch(`/admin/api/ad-campaigns/${id}`).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || data.error_code) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign')));
+        const campaign = data.campaign;
+        document.getElementById('campaignModalAlert').innerHTML = '';
+        document.getElementById('campaignModalTitle').textContent = uiT('ui.admin.ad_campaigns.edit_campaign', 'Edit Campaign');
+        document.getElementById('campaignId').value = String(campaign.id || '');
+        document.getElementById('campaignName').value = campaign.name || '';
+        document.getElementById('campaignDescription').value = campaign.description || '';
+        document.getElementById('campaignEndAt').value = campaign.end_at ? campaign.end_at.slice(0, 10) : '';
+        document.getElementById('campaignToName').value = campaign.to_name || 'All';
+        document.getElementById('campaignSelectionMode').value = campaign.selection_mode || 'weighted_random';
+        document.getElementById('campaignIsActive').checked = !!campaign.is_active;
+        document.getElementById('campaignNextRunDisplay').textContent = formatNextRun(campaign.next_run || null);
+        populateCampaignMeta(campaign.from_user_id || '');
+        renderScheduleRows(Array.isArray(campaign.schedules) ? campaign.schedules : []);
+        renderTargetRows(Array.isArray(campaign.targets) ? campaign.targets : []);
+        renderCampaignTagFilters(campaign.tag_filters || { include: [], exclude: [] });
+        renderCampaignAds(Array.isArray(campaign.ads) ? campaign.ads : []);
+        adCampaignModal.show();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'), 'danger');
+    });
+}
+
+function populateCampaignMeta(selectedUserId = '') {
+    const userSelect = document.getElementById('campaignUser');
+    userSelect.innerHTML = `<option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>` + (campaignMeta.users || []).map(user => {
+        const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
+        return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
+    }).join('');
+    userSelect.value = selectedUserId ? String(selectedUserId) : '';
+}
+
+function renderCampaignTagFilters(tagFilters) {
+    const includeSelect = document.getElementById('campaignIncludeTags');
+    const excludeSelect = document.getElementById('campaignExcludeTags');
+    const includeIds = new Set((tagFilters?.include || []).map(item => String(Number(item.id || item))));
+    const excludeIds = new Set((tagFilters?.exclude || []).map(item => String(Number(item.id || item))));
+    const tags = Array.isArray(campaignMeta.tags) ? campaignMeta.tags : [];
+
+    const optionsHtml = tags.map(tag => `<option value="${Number(tag.id)}">${escapeHtml(tag.name || tag.slug || '')}</option>`).join('');
+    includeSelect.innerHTML = optionsHtml;
+    excludeSelect.innerHTML = optionsHtml;
+
+    Array.from(includeSelect.options).forEach(option => {
+        option.selected = includeIds.has(String(option.value));
+    });
+    Array.from(excludeSelect.options).forEach(option => {
+        option.selected = excludeIds.has(String(option.value));
+    });
+}
+
+function renderTargetRows(targets) {
+    const container = document.getElementById('campaignTargets');
+    const rows = targets.length ? targets : [{ echoarea_tag: '', domain: '', subject_template: defaultCampaignSubjectTemplate, is_active: true }];
+    container.innerHTML = rows.map((target, index) => targetRowHtml(target, index)).join('');
+}
+
+function renderScheduleRows(schedules) {
+    const container = document.getElementById('campaignSchedules');
+    const rows = schedules.length ? schedules : [{ days_mask: defaultCampaignDaysMask, time_of_day: '12:00', timezone: defaultCampaignTimezone, is_active: true }];
+    container.innerHTML = rows.map((schedule, index) => scheduleRowHtml(schedule, index)).join('');
+}
+
+function scheduleRowHtml(schedule, index) {
+    const daysMask = Number(schedule.days_mask || 0);
+    const timezoneValue = schedule.timezone || defaultCampaignTimezone;
+    const dayKeys = [
+        ['ui.admin.ad_campaigns.day_sun', 'Sun'],
+        ['ui.admin.ad_campaigns.day_mon', 'Mon'],
+        ['ui.admin.ad_campaigns.day_tue', 'Tue'],
+        ['ui.admin.ad_campaigns.day_wed', 'Wed'],
+        ['ui.admin.ad_campaigns.day_thu', 'Thu'],
+        ['ui.admin.ad_campaigns.day_fri', 'Fri'],
+        ['ui.admin.ad_campaigns.day_sat', 'Sat']
+    ];
+    const dayCheckboxes = dayKeys.map((entry, dayIndex) => {
+        const checked = (daysMask & (1 << dayIndex)) !== 0 ? 'checked' : '';
+        return `
+            <div class="form-check form-check-inline me-2">
+                <input class="form-check-input campaign-schedule-day" type="checkbox" value="${dayIndex}" id="campaignSchedule${index}Day${dayIndex}" ${checked}>
+                <label class="form-check-label" for="campaignSchedule${index}Day${dayIndex}">${uiT(entry[0], entry[1])}</label>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="row g-2 align-items-end border rounded p-2 mb-2 campaign-schedule-row">
+            <div class="col-md-6">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.schedule_days', 'Days')}</label>
+                <div>${dayCheckboxes}</div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.schedule_time', 'Time')}</label>
+                <input class="form-control campaign-schedule-time" type="time" value="${escapeHtml(schedule.time_of_day || '12:00')}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.schedule_timezone', 'Timezone')}</label>
+                <select class="form-select campaign-schedule-timezone">
+                    ${renderTimezoneOptions(timezoneValue)}
+                </select>
+            </div>
+            <div class="col-md-1">
+                <div class="form-check mb-2">
+                    <input class="form-check-input campaign-schedule-active" type="checkbox" ${schedule.is_active === false ? '' : 'checked'}>
+                </div>
+                <button class="btn btn-sm btn-outline-danger mt-2" type="button" onclick="removeScheduleRow(${index})">${uiT('ui.common.delete', 'Delete')}</button>
+            </div>
+        </div>
+    `;
+}
+
+function addScheduleRow() {
+    const container = document.getElementById('campaignSchedules');
+    const count = container.querySelectorAll('.campaign-schedule-row').length;
+    container.insertAdjacentHTML('beforeend', scheduleRowHtml({ days_mask: defaultCampaignDaysMask, time_of_day: '12:00', timezone: defaultCampaignTimezone, is_active: true }, count));
+}
+
+function removeScheduleRow(index) {
+    const rows = Array.from(document.querySelectorAll('.campaign-schedule-row'));
+    if (rows.length <= 1) {
+        rows[0]?.remove();
+        addScheduleRow();
+        return;
+    }
+    rows[index]?.remove();
+}
+
+function renderTimezoneOptions(selectedTimezone) {
+    const timezones = Array.isArray(campaignMeta.timezones) && campaignMeta.timezones.length
+        ? campaignMeta.timezones
+        : [defaultCampaignTimezone];
+
+    const selected = selectedTimezone || defaultCampaignTimezone;
+    const options = timezones.map(timezone => {
+        const isSelected = timezone === selected ? 'selected' : '';
+        return `<option value="${escapeHtml(timezone)}" ${isSelected}>${escapeHtml(timezone)}</option>`;
+    });
+
+    if (!timezones.includes(selected)) {
+        options.unshift(`<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>`);
+    }
+
+    return options.join('');
+}
+
+function targetRowHtml(target, index) {
+    const echoareas = Array.isArray(campaignMeta.echoareas) ? campaignMeta.echoareas : [];
+    const prioritizedAreas = [];
+    const remainingAreas = [];
+
+    echoareas.forEach(area => {
+        const haystack = `${area.tag || ''} ${area.domain || ''}`.toUpperCase();
+        if (haystack.includes('ADS')) {
+            prioritizedAreas.push(area);
+        } else {
+            remainingAreas.push(area);
+        }
+    });
+
+    const buildOption = (area) => {
+        const value = `${area.tag}@${area.domain}`;
+        const selected = target.echoarea_tag === area.tag && target.domain === area.domain ? 'selected' : '';
+        return `<option value="${escapeHtml(value)}" ${selected}>${escapeHtml(area.tag)} @ ${escapeHtml(area.domain)}</option>`;
+    };
+
+    const optionParts = [];
+    prioritizedAreas.forEach(area => optionParts.push(buildOption(area)));
+    if (prioritizedAreas.length > 0 && remainingAreas.length > 0) {
+        optionParts.push('<option value="" disabled>----</option>');
+    }
+    remainingAreas.forEach(area => optionParts.push(buildOption(area)));
+    const options = optionParts.join('');
+
+    return `
+        <div class="row g-2 align-items-end border rounded p-2 mb-2 campaign-target-row">
+            <div class="col-md-4">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.echoarea_domain', 'Echoarea + Domain')}</label>
+                <select class="form-select campaign-target-area">
+                    <option value="">${uiT('ui.admin.ad_campaigns.select_target', 'Select target...')}</option>
+                    ${options}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.subject_template', 'Subject Template')}</label>
+                <input class="form-control campaign-target-subject" type="text" value="${escapeHtml(target.subject_template || defaultCampaignSubjectTemplate)}">
+            </div>
+            <div class="col-md-1">
+                <div class="form-check mb-2">
+                    <input class="form-check-input campaign-target-active" type="checkbox" ${target.is_active === false ? '' : 'checked'}>
+                </div>
+            </div>
+            <div class="col-md-1 text-end">
+                <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeTargetRow(${index})">${uiT('ui.common.delete', 'Delete')}</button>
+            </div>
+        </div>
+    `;
+}
+
+function addTargetRow() {
+    const container = document.getElementById('campaignTargets');
+    const count = container.querySelectorAll('.campaign-target-row').length;
+    container.insertAdjacentHTML('beforeend', targetRowHtml({ echoarea_tag: '', domain: '', subject_template: defaultCampaignSubjectTemplate, is_active: true }, count));
+}
+
+function removeTargetRow(index) {
+    const rows = Array.from(document.querySelectorAll('.campaign-target-row'));
+    if (rows.length <= 1) {
+        rows[0]?.remove();
+        addTargetRow();
+        return;
+    }
+    rows[index]?.remove();
+}
+
+function renderCampaignAds(assignedAds) {
+    const assigned = {};
+    (assignedAds || []).forEach(item => assigned[String(item.advertisement_id)] = item);
+    const container = document.getElementById('campaignAdsList');
+    if (!Array.isArray(campaignMeta.ads) || campaignMeta.ads.length === 0) {
+        container.innerHTML = `<div class="text-muted small">${uiT('ui.admin.ad_campaigns.no_ads_available', 'No ads available yet.')}</div>`;
+        return;
+    }
+
+    container.innerHTML = (campaignMeta.ads || []).map(ad => {
+        const selected = assigned[String(ad.id)] || null;
+        return `
+            <div class="row g-2 align-items-center border-bottom py-2">
+                <div class="col-md-7">
+                    <div class="form-check">
+                        <input class="form-check-input campaign-ad-enabled" type="checkbox" value="${Number(ad.id)}" id="campaignAd${Number(ad.id)}" ${selected ? 'checked' : ''}>
+                        <label class="form-check-label" for="campaignAd${Number(ad.id)}">
+                            <button type="button" class="btn btn-link btn-sm p-0 align-baseline text-decoration-none" onclick="previewCampaignAd(event, ${Number(ad.id)})">
+                                ${escapeHtml(ad.title || ad.slug || '')}
+                            </button>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <input class="form-control form-control-sm campaign-ad-weight" type="number" min="1" value="${selected ? Number(selected.weight || 1) : 1}" data-ad-id="${Number(ad.id)}">
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function collectCampaignPayload() {
+    const schedules = Array.from(document.querySelectorAll('.campaign-schedule-row')).map(row => {
+        let daysMask = 0;
+        row.querySelectorAll('.campaign-schedule-day:checked').forEach(input => {
+            const dayIndex = Number(input.value || 0);
+            if (dayIndex >= 0 && dayIndex <= 6) {
+                daysMask |= (1 << dayIndex);
+            }
+        });
+
+        return {
+            days_mask: daysMask,
+            time_of_day: row.querySelector('.campaign-schedule-time').value,
+            timezone: row.querySelector('.campaign-schedule-timezone').value.trim(),
+            is_active: row.querySelector('.campaign-schedule-active').checked
+        };
+    }).filter(schedule => schedule.days_mask > 0 && schedule.time_of_day && schedule.timezone);
+
+    const targets = Array.from(document.querySelectorAll('.campaign-target-row')).map(row => {
+        const area = row.querySelector('.campaign-target-area').value;
+        const subject = row.querySelector('.campaign-target-subject').value.trim();
+        const active = row.querySelector('.campaign-target-active').checked;
+        const [echoareaTag, domain] = area.split('@');
+        return {
+            echoarea_tag: echoareaTag || '',
+            domain: domain || '',
+            subject_template: subject,
+            is_active: active
+        };
+    }).filter(target => target.echoarea_tag && target.subject_template);
+
+    const ads = Array.from(document.querySelectorAll('.campaign-ad-enabled:checked')).map(input => {
+        const adId = input.value;
+        const weightInput = document.querySelector(`.campaign-ad-weight[data-ad-id="${CSS.escape(String(adId))}"]`);
+        return {
+            advertisement_id: Number(adId),
+            weight: Number(weightInput?.value || 1)
+        };
+    });
+
+    const tagFilters = {
+        include: Array.from(document.getElementById('campaignIncludeTags').selectedOptions).map(option => Number(option.value)),
+        exclude: Array.from(document.getElementById('campaignExcludeTags').selectedOptions).map(option => Number(option.value))
+    };
+
+    return {
+        name: document.getElementById('campaignName').value.trim(),
+        description: document.getElementById('campaignDescription').value.trim(),
+        end_at: document.getElementById('campaignEndAt').value || null,
+        is_active: document.getElementById('campaignIsActive').checked,
+        from_user_id: Number(document.getElementById('campaignUser').value || 0),
+        to_name: document.getElementById('campaignToName').value.trim(),
+        selection_mode: document.getElementById('campaignSelectionMode').value,
+        schedules,
+        targets,
+        ads,
+        tag_filters: tagFilters
+    };
+}
+
+function saveCampaign() {
+    const id = document.getElementById('campaignId').value;
+    const payload = collectCampaignPayload();
+    const url = id ? `/admin/api/ad-campaigns/${encodeURIComponent(id)}` : '/admin/api/ad-campaigns';
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || !data.success) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign')));
+        adCampaignModal.hide();
+        showCampaignAlert(window.getApiMessage ? window.getApiMessage(data, uiT('ui.admin.ad_campaigns.saved', 'Ad campaign saved.')) : uiT('ui.admin.ad_campaigns.saved', 'Ad campaign saved.'), 'success');
+        loadCampaignPage();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign'), 'danger');
+    });
+}
+
+function previewCampaignAd(event, id) {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    fetch(`/admin/api/ads/${encodeURIComponent(id)}`).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || data.error_code) {
+            throw new Error(apiError(data, uiT('ui.admin.ads.load_one_failed', 'Failed to load advertisement')));
+        }
+
+        const ad = data.ad || null;
+        if (!ad) {
+            throw new Error(uiT('ui.admin.ads.not_found', 'Advertisement not found'));
+        }
+
+        document.getElementById('campaignAdPreviewModalTitle').textContent = ad.title || uiT('ui.admin.ads.view', 'View');
+        const preview = document.getElementById('campaignAdPreviewAnsi');
+        preview.textContent = ad.content || '';
+        renderCampaignAdPreview(preview);
+        campaignAdPreviewModal?.show();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ads.load_one_failed', 'Failed to load advertisement'), 'danger');
+    });
+}
+
+function deleteCampaign(id, name) {
+    if (!confirm(uiT('ui.admin.ad_campaigns.delete_confirm', 'Delete {name}?', { name }))) return;
+    fetch(`/admin/api/ad-campaigns/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || !data.success) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.delete_failed', 'Failed to delete ad campaign')));
+        showCampaignAlert(window.getApiMessage ? window.getApiMessage(data, uiT('ui.admin.ad_campaigns.deleted', 'Ad campaign deleted.')) : uiT('ui.admin.ad_campaigns.deleted', 'Ad campaign deleted.'), 'success');
+        loadCampaignPage();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.delete_failed', 'Failed to delete ad campaign'), 'danger');
+    });
+}
+
+function runCampaign(id) {
+    fetch(`/admin/api/ad-campaigns/run/${encodeURIComponent(id)}`, { method: 'POST' }).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || !data.success) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.run_failed', 'Failed to run ad campaign')));
+        showCampaignAlert(window.getApiMessage ? window.getApiMessage(data, uiT('ui.admin.ad_campaigns.run_complete', 'Campaign run complete.')) : uiT('ui.admin.ad_campaigns.run_complete', 'Campaign run complete.'), 'success');
+        loadCampaignPage();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.run_failed', 'Failed to run ad campaign'), 'danger');
+    });
+}
+
+function showCampaignAlert(message, type) {
+    document.getElementById('campaignStatusAlert').innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+
+    const modalAlert = document.getElementById('campaignModalAlert');
+    if (modalAlert) {
+        modalAlert.innerHTML = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+    }
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function escapeJs(value) {
+    return String(value ?? '')
+        .replaceAll('\\', '\\\\')
+        .replaceAll("'", "\\'");
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) return window.getApiErrorMessage(payload, fallback);
+    if (payload && payload.error) return String(payload.error);
+    return fallback;
+}
+
+function readJsonResponse(response) {
+    return response.text().then(text => {
+        if (!text) return { response, data: {} };
+        return { response, data: JSON.parse(text) };
+    });
+}
+
+// =========================================================
+// Campaign Wizard
+// =========================================================
+
+let campaignWizardModal = null;
+let wizardCurrentStep = 1;
+let wizardSelectedType = null;
+let wizardCachedPayload = null;
+
+const WIZARD_PRESETS = {
+    weekly_bbs_ad: {
+        label: 'Weekly BBS Advertisement',
+        icon: 'fa-bullhorn',
+        description: 'Post a weekly BBS advertisement to one or more echoareas.',
+        frequency: 'Once per week (Mondays)',
+        schedules: [{ days_mask: 1 << 1, time_of_day: '10:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'BBS Ad: {title}',
+        has_end_date: false,
+    },
+    event: {
+        label: 'Event Advertisement',
+        icon: 'fa-calendar-alt',
+        description: 'Promote an upcoming event. Posts daily until the event date.',
+        frequency: 'Daily until event',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '14:00' }],
+        post_interval_minutes: 1440,
+        min_repeat_gap_minutes: 1440,
+        subject_template: 'EVENT: {title}',
+        has_end_date: true,
+        end_date_label: 'Event Date',
+    },
+    door_game: {
+        label: 'Door Game / Round Reset',
+        icon: 'fa-gamepad',
+        description: 'Announce a new door game or round reset (e.g. L.O.R.D., B.R.E.).',
+        frequency: 'Mon & Thu for 2 weeks',
+        schedules: [{ days_mask: (1 << 1) | (1 << 4), time_of_day: '11:00' }],
+        post_interval_minutes: 4320,
+        min_repeat_gap_minutes: 4320,
+        subject_template: 'NEW ROUND: {title}',
+        has_end_date: true,
+        end_date_label: 'Reset / Start Date',
+        end_date_default_offset: 14,
+    },
+    file_echo: {
+        label: 'File Echo Update',
+        icon: 'fa-file-archive',
+        description: 'Post a weekly summary of new files hatched or uploaded to the system.',
+        frequency: 'Weekly (Fridays)',
+        schedules: [{ days_mask: 1 << 5, time_of_day: '18:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'FILES: {title}',
+        has_end_date: false,
+        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/report_newfiles.php')|json_encode|raw }},
+    },
+    league_recruit: {
+        label: 'Inter-BBS League Recruitment',
+        icon: 'fa-trophy',
+        description: 'Seek players for a cross-platform inter-BBS tournament or league.',
+        frequency: 'Mon/Wed/Fri until deadline',
+        schedules: [{ days_mask: (1 << 1) | (1 << 3) | (1 << 5), time_of_day: '10:00' }],
+        post_interval_minutes: 2880,
+        min_repeat_gap_minutes: 2880,
+        subject_template: 'JOIN: {title}',
+        has_end_date: true,
+        end_date_label: 'Signup Deadline',
+    },
+    sub_of_week: {
+        label: 'Sub-Board of the Week',
+        icon: 'fa-comments',
+        description: 'Drive traffic to a specific message area to spark conversation.',
+        frequency: 'Once, expires in 7 days',
+        schedules: [{ days_mask: 1 << 1, time_of_day: '09:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'SUB OF THE WEEK: {title}',
+        has_end_date: true,
+        end_date_label: 'Expires On',
+        end_date_default_offset: 7,
+    },
+    anniversary: {
+        label: 'Anniversary / Milestone',
+        icon: 'fa-birthday-cake',
+        description: 'Celebrate a system anniversary or caller count milestone.',
+        frequency: 'Daily for 7 days',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '12:00' }],
+        post_interval_minutes: 1440,
+        min_repeat_gap_minutes: 1440,
+        subject_template: 'MILESTONE: {title}',
+        has_end_date: true,
+        end_date_label: 'Milestone Date',
+        end_date_default_offset: 7,
+    },
+    tech_notice: {
+        label: 'Technical Change Notice',
+        icon: 'fa-wrench',
+        description: 'Notify the network of an IP change, new SSH support, or hardware update.',
+        frequency: 'Every 2 days for 2 weeks',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '08:00' }],
+        post_interval_minutes: 2880,
+        min_repeat_gap_minutes: 2880,
+        subject_template: 'NOTICE: {title}',
+        has_end_date: true,
+        end_date_label: 'Effective Until',
+        end_date_default_offset: 14,
+    },
+    node_of_month: {
+        label: 'Node of the Month',
+        icon: 'fa-award',
+        description: 'Monthly shout-out to a partner BBS to foster community growth.',
+        frequency: 'Weekly through end of month',
+        schedules: [{ days_mask: 1 << 1, time_of_day: '10:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'NODE OF THE MONTH: {title}',
+        has_end_date: true,
+        end_date_label: 'Through End of Month',
+        end_date_default_end_of_month: true,
+    },
+};
+
+/**
+ * Open the wizard modal, reset state, go to step 1.
+ */
+function showCampaignWizard() {
+    wizardCurrentStep = 1;
+    wizardSelectedType = null;
+    wizardGoTo(1);
+    campaignWizardModal.show();
+}
+
+/**
+ * Navigate to a given wizard step, re-rendering step content and controls.
+ * @param {number} step
+ */
+function wizardGoTo(step) {
+    wizardCurrentStep = step;
+    renderWizardStepIndicator(step);
+
+    const stepTitles = [
+        uiT('ui.admin.ad_campaigns.wizard_step1_title', 'Choose Campaign Type'),
+        uiT('ui.admin.ad_campaigns.wizard_step2_title', 'Campaign Details'),
+        uiT('ui.admin.ad_campaigns.wizard_step3_title', 'Review & Confirm'),
+    ];
+    const stepLabel = document.getElementById('wizardStepLabel');
+    if (stepLabel) {
+        stepLabel.textContent = uiT('ui.admin.ad_campaigns.wizard_step_of', 'Step {current} of {total}', {
+            current: step,
+            total: 3,
+        }) + ' — ' + (stepTitles[step - 1] || '');
+    }
+
+    const backBtn = document.getElementById('wizardBackBtn');
+    const nextBtn = document.getElementById('wizardNextBtn');
+    const finishBtn = document.getElementById('wizardFinishBtn');
+    backBtn?.classList.toggle('d-none', step <= 1);
+    nextBtn?.classList.toggle('d-none', step >= 3);
+    finishBtn?.classList.toggle('d-none', step < 3);
+    if (finishBtn) {
+        finishBtn.disabled = false;
+        finishBtn.textContent = uiT('ui.admin.ad_campaigns.wizard_finish', 'Create Campaign');
+    }
+
+    const body = document.getElementById('wizardBody');
+    if (step === 1) {
+        body.innerHTML = renderWizardStep1();
+    } else if (step === 2) {
+        body.innerHTML = renderWizardStep2();
+    } else {
+        body.innerHTML = renderWizardStep3();
+    }
+}
+
+/**
+ * Render the three numbered step pips in the modal header.
+ * @param {number} currentStep
+ */
+function renderWizardStepIndicator(currentStep) {
+    const indicator = document.getElementById('wizardStepIndicator');
+    if (!indicator) {
+        return;
+    }
+
+    const stepLabels = [
+        uiT('ui.admin.ad_campaigns.wizard_step1_title', 'Type'),
+        uiT('ui.admin.ad_campaigns.wizard_step2_title', 'Details'),
+        uiT('ui.admin.ad_campaigns.wizard_step3_title', 'Review'),
+    ];
+
+    indicator.innerHTML = stepLabels.map((label, i) => {
+        const stepNum = i + 1;
+        const pipClass = stepNum < currentStep ? 'done' : (stepNum === currentStep ? 'active' : '');
+        const icon = stepNum < currentStep ? '<i class="fas fa-check"></i>' : String(stepNum);
+        const line = i < stepLabels.length - 1
+            ? '<div class="flex-grow-1 border-top mx-2" style="min-width:1rem;"></div>'
+            : '';
+        return `
+            <div class="d-flex align-items-center ${i < stepLabels.length - 1 ? 'flex-grow-1' : ''}">
+                <div class="wizard-step-pip ${pipClass}" title="${escapeHtml(label)}">${icon}</div>
+                <div class="ms-1 small d-none d-sm-block ${stepNum === currentStep ? '' : 'text-muted'}">${escapeHtml(label)}</div>
+                ${line}
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Render the type-selection card grid (step 1).
+ * @returns {string} HTML
+ */
+function renderWizardStep1() {
+    const cards = Object.entries(WIZARD_PRESETS).map(([key, preset]) => {
+        const selected = wizardSelectedType === key ? 'selected' : '';
+        return `
+            <div class="col">
+                <div class="card h-100 wizard-type-card ${selected}" onclick="wizardSelectType('${escapeJs(key)}')" role="button" tabindex="0">
+                    <div class="card-body text-center d-flex flex-column align-items-center p-3">
+                        <i class="fas ${escapeHtml(preset.icon)} fa-2x mb-2 text-primary"></i>
+                        <h6 class="card-title mb-1">${escapeHtml(preset.label)}</h6>
+                        <p class="card-text small text-muted flex-grow-1 mb-2">${escapeHtml(preset.description)}</p>
+                        <span class="badge bg-secondary">${escapeHtml(preset.frequency)}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    return `<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">${cards}</div>`;
+}
+
+/**
+ * Highlight the selected type card and update wizard state.
+ * @param {string} typeKey
+ */
+function wizardSelectType(typeKey) {
+    wizardSelectedType = typeKey;
+    const keys = Object.keys(WIZARD_PRESETS);
+    document.querySelectorAll('.wizard-type-card').forEach((card, i) => {
+        card.classList.toggle('selected', keys[i] === typeKey);
+    });
+}
+
+/**
+ * Render the campaign details form (step 2).
+ * @returns {string} HTML
+ */
+function renderWizardStep2() {
+    const preset = WIZARD_PRESETS[wizardSelectedType];
+    const systemName = {{ system_name|json_encode|raw }};
+    const defaultName = `${preset.label}: ${systemName}`;
+
+    const userOptions = (campaignMeta.users || []).map(user => {
+        const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
+        return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
+    }).join('');
+
+    const echoareas = Array.isArray(campaignMeta.echoareas) ? campaignMeta.echoareas : [];
+    const prioritized = [];
+    const remaining = [];
+    echoareas.forEach(area => {
+        const haystack = `${area.tag || ''} ${area.domain || ''}`.toUpperCase();
+        (haystack.includes('ADS') ? prioritized : remaining).push(area);
+    });
+    const buildAreaOption = area =>
+        `<option value="${escapeHtml(area.tag + '@' + area.domain)}">${escapeHtml(area.tag)} @ ${escapeHtml(area.domain)}</option>`;
+    const areaOptions = [
+        ...prioritized.map(buildAreaOption),
+        ...(prioritized.length && remaining.length ? ['<option value="" disabled>----</option>'] : []),
+        ...remaining.map(buildAreaOption),
+    ].join('');
+
+    let endDateField = '';
+    if (preset.has_end_date) {
+        const defaultDate = wizardEndDateDefault(preset);
+        endDateField = `
+            <div class="col-md-6">
+                <label class="form-label" for="wizardEndDate">${escapeHtml(preset.end_date_label)}</label>
+                <input class="form-control" type="date" id="wizardEndDate" value="${escapeHtml(defaultDate)}">
+                <div class="form-text">${uiT('ui.admin.ad_campaigns.wizard_disable_reminder', 'Reminder to disable this campaign after this date.')}</div>
+            </div>
+        `;
+    }
+
+    let adsHtml = '';
+    if (!Array.isArray(campaignMeta.ads) || campaignMeta.ads.length === 0) {
+        adsHtml = `<div class="text-muted small">${uiT('ui.admin.ad_campaigns.no_ads_available', 'No ads available yet.')} <a href="/admin/ads" target="_blank">Add an ad</a></div>`;
+    } else {
+        adsHtml = campaignMeta.ads.map(ad => `
+            <div class="form-check">
+                <input class="form-check-input wizard-ad-check" type="checkbox" value="${Number(ad.id)}" id="wizardAd${Number(ad.id)}">
+                <label class="form-check-label" for="wizardAd${Number(ad.id)}">${escapeHtml(ad.title || ad.slug || '')}</label>
+            </div>
+        `).join('');
+    }
+
+    return `
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas ${escapeHtml(preset.icon)} text-primary"></i>
+                    <span class="fw-semibold">${escapeHtml(preset.label)}</span>
+                    <span class="badge bg-secondary">${escapeHtml(preset.frequency)}</span>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label" for="wizardCampaignName">${uiT('ui.admin.ad_campaigns.wizard_campaign_name', 'Campaign Name')}</label>
+                <input class="form-control" type="text" id="wizardCampaignName" value="${escapeHtml(defaultName)}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="wizardToName">${uiT('ui.admin.ad_campaigns.to_name', 'To Name')}</label>
+                <input class="form-control" type="text" id="wizardToName" value="All">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="wizardUser">${uiT('ui.admin.ad_campaigns.post_as_user', 'Post As User')}</label>
+                <select class="form-select" id="wizardUser">
+                    <option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>
+                    ${userOptions}
+                </select>
+            </div>
+            ${endDateField}
+            <div class="col-12">
+                <label class="form-label" for="wizardTargetAreas">${uiT('ui.admin.ad_campaigns.echoarea_domain', 'Echoarea + Domain')}</label>
+                <select class="form-select" id="wizardTargetAreas" multiple size="6">
+                    ${areaOptions}
+                </select>
+                <div class="form-text">Hold Ctrl / Cmd to select multiple echoareas.</div>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="wizardSubjectTemplate">${uiT('ui.admin.ad_campaigns.subject_template', 'Subject Template')}</label>
+                <input class="form-control" type="text" id="wizardSubjectTemplate" value="${escapeHtml(preset.subject_template)}">
+                <div class="form-text"><strong>{title}</strong> = ad title &middot; <strong>{campaign}</strong> = this campaign&rsquo;s name &middot; <strong>{echoarea}</strong> / <strong>{domain}</strong> = posting destination</div>
+            </div>
+            ${preset.default_content_command != null ? `
+            <div class="col-12">
+                <label class="form-label" for="wizardContentCommand">${uiT('ui.admin.ads.content_command', 'Content Command')}</label>
+                <input class="form-control font-monospace" type="text" id="wizardContentCommand" maxlength="1024" value="${escapeHtml(preset.default_content_command)}">
+                <div class="form-text">${uiT('ui.admin.ads.content_command_help', 'An executable that writes the post body to stdout. A dynamic ad will be created automatically.')}</div>
+            </div>
+            ` : `
+            <div class="col-12">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.wizard_select_ads', 'Assign Ads')}</label>
+                <div class="border rounded p-3" style="max-height: 220px; overflow-y: auto;">
+                    ${adsHtml}
+                </div>
+                <div class="form-text">${uiT('ui.admin.ad_campaigns.wizard_select_ads_help', 'Select one or more ads to include in this campaign.')}</div>
+            </div>
+            `}
+        </div>
+    `;
+}
+
+/**
+ * Compute the default end date for a preset.
+ * @param {object} preset
+ * @returns {string} ISO date string (YYYY-MM-DD) or empty string
+ */
+function wizardEndDateDefault(preset) {
+    const today = new Date();
+    if (preset.end_date_default_end_of_month) {
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        return lastDay.toISOString().slice(0, 10);
+    }
+    if (preset.end_date_default_offset) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + preset.end_date_default_offset);
+        return d.toISOString().slice(0, 10);
+    }
+    return '';
+}
+
+/**
+ * Render the review/confirm summary (step 3).
+ * Step 2 DOM is still intact when this is called, so capture the payload now.
+ * @returns {string} HTML
+ */
+function renderWizardStep3() {
+    wizardCachedPayload = wizardBuildPayload();
+    const payload = wizardCachedPayload;
+    const preset = WIZARD_PRESETS[wizardSelectedType];
+    const schedule = preset.schedules[0];
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayStrip = dayNames.map((name, i) => {
+        const active = (schedule.days_mask & (1 << i)) !== 0;
+        return `<span class="badge ${active ? 'bg-primary' : 'bg-secondary'} me-1">${name}</span>`;
+    }).join('');
+
+    const targetList = payload.targets.length
+        ? payload.targets.map(t => `<code>${escapeHtml(t.echoarea_tag + '@' + t.domain)}</code>`).join(', ')
+        : uiT('ui.admin.ad_campaigns.select_target', 'None');
+
+    const selectedAdTitles = Array.from(document.querySelectorAll('.wizard-ad-check:checked'))
+        .map(cb => {
+            const ad = (campaignMeta.ads || []).find(a => Number(a.id) === Number(cb.value));
+            return ad ? escapeHtml(ad.title || ad.slug || '') : cb.value;
+        });
+
+    const endDate = document.getElementById('wizardEndDate')?.value;
+    const expiryRow = endDate ? `
+        <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_expires_label', 'Expires')}</dt>
+        <dd class="col-sm-8">${escapeHtml(endDate)}</dd>
+    ` : '';
+    const disableReminder = endDate ? `
+        <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mt-3" role="alert">
+            <i class="fas fa-exclamation-triangle mt-1 flex-shrink-0"></i>
+            <div>${uiT('ui.admin.ad_campaigns.wizard_disable_reminder', 'Remember to disable this campaign after this date.')}</div>
+        </div>
+    ` : '';
+
+    return `
+        <dl class="row mb-0">
+            <dt class="col-sm-4">${uiT('ui.common.title', 'Campaign Name')}</dt>
+            <dd class="col-sm-8 fw-semibold">${escapeHtml(payload.name)}</dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_posts_to', 'Posts to')}</dt>
+            <dd class="col-sm-8">${targetList}</dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_schedule_label', 'Schedule')}</dt>
+            <dd class="col-sm-8">
+                <div class="mb-1">${dayStrip}</div>
+                <div class="small text-muted">${escapeHtml(schedule.time_of_day)} ${escapeHtml(defaultCampaignTimezone)}</div>
+            </dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_frequency_label', 'Interval')}</dt>
+            <dd class="col-sm-8">${escapeHtml(wizardFormatInterval(preset.post_interval_minutes))}</dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_subject_label', 'Subject Template')}</dt>
+            <dd class="col-sm-8"><code>${escapeHtml(document.getElementById('wizardSubjectTemplate')?.value?.trim() || '')}</code></dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_ads_label', 'Ads')}</dt>
+            <dd class="col-sm-8">${payload._content_command
+                ? `<i class="fas fa-terminal me-1"></i><code>${escapeHtml(payload._content_command)}</code> <span class="text-muted small">(dynamic)</span>`
+                : selectedAdTitles.length ? selectedAdTitles.join(', ') : `<span class="text-muted">${uiT('ui.admin.ad_campaigns.no_ads_available', 'None')}</span>`
+            }</dd>
+            ${expiryRow}
+        </dl>
+        ${disableReminder}
+    `;
+}
+
+/**
+ * Format a minute count as a human-readable interval string.
+ * @param {number} minutes
+ * @returns {string}
+ */
+function wizardFormatInterval(minutes) {
+    if (minutes >= 10080) {
+        return `${Math.round(minutes / 10080)} week(s)`;
+    }
+    if (minutes >= 1440) {
+        return `${Math.round(minutes / 1440)} day(s)`;
+    }
+    if (minutes >= 60) {
+        return `${Math.round(minutes / 60)} hour(s)`;
+    }
+    return `${minutes} minute(s)`;
+}
+
+/**
+ * Build the campaign creation payload from the current wizard form state.
+ * @returns {object}
+ */
+function wizardBuildPayload() {
+    const preset = WIZARD_PRESETS[wizardSelectedType];
+    const schedules = preset.schedules.map(s => ({
+        days_mask: s.days_mask,
+        time_of_day: s.time_of_day,
+        timezone: defaultCampaignTimezone,
+        is_active: true,
+    }));
+
+    const subjectTemplate = document.getElementById('wizardSubjectTemplate')?.value?.trim() || preset.subject_template;
+    const targets = Array.from(document.querySelectorAll('#wizardTargetAreas option:checked')).map(opt => {
+        const atIdx = opt.value.indexOf('@');
+        return {
+            echoarea_tag: atIdx >= 0 ? opt.value.slice(0, atIdx) : opt.value,
+            domain: atIdx >= 0 ? opt.value.slice(atIdx + 1) : '',
+            subject_template: subjectTemplate,
+            is_active: true,
+        };
+    });
+
+    const ads = Array.from(document.querySelectorAll('.wizard-ad-check:checked')).map(cb => ({
+        advertisement_id: Number(cb.value),
+        weight: 1,
+    }));
+
+    const contentCommand = document.getElementById('wizardContentCommand')?.value?.trim() || null;
+    const endDate = document.getElementById('wizardEndDate')?.value || null;
+    const campaignName = document.getElementById('wizardCampaignName')?.value?.trim() || preset.label;
+
+    return {
+        name: campaignName,
+        _content_command: contentCommand,  // used by wizardFinish to auto-create an ad; not sent to campaign API
+        description: '',
+        end_at: endDate,
+        is_active: true,
+        from_user_id: Number(document.getElementById('wizardUser')?.value || 0),
+        to_name: document.getElementById('wizardToName')?.value?.trim() || 'All',
+        selection_mode: 'weighted_random',
+        post_interval_minutes: preset.post_interval_minutes,
+        min_repeat_gap_minutes: preset.min_repeat_gap_minutes,
+        schedules,
+        targets,
+        ads,
+        tag_filters: { include: [], exclude: [] },
+    };
+}
+
+/**
+ * Validate current step and advance to the next.
+ */
+function wizardNext() {
+    if (wizardCurrentStep === 1) {
+        if (!wizardSelectedType) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_type', 'Please select a campaign type.'));
+            return;
+        }
+        wizardGoTo(2);
+        return;
+    }
+
+    if (wizardCurrentStep === 2) {
+        if (!document.getElementById('wizardCampaignName')?.value?.trim()) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_name', 'Please enter a campaign name.'));
+            return;
+        }
+        if (!document.getElementById('wizardUser')?.value) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_user', 'Please select a user.'));
+            return;
+        }
+        if (document.querySelectorAll('#wizardTargetAreas option:checked').length === 0) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_target', 'Please select an echoarea target.'));
+            return;
+        }
+        const hasContentCommand = (document.getElementById('wizardContentCommand')?.value?.trim() || '') !== '';
+        if (!hasContentCommand && document.querySelectorAll('.wizard-ad-check:checked').length === 0) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_ads', 'Please select at least one ad.'));
+            return;
+        }
+        wizardGoTo(3);
+    }
+}
+
+/**
+ * Go back one wizard step.
+ */
+function wizardBack() {
+    if (wizardCurrentStep > 1) {
+        if (wizardCurrentStep === 3) {
+            wizardCachedPayload = null;
+        }
+        wizardGoTo(wizardCurrentStep - 1);
+    }
+}
+
+/**
+ * Submit the wizard payload to create the campaign.
+ * If a content_command was specified, first creates a dynamic ad, then links it to the campaign.
+ */
+function wizardFinish() {
+    const payload = { ...wizardCachedPayload };
+    const contentCommand = payload._content_command || null;
+    delete payload._content_command;
+
+    const finishBtn = document.getElementById('wizardFinishBtn');
+    if (finishBtn) {
+        finishBtn.disabled = true;
+        finishBtn.textContent = 'Saving\u2026';
+    }
+
+    const createCampaign = (extraAds) => {
+        if (extraAds.length > 0) {
+            payload.ads = [...(payload.ads || []), ...extraAds];
+        }
+        return fetch('/admin/api/ad-campaigns', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }).then(readJsonResponse).then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign')));
+            }
+            campaignWizardModal.hide();
+            showCampaignAlert(uiT('ui.admin.ad_campaigns.wizard_created', 'Campaign created successfully.'), 'success');
+            loadCampaignPage();
+        });
+    };
+
+    const onError = (error) => {
+        if (finishBtn) {
+            finishBtn.disabled = false;
+            finishBtn.textContent = uiT('ui.admin.ad_campaigns.wizard_finish', 'Create Campaign');
+        }
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign'), 'danger');
+    };
+
+    if (contentCommand) {
+        // Create a dynamic ad first, then link it to the campaign
+        const formData = new FormData();
+        formData.append('title', payload.name);
+        formData.append('content_command', contentCommand);
+        formData.append('allow_auto_post', '1');
+        formData.append('is_active', '1');
+
+        fetch('/admin/api/ads/upload', { method: 'POST', body: formData })
+            .then(readJsonResponse)
+            .then(({ response, data }) => {
+                if (!response.ok || !data.success) {
+                    throw new Error(apiError(data, uiT('ui.admin.ads.create_dynamic_failed', 'Failed to create dynamic ad')));
+                }
+                return createCampaign([{ advertisement_id: Number(data.ad.id), weight: 1 }]);
+            })
+            .catch(onError);
+    } else {
+        createCampaign([]).catch(onError);
+    }
+}
+
+function renderCampaignAdPreview(element) {
+    if (!element) {
+        return;
+    }
+
+    const render = () => {
+        if (typeof renderAnsiTerminal !== 'function') {
+            return;
+        }
+        element.innerHTML = renderAnsiTerminal(element.textContent);
+    };
+
+    if (typeof renderAnsiTerminal === 'function') {
+        render();
+        return;
+    }
+
+    const existing = document.querySelector('script[data-campaign-ansi-preview="1"]');
+    if (existing) {
+        existing.addEventListener('load', render, { once: true });
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/js/ansisys.js';
+    script.dataset.campaignAnsiPreview = '1';
+    script.onload = render;
+    document.body.appendChild(script);
+}
+</script>
+{% endblock %}

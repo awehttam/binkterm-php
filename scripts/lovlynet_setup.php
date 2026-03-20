@@ -18,6 +18,9 @@ require_once __DIR__ . '/../src/functions.php';
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\EchoareaManager;
+use BinktermPHP\FileAreaManager;
+use BinktermPHP\LovlyNetClient;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Version;
 
@@ -98,6 +101,105 @@ function saveLovlyNetConfig($config) {
         LOVLYNET_CONFIG_PATH,
         json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
     ) !== false;
+}
+
+/**
+ * Derive the LovlyNet TIC password from the Areafix password.
+ *
+ * @param string $areafixPassword
+ * @return string
+ */
+function deriveLovlyNetTicPassword(string $areafixPassword): string {
+    return strtoupper(substr($areafixPassword, 0, 8));
+}
+
+/**
+ * Pull currently subscribed LovlyNet areas from the API and ensure matching
+ * local echo/file areas exist.
+ *
+ * @param string $hubAddress
+ * @return void
+ */
+function syncSubscribedLovlyNetAreas(string $hubAddress): void {
+    echo "Syncing subscribed LovlyNet areas... ";
+
+    try {
+        $client = new LovlyNetClient();
+        $areasResult = $client->getAreas();
+
+        if (!$areasResult['success']) {
+            throw new \RuntimeException($areasResult['error'] ?? 'Failed to load areas');
+        }
+
+        $echoareaManager = new EchoareaManager();
+        $fileAreaManager = new FileAreaManager();
+        $echoCreated = 0;
+        $echoSkipped = 0;
+        $fileCreated = 0;
+        $fileSkipped = 0;
+
+        foreach (($areasResult['echoareas'] ?? []) as $area) {
+            if (empty($area['subscribed'])) {
+                continue;
+            }
+
+            $tag = trim((string)($area['tag'] ?? ''));
+            if ($tag === '') {
+                continue;
+            }
+
+            $existingId = $echoareaManager->findByTagAndDomains($tag, ['', LOVLYNET_DOMAIN])['id'] ?? null;
+            $echoareaManager->createIfMissing([
+                'tag' => $tag,
+                'description' => trim((string)($area['description'] ?? '')),
+                'domain' => LOVLYNET_DOMAIN,
+                'uplink_address' => $hubAddress,
+                'is_local' => false,
+                'is_active' => true,
+                'is_sysop_only' => false,
+                'gemini_public' => false,
+            ], ['', LOVLYNET_DOMAIN]);
+
+            if ($existingId) {
+                $echoSkipped++;
+            } else {
+                $echoCreated++;
+            }
+        }
+
+        foreach (($areasResult['fileareas'] ?? []) as $area) {
+            if (empty($area['subscribed'])) {
+                continue;
+            }
+
+            $tag = trim((string)($area['tag'] ?? ''));
+            if ($tag === '') {
+                continue;
+            }
+
+            $existingId = $fileAreaManager->getFileAreaByTag(strtoupper($tag), LOVLYNET_DOMAIN)['id'] ?? null;
+            $fileAreaManager->createIfMissing([
+                'tag' => $tag,
+                'description' => trim((string)($area['description'] ?? '')),
+                'domain' => LOVLYNET_DOMAIN,
+                'is_local' => false,
+                'is_active' => true,
+                'replace_existing' => true,
+            ]);
+
+            if ($existingId) {
+                $fileSkipped++;
+            } else {
+                $fileCreated++;
+            }
+        }
+
+        echo "OK ({$echoCreated} echo created, {$echoSkipped} echo existing, {$fileCreated} file created, {$fileSkipped} file existing)\n";
+    } catch (\Throwable $e) {
+        echo "FAILED\n";
+        echo "Note: " . $e->getMessage() . "\n";
+        echo "You can sync the areas later from the LovlyNet admin page.\n";
+    }
 }
 
 /**
@@ -360,6 +462,8 @@ function doRegistration($isUpdate = false) {
     echo "\n";
 
     // Save registration config
+    $ticPassword = deriveLovlyNetTicPassword((string)$regData['areafix_password']);
+
     $lovlyNetConfig = [
         'node_id' => $regData['node_id'] ?? ($existingConfig['node_id'] ?? null),
         'api_key' => $regData['api_key'] ?? ($existingConfig['api_key'] ?? ''),
@@ -369,6 +473,7 @@ function doRegistration($isUpdate = false) {
         'hub_port' => $regData['hub_port'],
         'binkp_password' => $regData['binkp_password'],
         'areafix_password' => $regData['areafix_password'],
+        'tic_password' => $ticPassword,
         'registered_at' => $existingConfig['registered_at'] ?? date('c'),
         'updated_at' => date('c')
     ];
@@ -395,6 +500,7 @@ function doRegistration($isUpdate = false) {
                 'hostname' => $regData['hub_hostname'],
                 'port' => $regData['hub_port'],
                 'password' => $regData['binkp_password'],
+                'tic_password' => $ticPassword,
                 'domain' => LOVLYNET_DOMAIN,
                 'networks' => ['227:*/*'],
                 'allow_markup' => true,
@@ -414,6 +520,7 @@ function doRegistration($isUpdate = false) {
                     'me' => $regData['ftn_address'],
                     'domain' => LOVLYNET_DOMAIN,
                     'networks' => ['227:*/*'],
+                    'tic_password' => $ticPassword,
                     'allow_markup' => true,
                     'compression' => false,
                     'crypt' => false,
@@ -428,46 +535,7 @@ function doRegistration($isUpdate = false) {
         echo "You may need to manually configure the uplink in config/binkp.json\n";
     }
 
-    // Create echo areas in the database
-    $echoAreas = $regData['echoareas'] ?? [];
-
-    if (!empty($echoAreas)) {
-        echo "Creating LovlyNet echo areas... ";
-
-        try {
-            $db = Database::getInstance()->getPdo();
-            $created = 0;
-            $skipped = 0;
-
-            foreach ($echoAreas as $area) {
-                $tag = $area['tag'];
-                $description = $area['description'] ?? '';
-
-                // Check if already exists
-                $stmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ?");
-                $stmt->execute([$tag, LOVLYNET_DOMAIN]);
-
-                if ($stmt->fetch()) {
-                    $skipped++;
-                    continue;
-                }
-
-                // Insert the echo area
-                $stmt = $db->prepare("
-                    INSERT INTO echoareas (tag, description, domain, uplink_address, is_active, is_default_subscription)
-                    VALUES (?, ?, ?, ?, TRUE, TRUE)
-                ");
-                $stmt->execute([$tag, $description, LOVLYNET_DOMAIN, $regData['hub_address']]);
-                $created++;
-            }
-
-            echo "OK ({$created} created, {$skipped} already existed)\n";
-        } catch (\Exception $e) {
-            echo "FAILED\n";
-            echo "Error: " . $e->getMessage() . "\n";
-            echo "You may need to create echo areas manually.\n";
-        }
-    }
+    syncSubscribedLovlyNetAreas($regData['hub_address']);
 
     // Send areafix netmail to hub
     echo "Sending areafix request to hub... ";

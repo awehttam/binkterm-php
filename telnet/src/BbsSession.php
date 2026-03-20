@@ -80,6 +80,8 @@ class BbsSession
     private array $failedLoginAttempts = [];
     private Translator $translator;
     private string $systemLocale;
+    private ?string $peerName;
+    private ?string $peerIp;
 
     /**
      * Pre-authenticated session data supplied by SSH layer.
@@ -101,6 +103,8 @@ class BbsSession
      * @param int         $tlsPort        TLS port number (for banner hint)
      * @param Logger|null $logger          Logger instance, or null for no logging
      * @param array|null  $preAuthSession Pre-authenticated user data from SSH layer
+     * @param string|null $peerName       Peer address captured at accept time
+     * @param string|null $peerIp         Parsed peer IP captured at accept time
      */
     public function __construct(
         $conn,
@@ -112,7 +116,9 @@ class BbsSession
         bool $tlsEnabled = true,
         int $tlsPort = 8023,
         ?Logger $logger = null,
-        ?array $preAuthSession = null
+        ?array $preAuthSession = null,
+        ?string $peerName = null,
+        ?string $peerIp = null
     ) {
         $this->conn           = $conn;
         $this->apiBase        = rtrim($apiBase, '/');
@@ -128,6 +134,8 @@ class BbsSession
         $this->preAuthSession = $preAuthSession;
         $this->translator     = new Translator();
         $this->systemLocale   = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
+        $this->peerName       = $peerName;
+        $this->peerIp         = $peerIp;
     }
 
     // ===== PUBLIC INTERFACE =====
@@ -173,31 +181,43 @@ class BbsSession
 
         if (!$this->isSsh) {
             $this->negotiateTelnet($conn);
-            // Probe ANSI support before showing the banner by doing the TTYPE
-            // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
-            // then use the IS response to determine color capability.
-            // Default to no color until confirmed; SSH clients are assumed ANSI.
-            $this->ansiColorEnabled = false;
-            TelnetUtils::setAnsiColorEnabled(false);
-            if ($this->probeAnsiSupport($conn, $state)) {
+            // TLS telnet clients commonly delay TELNET option replies until after
+            // they see visible output. Blocking on TTYPE before the banner causes
+            // a blank-screen stall on port 8023. Start TLS sessions optimistically
+            // in UTF-8 + ANSI mode and let later TELNET parsing record TTYPE when
+            // the client eventually sends it.
+            if ($this->isTls) {
+                $this->terminalCharset = 'utf8';
+                $this->asciiTextMode = false;
                 $this->ansiColorEnabled = true;
                 TelnetUtils::setAnsiColorEnabled(true);
-                if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                if ($this->debug) { $this->log('TLS startup: optimistic ANSI/UTF-8 enabled; skipping pre-banner TTYPE probe'); }
             } else {
-                if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
+                // Probe ANSI support before showing the banner by doing the TTYPE
+                // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
+                // then use the IS response to determine color capability.
+                // Default to no color until confirmed; SSH clients are assumed ANSI.
+                $this->ansiColorEnabled = false;
+                TelnetUtils::setAnsiColorEnabled(false);
+                if ($this->probeAnsiSupport($conn, $state)) {
+                    $this->ansiColorEnabled = true;
+                    TelnetUtils::setAnsiColorEnabled(true);
+                    if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                } else {
+                    if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
+                }
             }
         }
 
-        $rawPeer  = @stream_socket_get_name($conn, true);
-        if (!$rawPeer) {
+        if (!$this->peerName || !$this->peerIp) {
             $this->writeLine($conn, "I don't know who you are.");
             $this->log("Connection with no peer address — dropped");
             fclose($conn);
             if ($forked) { exit(0); }
             return;
         }
-        $peerName = $rawPeer;
-        $peerIp   = explode(':', $peerName)[0];
+        $peerName = $this->peerName;
+        $peerIp   = $this->peerIp;
 
         if ($this->isRateLimited($peerIp)) {
             $this->writeLine($conn, '');
@@ -568,6 +588,7 @@ class BbsSession
         $prev = error_reporting();
         error_reporting($prev & ~E_NOTICE);
         @fwrite($conn, $data);
+        @fflush($conn);
         error_reporting($prev);
     }
 

@@ -25,6 +25,8 @@
                             <option value="25" selected>25 messages</option>
                             <option value="50">50 messages</option>
                             <option value="100">100 messages</option>
+                            <option value="250">250 messages</option>
+                            <option value="500">500 messages</option>
                         </select>
                         <div class="form-text">{{ t('ui.settings.messages_per_page_help', {}, locale, ['common']) }}</div>
                     </div>
@@ -173,6 +175,18 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">{{ t('ui.settings.page_position_memory', {}, locale, ['common']) }}</label>
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="rememberPagePosition" name="remember_page_position">
+                            <label class="form-check-label" for="rememberPagePosition">
+                                {{ t('ui.settings.remember_page_position', {}, locale, ['common']) }}
+                            </label>
+                            <div class="form-text">{{ t('ui.settings.remember_page_position_help', {}, locale, ['common']) }}</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">{{ t('ui.settings.quote_display', {}, locale, ['common']) }}</label>
 
                         <div class="form-check form-switch mb-2">
@@ -182,6 +196,83 @@
                             </label>
                             <div class="form-text">{{ t('ui.settings.quote_coloring_help', {}, locale, ['common']) }}</div>
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.settings.notifications', {}, locale, ['common']) }}</label>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="chatNotificationSound">{{ t('ui.settings.chat_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="chatNotificationSound" name="chat_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="echomailNotificationSound">{{ t('ui.settings.echomail_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="echomailNotificationSound" name="echomail_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="netmailNotificationSound">{{ t('ui.settings.netmail_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="netmailNotificationSound" name="netmail_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="fileNotificationSound">{{ t('ui.settings.file_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="fileNotificationSound" name="file_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text mb-3">{{ t('ui.settings.notification_sound_help', {}, locale, ['common']) }}</div>
+
+                        {% if license_valid %}
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="forwardNetmailEmail" name="forward_netmail_email">
+                            <label class="form-check-label" for="forwardNetmailEmail">
+                                {{ t('ui.settings.forward_netmail_email', {}, locale, ['common']) }}
+                            </label>
+                            <div class="form-text">{{ t('ui.settings.forward_netmail_email_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label" for="echomailDigest">{{ t('ui.settings.echomail_digest', {}, locale, ['common']) }}</label>
+                            <select class="form-select form-select-sm w-auto" id="echomailDigest">
+                                <option value="none">{{ t('ui.settings.echomail_digest_none', {}, locale, ['common']) }}</option>
+                                <option value="daily">{{ t('ui.settings.echomail_digest_daily', {}, locale, ['common']) }}</option>
+                                <option value="weekly">{{ t('ui.settings.echomail_digest_weekly', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.echomail_digest_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        {% else %}
+                        <div class="form-check form-switch mb-2 opacity-50">
+                            <input class="form-check-input" type="checkbox" id="forwardNetmailEmail" disabled>
+                            <label class="form-check-label" for="forwardNetmailEmail">
+                                {{ t('ui.settings.forward_netmail_email', {}, locale, ['common']) }}
+                                <span class="badge bg-secondary ms-1" style="font-size:0.7em;">{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}</span>
+                            </label>
+                            <div class="form-text">{{ t('ui.settings.forward_netmail_email_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="mb-2 opacity-50">
+                            <label class="form-label">{{ t('ui.settings.echomail_digest', {}, locale, ['common']) }}
+                                <span class="badge bg-secondary ms-1" style="font-size:0.7em;">{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}</span>
+                            </label>
+                            <select class="form-select form-select-sm w-auto" disabled>
+                                <option>{{ t('ui.settings.echomail_digest_none', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.echomail_digest_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        {% endif %}
                     </div>
 
                 </form>
@@ -361,6 +452,10 @@ $(document).ready(function() {
     $('#signatureText').on('input', function() {
         enforceSignatureLineLimit(this);
     });
+
+    $('#chatNotificationSound, #echomailNotificationSound, #netmailNotificationSound, #fileNotificationSound').on('change', function() {
+        previewNotificationSound($(this).val());
+    });
 });
 
 function enforceSignatureLineLimit(textarea) {
@@ -369,6 +464,19 @@ function enforceSignatureLineLimit(textarea) {
     if (lines.length > 4) {
         textarea.value = lines.slice(0, 4).join('\n');
     }
+}
+
+function previewNotificationSound(soundName) {
+    if (soundName === 'disabled') {
+        return;
+    }
+    const selectedSound = typeof soundName === 'string' && /^notify\d+$/.test(soundName)
+        ? soundName
+        : 'notify1';
+    const audio = new Audio(`/sounds/${selectedSound}.mp3`);
+    audio.play().catch(function() {
+        // Ignore autoplay/playback failures during preview.
+    });
 }
 
 function loadSettings() {
@@ -394,9 +502,18 @@ function loadSettings() {
             // Threading preferences
             $('#threadedView').prop('checked', data.threaded_view === true);
             $('#netmailThreadedView').prop('checked', data.netmail_threaded_view === true);
+            $('#rememberPagePosition').prop('checked', data.remember_page_position === true);
 
             // Quote coloring (defaults to true if not set)
             $('#quoteColoring').prop('checked', data.quote_coloring !== false);
+
+            // Notifications
+            $('#chatNotificationSound').val(data.chat_notification_sound || 'notify3');
+            $('#echomailNotificationSound').val(data.echomail_notification_sound || 'disabled');
+            $('#netmailNotificationSound').val(data.netmail_notification_sound || 'notify1');
+            $('#fileNotificationSound').val(data.file_notification_sound || 'disabled');
+            $('#forwardNetmailEmail').prop('checked', data.forward_netmail_email === true);
+            $('#echomailDigest').val(data.echomail_digest || 'none');
 
             // Commented out settings (not yet implemented)
             $('#showOrigin').prop('checked', data.show_origin !== false);
@@ -435,7 +552,14 @@ function saveSettings() {
         default_tagline: $('#defaultTagline').val(),
         threaded_view: $('#threadedView').is(':checked'),
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
+        remember_page_position: $('#rememberPagePosition').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
+        chat_notification_sound: $('#chatNotificationSound').val() || 'notify3',
+        echomail_notification_sound: $('#echomailNotificationSound').val() || 'disabled',
+        netmail_notification_sound: $('#netmailNotificationSound').val() || 'notify1',
+        file_notification_sound: $('#fileNotificationSound').val() || 'disabled',
+        forward_netmail_email: $('#forwardNetmailEmail').is(':checked'),
+        echomail_digest: $('#echomailDigest').val() || 'none',
         show_origin: $('#showOrigin').is(':checked'),
         show_tearline: $('#showTearline').is(':checked'),
         auto_refresh: $('#autoRefresh').is(':checked')

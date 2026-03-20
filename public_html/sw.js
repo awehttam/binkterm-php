@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v220';
+const CACHE_NAME = 'binkcache-v443';
 
 // Static assets to precache
 const staticAssets = [
@@ -9,6 +9,8 @@ const staticAssets = [
     '/js/chat-page.js',
     '/js/chat-notify.js',
     '/js/ansisys.js',
+    '/js/file-preview.js',
+    '/js/pcboard.js',
     '/css/ansisys.css',
     '/css/chat-page.css',
     // Theme stylesheets
@@ -24,14 +26,24 @@ const staticAssets = [
     '/vendor/fontawesome-6.4.0/css/all.min.css',
     '/vendor/fontawesome-6.4.0/webfonts/fa-solid-900.woff2',
     '/vendor/fontawesome-6.4.0/webfonts/fa-regular-400.woff2',
-    '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2'
+    '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2',
+    '/vendor/riptermjs/BGI.js',
+    '/vendor/riptermjs/ripterm.js'
 ];
 
 // Keep a reference to the open cache to avoid re-opening on every fetch
 let _cache = null;
 function getCache() {
     if (_cache) return Promise.resolve(_cache);
-    return caches.open(CACHE_NAME).then((c) => { _cache = c; return c; });
+    // Race against a timeout — Cache Storage can deadlock in Edge when another
+    // browser process holds the cache lock (e.g. PWA + browser window both open).
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('cache-open-timeout')), 3000)
+    );
+    return Promise.race([
+        caches.open(CACHE_NAME).then((c) => { _cache = c; return c; }),
+        timeout
+    ]);
 }
 
 // Install event - cache static assets and activate immediately
@@ -52,7 +64,8 @@ self.addEventListener('install', (event) => {
                 }
             })
             .then(() => {
-                console.log('[SW] New version installed, waiting for activation');
+                console.log('[SW] New version installed, skipping wait');
+                return self.skipWaiting();
             })
     );
 });
@@ -72,6 +85,13 @@ self.addEventListener('activate', (event) => {
         }).then(() => {
             console.log('[SW] New version activated');
             return self.clients.claim();
+        }).then(() => {
+            // Notify all open pages that new assets are available so they can prompt a reload
+            return self.clients.matchAll({ type: 'window' }).then(clients => {
+                clients.forEach(client => {
+                    client.postMessage({ type: 'UPDATE_AVAILABLE', version: CACHE_NAME });
+                });
+            });
         })
     );
 });
@@ -118,6 +138,10 @@ self.addEventListener('fetch', (event) => {
                         return networkResponse;
                     });
                 });
+            }).catch(() => {
+                // Cache unavailable (lock timeout or error) — fall back to network
+                // so the page loads rather than hanging with a white screen.
+                return fetch(request);
             })
         );
     }
@@ -137,7 +161,10 @@ self.addEventListener('fetch', (event) => {
                         return networkResponse;
                     });
                 });
+            }).catch(() => {
+                return fetch(request);
             })
         );
     }
 });
+

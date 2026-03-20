@@ -31,6 +31,9 @@
                         <label class="btn btn-outline-secondary" for="inactive">{{ t('ui.common.inactive', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
+                <input type="text" class="form-control form-control-sm mt-2" id="fileareaSearch"
+                       placeholder="{{ t('ui.common.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchFileareas(this.value)">
+                <div class="mt-2" id="fileareaDomainFilters"></div>
             </div>
             <div class="card-body p-0">
                 <div id="fileareasContainer">
@@ -93,7 +96,8 @@
                             <div class="mb-3">
                                 <label for="fileareaTag" class="form-label">{{ t('ui.fileareas.tag_required', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control text-uppercase" id="fileareaTag" name="tag" required maxlength="255">
-                                <div class="form-text">{{ t('ui.fileareas.tag_help', {}, locale, ['common']) }}</div>
+                                <div class="form-text" id="fileareaTagHelp">{{ t('ui.fileareas.tag_help', {}, locale, ['common']) }}</div>
+                                <div class="form-text text-warning" id="fileareaTagReadonlyNote" style="display:none;"><i class="fas fa-lock me-1"></i>{{ t('ui.fileareas.tag_readonly', {}, locale, ['common']) }}</div>
                             </div>
 
                             <div class="mb-3">
@@ -164,6 +168,76 @@
                                 <div class="form-text">{{ t('ui.fileareas.local_only_help', {}, "Don't forward files to uplinks") }}</div>
                             </div>
 
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaGeminiPublic" name="gemini_public">
+                                <label class="form-check-label" for="fileareaGeminiPublic">
+                                    {{ t('ui.fileareas.gemini_public', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.gemini_public_help', {}, 'List and serve files in this area via the Gemini capsule server') }}</div>
+                            </div>
+
+                            {% if license_valid %}
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="fileareaIsPublic" name="is_public">
+                                <label class="form-check-label" for="fileareaIsPublic">
+                                    {{ t('ui.fileareas.is_public', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.is_public_help', {}, 'Allow unauthenticated visitors to browse and download files in this area') }}</div>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-secondary py-2 small mb-3">
+                                <i class="fas fa-lock me-1"></i>
+                                {{ t('ui.fileareas.is_public_requires_license', {}, locale, ['common']) }}
+                            </div>
+                            {% endif %}
+
+                            {% if freq_experimental_enabled %}
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="fileareaFreqEnabled" name="freq_enabled">
+                                <label class="form-check-label" for="fileareaFreqEnabled">
+                                    {{ t('ui.fileareas.freq_enabled', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.fileareas.freq_enabled_help', {}, 'Allow any FidoNet node to request files from this area via FREQ') }}</div>
+                            </div>
+                            <div class="mb-3" id="freqPasswordGroup" style="display:none;">
+                                <label for="fileareaFreqPassword" class="form-label small">{{ t('ui.fileareas.freq_password', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control form-control-sm" id="fileareaFreqPassword" name="freq_password" placeholder="{{ t('ui.fileareas.freq_password_placeholder', {}, locale, ['common']) }}">
+                                <div class="form-text">{{ t('ui.fileareas.freq_password_help', {}, 'Leave blank for open access') }}</div>
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label class="form-label">{{ t('ui.fileareas.area_type', {}, locale, ['common']) }}</label>
+                                <div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="area_type" id="areaTypeNormal" value="normal" checked>
+                                        <label class="form-check-label" for="areaTypeNormal">{{ t('ui.fileareas.area_type_normal', {}, locale, ['common']) }}</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="area_type" id="areaTypeIso" value="iso">
+                                        <label class="form-check-label" for="areaTypeIso">{{ t('ui.fileareas.area_type_iso', {}, locale, ['common']) }}</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="isoFieldsGroup" style="display:none;">
+                                <div class="mb-3">
+                                    <label for="fileareaIsoMountPoint" class="form-label">{{ t('ui.fileareas.iso_mount_point', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="/srv/isos/mounts/1  or  D:\">
+                                    <div class="form-text">{{ t('ui.fileareas.iso_mount_point_help', {}, locale, ['common']) }}</div>
+                                </div>
+                                <div id="isoMountControls" style="display:none;" class="mb-3">
+                                    <label class="form-label">{{ t('ui.fileareas.iso_mount_status', {}, locale, ['common']) }}</label>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <span id="isoMountStatusBadge" class="badge bg-secondary">—</span>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="isoReindexBtn" onclick="openIsoPreview()">
+                                            <i class="fas fa-search"></i> {{ t('ui.fileareas.reindex', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
+                                    <div id="isoLastIndexed" class="form-text mt-1"></div>
+                                </div>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="fileareaUploadPermission" class="form-label">{{ t('ui.fileareas.upload_permission', {}, locale, ['common']) }}</label>
                                 <select class="form-select" id="fileareaUploadPermission" name="upload_permission">
@@ -191,12 +265,90 @@
                             </div>
                         </div>
                     </div>
+
+                    <hr>
+
+                    <div class="mb-0">
+                        <label class="form-label" for="fileareaCommentEchoareaSelect">
+                            <i class="fas fa-comments me-1"></i>
+                            {{ t('ui.fileareas.comment_area', {}, locale, ['common']) }}
+                        </label>
+                        <select class="form-select" id="fileareaCommentEchoareaSelect">
+                            <option value="">— {{ t('ui.common.none', {}, locale, ['common']) }} ({{ t('ui.common.disabled', {}, locale, ['common']) }}) —</option>
+                            <option value="__new__" id="fileareaCommentCreateOpt">✚ {{ t('ui.fileareas.comment_area_create_new', {}, locale, ['common']) }}…</option>
+                        </select>
+                        <div id="fileareaCommentNewTagGroup" class="mt-2" style="display:none;">
+                            <input type="text" class="form-control form-control-sm text-uppercase" id="fileareaCommentTagInput"
+                                   placeholder="{{ t('ui.fileareas.comment_area_placeholder', {}, locale, ['common']) }}"
+                                   maxlength="40">
+                            <div class="form-text">{{ t('ui.fileareas.comment_area_create_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="form-text mt-1">{{ t('ui.fileareas.comment_area_help', {}, locale, ['common']) }}</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <a href="/admin/filearea-rules" class="btn btn-outline-secondary me-auto">{{ t('ui.fileareas.edit_rules', {}, locale, ['common']) }}</a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveFilearea()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ISO Import Preview Modal -->
+<div class="modal fade" id="isoPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-search me-2"></i><span id="isoPreviewTitle">ISO Import Preview</span></h5>
+                <div class="ms-3 form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" id="isoPreviewFlat">
+                    <label class="form-check-label small" for="isoPreviewFlat" title="Import all files into the root of the area, ignoring the ISO directory structure.">Flat import</label>
+                </div>
+                <div class="ms-3 form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" id="isoPreviewCatalogueOnly">
+                    <label class="form-check-label small" for="isoPreviewCatalogueOnly" title="Only import files listed in FILES.BBS / DESCRIPT.ION. Files not in the catalogue are skipped.">Catalogue only</label>
+                </div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="isoPreviewLoading" class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-3 d-block"></i>
+                    <span id="isoPreviewLoadingMsg">Scanning ISO…</span>
+                </div>
+                <div id="isoPreviewContent" style="display:none;">
+                    <div id="isoPreviewSummary" class="px-3 py-2 border-bottom small text-muted"></div>
+                    <div class="px-3 py-2 border-bottom d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="isoPreviewSelectAll(true)">
+                            <i class="fas fa-check-square me-1"></i>Select All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="isoPreviewSelectAll(false)">
+                            <i class="fas fa-square me-1"></i>Deselect All
+                        </button>
+                    </div>
+                    <div class="table-responsive" style="max-height:55vh; overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0" id="isoPreviewTable">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th width="4%"></th>
+                                    <th width="22%">Directory</th>
+                                    <th width="40%">Description</th>
+                                    <th width="12%">Files</th>
+                                    <th width="12%">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="isoPreviewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="isoPreviewError" class="alert alert-danger m-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="isoPreviewSubmitBtn" onclick="submitIsoImport()" style="display:none;">
+                    <i class="fas fa-download me-1"></i>Apply Import
+                </button>
             </div>
         </div>
     </div>
@@ -226,6 +378,13 @@
 {% block scripts %}
 <script>
 let currentFileareaId = null;
+let currentFilter = 'active';
+let allFileareas = [];
+let searchQuery = '';
+let selectedDomains = [];
+let availableDomains = [];
+let pendingFileareaTag = null;
+let pendingFileareaDomain = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -242,12 +401,17 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
+    const params = new URLSearchParams(window.location.search);
+    pendingFileareaTag = (params.get('tag') || '').trim().toUpperCase();
+    pendingFileareaDomain = (params.get('domain') || '').trim().toLowerCase();
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadFileareas();
         loadStats();
     });
 
     $('input[name="filter"]').change(function() {
+        currentFilter = $(this).val();
         loadFileareas();
     });
 
@@ -259,16 +423,159 @@ $(document).ready(function() {
 function loadFileareas() {
     $('#fileareasContainer').html(`<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}</div>`);
 
-    let filter = $('input[name="filter"]:checked').val();
-    let url = '/api/fileareas?filter=' + filter;
+    let url = '/api/fileareas?filter=' + currentFilter;
 
     $.get(url)
         .done(function(data) {
-            displayFileareas(data.fileareas);
+            allFileareas = data.fileareas || [];
+            updateAvailableDomains();
+            renderDomainFilters();
+            applySearchFilter();
+            openPendingFileareaFromUrl(allFileareas);
         })
         .fail(function() {
             $('#fileareasContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.fileareas.load_failed', 'Failed to load file areas')}</div>`);
         });
+}
+
+function searchFileareas(query) {
+    searchQuery = query.toLowerCase();
+    applySearchFilter();
+}
+
+function updateAvailableDomains() {
+    const domains = new Set();
+    allFileareas.forEach(function(area) {
+        const domain = String(area.domain || '').trim().toLowerCase();
+        domains.add(domain);
+    });
+    availableDomains = Array.from(domains).sort();
+    selectedDomains = selectedDomains.filter(function(domain) {
+        return availableDomains.includes(domain);
+    });
+}
+
+function renderDomainFilters() {
+    const $container = $('#fileareaDomainFilters');
+    if (!availableDomains.length) {
+        $container.empty();
+        return;
+    }
+
+    let html = `<div class="small text-muted mb-1">${uiT('ui.common.domain', 'Domain')}</div>`;
+    html += '<div class="d-flex flex-wrap gap-2">';
+    html += `<button type="button" class="btn btn-sm ${selectedDomains.length === 0 ? 'btn-primary' : 'btn-outline-secondary'}" onclick="clearDomainFilters()">${uiT('ui.common.all', 'All')}</button>`;
+
+    availableDomains.forEach(function(domain) {
+        const selected = selectedDomains.includes(domain);
+        const label = domain === '' ? uiT('ui.fileareas.local', 'Local') : domain;
+        html += `<button type="button" class="btn btn-sm ${selected ? 'btn-primary' : 'btn-outline-secondary'}" onclick="toggleDomainFilter('${escapeJsString(domain)}')">${escapeHtml(label)}</button>`;
+    });
+
+    html += '</div>';
+    $container.html(html);
+}
+
+function toggleDomainFilter(domain) {
+    if (selectedDomains.includes(domain)) {
+        selectedDomains = selectedDomains.filter(function(value) { return value !== domain; });
+    } else {
+        selectedDomains.push(domain);
+        selectedDomains.sort();
+    }
+    renderDomainFilters();
+    applySearchFilter();
+}
+
+function clearDomainFilters() {
+    selectedDomains = [];
+    renderDomainFilters();
+    applySearchFilter();
+}
+
+function escapeJsString(value) {
+    return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/</g, '\\x3C')
+        .replace(/>/g, '\\x3E');
+}
+
+function buildLovlyNetFileareaIssueMessages(area) {
+    const issues = Array.isArray(area.lovlynet_setting_issues) ? area.lovlynet_setting_issues : [];
+    const messages = [];
+
+    issues.forEach(function(issue) {
+        if (!issue || issue.setting !== 'readonly') {
+            return;
+        }
+
+        if (issue.recommended) {
+            messages.push(uiT('ui.fileareas.lovlynet_issue_readonly_on', 'LovlyNet recommends making this area read-only'));
+        } else {
+            messages.push(uiT('ui.fileareas.lovlynet_issue_readonly_off', 'LovlyNet recommends allowing uploads in this area'));
+        }
+    });
+
+    return messages;
+}
+
+function buildLovlyNetFileareaIssueIcon(area) {
+    const messages = buildLovlyNetFileareaIssueMessages(area);
+    if (!messages.length) {
+        return '';
+    }
+
+    const tooltip = `${uiT('ui.fileareas.lovlynet_issue_title', 'LovlyNet recommended settings mismatch')}: ${messages.join('; ')}`;
+    return `<i class="fas fa-exclamation-triangle text-warning ms-2" title="${escapeHtmlAttr(tooltip)}"></i>`;
+}
+
+function applySearchFilter() {
+    let filtered = allFileareas;
+
+    if (selectedDomains.length > 0) {
+        filtered = filtered.filter(function(area) {
+            const domain = String(area.domain || '').trim().toLowerCase();
+            return selectedDomains.includes(domain);
+        });
+    }
+
+    if (searchQuery.length > 0) {
+        filtered = filtered.filter(function(area) {
+            const tag = String(area.tag || '').toLowerCase();
+            const domain = String(area.domain || '').toLowerCase();
+            const description = String(area.description || '').toLowerCase();
+            return tag.includes(searchQuery)
+                || domain.includes(searchQuery)
+                || description.includes(searchQuery);
+        });
+    }
+
+    displayFileareas(filtered);
+}
+
+function openPendingFileareaFromUrl(fileareas) {
+    if (!pendingFileareaTag) {
+        return;
+    }
+
+    const match = (fileareas || []).find(function(area) {
+        const areaTag = String(area.tag || '').trim().toUpperCase();
+        const areaDomain = String(area.domain || '').trim().toLowerCase();
+        return areaTag === pendingFileareaTag
+            && (pendingFileareaDomain === '' || areaDomain === pendingFileareaDomain);
+    });
+
+    if (!match) {
+        return;
+    }
+
+    pendingFileareaTag = null;
+    pendingFileareaDomain = null;
+    editFilearea(match.id);
 }
 
 function displayFileareas(fileareas) {
@@ -298,6 +605,7 @@ function displayFileareas(fileareas) {
         const statusBadge = area.is_active
             ? `<span class="badge bg-success">${uiT('ui.common.active', 'Active')}</span>`
             : `<span class="badge bg-secondary">${uiT('ui.common.inactive', 'Inactive')}</span>`;
+        const lovlyNetIssueIcon = buildLovlyNetFileareaIssueIcon(area);
 
         const localBadge = area.is_local
             ? `<span class="badge bg-info ms-1">${uiT('ui.fileareas.local', 'Local')}</span>`
@@ -307,16 +615,24 @@ function displayFileareas(fileareas) {
             ? `<span class="badge bg-warning ms-1">${uiT('ui.fileareas.replace', 'Replace')}</span>`
             : '';
 
+        let isoBadge = '';
+        if (area.area_type === 'iso') {
+            const mountDot = area.iso_accessible
+                ? '<span class="text-success ms-1" title="Accessible">●</span>'
+                : '<span class="text-secondary ms-1" title="Not accessible">●</span>';
+            isoBadge = `<span class="badge bg-secondary ms-1">ISO</span>${mountDot}`;
+        }
+
         const fileSize = formatBytes(area.total_size || 0);
 
         html += `
             <tr>
-                <td><strong>${escapeHtml(area.tag)}</strong></td>
+                <td><strong>${escapeHtml(area.tag)}</strong>${lovlyNetIssueIcon}</td>
                 <td>${escapeHtml(area.domain || '')}</td>
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
-                <td>${statusBadge}${localBadge}${replaceBadge}</td>
+                <td>${statusBadge}${localBadge}${replaceBadge}${isoBadge}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="editFilearea(${area.id})">
                         <i class="fas fa-edit"></i>
@@ -377,6 +693,32 @@ function resetFileareaPasswordVisibility() {
     }
 }
 
+function updateIsoFieldsVisibility() {
+    const isIso = $('input[name="area_type"]:checked').val() === 'iso';
+    $('#isoFieldsGroup').toggle(isIso);
+    // Lock upload permission to read-only for ISO areas
+    if (isIso) {
+        $('#fileareaUploadPermission').val(2).prop('disabled', true);
+    } else {
+        $('#fileareaUploadPermission').prop('disabled', false);
+    }
+}
+
+function updateIsoMountStatusUI(area) {
+    if (!area || area.area_type !== 'iso') return;
+    $('#isoMountControls').show();
+    const accessible = !!area.iso_accessible;
+    const badgeClass = accessible ? 'bg-success' : 'bg-secondary';
+    const badgeText  = accessible ? uiT('ui.fileareas.accessible', 'Accessible') : uiT('ui.fileareas.not_accessible', 'Not accessible');
+    $('#isoMountStatusBadge').attr('class', 'badge ' + badgeClass).text(badgeText);
+    if (area.iso_last_indexed) {
+        $('#isoLastIndexed').text(uiT('ui.fileareas.last_indexed', 'Last indexed') + ': ' + area.iso_last_indexed);
+    } else {
+        $('#isoLastIndexed').text('');
+    }
+    $('#isoReindexBtn').prop('disabled', !accessible);
+}
+
 function showAddFileareaModal() {
     currentFileareaId = null;
     $('#fileareaModalTitle').text(uiT('ui.fileareas.add_file_area', 'Add File Area'));
@@ -385,19 +727,33 @@ function showAddFileareaModal() {
     $('#fileareaDomain').val('');
     $('#fileareaPassword').val('');
     $('#fileareaMaxSize').val(10);
+    $('#areaTypeNormal').prop('checked', true);
+    $('#fileareaIsoMountPoint').val('');
+    $('#isoFieldsGroup').hide();
+    $('#isoMountControls').hide();
+    $('#fileareaUploadPermission').prop('disabled', false);
+    $('#fileareaTag').prop('readonly', false).removeClass('bg-body-secondary');
+    $('#fileareaTagHelp').show();
+    $('#fileareaTagReadonlyNote').hide();
     resetFileareaPasswordVisibility();
+    $('#fileareaCommentEchoareaSelect').val('');
+    $('#fileareaCommentNewTagGroup').hide();
+    $('#fileareaCommentTagInput').val('');
+    loadEchoareasForCombobox();
     new bootstrap.Modal('#fileareaModal').show();
 }
 
 function editFilearea(id) {
     currentFileareaId = id;
-    $('#fileareaModalTitle').text(uiT('ui.fileareas.edit_file_area', 'Edit File Area'));
+    $('#fileareaModalTitle').text(uiT('ui.fileareas.edit_file_area', 'Edit File Area') + ' #' + id);
 
     $.get(`/api/fileareas/${id}`)
         .done(function(data) {
             const area = data.filearea;
             $('#fileareaId').val(area.id);
-            $('#fileareaTag').val(area.tag);
+            $('#fileareaTag').val(area.tag).prop('readonly', true).addClass('bg-body-secondary');
+            $('#fileareaTagHelp').hide();
+            $('#fileareaTagReadonlyNote').show();
             $('#fileareaDescription').val(area.description);
             $('#fileareaDomain').val(area.domain || '');
             $('#fileareaPassword').val(area.password || '');
@@ -407,10 +763,22 @@ function editFilearea(id) {
             $('#fileareaReplaceExisting').prop('checked', area.replace_existing);
             $('#fileareaAllowDuplicateHash').prop('checked', area.allow_duplicate_hash);
             $('#fileareaIsLocal').prop('checked', area.is_local);
+            $('#fileareaGeminiPublic').prop('checked', area.gemini_public);
+            $('#fileareaIsPublic').prop('checked', !!area.is_public);
+            $('#fileareaFreqEnabled').prop('checked', area.freq_enabled);
+            $('#fileareaFreqPassword').val(area.freq_password || '');
+            $('#freqPasswordGroup').toggle(!!area.freq_enabled);
             $('#fileareaUploadPermission').val(area.upload_permission !== undefined ? area.upload_permission : 1);
             $('#fileareaScanVirus').prop('checked', area.scan_virus !== false);
             $('#fileareaIsActive').prop('checked', area.is_active);
+            // ISO fields
+            const isIso = area.area_type === 'iso';
+            $(`input[name="area_type"][value="${isIso ? 'iso' : 'normal'}"]`).prop('checked', true);
+            $('#fileareaIsoMountPoint').val(area.iso_mount_point || '');
+            updateIsoFieldsVisibility();
+            updateIsoMountStatusUI(area);
             resetFileareaPasswordVisibility();
+            populateCommentAreaUI(area);
             new bootstrap.Modal('#fileareaModal').show();
         })
         .fail(function() {
@@ -422,6 +790,7 @@ function saveFilearea() {
     const maxSizeMB = parseFloat($('#fileareaMaxSize').val()) || 10;
     const maxSizeBytes = maxSizeMB * 1048576;
 
+    const areaType = $('input[name="area_type"]:checked').val() || 'normal';
     const data = {
         tag: $('#fileareaTag').val(),
         description: $('#fileareaDescription').val(),
@@ -433,9 +802,15 @@ function saveFilearea() {
         replace_existing: $('#fileareaReplaceExisting').is(':checked'),
         allow_duplicate_hash: $('#fileareaAllowDuplicateHash').is(':checked'),
         is_local: $('#fileareaIsLocal').is(':checked'),
+        gemini_public: $('#fileareaGeminiPublic').is(':checked'),
+        is_public: $('#fileareaIsPublic').is(':checked'),
+        freq_enabled: $('#fileareaFreqEnabled').is(':checked'),
+        freq_password: $('#fileareaFreqPassword').val(),
         upload_permission: parseInt($('#fileareaUploadPermission').val()),
         scan_virus: $('#fileareaScanVirus').is(':checked'),
-        is_active: $('#fileareaIsActive').is(':checked')
+        is_active: $('#fileareaIsActive').is(':checked'),
+        area_type: areaType,
+        iso_mount_point: areaType === 'iso' ? ($('#fileareaIsoMountPoint').val().trim() || null) : null
     };
 
     const url = currentFileareaId ? `/api/fileareas/${currentFileareaId}` : '/api/fileareas';
@@ -447,16 +822,21 @@ function saveFilearea() {
         contentType: 'application/json',
         data: JSON.stringify(data),
         success: function(response) {
-            bootstrap.Modal.getInstance('#fileareaModal').hide();
+            const areaId = currentFileareaId || response.id;
             const fallbackMessage = currentFileareaId
                 ? uiT('ui.fileareas.updated_success', 'File area updated')
                 : uiT('ui.fileareas.created_success', 'File area created');
             const successMessage = window.getApiMessage
                 ? window.getApiMessage(response, fallbackMessage)
                 : fallbackMessage;
-            showSuccess(successMessage);
-            loadFileareas();
-            loadStats();
+
+            // Save comment area setting, then close modal and refresh
+            saveCommentAreaForFilearea(areaId, function() {
+                bootstrap.Modal.getInstance('#fileareaModal').hide();
+                showSuccess(successMessage);
+                loadFileareas();
+                loadStats();
+            });
         },
         error: function(xhr) {
             const error = apiError(
@@ -515,6 +895,264 @@ function formatBytes(bytes) {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function escapeHtmlAttr(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+$(document).on('change', '#fileareaFreqEnabled', function() {
+    $('#freqPasswordGroup').toggle(this.checked);
+});
+
+$(document).on('change', 'input[name="area_type"]', function() {
+    updateIsoFieldsVisibility();
+});
+
+// Bootstrap 5 does not support nested modals. When isoPreviewModal closes it
+// strips modal-open from <body> and removes the backdrop, leaving fileareaModal
+// broken. Restore the outer modal's state when the inner one is fully hidden.
+$('#isoPreviewModal').on('hidden.bs.modal', function () {
+    if ($('#fileareaModal').hasClass('show')) {
+        $('body').addClass('modal-open');
+        if (!$('.modal-backdrop').length) {
+            $('<div class="modal-backdrop fade show"></div>').appendTo('body');
+        }
+    }
+});
+
+function openIsoPreview() {
+    if (!currentFileareaId) return;
+    const flat          = $('#isoPreviewFlat').is(':checked');
+    const catalogueOnly = $('#isoPreviewCatalogueOnly').is(':checked');
+
+    $('#isoPreviewLoading').show();
+    $('#isoPreviewContent').hide();
+    $('#isoPreviewError').hide();
+    $('#isoPreviewSubmitBtn').hide();
+    $('#isoPreviewBody').empty();
+    $('#isoPreviewSummary').text('');
+
+    // Use getOrCreateInstance to avoid creating duplicate Bootstrap modal instances
+    // (e.g. when the checkbox change handler calls openIsoPreview while already open).
+    bootstrap.Modal.getOrCreateInstance('#isoPreviewModal').show();
+
+    $.get(`/api/fileareas/${currentFileareaId}/preview-iso?flat=${flat ? 1 : 0}&catalogue_only=${catalogueOnly ? 1 : 0}`)
+        .done(function(data) {
+            renderIsoPreview(data);
+        })
+        .fail(function(xhr) {
+            $('#isoPreviewLoading').hide();
+            $('#isoPreviewError').text((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load preview').show();
+        });
+}
+
+// Re-load preview when import options change
+$('#isoPreviewFlat, #isoPreviewCatalogueOnly').on('change', function() {
+    if (bootstrap.Modal.getInstance('#isoPreviewModal')) {
+        openIsoPreview();
+    }
+});
+
+function renderIsoPreview(data) {
+    const entries = data.entries || [];
+    const summary = data.summary || {};
+
+    const summaryText = `${entries.length} directories · ${summary.new_dirs || 0} new, ${summary.existing_dirs || 0} existing · ${summary.total_files || 0} files`;
+    $('#isoPreviewSummary').text(summaryText);
+
+    let rows = '';
+    entries.forEach(function(entry, idx) {
+        const desc = entry.db_description || entry.catalogue_description || entry.name;
+        const statusBadge = entry.status === 'new'
+            ? '<span class="badge bg-success">New</span>'
+            : '<span class="badge bg-secondary">Existing</span>';
+        rows += `
+            <tr>
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input iso-preview-check" data-idx="${idx}" checked>
+                </td>
+                <td>
+                    <i class="fas fa-folder text-warning me-1"></i>
+                    <span class="small font-monospace">${escapeHtml(entry.rel_path)}</span>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm iso-preview-desc" data-idx="${idx}"
+                           value="${escapeHtml(desc)}" placeholder="${escapeHtml(entry.catalogue_description || entry.name)}">
+                </td>
+                <td class="small text-muted">${entry.file_count}</td>
+                <td>${statusBadge}</td>
+            </tr>
+        `;
+    });
+
+    $('#isoPreviewBody').html(rows);
+    // Store entries for submit
+    $('#isoPreviewModal').data('entries', entries);
+
+    $('#isoPreviewLoading').hide();
+    $('#isoPreviewContent').show();
+    $('#isoPreviewSubmitBtn').show();
+}
+
+function isoPreviewSelectAll(checked) {
+    $('.iso-preview-check').prop('checked', checked);
+}
+
+// -----------------------------------------------------------------------
+// Comment echo area management
+// -----------------------------------------------------------------------
+
+let allEchoareas = [];
+
+function loadEchoareasForCombobox() {
+    if (allEchoareas.length > 0) return Promise.resolve();
+    return $.get('/api/echoareas/simple-list')
+        .done(function(data) {
+            allEchoareas = data.echoareas || [];
+        });
+}
+
+function rebuildCommentEchoareaOptions(domain) {
+    const sel      = $('#fileareaCommentEchoareaSelect');
+    const createOpt = sel.find('#fileareaCommentCreateOpt').detach();
+    sel.find('option:not(:first)').remove();
+
+    const lcDomain = (domain || '').toLowerCase().trim();
+    const sameNet  = lcDomain ? allEchoareas.filter(function(ea) { return (ea.domain || '').toLowerCase() === lcDomain; }) : [];
+    const others   = lcDomain ? allEchoareas.filter(function(ea) { return (ea.domain || '').toLowerCase() !== lcDomain; }) : allEchoareas;
+
+    function appendOpt(ea) {
+        sel.append(new Option(ea.tag + (ea.description ? ' — ' + ea.description : ''), ea.id));
+    }
+
+    if (sameNet.length > 0) {
+        sameNet.forEach(appendOpt);
+        const sep = document.createElement('option');
+        sep.value    = '';
+        sep.text     = '────────────────────────────────';
+        sep.disabled = true;
+        sel[0].appendChild(sep);
+    }
+    others.forEach(appendOpt);
+    sel.append(createOpt);
+}
+
+function suggestCommentTag(areaTag, domain) {
+    if (!areaTag) return '';
+    const lcDomain = (domain || '').toLowerCase();
+    if (lcDomain === 'lovlynet') return 'LVLY_FILECHAT';
+    if (areaTag.length <= 31) return areaTag + '-COMMENTS';
+    return areaTag;
+}
+
+function populateCommentAreaUI(area) {
+    loadEchoareasForCombobox().then(function() {
+        rebuildCommentEchoareaOptions(area.domain);
+        if (area.comment_echoarea_id) {
+            $('#fileareaCommentEchoareaSelect').val(area.comment_echoarea_id);
+            $('#fileareaCommentNewTagGroup').hide();
+        } else {
+            // For lovlynet areas, default to the existing LVLY_FILECHAT area if present
+            const suggestedTag = suggestCommentTag(area.tag, area.domain);
+            const existing = suggestedTag
+                ? allEchoareas.find(e => e.tag.toUpperCase() === suggestedTag.toUpperCase())
+                : null;
+
+            // Don't auto-select an existing echoarea — that would make it appear
+            // configured when comment_echoarea_id is actually NULL in the database.
+            // Just leave the select blank and pre-fill the suggested tag so the
+            // sysop can review and explicitly save the link.
+            $('#fileareaCommentEchoareaSelect').val('');
+            $('#fileareaCommentTagInput').val(suggestedTag);
+            $('#fileareaCommentNewTagGroup').hide();
+        }
+    });
+}
+
+/**
+ * Save comment echo area link as part of the file area save flow.
+ * Called by saveFilearea() after the main save succeeds.
+ * @param {number} areaId - The file area ID
+ * @param {function} callback - Called when done (success or non-fatal error)
+ */
+function saveCommentAreaForFilearea(areaId, callback) {
+    const selVal = $('#fileareaCommentEchoareaSelect').val();
+    const tagVal = $('#fileareaCommentTagInput').val().trim().toUpperCase();
+
+    let payload;
+    if (selVal && selVal !== '__new__') {
+        payload = { action: 'link', echoarea_id: parseInt(selVal) };
+    } else if (selVal === '__new__' && tagVal) {
+        const description = tagVal === 'LVLY_FILECHAT'
+            ? 'Comments and discussions about files posted on LovlyNet'
+            : 'File comments for ' + $('#fileareaTag').val();
+        payload = {
+            action: 'create',
+            tag: tagVal,
+            description: description,
+        };
+    } else {
+        payload = { action: 'unlink' };
+    }
+
+    $.ajax({
+        url: '/api/fileareas/' + areaId + '/comment-area',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() { callback(); },
+        error: function(xhr) {
+            // Non-fatal: proceed but show a warning
+            callback();
+            showError(apiError(xhr.responseJSON, uiT('errors.fileareas.comment_area_failed', 'Failed to save comment area setting')));
+        }
+    });
+}
+
+// Show/hide the "Create new" tag input based on select value
+$(document).on('change', '#fileareaCommentEchoareaSelect', function() {
+    $('#fileareaCommentNewTagGroup').toggle($(this).val() === '__new__');
+});
+
+function submitIsoImport() {
+    if (!currentFileareaId) return;
+
+    const entries       = $('#isoPreviewModal').data('entries') || [];
+    const flat          = $('#isoPreviewFlat').is(':checked');
+    const catalogueOnly = $('#isoPreviewCatalogueOnly').is(':checked');
+
+    const overrides = entries.map(function(entry, idx) {
+        const skip = !$('.iso-preview-check[data-idx="' + idx + '"]').is(':checked');
+        const description = $('.iso-preview-desc[data-idx="' + idx + '"]').val().trim();
+        return { rel_path: entry.rel_path, description, skip };
+    });
+
+    $('#isoPreviewSubmitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Importing…');
+
+    $.ajax({
+        url: `/api/fileareas/${currentFileareaId}/reindex-iso`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ flat, catalogue_only: catalogueOnly, overrides })
+    })
+        .done(function(data) {
+            const c = data.counters || {};
+            bootstrap.Modal.getInstance('#isoPreviewModal').hide();
+            const msg = uiT('ui.fileareas.reindex_done', 'Re-index complete') +
+                `: ${c.imported || 0} imported, ${c.updated || 0} updated, ${c.skipped || 0} skipped`;
+            showSuccess(msg);
+            $.get(`/api/fileareas/${currentFileareaId}`).done(d => updateIsoMountStatusUI(d.filearea));
+        })
+        .fail(function(xhr) {
+            $('#isoPreviewSubmitBtn').prop('disabled', false).html('<i class="fas fa-download me-1"></i>Apply Import');
+            showError(uiT('errors.fileareas.reindex_failed', 'Failed to re-index ISO'));
+        });
 }
 </script>
 {% endblock %}

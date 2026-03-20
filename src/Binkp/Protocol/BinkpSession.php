@@ -37,6 +37,8 @@ class BinkpSession
     private $localAddress;
     private $remoteAddress;
     private $remoteAddressWithDomain;
+    /** @var string[] All AKAs advertised by the remote node */
+    private array $remoteAkas = [];
     private $password;
     private $config;
     private $logger;
@@ -44,6 +46,16 @@ class BinkpSession
     private $fileHandle;
     private $filesReceived;
     private $filesSent;
+    /** @var array<string,int> Mapping of filename => freq_outbound.id for FREQ files sent this session */
+    private array $freqOutboundSent = [];
+    /** @var array<int,array{filename:string,password:?string}> In-memory outbound FREQ request queue */
+    private array $pendingFreqRequests = [];
+    /** @var string[] Extra files to transmit this session (e.g. .req files), bypassing outbound directory filtering */
+    private array $extraOutboundFiles = [];
+    /** @var array<string,string> basename => full path for extra outbound files, used for M_GOT cleanup */
+    private array $extraOutboundFilesByName = [];
+    /** @var array<string,string> wire-filename => real disk path, for files whose names were sanitized for binkp */
+    private array $wireToRealPath = [];
     private $uplinkPassword;
     private $currentUplink;
 
@@ -105,12 +117,56 @@ class BinkpSession
         $this->uplinkPassword = $password;
         $this->log("setUplinkPassword: length=" . strlen($password), 'DEBUG');
     }
-    
+
+    /**
+     * Queue an outbound FREQ request to be sent as M_GET during this originator session.
+     *
+     * @param string      $filename Filename or magic name to request from the remote
+     * @param string|null $password Optional area password required by the remote
+     */
+    public function addFreqRequest(string $filename, ?string $password = null): void
+    {
+        $this->pendingFreqRequests[] = ['filename' => $filename, 'password' => $password];
+    }
+
+    /**
+     * Queue an extra file to be sent during this originator session, bypassing the
+     * outbound directory and uplink-destination filtering.  Used for .req files.
+     *
+     * @param string $path Absolute path to the file to send
+     */
+    public function addExtraFile(string $path): void
+    {
+        $this->extraOutboundFiles[] = $path;
+        $this->extraOutboundFilesByName[basename($path)] = $path;
+    }
+
     public function log($message, $level = 'INFO')
     {
         if ($this->logger) {
             $this->logger->log($level, "[{$this->remoteAddress}] {$message}");
         }
+    }
+
+    private function formatReceivedFrameForLog(BinkpFrame $frame): string
+    {
+        $data = $frame->getData();
+        $hex = bin2hex($data);
+
+        if ($frame->isCommand()) {
+            return sprintf(
+                'command=%d length=%d data_hex=%s',
+                $frame->getCommand(),
+                $frame->getLength(),
+                $hex
+            );
+        }
+
+        return sprintf(
+            'data length=%d data_hex=%s',
+            $frame->getLength(),
+            $hex
+        );
     }
     
     public function handshake()
@@ -139,7 +195,7 @@ class BinkpSession
                     );
                 }
 
-                $this->log("Received: {$frame}", 'DEBUG');
+                $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                 $this->processHandshakeFrame($frame);
             }
 
@@ -148,7 +204,11 @@ class BinkpSession
 
         } catch (\Exception $e) {
             $this->log("Handshake failed: " . $e->getMessage(), 'ERROR');
-            $this->sendError($e->getMessage());
+            if ($this->shouldSendHandshakeError()) {
+                $this->sendError($e->getMessage());
+            } else {
+                $this->log("Skipping handshake M_ERR because remote side already closed the connection", 'DEBUG');
+            }
             // Re-throw with the actual error message so caller can see it
             throw new \Exception('Handshake failed: ' . $e->getMessage(), 0, $e);
         }
@@ -189,8 +249,9 @@ class BinkpSession
         $eof = !empty($meta['eof']) ? 'yes' : 'no';
         $blocked = !empty($meta['blocked']) ? 'yes' : 'no';
         $preview = $this->getHandshakeSocketPreview();
+        $read = $this->formatLastReadDiagnostics();
 
-        return "(timed_out={$timedOut}, eof={$eof}, blocked={$blocked}, {$preview})";
+        return "(timed_out={$timedOut}, eof={$eof}, blocked={$blocked}, {$preview}, {$read})";
     }
 
     private function getHandshakeSocketPreview(int $maxBytes = 24): string
@@ -211,6 +272,32 @@ class BinkpSession
         return 'preview_hex=' . $hex . ', preview_ascii="' . $ascii . '"';
     }
 
+    private function formatLastReadDiagnostics(): string
+    {
+        $diag = BinkpFrame::getLastReadDiagnostics();
+        if (!is_array($diag)) {
+            return 'read_diag=none';
+        }
+
+        return sprintf(
+            'read_diag_phase=%s, read_diag_reason=%s, read_diag_received=%d/%d',
+            $diag['phase'] ?? 'unknown',
+            $diag['reason'] ?? 'unknown',
+            (int)($diag['received'] ?? 0),
+            (int)($diag['requested'] ?? 0)
+        );
+    }
+
+    private function shouldSendHandshakeError(): bool
+    {
+        if (!is_resource($this->socket)) {
+            return false;
+        }
+
+        $meta = stream_get_meta_data($this->socket);
+        return empty($meta['eof']);
+    }
+
     public function processSession()
     {
         try {
@@ -219,7 +306,16 @@ class BinkpSession
 
             $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
 
+            // Send any FREQ files queued for this node (runs for both originator and answerer)
+            $this->sendFreqFiles();
+
+            // Deliver any hold-directory files queued for the connecting node (runs for both roles)
+            $this->sendHoldFiles();
+
             if ($this->isOriginator) {
+                // Send any in-memory FREQ requests as M_GET before outbound files
+                $this->sendFreqRequests();
+
                 $this->log("As originator, checking for outbound files", 'DEBUG');
                 $this->sendFiles();
 
@@ -243,7 +339,7 @@ class BinkpSession
                         }
 
                         $lastActivity = time();
-                        $this->log("Received while waiting for M_GOT: {$frame}", 'DEBUG');
+                        $this->log("Received while waiting for M_GOT: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                         $this->processTransferFrame($frame);
 
                         // If remote sent M_EOB, no more M_GOTs are coming - exit wait loop
@@ -303,8 +399,9 @@ class BinkpSession
             }
 
             // As originator with no files sent, proceed directly to waiting for remote files
-            // As answerer, or as originator after sending files, process incoming frames
-            $shouldWaitForFrames = !$this->isOriginator || !empty($this->filesSent);
+            // As answerer, or as originator after sending files, process incoming frames.
+            // Also wait when we sent FREQ requests — the remote may send M_FILE in response.
+            $shouldWaitForFrames = !$this->isOriginator || !empty($this->filesSent) || !empty($this->pendingFreqRequests);
 
             if ($shouldWaitForFrames) {
                 $this->log("Processing incoming frames before EOB exchange", 'DEBUG');
@@ -319,8 +416,12 @@ class BinkpSession
                         continue;
                     }
 
-                    $this->log("Received: {$frame}", 'DEBUG');
+                    $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                     $this->processTransferFrame($frame);
+                    // If a file transfer started (e.g. FREQ response), exit early
+                    if ($this->currentFile) {
+                        break;
+                    }
                 }
                 $this->log("Frame processing phase complete", 'DEBUG');
             } else {
@@ -329,8 +430,11 @@ class BinkpSession
 
             // As originator, wait for remote to potentially send us files before sending EOB
             if (!$this->currentFile) {
-                $hasSentFiles = !empty($this->filesSent);
-                $maxWaitTime = $hasSentFiles ? 5 : 2;
+                $hasSentFiles    = !empty($this->filesSent);
+                $hasPendingFreqs = !empty($this->pendingFreqRequests);
+                // Give extra time when FREQ requests were sent — the remote needs to look up
+                // and open the file before it can send M_FILE.
+                $maxWaitTime  = $hasSentFiles ? 5 : ($hasPendingFreqs ? 5 : 2);
                 $waitStartTime = time();
             } else {
                 $this->log("Already receiving file: " . $this->currentFile['name'], 'DEBUG');
@@ -341,7 +445,7 @@ class BinkpSession
             while ($this->state === self::STATE_FILE_TRANSFER && time() - $waitStartTime < $maxWaitTime) {
                 $frame = BinkpFrame::parseFromSocket($this->socket, true);
                 if ($frame) {
-                    $this->log("Received during wait: {$frame}", 'DEBUG');
+                    $this->log("Received during wait: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                     $this->processTransferFrame($frame);
                     if ($this->currentFile || $this->state !== self::STATE_FILE_TRANSFER) {
                         break;
@@ -374,11 +478,34 @@ class BinkpSession
 
                 // After the remote's EOB has been acknowledged, keep the session open
                 // briefly so the remote's tosser can queue a response (e.g. areafix) and
-                // send it as M_FILE.  Only wait if we actually sent something — if we sent
-                // nothing, the remote has nothing to process and there will be no response.
+                // send it as M_FILE.  Only wait if we actually sent something or sent FREQ
+                // requests — if we sent nothing at all, the remote has nothing to process
+                // and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
-                    if (empty($this->filesSent) || $inactivity >= 30) {
-                        $reason = empty($this->filesSent) ? 'nothing sent' : "no activity for {$inactivity}s";
+                    $sentNothing = empty($this->filesSent) && empty($this->pendingFreqRequests);
+                    // FREQ M_GET mode: sent FREQ requests, no normal files.
+                    $freqOnlyDone = empty($this->filesSent)
+                        && !empty($this->pendingFreqRequests)
+                        && $inactivity >= 3;
+                    // FREQ .req file mode: we sent a .req file this session and received
+                    // files back. Both EOBs are exchanged and no transfer is active —
+                    // terminate now rather than waiting the full inactivity timeout.
+                    $sentReqFile = array_reduce(
+                        array_keys($this->extraOutboundFilesByName),
+                        fn($carry, $name) => $carry || str_ends_with(strtolower($name), '.req'),
+                        false
+                    );
+                    $gotFreqResponse = $sentReqFile && !empty($this->filesReceived);
+                    // Once the remote has sent M_EOB it will never start a new transfer.
+                    // Response files (e.g. areafix replies) always arrive in a subsequent
+                    // session, not the current one, so there is nothing to wait for once
+                    // both sides have exchanged EOB and no transfer is active.
+                    $bothEobDone = true;
+                    if ($sentNothing || $freqOnlyDone || $gotFreqResponse || $bothEobDone) {
+                        $reason = $sentNothing ? 'nothing sent'
+                            : ($freqOnlyDone    ? 'FREQ-only session complete'
+                            : ($gotFreqResponse ? 'FREQ response received, both EOBs done'
+                            : 'both EOBs exchanged, no active transfer'));
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;
@@ -416,7 +543,7 @@ class BinkpSession
                     // Keep the EOB timeout anchored to idle/EOB time, not active transfer time.
                     $eobWaitStart = $lastActivity;
                 }
-                $this->log("Received: {$frame}", 'DEBUG');
+                $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                 $this->processTransferFrame($frame);
             }
 
@@ -703,10 +830,12 @@ class BinkpSession
             $this->log("Sending CRAM-MD5 digest", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $cramPassword);
         } else {
-            // Plain text password
+            // Plain text password. Send '-' for empty password to explicitly
+            // request an insecure/anonymous session per binkp convention.
             $this->authMethod = 'plaintext';
+            $sendPwd = ($password === '') ? '-' : $password;
             $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
-            $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
+            $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $sendPwd);
         }
 
         $frame->writeToSocket($this->socket);
@@ -733,6 +862,148 @@ class BinkpSession
         $this->log("Sent EOB", 'DEBUG');
     }
 
+    /**
+     * Send any files from freq_outbound that are queued for the remote node.
+     * Called at session start for both originator and answerer.
+     */
+    private function sendFreqFiles(): void
+    {
+        $remoteAddr = $this->remoteAddress ?? '';
+        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+            return;
+        }
+
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            $stmt = $db->prepare(
+                "SELECT id, file_path, original_filename, file_size
+                 FROM freq_outbound
+                 WHERE to_address = ? AND status = 'pending'
+                 ORDER BY created_at ASC"
+            );
+            $stmt->execute([$remoteAddr]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                return;
+            }
+
+            $this->log("Sending " . count($rows) . " FREQ file(s) queued for {$remoteAddr}", 'INFO');
+
+            $markSent = $db->prepare(
+                "UPDATE freq_outbound SET status = 'sent', sent_at = NOW() WHERE id = ?"
+            );
+
+            foreach ($rows as $row) {
+                $path = (string)$row['file_path'];
+                $name = (string)$row['original_filename'];
+                $id   = (int)$row['id'];
+
+                if (!file_exists($path) || !is_readable($path)) {
+                    $this->log("FREQ outbound file missing, skipping: {$path}", 'WARNING');
+                    $db->prepare("UPDATE freq_outbound SET status = 'failed' WHERE id = ?")->execute([$id]);
+                    continue;
+                }
+
+                $this->sendFile($path);
+                $markSent->execute([$id]);
+                $this->freqOutboundSent[$name] = $id;
+                $this->log("FREQ: sent '{$name}' to {$remoteAddr}", 'INFO');
+            }
+        } catch (\Exception $e) {
+            $this->log("sendFreqFiles error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Send M_GET frames for any in-memory FREQ requests queued via addFreqRequest().
+     * Only runs as originator. Called before sendFiles() so the remote receives the
+     * requests before we start transmitting our own data.
+     */
+    private function sendFreqRequests(): void
+    {
+        if (empty($this->pendingFreqRequests)) {
+            return;
+        }
+
+        foreach ($this->pendingFreqRequests as $req) {
+            $filename = $req['filename'];
+            $password = $req['password'];
+
+            // M_GET format per FSP-1011 / binkd: "<filename> <size> <time> <offset> [<password>]"
+            // size=-1 means "give me the full file"; time=0, offset=0 = no resume.
+            $data = ($password !== null && $password !== '')
+                ? "{$filename} -1 0 0 {$password}"
+                : "{$filename} -1 0 0";
+
+            $frame = BinkpFrame::createCommand(BinkpFrame::M_GET, $data);
+            $frame->writeToSocket($this->socket);
+            $this->log("FREQ: sent M_GET for '{$filename}'", 'INFO');
+        }
+    }
+
+    /**
+     * Send any files from the per-node hold directory for the remote node.
+     * .pkt files are sent first (they carry the FILE_ATTACH netmail), then the
+     * attached files themselves.  Delivered files are removed from the hold dir.
+     * Called for both originator and answerer so the requesting node receives its
+     * FREQ response regardless of which side initiates the session.
+     */
+    private function sendHoldFiles(): void
+    {
+        $remoteAddr = $this->remoteAddress ?? '';
+        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+            return;
+        }
+
+        $safe    = preg_replace('/[^a-zA-Z0-9]/', '_', $remoteAddr);
+        $holdDir = \BinktermPHP\Config::BINKD_OUTBOUND . '/hold/' . $safe;
+
+        if (!is_dir($holdDir)) {
+            return;
+        }
+
+        $pktFiles   = glob($holdDir . '/*.pkt') ?: [];
+        $otherFiles = array_filter(
+            glob($holdDir . '/*') ?: [],
+            static fn($f) => is_file($f) && strtolower(pathinfo($f, PATHINFO_EXTENSION)) !== 'pkt'
+        );
+
+        if (empty($pktFiles) && empty($otherFiles)) {
+            return;
+        }
+
+        $this->log("Hold dir for {$remoteAddr}: " . count($pktFiles) . " packet(s), " . count($otherFiles) . " attachment(s)", 'INFO');
+
+        // Send packets first so the FILE_ATTACH netmail arrives before the data file
+        foreach ($pktFiles as $pkt) {
+            if (!is_readable($pkt)) {
+                $this->log("Hold .pkt unreadable, skipping: " . basename($pkt), 'WARNING');
+                continue;
+            }
+            $this->sendFile($pkt);
+            $this->log("Hold: sent packet " . basename($pkt) . " to {$remoteAddr}", 'INFO');
+            @unlink($pkt);
+        }
+
+        foreach ($otherFiles as $file) {
+            if (!is_readable($file)) {
+                $this->log("Hold attachment unreadable, skipping: " . basename($file), 'WARNING');
+                continue;
+            }
+            $this->sendFile($file);
+            $this->log("Hold: sent attachment " . basename($file) . " to {$remoteAddr}", 'INFO');
+            @unlink($file);
+        }
+
+        // Remove hold dir if now empty
+        $remaining = glob($holdDir . '/*');
+        if ($remaining !== false && empty($remaining)) {
+            @rmdir($holdDir);
+        }
+    }
+
     private function sendFiles()
     {
         $outboundPath = $this->config->getOutboundPath();
@@ -750,6 +1021,18 @@ class BinkpSession
             } else {
                 $this->log("TIC file without data file: " . basename($ticFile), 'WARNING');
             }
+        }
+
+        // Send extra files queued via addExtraFile() (e.g. .req files) unconditionally —
+        // these bypass outbound directory filtering and must be sent even when there are
+        // no .pkt or .tic files.
+        foreach ($this->extraOutboundFiles as $extraFile) {
+            if (!file_exists($extraFile)) {
+                $this->log("Extra outbound file not found, skipping: {$extraFile}", 'WARNING');
+                continue;
+            }
+            $this->log("Sending extra file: " . basename($extraFile));
+            $this->sendFile($extraFile);
         }
 
         $files = $pktFiles;
@@ -979,16 +1262,19 @@ class BinkpSession
             $destAddr = $this->getPacketDestination($filePath);
         }
 
-        // Format: filename size timestamp [offset]
-        // According to binkp spec, format should be: filename size time [offset]
-        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        // Binkp has no quoting — sanitize spaces to underscores for the wire name.
+        $wireName = str_replace(' ', '_', $filename);
+        if ($wireName !== $filename) {
+            $this->wireToRealPath[$wireName] = $filePath;
+        }
+        $fileInfo = "{$wireName} {$fileSize} {$timestamp} 0";
         $frame = BinkpFrame::createCommand(BinkpFrame::M_FILE, $fileInfo);
         $frame->writeToSocket($this->socket);
 
         if ($destAddr) {
-            $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+            $this->log("Sending packet {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
         } else {
-            $this->log("Sending file {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
+            $this->log("Sending file {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
         }
 
         $handle = fopen($filePath, 'rb');
@@ -1010,20 +1296,35 @@ class BinkpSession
         fclose($handle);
 
         if ($bytesSent === $fileSize) {
-            $this->filesSent[] = $filename;
-            $this->log("Delivered packet {$filename} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
+            $this->filesSent[] = $wireName;
+            $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
-            $this->log("Packet send incomplete: {$filename} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
+            $this->log("Packet send incomplete: {$wireName} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
         }
     }
 
     private function handleFileCommand($data)
     {
-        $parts = explode(' ', $data, 4);
-        $filename = $parts[0];
-        $size = isset($parts[1]) ? intval($parts[1]) : 0;
-        $timestamp = isset($parts[2]) ? intval($parts[2]) : time();
-        $offset = isset($parts[3]) ? intval($parts[3]) : 0;
+        // Filename may be quoted (e.g. "name with spaces") when it contains spaces.
+        if (str_starts_with($data, '"')) {
+            $closeQuote = strpos($data, '"', 1);
+            if ($closeQuote !== false) {
+                $filename = substr($data, 1, $closeQuote - 1);
+                $rest     = ltrim(substr($data, $closeQuote + 1));
+                $trailing = explode(' ', $rest, 3);
+            } else {
+                // Malformed — treat whole string as filename
+                $filename = $data;
+                $trailing = [];
+            }
+        } else {
+            $parts    = explode(' ', $data, 4);
+            $filename = $parts[0];
+            $trailing = array_slice($parts, 1);
+        }
+        $size      = isset($trailing[0]) ? intval($trailing[0]) : 0;
+        $timestamp = isset($trailing[1]) ? intval($trailing[1]) : time();
+        $offset    = isset($trailing[2]) ? intval($trailing[2]) : 0;
 
         // Validate filename to prevent directory traversal
         $filename = basename($filename);
@@ -1083,15 +1384,40 @@ class BinkpSession
 
                 // Atomically rename the temp file to its final name so that
                 // process_packets cannot see the file until it is fully written.
-                $inboundPath = $this->config->getInboundPath();
-                $finalPath   = $inboundPath . '/' . $this->currentFile['name'];
-                $tmpPath     = $finalPath . '.tmp';
-                if (!rename($tmpPath, $finalPath)) {
-                    $this->log("Failed to rename temp file to final: " . $this->currentFile['name'], 'ERROR');
+                $inboundPath    = $this->config->getInboundPath();
+                $originalName   = $this->currentFile['name'];
+                $finalPath      = $inboundPath . '/' . $originalName;
+                $tmpPath        = $finalPath . '.tmp';
+
+                // If a file with the same name already exists, pick a unique name
+                // so we do not clobber it.
+                $localName = $originalName;
+                if (file_exists($finalPath)) {
+                    $pathInfo = pathinfo($originalName);
+                    $base     = $pathInfo['filename'];
+                    $ext      = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+                    $counter  = 1;
+                    do {
+                        $localName = $base . '_' . $counter . $ext;
+                        $finalPath = $inboundPath . '/' . $localName;
+                        $counter++;
+                    } while (file_exists($finalPath));
+                    $this->log("Inbound collision — saving as '{$localName}' instead of '{$originalName}'", 'DEBUG');
                 }
 
-                $this->filesReceived[] = $this->currentFile['name'];
-                $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
+                if (!rename($tmpPath, $finalPath)) {
+                    $this->log("Failed to rename temp file to final: {$localName}", 'ERROR');
+                }
+
+                $this->currentFile['name'] = $localName;
+                $this->filesReceived[] = $localName;
+                $this->log("File received: {$localName} ({$this->currentFile['received']} bytes)", 'INFO');
+
+                // If the received file is a Bark-style .req file, process it immediately
+                // and serve the requested files back in this same session.
+                if (preg_match('/\.req$/i', $this->currentFile['name'])) {
+                    $this->processReqFile($finalPath);
+                }
 
                 // Create metadata file for packets received in insecure sessions
                 if ($this->isInsecureSession && preg_match('/\.pkt$/i', $this->currentFile['name'])) {
@@ -1119,11 +1445,12 @@ class BinkpSession
                     }
                 }
 
-                // Send M_GOT
-                $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
+                // Send M_GOT — must use the original remote filename, not the
+                // locally deduplicated name, so the remote knows we accepted it.
+                $gotData = $originalName . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
                 $frame->writeToSocket($this->socket);
-                $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
+                $this->log("Sent M_GOT: {$originalName}", 'DEBUG');
 
                 $this->currentFile = null;
             }
@@ -1148,8 +1475,27 @@ class BinkpSession
 
     private function handleSentFileConfirmation(string $filename, bool $implicitConfirm): bool
     {
-        $outboundPath = $this->config->getOutboundPath();
-        $filepath = $outboundPath . '/' . $filename;
+        // Extra outbound files (e.g. .req) live outside the outbound directory
+        if (isset($this->extraOutboundFilesByName[$filename])) {
+            $filepath = $this->extraOutboundFilesByName[$filename];
+            if (file_exists($filepath)) {
+                unlink($filepath);
+                $this->log("Deleted extra sent file: {$filename}", 'DEBUG');
+            }
+            return true;
+        }
+
+        // Wire-name may differ from disk-name (spaces → underscores): resolve to real path.
+        if (isset($this->wireToRealPath[$filename])) {
+            $filepath = $this->wireToRealPath[$filename];
+            $diskName = basename($filepath);
+        } else {
+            $outboundPath = $this->config->getOutboundPath();
+            $filepath = $outboundPath . '/' . $filename;
+            $diskName = $filename;
+        }
+
+        $filename = $diskName; // use disk name for logging and preserve-path operations
         if (!file_exists($filepath)) {
             $this->log("Sent file not found: {$filepath}", 'WARNING');
             return false;
@@ -1184,9 +1530,106 @@ class BinkpSession
         return false;
     }
 
+    /**
+     * Parse and serve a Bark-style .req file received from the remote node.
+     *
+     * Format (FTS-0008): one filename or magic name per line.
+     * - A line beginning with ! sets the current area password for subsequent requests.
+     * - Inline password: "filename !password"
+     * - Blank lines are ignored.
+     *
+     * Each resolved request is served immediately via sendFile() so the files
+     * go back to the remote in this same binkp session.
+     *
+     * @param string $path Full path to the received .req file
+     */
+    private function processReqFile(string $path): void
+    {
+        $this->log("Processing FREQ .req file: " . basename($path), 'INFO');
+
+        $contents = file_get_contents($path);
+        if ($contents === false) {
+            $this->log("Failed to read .req file: {$path}", 'ERROR');
+            return;
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $contents);
+        $currentPassword = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            // Line beginning with ! sets the area password for subsequent requests
+            if (str_starts_with($line, '!')) {
+                $currentPassword = substr($line, 1);
+                continue;
+            }
+
+            // Inline password: "filename !password"
+            $password = $currentPassword;
+            if (preg_match('/^(\S+)\s+!(\S+)$/', $line, $m)) {
+                $filename = $m[1];
+                $password = $m[2];
+            } else {
+                $filename = $line;
+            }
+
+            // Reuse the M_GET handler — it calls FreqResolver and sendFile()
+            $data = $password !== null
+                ? "{$filename} -1 0 0 {$password}"
+                : "{$filename} -1 0 0";
+
+            $this->log("FREQ from .req: {$filename}", 'DEBUG');
+            $this->handleGetCommand($data);
+        }
+    }
+
     private function handleGetCommand($data)
     {
-        $this->log("Remote requested file: {$data}", 'DEBUG');
+        $this->log("Remote FREQ request: {$data}", 'DEBUG');
+
+        // Parse M_GET format per FSP-1011 / binkd:
+        //   <filename> <size> <time> <offset> [<password>]
+        // Legacy format (bare filename or filename+password) is also handled.
+        $parts    = explode(' ', trim($data));
+        $filename = $parts[0] ?? '';
+
+        // Detect FSP-1011 format: parts[1] is numeric (size field)
+        if (isset($parts[1]) && is_numeric($parts[1])) {
+            $sizeLimit = (int)$parts[1]; // -1 = any size
+            $newerThan = isset($parts[2]) ? (int)$parts[2] : 0;
+            // parts[3] is offset (ignored — we always serve from start)
+            $password  = isset($parts[4]) && $parts[4] !== '' ? $parts[4] : null;
+        } else {
+            // Legacy: filename [password]
+            $password  = isset($parts[1]) && $parts[1] !== '' ? $parts[1] : null;
+            $sizeLimit = 0;
+            $newerThan = 0;
+        }
+
+        if ($filename === '') {
+            $this->log("FREQ: empty filename in M_GET, ignoring", 'WARNING');
+            return;
+        }
+
+        $callerAddr = $this->remoteAddress ?? 'unknown';
+
+        try {
+            $resolver = new \BinktermPHP\Freq\FreqResolver();
+            $result   = $resolver->resolve($filename, $password, $sizeLimit, $newerThan, $callerAddr, 'binkp');
+
+            if ($result->served && $result->filePath !== null) {
+                $this->log("FREQ: serving {$result->servedName} ({$result->fileSize} bytes) to {$callerAddr}", 'INFO');
+                $this->sendFile($result->filePath);
+            } else {
+                $this->log("FREQ: denied '{$filename}' for {$callerAddr}: {$result->denyReason}", 'INFO');
+            }
+        } catch (\Exception $e) {
+            $this->log("FREQ: resolver error for '{$filename}': " . $e->getMessage(), 'ERROR');
+        }
     }
 
     private function handleSkipCommand($data)

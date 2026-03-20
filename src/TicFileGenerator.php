@@ -228,8 +228,10 @@ class TicFileGenerator
         // Seenby (required by FSC-87) - at least our address
         $lines[] = 'Seenby ' . $fromAddress;
 
-        // Password (FSC-87 Pw field) - per-area password takes precedence,
-        // uplink tic_password is the fallback, empty string if neither is set.
+        // Password (FSC-87 Pw field) precedence:
+        // 1. file area TIC password
+        // 2. uplink TIC password
+        // If neither is set, emit a blank Pw field.
         $password = $fileArea['password'] ?? '';
         if ($password === '') {
             $password = $uplink['tic_password'] ?? '';

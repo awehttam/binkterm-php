@@ -449,21 +449,6 @@ class AdminDaemonServer
                     $this->writeTaglinesConfig($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getTaglinesConfig()]);
                     break;
-                case 'list_ads':
-                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listAds()]);
-                    break;
-                case 'upload_ad':
-                    $name = $data['name'] ?? '';
-                    $originalName = $data['original_name'] ?? '';
-                    $contentBase64 = $data['content_base64'] ?? '';
-                    $result = $this->uploadAd((string)$contentBase64, (string)$name, (string)$originalName);
-                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
-                    break;
-                case 'delete_ad':
-                    $name = $data['name'] ?? '';
-                    $this->deleteAd((string)$name);
-                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
-                    break;
                 case 'list_shell_art':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->listShellArt()]);
                     break;
@@ -569,6 +554,24 @@ class AdminDaemonServer
                     $this->writeHouseRules($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'set_login_splash':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeLoginSplash($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'set_register_splash':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeRegisterSplash($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'get_i18n_overlay':
                     $locale = (string)($data['locale'] ?? '');
                     $ns     = (string)($data['ns'] ?? '');
@@ -643,6 +646,38 @@ class AdminDaemonServer
                     $result = $this->runCommand([PHP_BINARY, 'scripts/echomail_robots.php', "--robot-id={$robotId}", '--debug']);
                     $this->logCommandResult('run_echomail_robot', $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'rehatch_file':
+                    $fileId = (int)($data['file_id'] ?? 0);
+                    if ($fileId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid file_id']);
+                        break;
+                    }
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/file_hatch.php', "--file-id={$fileId}"]);
+                    $this->logCommandResult('rehatch_file', $result);
+                    $this->writeResponse($client, ['ok' => $result['exit_code'] === 0, 'result' => $result]);
+                    break;
+                case 'reindex_iso':
+                    $areaId = (int)($data['area_id'] ?? 0);
+                    if ($areaId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_area_id']);
+                        break;
+                    }
+                    $this->spawnCommand([PHP_BINARY, 'scripts/import_iso.php', "--area={$areaId}", '--update']);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['spawned' => true]]);
+                    break;
+                case 'set_license':
+                    $licenseData = $data['license'] ?? null;
+                    if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_license_format']);
+                        break;
+                    }
+                    $this->writeLicenseFile($licenseData);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'delete_license':
+                    $this->deleteLicenseFile();
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
@@ -1193,105 +1228,6 @@ class AdminDaemonServer
         return $merged;
     }
 
-    private function listAds(): array
-    {
-        $adsDir = $this->getAdsDir();
-        if (!is_dir($adsDir)) {
-            return [];
-        }
-
-        $ads = [];
-        $files = glob($adsDir . DIRECTORY_SEPARATOR . '*.ans') ?: [];
-        foreach ($files as $file) {
-            $ads[] = [
-                'name' => basename($file),
-                'size' => filesize($file) ?: 0,
-                'updated_at' => date('c', filemtime($file) ?: time())
-            ];
-        }
-
-        usort($ads, function($a, $b) {
-            return strcmp($a['name'], $b['name']);
-        });
-
-        return $ads;
-    }
-
-    private function uploadAd(string $contentBase64, string $name, string $originalName): array
-    {
-        if ($contentBase64 === '') {
-            throw new \RuntimeException('Missing content');
-        }
-
-        $content = base64_decode($contentBase64, true);
-        if ($content === false) {
-            throw new \RuntimeException('Invalid content encoding');
-        }
-
-        $maxSize = 1024 * 1024;
-        if (strlen($content) > $maxSize) {
-            throw new \RuntimeException('File is too large (max 1MB)');
-        }
-
-        $safeName = $this->sanitizeAdFilename($name !== '' ? $name : $originalName);
-        if ($safeName === '') {
-            throw new \RuntimeException('Invalid file name');
-        }
-
-        $adsDir = $this->getAdsDir();
-        if (!is_dir($adsDir) && !@mkdir($adsDir, 0775, true)) {
-            throw new \RuntimeException('Failed to create ads directory');
-        }
-
-        $path = $adsDir . DIRECTORY_SEPARATOR . $safeName;
-        if (@file_put_contents($path, $content) === false) {
-            throw new \RuntimeException('Failed to save advertisement');
-        }
-
-        return [
-            'name' => $safeName,
-            'size' => filesize($path) ?: 0,
-            'updated_at' => date('c', filemtime($path) ?: time())
-        ];
-    }
-
-    private function deleteAd(string $name): void
-    {
-        $safeName = $this->sanitizeAdFilename($name);
-        if ($safeName === '') {
-            throw new \RuntimeException('Invalid file name');
-        }
-
-        $adsDir = $this->getAdsDir();
-        $path = $adsDir . DIRECTORY_SEPARATOR . $safeName;
-        if (!is_file($path)) {
-            throw new \RuntimeException('Advertisement not found');
-        }
-
-        if (!@unlink($path)) {
-            throw new \RuntimeException('Failed to delete advertisement');
-        }
-    }
-
-    private function sanitizeAdFilename(string $name): string
-    {
-        $safe = basename($name);
-        $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $safe);
-        $safe = trim($safe, '._');
-        if ($safe === '') {
-            return '';
-        }
-        if (substr($safe, -4) !== '.ans') {
-            $safe .= '.ans';
-        }
-        return $safe;
-    }
-
-    private function getAdsDir(): string
-    {
-        return __DIR__ . '/../../bbs_ads';
-    }
-
     private function getCustomTemplatesBasePath(): string
     {
         return rtrim(Config::TEMPLATE_PATH, '/\\') . '/custom';
@@ -1577,6 +1513,16 @@ class AdminDaemonServer
         return __DIR__ . '/../../data/houserules.md';
     }
 
+    private function getLoginSplashPath(): string
+    {
+        return __DIR__ . '/../../data/login_splash.md';
+    }
+
+    private function getRegisterSplashPath(): string
+    {
+        return __DIR__ . '/../../data/register_splash.md';
+    }
+
     private function getAppearanceConfig(): array
     {
         $path = $this->getAppearanceConfigPath();
@@ -1591,11 +1537,15 @@ class AdminDaemonServer
 
         $systemNewsPath = $this->getSystemNewsPath();
         $houseRulesPath = $this->getHouseRulesPath();
+        $loginSplashPath = $this->getLoginSplashPath();
+        $registerSplashPath = $this->getRegisterSplashPath();
 
         return [
             'config' => $config ?? [],
             'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
             'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
+            'login_splash' => file_exists($loginSplashPath) ? (file_get_contents($loginSplashPath) ?: '') : null,
+            'register_splash' => file_exists($registerSplashPath) ? (file_get_contents($registerSplashPath) ?: '') : null,
         ];
     }
 
@@ -1640,6 +1590,30 @@ class AdminDaemonServer
 
         if (@file_put_contents($path, $text, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write house rules');
+        }
+    }
+
+    private function writeLoginSplash(string $text): void
+    {
+        $path = $this->getLoginSplashPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write login splash');
+        }
+    }
+
+    private function writeRegisterSplash(string $text): void
+    {
+        $path = $this->getRegisterSplashPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write register splash');
         }
     }
 
@@ -1767,6 +1741,36 @@ class AdminDaemonServer
         $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         if ($json === false || @file_put_contents($overlayPath, $json, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write overlay file');
+        }
+    }
+
+    /**
+     * Write a validated license payload to data/license.json.
+     *
+     * @param array<string,mixed> $licenseData
+     */
+    private function writeLicenseFile(array $licenseData): void
+    {
+        $path = __DIR__ . '/../../data/license.json';
+        $dir  = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+            throw new \RuntimeException('Failed to create data directory');
+        }
+
+        $json = json_encode($licenseData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false || @file_put_contents($path, $json . "\n", LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write license file');
+        }
+    }
+
+    /**
+     * Remove the license file, reverting the installation to Community Edition.
+     */
+    private function deleteLicenseFile(): void
+    {
+        $path = __DIR__ . '/../../data/license.json';
+        if (file_exists($path) && !@unlink($path)) {
+            throw new \RuntimeException('Failed to remove license file');
         }
     }
 

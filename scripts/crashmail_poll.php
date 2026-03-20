@@ -34,6 +34,8 @@ if (!$autoloaderFound) {
     exit(1);
 }
 
+require_once __DIR__ . '/../src/functions.php';
+
 use BinktermPHP\Crashmail\CrashmailService;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 

@@ -564,11 +564,6 @@ class BinkdProcessor
         return ArtFormatDetector::normalizeDetectedEncoding($encoding, $rawBody);
     }
 
-    private function detectArtFormat(?string $rawBody, ?string $detectedEncoding = null): ?string
-    {
-        return ArtFormatDetector::detectArtFormat($rawBody, $detectedEncoding);
-    }
-
     /**
      * Extract character encoding from CHRS kludge line
      * CHRS format: "CHRS: <charset> <level>"
@@ -715,6 +710,13 @@ class BinkdProcessor
 
     private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
+        // Intercept inbound netmail FREQs (FILE_REQUEST attribute 0x0800).
+        // These are protocol requests, not user mail — log and discard rather than deliver.
+        if (($message['attributes'] ?? 0) & 0x0800) {
+            $this->processInboundNetmailFreq($message);
+            return;
+        }
+
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
 
@@ -824,7 +826,6 @@ class BinkdProcessor
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
         $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $messageTextRaw);
-        $artFormat = $this->detectArtFormat($cleanMessageRaw, $message['detectedEncoding'] ?? null);
 
         // Use addresses from kludges if available (more reliable than INTL kludge)
         // Priority: REPLYADDR > MSGID original author > message envelope
@@ -860,7 +861,7 @@ class BinkdProcessor
         $stmt->bindValue(':message_text', $cleanMessageText);
         $stmt->bindValue(':raw_message_bytes', $cleanMessageRaw !== '' ? $cleanMessageRaw : null, $cleanMessageRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
         $stmt->bindValue(':message_charset', $messageCharset);
-        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':art_format', null, \PDO::PARAM_NULL);
         $stmt->bindValue(':date_written', $dateWritten);
         $stmt->bindValue(':attributes', $message['attributes']);
         $stmt->bindValue(':message_id', $messageId);
@@ -879,6 +880,58 @@ class BinkdProcessor
         // Check for file attachments (bit 4 = 0x0010 in FidoNet attributes)
         if (($message['attributes'] ?? 0) & 0x0010) {
             $this->processNetmailAttachment($userId, $message, $netmailId, $fromAddr);
+        }
+
+        // Forward to email if recipient has forwarding enabled.
+        // Attachment processing runs first so the files table is populated before we query it.
+        $fwdAttachments = [];
+        $attStmt = $this->db->prepare(
+            "SELECT storage_path, filename FROM files
+             WHERE message_id = ? AND message_type = 'netmail' AND owner_id = ? AND subfolder = 'attachments'
+             LIMIT 5"
+        );
+        $attStmt->execute([$netmailId, (int)$userId]);
+        foreach ($attStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if (!empty($row['storage_path']) && file_exists($row['storage_path'])) {
+                $fwdAttachments[] = ['path' => $row['storage_path'], 'filename' => $row['filename']];
+            }
+        }
+        \BinktermPHP\Mail::maybeForwardNetmail(
+            (int)$userId,
+            (string)($message['fromName'] ?? ''),
+            (string)$fromAddr,
+            (string)($message['subject'] ?? ''),
+            (string)$cleanMessageText,
+            $fwdAttachments
+        );
+    }
+
+    /**
+     * Process an inbound netmail marked FILE_REQUEST (0x0800).
+     * Resolves filenames from the Subject, queues fulfilled files for delivery,
+     * and logs every attempt. The netmail is NOT stored in the inbox.
+     *
+     * @param array $message Parsed message array from readMessage()
+     */
+    private function processInboundNetmailFreq(array $message): void
+    {
+        $fromAddr = $message['origAddr'] ?? $message['fromAddr'] ?? '';
+        $subject  = trim($message['subject'] ?? '');
+        $body     = $message['text'] ?? '';
+
+        $this->log("[BINKD] FREQ netmail from {$fromAddr}: {$subject}");
+
+        if ($subject === '' || $fromAddr === '') {
+            $this->log("[BINKD] FREQ netmail has no subject or origin address — ignoring");
+            return;
+        }
+
+        try {
+            $resolver = new \BinktermPHP\Freq\FreqResolver();
+            $queued   = $resolver->processNetmailFreq($subject, $body, $fromAddr);
+            $this->log("[BINKD] FREQ netmail from {$fromAddr}: queued {$queued} file(s) for delivery");
+        } catch (\Exception $e) {
+            $this->log("[BINKD] FREQ resolution error for {$fromAddr}: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -1104,7 +1157,6 @@ class BinkdProcessor
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
         $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $message['textRaw'] ?? '');
-        $artFormat = $this->detectArtFormat($messageTextRaw, $message['detectedEncoding'] ?? null);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
         $replyToId = null;
@@ -1167,7 +1219,7 @@ class BinkdProcessor
         $stmt->bindValue(':message_text', $messageText);
         $stmt->bindValue(':raw_message_bytes', $messageTextRaw !== '' ? $messageTextRaw : null, $messageTextRaw !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
         $stmt->bindValue(':message_charset', $messageCharset);
-        $stmt->bindValue(':art_format', $artFormat);
+        $stmt->bindValue(':art_format', null, \PDO::PARAM_NULL);
         $stmt->bindValue(':date_written', $dateWritten);
         $stmt->bindValue(':message_id', $messageId);
         $stmt->bindValue(':origin_line', $originLine);
@@ -1422,10 +1474,14 @@ class BinkdProcessor
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
 
-        // Parse origin address — must have a configured uplink with a 'me' address
+        // Parse origin address — prefer uplink-specific 'me' address, fall back to system address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
         if (!$myAddress) {
-            throw new \Exception("No configured uplink 'me' address for destination $destAddr — cannot build packet header");
+            $myAddress = $this->config->getSystemAddress();
+            if (!$myAddress) {
+                throw new \Exception("No configured origin address for destination $destAddr — cannot build packet header");
+            }
+            $this->log("writePacketHeader: no uplink match for $destAddr, using system address $myAddress");
         }
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);
@@ -1462,7 +1518,8 @@ class BinkdProcessor
         
         // Remaining 34 bytes - FSC-0048 Type 2+ format (Binkd-compatible)
         // Bytes 24-25: Product code and revision
-        $header .= pack('CC', 0, 0);         // 24-25: prodCode, prodRev
+        // 0xFE is reserved by FTS-0001 for products without an allocated FTSC product code
+        $header .= pack('CC', 0xFE, 0);      // 24-25: prodCodeLo (0xFE = unregistered), prodRev
 
         // Bytes 26-33: Packet password (8 bytes, null-padded)
         $pktPassword = $this->config->getPktPasswordForAddress($destAddr);
@@ -1478,7 +1535,7 @@ class BinkdProcessor
         $header .= pack('vv', 0, $cwCopy);   // 38-41: auxNet, cwCopy
 
         // Bytes 42-45: Extended product info and capability word
-        $header .= pack('CCv', 0, 0, $capWord); // 42-45: prodCodeHi, revision, capWord
+        $header .= pack('CCv', 0xFE, 0, $capWord); // 42-45: prodCodeHi (0xFE = unregistered), revision, capWord
 
         // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
         $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_
@@ -1655,7 +1712,7 @@ class BinkdProcessor
             }
         }
 
-        $kludgeLines.="\x01MAILER: BinktermPHP ".Version::getVersion()." ".PHP_OS_FAMILY."\r\n";
+        $kludgeLines.="\x01PID: BinktermPHP ".Version::getVersion()." ".PHP_OS_FAMILY."\r\n";
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {

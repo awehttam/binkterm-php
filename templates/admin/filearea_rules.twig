@@ -8,7 +8,8 @@
         <i class="fas fa-filter"></i>
         {{ t('ui.admin.filearea_rules.heading', {}, locale, ['common']) }}
     </h2>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 align-items-center">
+        <small class="text-muted" id="rulesStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</small>
         <button class="btn btn-outline-secondary" id="resetRulesBtn" disabled>
             <i class="fas fa-undo"></i>
             {{ t('ui.admin.filearea_rules.reset_to_example', {}, locale, ['common']) }}
@@ -20,50 +21,196 @@
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-lg-8">
+<div id="rulesEditorAlert"></div>
+
+<ul class="nav nav-tabs mb-3" id="rulesTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="guiTabBtn" data-bs-toggle="tab" data-bs-target="#guiTab" type="button" role="tab">
+            <i class="fas fa-th-list me-1"></i>{{ t('ui.admin.filearea_rules.tab_gui', {}, locale, ['common']) }}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="jsonTabBtn" data-bs-toggle="tab" data-bs-target="#jsonTab" type="button" role="tab">
+            <i class="fas fa-code me-1"></i>{{ t('ui.admin.filearea_rules.tab_json', {}, locale, ['common']) }}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="rulesTabContent">
+
+    <!-- GUI Tab -->
+    <div class="tab-pane fade show active" id="guiTab" role="tabpanel">
+
+        <!-- Global Rules -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-globe me-1"></i>{{ t('ui.admin.filearea_rules.global_rules_section', {}, locale, ['common']) }}</h6>
+                <button class="btn btn-sm btn-outline-primary" id="addGlobalRuleBtn">
+                    <i class="fas fa-plus me-1"></i>{{ t('ui.admin.filearea_rules.add_rule', {}, locale, ['common']) }}
+                </button>
+            </div>
+            <div id="globalRulesContainer"></div>
+        </div>
+
+        <!-- Area Rules -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.config_filename', {}, locale, ['common']) }}</h6>
-                <small class="text-muted" id="rulesStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</small>
+                <h6 class="mb-0"><i class="fas fa-folder me-1"></i>{{ t('ui.admin.filearea_rules.area_rules_section', {}, locale, ['common']) }}</h6>
+                <button class="btn btn-sm btn-outline-primary" id="addAreaBtn">
+                    <i class="fas fa-plus me-1"></i>{{ t('ui.admin.filearea_rules.add_area', {}, locale, ['common']) }}
+                </button>
             </div>
-            <div class="card-body">
-                <div id="rulesEditorAlert"></div>
-                <textarea id="rulesJsonEditor" class="form-control" rows="22" spellcheck="false"
-                          style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;"></textarea>
-                <small class="text-muted" id="rulesJsonHint">{{ t('ui.admin.filearea_rules.editing_requires_valid_json', {}, locale, ['common']) }}</small>
+            <div class="card-body" id="areaRulesContainer"></div>
+        </div>
+
+    </div>
+
+    <!-- JSON Tab -->
+    <div class="tab-pane fade" id="jsonTab" role="tabpanel">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">{{ t('ui.admin.filearea_rules.config_filename', {}, locale, ['common']) }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <textarea id="rulesJsonEditor" class="form-control" rows="26" spellcheck="false"
+                                  style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: .85em;"></textarea>
+                        <small class="text-muted">{{ t('ui.admin.filearea_rules.editing_requires_valid_json', {}, locale, ['common']) }}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header"><h6 class="mb-0">{{ t('ui.admin.filearea_rules.macros', {}, locale, ['common']) }}</h6></div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0 small">
+                            <li><code>%basedir%</code> {{ t('ui.admin.filearea_rules.macro_basedir', {}, locale, ['common']) }}</li>
+                            <li><code>%filepath%</code> {{ t('ui.admin.filearea_rules.macro_filepath', {}, locale, ['common']) }}</li>
+                            <li><code>%filename%</code> {{ t('ui.admin.filearea_rules.macro_filename', {}, locale, ['common']) }}</li>
+                            <li><code>%filesize%</code> {{ t('ui.admin.filearea_rules.macro_filesize', {}, locale, ['common']) }}</li>
+                            <li><code>%domain%</code> {{ t('ui.admin.filearea_rules.macro_domain', {}, locale, ['common']) }}</li>
+                            <li><code>%areatag%</code> {{ t('ui.admin.filearea_rules.macro_areatag', {}, locale, ['common']) }}</li>
+                            <li><code>%uploader%</code> {{ t('ui.admin.filearea_rules.macro_uploader', {}, locale, ['common']) }}</li>
+                            <li><code>%ticfile%</code> {{ t('ui.admin.filearea_rules.macro_ticfile', {}, locale, ['common']) }}</li>
+                            <li><code>%tempdir%</code> {{ t('ui.admin.filearea_rules.macro_tempdir', {}, locale, ['common']) }}</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card mt-3">
+                    <div class="card-header"><h6 class="mb-0">{{ t('ui.admin.filearea_rules.tips', {}, locale, ['common']) }}</h6></div>
+                    <div class="card-body">
+                        <small class="text-muted">
+                            {{ t('ui.admin.filearea_rules.tip_1', {}, locale, ['common']) }}
+                            {{ t('ui.admin.filearea_rules.tip_2', {}, locale, ['common']) }}
+                            {{ t('ui.admin.filearea_rules.tip_3', {}, locale, ['common']) }}
+                        </small>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.macros', {}, locale, ['common']) }}</h6>
+
+</div>
+
+<!-- Rule Edit/Add Modal -->
+<div class="modal fade" id="ruleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ruleModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="card-body">
-                <ul class="list-unstyled mb-0">
-                    <li><code>%basedir%</code> {{ t('ui.admin.filearea_rules.macro_basedir', {}, locale, ['common']) }}</li>
-                    <li><code>%filepath%</code> {{ t('ui.admin.filearea_rules.macro_filepath', {}, locale, ['common']) }}</li>
-                    <li><code>%filename%</code> {{ t('ui.admin.filearea_rules.macro_filename', {}, locale, ['common']) }}</li>
-                    <li><code>%filesize%</code> {{ t('ui.admin.filearea_rules.macro_filesize', {}, locale, ['common']) }}</li>
-                    <li><code>%domain%</code> {{ t('ui.admin.filearea_rules.macro_domain', {}, locale, ['common']) }}</li>
-                    <li><code>%areatag%</code> {{ t('ui.admin.filearea_rules.macro_areatag', {}, locale, ['common']) }}</li>
-                    <li><code>%uploader%</code> {{ t('ui.admin.filearea_rules.macro_uploader', {}, locale, ['common']) }}</li>
-                    <li><code>%ticfile%</code> {{ t('ui.admin.filearea_rules.macro_ticfile', {}, locale, ['common']) }}</li>
-                    <li><code>%tempdir%</code> {{ t('ui.admin.filearea_rules.macro_tempdir', {}, locale, ['common']) }}</li>
-                </ul>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_name', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="ruleFieldName" placeholder="My Rule">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" id="ruleFieldEnabled">
+                            <label class="form-check-label" for="ruleFieldEnabled">{{ t('ui.admin.filearea_rules.field_enabled', {}, locale, ['common']) }}</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_pattern', {}, locale, ['common']) }}</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control font-monospace" id="ruleFieldPattern" placeholder="/^filename\.(zip|rar)$/i">
+                            <button type="button" class="btn btn-outline-secondary" id="patternTestToggle" title="{{ t('ui.admin.filearea_rules.pattern_test_title', {}, locale, ['common']) }}">
+                                <i class="fas fa-vial"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">{{ t('ui.admin.filearea_rules.field_pattern_hint', {}, locale, ['common']) }}</div>
+                        <!-- Pattern tester panel -->
+                        <div id="patternTesterPanel" class="border rounded p-3 mt-2 bg-light" style="display:none;">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <input type="text" class="form-control form-control-sm font-monospace" id="patternTestInput"
+                                       placeholder="{{ t('ui.admin.filearea_rules.pattern_test_placeholder', {}, locale, ['common']) }}">
+                                <span id="patternTestResult" class="text-nowrap fw-semibold" style="min-width:90px;"></span>
+                            </div>
+                            <div id="patternTestAreaFiles" class="mt-2"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_script', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control font-monospace" id="ruleFieldScript" placeholder="php %basedir%/scripts/myscript.php %filepath%">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_timeout', {}, locale, ['common']) }}</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="ruleFieldTimeout" value="600" min="1" max="3600">
+                            <span class="input-group-text">s</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_domain', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="ruleFieldDomain" placeholder="fidonet">
+                        <div class="form-text">{{ t('ui.admin.filearea_rules.field_domain_hint', {}, locale, ['common']) }}</div>
+                    </div>
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_success_action', {}, locale, ['common']) }}</label>
+                        <div id="successActionChecks" class="d-flex flex-wrap gap-2 mb-2"></div>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted text-nowrap">{{ t('ui.admin.filearea_rules.action_move', {}, locale, ['common']) }}</small>
+                            <input type="text" class="form-control form-control-sm font-monospace" id="ruleFieldSuccessMove" placeholder="AREATAG">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.field_fail_action', {}, locale, ['common']) }}</label>
+                        <div id="failActionChecks" class="d-flex flex-wrap gap-2 mb-2"></div>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted text-nowrap">{{ t('ui.admin.filearea_rules.action_move', {}, locale, ['common']) }}</small>
+                            <input type="text" class="form-control form-control-sm font-monospace" id="ruleFieldFailMove" placeholder="AREATAG">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-fidonet" id="ruleModalSaveBtn">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
             </div>
         </div>
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.tips', {}, locale, ['common']) }}</h6>
+    </div>
+</div>
+
+<!-- Add Area Modal -->
+<div class="modal fade" id="addAreaModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.filearea_rules.add_area_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="card-body">
-                <small class="text-muted">
-                    {{ t('ui.admin.filearea_rules.tip_1', {}, locale, ['common']) }}
-                    {{ t('ui.admin.filearea_rules.tip_2', {}, locale, ['common']) }}
-                    {{ t('ui.admin.filearea_rules.tip_3', {}, locale, ['common']) }}
-                </small>
+            <div class="modal-body">
+                <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.area_tag_label', {}, locale, ['common']) }}</label>
+                <input type="text" class="form-control font-monospace" id="newAreaTagInput" placeholder="NODELIST">
+                <div class="form-text">{{ t('ui.admin.filearea_rules.area_tag_hint', {}, locale, ['common']) }}</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-fidonet" id="addAreaSaveBtn">{{ t('ui.common.add', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>
@@ -72,131 +219,564 @@
 
 {% block scripts %}
 <script>
-let rulesState = {
-    configJson: null,
-    exampleJson: null,
-    dirty: false
-};
+// ─── State ────────────────────────────────────────────────────────────────────
+let guiState = { global_rules: [], area_rules: {} };
+let editingCtx  = null; // { scope: 'global'|'area', areaTag: string|null, index: number }
+let exampleJson = null;
+let dirty       = false;
+let activeTab   = 'gui';
+
+const ACTION_FLAGS = ['keep', 'delete', 'notify', 'archive', 'stop'];
 
 function uiT(key, fallback, params = {}) {
-    if (window.t) {
-        return window.t(key, params, fallback);
-    }
-    return fallback;
+    return window.t ? window.t(key, params, fallback) : fallback;
 }
 
-function setAlert(message, type) {
-    const container = document.getElementById('rulesEditorAlert');
-    if (!message) {
-        container.innerHTML = '';
+// ─── Action helpers ───────────────────────────────────────────────────────────
+function parseAction(str) {
+    const parts = (str || '').split('+').map(s => s.trim());
+    const obj = { keep: false, delete: false, notify: false, archive: false, stop: false, move: '' };
+    for (const p of parts) {
+        const pl = p.toLowerCase();
+        if (ACTION_FLAGS.includes(pl)) obj[pl] = true;
+        else if (pl.startsWith('move:')) obj.move = p.slice(5);
+    }
+    return obj;
+}
+
+function serializeAction(obj) {
+    const parts = [];
+    for (const f of ACTION_FLAGS) { if (obj[f]) parts.push(f); }
+    if (obj.move && obj.move.trim()) parts.push('move:' + obj.move.trim());
+    return parts.join('+');
+}
+
+// ─── HTML helpers ─────────────────────────────────────────────────────────────
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return escHtml(s); }
+
+// ─── Render GUI ───────────────────────────────────────────────────────────────
+function renderGui() {
+    renderGlobalRules();
+    renderAreaRules();
+}
+
+function renderRulesTable(rules, scope, areaTag) {
+    const scopeA = escAttr(scope);
+    const tagA   = escAttr(areaTag || '');
+    if (!rules || rules.length === 0) {
+        return `<p class="text-muted small p-3 mb-0">${uiT('ui.admin.filearea_rules.no_rules', 'No rules. Click Add Rule to create one.')}</p>`;
+    }
+    const rows = rules.map((rule, idx) => {
+        const enabled = rule.enabled !== false;
+        const sa = escHtml(rule.success_action || '');
+        const fa = escHtml(rule.fail_action || '');
+        return `<tr>
+            <td class="text-center align-middle">
+                <div class="form-check d-inline-block mb-0">
+                    <input type="checkbox" class="form-check-input" ${enabled ? 'checked' : ''}
+                           onchange="toggleEnabled('${scopeA}','${tagA}',${idx},this.checked)">
+                </div>
+            </td>
+            <td class="align-middle">${escHtml(rule.name || '')}</td>
+            <td class="align-middle"><code class="small">${escHtml(rule.pattern || '')}</code></td>
+            <td class="align-middle"><code class="small">${sa || '<span class="text-muted">—</span>'}</code></td>
+            <td class="align-middle"><code class="small">${fa || '<span class="text-muted">—</span>'}</code></td>
+            <td class="align-middle text-end">
+                <div class="d-flex gap-1 justify-content-end">
+                    <button class="btn btn-sm btn-outline-secondary" title="${uiT('ui.admin.filearea_rules.edit_rule_title','Edit')}"
+                            onclick="openEditModal('${scopeA}','${tagA}',${idx})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" title="${uiT('ui.admin.filearea_rules.clone_rule','Clone rule')}"
+                            onclick="cloneRule('${scopeA}','${tagA}',${idx})">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" title="${uiT('ui.admin.filearea_rules.delete_rule_confirm','Delete')}"
+                            onclick="deleteRule('${scopeA}','${tagA}',${idx})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    return `<table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width:60px">${uiT('ui.admin.filearea_rules.col_enabled','Enabled')}</th>
+                <th>${uiT('ui.admin.filearea_rules.col_name','Name')}</th>
+                <th>${uiT('ui.admin.filearea_rules.col_pattern','Pattern')}</th>
+                <th>${uiT('ui.admin.filearea_rules.col_success','On Success')}</th>
+                <th>${uiT('ui.admin.filearea_rules.col_fail','On Failure')}</th>
+                <th style="width:80px"></th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderGlobalRules() {
+    document.getElementById('globalRulesContainer').innerHTML =
+        renderRulesTable(guiState.global_rules, 'global', null);
+}
+
+function renderAreaRules() {
+    const container = document.getElementById('areaRulesContainer');
+    const tags = Object.keys(guiState.area_rules);
+    if (tags.length === 0) {
+        container.innerHTML = `<p class="text-muted mb-0">${uiT('ui.admin.filearea_rules.no_areas','No area rules. Click Add Area to create one.')}</p>`;
         return;
     }
-    container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+    container.innerHTML = tags.map(tag => {
+        const tagA = escAttr(tag);
+        return `<div class="border rounded mb-3">
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light border-bottom rounded-top">
+                <strong class="font-monospace">${escHtml(tag)}</strong>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="openAddModal('area','${tagA}')">
+                        <i class="fas fa-plus me-1"></i>${uiT('ui.admin.filearea_rules.add_rule','Add Rule')}
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteArea('${tagA}')" title="${uiT('ui.admin.filearea_rules.delete_area_confirm','Delete area')}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            ${renderRulesTable(guiState.area_rules[tag], 'area', tag)}
+        </div>`;
+    }).join('');
 }
 
-function setStatus(message) {
-    document.getElementById('rulesStatus').textContent = message;
+// ─── Modal: action checkboxes ─────────────────────────────────────────────────
+function buildActionChecks(containerId, prefix) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = ACTION_FLAGS.map(f => `
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="${prefix}_${f}">
+            <label class="form-check-label font-monospace small" for="${prefix}_${f}">${f}</label>
+        </div>`).join('');
 }
 
-function setButtons() {
-    document.getElementById('saveRulesBtn').disabled = !rulesState.dirty;
-    document.getElementById('resetRulesBtn').disabled = !rulesState.exampleJson;
+function fillActionChecks(prefix, moveFieldId, actionStr) {
+    const obj = parseAction(actionStr);
+    for (const f of ACTION_FLAGS) {
+        const el = document.getElementById(`${prefix}_${f}`);
+        if (el) el.checked = !!obj[f];
+    }
+    document.getElementById(moveFieldId).value = obj.move || '';
+}
+
+function readActionChecks(prefix, moveFieldId) {
+    const obj = { move: document.getElementById(moveFieldId).value.trim() };
+    for (const f of ACTION_FLAGS) {
+        const el = document.getElementById(`${prefix}_${f}`);
+        obj[f] = el ? el.checked : false;
+    }
+    return serializeAction(obj);
+}
+
+// ─── Open modal: add ──────────────────────────────────────────────────────────
+function openAddModal(scope, areaTag) {
+    editingCtx = { scope, areaTag: areaTag || null, index: -1 };
+    document.getElementById('ruleModalTitle').textContent =
+        uiT('ui.admin.filearea_rules.add_rule_title', 'Add Rule');
+    document.getElementById('ruleFieldName').value    = '';
+    document.getElementById('ruleFieldEnabled').checked = true;
+    document.getElementById('ruleFieldPattern').value = '';
+    document.getElementById('ruleFieldScript').value  = '';
+    document.getElementById('ruleFieldTimeout').value = '600';
+    document.getElementById('ruleFieldDomain').value  = '';
+    buildActionChecks('successActionChecks', 'sa');
+    buildActionChecks('failActionChecks', 'fa');
+    fillActionChecks('sa', 'ruleFieldSuccessMove', '');
+    fillActionChecks('fa', 'ruleFieldFailMove', '');
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('ruleModal')).show();
+}
+
+// ─── Open modal: edit ─────────────────────────────────────────────────────────
+function openEditModal(scope, areaTag, index) {
+    editingCtx = { scope, areaTag: areaTag || null, index };
+    const rule = scope === 'global'
+        ? guiState.global_rules[index]
+        : guiState.area_rules[areaTag][index];
+    if (!rule) return;
+
+    document.getElementById('ruleModalTitle').textContent =
+        uiT('ui.admin.filearea_rules.edit_rule_title', 'Edit Rule');
+    document.getElementById('ruleFieldName').value     = rule.name || '';
+    document.getElementById('ruleFieldEnabled').checked = rule.enabled !== false;
+    document.getElementById('ruleFieldPattern').value  = rule.pattern || '';
+    document.getElementById('ruleFieldScript').value   = rule.script || '';
+    document.getElementById('ruleFieldTimeout').value  = rule.timeout != null ? rule.timeout : 600;
+    document.getElementById('ruleFieldDomain').value   = rule.domain || '';
+    buildActionChecks('successActionChecks', 'sa');
+    buildActionChecks('failActionChecks', 'fa');
+    fillActionChecks('sa', 'ruleFieldSuccessMove', rule.success_action || '');
+    fillActionChecks('fa', 'ruleFieldFailMove', rule.fail_action || '');
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('ruleModal')).show();
+}
+
+// Global Add Rule button wires to openAddModal
+document.getElementById('addGlobalRuleBtn').addEventListener('click', () => openAddModal('global', null));
+
+// ─── Save rule from modal ─────────────────────────────────────────────────────
+document.getElementById('ruleModalSaveBtn').addEventListener('click', () => {
+    const name = document.getElementById('ruleFieldName').value.trim();
+    if (!name) {
+        document.getElementById('ruleFieldName').focus();
+        return;
+    }
+    const rule = {
+        name:           name,
+        enabled:        document.getElementById('ruleFieldEnabled').checked,
+        pattern:        document.getElementById('ruleFieldPattern').value.trim(),
+        script:         document.getElementById('ruleFieldScript').value.trim(),
+        timeout:        parseInt(document.getElementById('ruleFieldTimeout').value, 10) || 600,
+        success_action: readActionChecks('sa', 'ruleFieldSuccessMove'),
+        fail_action:    readActionChecks('fa', 'ruleFieldFailMove'),
+    };
+    const domain = document.getElementById('ruleFieldDomain').value.trim();
+    if (domain) rule.domain = domain;
+
+    const { scope, areaTag, index } = editingCtx;
+    if (scope === 'global') {
+        if (index === -1) guiState.global_rules.push(rule);
+        else guiState.global_rules[index] = rule;
+    } else {
+        if (!guiState.area_rules[areaTag]) guiState.area_rules[areaTag] = [];
+        if (index === -1) guiState.area_rules[areaTag].push(rule);
+        else guiState.area_rules[areaTag][index] = rule;
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('ruleModal')).hide();
+    setDirty(true);
+    renderGui();
+});
+
+// ─── Toggle enabled in-table ──────────────────────────────────────────────────
+function toggleEnabled(scope, areaTag, index, value) {
+    const rule = scope === 'global'
+        ? guiState.global_rules[index]
+        : guiState.area_rules[areaTag][index];
+    if (rule) {
+        rule.enabled = value;
+        setDirty(true);
+    }
+}
+
+// ─── Clone rule ───────────────────────────────────────────────────────────────
+function cloneRule(scope, areaTag, index) {
+    if (!confirm(uiT('ui.admin.filearea_rules.clone_rule_confirm', 'Clone rule?'))) return;
+    const source = scope === 'global'
+        ? guiState.global_rules[index]
+        : guiState.area_rules[areaTag][index];
+    if (!source) return;
+    const clone = Object.assign({}, source, { name: source.name + ' (copy)' });
+    if (scope === 'global') {
+        guiState.global_rules.splice(index + 1, 0, clone);
+    } else {
+        guiState.area_rules[areaTag].splice(index + 1, 0, clone);
+    }
+    setDirty(true);
+    renderGui();
+}
+
+// ─── Delete rule ──────────────────────────────────────────────────────────────
+function deleteRule(scope, areaTag, index) {
+    if (!confirm(uiT('ui.admin.filearea_rules.delete_rule_confirm', 'Delete this rule?'))) return;
+    if (scope === 'global') guiState.global_rules.splice(index, 1);
+    else guiState.area_rules[areaTag].splice(index, 1);
+    setDirty(true);
+    renderGui();
+}
+
+// ─── Delete area ──────────────────────────────────────────────────────────────
+function deleteArea(tag) {
+    if (!confirm(uiT('ui.admin.filearea_rules.delete_area_confirm', 'Delete this area and all its rules?'))) return;
+    delete guiState.area_rules[tag];
+    setDirty(true);
+    renderAreaRules();
+}
+
+// ─── Add area modal ───────────────────────────────────────────────────────────
+document.getElementById('addAreaBtn').addEventListener('click', () => {
+    document.getElementById('newAreaTagInput').value = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('addAreaModal')).show();
+    setTimeout(() => document.getElementById('newAreaTagInput').focus(), 300);
+});
+
+document.getElementById('newAreaTagInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('addAreaSaveBtn').click();
+});
+
+document.getElementById('addAreaSaveBtn').addEventListener('click', () => {
+    const tag = document.getElementById('newAreaTagInput').value.trim();
+    if (!tag) return;
+    if (!guiState.area_rules[tag]) {
+        guiState.area_rules[tag] = [];
+        setDirty(true);
+        renderAreaRules();
+    }
+    bootstrap.Modal.getInstance(document.getElementById('addAreaModal')).hide();
+});
+
+// ─── Tab switching: sync GUI ↔ JSON ──────────────────────────────────────────
+document.getElementById('jsonTabBtn').addEventListener('show.bs.tab', () => {
+    document.getElementById('rulesJsonEditor').value = JSON.stringify(guiState, null, 2);
+    activeTab = 'json';
+});
+
+document.getElementById('guiTabBtn').addEventListener('show.bs.tab', () => {
+    const raw = document.getElementById('rulesJsonEditor').value;
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (e) {
+        setAlert(uiT('ui.admin.filearea_rules.json_parse_error', 'JSON parse error — fix syntax before switching to the visual editor.'), 'danger');
+        return;
+    }
+    guiState = normalizeState(parsed);
+    activeTab = 'gui';
+    renderGui();
+});
+
+document.getElementById('rulesJsonEditor').addEventListener('input', () => {
+    setDirty(true);
+});
+
+// ─── Normalize loaded state ───────────────────────────────────────────────────
+function normalizeState(data) {
+    const state = {
+        global_rules: Array.isArray(data.global_rules) ? data.global_rules : [],
+        area_rules:   {}
+    };
+    if (data.area_rules && typeof data.area_rules === 'object') {
+        for (const [k, v] of Object.entries(data.area_rules)) {
+            state.area_rules[k] = Array.isArray(v) ? v : [];
+        }
+    }
+    return state;
+}
+
+// ─── Load / Save ──────────────────────────────────────────────────────────────
+function setAlert(msg, type) {
+    const el = document.getElementById('rulesEditorAlert');
+    el.innerHTML = msg ? `<div class="alert alert-${type} mb-3">${msg}</div>` : '';
+}
+
+function setStatus(msg) {
+    document.getElementById('rulesStatus').textContent = msg;
+}
+
+function setDirty(val) {
+    dirty = val;
+    document.getElementById('saveRulesBtn').disabled = !val;
 }
 
 function loadRulesConfig() {
     setStatus(uiT('ui.common.loading', 'Loading...'));
     fetch('/admin/api/filearea-rules')
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
-            if (!data.success) {
-                throw new Error(apiError(data, uiT('ui.admin.filearea_rules.load_failed', 'Failed to load rules')));
-            }
+            if (!data.success) throw new Error(window.getApiErrorMessage
+                ? window.getApiErrorMessage(data, 'Failed to load')
+                : (data.error || 'Failed to load'));
             const cfg = data.config || {};
-            rulesState.configJson = cfg.config_json || '{"global_rules": [], "area_rules": {}}';
-            rulesState.exampleJson = cfg.example_json || null;
-            document.getElementById('rulesJsonEditor').value = rulesState.configJson;
-            rulesState.dirty = false;
-            setButtons();
-            setStatus(cfg.active ? uiT('ui.admin.filearea_rules.active', 'Active') : uiT('ui.admin.filearea_rules.missing_config', 'Missing config'));
+            exampleJson = cfg.example_json || null;
+            document.getElementById('resetRulesBtn').disabled = !exampleJson;
+            const rawJson = cfg.config_json || '{"global_rules":[],"area_rules":{}}';
+            guiState = normalizeState(JSON.parse(rawJson));
+            document.getElementById('rulesJsonEditor').value = JSON.stringify(guiState, null, 2);
+            renderGui();
+            setDirty(false);
+            setStatus(cfg.active
+                ? uiT('ui.admin.filearea_rules.active', 'Active')
+                : uiT('ui.admin.filearea_rules.missing_config', 'Missing config'));
         })
-        .catch(error => {
-            setAlert(error.message || uiT('ui.admin.filearea_rules.load_failed', 'Failed to load rules'), 'danger');
+        .catch(err => {
+            setAlert(err.message || 'Failed to load rules', 'danger');
             setStatus(uiT('ui.admin.filearea_rules.error', 'Error'));
         });
 }
 
 function saveRules() {
-    const editor = document.getElementById('rulesJsonEditor');
-    let parsed = null;
-    try {
-        parsed = JSON.parse(editor.value);
-    } catch (err) {
-        setAlert(uiT('ui.admin.filearea_rules.invalid_json', 'Rules JSON is invalid. Please fix errors before saving.'), 'danger');
-        return;
+    // If on JSON tab, sync JSON → guiState first
+    if (activeTab === 'json') {
+        const raw = document.getElementById('rulesJsonEditor').value;
+        try {
+            guiState = normalizeState(JSON.parse(raw));
+        } catch (e) {
+            setAlert(uiT('ui.admin.filearea_rules.invalid_json', 'Rules JSON is invalid. Please fix errors before saving.'), 'danger');
+            return;
+        }
     }
 
     setAlert('', '');
+    const payload = JSON.stringify(guiState, null, 2);
 
     fetch('/admin/api/filearea-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ json: JSON.stringify(parsed) })
+        body: JSON.stringify({ json: payload })
     })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
-            if (!data.success) {
-                throw new Error(apiError(data, uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules')));
-            }
-            const cfg = data.config || {};
-            rulesState.configJson = cfg.config_json || editor.value;
-            document.getElementById('rulesJsonEditor').value = rulesState.configJson;
-            rulesState.dirty = false;
-            setButtons();
-            const successMessage = window.getApiMessage
-                ? window.getApiMessage(data, uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.'))
-                : uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.');
-            setAlert(successMessage, 'success');
+            if (!data.success) throw new Error(window.getApiErrorMessage
+                ? window.getApiErrorMessage(data, 'Failed to save')
+                : (data.error || 'Failed to save'));
+            const updated = data.config?.config_json || payload;
+            guiState = normalizeState(JSON.parse(updated));
+            document.getElementById('rulesJsonEditor').value = JSON.stringify(guiState, null, 2);
+            renderGui();
+            setDirty(false);
+            setAlert(uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.'), 'success');
         })
-        .catch(error => {
-            setAlert(error.message || uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules'), 'danger');
+        .catch(err => {
+            setAlert(err.message || 'Failed to save rules', 'danger');
         });
 }
 
 function resetRules() {
-    if (!rulesState.exampleJson) {
-        return;
-    }
-    if (!confirm(uiT('ui.admin.filearea_rules.reset_confirm', 'Replace current rules with the example file?'))) {
-        return;
-    }
-
-    document.getElementById('rulesJsonEditor').value = rulesState.exampleJson;
-    rulesState.dirty = true;
-    setButtons();
+    if (!exampleJson) return;
+    if (!confirm(uiT('ui.admin.filearea_rules.reset_confirm', 'Replace current rules with the example file?'))) return;
+    guiState = normalizeState(JSON.parse(exampleJson));
+    document.getElementById('rulesJsonEditor').value = JSON.stringify(guiState, null, 2);
+    renderGui();
+    setDirty(true);
     setAlert(uiT('ui.admin.filearea_rules.loaded_example', 'Loaded example rules. Save to apply them.'), 'info');
 }
 
+// ─── Pattern tester ───────────────────────────────────────────────────────────
+let testerAreaFilenames = null; // null = not loaded, [] = loaded (empty or not)
+let testerLoading = false;
+
+/** Parse PHP-style /pattern/flags → JS RegExp, or null on error */
+function phpRegexToJs(raw) {
+    const str = raw.trim();
+    if (!str) return null;
+    const delim = str[0];
+    if (/[a-zA-Z0-9\\s]/.test(delim)) return null;
+    const escapedDelim = delim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = str.match(new RegExp('^' + escapedDelim + '((?:.|\\n)*)' + escapedDelim + '([gimsuy]*)$'));
+    if (!m) return null;
+    try { return new RegExp(m[1], m[2]); } catch (e) { return null; }
+}
+
+function matchBadge(matches) {
+    return matches
+        ? `<span class="badge bg-success"><i class="fas fa-check me-1"></i>${uiT('ui.admin.filearea_rules.pattern_match','match')}</span>`
+        : `<span class="badge bg-secondary"><i class="fas fa-times me-1"></i>${uiT('ui.admin.filearea_rules.pattern_no_match','no match')}</span>`;
+}
+
+function updateTester() {
+    const pattern = document.getElementById('ruleFieldPattern').value;
+    const testVal = document.getElementById('patternTestInput').value;
+    const resultEl = document.getElementById('patternTestResult');
+    const areaEl   = document.getElementById('patternTestAreaFiles');
+
+    const re = phpRegexToJs(pattern);
+
+    // Free-text result
+    if (!testVal) {
+        resultEl.innerHTML = '';
+    } else if (!re) {
+        resultEl.innerHTML = `<span class="badge bg-warning text-dark">${uiT('ui.admin.filearea_rules.pattern_invalid','invalid regex')}</span>`;
+    } else {
+        resultEl.innerHTML = matchBadge(re.test(testVal));
+    }
+
+    // Area file list
+    if (testerAreaFilenames && testerAreaFilenames.length > 0) {
+        if (!re) {
+            areaEl.innerHTML = `<small class="text-warning">${uiT('ui.admin.filearea_rules.pattern_invalid','invalid regex')}</small>`;
+            return;
+        }
+        const rows = testerAreaFilenames.map(fn => {
+            const m = re.test(fn);
+            const icon = m ? 'fa-check text-success' : 'fa-times text-secondary';
+            return `<div class="d-flex align-items-center gap-2 py-1 border-bottom">
+                <i class="fas ${icon}" style="width:14px"></i>
+                <code class="small flex-grow-1">${escHtml(fn)}</code>
+            </div>`;
+        }).join('');
+        areaEl.innerHTML = `<div style="max-height:200px;overflow-y:auto;">${rows}</div>`;
+    }
+}
+
+function loadTesterAreaFiles(tag, domain) {
+    const areaEl = document.getElementById('patternTestAreaFiles');
+    if (!tag) {
+        testerAreaFilenames = [];
+        areaEl.innerHTML = '';
+        return;
+    }
+    if (testerLoading) return;
+    testerLoading = true;
+    testerAreaFilenames = null;
+    areaEl.innerHTML = `<small class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.common.loading','Loading...')}</small>`;
+
+    const qs = new URLSearchParams({ tag });
+    if (domain) qs.set('domain', domain);
+
+    fetch('/admin/api/filearea-rules/filenames?' + qs)
+        .then(r => r.json())
+        .then(data => {
+            testerLoading = false;
+            if (!data.success) { areaEl.innerHTML = ''; return; }
+            testerAreaFilenames = data.filenames || [];
+            if (!data.area_found) {
+                areaEl.innerHTML = `<small class="text-muted">${uiT('ui.admin.filearea_rules.pattern_test_area_not_found','Area not found in database.')}</small>`;
+            } else if (testerAreaFilenames.length === 0) {
+                areaEl.innerHTML = `<small class="text-muted">${uiT('ui.admin.filearea_rules.pattern_test_no_files','No files in this area.')}</small>`;
+            } else {
+                areaEl.innerHTML = `<small class="text-muted mb-1 d-block">${uiT('ui.admin.filearea_rules.pattern_test_area_files','Files in area:')}</small>`;
+                updateTester();
+            }
+        })
+        .catch(() => { testerLoading = false; areaEl.innerHTML = ''; });
+}
+
+function openTesterPanel() {
+    const panel = document.getElementById('patternTesterPanel');
+    const isVisible = panel.style.display !== 'none';
+    if (isVisible) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = '';
+    document.getElementById('patternTestInput').focus();
+
+    // Load area files if editing an area rule and not yet loaded
+    if (editingCtx && editingCtx.scope === 'area' && editingCtx.areaTag) {
+        const tag    = editingCtx.areaTag.replace(/@.*$/, '');
+        const domain = editingCtx.areaTag.includes('@') ? editingCtx.areaTag.split('@')[1] : '';
+        const fieldDomain = document.getElementById('ruleFieldDomain').value.trim();
+        loadTesterAreaFiles(tag, fieldDomain || domain);
+    } else {
+        testerAreaFilenames = [];
+    }
+    updateTester();
+}
+
+function resetTester() {
+    testerAreaFilenames = null;
+    testerLoading = false;
+    document.getElementById('patternTesterPanel').style.display = 'none';
+    document.getElementById('patternTestInput').value = '';
+    document.getElementById('patternTestResult').innerHTML = '';
+    document.getElementById('patternTestAreaFiles').innerHTML = '';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    loadI18nNamespaces(['common', 'errors']).then(function() {
-        loadRulesConfig();
-    });
-    const editor = document.getElementById('rulesJsonEditor');
-    editor.addEventListener('input', () => {
-        rulesState.dirty = editor.value !== (rulesState.configJson || '');
-        setButtons();
-    });
+    loadI18nNamespaces(['common', 'errors']).then(() => loadRulesConfig());
     document.getElementById('saveRulesBtn').addEventListener('click', saveRules);
     document.getElementById('resetRulesBtn').addEventListener('click', resetRules);
+    document.getElementById('patternTestToggle').addEventListener('click', openTesterPanel);
+    document.getElementById('ruleFieldPattern').addEventListener('input', updateTester);
+    document.getElementById('patternTestInput').addEventListener('input', updateTester);
+    // Reset tester when modal closes
+    document.getElementById('ruleModal').addEventListener('hidden.bs.modal', resetTester);
 });
-
-function apiError(payload, fallback) {
-    if (window.getApiErrorMessage) {
-        return window.getApiErrorMessage(payload, fallback);
-    }
-    if (payload && payload.error) {
-        return String(payload.error);
-    }
-    return fallback;
-}
 </script>
 {% endblock %}

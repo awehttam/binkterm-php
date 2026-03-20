@@ -148,6 +148,25 @@
     font-family: 'Pet Me 128', "Courier New", Consolas, monospace;
 }
 
+/* Exact C64 color palette (16 fg + 16 bg) for screen RAM rendering */
+.c64-fg-0  { color: #000000; } .c64-fg-1  { color: #ffffff; }
+.c64-fg-2  { color: #880000; } .c64-fg-3  { color: #aaffee; }
+.c64-fg-4  { color: #cc44cc; } .c64-fg-5  { color: #00cc55; }
+.c64-fg-6  { color: #0000aa; } .c64-fg-7  { color: #eeee77; }
+.c64-fg-8  { color: #dd8855; } .c64-fg-9  { color: #664400; }
+.c64-fg-10 { color: #ff7777; } .c64-fg-11 { color: #333333; }
+.c64-fg-12 { color: #777777; } .c64-fg-13 { color: #aaff66; }
+.c64-fg-14 { color: #0088ff; } .c64-fg-15 { color: #bbbbbb; }
+
+.c64-bg-1  { background-color: #ffffff; } .c64-bg-2  { background-color: #880000; }
+.c64-bg-3  { background-color: #aaffee; } .c64-bg-4  { background-color: #cc44cc; }
+.c64-bg-5  { background-color: #00cc55; } .c64-bg-6  { background-color: #0000aa; }
+.c64-bg-7  { background-color: #eeee77; } .c64-bg-8  { background-color: #dd8855; }
+.c64-bg-9  { background-color: #664400; } .c64-bg-10 { background-color: #ff7777; }
+.c64-bg-11 { background-color: #333333; } .c64-bg-12 { background-color: #777777; }
+.c64-bg-13 { background-color: #aaff66; } .c64-bg-14 { background-color: #0088ff; }
+.c64-bg-15 { background-color: #bbbbbb; }
+
 /* Standard ANSI foreground colors (0-7) */
 .ansi-black { color: #000; }
 .ansi-red { color: #aa0000; }

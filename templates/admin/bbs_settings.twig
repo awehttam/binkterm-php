@@ -99,6 +99,24 @@
                             <label class="form-check-label" for="bbsBbsDirectory">{{ t('ui.admin.bbs_settings.features.enable_bbs_directory', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.bbs_directory_help', {}, locale, ['common']) }}</small></div>
                         </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsQwk">
+                            <label class="form-check-label" for="bbsQwk">{{ t('ui.admin.bbs_settings.features.enable_qwk', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+
+                        {% if license_valid %}
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsPublicFilesIndex">
+                            <label class="form-check-label" for="bbsPublicFilesIndex">{{ t('ui.admin.bbs_settings.features.enable_public_files_index', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.public_files_index_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary py-2 small mb-3">
+                            <i class="fas fa-lock me-1"></i>
+                            {{ t('ui.admin.bbs_settings.features.public_files_index_requires_license', {}, locale, ['common']) }}
+                        </div>
+                        {% endif %}
                         <div class="mb-3">
                             <label class="form-label" for="bbsDefaultEchoInterface">{{ t('ui.admin.bbs_settings.features.default_echo_interface', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="bbsDefaultEchoInterface">
@@ -112,6 +130,11 @@
                             <label class="form-label" for="bbsMaxCrossPost">{{ t('ui.admin.bbs_settings.features.max_cross_post_areas', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="bbsMaxCrossPost" min="2" max="20" step="1" value="5">
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.max_cross_post_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsDashboardAdRotateInterval">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsDashboardAdRotateInterval" min="5" max="300" step="1" value="20">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval_help', {}, locale, ['common']) }}</small>
                         </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, locale, ['common']) }}</button>
                     </form>
@@ -177,6 +200,26 @@
                                 <label class="form-label" for="bbsCreditsPollCreationCost">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileUploadCost">{{ t('ui.admin.bbs_settings.credits.file_upload_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileUploadCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileUploadReward">{{ t('ui.admin.bbs_settings.credits.file_upload_reward', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileUploadReward" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_reward_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileDownloadCost">{{ t('ui.admin.bbs_settings.credits.file_download_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileDownloadCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileDownloadReward">{{ t('ui.admin.bbs_settings.credits.file_download_reward', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileDownloadReward" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_reward_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, locale, ['common']) }}</label>
@@ -256,9 +299,14 @@ function loadBbsSettings() {
             document.getElementById('bbsFileAreas').checked = !!features.file_areas;
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
             document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
+            document.getElementById('bbsQwk').checked = !!features.qwk;
+            const bbsPublicFilesIndexEl = document.getElementById('bbsPublicFilesIndex');
+            if (bbsPublicFilesIndexEl) bbsPublicFilesIndexEl.checked = !!features.public_files_index;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
             const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
+            const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
+            document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
@@ -268,6 +316,10 @@ function loadBbsSettings() {
             const echomailRewardValue = parseInt(credits.echomail_reward, 10);
             const crashmailCostValue = parseInt(credits.crashmail_cost, 10);
             const pollCreationCostValue = parseInt(credits.poll_creation_cost, 10);
+            const fileUploadCostValue = parseInt(credits.file_upload_cost, 10);
+            const fileUploadRewardValue = parseInt(credits.file_upload_reward, 10);
+            const fileDownloadCostValue = parseInt(credits.file_download_cost, 10);
+            const fileDownloadRewardValue = parseInt(credits.file_download_reward, 10);
             const new14DaysValue = parseInt(credits.return_14days, 10);
             const transferFeeValue = parseFloat(credits.transfer_fee_percent);
             document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 25 : dailyAmountValue;
@@ -277,6 +329,10 @@ function loadBbsSettings() {
             document.getElementById('bbsCreditsEchomailReward').value = Number.isNaN(echomailRewardValue) ? 3 : echomailRewardValue;
             document.getElementById('bbsCreditsCrashmailCost').value = Number.isNaN(crashmailCostValue) ? 10 : crashmailCostValue;
             document.getElementById('bbsCreditsPollCreationCost').value = Number.isNaN(pollCreationCostValue) ? 15 : pollCreationCostValue;
+            document.getElementById('bbsCreditsFileUploadCost').value = Number.isNaN(fileUploadCostValue) ? 0 : fileUploadCostValue;
+            document.getElementById('bbsCreditsFileUploadReward').value = Number.isNaN(fileUploadRewardValue) ? 0 : fileUploadRewardValue;
+            document.getElementById('bbsCreditsFileDownloadCost').value = Number.isNaN(fileDownloadCostValue) ? 0 : fileDownloadCostValue;
+            document.getElementById('bbsCreditsFileDownloadReward').value = Number.isNaN(fileDownloadRewardValue) ? 0 : fileDownloadRewardValue;
             document.getElementById('bbsCreditsNew14Days').value = Number.isNaN(new14DaysValue) ? 50 : new14DaysValue;
             document.getElementById('bbsCreditsTransferFee').value = Number.isNaN(transferFeeValue) ? 0.05 : transferFeeValue;
 
@@ -296,6 +352,12 @@ function saveBbsSettings() {
         return;
     }
 
+    const dashboardAdRotateInterval = parseInt(document.getElementById('bbsDashboardAdRotateInterval').value, 10);
+    if (Number.isNaN(dashboardAdRotateInterval) || dashboardAdRotateInterval < 5 || dashboardAdRotateInterval > 300) {
+        showBbsSettingsAlert(uiT('ui.admin.bbs_settings.validation.dashboard_ad_rotate_interval_range', 'Dashboard ad rotation interval must be an integer between 5 and 300 seconds.'), 'danger');
+        return;
+    }
+
     // Get current credits settings (don't change them)
     fetch('/admin/api/bbs-settings')
         .then(response => response.json())
@@ -311,10 +373,13 @@ function saveBbsSettings() {
                     chat: document.getElementById('bbsChat').checked,
                     file_areas: document.getElementById('bbsFileAreas').checked,
                     guest_doors_page: document.getElementById('bbsGuestDoorsPage').checked,
-                    bbs_directory: document.getElementById('bbsBbsDirectory').checked
+                    bbs_directory: document.getElementById('bbsBbsDirectory').checked,
+                    public_files_index: document.getElementById('bbsPublicFilesIndex') ? document.getElementById('bbsPublicFilesIndex').checked : false,
+                    qwk: document.getElementById('bbsQwk').checked
                 },
                 credits: credits,
                 max_cross_post_areas: maxCrossPost,
+                dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value
             };
 
@@ -439,6 +504,30 @@ function saveBbsCredits() {
         return;
     }
 
+    const fileUploadCost = parseInt(document.getElementById('bbsCreditsFileUploadCost').value, 10);
+    if (Number.isNaN(fileUploadCost) || fileUploadCost < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_upload_cost_non_negative', 'File upload cost must be a non-negative integer.'), 'danger');
+        return;
+    }
+
+    const fileUploadReward = parseInt(document.getElementById('bbsCreditsFileUploadReward').value, 10);
+    if (Number.isNaN(fileUploadReward) || fileUploadReward < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_upload_reward_non_negative', 'File upload reward must be a non-negative integer.'), 'danger');
+        return;
+    }
+
+    const fileDownloadCost = parseInt(document.getElementById('bbsCreditsFileDownloadCost').value, 10);
+    if (Number.isNaN(fileDownloadCost) || fileDownloadCost < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_download_cost_non_negative', 'File download cost must be a non-negative integer.'), 'danger');
+        return;
+    }
+
+    const fileDownloadReward = parseInt(document.getElementById('bbsCreditsFileDownloadReward').value, 10);
+    if (Number.isNaN(fileDownloadReward) || fileDownloadReward < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.file_download_reward_non_negative', 'File download reward must be a non-negative integer.'), 'danger');
+        return;
+    }
+
     const new14Days = parseInt(document.getElementById('bbsCreditsNew14Days').value, 10);
     if (Number.isNaN(new14Days) || new14Days < 0) {
         showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.return_14_days_non_negative', '14-day return bonus must be a non-negative integer.'), 'danger');
@@ -475,6 +564,10 @@ function saveBbsCredits() {
                     echomail_reward: echomailReward,
                     crashmail_cost: crashmailCost,
                     poll_creation_cost: pollCreationCost,
+                    file_upload_cost: fileUploadCost,
+                    file_upload_reward: fileUploadReward,
+                    file_download_cost: fileDownloadCost,
+                    file_download_reward: fileDownloadReward,
                     return_14days: new14Days,
                     transfer_fee_percent: transferFee,
                     referral_enabled: document.getElementById('bbsCreditsReferralEnabled').checked,

@@ -1,0 +1,51 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.docs.title', {}, 'common') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-book me-2"></i>{{ t('ui.admin.docs.title', {}, 'common') }}
+        </h1>
+        {% if not is_index %}
+        <a href="/admin/docs" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.docs.back_to_index', {}, 'common') }}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if content %}
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="card">
+                    <div class="card-body docs-body">
+                        {{ content|raw }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {{ t('ui.admin.docs.not_found', {}, 'common') }}
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.docs-body h1 { font-size: 1.6rem; margin-top: 1.25rem; }
+.docs-body h2 { font-size: 1.3rem; margin-top: 1.5rem; border-bottom: 1px solid var(--bs-border-color); padding-bottom: .3rem; }
+.docs-body h3 { font-size: 1.1rem; margin-top: 1rem; }
+.docs-body pre { background: #1e1e1e; color: #d4d4d4; border-radius: .375rem; padding: 1rem; overflow-x: auto; }
+.docs-body code { font-size: .875em; background: rgba(128,128,128,.15); padding: .1em .3em; border-radius: .2rem; }
+.docs-body pre code { background: none; padding: 0; color: inherit; }
+.docs-body ul { padding-left: 1.5rem; }
+.docs-body ol { padding-left: 1.5rem; }
+.docs-body hr { margin: 1.5rem 0; }
+.docs-body table { width: auto; }
+.docs-body blockquote { border-left: 3px solid var(--bs-border-color); padding-left: 1rem; color: var(--bs-secondary-color); }
+.docs-body a { text-decoration: none; }
+.docs-body a:hover { text-decoration: underline; }
+</style>
+{% endblock %}

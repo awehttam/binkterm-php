@@ -263,6 +263,9 @@ function normalizeViewerRenderMode(mode) {
     if (normalized === 'plain') {
         return 'plain';
     }
+    if (normalized === 'rip' || normalized === 'ripscript') {
+        return 'rip';
+    }
     if (window.normalizeArtFormat) {
         return window.normalizeArtFormat(normalized);
     }
@@ -270,7 +273,7 @@ function normalizeViewerRenderMode(mode) {
 }
 
 function getNextViewerRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
     const normalized = normalizeViewerRenderMode(mode);
     const currentIndex = modes.indexOf(normalized);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
@@ -279,6 +282,8 @@ function getNextViewerRenderMode(mode) {
 function getViewerRenderModeLabel(mode) {
     const normalized = normalizeViewerRenderMode(mode);
     switch (normalized) {
+        case 'rip':
+            return window.t ? window.t('ui.echomail.viewer_mode_rip', {}, 'RIPscrip') : 'RIPscrip';
         case 'ansi':
             return window.t ? window.t('ui.echomail.viewer_mode_ansi', {}, 'ANSI') : 'ANSI';
         case 'amiga_ansi':
@@ -324,6 +329,35 @@ function getViewerModeToastLabel(mode, message = null) {
         : `${markupLabel} Source (${modeLabel})`;
 }
 
+function looksLikeRipScript(text) {
+    if (!text || text.trim() === '') {
+        return false;
+    }
+
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    let ripLineCount = 0;
+    let supportedCommandCount = 0;
+
+    for (const line of lines) {
+        const trimmed = line.replace(/^\s+/, '');
+        if (!trimmed.startsWith('!|')) {
+            continue;
+        }
+
+        ripLineCount++;
+
+        if (/\|c\d{2}\b/i.test(trimmed)
+            || /\|L[0-9A-Z]{8,}/i.test(trimmed)
+            || /\|@[0-9A-Z]{4}/i.test(trimmed)
+        ) {
+            supportedCommandCount++;
+        }
+    }
+
+    return ripLineCount > 0 && supportedCommandCount > 0;
+}
+
 function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
     const text = bodyText || '';
     let forcePlainText = !!forcePlain;
@@ -336,6 +370,7 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const messageArtFormat = window.normalizeArtFormat ? window.normalizeArtFormat(message?.art_format || 'auto') : (message?.art_format || 'auto');
     const requestedFormat = normalizeViewerRenderMode(formatOverride || messageArtFormat || 'auto');
     const rawBytesB64 = message?.message_bytes_b64 || null;
+    const ripDetected = looksLikeRipScript(text);
 
     if (!text || text.trim() === '') {
         return '';
@@ -347,6 +382,25 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
 
     if (forcePlainText || requestedFormat === 'plain') {
         return formatPlainMessageText(text, searchTerms);
+    }
+
+    const shouldRenderRip = !forcePlainText && (
+        requestedFormat === 'rip'
+        || (requestedFormat === 'auto' && ripDetected)
+    );
+
+    if (shouldRenderRip && message?.rip_html) {
+        return message.rip_html;
+    }
+
+    const hasPCBoard = !forcePlainText && (window.hasPCBoardCodes ? window.hasPCBoardCodes(text) : false);
+    if (hasPCBoard && window.renderPCBoardBuffer) {
+        let rendered = window.renderPCBoardBuffer(text);
+        rendered = linkifyUrls(rendered);
+        if (searchTerms && searchTerms.length > 0) {
+            rendered = highlightSearchTerms(rendered, searchTerms);
+        }
+        return `<div class="ansi-art-container art-format-ansi"><pre class="ansi-art art-format-ansi">${rendered}</pre></div>`;
     }
 
     const hasAnsi = /\x1b\[[0-9;]*m/.test(text);
@@ -557,18 +611,42 @@ function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
 
 function toggleKludgeLines() {
     const container = $('#kludgeContainer');
-    const icon = $('#toggleIcon');
-    const text = $('#toggleText');
-    
+    const btn = $('#toggleHeaders');
+
     if (container.is(':visible')) {
         container.slideUp();
-        icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text(window.t ? window.t('ui.common.show_kludge_lines', {}, 'Show Kludge Lines') : 'Show Kludge Lines');
+        btn.removeClass('active');
     } else {
         container.slideDown();
-        icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text(window.t ? window.t('ui.common.hide_kludge_lines', {}, 'Hide Kludge Lines') : 'Hide Kludge Lines');
+        btn.addClass('active');
     }
+}
+
+// Print message — opens a clean new window containing only the message content.
+// Also defined in echomail.js and netmail.js to avoid cache timing issues.
+function printMessage() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    win.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title>'
+        + '<style>'
+        + 'body{font-family:sans-serif;font-size:11pt;padding:1.5cm;color:#000;background:#fff}'
+        + '.message-header-full{border-bottom:1px solid #ccc;margin-bottom:1em;padding-bottom:.5em}'
+        + '.message-header-full strong{color:#333}'
+        + 'pre{white-space:pre-wrap;word-break:break-word;font-size:10pt;background:#f8f9fa;border:1px solid #dee2e6;padding:.75em;border-radius:4px}'
+        + '.message-origin{border-top:1px solid #ccc;margin-top:1em;padding-top:.5em;font-size:9pt;color:#666}'
+        + 'a{color:#000;text-decoration:none}'
+        + 'button,i.fas,i.far,.badge,.btn,#ansiRenderBadge,.modal-header-save-icon{display:none!important}'
+        + '</style>'
+        + '</head><body>'
+        + content.innerHTML
+        + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.onafterprint = function() { win.close(); };
+    win.print();
 }
 
 // Global user settings object
@@ -785,6 +863,10 @@ function loadUserSettings() {
                     threaded_view: false,
                     netmail_threaded_view: false,
                     quote_coloring: true,
+                    chat_notification_sound: 'notify3',
+                    echomail_notification_sound: 'disabled',
+                    netmail_notification_sound: 'notify1',
+                    file_notification_sound: 'disabled',
                     default_sort: 'date_desc',
                     timezone: 'America/Los_Angeles',
                     locale: window.appLocale || 'en',
@@ -975,8 +1057,13 @@ function formatDate(dateString) {
     }
 }
 
-function formatFidonetAddress(address) {
-    return `<span class="fidonet-address">${address}</span>`;
+function formatFidonetAddress(address, systemName) {
+    if (!address) return '';
+    const url = '/nodelist/view?address=' + encodeURIComponent(address);
+    const titleText = systemName
+        ? `${escapeHtml(systemName)} (${escapeHtml(address)})`
+        : `View node ${escapeHtml(address)}`;
+    return `<a href="${url}" class="fidonet-address text-decoration-none" title="${titleText}">${escapeHtml(address)}</a>`;
 }
 
 function formatFullDate(dateString) {

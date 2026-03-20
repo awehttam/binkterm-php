@@ -251,7 +251,7 @@ function displaySharedMessage(message, shareInfo) {
             <div class="row">
                 <div class="col-md-6">
                     <strong>${uiT('ui.shared_message.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}<br>
-                    <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
+                    <small class="text-muted">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
                 </div>
                 <div class="col-md-6">
                     <strong>${uiT('ui.shared_message.to_label', 'To:')}</strong> ${escapeHtml(message.to_name || uiT('ui.common.all', 'All'))}<br>

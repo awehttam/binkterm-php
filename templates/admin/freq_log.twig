@@ -1,0 +1,135 @@
+{% extends getBaseTemplate() %}
+
+{% block title %}FREQ Log — Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center mb-3">
+        <h2 class="mb-0"><i class="fas fa-file-download me-2"></i>FREQ Log</h2>
+    </div>
+
+    {# Filters #}
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label mb-1 small">Node</label>
+                    <input type="text" class="form-control form-control-sm" id="filterNode" placeholder="e.g. 2:345/67" style="width:160px;">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-1 small">Filename</label>
+                    <input type="text" class="form-control form-control-sm" id="filterFilename" placeholder="e.g. DOOM11.ZIP" style="width:180px;">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-1 small">Result</label>
+                    <select class="form-select form-select-sm" id="filterServed" style="width:120px;">
+                        <option value="">All</option>
+                        <option value="1">Served</option>
+                        <option value="0">Denied</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-1 small">Source</label>
+                    <select class="form-select form-select-sm" id="filterSource" style="width:120px;">
+                        <option value="">All</option>
+                        <option value="binkp">binkp</option>
+                        <option value="netmail">netmail</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-sm btn-primary" onclick="loadFreqLog(1)"><i class="fas fa-search me-1"></i>Filter</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="clearFilters()">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="freqLogTable">
+        <div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>
+    </div>
+    <div id="freqLogPager" class="d-flex justify-content-center mt-3"></div>
+</div>
+
+<script>
+let currentPage = 1;
+
+function loadFreqLog(page) {
+    currentPage = page;
+    const params = new URLSearchParams({
+        page,
+        node:     $('#filterNode').val(),
+        filename: $('#filterFilename').val(),
+        served:   $('#filterServed').val(),
+        source:   $('#filterSource').val(),
+    });
+
+    $('#freqLogTable').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>');
+
+    $.get('/admin/api/freq-log?' + params.toString())
+        .done(function(data) {
+            if (!data.success) { $('#freqLogTable').html('<div class="alert alert-danger">Failed to load log.</div>'); return; }
+            renderTable(data.entries);
+            renderPager(data.total, data.per_page, data.page);
+        })
+        .fail(function() { $('#freqLogTable').html('<div class="alert alert-danger">Request failed.</div>'); });
+}
+
+function renderTable(entries) {
+    if (!entries.length) {
+        $('#freqLogTable').html('<div class="alert alert-secondary">No FREQ requests found.</div>');
+        return;
+    }
+    let html = `<div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr>
+            <th>Time</th><th>Node</th><th>Filename</th><th>Source</th><th>Result</th><th>Size</th>
+        </tr></thead><tbody>`;
+    for (const r of entries) {
+        const served = r.served;
+        const badge  = served
+            ? `<span class="badge bg-success">Served</span>`
+            : `<span class="badge bg-danger">Denied</span> <small class="text-muted">${r.deny_reason || ''}</small>`;
+        const size   = r.file_size ? formatBytes(parseInt(r.file_size)) : '—';
+        const srcBadge = r.source === 'netmail'
+            ? `<span class="badge bg-info">netmail</span>`
+            : `<span class="badge bg-secondary">binkp</span>`;
+        const ts = r.requested_at ? r.requested_at.substring(0, 19).replace('T', ' ') : '';
+        html += `<tr>
+            <td class="text-nowrap font-monospace small">${ts}</td>
+            <td class="font-monospace small">${r.requesting_node}</td>
+            <td class="font-monospace">${r.filename}</td>
+            <td>${srcBadge}</td>
+            <td>${badge}</td>
+            <td class="text-end small">${size}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div>';
+    $('#freqLogTable').html(html);
+}
+
+function renderPager(total, perPage, page) {
+    const pages = Math.ceil(total / perPage);
+    if (pages <= 1) { $('#freqLogPager').html(''); return; }
+    let html = '<nav><ul class="pagination pagination-sm">';
+    for (let i = 1; i <= pages; i++) {
+        html += `<li class="page-item ${i === page ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="loadFreqLog(${i});return false;">${i}</a></li>`;
+    }
+    html += '</ul></nav>';
+    $('#freqLogPager').html(html);
+}
+
+function clearFilters() {
+    $('#filterNode,#filterFilename').val('');
+    $('#filterServed,#filterSource').val('');
+    loadFreqLog(1);
+}
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+$(function() { loadFreqLog(1); });
+</script>
+{% endblock %}

@@ -15,112 +15,85 @@
                     <small class="text-muted">{{ t('ui.user_subscriptions.heading_help', {}, locale, ['common']) }}</small>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div id="subscription-status" class="alert d-none" role="alert"></div>
-                            
-                            <div class="mb-3">
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="search-echoareas" 
-                                       placeholder="{{ t('ui.user_subscriptions.search_placeholder', {}, locale, ['common']) }}">
-                            </div>
-                            
-                            <div id="echoareas-list">
-                                {% for echoarea in echoareas %}
-                                <div class="card mb-3 echoarea-card" data-tag="{{ echoarea.tag|lower }}">
-                                    <div class="card-body">
-                                        <div class="row align-items-center">
-                                            <div class="col-md-1">
-                                                <div class="form-check form-switch">
-                                                    <input class="form-check-input subscription-toggle" 
-                                                           type="checkbox" 
-                                                           id="sub-{{ echoarea.id }}"
-                                                           data-echoarea-id="{{ echoarea.id }}"
-                                                           {{ echoarea.subscribed ? 'checked' : '' }}>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-3">
-                                                <h6 class="mb-1 d-flex align-items-center">
-                                                    <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: {{ echoarea.color }}; border-radius: 3px; flex-shrink: 0;"></span>
-                                                    <span style="color: #ffc107;">{{ echoarea.tag }}</span>
-                                                    {% if echoarea.domain %}
-                                                        <span class="badge bg-secondary ms-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
-                                                    {% endif %}
-                                                    {% if echoarea.is_default_subscription %}
-                                                        <i class="bi bi-star-fill text-warning ms-2" title="{{ t('ui.user_subscriptions.default_subscription_title', {}, locale, ['common']) }}"></i>
-                                                    {% endif %}
-                                                </h6>
-                                            </div>
-                                            <div class="col-md-5">
-                                                <p class="mb-1">{{ echoarea.description }}</p>
-                                                <small class="text-muted">
-                                                    {{ t('ui.user_subscriptions.message_count', {'count': echoarea.message_count}, locale, ['common']) }}
-                                                    {% if echoarea.subscribed %}
-                                                        {{ t('ui.user_subscriptions.dot_subscribed', {}, locale, ['common']) }}
-                                                        {% if echoarea.subscription_type == 'auto' %}
-                                                            {{ t('ui.user_subscriptions.automatic', {}, locale, ['common']) }}
-                                                        {% else %}
-                                                            ({{ echoarea.subscribed_at|date('M j, Y') }})
-                                                        {% endif %}
-                                                    {% endif %}
-                                                </small>
-                                            </div>
-                                            <div class="col-md-3 text-end">
-                                                <a href="/echomail/{{ echoarea.tag }}@{{ echoarea.domain }}"
-                                                   class="btn btn-sm {{ echoarea.subscribed ? 'btn-outline-primary' : 'btn-outline-secondary' }}">
-                                                    <i class="bi bi-eye me-1"></i>
-                                                    {{ t('ui.user_subscriptions.view_messages', {}, locale, ['common']) }}
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6 class="mb-0">
-                                        <i class="bi bi-info-circle me-2"></i>
-                                        {{ t('ui.user_subscriptions.subscription_info', {}, locale, ['common']) }}
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div id="subscription-stats">
-                                        {% set subscribed_count = echoareas|filter(e => e.subscribed)|length %}
-                                        {% set total_count = echoareas|length %}
-                                        
-                                        <div class="mb-3">
-                                            <div class="d-flex justify-content-between">
-                                                <span>{{ t('ui.user_subscriptions.subscribed_label', {}, locale, ['common']) }}</span>
-                                                <strong>{{ subscribed_count }} / {{ total_count }}</strong>
-                                            </div>
-                                            <div class="progress mt-1" style="height: 5px;">
-                                                <div class="progress-bar" 
-                                                     style="width: {{ total_count > 0 ? (subscribed_count / total_count * 100) : 0 }}%">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <hr>
-                                    
-                                    <h6>{{ t('ui.user_subscriptions.how_subscriptions_work', {}, locale, ['common']) }}</h6>
-                                    <ul class="small text-muted mb-0">
-                                        <li>{{ t('ui.user_subscriptions.how_new_users', {}, locale, ['common']) }}</li>
-                                        <li>{{ t('ui.user_subscriptions.how_subscribe_unsubscribe', {}, locale, ['common']) }}</li>
-                                        <li>{{ t('ui.user_subscriptions.how_only_subscribed', {}, locale, ['common']) }}</li>
-                                        <li><i class="bi bi-star-fill text-warning"></i> {{ t('ui.user_subscriptions.how_star_means_default', {}, locale, ['common']) }}</li>
-                                    </ul>
-                                </div>
+                    {% set subscribed_count = echoareas|filter(e => e.subscribed)|length %}
+                    {% set total_count = echoareas|length %}
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <input type="text"
+                               class="form-control"
+                               id="search-echoareas"
+                               placeholder="{{ t('ui.user_subscriptions.search_placeholder', {}, locale, ['common']) }}">
+                        <div class="flex-shrink-0 text-end" style="min-width:160px">
+                            <small class="text-muted d-block">{{ t('ui.user_subscriptions.subscribed_label', {}, locale, ['common']) }} <strong>{{ subscribed_count }} / {{ total_count }}</strong></small>
+                            <div class="progress mt-1" style="height: 5px;">
+                                <div class="progress-bar" style="width: {{ total_count > 0 ? (subscribed_count / total_count * 100) : 0 }}%"></div>
                             </div>
                         </div>
                     </div>
+
+                    <div id="echoareas-list">
+                        {% for echoarea in echoareas %}
+                        <div class="card mb-3 echoarea-card" data-tag="{{ echoarea.tag|lower }}">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input subscription-toggle"
+                                                   type="checkbox"
+                                                   id="sub-{{ echoarea.id }}"
+                                                   data-echoarea-id="{{ echoarea.id }}"
+                                                   {{ echoarea.subscribed ? 'checked' : '' }}>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3" style="min-width:0">
+                                        <div class="d-flex align-items-center" style="min-width:0">
+                                            <span class="me-2 flex-shrink-0" style="display: inline-block; width: 20px; height: 20px; background-color: {{ echoarea.color }}; border-radius: 3px;"></span>
+                                            <h6 class="mb-0 text-truncate" style="color: #ffc107;">{{ echoarea.tag }}</h6>
+                                        </div>
+                                        {% if echoarea.domain or echoarea.is_default_subscription %}
+                                        <div class="ms-4 mt-1">
+                                            {% if echoarea.domain %}
+                                                <span class="badge bg-secondary" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
+                                            {% endif %}
+                                            {% if echoarea.is_default_subscription %}
+                                                <i class="bi bi-star-fill text-warning ms-1" title="{{ t('ui.user_subscriptions.default_subscription_title', {}, locale, ['common']) }}"></i>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-5">
+                                        <p class="mb-1">{{ echoarea.description }}</p>
+                                        <small class="text-muted">
+                                            {{ t('ui.user_subscriptions.message_count', {'count': echoarea.message_count}, locale, ['common']) }}
+                                            {% if echoarea.subscribed and echoarea.subscription_type == 'auto' %}
+                                                {{ t('ui.user_subscriptions.dot_subscribed', {}, locale, ['common']) }}
+                                                {{ t('ui.user_subscriptions.automatic', {}, locale, ['common']) }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3 text-end">
+                                        <a href="/echomail/{{ echoarea.tag }}@{{ echoarea.domain }}"
+                                           class="btn btn-sm {{ echoarea.subscribed ? 'btn-outline-primary' : 'btn-outline-secondary' }}">
+                                            <i class="bi bi-eye me-1"></i>
+                                            {{ t('ui.user_subscriptions.view_messages', {}, locale, ['common']) }}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Subscription toast notification -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    <div id="subscriptionToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+        <div class="d-flex">
+            <div class="toast-body" id="subscriptionToastBody"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
 </div>
@@ -137,8 +110,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-echoareas');
     const echoareaCards = document.querySelectorAll('.echoarea-card');
     const subscriptionToggles = document.querySelectorAll('.subscription-toggle');
-    const statusDiv = document.getElementById('subscription-status');
-    
+    const toastEl = document.getElementById('subscriptionToast');
+    const toastBody = document.getElementById('subscriptionToastBody');
+    const toast = new bootstrap.Toast(toastEl);
+
     // Search functionality
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
@@ -149,17 +124,17 @@ document.addEventListener('DOMContentLoaded', function() {
             card.style.display = matches ? 'block' : 'none';
         });
     });
-    
+
     // Subscription toggle functionality
     subscriptionToggles.forEach(toggle => {
         toggle.addEventListener('change', function() {
             const echoareaId = this.dataset.echoareaId;
             const action = this.checked ? 'subscribe' : 'unsubscribe';
             const originalState = !this.checked;
-            
+
             // Disable toggle while processing
             this.disabled = true;
-            
+
             fetch('/api/subscriptions/user', {
                 method: 'POST',
                 headers: {
@@ -179,37 +154,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     const successMessage = window.getApiMessage
                         ? window.getApiMessage(data, fallbackMessage)
                         : fallbackMessage;
-                    showStatus(
-                        successMessage,
-                        'success'
-                    );
+                    showToast(successMessage, 'success');
                     // Refresh page to update stats and view buttons
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     // Revert toggle state
                     this.checked = originalState;
-                    showStatus(uiT('ui.user_subscriptions.update_failed', 'Failed to update subscription. Please try again.'), 'danger');
+                    showToast(uiT('ui.user_subscriptions.update_failed', 'Failed to update subscription. Please try again.'), 'danger');
                 }
             })
             .catch(error => {
                 // Revert toggle state
                 this.checked = originalState;
-                showStatus(uiT('ui.user_subscriptions.network_error', 'Network error. Please try again.'), 'danger');
+                showToast(uiT('ui.user_subscriptions.network_error', 'Network error. Please try again.'), 'danger');
             })
             .finally(() => {
                 this.disabled = false;
             });
         });
     });
-    
-    function showStatus(message, type) {
-        statusDiv.className = `alert alert-${type}`;
-        statusDiv.textContent = message;
-        statusDiv.classList.remove('d-none');
-        
-        setTimeout(() => {
-            statusDiv.classList.add('d-none');
-        }, 3000);
+
+    function showToast(message, type) {
+        toastEl.className = `toast align-items-center border-0 text-bg-${type}`;
+        toastBody.textContent = message;
+        toast.show();
     }
 });
 </script>

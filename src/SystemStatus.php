@@ -21,45 +21,72 @@ class SystemStatus
     public static function getDaemonStatus(): array
     {
         $runDir = __DIR__ . '/../data/run';
-        $pidFiles = [
-            'admin_daemon' => Config::env('ADMIN_DAEMON_PID_FILE', $runDir . '/admin_daemon.pid'),
+
+        // Core daemons — always shown
+        $coreDaemons = [
+            'admin_daemon'    => Config::env('ADMIN_DAEMON_PID_FILE',    $runDir . '/admin_daemon.pid'),
             'binkp_scheduler' => Config::env('BINKP_SCHEDULER_PID_FILE', $runDir . '/binkp_scheduler.pid'),
-            'binkp_server' => Config::env('BINKP_SERVER_PID_FILE', $runDir . '/binkp_server.pid'),
-            'telnetd' => Config::env('TELNETD_PID_FILE', $runDir . '/telnetd.pid')
+            'binkp_server'    => Config::env('BINKP_SERVER_PID_FILE',    $runDir . '/binkp_server.pid'),
+        ];
+
+        // Optional daemons — shown with a distinct "not configured" state when absent
+        $optionalDaemons = [
+            'telnetd'              => Config::env('TELNETD_PID_FILE',      $runDir . '/telnetd.pid'),
+            'ssh_daemon'           => Config::env('SSHD_PID_FILE',        $runDir . '/sshd.pid'),
+            'gemini_daemon'        => Config::env('GEMINI_PID_FILE',       $runDir . '/gemini_daemon.pid'),
+            'mrc_daemon'           => Config::env('MRC_PID_FILE',          $runDir . '/mrc_daemon.pid'),
+            'multiplexing_server'  => Config::env('MULTIPLEX_PID_FILE',    $runDir . '/multiplexing-server.pid'),
         ];
 
         $status = [];
 
-        foreach ($pidFiles as $name => $pidFile) {
-            $pid = null;
-            $running = false;
+        foreach ($coreDaemons as $name => $pidFile) {
+            $status[$name] = self::checkPidFile($pidFile, false);
+        }
 
-            if (file_exists($pidFile)) {
-                $pid = trim(file_get_contents($pidFile));
-                if ($pid !== '' && is_numeric($pid)) {
-                    $pidInt = (int)$pid;
-                    if (PHP_OS_FAMILY === 'Windows') {
-                        $running = self::isProcessRunningWindows($pidInt);
-                    } else {
-                        if (is_dir('/proc/' . $pidInt)) {
-                            $running = true;
-                        } elseif (function_exists('posix_kill')) {
-                            $running = @posix_kill($pidInt, 0);
-                        } else {
-                            $running = false;
-                        }
-                    }
-                }
-            }
-
-            $status[$name] = [
-                'pid_file' => $pidFile,
-                'pid' => $pid ?: null,
-                'running' => $running
-            ];
+        foreach ($optionalDaemons as $name => $pidFile) {
+            $status[$name] = self::checkPidFile($pidFile, true);
         }
 
         return $status;
+    }
+
+    /**
+     * Check a PID file and return daemon status info.
+     *
+     * @param string $pidFile Path to the PID file
+     * @param bool $optional Whether this is an optional daemon
+     * @return array
+     */
+    private static function checkPidFile(string $pidFile, bool $optional): array
+    {
+        $pid = null;
+        $running = false;
+        $configured = file_exists($pidFile);
+
+        if ($configured) {
+            $pid = trim(file_get_contents($pidFile));
+            if ($pid !== '' && is_numeric($pid)) {
+                $pidInt = (int)$pid;
+                if (PHP_OS_FAMILY === 'Windows') {
+                    $running = self::isProcessRunningWindows($pidInt);
+                } else {
+                    if (is_dir('/proc/' . $pidInt)) {
+                        $running = true;
+                    } elseif (function_exists('posix_kill')) {
+                        $running = @posix_kill($pidInt, 0);
+                    }
+                }
+            }
+        }
+
+        return [
+            'pid_file'   => $pidFile,
+            'pid'        => $pid ?: null,
+            'running'    => $running,
+            'optional'   => $optional,
+            'configured' => $configured || !$optional, // core daemons always count as configured
+        ];
     }
 
     private static function isProcessRunningWindows(int $pid): bool

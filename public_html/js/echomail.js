@@ -1,5 +1,7 @@
 let currentPage = 1;
 let currentSort = 'date_desc';
+// Per-area page memory, keyed by area tag. Loaded from and saved to DB via web-mail-state API.
+let echoPageMemory = {};
 let currentMessageId = null;
 let currentFilter = 'all';
 let modalClosedByBackButton = false;
@@ -14,10 +16,15 @@ let currentRenderMode = 'auto';
 let keyboardHelpVisible = false;
 let allEchoareas = [];
 let echoareaSearchQuery = '';
+let currentEchoareaData = null;  // area object for the currently viewed echo
+let allEchoareasCache = null;    // lazy full-list cache for unsubscribed area lookups
 let searchResultCounts = null;
 let searchFilterCounts = null;
 let originalFilterCounts = null;
 let isSearchActive = false;
+let currentPagination = null;
+let _messageRiptermLoaderPromise = null;
+let requestedMessageId = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -42,11 +49,12 @@ const USE_DATE_FIELD = (window.echomailDateField === 'written') ? 'written' : 'r
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
-        loadEchoareas();
-
-        // Check for search parameter in URL
         const urlParams = new URLSearchParams(window.location.search);
         const searchQuery = urlParams.get('search');
+        const messageParam = urlParams.get('message');
+        requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
+
+        loadEchoareas();
 
         if (searchQuery) {
             // Populate search input and trigger search
@@ -54,7 +62,14 @@ $(document).ready(function() {
             $('#mobileSearchInput').val(searchQuery);
             searchMessages();
         } else {
-            loadMessages();
+            // Restore last visited page for the current area
+            const memKey = currentEchoarea || '__all__';
+            if (echoPageMemory[memKey]) {
+                currentPage = echoPageMemory[memKey];
+            }
+            loadMessages(function() {
+                openRequestedMessage();
+            });
         }
     });
     loadStats();
@@ -148,11 +163,127 @@ function loadEchoareas() {
         .done(function(data) {
             allEchoareas = data.echoareas;
             applyEchoareaFilter();
+            updateEchoInfoBar();
         })
         .fail(function() {
             $('#echoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
             $('#mobileEchoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
         });
+}
+
+/**
+ * Update the echo info bar (description + subscribe button) for the current echo.
+ * If no echo is selected the bar is hidden.
+ */
+function updateEchoInfoBar() {
+    if (!currentEchoarea) {
+        $('#echoInfoBar').addClass('d-none');
+        currentEchoareaData = null;
+        return;
+    }
+
+    // Look for the area in the already-loaded subscribed list
+    currentEchoareaData = null;
+    if (allEchoareas) {
+        for (const area of allEchoareas) {
+            const fullTag = area.domain ? `${area.tag}@${area.domain}` : area.tag;
+            if (fullTag === currentEchoarea) {
+                currentEchoareaData = area;
+                break;
+            }
+        }
+    }
+
+    if (currentEchoareaData) {
+        renderEchoInfoBar(currentEchoareaData, true);
+    } else {
+        // Area not in subscribed list — lazy-fetch all areas to get description + ID
+        if (allEchoareasCache) {
+            const found = allEchoareasCache[currentEchoarea] || null;
+            currentEchoareaData = found;
+            renderEchoInfoBar(found, false);
+        } else {
+            // Show bar immediately with spinner while fetching
+            $('#echoDescription').text('');
+            $('#echoSubscribeBtn').prop('disabled', true).text('...');
+            $('#echoInfoBar').removeClass('d-none');
+
+            $.get('/api/echoareas').done(function(data) {
+                allEchoareasCache = {};
+                (data.echoareas || []).forEach(function(area) {
+                    const fullTag = area.domain ? `${area.tag}@${area.domain}` : area.tag;
+                    allEchoareasCache[fullTag] = area;
+                });
+                const found = allEchoareasCache[currentEchoarea] || null;
+                currentEchoareaData = found;
+                renderEchoInfoBar(found, false);
+            }).fail(function() {
+                renderEchoInfoBar(null, false);
+            });
+        }
+    }
+}
+
+/**
+ * Render the info bar contents given an area object and subscription state.
+ * @param {object|null} area  Area data (may be null for unknown areas)
+ * @param {boolean}     subscribed
+ */
+function renderEchoInfoBar(area, subscribed) {
+    const title       = area ? (area.domain ? `${area.tag}@${area.domain}` : (area.tag || '')) : '';
+    const description = area ? (area.description || '') : '';
+    const areaId      = area ? area.id : null;
+
+    $('#echoTitle').text(title);
+    $('#echoDescription').text(description);
+
+    const btn = $('#echoSubscribeBtn');
+    btn.prop('disabled', false).attr('data-area-id', areaId || '').attr('data-subscribed', subscribed ? '1' : '0');
+
+    if (subscribed) {
+        btn.removeClass('btn-outline-success').addClass('btn-outline-secondary')
+           .html(`<i class="fas fa-star me-1"></i>${uiT('ui.echomail.unsubscribe', 'Unsubscribe')}`);
+    } else {
+        btn.removeClass('btn-outline-secondary').addClass('btn-outline-success')
+           .html(`<i class="far fa-star me-1"></i>${uiT('ui.echomail.subscribe', 'Subscribe')}`);
+    }
+
+    $('#echoInfoBar').removeClass('d-none');
+}
+
+/**
+ * Toggle subscription for the currently viewed echo area.
+ */
+function toggleSubscription() {
+    const btn        = $('#echoSubscribeBtn');
+    const areaId     = parseInt(btn.attr('data-area-id'));
+    const subscribed = btn.attr('data-subscribed') === '1';
+
+    if (!areaId) return;
+
+    const action = subscribed ? 'unsubscribe' : 'subscribe';
+    btn.prop('disabled', true);
+
+    $.ajax({
+        url: '/api/subscriptions/user',
+        method: 'POST',
+        contentType: 'application/json',
+        dataType: 'json',
+        data: JSON.stringify({ action: action, echoarea_id: areaId }),
+        success: function(data) {
+            if (data.success) {
+                // Update button immediately, then reload sidebar in background
+                renderEchoInfoBar(currentEchoareaData, !subscribed);
+                allEchoareasCache = null;
+                loadEchoareas();
+            } else {
+                btn.prop('disabled', false);
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false);
+        }
+    });
 }
 
 function searchEchoareas(query) {
@@ -283,19 +414,13 @@ function displayMobileEchoareas(echoareas) {
 
 function selectEchoarea(tag) {
     currentEchoarea = tag;
-    currentPage = 1;
+    updateEchoInfoBar();
+    const memKey = tag || '__all__';
+    currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
 
     // Update URL without page reload
     const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
     history.pushState({echoarea: tag}, '', url);
-
-    // Update title - strip domain for display
-    const displayTag = tag && tag.includes('@') ? tag.split('@')[0] : tag;
-    const title = displayTag ? `Echomail - ${displayTag}` : 'Echomail';
-    $('h2 small').remove();
-    if (displayTag) {
-        $('h2').append(`<small class="text-muted">/ ${displayTag}</small>`);
-    }
 
     // Update mobile accordion text
     updateMobileAccordionText(tag);
@@ -325,7 +450,7 @@ function selectEchoarea(tag) {
     loadMessages();
 }
 
-function loadMessages() {
+function loadMessages(callback) {
     showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
@@ -348,11 +473,23 @@ function loadMessages() {
 
     $.get(url)
         .done(function(data) {
+            // If the saved page is beyond the last page, reset to page 1 and reload
+            if (currentPage > 1 && data.messages && data.messages.length === 0 && data.pagination && data.pagination.pages < currentPage) {
+                currentPage = 1;
+                loadMessages(callback);
+                return;
+            }
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
             updateUnreadCount(data.unreadCount || 0);
+            // Remember the current page for this area (null = All Messages, stored as '__all__')
+            echoPageMemory[currentEchoarea || '__all__'] = currentPage;
+            saveEchoPositions();
             // Refresh stats to get updated filter counts
             loadStats();
+            if (typeof callback === 'function') {
+                callback(data);
+            }
         })
         .fail(function() {
             $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
@@ -472,6 +609,7 @@ function displayMessages(messages, isThreaded = false) {
             const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? `<i class="fas fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>` : `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>`;
+            const petsciiIcon = msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : '';
             const shareIcon = isShared ? `<i class="fas fa-share-alt text-success me-1" title="${uiT('ui.common.shared', 'Shared')}"></i>` : '';
             const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn"
                                  data-message-id="${msg.id}"
@@ -501,7 +639,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -528,6 +666,7 @@ function displayMessages(messages, isThreaded = false) {
 }
 
 function updatePagination(pagination) {
+    currentPagination = pagination;
     const container = $('#pagination');
     let html = '';
 
@@ -539,18 +678,23 @@ function updatePagination(pagination) {
             html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">${uiT('ui.common.previous', 'Previous')}</a></li>`;
         }
 
-        // Page numbers (show max 5 pages)
-        let startPage = Math.max(1, pagination.page - 2);
-        let endPage = Math.min(pagination.pages, startPage + 4);
+        // Page numbers: first, ellipsis, window around current, ellipsis, last
+        const cur = pagination.page, total = pagination.pages;
+        const pageBtn = (n) => {
+            const active = n === cur ? 'active' : '';
+            return `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${n})">${n}</a></li>`;
+        };
+        const ellipsis = `<li class="page-item disabled"><span class="page-link">&hellip;</span></li>`;
 
-        if (endPage - startPage < 4) {
-            startPage = Math.max(1, endPage - 4);
-        }
+        const pages = new Set([1, total]);
+        for (let i = Math.max(1, cur - 2); i <= Math.min(total, cur + 2); i++) pages.add(i);
 
-        for (let i = startPage; i <= endPage; i++) {
-            const active = i === pagination.page ? 'active' : '';
-            html += `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
-        }
+        let prev = 0;
+        [...pages].sort((a, b) => a - b).forEach(p => {
+            if (prev && p - prev > 1) html += ellipsis;
+            html += pageBtn(p);
+            prev = p;
+        });
 
         // Next button
         if (pagination.page < pagination.pages) {
@@ -571,11 +715,22 @@ function changePage(page) {
 function sortMessages(sortBy) {
     currentSort = sortBy;
     currentPage = 1;
+    updateSortIndicator();
 
     // Save sort preference
     window.saveUserSetting('default_sort', sortBy);
 
     loadMessages();
+}
+
+function updateSortIndicator() {
+    $('.sort-option').each(function() {
+        const $el = $(this);
+        $el.find('.sort-active-indicator').remove();
+        if ($el.data('sort') === currentSort) {
+            $el.prepend('<i class="fas fa-arrow-right me-2 sort-active-indicator text-primary" style="font-size:0.75em;"></i>');
+        }
+    });
 }
 
 function refreshMessages() {
@@ -742,6 +897,9 @@ function viewMessage(messageId) {
 }
 
 function displayMessageContent(message) {
+    // Re-enable toolbar buttons that may have been disabled by the end-of-echo prompt
+    $('#editMessageButton, #toggleHeaders, #printMessageButton').prop('disabled', false);
+
     updateModalTitle(message.subject);
 
     // Parse message to separate kludge lines from body
@@ -763,9 +921,95 @@ function hideKeyboardHelp() {
 }
 
 function getNextRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    if (window.getNextViewerRenderMode) {
+        return window.getNextViewerRenderMode(mode);
+    }
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
+}
+
+function loadRiptermJsForMessages() {
+    if (_messageRiptermLoaderPromise) return _messageRiptermLoaderPromise;
+    if (window.RIPterm && window.BGI) {
+        _messageRiptermLoaderPromise = Promise.resolve();
+        return _messageRiptermLoaderPromise;
+    }
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[data-ripterm-src="${src}"]`);
+            if (existing) {
+                if (existing.dataset.loaded === 'true') {
+                    resolve();
+                    return;
+                }
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.dataset.riptermSrc = src;
+            script.addEventListener('load', () => {
+                script.dataset.loaded = 'true';
+                resolve();
+            }, { once: true });
+            script.addEventListener('error', reject, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    _messageRiptermLoaderPromise = loadScript('/vendor/riptermjs/BGI.js')
+        .then(() => loadScript('/vendor/riptermjs/ripterm.js'));
+    return _messageRiptermLoaderPromise;
+}
+
+function renderRipMessageBody(container, ripText) {
+    const canvasId = `messageRipCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    container.innerHTML = `
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:70vh;padding:8px;text-align:center;background:#0a0a0a;border-radius:6px;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+    `;
+
+    loadRiptermJsForMessages()
+        .then(async () => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId: canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+
+            const loading = container.querySelector('[data-rip-loading]');
+            const stage = container.querySelector('[data-rip-stage]');
+            if (loading) loading.remove();
+            if (stage) stage.classList.remove('d-none');
+        })
+        .catch((err) => {
+            console.error('RIP message render failed:', err);
+            container.innerHTML = `<div class="alert alert-danger m-3">${uiT('ui.echomail.rip_render_failed', 'Failed to render RIPscrip message')}</div>`;
+        });
 }
 
 function showRenderModeToast() {
@@ -826,6 +1070,31 @@ function renderCurrentMessageBody() {
     if (!currentMessageData || !currentParsedMessage) return;
 
     const body = currentParsedMessage.messageBody;
+    const detectedRipScript = currentMessageData.rip_script
+        || ((typeof looksLikeRipScript === 'function' && looksLikeRipScript(body)) ? body : null);
+    const isRipMode = !!detectedRipScript && (currentRenderMode === 'auto' || currentRenderMode === 'rip');
+    const container = document.getElementById('messageTextContainer');
+    if (!container) return;
+
+    if (isRipMode) {
+        renderRipMessageBody(container, detectedRipScript);
+        updateRenderModeBadge();
+        return;
+    }
+
+    if (currentRenderMode !== 'plain'
+            && typeof looksLikeSixel === 'function'
+            && looksLikeSixel(body)) {
+        renderSixelChunks(container, body, function (textChunk) {
+            return formatMessageBodyForDisplay(currentMessageData, textChunk, currentSearchTerms, {
+                formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
+            });
+        });
+        updateRenderModeBadge();
+        updateSaveToAdLibraryButton();
+        return;
+    }
+
     let bodyHtml;
     if (currentRenderMode === 'auto' && currentMessageData.markup_html) {
         bodyHtml = currentMessageData.markup_html;
@@ -836,19 +1105,86 @@ function renderCurrentMessageBody() {
         });
     }
 
-    const container = document.getElementById('messageTextContainer');
-    if (!container) return;
-
     container.innerHTML = '';
     const tmp = document.createElement('div');
     tmp.innerHTML = bodyHtml;
     while (tmp.firstChild) container.appendChild(tmp.firstChild);
     updateRenderModeBadge();
+    updateSaveToAdLibraryButton();
+}
+
+function isAnsiAdCandidate(message, bodyText) {
+    const text = bodyText || message?.message_text || '';
+    if (!text || text.trim() === '') {
+        return false;
+    }
+
+    const format = window.normalizeArtFormat ? window.normalizeArtFormat(message?.art_format || 'auto') : String(message?.art_format || 'auto').toLowerCase();
+    if (format === 'ansi' || format === 'amiga_ansi') {
+        return true;
+    }
+    if (format === 'petscii' || format === 'rip' || format === 'plain') {
+        return false;
+    }
+
+    if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(text)) {
+        return false;
+    }
+
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(text);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
+    const lines = text.split(/\r?\n/);
+    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
+    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
+
+    return hasCursorAnsi
+        || ((hasAnsi || hasPipes) && nonEmptyLines >= 4 && maxLineLength >= 30)
+        || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
+}
+
+function updateSaveToAdLibraryButton() {
+    const button = document.getElementById('saveToAdLibraryButton');
+    if (!button) {
+        return;
+    }
+
+    const body = currentParsedMessage?.messageBody || currentMessageData?.message_text || '';
+    const shouldShow = isAnsiAdCandidate(currentMessageData, body);
+    button.classList.toggle('d-none', !shouldShow);
+    button.disabled = !shouldShow;
 }
 
 function cycleRenderMode() {
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
+}
+
+function printMessage() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    win.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title>'
+        + '<style>'
+        + 'body{font-family:sans-serif;font-size:11pt;padding:1.5cm;color:#000;background:#fff}'
+        + '.message-header-full{border-bottom:1px solid #ccc;margin-bottom:1em;padding-bottom:.5em}'
+        + '.message-header-full strong{color:#333}'
+        + 'pre{white-space:pre-wrap;word-break:break-word;font-size:10pt;background:#f8f9fa;border:1px solid #dee2e6;padding:.75em;border-radius:4px}'
+        + '.message-origin{border-top:1px solid #ccc;margin-top:1em;padding-top:.5em;font-size:9pt;color:#666}'
+        + 'a{color:#000;text-decoration:none}'
+        + 'button,i.fas,i.far,.badge,.btn,#ansiRenderBadge,.modal-header-save-icon{display:none!important}'
+        + '</style>'
+        + '</head><body>'
+        + content.innerHTML
+        + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.onafterprint = function() { win.close(); };
+    win.print();
 }
 
 function downloadCurrentMessage() {
@@ -857,6 +1193,46 @@ function downloadCurrentMessage() {
     }
 
     window.location.href = `/api/messages/echomail/${encodeURIComponent(currentMessageId)}/download`;
+}
+
+function saveCurrentMessageToAdLibrary() {
+    if (!currentMessageId || !currentMessageData || !currentParsedMessage) {
+        return;
+    }
+
+    if (!isAnsiAdCandidate(currentMessageData, currentParsedMessage.messageBody || currentMessageData.message_text || '')) {
+        showError(uiT('ui.echomail.save_to_ad_library_not_ansi', 'This message is not eligible to save as an ANSI ad.'));
+        return;
+    }
+
+    const button = document.getElementById('saveToAdLibraryButton');
+    if (button) {
+        button.disabled = true;
+    }
+
+    fetch(`/api/messages/echomail/${encodeURIComponent(currentMessageId)}/save-ad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+        .then(readJsonResponse)
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, uiT('ui.echomail.save_to_ad_library_failed', 'Failed to save message to ad library')));
+            }
+
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.echomail.save_to_ad_library_saved', 'Message saved to ad library.'))
+                : uiT('ui.echomail.save_to_ad_library_saved', 'Message saved to ad library.');
+            showSuccess(successMessage);
+        })
+        .catch(error => {
+            showError(error.message || uiT('ui.echomail.save_to_ad_library_failed', 'Failed to save message to ad library'));
+        })
+        .finally(() => {
+            if (button) {
+                button.disabled = false;
+            }
+        });
 }
 
 function checkAndDisplayEchomailMessage(message, parsedMessage) {
@@ -885,11 +1261,55 @@ function checkAndDisplayEchomailMessage(message, parsedMessage) {
         });
 }
 
+/**
+ * Parse a ^AFILEREF kludge from a raw kludge_lines string.
+ * Format: \x01FILEREF: <area_tag[@domain]> <filename> [<sha256>]
+ * Returns { areaTag, filename, hash } or null if not present.
+ */
+function parseFileRefKludge(kludgeLines) {
+    if (!kludgeLines) return null;
+    const match = kludgeLines.match(/\x01FILEREF:\s+(\S+)\s+(\S+)(?:\s+([0-9a-fA-F]{64}))?/);
+    if (!match) return null;
+    return {
+        areaTag:  match[1],
+        filename: match[2],
+        hash:     match[3] || null,
+    };
+}
+
+/**
+ * Build an informational banner when the current message is a file comment.
+ */
+function buildFileRefBanner(kludgeLines) {
+    const ref = parseFileRefKludge(kludgeLines);
+    if (!ref) return '';
+
+    const label   = uiT('ui.echomail.fileref_label', 'File comment:');
+    const area    = escapeHtml(ref.areaTag);
+    const file    = escapeHtml(ref.filename);
+    // Strip @domain from area tag for the files page area filter (tag-only lookup)
+    const bareTag = ref.areaTag.split('@')[0];
+    // Link to the files page with the area pre-selected via query string
+    const href    = `/files?area=${encodeURIComponent(bareTag)}&search=${encodeURIComponent(ref.filename)}`;
+
+    return `
+        <div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size:.875rem;">
+            <i class="fas fa-paperclip"></i>
+            <span>${label}</span>
+            <a href="${href}" class="fw-bold text-decoration-none">${file}</a>
+            <span class="opacity-75">in</span>
+            <span class="badge bg-info text-dark font-monospace">${area}</span>
+        </div>
+    `;
+}
+
 function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     currentParsedMessage = parsedMessage;
     currentRenderMode = 'auto';
     hideKeyboardHelp();
     let addressBookButton;
+    const saveAdEligible = isAnsiAdCandidate(message, parsedMessage.messageBody || message.message_text || '');
+    let saveAdButton = '';
     if (isInAddressBook) {
         addressBookButton = `
             <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="${uiT('ui.common.already_in_address_book', 'Already in address book')}">
@@ -908,16 +1328,20 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         `;
     }
 
-    const bodyHtml = message.markup_html
-        ? message.markup_html
-        : formatMessageBodyForDisplay(message, parsedMessage.messageBody);
+    if (document.getElementById('editMessageButton')) {
+        saveAdButton = `
+            <button class="btn btn-sm btn-outline-secondary ${saveAdEligible ? '' : 'd-none'}" id="saveToAdLibraryButton" onclick="saveCurrentMessageToAdLibrary()" title="${uiT('ui.echomail.save_to_ad_library_title', 'Save to ad library')}">
+                <i class="fas fa-bullhorn me-1"></i>${uiT('ui.echomail.save_to_ad_library', 'Save Ad')}
+            </button>
+        `;
+    }
 
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-4">
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: message.from_name })}">${escapeHtml(message.from_name)}</a>
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">
@@ -935,8 +1359,11 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
                 </div>
             </div>
-            <div class="row mt-2">
-                <div class="col-12 text-end">
+            <div class="row mt-2 align-items-center">
+                <div class="col-md-6 d-flex align-items-center gap-2">
+                    ${saveAdButton}
+                </div>
+                <div class="col-md-6 text-end">
                     <i class="fas fa-bookmark modal-header-save-icon ${message.is_saved == 1 ? 'text-warning' : 'text-muted'}"
                        id="modalHeaderSaveIcon"
                        style="cursor: pointer;"
@@ -946,24 +1373,17 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
         </div>
 
-        <div class="message-headers mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">${uiT('ui.common.kludge_lines', 'Kludge Lines')}</h6>
-                <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
-                    <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">${uiT('ui.common.show_kludge_lines', 'Show Kludge Lines')}</span>
-                </button>
-            </div>
-            <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
-            </div>
+        <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
+            <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
         </div>
+
+        ${buildFileRefBanner(message.kludge_lines || '')}
 
         <div class="message-text">
             <div id="ansiRenderBadge" style="display:none;" class="mb-2">
                 <span class="badge bg-secondary" id="ansiRenderBadgeText"></span>
             </div>
-            <div id="messageTextContainer">${bodyHtml}</div>
+            <div id="messageTextContainer"></div>
         </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;
@@ -972,7 +1392,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);
-    updateRenderModeBadge();
+    renderCurrentMessageBody();
 
     // Set up reply button
     $('#replyButton').show().off('click').on('click', function() {
@@ -1073,7 +1493,8 @@ function searchMessages() {
             $('#mobileSearchCollapse').collapse('hide');
         })
         .fail(function() {
-            showError(uiT('ui.echomail.search.failed', 'Search failed'));
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.echomail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
         });
 }
 
@@ -1082,6 +1503,96 @@ function searchMessagesFromMobile() {
     const query = $('#mobileSearchInput').val().trim();
     $('#searchInput').val(query);
     searchMessages();
+}
+
+function openAdvancedSearch() {
+    $('#advSearchFromName').val('');
+    $('#advSearchSubject').val('');
+    $('#advSearchBody').val('');
+    $('#advSearchDateFrom').val('');
+    $('#advSearchDateTo').val('');
+    $('#advSearchError').addClass('d-none').text('');
+    $('#advancedSearchModal').modal('show');
+}
+
+function runAdvancedSearch() {
+    const fromName = $('#advSearchFromName').val().trim();
+    const subject = $('#advSearchSubject').val().trim();
+    const body = $('#advSearchBody').val().trim();
+    const dateFrom = $('#advSearchDateFrom').val();
+    const dateTo = $('#advSearchDateTo').val();
+
+    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const hasDate = dateFrom || dateTo;
+
+    // Validate: at least one field filled, and text fields must be 2+ chars each
+    if (textFields.length === 0 && !hasDate) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+    if (textFields.some(v => v.length < 2)) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+
+    $('#advSearchError').addClass('d-none');
+    $('#advancedSearchModal').modal('hide');
+    showLoading('#messagesContainer');
+
+    // Collect text search terms for highlighting
+    currentSearchTerms = [fromName, subject, body]
+        .filter(v => v.length > 0)
+        .join(' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(term => term.length > 1);
+
+    const params = new URLSearchParams({ type: 'echomail' });
+    if (fromName) params.set('from_name', fromName);
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (currentEchoarea) params.set('echoarea', currentEchoarea);
+
+    $.get('/api/messages/search?' + params.toString())
+        .done(function(data) {
+            displayMessages(data.messages);
+            $('#pagination').empty();
+
+            if (!originalFilterCounts) {
+                originalFilterCounts = {
+                    all: parseInt($('#allCount').text()) || 0,
+                    unread: parseInt($('#unreadCount').text()) || 0,
+                    read: parseInt($('#readCount').text()) || 0,
+                    tome: parseInt($('#toMeCount').text()) || 0,
+                    saved: parseInt($('#savedCount').text()) || 0,
+                    drafts: parseInt($('#draftsCount').text()) || 0
+                };
+            }
+
+            if (data.echoarea_counts) {
+                searchResultCounts = data.echoarea_counts;
+                isSearchActive = true;
+                updateEchoareaCountsWithSearchResults();
+                showClearSearchButton();
+            }
+
+            if (data.filter_counts) {
+                searchFilterCounts = data.filter_counts;
+                updateFilterCounts(data.filter_counts);
+            }
+
+            $('#mobileSearchCollapse').collapse('hide');
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.echomail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
+        });
 }
 
 function updateEchoareaCountsWithSearchResults() {
@@ -1634,18 +2145,136 @@ function updateNavigationButtons() {
     const prevBtn = $('#prevMessageBtn');
     const nextBtn = $('#nextMessageBtn');
 
-    // Disable/enable buttons based on current position
-    if (currentMessageIndex <= 0) {
+    if (currentMessageIndex < 0) {
         prevBtn.prop('disabled', true);
-    } else {
-        prevBtn.prop('disabled', false);
+        nextBtn.prop('disabled', true);
+        prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
+        return;
     }
 
-    if (currentMessageIndex >= currentMessages.length - 1) {
-        nextBtn.prop('disabled', true);
+    prevBtn.prop('disabled', currentMessageIndex <= 0);
+    prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
+
+    const atEnd = currentMessageIndex >= currentMessages.length - 1;
+    if (atEnd) {
+        const hasNextPage = currentPagination && currentPagination.page < currentPagination.pages;
+        if (hasNextPage) {
+            // More pages available — keep enabled, navigateMessage will load the next page
+            nextBtn.prop('disabled', false);
+            nextBtn.attr('title', uiT('ui.echomail.next_page_title', 'Load next page'));
+        } else {
+            // At the true end — keep enabled so user can trigger the end-of-echo prompt
+            nextBtn.prop('disabled', false);
+            nextBtn.attr('title', uiT('ui.echomail.end_of_echo_next_btn_title', 'End of echo'));
+        }
     } else {
         nextBtn.prop('disabled', false);
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
     }
+}
+
+function openRequestedMessage() {
+    if (!requestedMessageId) {
+        return;
+    }
+
+    const messageId = requestedMessageId;
+    requestedMessageId = null;
+    viewMessage(messageId);
+}
+
+/**
+ * Show an end-of-echo prompt inside the message modal, asking the user
+ * whether to continue to the next unread echoarea (or just close).
+ *
+ * @param {object|null} nextEcho  The next echoarea object, or null if none.
+ */
+function showEndOfEchoPrompt(nextEcho) {
+    const currentDisplayTag = currentEchoarea
+        ? (currentEchoarea.includes('@') ? currentEchoarea.split('@')[0] : currentEchoarea)
+        : uiT('ui.echomail.echo_list', 'Echo List');
+
+    let bodyHtml = `
+        <div class="text-center py-4">
+            <div class="mb-3">
+                <i class="fas fa-check-circle fa-3x text-success"></i>
+            </div>
+            <h5>${uiT('ui.echomail.end_of_echo_title', 'End of {echo}').replace('{echo}', escapeHtml(currentDisplayTag))}</h5>`;
+
+    if (nextEcho) {
+        const nextDisplayTag = nextEcho.tag.includes('@') ? nextEcho.tag.split('@')[0] : nextEcho.tag;
+        // Build full tag including domain so selectEchoarea hits the correct API path
+        const nextFullTag = nextEcho.domain ? `${nextEcho.tag}@${nextEcho.domain}` : nextEcho.tag;
+        bodyHtml += `
+            <p class="text-muted">${uiT('ui.echomail.end_of_echo_next_prompt', 'Continue to {echo}?').replace('{echo}', `<strong>${escapeHtml(nextDisplayTag)}</strong>`)}</p>
+            <div class="d-flex justify-content-center gap-2 mt-3">
+                <button class="btn btn-primary" onclick="proceedToNextEcho(${escapeHtml(JSON.stringify(nextFullTag))})">
+                    <i class="fas fa-arrow-right me-1"></i>${uiT('ui.echomail.end_of_echo_go', 'Go to {echo}').replace('{echo}', escapeHtml(nextDisplayTag))}
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>${uiT('ui.common.close', 'Close')}
+                </button>
+            </div>`;
+    } else {
+        bodyHtml += `
+            <p class="text-muted">${uiT('ui.echomail.end_of_echo_no_next', 'You have no more unread messages.')}</p>
+            <div class="d-flex justify-content-center mt-3">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>${uiT('ui.common.close', 'Close')}
+                </button>
+            </div>`;
+    }
+
+    bodyHtml += `</div>`;
+
+    // Replace modal body content with the prompt
+    $('#messageContent').html(bodyHtml);
+
+    // Update modal title to reflect end-of-echo state
+    $('#messageSubject').text(uiT('ui.echomail.end_of_echo_title', 'End of {echo}').replace('{echo}', currentDisplayTag));
+
+    // Disable nav and toolbar buttons — no message is displayed
+    $('#prevMessageBtn').prop('disabled', true);
+    $('#nextMessageBtn').prop('disabled', true);
+    $('#editMessageButton, #toggleHeaders, #printMessageButton').prop('disabled', true);
+}
+
+/**
+ * Navigate to the next echoarea after the user confirms the end-of-echo prompt.
+ */
+function proceedToNextEcho(tag) {
+    modalClosedByBackButton = true;
+    $('#messageModal').one('hidden.bs.modal', function() {
+        selectEchoarea(tag);
+    });
+    $('#messageModal').modal('hide');
+}
+
+/**
+ * Find the next echoarea with unread messages after the currently selected one.
+ * Returns the echoarea object from allEchoareas, or null if none found.
+ */
+function findNextUnreadEcho() {
+    if (!allEchoareas || allEchoareas.length === 0) return null;
+
+    // currentEchoarea may be "TAG@domain"; area.tag from the API is bare "TAG".
+    // Normalise both to bare tag for comparison.
+    const bareCurrentTag = currentEchoarea ? currentEchoarea.split('@')[0] : null;
+    let foundCurrent = (bareCurrentTag === null); // if "All Messages", start from beginning
+
+    for (let i = 0; i < allEchoareas.length; i++) {
+        const area = allEchoareas[i];
+        const bareAreaTag = (area.tag || '').split('@')[0];
+        if (!foundCurrent) {
+            if (bareAreaTag === bareCurrentTag) foundCurrent = true;
+            continue;
+        }
+        if ((area.unread_count || 0) > 0 && (area.message_count || 0) > 0) {
+            return area;
+        }
+    }
+    return null;
 }
 
 function updateModalTitle(subject) {
@@ -1788,7 +2417,25 @@ function navigateMessage(direction) {
     const newIndex = currentMessageIndex + direction;
 
     // Check bounds
-    if (newIndex < 0 || newIndex >= currentMessages.length) {
+    if (newIndex < 0) return;
+
+    if (newIndex >= currentMessages.length) {
+        if (direction > 0) {
+            // More pages available — load next page and open its first message
+            if (currentPagination && currentPagination.page < currentPagination.pages) {
+                currentPage = currentPagination.page + 1;
+                loadMessages(function() {
+                    if (currentMessages.length > 0) {
+                        viewMessage(currentMessages[0].id);
+                    }
+                });
+                return;
+            }
+
+            // No more pages — show end-of-echo prompt
+            const nextEcho = findNextUnreadEcho();
+            showEndOfEchoPrompt(nextEcho);
+        }
         return;
     }
 
@@ -1833,6 +2480,61 @@ function navigateMessage(direction) {
         });
 }
 
+
+// Edit message (admin)
+function openEditMessage() {
+    if (!window.isAdmin || !currentMessageData) return;
+    const msg = currentMessageData;
+
+    const dbId = currentMessageId || msg.id;
+    $('#editMessageModalTitle').html(`<i class="fas fa-pencil-alt me-2"></i>${uiT('ui.echomail.edit_message', 'Edit Message')} #${dbId}`);
+    $('#editMsgDbId').text(dbId);
+    $('#editMsgId').text(msg.message_id || '');
+    $('#editMsgDate').text(formatFullDate(msg.date_written));
+    $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
+    $('#editMsgSubject').text(msg.subject || '');
+    $('#editArtFormat').val(msg.art_format || '');
+    $('#editCharset').val(msg.message_charset || '');
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', false);
+
+    $('#editMessageModal').modal('show');
+}
+
+function saveEditMessage() {
+    if (!window.isAdmin || !currentMessageData) return;
+
+    const artFormat = $('#editArtFormat').val();
+    const charset   = $('#editCharset').val().trim();
+
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/edit`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ art_format: artFormat, message_charset: charset }),
+    }).done(function() {
+        // Update local cached data so the list badge reflects the change immediately
+        currentMessageData.art_format     = artFormat || null;
+        currentMessageData.message_charset = charset || null;
+        const listMsg = currentMessages.find(m => m.id == currentMessageId);
+        if (listMsg) {
+            listMsg.art_format = artFormat || null;
+        }
+        // Refresh the list row
+        displayMessages(currentMessages, currentMessages.some(m => m.thread_level > 0));
+        $('#editMessageSuccess').removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    }).fail(function(xhr) {
+        const payload = xhr.responseJSON || {};
+        $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    });
+}
 
 // Sharing functionality
 function showShareDialog(messageId) {
@@ -2186,8 +2888,8 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
 
 // User settings functions - apply echomail-specific settings after loading
 function loadEchomailSettings() {
-    if (typeof window.loadUserSettings === 'function') {
-        return window.loadUserSettings().then(function() {
+    const settingsPromise = typeof window.loadUserSettings === 'function'
+        ? window.loadUserSettings().then(function() {
             // Apply echomail-specific settings
             userSettings = window.userSettings;
 
@@ -2204,11 +2906,41 @@ function loadEchomailSettings() {
             if (userSettings.default_sort) {
                 currentSort = userSettings.default_sort;
             }
-        });
-    } else {
-        // Fallback if global function not available
-        return Promise.resolve();
-    }
+            updateSortIndicator();
+        })
+        : Promise.resolve();
+
+    // Load per-area page positions from DB (only if setting is enabled)
+    const positionsPromise = $.get('/api/user/web-mail-state')
+        .then(function(data) {
+            if (!window.userSettings || !window.userSettings.remember_page_position) return;
+            if (data && data.settings && data.settings.web_echomail_positions) {
+                try {
+                    const parsed = typeof data.settings.web_echomail_positions === 'string'
+                        ? JSON.parse(data.settings.web_echomail_positions)
+                        : data.settings.web_echomail_positions;
+                    if (parsed && typeof parsed === 'object') {
+                        echoPageMemory = parsed;
+                    }
+                } catch (e) {}
+            }
+        })
+        .catch(function() {});
+
+    return Promise.all([settingsPromise, positionsPromise]);
+}
+
+/**
+ * Persist the current echoPageMemory to the DB (fire-and-forget).
+ */
+function saveEchoPositions() {
+    if (!window.userSettings || !window.userSettings.remember_page_position) return;
+    $.ajax({
+        url: '/api/user/web-mail-state',
+        method: 'POST',
+        data: JSON.stringify({ web_echomail_positions: echoPageMemory }),
+        contentType: 'application/json'
+    });
 }
 
 // Use global settings functions directly - no local wrappers needed

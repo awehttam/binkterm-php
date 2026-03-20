@@ -1074,8 +1074,11 @@ a:hover {
     border-radius: 0;
 }
 
-.list-group-item:hover {
+.list-group-item:hover,
+.list-group-item-action:hover,
+.list-group-item-action:focus {
     background-color: var(--cyber-dark-light);
+    color: var(--text-color);
 }
 
 .list-group-item.active {
@@ -1092,14 +1095,15 @@ a:hover {
 
 .breadcrumb-item a {
     color: var(--cyber-cyan);
+    text-shadow: 0 0 6px var(--cyber-cyan);
 }
 
 .breadcrumb-item.active {
-    color: var(--text-color-muted);
+    color: var(--text-color);
 }
 
 .breadcrumb-item + .breadcrumb-item::before {
-    color: var(--cyber-purple);
+    color: var(--cyber-cyan-dim);
 }
 
 /* Cursor styling for inputs */
@@ -1448,6 +1452,12 @@ tbody, td, tfoot, th, thead, tr {
     }
 }
 
+/* Fullscreen modal: strip Bootstrap's scrollbar-compensation padding so the
+   dialog truly fills the viewport with no gap on any edge. */
+.modal:has(.modal-dialog.modal-fullscreen) {
+    padding: 0 !important;
+}
+
 /* Echolist page - Cyberpunk theme overrides */
 #echolist-page .forums-table {
     background: var(--cyber-dark-light);
@@ -1558,3 +1568,69 @@ tbody, td, tfoot, th, thead, tr {
 .sc-inverse {
     filter: invert(1);
 }
+
+/* Bootstrap contextual table rows — override bright backgrounds for dark theme */
+.table-warning, .table-warning > td, .table-warning > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(249, 240, 2, 0.12);
+    --bs-table-striped-bg: rgba(249, 240, 2, 0.18);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(249, 240, 2, 0.20);
+    --bs-table-hover-bg: rgba(249, 240, 2, 0.20);
+    background-color: rgba(249, 240, 2, 0.12) !important;
+    color: var(--text-color) !important;
+}
+.table-danger, .table-danger > td, .table-danger > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 42, 109, 0.15);
+    --bs-table-striped-bg: rgba(255, 42, 109, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 42, 109, 0.25);
+    --bs-table-hover-bg: rgba(255, 42, 109, 0.25);
+    background-color: rgba(255, 42, 109, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-secondary, .table-secondary > td, .table-secondary > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(157, 78, 221, 0.15);
+    --bs-table-striped-bg: rgba(157, 78, 221, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(157, 78, 221, 0.22);
+    --bs-table-hover-bg: rgba(157, 78, 221, 0.22);
+    background-color: rgba(157, 78, 221, 0.15) !important;
+    color: var(--text-color) !important;
+}
+
+/* Accordion */
+.accordion-item {
+    background-color: var(--cyber-dark-light);
+    border-color: var(--cyber-purple);
+}
+
+.accordion-button {
+    background-color: var(--cyber-dark);
+    color: var(--cyber-cyan);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--cyber-dark-light);
+    color: var(--cyber-cyan-bright);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(157, 78, 221, 0.25);
+    border-color: var(--cyber-purple);
+}
+
+.accordion-button::after {
+    filter: invert(1) sepia(1) saturate(3) hue-rotate(200deg);
+}
+
+.accordion-body {
+    background-color: var(--cyber-dark);
+    color: var(--text-color);
+}
+
+/* Disabled dropdown items — grayed out but readable */
+.dropdown-item-locked { color: #888 !important; pointer-events: auto; cursor: not-allowed; }

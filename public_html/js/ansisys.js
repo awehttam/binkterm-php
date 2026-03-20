@@ -634,6 +634,58 @@ class ArtHtmlRenderer {
     }
 }
 
+/**
+ * HTML renderer that emits exact C64 palette CSS classes (c64-fg-N / c64-bg-N)
+ * instead of ANSI approximations. Used with ArtScreenRamDecoder where color RAM
+ * values are C64 color indices 0–15.
+ *
+ * Overrides render() to always apply the fg class — C64 color 7 (yellow) is a
+ * real foreground color, not a "no-class" default like ANSI color 7.
+ */
+class C64HtmlRenderer extends ArtHtmlRenderer {
+    getColorClass(colorIndex, isBg = false) {
+        const prefix = isBg ? 'c64-bg-' : 'c64-fg-';
+        if (colorIndex >= 0 && colorIndex < 16) {
+            return prefix + colorIndex;
+        }
+        return '';
+    }
+
+    render(buffer) {
+        let html = '';
+        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+
+        for (let r = 0; r < rowsToRender; r++) {
+            const row = buffer.buffer[r];
+            let lastNonSpace = -1;
+            for (let c = row.length - 1; c >= 0; c--) {
+                if (row[c].char !== ' ' || row[c].bg !== 0) {
+                    lastNonSpace = c;
+                    break;
+                }
+            }
+
+            for (let c = 0; c <= lastNonSpace; c++) {
+                const cell   = row[c];
+                const classes = ['ansi-c'];
+                const fgClass = this.getColorClass(cell.fg, false);
+                const bgClass = this.getColorClass(cell.bg, true);
+
+                // Always apply fg class — all 16 C64 colors are distinct.
+                if (fgClass) classes.push(fgClass);
+                // Skip bg class for color 0 (black = transparent against black bg).
+                if (bgClass && cell.bg !== 0) classes.push(bgClass);
+
+                html += `<span class="${classes.join(' ')}">${this.escapeChar(cell.char)}</span>`;
+            }
+
+            if (r < rowsToRender - 1) html += '\n';
+        }
+
+        return html;
+    }
+}
+
 class ArtAnsiDecoder {
     constructor(buffer) {
         this.buffer = buffer;
@@ -809,23 +861,26 @@ class ArtPetsciiDecoder {
         this.buffer = buffer;
         this.reverse = false;
         this.charsetMode = 'upper_graphics';
+        // Maps PETSCII color-change codes to C64 color indices 0–15.
+        // These indices are used with C64HtmlRenderer (c64-fg-N / c64-bg-N classes)
+        // and the exact C64 palette defined in ansisys.css.
         this.colorMap = {
-            5: 15,    // white
-            28: 1,    // red
-            30: 2,    // green
-            31: 4,    // blue
-            129: 3,   // orange
-            144: 0,   // black
-            149: 3,   // brown
-            150: 9,   // light red
-            151: 8,   // dark gray
-            152: 7,   // gray
-            153: 10,  // light green
-            154: 12,  // light blue
-            155: 7,   // light gray
-            156: 5,   // purple
-            158: 11,  // yellow
-            159: 6    // cyan
+            5:   1,   // white        → C64 1
+            28:  2,   // red          → C64 2
+            30:  5,   // green        → C64 5
+            31:  6,   // blue         → C64 6
+            129: 8,   // orange       → C64 8
+            144: 0,   // black        → C64 0
+            149: 9,   // brown        → C64 9
+            150: 10,  // light red    → C64 10
+            151: 11,  // dark grey    → C64 11
+            152: 12,  // grey         → C64 12
+            153: 13,  // light green  → C64 13
+            154: 14,  // light blue   → C64 14
+            155: 15,  // light grey   → C64 15
+            156: 4,   // purple       → C64 4
+            158: 7,   // yellow       → C64 7
+            159: 3    // cyan         → C64 3
         };
     }
 
@@ -890,7 +945,12 @@ class ArtPetsciiDecoder {
                 this.buffer.cursorCol++;
                 this.buffer.clampCursor();
                 return;
-            case 141: // line feed / cursor up in some contexts
+            case 141: // SHIFT+RETURN — display newline (advance to next line, col 0)
+                this.buffer.cursorCol = 0;
+                this.buffer.cursorRow++;
+                this.buffer.ensureRows(this.buffer.cursorRow + 1);
+                return;
+            case 145: // cursor up
                 this.buffer.cursorRow = Math.max(0, this.buffer.cursorRow - 1);
                 return;
             case 142: // switch to upper/graphics character set
@@ -901,6 +961,8 @@ class ArtPetsciiDecoder {
                 return;
             case 147: // clear / home
                 this.buffer.clearScreen(2);
+                this.buffer.cursorRow = 0;
+                this.buffer.cursorCol = 0;
                 return;
             case 157: // cursor left
                 this.buffer.cursorCol = Math.max(0, this.buffer.cursorCol - 1);
@@ -916,99 +978,255 @@ class ArtPetsciiDecoder {
             const fg = attr.fg;
             attr.fg = attr.bg;
             attr.bg = fg;
-            attr.reverse = true;
+            // Don't set attr.reverse — colors are already pre-swapped; the CSS
+            // invert class would double-invert and cancel the swap out.
         }
         this.buffer.writeChar(this.mapByteToChar(byte), attr);
     }
 
     mapByteToChar(byte) {
-        if (byte < 32) {
-            return ' ';
+        // PETSCII 0–31: control codes — no displayable glyph.
+        if (byte < 32) return ' ';
+
+        // PETSCII 32–63: standard printable ASCII (space through '?') — identical in C64.
+        if (byte < 64) return String.fromCharCode(byte);
+
+        // PETSCII 64–127: Use Pet Me 64 PUA (U+E040–U+E07F) for authentic C64 glyphs.
+        // This covers @, A–Z, [, £, ], ↑, ← (64–95) and block graphics (96–127).
+        // Exception: in lower/upper charset mode bytes 96–127 are lowercase letters;
+        // use standard ASCII for those so they remain readable without Pet Me 64.
+        if (byte < 128) {
+            if (this.charsetMode === 'lower_upper' && byte >= 96) {
+                return String.fromCharCode(byte);
+            }
+            return String.fromCodePoint(0xE000 + byte);
         }
 
-        // Keep ordinary text readable through normal ASCII/Unicode codepoints.
-        if (byte >= 32 && byte <= 95) {
-            return String.fromCharCode(byte);
-        }
+        // PETSCII 128–159: shifted control codes — no displayable glyph.
+        if (byte < 160) return ' ';
 
-        // In lower/upper mode, the 96-127 block is primarily lowercase text.
-        if (this.charsetMode === 'lower_upper' && byte >= 96 && byte <= 127) {
-            return String.fromCharCode(byte);
-        }
-
-        const petsciiMap = {
-            64: '@',
-            92: '\u00a3',
-            95: '\u2190',
-            96: '\u2500',
-            97: '\u2660',
-            98: '\u2502',
-            99: '\u2500',
-            100: '\u2500',
-            101: '\u2502',
-            102: '\u2571',
-            103: '\u2572',
-            104: '\u2573',
-            105: '\u25cf',
-            106: '\u2665',
-            107: '\u256d',
-            108: '\u256e',
-            109: '\u256f',
-            110: '\u2570',
-            111: '\u256e',
-            112: '\u2570',
-            113: '\u256f',
-            114: '\u25e4',
-            115: '\u25e5',
-            116: '\u25e3',
-            117: '\u25e2',
-            118: '\u2582',
-            119: '\u2502',
-            120: '\u258e',
-            121: '\u2595',
-            122: '\u256d',
-            123: '\u2573',
-            124: '\u25cb',
-            125: '\u2663',
-            126: '\u2592',
-            127: '\u2666',
-            160: '\u00a0',
-            161: '\u258c',
-            162: '\u2584',
-            163: '\u2594',
-            164: '\u2581',
-            165: '\u258f',
-            166: '\u2592',
-            167: '\u2595',
-            168: '\u25e4',
-            169: '\u2502',
-            170: '\u2597',
-            171: '\u2514',
-            172: '\u2510',
-            173: '\u2582',
-            174: '\u250c',
-            175: '\u2500',
-            176: '\u252c',
-            177: '\u2502',
-            178: '\u258e',
-            179: '\u258d',
-            180: '\u2583',
-            181: '\u2713',
-            182: '\u2596',
-            183: '\u259d',
-            184: '\u2518',
-            185: '\u2598',
-            186: '\u259a',
-            187: '\u2500',
-            188: '\u2660',
-            189: '\u2502',
-            190: '\u2500',
-            191: '\u2665',
-            255: '\u03c0'
-        };
-
-        return petsciiMap[byte] || String.fromCharCode(byte);
+        // PETSCII 160–255: high-bit graphics and symbols → PUA U+E0A0–U+E0FF.
+        return String.fromCodePoint(0xE000 + byte);
     }
+}
+
+/**
+ * Decoder for C64 screen RAM dumps.
+ *
+ * C64 screen RAM stores character indices into the current charset, not PETSCII
+ * stream codes. The mapping from screen code → display character differs from
+ * the PETSCII stream mapping used by ArtPetsciiDecoder:
+ *
+ *   Screen code  0–31  → PETSCII 64–95  (@, A–Z, [\]↑←)
+ *   Screen code 32–63  → PETSCII 32–63  (space, !"#…?)
+ *   Screen code 64–127 → PETSCII 96–127 (C64 block graphics), wrapping modulo 64
+ *   Screen code 128–255 → same as 0–127 but reverse-video
+ *
+ * Color RAM (optional) follows screen RAM at offset cols×rows. Each byte is a
+ * C64 color index 0–15 mapped to the nearest ANSI color.
+ */
+class ArtScreenRamDecoder {
+    constructor(buffer, cols = 40, rows = 25) {
+        this.buffer = buffer;
+        this.cols   = cols;
+        this.rows   = rows;
+    }
+
+    /** Return the C64 color index (0–15) clamped to the valid nybble range. */
+    static c64ColorIndex(c64) {
+        return c64 & 0x0F;
+    }
+
+    /**
+     * Map a screen code (0–127, reverse-video stripped) to a display character.
+     *
+     * For PETSCII 64+ we use Pet Me 64's Private Use Area codepoints
+     * (U+E000 + petscii_code) instead of the Unicode approximations.
+     * Every PUA glyph is a different (more accurate) glyph than its Unicode
+     * equivalent — the PUA contains the authentic C64 ROM pixel patterns.
+     */
+    static screenCodeToChar(code) {
+        let petscii;
+        if (code < 32) {
+            petscii = code + 64;          // 0–31  → PETSCII 64–95
+        } else if (code < 64) {
+            petscii = code;               // 32–63 → PETSCII 32–63 (printable ASCII)
+        } else {
+            petscii = (code & 31) + 96;   // 64–127 → PETSCII 96–127
+        }
+
+        // Use Pet Me 64's PUA (U+E000 + petscii) for PETSCII 64+.
+        // These contain the exact C64 ROM glyphs (uppercase chars, block graphics,
+        // special symbols) rather than generic Unicode approximations.
+        if (petscii >= 64) {
+            return String.fromCodePoint(0xE000 + petscii);
+        }
+
+        // PETSCII 32–63 are standard ASCII — use directly.
+        return String.fromCharCode(petscii);
+    }
+
+    decode(data) {
+        const bytes = (data instanceof Uint8Array)
+            ? data
+            : (function() {
+                const a = new Uint8Array(data.length);
+                for (let i = 0; i < data.length; i++) a[i] = data.charCodeAt(i) & 0xff;
+                return a;
+            })();
+
+        const screenSize = this.cols * this.rows;
+        const hasColorRam = bytes.length > screenSize;
+
+        for (let i = 0; i < Math.min(bytes.length, screenSize); i++) {
+            const col = i % this.cols;
+            const row = Math.floor(i / this.cols);
+            let   code    = bytes[i];
+            let   reverse = false;
+
+            if (code >= 128) { code -= 128; reverse = true; }
+
+            const char = ArtScreenRamDecoder.screenCodeToChar(code);
+
+            let fg = 14; // default: C64 light blue
+            let bg = 0;  // default: black
+
+            if (hasColorRam) {
+                const colorByte = bytes[screenSize + i] ?? 14;
+                fg = ArtScreenRamDecoder.c64ColorIndex(colorByte);
+            }
+
+            if (reverse) { const t = fg; fg = bg; bg = t; }
+
+            this.buffer.buffer[row][col] = {
+                char, fg, bg,
+                bold: false, dim: false, italic: false,
+                underline: false, blink: false, reverse: false,
+            };
+            if (row > this.buffer.maxRowUsed) this.buffer.maxRowUsed = row;
+        }
+    }
+}
+
+/**
+ * Render a C64 screen RAM dump (with optional color RAM) to HTML spans.
+ * data: byte string or Uint8Array — first cols×rows bytes are screen codes,
+ *       next cols×rows bytes (if present) are color RAM values.
+ */
+function renderScreenRamBuffer(data, cols = 40, rows = 25) {
+    const buffer  = new ArtScreenBuffer(cols, rows);
+    const decoder = new ArtScreenRamDecoder(buffer, cols, rows);
+    const renderer = new C64HtmlRenderer();
+    decoder.decode(data);
+    return renderer.render(buffer);
+}
+
+/**
+ * Render C64 screen RAM + color RAM to an HTML5 canvas element.
+ *
+ * Each character cell is drawn at 2× scale (16×16 canvas pixels) and
+ * hard-clipped to its cell bounds. This prevents glyph overflow when a
+ * fallback font has different metrics, giving consistent grid alignment
+ * regardless of which font is ultimately used to render each character.
+ *
+ * Set canvas.style.imageRendering = 'pixelated' on the returned element
+ * when scaling it up with CSS to keep pixels sharp.
+ *
+ * @param {Uint8Array} uBytes  Screen RAM followed by optional color RAM.
+ * @param {number}     cols    Characters per row (default 40).
+ * @param {number}     rows    Number of rows (default 25).
+ * @returns {HTMLCanvasElement}
+ */
+/**
+ * Render C64 screen RAM + color RAM to an HTML5 canvas element.
+ *
+ * Rendered at 1:1 scale (8×8 canvas pixels per character cell) so that Pet Me 64's
+ * 8-unit-per-row glyph grid maps exactly to one pixel per row, avoiding the
+ * sub-pixel blur produced by rendering at larger point sizes. CSS scaling
+ * (image-rendering: pixelated) is used to enlarge the result without blurring.
+ *
+ * @param {Uint8Array} uBytes  Screen RAM followed by optional color RAM.
+ * @param {number}     cols    Characters per row (default 40).
+ * @param {number}     rows    Number of rows (default 25).
+ * @returns {HTMLCanvasElement}
+ */
+function renderPrgToCanvas(uBytes, cols = 40, rows = 25) {
+    // Render at native 8×8 per char so Pet Me 64's pixel rows align 1:1.
+    // CSS will scale up with image-rendering:pixelated.
+    const charW = 8;
+    const charH = 8;
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = cols * charW;
+    canvas.height = rows * charH;
+    const ctx = canvas.getContext('2d');
+
+    const palette = [
+        '#000000', '#ffffff', '#880000', '#aaffee',
+        '#cc44cc', '#00cc55', '#0000aa', '#eeee77',
+        '#dd8855', '#664400', '#ff7777', '#333333',
+        '#777777', '#aaff66', '#0088ff', '#bbbbbb',
+    ];
+
+    const screenSize = cols * rows;
+    ctx.font = `${charH}px 'Pet Me 64', Consolas, 'DejaVu Sans Mono', monospace`;
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i < Math.min(uBytes.length, screenSize); i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        let code = uBytes[i];
+        let reverse = false;
+        if (code >= 128) { code -= 128; reverse = true; }
+
+        const char = ArtScreenRamDecoder.screenCodeToChar(code);
+        let fgIdx = 14; // default: C64 light blue
+        let bgIdx = 0;  // default: black
+        if (uBytes.length > screenSize) {
+            fgIdx = uBytes[screenSize + i] & 0x0F;
+        }
+        if (reverse) { const t = fgIdx; fgIdx = bgIdx; bgIdx = t; }
+
+        const x = col * charW;
+        const y = row * charH;
+
+        ctx.fillStyle = palette[bgIdx];
+        ctx.fillRect(x, y, charW, charH);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, charW, charH);
+        ctx.clip();
+        ctx.fillStyle = palette[fgIdx];
+        ctx.fillText(char, x, y);
+        ctx.restore();
+    }
+
+    return canvas;
+}
+
+/**
+ * Scan a byte array for an embedded screen RAM + color RAM block.
+ *
+ * Heuristic: find 1000 consecutive bytes where every value is 0–15
+ * (valid C64 color nybbles). The 1000 bytes immediately before that
+ * block are treated as screen codes. Machine code opcodes are almost
+ * always > 15, so false positives are very unlikely.
+ *
+ * Returns the byte offset where screen data starts, or -1 if not found.
+ */
+function findScreenRamOffset(bytes) {
+    const screenSize = 40 * 25; // 1000
+    if (bytes.length < screenSize * 2) return -1;
+
+    for (let p = 0; p <= bytes.length - screenSize * 2; p++) {
+        let allLow = true;
+        for (let i = 0; i < screenSize; i++) {
+            if (bytes[p + screenSize + i] > 15) { allLow = false; break; }
+        }
+        if (allLow) return p;
+    }
+    return -1;
 }
 
 function renderAnsiBuffer(text, cols = 80, rows = 500) {
@@ -1030,10 +1248,10 @@ function renderAmigaAnsiBuffer(text, cols = 80, rows = 500) {
 
 function renderPetsciiBuffer(input, cols = 40, rows = 500) {
     const buffer = new ArtScreenBuffer(cols, rows);
-    buffer.currentAttr.fg = 14;
-    buffer.currentAttr.bg = 4;
+    buffer.currentAttr.fg = 14; // C64 default: light blue
+    buffer.currentAttr.bg = 0;  // C64 default: black
     const decoder = new ArtPetsciiDecoder(buffer);
-    const renderer = new ArtHtmlRenderer();
+    const renderer = new C64HtmlRenderer();
     decoder.decode(input);
     return renderer.render(buffer);
 }
@@ -1143,6 +1361,24 @@ function renderAnsiSgrOnly(text, cols = 80, rows = 500) {
     return renderAnsiBuffer(stripped, cols, rows);
 }
 
+function stripSauce(text) {
+    if (!text) {
+        return text;
+    }
+
+    const sauceIndex = text.lastIndexOf('SAUCE00');
+    if (sauceIndex === -1) {
+        return text;
+    }
+
+    const trailerLength = text.length - sauceIndex;
+    if (trailerLength > 4096) {
+        return text;
+    }
+
+    return text.slice(0, sauceIndex).replace(/[\x1a\r\n ]+$/, '');
+}
+
 /**
  * Render ANSI text using terminal emulation
  * Falls back to simple parsing for non-ANSI text
@@ -1150,6 +1386,8 @@ function renderAnsiSgrOnly(text, cols = 80, rows = 500) {
  */
 function renderAnsiTerminal(text, cols = 80, rows = 500) {
     if (!text) return '';
+
+    text = stripSauce(text);
 
     // Check if ANSI parsing is enabled
     if (window.userSettings?.ansi_parsing === false) {
@@ -1184,6 +1422,8 @@ function renderAnsiTerminal(text, cols = 80, rows = 500) {
  */
 function parseAnsi(text) {
     if (!text) return text;
+
+    text = stripSauce(text);
 
     // Check if ANSI parsing is enabled in user settings (default: true)
     if (window.userSettings?.ansi_parsing === false) {

@@ -105,9 +105,21 @@
                         <a href="/admin/activity-stats" class="btn btn-outline-primary">
                             <i class="fas fa-chart-bar me-2"></i>{{ t('ui.base.admin.activity_stats', {}, locale, ['common']) }}
                         </a>
+                        {% if license_valid %}
                         <a href="/admin/economy" class="btn btn-outline-success">
                             <i class="fas fa-coins me-2"></i>{{ t('ui.base.admin.economy_viewer', {}, locale, ['common']) }}
                         </a>
+                        <a href="/admin/referrals" class="btn btn-outline-success">
+                            <i class="fas fa-user-plus me-2"></i>{{ t('ui.base.admin.referrals', {}, locale, ['common']) }}
+                        </a>
+                        {% else %}
+                        <a href="#" class="btn btn-outline-secondary disabled" style="pointer-events:auto;cursor:not-allowed;" title="{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}" onclick="return false;">
+                            <i class="fas fa-lock me-2"></i>{{ t('ui.base.admin.economy_viewer', {}, locale, ['common']) }}
+                        </a>
+                        <a href="#" class="btn btn-outline-secondary disabled" style="pointer-events:auto;cursor:not-allowed;" title="{{ t('ui.base.admin.registered_feature', {}, locale, ['common']) }}" onclick="return false;">
+                            <i class="fas fa-lock me-2"></i>{{ t('ui.base.admin.referrals', {}, locale, ['common']) }}
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -161,6 +173,21 @@
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
+                            <strong>{{ t('ui.admin.dashboard.registration_status', {}, locale, ['common']) }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {% if license_valid %}
+                                <span class="badge bg-success">{{ t('ui.admin.dashboard.registration_registered', {}, locale, ['common']) }}</span>
+                                <span class="text-muted ms-1">{{ t('ui.admin.dashboard.registration_to', {'system': license_system_name, 'licensee': license_licensee}, locale, ['common']) }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ t('ui.admin.dashboard.registration_unregistered', {}, locale, ['common']) }}</span>
+                                <a href="/admin/licensing" class="ms-2 small">{{ t('ui.admin.dashboard.registration_link', {}, locale, ['common']) }}</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
                             <strong>{{ t('ui.admin.dashboard.git_branch_commit', {}, locale, ['common']) }}</strong>
                         </div>
                         <div class="col-sm-6">
@@ -187,6 +214,16 @@
                             {% endif %}
                         </div>
                     </div>
+                    <hr>
+                    <div class="row align-items-center">
+                        <div class="col-sm-6">
+                            <strong>{{ t('ui.admin.dashboard.db_size', {}, locale, ['common']) }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="text-muted">{{ db_summary.db_size ?? 'N/A' }}</span>
+                            <a href="/admin/database-stats" class="ms-2 small">{{ t('ui.admin.dashboard.db_stats_link', {}, locale, ['common']) }} →</a>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card shadow">
@@ -194,17 +231,43 @@
                     <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.dashboard.service_status', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
-                    {% set services = {
+                    {% set coreServices = {
                         'admin_daemon': t('ui.admin.dashboard.service.admin_daemon', {}, locale, ['common']),
                         'binkp_scheduler': t('ui.admin.dashboard.service.binkp_scheduler', {}, locale, ['common']),
-                        'binkp_server': t('ui.admin.dashboard.service.binkp_server', {}, locale, ['common']),
-                        'telnetd': t('ui.admin.dashboard.service.telnetd', {}, locale, ['common'])
+                        'binkp_server': t('ui.admin.dashboard.service.binkp_server', {}, locale, ['common'])
                     } %}
-                    {% for key, label in services %}
+                    {% set optionalServices = {
+                        'telnetd': t('ui.admin.dashboard.service.telnetd', {}, locale, ['common']),
+                        'ssh_daemon': t('ui.admin.dashboard.service.ssh_daemon', {}, locale, ['common']),
+                        'gemini_daemon': t('ui.admin.dashboard.service.gemini_daemon', {}, locale, ['common']),
+                        'mrc_daemon': t('ui.admin.dashboard.service.mrc_daemon', {}, locale, ['common']),
+                        'multiplexing_server': t('ui.admin.dashboard.service.multiplexing_server', {}, locale, ['common'])
+                    } %}
+                    {% for key, label in coreServices %}
                         {% set info = daemon_status[key] ?? null %}
                         <div class="row align-items-center">
                             <div class="col-sm-6">
                                 <strong>{{ label }}:</strong>
+                            </div>
+                            <div class="col-sm-6">
+                                {% if info and info.running %}
+                                    <span class="badge bg-success">{{ t('ui.admin.dashboard.running', {}, locale, ['common']) }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ t('ui.admin.dashboard.stopped', {}, locale, ['common']) }}</span>
+                                {% endif %}
+                                {% if info and info.pid %}
+                                    <small class="text-muted ms-2">{{ t('ui.admin.dashboard.pid', {}, locale, ['common']) }} {{ info.pid }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <hr>
+                    {% endfor %}
+                    {% for key, label in optionalServices %}
+                        {% set info = daemon_status[key] ?? null %}
+                        <div class="row align-items-center">
+                            <div class="col-sm-6">
+                                <strong>{{ label }}:</strong>
+                                <small class="text-muted ms-1">({{ t('ui.common.optional', {}, locale, ['common']) }})</small>
                             </div>
                             <div class="col-sm-6">
                                 {% if info and info.running %}

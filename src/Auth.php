@@ -268,6 +268,24 @@ class Auth
     }
 
     /**
+     * Get count of distinct users active since midnight UTC today
+     *
+     * @return int
+     */
+    public function getActiveTodayCount(): int
+    {
+        $stmt = $this->db->query("
+            SELECT COUNT(DISTINCT s.user_id) AS count
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.last_activity >= CURRENT_DATE
+              AND u.is_active = TRUE
+        ");
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return (int) ($result['count'] ?? 0);
+    }
+
+    /**
      * Update user's location
      *
      * @param int $userId User ID

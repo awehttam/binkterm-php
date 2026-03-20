@@ -997,8 +997,11 @@ a:hover {
     color: var(--term-green);
 }
 
-.list-group-item:hover {
+.list-group-item:hover,
+.list-group-item-action:hover,
+.list-group-item-action:focus {
     background-color: var(--term-black-light);
+    color: var(--term-green);
 }
 
 .list-group-item.active {
@@ -1353,6 +1356,12 @@ tbody, td, tfoot, th, thead, tr {
     }
 }
 
+/* Fullscreen modal: strip Bootstrap's scrollbar-compensation padding so the
+   dialog truly fills the viewport with no gap on any edge. */
+.modal:has(.modal-dialog.modal-fullscreen) {
+    padding: 0 !important;
+}
+
 /* Echolist page - Green Terminal theme overrides */
 #echolist-page .forums-table {
     background: var(--term-black-light);
@@ -1463,3 +1472,69 @@ tbody, td, tfoot, th, thead, tr {
 .sc-inverse {
     filter: invert(1);
 }
+
+/* Bootstrap contextual table rows — override bright backgrounds for dark theme */
+.table-warning, .table-warning > td, .table-warning > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 170, 0, 0.15);
+    --bs-table-striped-bg: rgba(255, 170, 0, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 170, 0, 0.25);
+    --bs-table-hover-bg: rgba(255, 170, 0, 0.25);
+    background-color: rgba(255, 170, 0, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-danger, .table-danger > td, .table-danger > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 51, 51, 0.15);
+    --bs-table-striped-bg: rgba(255, 51, 51, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 51, 51, 0.25);
+    --bs-table-hover-bg: rgba(255, 51, 51, 0.25);
+    background-color: rgba(255, 51, 51, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-secondary, .table-secondary > td, .table-secondary > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(51, 255, 51, 0.08);
+    --bs-table-striped-bg: rgba(51, 255, 51, 0.13);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(51, 255, 51, 0.13);
+    --bs-table-hover-bg: rgba(51, 255, 51, 0.13);
+    background-color: rgba(51, 255, 51, 0.08) !important;
+    color: var(--text-color) !important;
+}
+
+/* Accordion */
+.accordion-item {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+}
+
+.accordion-button {
+    background-color: var(--term-black-light);
+    color: var(--term-green);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--term-black-lighter);
+    color: var(--term-green-bright);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(51, 255, 51, 0.25);
+    border-color: var(--term-green);
+}
+
+.accordion-button::after {
+    filter: invert(1) sepia(1) saturate(5) hue-rotate(90deg);
+}
+
+.accordion-body {
+    background-color: var(--term-black);
+    color: var(--term-green);
+}
+
+/* Disabled dropdown items — grayed out but readable */
+.dropdown-item-locked { color: #888 !important; pointer-events: auto; cursor: not-allowed; }

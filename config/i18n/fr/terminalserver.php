@@ -191,4 +191,14 @@ return [
 
     'ui.terminalserver.message.headers_title' => '=== En-têtes du message ===',
     'ui.terminalserver.message.no_headers'    => '(Aucun en-tête de message)',
+
+    // Files - folder/file navigation
+    'ui.terminalserver.files.enter_folder_or_file' => 'Saisissez un numéro de dossier pour le parcourir, ou un numéro de fichier pour afficher ses détails.',
+    'ui.terminalserver.files.files_back_hint' => 'R)etour au dossier parent',
+    'ui.terminalserver.files.not_a_file' => 'Cette entrée est un dossier, pas un fichier.',
+
+    // Netmail - attachments
+    'ui.terminalserver.netmail.attachment_download_prompt' => 'N° de la pièce jointe à télécharger (Entrée pour annuler) : ',
+    'ui.terminalserver.netmail.attachments_header' => 'Pièces jointes :',
+    'ui.terminalserver.netmail.attachments_none' => 'Aucune pièce jointe sur ce message.',
 ];

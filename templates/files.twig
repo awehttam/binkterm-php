@@ -1,6 +1,15 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.files.title', {}, 'common') }} - {{ parent() }}{% endblock %}
+{% block title %}{% if is_public_area is defined and is_public_area and initial_area %}{{ initial_area.tag }} - {% endif %}{{ t('ui.files.title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block meta_tags %}
+{% if is_public_area is defined and is_public_area and initial_area %}
+<meta property="og:title" content="{{ initial_area.tag }} — {{ system_name }}">
+<meta property="og:description" content="{{ initial_area.description }}{% if initial_area.file_count %} · {{ initial_area.file_count }} {{ t('ui.files.files_count_label', {}, 'common') }}{% endif %}">
+<meta property="og:url" content="{{ site_url }}/files/{{ initial_area.tag }}">
+<meta property="og:type" content="website">
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -19,9 +28,12 @@
     <div class="col-lg-9 order-2 order-lg-1">
         <div class="card">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0" id="currentAreaTitle"><i class="fas fa-clock"></i> {{ t('ui.files.recent_uploads', {}, 'common') }}</h6>
-                    <div class="d-flex gap-2">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-0" id="currentAreaTitle"><i class="fas fa-clock"></i> {{ t('ui.files.recent_uploads', {}, 'common') }}</h6>
+                        <div id="currentAreaMeta" class="mt-1" style="display:none;"></div>
+                    </div>
+                    <div class="d-flex gap-2 flex-shrink-0 ms-2">
                         <button class="btn btn-sm btn-primary" id="uploadFileBtn" onclick="showUploadModal()" style="display: none;">
                             <i class="fas fa-upload"></i> {{ t('ui.files.upload_file', {}, 'common') }}
                         </button>
@@ -40,7 +52,8 @@
         </div>
     </div>
 
-    <!-- File Areas (mobile and desktop) -->
+    <!-- File Areas sidebar (hidden for guests on public areas) -->
+    {% if current_user or not (is_public_area is defined and is_public_area) %}
     <div class="col-lg-3 order-1 order-lg-2">
         <div class="card mb-3">
             <div class="card-header">
@@ -56,6 +69,25 @@
                     <i class="fas fa-spinner fa-spin me-2"></i>
                     {{ t('ui.common.loading', {}, 'common') }}
                 </div>
+            </div>
+        </div>
+
+        <!-- File Search -->
+        <div class="card mb-3" id="fileSearchCard">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-search me-1"></i>{{ t('ui.files.search_heading', {}, 'common') }}</h6>
+            </div>
+            <div class="px-2 py-2">
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" id="globalFileSearch"
+                           placeholder="{{ t('ui.files.search_global_placeholder', {}, 'common') }}"
+                           oninput="scheduleFileSearch(this.value)">
+                    <button class="btn btn-outline-secondary" type="button" id="clearFileSearch"
+                            onclick="clearFileSearch()" style="display:none;" title="Clear search">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="fileSearchStatus" class="small text-muted mt-1" style="display:none;"></div>
             </div>
         </div>
 
@@ -78,8 +110,10 @@
             </div>
         </div>
     </div>
+    {% endif %}{# end sidebar guard for guests on public areas #}
 
     <!-- Statistics (mobile only - at bottom) -->
+    {% if current_user or not (is_public_area is defined and is_public_area) %}
     <div class="col-12 d-lg-none order-3">
         <div class="card">
             <div class="card-header">
@@ -96,6 +130,80 @@
                     <dt class="col-7">{{ t('ui.files.total_size', {}, 'common') }}:</dt>
                     <dd class="col-5" id="totalSize-mobile">-</dd>
                 </dl>
+            </div>
+        </div>
+    </div>
+    {% endif %}{# end mobile stats guard #}
+</div>
+
+<!-- File Preview Modal -->
+<div class="modal fade" id="filePreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="max-height:90vh;">
+            <div class="modal-header py-2">
+                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevPreviewBtn" onclick="navigatePreview(-1)" title="{{ t('ui.files.previous_file', {}, 'common') }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextPreviewBtn" onclick="navigatePreview(1)" title="{{ t('ui.files.next_file', {}, 'common') }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <h5 class="modal-title ms-2 text-truncate" id="previewModalTitle">{{ t('ui.files.preview_title', {}, 'common') }}</h5>
+                <div class="ms-auto d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openDetailsFromPreview()" title="{{ t('ui.files.file_info', {}, 'common') }}">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a class="btn btn-outline-success btn-sm" id="previewDownloadBtn" href="#" download title="{{ t('ui.files.download', {}, 'common') }}">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="previewFullscreenToggle" onclick="togglePreviewFullscreen()" title="{{ t('ui.common.toggle_fullscreen', {}, 'common') }}">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0 text-center" id="previewModalBody" style="min-height:200px;max-height:60vh;flex:0 1 auto;background:#1a1a1a;overflow:auto;">
+                <div class="py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+            <!-- File comments section (preview modal) -->
+            <div id="previewFileCommentsSection" class="px-3 pt-2 pb-3" style="display:none;max-height:28vh;overflow:auto;">
+                <hr class="mt-0">
+                <h6><i class="fas fa-comments me-1"></i>{{ t('ui.files.comments', {}, 'common') }}</h6>
+                <div id="previewFileCommentsBody">
+                    <div class="text-muted small">{{ t('ui.files.loading_comments', {}, 'common') }}</div>
+                </div>
+                {% if current_user %}
+                <div id="previewFileCommentReplyForm" class="mt-3" style="display:none;">
+                    <input type="hidden" id="previewCommentReplyToId" value="">
+                    <div id="previewCommentReplyToLabel" class="small text-muted mb-1" style="display:none;"></div>
+                    <div class="input-group">
+                        <textarea class="form-control form-control-sm" id="previewCommentBodyInput" rows="3"
+                                  placeholder="{{ t('ui.files.leave_comment', {}, 'common') }}…" maxlength="4096"></textarea>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="submitFileComment()">
+                            <i class="fas fa-paper-plane me-1"></i>{{ t('ui.files.post_comment', {}, 'common') }}
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" id="previewCancelReplyBtn" onclick="cancelCommentReply()" style="display:none;">
+                            {{ t('ui.common.cancel', {}, 'common') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="previewLeaveCommentBtn" onclick="showCommentForm()">
+                        <i class="fas fa-comment me-1"></i>{{ t('ui.files.leave_comment', {}, 'common') }}
+                    </button>
+                </div>
+                {% else %}
+                <div class="mt-2">
+                    <div class="alert alert-secondary py-2 small">
+                        <i class="fas fa-lock me-1"></i>{{ t('ui.files.login_to_comment', {}, 'common') }}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -154,6 +262,44 @@
                 </dl>
 
                 <div id="detailLongDescription" class="mt-3"></div>
+
+                <!-- File comments section -->
+                <div id="fileCommentsSection" class="mt-4" style="display:none;">
+                    <hr>
+                    <h6><i class="fas fa-comments me-1"></i>{{ t('ui.files.comments', {}, 'common') }}</h6>
+                    <div id="fileCommentsBody">
+                        <div class="text-muted small">{{ t('ui.files.loading_comments', {}, 'common') }}</div>
+                    </div>
+                    {% if current_user %}
+                    <div id="fileCommentReplyForm" class="mt-3" style="display:none;">
+                        <input type="hidden" id="commentReplyToId" value="">
+                        <div id="commentReplyToLabel" class="small text-muted mb-1" style="display:none;"></div>
+                        <div class="input-group">
+                            <textarea class="form-control form-control-sm" id="commentBodyInput" rows="3"
+                                      placeholder="{{ t('ui.files.leave_comment', {}, 'common') }}…" maxlength="4096"></textarea>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-primary" onclick="submitFileComment()">
+                                <i class="fas fa-paper-plane me-1"></i>{{ t('ui.files.post_comment', {}, 'common') }}
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="cancelReplyBtn" onclick="cancelCommentReply()" style="display:none;">
+                                {{ t('ui.common.cancel', {}, 'common') }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" id="leaveCommentBtn" onclick="showCommentForm()">
+                            <i class="fas fa-comment me-1"></i>{{ t('ui.files.leave_comment', {}, 'common') }}
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="mt-2">
+                        <div class="alert alert-secondary py-2 small">
+                            <i class="fas fa-lock me-1"></i>{{ t('ui.files.login_to_comment', {}, 'common') }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
@@ -162,12 +308,21 @@
                     <i class="fas fa-shield-alt"></i> {{ t('ui.files.virus_scan_now', {}, 'common') }}
                 </button>
                 {% endif %}
+                {# Rehatch button — wired up but hidden until ready for use
+                {% if current_user.is_admin %}
+                <button type="button" class="btn btn-outline-secondary" id="rehatchFileBtn" onclick="rehatchFile()" style="display:none;">
+                    <i class="fas fa-retweet"></i> {{ t('ui.files.rehatch', {}, 'common') }}
+                </button>
+                {% endif %}
+                #}
                 <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showEditDialog()" style="display:none;">
                     <i class="fas fa-pencil-alt"></i> {{ t('ui.files.edit', {}, 'common') }}
                 </button>
+                {% if current_user %}
                 <button type="button" class="btn btn-outline-info" id="shareFileBtn" onclick="showFileShareDialog()">
                     <i class="fas fa-share-alt"></i> {{ t('ui.common.share', {}, 'common') }}
                 </button>
+                {% endif %}
                 <a href="#" class="btn btn-primary" id="downloadFileBtn" download>
                     <i class="fas fa-download"></i> {{ t('ui.files.download', {}, 'common') }}
                 </a>
@@ -230,6 +385,17 @@
                         <i class="fas fa-info-circle me-1"></i>
                         {{ t('ui.files.active_share_exists', {}, 'common') }}
                     </div>
+                    <div id="shareAccessInfo" class="alert alert-secondary mb-3" style="display:none;">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        <span id="shareAccessText"></span>
+                    </div>
+                    <div class="form-check mb-3" id="shareFreqGroup">
+                        <input class="form-check-input" type="checkbox" id="shareFreqAccessible" checked>
+                        <label class="form-check-label" for="shareFreqAccessible">
+                            {{ t('ui.files.freq_accessible', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.files.freq_accessible_help', {}, 'Also allow this file to be requested via FidoNet FREQ') }}</div>
+                    </div>
                     <div class="mb-3" id="shareExpiryGroup">
                         <label for="shareExpiry" class="form-label">{{ t('ui.files.link_expiry', {}, 'common') }}</label>
                         <select class="form-select" id="shareExpiry">
@@ -269,7 +435,7 @@
 
 <!-- Upload File Modal -->
 <div class="modal fade" id="uploadFileModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">{{ t('ui.files.upload_file', {}, 'common') }}</h5>
@@ -279,14 +445,30 @@
                 <form id="uploadFileForm" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="uploadFile" class="form-label">{{ t('ui.files.select_file_required', {}, 'common') }}</label>
-                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required multiple>
                         <div class="form-text">{{ t('ui.files.maximum_file_size', {}, 'common') }}: <span id="maxFileSize">10 MB</span></div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3" id="uploadDescriptionGroup">
                         <label for="uploadDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
                         <div class="form-text">{{ t('ui.files.short_description_help', {}, 'common') }}</div>
+                    </div>
+
+                    <div class="mb-3 d-none" id="uploadBatchDescriptionsGroup">
+                        <label class="form-label">{{ t('ui.files.upload_descriptions', {}, 'common') }}</label>
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>{{ t('ui.common.filename') }}</th>
+                                        <th>{{ t('ui.files.short_description_required', {}, 'common') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uploadBatchDescriptionsBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="form-text">{{ t('ui.files.upload_descriptions_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
@@ -314,11 +496,18 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
+<script src="/js/file-preview.js"></script>
 <script>
 let currentAreaId = null;
+let currentSubfolder = null;
+let pendingFileSearch = null;   // applied once after the next displayFiles() call
 let allFiles = [];
 let displayedFiles = [];
 let currentFileIndex = -1;
+let previewNavigationFiles = [];
 let loadedAreas = [];
 let allFileAreas = [];
 let fileAreaSearchQuery = '';
@@ -349,10 +538,25 @@ function apiMessage(payload, fallback) {
     return payload && payload.message ? payload.message : fallback;
 }
 
+const isPublicAreaGuest = {{ (is_public_area is defined and is_public_area and not current_user) ? 'true' : 'false' }};
+const guestPublicArea   = {{ (is_public_area is defined and is_public_area and initial_area is defined and initial_area) ? initial_area|json_encode|raw : 'null' }};
+
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
-        loadFileAreas();
-        loadStats();
+        if (isPublicAreaGuest && guestPublicArea) {
+            // Guest on a public area: load files directly without calling /api/fileareas
+            allFileAreas = [guestPublicArea];
+            currentAreaId = guestPublicArea.id;
+            const displayTag = escapeHtml(guestPublicArea.tag);
+            $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
+            if (guestPublicArea.description) {
+                $('#currentAreaMeta').html(`<small class="text-muted">${escapeHtml(guestPublicArea.description)}</small>`).show();
+            }
+            loadFiles(guestPublicArea.id, null);
+        } else {
+            loadFileAreas();
+            loadStats();
+        }
     });
 
     $('#searchFiles').on('input', function() {
@@ -361,6 +565,10 @@ $(document).ready(function() {
 
     // Keyboard navigation for file details modal
     $(document).on('keydown', function(e) {
+        // Don't intercept keys when focus is inside a text input or textarea
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
         if ($('#fileDetailsModal').hasClass('show')) {
             switch (e.key) {
                 case 'ArrowLeft':
@@ -373,8 +581,69 @@ $(document).ready(function() {
                     break;
             }
         }
+        if ($('#filePreviewModal').hasClass('show')) {
+            switch (e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    navigatePreview(-1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    navigatePreview(1);
+                    break;
+            }
+        }
+    });
+
+    // Stop media playback when preview modal closes
+    $('#filePreviewModal').on('hidden.bs.modal', function() {
+        $(this).find('video,audio').each(function() {
+            this.pause();
+            this.src = '';
+        });
+        if (window._modPlayer) {
+            try { window._modPlayer.unload(); } catch (e) {}
+            window._modPlayer = null;
+        }
+        $('#previewModalBody').css('background', '#1a1a1a').html(
+            '<div class="py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
+        );
     });
 });
+
+function togglePreviewFullscreen() {
+    const modal  = document.getElementById('filePreviewModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon   = document.querySelector('#previewFullscreenToggle i');
+
+    if (dialog.classList.contains('modal-fullscreen')) {
+        dialog.classList.remove('modal-fullscreen');
+        dialog.classList.add('modal-xl');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+        localStorage.setItem('previewModalFullscreen', 'false');
+    } else {
+        dialog.classList.remove('modal-xl');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        localStorage.setItem('previewModalFullscreen', 'true');
+    }
+}
+
+function applyPreviewFullscreenPreference() {
+    const isFullscreen = localStorage.getItem('previewModalFullscreen') === 'true';
+    const modal  = document.getElementById('filePreviewModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon   = document.querySelector('#previewFullscreenToggle i');
+
+    if (isFullscreen) {
+        dialog.classList.remove('modal-xl');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    }
+}
 
 function loadRecentFiles() {
     $.get('/api/files/recent?limit=25')
@@ -392,8 +661,14 @@ function loadRecentFiles() {
 
 function displayRecentFiles(files) {
     displayedFiles = files;
+    setPreviewNavigationFiles(files);
     $('#currentAreaTitle').html(`<i class="fas fa-clock"></i> ${uiT('ui.files.recent_uploads', 'Recent Uploads')}`);
+    $('#currentAreaMeta').hide();
     $('#uploadFileBtn').hide();
+    // Return URL to /files when showing recent uploads
+    if (window.location.pathname !== '/files') {
+        history.replaceState(null, '', '/files');
+    }
 
     if (files.length === 0) {
         $('#filesContainer').html(`<div class="p-4 text-center text-muted">${uiT('ui.files.no_recent_uploads', 'No files have been uploaded yet')}</div>`);
@@ -405,16 +680,20 @@ function displayRecentFiles(files) {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="35%">${uiT('ui.files.filename', 'Filename')}</th>
-                        <th width="15%">${uiT('ui.files.area', 'Area')}</th>
-                        <th width="18%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="25%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="35%">${uiT('ui.files.description', 'Description')}</th>
                         <th width="10%">${uiT('ui.files.size', 'Size')}</th>
-                        <th width="12%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
-                        <th width="10%">${uiT('ui.files.actions', 'Actions')}</th>
+                        <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
+
+    // Track which ISO subfolders have already been rendered so each subfolder
+    // appears only once in the recent-uploads list (avoids duplicate folder rows
+    // caused by multiple files sharing the same parent directory).
+    const seenIsoSubfolders = new Set();
 
     files.forEach(function(file) {
         const shortDesc = escapeHtml(file.short_description || '');
@@ -422,9 +701,36 @@ function displayRecentFiles(files) {
         const uploadDate = formatDate(file.created_at);
         const canDelete = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
 
-        let areaLabel = escapeHtml(file.area_tag || '');
-        if (!file.is_local && file.domain) {
-            areaLabel += '<span class="text-muted">@' + escapeHtml(file.domain) + '</span>';
+        const isIsoDir = file.source_type === 'iso_import' && !!file.subfolder;
+
+        if (isIsoDir) {
+            // Use "areaId:subfolder" as the dedup key so the same subfolder path
+            // in different areas is treated as distinct entries.
+            const subfolderKey = `${file.file_area_id}:${file.subfolder}`;
+            if (seenIsoSubfolders.has(subfolderKey)) {
+                return; // already rendered a row for this subfolder
+            }
+            seenIsoSubfolders.add(subfolderKey);
+
+            // Use the subfolder's short_description if set, otherwise the last path component.
+            const dirName = file.subfolder.split('/').pop() || file.subfolder;
+            const sfLabel = file.subfolder_label && file.subfolder_label !== dirName ? file.subfolder_label : dirName;
+            const subfolderName = escapeHtml(sfLabel);
+            const onclick = `selectFileArea(${file.file_area_id}, '${escapeHtml(file.subfolder)}'); return false;`;
+
+            html += `
+                <tr>
+                    <td>
+                        <i class="fas fa-folder text-warning me-2"></i>
+                        <a href="#" class="file-preview-link fw-bold" onclick="${onclick}">${subfolderName}</a>
+                    </td>
+                    <td></td>
+                    <td>—</td>
+                    <td><small>${uploadDate}</small></td>
+                    <td></td>
+                </tr>
+            `;
+            return;
         }
 
         let scanIcon = '<i class="fas fa-file me-2"></i>';
@@ -442,14 +748,18 @@ function displayRecentFiles(files) {
 
         const shareIcon = file.is_shared ? `<i class="fas fa-share-alt text-success ms-1" title="${uiT('ui.files.shared', 'Shared')}"></i>` : '';
 
+        const commentCount0 = parseInt(file.comment_count || 0, 10);
+        const commentBadge0 = commentCount0 > 0
+            ? `<a href="#" class="badge bg-secondary ms-1 text-decoration-none" onclick="showFileDetails(${file.id}); return false;" title="${uiT('ui.files.comments', 'Comments')}"><i class="fas fa-comment me-1"></i>${commentCount0}</a>`
+            : '';
+
         html += `
             <tr>
-                <td>
+                <td style="word-break: break-all;">
                     ${scanIcon}
-                    <strong>${escapeHtml(file.filename)}</strong>${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge0}
                 </td>
-                <td><small class="text-muted">${areaLabel}</small></td>
-                <td><small class="text-muted">${shortDesc}</small></td>
+                <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
@@ -476,7 +786,7 @@ function displayRecentFiles(files) {
 function loadFileAreas() {
     $.get('/api/fileareas?filter=active')
         .done(function(data) {
-            displayFileAreas(data.fileareas);
+            displayFileAreas(data.fileareas, data.private_area || null);
         })
         .fail(function() {
             $('#fileAreasList').html(`<div class="alert alert-danger m-3">${uiT('ui.files.file_areas_load_failed', 'Failed to load file areas')}</div>`);
@@ -499,18 +809,30 @@ function applyFileAreaFilter() {
     renderFileAreaList(filtered);
 }
 
-function displayFileAreas(areas) {
+let privateFileArea = null;
+
+function displayFileAreas(areas, privateArea) {
     allFileAreas = areas;
+    privateFileArea = privateArea || null;
+
+    // Inject private area into allFileAreas so selectFileArea/canAccessFileArea can find it
+    if (privateFileArea && !allFileAreas.find(a => a.id === privateFileArea.id)) {
+        allFileAreas = [privateFileArea, ...allFileAreas];
+    }
+
     applyFileAreaFilter();
 }
 
 function renderFileAreaList(areas) {
-    if (areas.length === 0) {
+    // Exclude private area from the main sorted list — it gets its own pinned entry
+    const publicAreas = areas.filter(a => !privateFileArea || a.id !== privateFileArea.id);
+
+    if (publicAreas.length === 0 && !privateFileArea) {
         $('#fileAreasList').html(`<div class="p-3 text-muted">${uiT('ui.files.no_file_areas', 'No file areas available')}</div>`);
         return;
     }
 
-    const sortedAreas = [...areas].sort((a, b) => {
+    const sortedAreas = [...publicAreas].sort((a, b) => {
         const aDomainRaw = a.domain || '';
         const bDomainRaw = b.domain || '';
         const aDomain = aDomainRaw.toLowerCase();
@@ -530,6 +852,30 @@ function renderFileAreaList(areas) {
 
     loadedAreas = allFileAreas;
     let html = '';
+
+    // "My Files" pinned entry — only shown when user has a private area
+    if (privateFileArea) {
+        const myFileCount = privateFileArea.file_count || 0;
+        const myTotalSize = formatBytes(privateFileArea.total_size || 0);
+        html += `
+            <a href="#" class="list-group-item list-group-item-action" data-area-id="${privateFileArea.id}" onclick="selectFileArea(${privateFileArea.id}); return false;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <i class="fas fa-user-circle me-1 text-primary"></i>
+                        <strong>${uiT('ui.files.my_files', 'My Files')}</strong>
+                    </div>
+                    <div class="text-end ms-2">
+                        <small class="d-block">${myFileCount} ${uiT('ui.files.files_count_label', 'files')}</small>
+                        <small class="text-muted">${myTotalSize}</small>
+                    </div>
+                </div>
+            </a>
+        `;
+        if (sortedAreas.length > 0) {
+            html += `<div class="list-group-item p-0"><hr class="m-0"></div>`;
+        }
+    }
+
     sortedAreas.forEach(function(area) {
         const fileCount = area.file_count || 0;
         const totalSize = formatBytes(area.total_size || 0);
@@ -543,7 +889,7 @@ function renderFileAreaList(areas) {
         const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
 
         html += `
-            <a href="#" class="list-group-item list-group-item-action" data-area-id="${area.id}" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}', ${area.is_local ? 'true' : 'false'}, '${escapeHtml(area.domain || '')}', ${uploadPermission}); return false;">
+            <a href="#" class="list-group-item list-group-item-action" data-area-id="${area.id}" onclick="selectFileArea(${area.id}); return false;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <strong>${displayTag}</strong>
@@ -560,86 +906,175 @@ function renderFileAreaList(areas) {
 
     $('#fileAreasList').html(html);
 
-    // Auto-select area from URL query param (e.g. /files?area=6)
+    // Auto-select area from server-supplied tag (e.g. /files/AREATAG)
+    // or legacy ?area= query param for backwards compatibility
+    const initialTag = {{ initial_area_tag is defined ? initial_area_tag|json_encode|raw : 'null' }};
     const params = new URLSearchParams(window.location.search);
-    const areaParam = params.get('area');
+    const areaParam = initialTag || params.get('area');
+    const searchParam = params.get('search');
     if (areaParam) {
         const targetId = parseInt(areaParam, 10);
-        const target = sortedAreas.find(a => a.id === targetId);
+        const allAreas = [...sortedAreas, ...(privateFileArea ? [privateFileArea] : [])];
+        const target = isNaN(targetId)
+            ? allAreas.find(a => (a.tag || '').toUpperCase() === areaParam.toUpperCase())
+            : allAreas.find(a => a.id === targetId);
         if (target) {
-            selectFileArea(target.id, target.tag, !!target.is_local, target.domain || '', target.upload_permission ?? 1);
+            if (searchParam) {
+                pendingFileSearch = searchParam;
+            }
+            selectFileArea(target.id);
             return;
         }
     }
 
-    // No area param — show recent uploads
+    // No area — show recent uploads
     loadRecentFiles();
 }
 
-function selectFileArea(areaId, areaTag, isLocal, domain, uploadPermission) {
+function selectFileArea(areaId, subfolder) {
     currentAreaId = areaId;
+    currentSubfolder = subfolder !== undefined ? subfolder : null;
+    const area = allFileAreas.find(a => a.id === areaId);
 
-    // Display domain for non-local areas
-    let displayTag = escapeHtml(areaTag);
-    if (!isLocal && domain) {
-        displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
-    }
+    if (area) {
+        const isLocal = !!area.is_local;
+        const domain = area.domain || '';
+        const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
 
-    $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
-    $('#searchFiles').val('');
-
-    // Control upload button visibility based on upload permission
-    // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
-    const UPLOAD_ADMIN_ONLY = 0;
-    const UPLOAD_USERS_ALLOWED = 1;
-    const UPLOAD_READ_ONLY = 2;
-
-    if (uploadPermission === UPLOAD_READ_ONLY) {
-        $('#uploadFileBtn').hide();
-    } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
-        if (isAdmin) {
-            $('#uploadFileBtn').show();
+        // Display domain for non-local areas; use friendly label for private area
+        let displayTag;
+        if (privateFileArea && area.id === privateFileArea.id) {
+            displayTag = privateFileArea._username
+                ? `${escapeHtml(privateFileArea._username)}'s private file area`
+                : uiT('ui.files.my_files', 'My Files');
         } else {
-            $('#uploadFileBtn').hide();
+            displayTag = escapeHtml(area.tag);
+            if (!isLocal && domain) {
+                displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
+            }
         }
-    } else {
-        $('#uploadFileBtn').show();
+
+        $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
+        $('#searchFiles').val('');
+
+        // Build description + capability icons under the area name
+        let icons = '';
+        if (area.gemini_public) {
+            icons += `<span class="badge text-bg-info me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.gemini_public', 'Gemini Public')}"><i class="fas fa-gem"></i> Gemini</span>`;
+        }
+        if (area.freq_enabled) {
+            icons += `<span class="badge text-bg-warning me-1" style="font-size:0.65em;" title="${uiT('ui.fileareas.freq_enabled', 'FREQ Enabled')}"><i class="fas fa-file-download"></i> FREQ</span>`;
+        }
+
+        const desc = area.description ? escapeHtml(area.description) : '';
+        if (desc || icons) {
+            $('#currentAreaMeta').html(`${icons}<small class="text-muted">${desc}</small>`).show();
+        } else {
+            $('#currentAreaMeta').hide();
+        }
+
+        // Control upload button visibility based on upload permission
+        // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
+        const UPLOAD_ADMIN_ONLY = 0;
+        const UPLOAD_READ_ONLY = 2;
+
+        if (uploadPermission === UPLOAD_READ_ONLY) {
+            $('#uploadFileBtn').hide();
+        } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
+            if (isAdmin) {
+                $('#uploadFileBtn').show();
+            } else {
+                $('#uploadFileBtn').hide();
+            }
+        } else {
+            $('#uploadFileBtn').show();
+        }
+
+        // Highlight selected area
+        $('#fileAreasList .list-group-item').removeClass('active');
+        $(`#fileAreasList .list-group-item[data-area-id="${areaId}"]`).addClass('active');
+
+        // Update URL so this area can be linked to directly
+        if (area.tag) {
+            history.replaceState(null, '', '/files/' + encodeURIComponent(area.tag));
+        }
     }
 
-    // Highlight selected area
-    $('#fileAreasList .list-group-item').removeClass('active');
-    $(`#fileAreasList .list-group-item[data-area-id="${areaId}"]`).addClass('active');
-
-    loadFiles(areaId);
+    loadFiles(areaId, currentSubfolder);
 }
 
-function loadFiles(areaId) {
+function loadFiles(areaId, subfolder) {
+    subfolder = subfolder !== undefined ? subfolder : currentSubfolder;
+    currentSubfolder = subfolder;
+
     $('#filesContainer').html(`<div class="loading-spinner p-4"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.files.loading_files', 'Loading files...')}</div>`);
 
-    $.get(`/api/files?area_id=${areaId}`)
+    let url = `/api/files?area_id=${areaId}`;
+    if (subfolder !== null) {
+        url += `&subfolder=${encodeURIComponent(subfolder)}`;
+    }
+
+    $.get(url)
         .done(function(data) {
             allFiles = data.files;
-            displayFiles(allFiles);
+            const subfolders = data.subfolders || [];
+            displayFiles(allFiles, subfolders, subfolder, data.subfolder_label || null);
         })
         .fail(function() {
             $('#filesContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.files.load_files_failed', 'Failed to load files')}</div>`);
         });
 }
 
-function displayFiles(files) {
+function enterSubfolder(name) {
+    currentSubfolder = name;
+    loadFiles(currentAreaId, name);
+}
+
+function exitSubfolder() {
+    currentSubfolder = null;
+    loadFiles(currentAreaId, null);
+}
+
+const subfolderLabels = {
+    'attachments': 'Netmail Attachments',
+    'incoming':    'FREQ Responses',
+};
+
+function subfolderLabel(name) {
+    return subfolderLabels[name] || name;
+}
+
+function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
+    subfolders         = subfolders || [];
+    subfolder          = subfolder          !== undefined ? subfolder          : currentSubfolder;
+    subfolderDisplayLabel = subfolderDisplayLabel !== undefined ? subfolderDisplayLabel : null;
     displayedFiles = files;
-    if (files.length === 0) {
-        $('#filesContainer').html(`<div class="p-4 text-center text-muted">${uiT('ui.files.no_files_in_area', 'No files in this area')}</div>`);
+    setPreviewNavigationFiles(files);
+
+    if (files.length === 0 && subfolders.length === 0) {
+        let emptyHtml = '';
+        if (subfolder !== null) {
+            emptyHtml = buildBreadcrumb(subfolder, subfolderDisplayLabel);
+        }
+        emptyHtml += `<div class="p-4 text-center text-muted">${uiT('ui.files.no_files_in_area', 'No files in this area')}</div>`;
+        $('#filesContainer').html(emptyHtml);
         return;
     }
 
-    let html = `
+    let html = '';
+
+    // Breadcrumb when inside a subfolder
+    if (subfolder !== null) {
+        html += buildBreadcrumb(subfolder, subfolderDisplayLabel);
+    }
+
+    html += `
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="40%">${uiT('ui.files.filename', 'Filename')}</th>
-                        <th width="20%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="25%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="35%">${uiT('ui.files.description', 'Description')}</th>
                         <th width="10%">${uiT('ui.files.size', 'Size')}</th>
                         <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
                         <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
@@ -647,6 +1082,44 @@ function displayFiles(files) {
                 </thead>
                 <tbody>
     `;
+
+    // Subfolder rows (only shown at root level)
+    // Each folder is {subfolder, description, subdir_id}
+    subfolders.forEach(function(folder) {
+        const sf        = folder.subfolder;
+        const dirName   = subfolderLabel(sf);
+        // Show short_description as the folder label if it's set and differs from the directory name
+        const shortDesc = folder.description || '';
+        const label     = escapeHtml(shortDesc && shortDesc !== sf ? shortDesc : dirName);
+        const desc      = escapeHtml(folder.long_description || '');
+        const editBtn = isAdmin && folder.subdir_id
+            ? `<button class="btn btn-sm btn-outline-secondary me-1" title="${uiT('ui.files.edit_description', 'Edit description')}"
+                       onclick="event.stopPropagation(); openSubdirEdit(${folder.subdir_id})">
+                   <i class="fas fa-pencil-alt"></i>
+               </button>`
+            : '';
+        const deleteBtn = isAdmin
+            ? `<button class="btn btn-sm btn-outline-danger me-1" title="${uiT('ui.files.delete_subfolder', 'Delete subfolder')}"
+                       onclick="event.stopPropagation(); confirmDeleteSubfolder(${currentAreaId}, '${escapeHtml(sf)}')">
+                   <i class="fas fa-trash"></i>
+               </button>`
+            : '';
+        html += `
+            <tr class="table-secondary" style="cursor:pointer;" onclick="enterSubfolder('${escapeHtml(sf)}')">
+                <td>
+                    <i class="fas fa-folder text-warning me-2"></i>
+                    <strong>${label}</strong>
+                </td>
+                <td><small class="text-muted">${desc}</small></td>
+                <td>—</td>
+                <td>—</td>
+                <td class="text-end">
+                    ${editBtn}${deleteBtn}
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </td>
+            </tr>
+        `;
+    });
 
     files.forEach(function(file) {
         const shortDesc = escapeHtml(file.short_description || '');
@@ -670,13 +1143,18 @@ function displayFiles(files) {
 
         const shareIcon = file.is_shared ? `<i class="fas fa-share-alt text-success ms-1" title="${uiT('ui.files.shared', 'Shared')}"></i>` : '';
 
+        const commentCount1 = parseInt(file.comment_count || 0, 10);
+        const commentBadge1 = commentCount1 > 0
+            ? `<a href="#" class="badge bg-secondary ms-1 text-decoration-none" onclick="showFileDetails(${file.id}); return false;" title="${uiT('ui.files.comments', 'Comments')}"><i class="fas fa-comment me-1"></i>${commentCount1}</a>`
+            : '';
+
         html += `
             <tr>
-                <td>
+                <td style="word-break: break-all;">
                     ${scanIcon}
-                    <strong>${escapeHtml(file.filename)}</strong>${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge1}
                 </td>
-                <td><small class="text-muted">${shortDesc}</small></td>
+                <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
@@ -698,6 +1176,56 @@ function displayFiles(files) {
 
     html += '</tbody></table></div>';
     $('#filesContainer').html(html);
+
+    // Apply any pending search from URL params (set before files were loaded)
+    if (pendingFileSearch !== null) {
+        const q = pendingFileSearch;
+        pendingFileSearch = null;
+        $('#searchFiles').val(q);
+        filterFiles(q);
+    }
+}
+
+function buildBreadcrumb(subfolder, label) {
+    const area = allFileAreas.find(a => a.id === currentAreaId);
+    const areaLabel = area ? area.tag : uiT('ui.files.title', 'Files');
+    const parts = subfolder ? subfolder.split('/') : [];
+
+    let items = `
+        <li class="breadcrumb-item">
+            <a href="#" onclick="exitSubfolder(); return false;">
+                <i class="fas fa-folder-open me-1"></i>${escapeHtml(areaLabel)}
+            </a>
+        </li>
+    `;
+
+    parts.forEach(function(part, i) {
+        const path = parts.slice(0, i + 1).join('/');
+        const isLast = i === parts.length - 1;
+        // Use server-resolved label only for the deepest segment
+        const segLabel = isLast ? (label || subfolderLabel(path)) : subfolderLabel(part);
+        if (isLast) {
+            items += `
+                <li class="breadcrumb-item fw-semibold" aria-current="page">
+                    <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(segLabel)}
+                </li>
+            `;
+        } else {
+            items += `
+                <li class="breadcrumb-item">
+                    <a href="#" onclick="selectFileArea(${currentAreaId}, '${escapeHtml(path)}'); return false;">
+                        <i class="fas fa-folder me-1 text-warning"></i>${escapeHtml(segLabel)}
+                    </a>
+                </li>
+            `;
+        }
+    });
+
+    return `
+        <nav class="px-3 pt-2 pb-1 small border-bottom" aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">${items}</ol>
+        </nav>
+    `;
 }
 
 function filterFiles(query) {
@@ -782,6 +1310,18 @@ function showFileDetails(fileId) {
             const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
             $('#renameFileBtn').toggle(canEdit);
             $('#virusScanBtn').toggle(isAdmin).data('file-id', fileId);
+            const canRehatch = isAdmin && !file.is_local && !file.is_private;
+            $('#rehatchFileBtn').toggle(canRehatch);
+
+            // Reset and load comments
+            commentCtxPrefix = '';
+            currentCommentFileId = fileId;
+            $('#fileCommentsSection').hide();
+            $('#fileCommentReplyForm').hide();
+            $('#leaveCommentBtn').show();
+            cancelCommentReply();
+            $('#commentBodyInput').val('');
+            if (!isPublicAreaGuest) { loadFileComments(fileId); }
 
             if (!$('#fileDetailsModal').hasClass('show')) {
                 new bootstrap.Modal('#fileDetailsModal').show();
@@ -805,6 +1345,117 @@ function navigateFile(direction) {
     if (!nextFile) return;
     currentFileIndex = newIndex;
     showFileDetails(nextFile.id);
+}
+
+// ---------------------------------------------------------------------------
+// File preview (lightbox-style modal for images, video, audio, text)
+// ---------------------------------------------------------------------------
+
+let currentPreviewFileId = null;
+
+function setPreviewNavigationFiles(files) {
+    previewNavigationFiles = Array.isArray(files) ? files : [];
+}
+
+function getPreviewPositionHtml(fileIndex) {
+    return previewNavigationFiles.length > 1 && fileIndex >= 0
+        ? ` <small class="text-muted">(${fileIndex + 1}/${previewNavigationFiles.length})</small>`
+        : '';
+}
+
+/**
+ * Open the file preview modal.
+ *
+ * When called from the normal file list, only fileId is needed — the filename
+ * and list position are resolved from displayedFiles.  When called from search
+ * results (where the file is not in displayedFiles), pass filename explicitly;
+ * prev/next navigation is disabled automatically when the file is not found in
+ * the list.
+ *
+ * @param {number} fileId
+ * @param {string} [filename] - Optional; resolved from displayedFiles when omitted
+ */
+function previewFile(fileId, filename) {
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch (e) {}
+        window._modPlayer = null;
+    }
+
+    if (!previewNavigationFiles.length) {
+        setPreviewNavigationFiles(displayedFiles);
+    }
+
+    let fileIndex = previewNavigationFiles.findIndex(f => f.id == fileId);
+    if (!filename) {
+        if (fileIndex === -1) return;
+        filename = previewNavigationFiles[fileIndex].filename;
+    }
+
+    currentPreviewFileId = fileId;
+    currentFileIndex = fileIndex;
+
+    const position = getPreviewPositionHtml(fileIndex);
+    $('#previewModalTitle').html(escapeHtml(filename) + position);
+    $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
+    updatePreviewNavButtons();
+    renderPreviewContent(fileId, filename, $('#previewModalBody'));
+
+    commentCtxPrefix = 'preview';
+    currentCommentFileId = fileId;
+    $('#previewFileCommentsSection').hide();
+    $('#previewFileCommentReplyForm').hide();
+    $('#previewLeaveCommentBtn').show();
+    cancelCommentReply();
+    $('#previewCommentBodyInput').val('');
+    if (!isPublicAreaGuest) { loadFileComments(fileId); }
+
+    applyPreviewFullscreenPreference();
+    if (!$('#filePreviewModal').hasClass('show')) {
+        new bootstrap.Modal('#filePreviewModal').show();
+    }
+}
+
+function updatePreviewNavButtons() {
+    $('#prevPreviewBtn').prop('disabled', currentFileIndex <= 0);
+    $('#nextPreviewBtn').prop('disabled', currentFileIndex < 0 || currentFileIndex >= previewNavigationFiles.length - 1);
+}
+
+function navigatePreview(direction) {
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch (e) {}
+        window._modPlayer = null;
+    }
+
+    if (previewNavigationFiles.length === 0) return;
+    const newIndex = currentFileIndex + direction;
+    if (newIndex < 0 || newIndex >= previewNavigationFiles.length) return;
+    const file = previewNavigationFiles[newIndex];
+    if (!file) return;
+    currentFileIndex = newIndex;
+    currentPreviewFileId = file.id;
+    const position = getPreviewPositionHtml(currentFileIndex);
+    $('#previewModalTitle').html(escapeHtml(file.filename) + position);
+    $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
+    updatePreviewNavButtons();
+    renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
+
+    // Reload comments for the new file
+    commentCtxPrefix = 'preview';
+    currentCommentFileId = file.id;
+    $('#previewFileCommentsSection').hide();
+    $('#previewFileCommentReplyForm').hide();
+    $('#previewLeaveCommentBtn').show();
+    cancelCommentReply();
+    $('#previewCommentBodyInput').val('');
+    if (!isPublicAreaGuest) { loadFileComments(file.id); }
+}
+
+function openDetailsFromPreview() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('filePreviewModal'));
+    if (modal) modal.hide();
+    if (currentPreviewFileId) {
+        showFileDetails(currentPreviewFileId);
+    }
 }
 
 function loadStats() {
@@ -832,8 +1483,21 @@ function formatBytes(bytes) {
 
 function formatDate(dateStr) {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    if (typeof window.formatFullDate === 'function') {
+        return window.formatFullDate(dateStr);
+    }
+    const date = new Date(dateStr + 'Z');
+    const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
+    const userDateFormat = window.userSettings?.date_format || 'en-US';
+    return date.toLocaleString(userDateFormat, {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
 }
 
 function showUploadModal() {
@@ -843,41 +1507,86 @@ function showUploadModal() {
     }
 
     $('#uploadFileForm')[0].reset();
+    resetUploadDescriptions();
     $('#uploadProgress').hide();
     $('#uploadProgress .progress-bar').css('width', '0%');
     $('#uploadErrorBox').addClass('d-none').text('');
     new bootstrap.Modal('#uploadFileModal').show();
 }
 
-function uploadFile() {
-    if (!currentAreaId) {
-        showError(uiT('ui.files.select_area_first', 'Please select a file area first'));
+function escapeAttribute(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+}
+
+function resetUploadDescriptions() {
+    $('#uploadDescriptionGroup').removeClass('d-none');
+    $('#uploadDescription').prop('required', true).val('');
+    $('#uploadBatchDescriptionsGroup').addClass('d-none');
+    $('#uploadBatchDescriptionsBody').empty();
+}
+
+function rebuildUploadDescriptions() {
+    const files = Array.from($('#uploadFile')[0]?.files || []);
+
+    if (files.length <= 1) {
+        $('#uploadBatchDescriptionsGroup').addClass('d-none');
+        $('#uploadBatchDescriptionsBody').empty();
+        $('#uploadDescriptionGroup').removeClass('d-none');
+        $('#uploadDescription').prop('required', true);
+        if (files.length === 1 && !$('#uploadDescription').val().trim()) {
+            $('#uploadDescription').val(files[0].name);
+        }
         return;
     }
 
-    const form = $('#uploadFileForm')[0];
-    $('#uploadErrorBox').addClass('d-none').text('');
-    if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
+    $('#uploadDescriptionGroup').addClass('d-none');
+    $('#uploadDescription').prop('required', false);
+    $('#uploadBatchDescriptionsGroup').removeClass('d-none');
+
+    const rows = files.map((file, index) => `
+        <tr>
+            <td class="font-monospace small">${escapeHtml(file.name)}</td>
+            <td>
+                <input
+                    type="text"
+                    class="form-control form-control-sm upload-batch-description"
+                    data-index="${index}"
+                    maxlength="255"
+                    value="${escapeAttribute(file.name)}"
+                    required
+                >
+            </td>
+        </tr>
+    `).join('');
+
+    $('#uploadBatchDescriptionsBody').html(rows);
+}
+
+function collectUploadEntries() {
+    const files = Array.from($('#uploadFile')[0]?.files || []);
+    if (!files.length) {
+        return [];
     }
 
-    const fileInput = $('#uploadFile')[0];
-    const file = fileInput.files[0];
-    if (!file) {
-        showError(uiT('ui.files.select_file_prompt', 'Please select a file'));
-        return;
+    if (files.length === 1) {
+        return [{
+            file: files[0],
+            shortDescription: $('#uploadDescription').val().trim()
+        }];
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('file_area_id', currentAreaId);
-    formData.append('short_description', $('#uploadDescription').val());
-    formData.append('long_description', $('#uploadLongDescription').val());
+    return files.map((file, index) => ({
+        file,
+        shortDescription: ($(`.upload-batch-description[data-index="${index}"]`).val() || '').trim()
+    }));
+}
 
-    $('#uploadProgress').show();
-
-    $.ajax({
+function uploadSingleFile(formData, totalFiles, fileIndex) {
+    return $.ajax({
         url: '/api/files/upload',
         method: 'POST',
         data: formData,
@@ -887,23 +1596,101 @@ function uploadFile() {
             const xhr = new window.XMLHttpRequest();
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    $('#uploadProgress .progress-bar').css('width', percentComplete + '%');
+                    const overallPercent = ((fileIndex + (e.loaded / e.total)) / totalFiles) * 100;
+                    $('#uploadProgress .progress-bar').css('width', overallPercent + '%');
                 }
             }, false);
             return xhr;
-        },
-        success: function(response) {
-            bootstrap.Modal.getInstance('#uploadFileModal').hide();
-            $('#uploadErrorBox').addClass('d-none').text('');
-            showSuccess(apiMessage(response, uiT('ui.api.files.uploaded', 'File uploaded successfully')));
+        }
+    });
+}
+
+async function uploadFile() {
+    if (!currentAreaId) {
+        showError(uiT('ui.files.select_area_first', 'Please select a file area first'));
+        return;
+    }
+
+    $('#uploadErrorBox').addClass('d-none').text('');
+    const entries = collectUploadEntries();
+    if (!entries.length) {
+        showError(uiT('ui.files.select_file_prompt', 'Please select a file'));
+        return;
+    }
+
+    const missingDescription = entries.find(entry => !entry.shortDescription);
+    if (missingDescription) {
+        $('#uploadErrorBox').removeClass('d-none').text(uiT('errors.files.upload.short_description_required', 'Short description is required'));
+        return;
+    }
+
+    $('#uploadProgress').show();
+    $('#uploadProgress .progress-bar').css('width', '0%');
+
+    const sharedLongDescription = $('#uploadLongDescription').val();
+    let uploadedCount = 0;
+
+    try {
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const formData = new FormData();
+            formData.append('file', entry.file);
+            formData.append('file_area_id', currentAreaId);
+            formData.append('short_description', entry.shortDescription);
+            formData.append('long_description', sharedLongDescription);
+
+            await uploadSingleFile(formData, entries.length, i);
+            uploadedCount++;
+            $('#uploadProgress .progress-bar').css('width', ((uploadedCount / entries.length) * 100) + '%');
+        }
+
+        bootstrap.Modal.getInstance('#uploadFileModal').hide();
+        $('#uploadErrorBox').addClass('d-none').text('');
+        if (uploadedCount === 1) {
+            showSuccess(uiT('ui.files.upload_success', 'File uploaded successfully'));
+        } else {
+            showSuccess(uiT('ui.files.upload_success_multiple', '{count} files uploaded successfully').replace('{count}', uploadedCount));
+        }
+        loadFiles(currentAreaId);
+        loadStats();
+    } catch (xhr) {
+        const error = apiError(xhr.responseJSON, uiT('errors.files.upload.failed', 'Failed to upload file'));
+        const message = uploadedCount > 0
+            ? uiT('ui.files.upload_partial_failure', 'Upload stopped after {count} file(s): {error}')
+                .replace('{count}', uploadedCount)
+                .replace('{error}', error)
+            : error;
+        $('#uploadErrorBox').removeClass('d-none').text(message);
+        $('#uploadProgress').hide();
+        if (uploadedCount > 0) {
             loadFiles(currentAreaId);
             loadStats();
+        }
+    }
+}
+
+$('#uploadFile').on('change', rebuildUploadDescriptions);
+
+function rehatchFile() {
+    if (!currentFileId) return;
+
+    const $btn = $('#rehatchFileBtn');
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: `/api/files/${currentFileId}/rehatch`,
+        method: 'POST',
+        success: function() {
+            showSuccess(uiT('ui.files.rehatch_ok', 'File re-hatched successfully'));
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, uiT('errors.files.upload.failed', 'Failed to upload file'));
-            $('#uploadErrorBox').removeClass('d-none').text(error);
-            $('#uploadProgress').hide();
+            const msg = window.getApiErrorMessage && xhr.responseJSON
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('ui.files.rehatch_failed', 'Rehatch failed'))
+                : uiT('ui.files.rehatch_failed', 'Rehatch failed');
+            showError(msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fas fa-retweet"></i> ' + uiT('ui.files.rehatch', 'Rehatch'));
         }
     });
 }
@@ -973,9 +1760,199 @@ function saveScanStatus() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// File comments
+// ---------------------------------------------------------------------------
+
+const COMMENTS_PREVIEW_COUNT = 5;
+let allComments = [];
+let showingAllComments = false;
+// 'details' or 'preview' — determines which modal's comment DOM nodes are targeted
+let commentCtxPrefix = '';
+let currentCommentFileId = null;
+
+/**
+ * jQuery selector helper that targets the correct modal's comment elements.
+ * With prefix='preview', prepends 'preview' + capitalises the first letter of id.
+ * e.g. $cc('fileCommentsSection') → $('#previewFileCommentsSection')
+ */
+function $cc(id) {
+    return $('#' + (commentCtxPrefix ? commentCtxPrefix + id.charAt(0).toUpperCase() + id.slice(1) : id));
+}
+
+/**
+ * Load comments for the currently open file and render them.
+ */
+function loadFileComments(fileId) {
+    $cc('fileCommentsSection').hide();
+    allComments = [];
+    showingAllComments = false;
+
+    $.get(`/api/files/${fileId}/comments`)
+        .done(function(data) {
+            if (!data.enabled) return; // No linked echo area — hide section
+
+            $cc('fileCommentsSection').show();
+            allComments = flattenCommentTree(data.comments || []);
+            renderComments();
+        })
+        .fail(function() {
+            // Silently skip — comments are supplementary
+        });
+}
+
+/**
+ * Flatten the nested comment tree to a flat array preserving level metadata.
+ */
+function flattenCommentTree(nodes) {
+    const result = [];
+    function walk(list) {
+        list.forEach(function(node) {
+            result.push(node);
+            if (node.children && node.children.length) walk(node.children);
+        });
+    }
+    walk(nodes);
+    return result;
+}
+
+function renderComments() {
+    const container = $cc('fileCommentsBody');
+    if (allComments.length === 0) {
+        container.html(`<div class="text-muted small">${uiT('ui.files.no_comments_yet', 'No comments yet. Be the first to leave one.')}</div>`);
+        return;
+    }
+
+    const visible = showingAllComments ? allComments : allComments.slice(-COMMENTS_PREVIEW_COUNT);
+    let html = '';
+
+    visible.forEach(function(msg) {
+        const indent = Math.min(msg.level || 0, 2) * 20;
+        const dateStr = msg.date_written ? new Date(msg.date_written).toLocaleString() : '';
+        const body    = escapeHtml(msg.body || '');
+        const id      = msg.id;
+
+        html += `
+            <div class="border-start border-2 ps-2 mb-2" style="margin-left:${indent}px;" data-comment-id="${id}">
+                <div class="d-flex gap-2 align-items-baseline">
+                    <strong class="small">${escapeHtml(msg.from_name || '')}</strong>
+                    <span class="text-muted" style="font-size:.75em;">${escapeHtml(dateStr)}</span>
+                    <a href="#" class="ms-auto text-muted" style="font-size:.75em;" onclick="startCommentReply(${id}, '${escapeHtml(msg.from_name || '')}'); return false;">↩</a>
+                </div>
+                <div class="small mt-1" style="white-space:pre-wrap;">${body}</div>
+            </div>
+        `;
+    });
+
+    if (!showingAllComments && allComments.length > COMMENTS_PREVIEW_COUNT) {
+        const hidden = allComments.length - COMMENTS_PREVIEW_COUNT;
+        const label  = uiT('ui.files.show_all_comments', 'Show all {count} comments', { count: allComments.length });
+        html += `<a href="#" class="small" onclick="expandAllComments(); return false;">${label}</a>`;
+    } else if (showingAllComments && allComments.length > COMMENTS_PREVIEW_COUNT) {
+        html += `<a href="#" class="small" onclick="collapseComments(); return false;">${uiT('ui.files.show_fewer_comments', 'Show fewer')}</a>`;
+    }
+
+    container.html(html);
+}
+
+function expandAllComments() {
+    showingAllComments = true;
+    renderComments();
+}
+
+function collapseComments() {
+    showingAllComments = false;
+    renderComments();
+}
+
+function showCommentForm() {
+    cancelCommentReply();
+    $cc('leaveCommentBtn').hide();
+    $cc('fileCommentReplyForm').show();
+    $cc('commentBodyInput').focus();
+}
+
+function startCommentReply(replyToId, fromName) {
+    showCommentForm();
+    $cc('commentReplyToId').val(replyToId);
+    $cc('commentReplyToLabel').text('↩ ' + fromName).show();
+    $cc('cancelReplyBtn').show();
+    $cc('commentBodyInput').focus();
+}
+
+function cancelCommentReply() {
+    $cc('commentReplyToId').val('');
+    $cc('commentReplyToLabel').hide();
+    $cc('cancelReplyBtn').hide();
+}
+
+function submitFileComment() {
+    const body      = $cc('commentBodyInput').val().trim();
+    const replyToId = parseInt($cc('commentReplyToId').val(), 10) || null;
+
+    if (!body) return;
+    if (!currentCommentFileId) return;
+
+    const btn = $('[onclick="submitFileComment()"]').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/files/${currentCommentFileId}/comments`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ body, reply_to_id: replyToId }),
+        success: function() {
+            btn.prop('disabled', false);
+            $cc('commentBodyInput').val('');
+            cancelCommentReply();
+            $cc('fileCommentReplyForm').hide();
+            $cc('leaveCommentBtn').show();
+            showSuccess(uiT('ui.files.comment_posted', 'Comment posted'));
+            // Reload comments and bump the badge in file listing
+            loadFileComments(currentCommentFileId);
+            updateFileBadge(currentCommentFileId);
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false);
+            showError(apiError(xhr.responseJSON, uiT('ui.files.comment_post_failed', 'Failed to post comment')));
+        }
+    });
+}
+
+/**
+ * After posting a comment, increment the badge counter in the file listing.
+ */
+function updateFileBadge(fileId) {
+    const file = displayedFiles.find(f => f.id == fileId);
+    if (file) {
+        file.comment_count = (parseInt(file.comment_count || 0, 10)) + 1;
+        // Re-render happens naturally on next loadFiles() — for now update the badge in-place
+        $(`.badge[onclick*="showFileDetails(${fileId})"]`).each(function() {
+            const count = parseInt($(this).text(), 10) + 1;
+            $(this).html(`<i class="fas fa-comment me-1"></i>${count}`);
+        });
+    }
+}
+
+/**
+ * Load an iso_subdir record by ID then open the standard edit dialog,
+ * which already disables the filename field and hides move-area for ISO types.
+ */
+function openSubdirEdit(subdirId) {
+    $.get(`/api/files/${subdirId}`)
+        .done(function(data) {
+            currentFile   = data.file;
+            currentFileId = subdirId;
+            showEditDialog();
+        })
+        .fail(function() {
+            showError(uiT('ui.files.load_files_failed', 'Failed to load file details'));
+        });
+}
+
 function showEditDialog() {
     const currentFilename = currentFile ? currentFile.filename : $('#detailFilename').text();
-    $('#renameFilenameInput').val(currentFilename);
+    const isIso = currentFile && (currentFile.source_type === 'iso_import' || currentFile.source_type === 'iso_subdir');
+    $('#renameFilenameInput').val(currentFilename).prop('disabled', isIso);
     $('#editShortDescInput').val(currentFile ? (currentFile.short_description || '') : '');
     $('#editLongDescInput').val(currentFile ? (currentFile.long_description || '') : '');
     $('#renameErrorMsg').hide();
@@ -990,12 +1967,12 @@ function showEditDialog() {
             options += `<option value="${area.id}"${selected}>${escapeHtml(label)}</option>`;
         });
         $('#editMoveAreaSelect').html(options);
-        $('#editMoveAreaGroup').show();
+        $('#editMoveAreaGroup').toggle(!isIso);
     } else {
         $('#editMoveAreaGroup').hide();
     }
 
-    bootstrap.Modal.getInstance('#fileDetailsModal').hide();
+    bootstrap.Modal.getInstance('#fileDetailsModal')?.hide();
     new bootstrap.Modal('#fileRenameModal').show();
     $('#fileRenameModal').on('shown.bs.modal', function() {
         const input = $('#renameFilenameInput')[0];
@@ -1011,7 +1988,7 @@ function submitEdit() {
     const shortDesc    = $('#editShortDescInput').val().trim();
     const longDesc     = $('#editLongDescInput').val().trim();
 
-    if (!newFilename) {
+    if (!newFilename && !$('#renameFilenameInput').prop('disabled')) {
         $('#renameErrorMsg').text(uiT('errors.files.rename_filename_required', 'New filename is required'));
         $('#renameErrorMsg').show();
         return;
@@ -1091,6 +2068,33 @@ function deleteFile(fileId) {
     });
 }
 
+function confirmDeleteSubfolder(areaId, subfolder) {
+    const msg = uiT('ui.files.delete_subfolder_confirm', `Are you sure you want to delete the subfolder "${subfolder}" and all its files? This cannot be undone.`, { subfolder });
+    if (confirm(msg)) {
+        deleteSubfolder(areaId, subfolder);
+    }
+}
+
+function deleteSubfolder(areaId, subfolder) {
+    $.ajax({
+        url: `/api/fileareas/${areaId}/subfolder`,
+        method: 'DELETE',
+        contentType: 'application/json',
+        data: JSON.stringify({ subfolder }),
+        success: function() {
+            showSuccess(uiT('ui.files.subfolder_deleted', 'Subfolder deleted'));
+            loadFiles(areaId);
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.files.delete_failed', 'Failed to delete subfolder'))
+                : uiT('errors.files.delete_failed', 'Failed to delete subfolder');
+            showError(error);
+        }
+    });
+}
+
 // -------------------------------------------------------------------------
 // File share functions
 // -------------------------------------------------------------------------
@@ -1103,6 +2107,8 @@ function showFileShareDialog() {
     $('#shareModalContent').hide();
     $('#shareModalError').hide();
     $('#existingShareInfo').hide();
+    $('#shareAccessInfo').hide();
+    $('#shareAccessText').text('');
     $('#shareLinkGroup').hide();
     $('#shareRevokeGroup').hide();
     $('#shareExpiryGroup').show();
@@ -1118,6 +2124,7 @@ function showFileShareDialog() {
                 // Existing global share found
                 currentShareId = data.share_id;
                 $('#existingShareInfo').show();
+                updateFileShareAccessInfo(data.access_count || 0, data.last_accessed_at || null);
                 $('#shareLinkGroup').show();
                 $('#shareUrlInput').val(data.share_url);
                 $('#shareExpiryGroup').hide();
@@ -1146,10 +2153,11 @@ function createFileShare() {
         url: `/api/files/${currentFileId}/share`,
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({ expires_hours: expiresHours }),
+        data: JSON.stringify({ expires_hours: expiresHours, freq_accessible: $('#shareFreqAccessible').is(':checked') }),
         success: function(data) {
             if (data.success) {
                 currentShareId = data.share_id;
+                updateFileShareAccessInfo(data.access_count || 0, data.last_accessed_at || null);
                 $('#shareUrlInput').val(data.share_url);
                 $('#shareLinkGroup').show();
                 $('#shareRevokeGroup').show();
@@ -1178,6 +2186,8 @@ function revokeFileShare() {
         method: 'DELETE',
         success: function(response) {
             currentShareId = null;
+            $('#shareAccessInfo').hide();
+            $('#shareAccessText').text('');
             $('#shareLinkGroup').hide();
             $('#shareRevokeGroup').hide();
             $('#shareExpiryGroup').show();
@@ -1203,5 +2213,155 @@ function copyFileShareUrl() {
         showSuccess(uiT('ui.files.share_link_copied', 'Share link copied'));
     });
 }
+
+function updateFileShareAccessInfo(count, lastAccessedAt) {
+    const lastAccessed = lastAccessedAt
+        ? formatDate(lastAccessedAt)
+        : uiT('ui.files.never_accessed', 'Never');
+
+    $('#shareAccessText')
+        .text(uiT('ui.files.share_access_stats', 'Accessed {count} times. Last accessed: {last_accessed}', {
+            count: count,
+            last_accessed: lastAccessed
+        }));
+    $('#shareAccessInfo').show();
+}
+
+// ---------------------------------------------------------------------------
+// Global file search
+// ---------------------------------------------------------------------------
+
+let fileSearchTimer = null;
+
+/**
+ * Schedule a global file search after a short debounce delay.
+ * Called on each keystroke in the global search input.
+ *
+ * @param {string} query - Current value of the search input
+ */
+function scheduleFileSearch(query) {
+    clearTimeout(fileSearchTimer);
+    $('#clearFileSearch').toggle(query.length > 0);
+    if (query.length < 2) {
+        if (query.length === 0) {
+            // Restore normal view
+            if (currentAreaId) {
+                loadFiles(currentAreaId, currentSubfolder);
+            } else {
+                loadRecentFiles();
+            }
+            $('#fileSearchStatus').hide();
+        }
+        return;
+    }
+    fileSearchTimer = setTimeout(function() { runFileSearch(query); }, 350);
+}
+
+/**
+ * Clear the global search input and restore the previous view.
+ */
+function clearFileSearch() {
+    $('#globalFileSearch').val('');
+    $('#clearFileSearch').hide();
+    $('#fileSearchStatus').hide();
+    setPreviewNavigationFiles(displayedFiles);
+    if (currentAreaId) {
+        loadFiles(currentAreaId, currentSubfolder);
+    } else {
+        loadRecentFiles();
+    }
+}
+
+/**
+ * Execute the global file search against the API.
+ *
+ * @param {string} query - Search query string (minimum 2 chars)
+ */
+function runFileSearch(query) {
+    $('#fileSearchStatus').text(uiT('ui.common.loading', 'Loading…')).show();
+    $('#filesContainer').html('<div class="p-4 text-center text-muted"><i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.common.loading', 'Searching…') + '</div>');
+
+    $.get('/api/files/search', { q: query })
+        .done(function(data) {
+            const results = data.results || [];
+            $('#fileSearchStatus').text(
+                window.t('ui.files.search_result_count', { count: results.length }, results.length + ' result(s)')
+            ).show();
+            displaySearchResults(results, query);
+        })
+        .fail(function() {
+            $('#fileSearchStatus').text(uiT('ui.files.search_failed', 'Search failed')).show();
+            $('#filesContainer').html('<div class="p-4 text-center text-muted">' + uiT('ui.files.search_failed', 'Search failed') + '</div>');
+        });
+}
+
+/**
+ * Render global search results into the main files container.
+ *
+ * @param {Array}  results - Array of file result objects from the API
+ * @param {string} query   - Original search query (reserved for future highlighting)
+ */
+function displaySearchResults(results, query) {
+    setPreviewNavigationFiles(results);
+
+    if (results.length === 0) {
+        $('#filesContainer').html('<div class="p-4 text-center text-muted">' + uiT('ui.files.search_no_results', 'No files found') + '</div>');
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="28%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="10%">${uiT('ui.files.area', 'Area')}</th>
+                        <th width="22%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="10%">${uiT('ui.files.size', 'Size')}</th>
+                        <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    results.forEach(function(file) {
+        const filename   = escapeHtml(file.filename);
+        const desc       = escapeHtml(file.short_description || '');
+        const areaTag    = escapeHtml(file.area_tag || '');
+        const size       = formatBytes(file.filesize || 0);
+        const uploaded   = formatDate(file.created_at);
+        const subfolder  = file.subfolder ? escapeHtml(file.subfolder) : null;
+        const areaOnclick = subfolder
+            ? `selectFileArea(${file.area_id}, '${subfolder}'); clearFileSearch();`
+            : `selectFileArea(${file.area_id}, null); clearFileSearch();`;
+
+        html += `
+            <tr>
+                <td class="font-monospace small">
+                    <a href="#" onclick="previewFile(${file.id}, ${escapeHtml(JSON.stringify(file.filename))}); return false;">${filename}</a>
+                </td>
+                <td class="small">
+                    <a href="#" onclick="${areaOnclick} return false;" class="text-muted">${areaTag}</a>
+                </td>
+                <td class="small text-muted">${desc}</td>
+                <td class="small">${size}</td>
+                <td class="small">${uploaded}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showFileDetails(${file.id})" title="${uiT('ui.files.file_info', 'File info')}">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    $('#filesContainer').html(html);
+}
+
 </script>
 {% endblock %}

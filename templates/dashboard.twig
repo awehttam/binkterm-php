@@ -89,10 +89,30 @@
 
         {% if dashboard_ad and bbs_feature_enabled('advertising') %}
         <div class="card mt-4">
-            <div class="card-body d-flex justify-content-center">
-                <div class="ansi-art-container">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-ad me-2"></i>
+                    {{ t('ui.dashboard.advertisement', {}, locale, ['common']) }}
+                </h6>
+                {% if dashboard_ads|length > 1 %}
+                <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('ui.dashboard.advertisement_controls', {}, locale, ['common']) }}">
+                    <button type="button" class="btn btn-outline-secondary" onclick="showDashboardAd(-1)" aria-label="{{ t('ui.common.previous', {}, locale, ['common']) }}" title="{{ t('ui.common.previous', {}, locale, ['common']) }}">
+                        <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="showDashboardAd(1)" aria-label="{{ t('ui.common.next', {}, locale, ['common']) }}" title="{{ t('ui.common.next', {}, locale, ['common']) }}">
+                        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-body d-flex flex-column align-items-center">
+                <div class="fw-semibold mb-2 text-center" id="dashboardAdTitle">{{ dashboard_ad.title }}</div>
+                <div class="ansi-art-container w-100" style="overflow: hidden;">
                     <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
                 </div>
+                {% if dashboard_ads|length > 1 %}
+                <div class="small text-muted mt-2" id="dashboardAdPosition"></div>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -111,22 +131,48 @@
                     <dt class="col-sm-5">{{ t('ui.dashboard.user', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ current_user.username }}</dd>
 
-                    <dt class="col-sm-5">{{ t('ui.dashboard.addresses', {}, locale, ['common']) }}:</dt>
+                    {% if network_addresses|length > 0 %}
+                    <dt class="col-sm-5">{{ t('ui.dashboard.networks', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">
-                        {% if network_addresses|length > 0 %}
-                            {% for addr in network_addresses %}
-                                <div class="mb-1">
-                                    <span class="badge bg-secondary me-1">{{ addr.domain }}</span>
-                                    <code>{{ addr.address }}</code>
-                                </div>
-                            {% endfor %}
-                        {% else %}
-                            <code>{{ fidonet_origin }}</code>
-                        {% endif %}
+                        {% for addr in network_addresses %}
+                            <span class="badge bg-secondary me-1 mb-1">{{ addr.domain }}</span>
+                        {% endfor %}
                     </dd>
+                    {% endif %}
+
                 </dl>
             </div>
         </div>
+
+        {% if bbs_feature_enabled('voting_booth') %}
+        <div class="card mt-4" id="votingBoothCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-vote-yea me-2"></i>
+                    {{ t('ui.dashboard.voting_booth', {}, locale, ['common']) }}
+                </h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="votingBoothBody">
+                <div class="text-center">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
+                </div>
+            </div>
+            <div class="card-footer text-end py-2">
+                <a href="/polls/create" title="{{ t('ui.dashboard.create_poll_title', {}, locale, ['common']) }}" style="text-decoration: none; font-size: 1.2rem;">
+                    <i class="fas fa-file-circle-plus"></i>
+                </a>
+            </div>
+        </div>
+        {% endif %}
 
         {% if referral_enabled %}
         <div class="card mt-4">
@@ -157,36 +203,6 @@
                 </div>
 
                 <div id="referralList" class="mt-3"></div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if bbs_feature_enabled('voting_booth') %}
-        <div class="card mt-4" id="votingBoothCard">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">
-                    <i class="fas fa-vote-yea me-2"></i>
-                    {{ t('ui.dashboard.voting_booth', {}, locale, ['common']) }}
-                </h6>
-                <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body" id="votingBoothBody">
-                <div class="text-center">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
-                </div>
-            </div>
-            <div class="card-footer text-end py-2">
-                <a href="/polls/create" title="{{ t('ui.dashboard.create_poll_title', {}, locale, ['common']) }}" style="text-decoration: none; font-size: 1.2rem;">
-                    <i class="fas fa-file-circle-plus"></i>
-                </a>
             </div>
         </div>
         {% endif %}
@@ -232,6 +248,10 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+const dashboardAds = {{ (dashboard_ads|default([]))|json_encode|raw }};
+const DASHBOARD_AD_ROTATE_INTERVAL_MS = {{ (dashboard_ad_rotate_interval_seconds|default(20) * 1000)|json_encode|raw }};
+let dashboardAdIndex = 0;
+
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
     loadDashboardData();
@@ -246,12 +266,44 @@ $(document).ready(function() {
     loadReferralStats();
     {% endif %}
     renderDashboardAd();
+    updateDashboardAdPosition();
+
+    window.addEventListener('resize', scaleDashboardAd);
     });
 
     // Refresh dashboard data every 30 seconds (but not system news)
     setInterval(function() {
         loadDashboardData();
     }, 30000);
+
+    if (Array.isArray(dashboardAds) && dashboardAds.length > 1) {
+        setInterval(function() {
+            if (document.hidden) {
+                return;
+            }
+
+            showDashboardAd(1);
+        }, DASHBOARD_AD_ROTATE_INTERVAL_MS);
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (!Array.isArray(dashboardAds) || dashboardAds.length <= 1) {
+            return;
+        }
+
+        const tag = (event.target && event.target.tagName ? event.target.tagName : '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+            return;
+        }
+
+        if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            showDashboardAd(-1);
+        } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            showDashboardAd(1);
+        }
+    });
 });
 
 function loadDashboardData() {
@@ -574,6 +626,33 @@ function copyReferralLink(button, evt) {
     }
 }
 
+function scaleDashboardAd() {
+    const pre = document.getElementById('dashboardAdAnsi');
+    if (!pre) {
+        return;
+    }
+    const container = pre.closest('.ansi-art-container');
+    if (!container) {
+        return;
+    }
+
+    // Reset transform to measure natural dimensions
+    pre.style.transform = '';
+    pre.style.transformOrigin = '';
+    container.style.height = '';
+
+    const containerWidth = container.clientWidth;
+    const naturalWidth = pre.scrollWidth;
+
+    if (naturalWidth > 0 && containerWidth > 0 && naturalWidth > containerWidth) {
+        const scale = containerWidth / naturalWidth;
+        pre.style.transform = `scale(${scale})`;
+        pre.style.transformOrigin = 'top left';
+        // Collapse container height to match scaled content
+        container.style.height = (pre.scrollHeight * scale) + 'px';
+    }
+}
+
 function renderDashboardAd() {
     const pre = document.getElementById('dashboardAdAnsi');
     if (!pre) {
@@ -589,6 +668,7 @@ function renderDashboardAd() {
             rendered = linkifyUrls(rendered);
         }
         pre.innerHTML = rendered;
+        requestAnimationFrame(scaleDashboardAd);
     };
 
     if (typeof renderAnsiTerminal === 'function') {
@@ -600,6 +680,39 @@ function renderDashboardAd() {
     script.src = '/js/ansisys.js';
     script.onload = renderAd;
     document.body.appendChild(script);
+}
+
+function updateDashboardAdPosition() {
+    const label = document.getElementById('dashboardAdPosition');
+    if (!label || !Array.isArray(dashboardAds) || dashboardAds.length <= 1) {
+        return;
+    }
+
+    label.textContent = uiT('ui.dashboard.advertisement_position', 'Ad {current} of {total}', {
+        current: dashboardAdIndex + 1,
+        total: dashboardAds.length
+    });
+}
+
+function showDashboardAd(delta) {
+    if (!Array.isArray(dashboardAds) || dashboardAds.length <= 1) {
+        return;
+    }
+
+    dashboardAdIndex = (dashboardAdIndex + delta + dashboardAds.length) % dashboardAds.length;
+    const current = dashboardAds[dashboardAdIndex];
+    const pre = document.getElementById('dashboardAdAnsi');
+    const title = document.getElementById('dashboardAdTitle');
+    if (!pre || !current) {
+        return;
+    }
+
+    if (title) {
+        title.textContent = current.title || '';
+    }
+    pre.textContent = current.content || '';
+    renderDashboardAd();
+    updateDashboardAdPosition();
 }
 
 

@@ -89,7 +89,7 @@ class Template
     private function addGlobalVariables(?array $currentUser = null)
     {
         if ($currentUser === null) {
-            $currentUser = $this->auth->getCurrentUser();
+            $currentUser = $this->auth->getCurrentUser() ?: null;
         }
 
         $currentUserId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
@@ -175,6 +175,7 @@ class Template
         $this->twig->addGlobal('app_version', Version::getVersion());
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
+        $this->twig->addGlobal('app_base_dir', dirname(__DIR__));
 
         // Expose whether an upgrade notes page exists for the current version
         $upgradingFile = __DIR__ . '/../docs/UPGRADING_' . Version::getVersion() . '.md';
@@ -188,6 +189,8 @@ class Template
         $this->twig->addGlobal('mrc_webdoor_enabled', GameConfig::isEnabled('mrc'));
 
         $this->twig->addGlobal('bbs_directory_enabled', BbsConfig::isFeatureEnabled('bbs_directory'));
+        $this->twig->addGlobal('site_url', Config::getSiteUrl());
+        $this->twig->addGlobal('freq_experimental_enabled', Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true');
 
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
@@ -205,6 +208,19 @@ class Template
         $this->twig->addGlobal('credits_symbol', $creditsSymbol);
         $this->twig->addGlobal('credit_balance', $creditBalance);
         $this->twig->addGlobal('referral_enabled', $referralEnabled);
+
+        // License state — verified once per request, cached in memory.
+        // Failure is always safe; community tier is the fallback.
+        try {
+            $licenseStatus = License::getStatus();
+        } catch (\Throwable $e) {
+            $licenseStatus = ['valid' => false, 'tier' => 'community', 'reason' => 'error', 'features' => []];
+        }
+        $this->twig->addGlobal('license_valid', (bool)($licenseStatus['valid'] ?? false));
+        $this->twig->addGlobal('license_tier', (string)($licenseStatus['tier'] ?? 'community'));
+        $this->twig->addGlobal('license_licensee', $licenseStatus['licensee'] ?? null);
+        $this->twig->addGlobal('license_system_name', $licenseStatus['system_name'] ?? null);
+        $this->twig->addGlobal('license_features', (array)($licenseStatus['features'] ?? []));
 
         // Add available themes
         $availableThemes = Config::getThemes();

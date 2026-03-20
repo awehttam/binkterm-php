@@ -1,0 +1,36 @@
+[binkterm-telnet-esc]
+enabled = true
+filter = binkterm-telnet-esc
+backend = auto
+logpath = /path/to/binkterm/data/logs/telnetd.log
+port = 2323,8023
+protocol = tcp
+findtime = 10m
+maxretry = 3
+bantime = 1h
+
+# --- Action examples — uncomment the one that matches your firewall ---
+
+# iptables (most common on older Debian/Ubuntu/CentOS/RHEL systems)
+action = iptables-multiport[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]
+
+# nftables (default on newer Debian 11+/Ubuntu 22.04+/Fedora systems)
+#action = nftables-multiport[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]
+
+# firewalld (default on RHEL/CentOS/Rocky/AlmaLinux with firewalld running)
+#action = firewallcmd-rich-rules[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]
+
+# ufw (Ubuntu systems using ufw instead of raw iptables)
+#action = ufw[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]
+
+# ipset + iptables (efficient for large ban lists; requires ipset installed)
+#action = iptables-ipset-proto6-allports[name=binkterm-telnet-esc]
+
+# pf (FreeBSD / OpenBSD — requires fail2ban's pf action and a table in pf.conf)
+# Add to /etc/pf.conf:  table <f2b-binkterm-telnet-esc> persist
+#                        block in quick proto tcp from <f2b-binkterm-telnet-esc> to any port {2323 8023}
+# Then run: pfctl -f /etc/pf.conf
+#action = pf[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]
+
+# ipfw (FreeBSD alternative to pf; uses kernel firewall rule sets)
+#action = ipfw[name=binkterm-telnet-esc, port="2323,8023", protocol=tcp]

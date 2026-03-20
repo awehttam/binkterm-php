@@ -7,8 +7,6 @@ class BbsDirectoryGeocoder
     private const DEFAULT_ENDPOINT = 'https://nominatim.openstreetmap.org/search';
     private const REQUEST_INTERVAL_US = 1000000;
     private const TIMEOUT_SECONDS = 10;
-    private const CACHE_TTL_SECONDS = 2764800; // 32 days
-
     private static float $lastRequestAt = 0.0;
 
     public function isEnabled(): bool
@@ -69,19 +67,14 @@ class BbsDirectoryGeocoder
         try {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
-                SELECT latitude, longitude, cached_at
-                FROM bbs_directory_geocode_cache
+                SELECT latitude, longitude
+                FROM geocode_cache
                 WHERE location_key = ?
                 LIMIT 1
             ");
             $stmt->execute([$cacheKey]);
             $row = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (!$row) {
-                return null;
-            }
-
-            $cachedAt = strtotime((string)($row['cached_at'] ?? ''));
-            if ($cachedAt === false || (time() - $cachedAt) > self::CACHE_TTL_SECONDS) {
                 return null;
             }
 
@@ -103,7 +96,7 @@ class BbsDirectoryGeocoder
         try {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
-                INSERT INTO bbs_directory_geocode_cache (location_key, normalized_location, latitude, longitude, cached_at)
+                INSERT INTO geocode_cache (location_key, normalized_location, latitude, longitude, cached_at)
                 VALUES (:location_key, :normalized_location, :latitude, :longitude, NOW())
                 ON CONFLICT (location_key) DO UPDATE
                 SET normalized_location = EXCLUDED.normalized_location,

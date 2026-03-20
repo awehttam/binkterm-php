@@ -211,6 +211,99 @@ class Logger
         return $combined;
     }
     
+    /**
+     * Search all log files for lines matching a query, then expand results to include
+     * all lines sharing the same PID (full session context per match).
+     *
+     * @param string $query       Case-insensitive search term (min 2 chars)
+     * @param array  $logFiles    Map of label => path; defaults to the current log file
+     * @param int    $maxFileSize Skip files larger than this (bytes); default 50 MB
+     * @return array{lines: list<array{line:string,is_match:bool,pid:string}>, pid_count:int, match_count:int}
+     */
+    public function searchLogs(string $query, array $logFiles = [], int $maxFileSize = 52428800): array
+    {
+        if (empty($logFiles)) {
+            $logFiles = [basename($this->logFile) => $this->logFile];
+        }
+
+        // Regex to extract PID from log line format: [timestamp] [pid] [level] message
+        $pidPattern = '/^\[[\d\- :]+\] \[(\d+)\]/';
+
+        // Pass 1: scan each file, collect matching PIDs and all raw lines per file
+        $matchedPids = [];
+        $fileLines   = []; // label => [raw_line, ...]
+
+        foreach ($logFiles as $label => $path) {
+            if (!file_exists($path) || filesize($path) > $maxFileSize) {
+                continue;
+            }
+            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines === false) {
+                continue;
+            }
+            $fileLines[$label] = $lines;
+
+            foreach ($lines as $line) {
+                if (stripos($line, $query) !== false) {
+                    if (preg_match($pidPattern, $line, $m)) {
+                        $matchedPids[$m[1]] = true;
+                    }
+                }
+            }
+        }
+
+        if (empty($matchedPids)) {
+            return ['lines' => [], 'pid_count' => 0, 'match_count' => 0];
+        }
+
+        // Pass 2: collect all lines whose PID appears in matchedPids, across all files
+        $results    = [];
+        $matchCount = 0;
+
+        foreach ($fileLines as $label => $lines) {
+            foreach ($lines as $line) {
+                if (!preg_match($pidPattern, $line, $m)) {
+                    continue;
+                }
+                if (!isset($matchedPids[$m[1]])) {
+                    continue;
+                }
+                $isMatch = stripos($line, $query) !== false;
+                if ($isMatch) {
+                    $matchCount++;
+                }
+                // Prepend the timestamp for sorting (format is sortable as-is)
+                // Sanitize to valid UTF-8 so json_encode never fails on binary log content
+                $safeLine = mb_convert_encoding("{$label}: {$line}", 'UTF-8', 'UTF-8');
+                if ($safeLine === false || $safeLine === '') {
+                    $safeLine = mb_convert_encoding("{$label}: {$line}", 'UTF-8', 'ASCII');
+                }
+                $results[] = [
+                    'sort_key' => substr($line, 0, 21), // "[YYYY-MM-DD HH:MM:SS]"
+                    'line'     => $safeLine,
+                    'is_match' => $isMatch,
+                    'pid'      => $m[1],
+                ];
+            }
+        }
+
+        // Sort chronologically across all files
+        usort($results, fn($a, $b) => strcmp($a['sort_key'], $b['sort_key']));
+
+        // Strip the sort_key before returning
+        $output = array_map(fn($r) => [
+            'line'     => $r['line'],
+            'is_match' => $r['is_match'],
+            'pid'      => $r['pid'],
+        ], $results);
+
+        return [
+            'lines'      => $output,
+            'pid_count'  => count($matchedPids),
+            'match_count' => $matchCount,
+        ];
+    }
+
     public function clearLog()
     {
         if (file_exists($this->logFile)) {

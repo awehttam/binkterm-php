@@ -124,6 +124,15 @@
                     </div>
                 </div>
 
+                {# File preview #}
+                <div class="card mb-4">
+                    <div class="card-body p-0" id="sharedPreviewContainer" style="min-height:120px;">
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+
                 {# About this system #}
                 <div class="card">
                     <div class="card-body">
@@ -131,11 +140,8 @@
                             <i class="fas fa-info-circle me-2"></i>{{ t('ui.shared_file.about_system', {'system_name': system_name}, locale, ['common']) }}
                         </h6>
                         <p class="card-text mb-0">
-                            {{ t('ui.shared_file.about_system_text', {'system_name': system_name}, locale, ['common']) }}
+                            {{ t('ui.shared_file.about_system_text', {'system_name': system_name, 'network': file.domain ? file.domain|upper : 'FidoNet'}, locale, ['common']) }}
                         </p>
-                        <small class="text-muted">
-                            <i class="fas fa-code me-1"></i>{{ t('ui.shared_file.powered_by', {}, locale, ['common']) }}
-                        </small>
                     </div>
                 </div>
 
@@ -167,6 +173,12 @@
 {% endblock %}
 
 {% block scripts %}
+{% if file %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
+<script src="/js/file-preview.js"></script>
+{% endif %}
 <script>
 $(document).ready(function() {
     // Format file size using the same helper used in files.twig
@@ -177,6 +189,10 @@ $(document).ready(function() {
             sizeEl.textContent = formatBytes(bytes);
         }
     }
+
+    {% if file %}
+    renderPreviewContent({{ file.id }}, {{ file.filename|json_encode|raw }}, $('#sharedPreviewContainer'), {share_area: {{ file.area_tag|json_encode|raw }}, share_filename: {{ file.filename|json_encode|raw }}});
+    {% endif %}
 });
 
 function formatBytes(bytes) {

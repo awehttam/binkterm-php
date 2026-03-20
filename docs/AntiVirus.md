@@ -112,7 +112,7 @@ VirusTotal scanning is **disabled by default** and only activates when `VIRUSTOT
 
 ## Per-area configuration
 
-Virus scanning is enabled or disabled per file area in the admin interface at **Admin → File Areas**. Each area has a **Scan for Viruses** toggle. Scanning is enabled by default for new areas.
+Virus scanning is enabled or disabled per file area in the admin interface at **Admin → Area Management → File Areas**. Each area has a **Scan for Viruses** toggle. Scanning is enabled by default for new areas.
 
 When a file fails the virus scan it is rejected and deleted. The virus signature name is logged and recorded in the database alongside the file record.
 

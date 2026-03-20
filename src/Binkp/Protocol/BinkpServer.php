@@ -18,6 +18,7 @@ namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
+use BinktermPHP\Config;
 
 class BinkpServer
 {
@@ -129,6 +130,8 @@ class BinkpServer
             return;
         }
 
+        $this->configureTcpNoDelay($clientSocket);
+
         // Check max connections (count active child processes)
         $this->reapChildren();
         if (count($this->childPids) >= $this->config->getMaxConnections()) {
@@ -189,6 +192,20 @@ class BinkpServer
 
                 if ($session->processSession()) {
                     $this->log("Session completed for {$clientIP} ({$connectionId})");
+
+                    // Route any FREQ response files to the requesting user's private area
+                    $filesReceived = $session->getFilesReceived();
+                    $remoteAddress = $session->getRemoteAddress();
+                    if (!empty($filesReceived) && $remoteAddress) {
+                        try {
+                            $db     = \BinktermPHP\Database::getInstance()->getPdo();
+                            $router = new \BinktermPHP\Freq\FreqResponseRouter($db, $this->logger);
+                            $router->routeReceivedFiles($remoteAddress, $filesReceived);
+                        } catch (\Exception $e) {
+                            $this->log("FREQ response routing failed: " . $e->getMessage(), 'WARNING');
+                        }
+                    }
+
                     try {
                         $client = new AdminDaemonClient();
                         $client->processPackets();
@@ -260,6 +277,17 @@ class BinkpServer
         stream_set_blocking($socketResource, true);
 
         return $socketResource;
+    }
+
+    private function configureTcpNoDelay($socket): void
+    {
+        if (!defined('TCP_NODELAY')) {
+            return;
+        }
+
+        $raw = strtolower(trim((string)Config::env('BINKP_TCP_NODELAY', 'true')));
+        $enabled = !in_array($raw, ['0', 'false', 'no', 'off'], true);
+        @socket_set_option($socket, SOL_TCP, TCP_NODELAY, $enabled ? 1 : 0);
     }
     
     public function stop()

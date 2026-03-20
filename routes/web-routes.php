@@ -52,7 +52,13 @@ SimpleRouter::get('/', function() {
 
     $template = new Template();
     $ads = new Advertising();
-    $ad = $ads->getRandomAd();
+    $dashboardAds = $ads->getDashboardAds(5);
+    $ad = $dashboardAds[0] ?? null;
+    $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+    $dashboardAdRotateInterval = (int)($bbsConfig['dashboard_ad_rotate_interval_seconds'] ?? 20);
+    if ($dashboardAdRotateInterval < 5 || $dashboardAdRotateInterval > 300) {
+        $dashboardAdRotateInterval = 20;
+    }
 
     // Generate system news content
     $systemNewsContent = $template->renderSystemNews();
@@ -75,10 +81,17 @@ SimpleRouter::get('/', function() {
         }
     }
 
+    $onlineCount = $auth->getOnlineUserCount(15);
+    $activeTodayCount = $auth->getActiveTodayCount();
+
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
         'dashboard_ad' => $ad,
+        'dashboard_ads' => $dashboardAds,
+        'dashboard_ad_rotate_interval_seconds' => $dashboardAdRotateInterval,
         'shell_art_content' => $shellArtContent,
+        'online_user_count' => $onlineCount,
+        'active_today_count' => $activeTodayCount,
     ]);
 });
 
@@ -204,10 +217,21 @@ SimpleRouter::get('/login', function() {
             && \BinktermPHP\NativeDoorConfig::isAnonymousAllowed('pubterm');
     } catch (\Throwable $e) {}
 
+    // Splash takes precedence over the legacy welcome.txt
+    $loginSplashHtml = null;
+    if (\BinktermPHP\License::isValid()) {
+        $loginSplashMd = \BinktermPHP\AppearanceConfig::getLoginSplashMarkdown();
+        if ($loginSplashMd !== null && trim($loginSplashMd) !== '') {
+            $loginSplashHtml = \BinktermPHP\MarkdownRenderer::toHtml($loginSplashMd);
+            $welcomeMessage = ''; // suppress legacy fallback
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('login.twig', [
         'welcome_message'  => $welcomeMessage,
         'pubterm_enabled'  => $pubTermEnabled,
+        'login_splash'     => $loginSplashHtml,
     ]);
 });
 
@@ -233,8 +257,18 @@ SimpleRouter::get('/register', function() {
         }
     }
 
+    $registerSplashHtml = null;
+    if (\BinktermPHP\License::isValid()) {
+        $registerSplashMd = \BinktermPHP\AppearanceConfig::getRegisterSplashMarkdown();
+        if ($registerSplashMd !== null && trim($registerSplashMd) !== '') {
+            $registerSplashHtml = \BinktermPHP\MarkdownRenderer::toHtml($registerSplashMd);
+        }
+    }
+
     $template = new Template();
-    $template->renderResponse('register.twig');
+    $template->renderResponse('register.twig', [
+        'register_splash' => $registerSplashHtml,
+    ]);
 });
 
 SimpleRouter::get('/forgot-password', function() {
@@ -655,12 +689,31 @@ SimpleRouter::get('/settings', function() {
         $defaultTagline = '';
     }
 
+    $notificationSounds = [];
+    try {
+        $notificationSounds = ['disabled'];
+        $soundDir = __DIR__ . '/../public_html/sounds';
+        $soundFiles = glob($soundDir . '/notify*.mp3') ?: [];
+        natsort($soundFiles);
+        foreach ($soundFiles as $soundFile) {
+            $notificationSounds[] = pathinfo($soundFile, PATHINFO_FILENAME);
+        }
+    } catch (\Exception $e) {
+        $notificationSounds = [];
+    }
+
+    if (empty($notificationSounds)) {
+        $notificationSounds = ['disabled', 'notify1', 'notify2', 'notify3', 'notify4', 'notify5'];
+    }
+
     $templateVars = [
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
         'system_sysop' => $sysopName,
         'taglines' => $taglines,
-        'default_tagline' => $defaultTagline
+        'default_tagline' => $defaultTagline,
+        'notification_sounds' => $notificationSounds,
+        'license_valid' => \BinktermPHP\License::isValid(),
     ];
 
     $template = new Template();
@@ -872,6 +925,66 @@ SimpleRouter::get('/files', function() {
     $template = new Template();
     $template->renderResponse('files.twig', [
         'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+    ]);
+});
+
+SimpleRouter::get('/files/{tag}', function($tag) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas')) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.files_feature_disabled'
+        ]);
+        return;
+    }
+
+    // Check if this area is public — if so, auth is optional
+    $manager  = new \BinktermPHP\FileAreaManager();
+    $area     = $manager->getFileAreaByTag(strtoupper($tag));
+    $isPublic = !empty($area['is_public']) && empty($area['is_private']);
+
+    if ($isPublic) {
+        $auth = new \BinktermPHP\Auth();
+        $user = $auth->getCurrentUser(); // may be null for guests
+    } else {
+        $user = RouteHelper::requireAuth();
+    }
+
+    $template = new Template();
+    $template->renderResponse('files.twig', [
+        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'initial_area_tag'    => strtoupper($tag),
+        'is_public_area'      => $isPublic,
+        'initial_area'        => $area ?: null,
+    ]);
+});
+
+SimpleRouter::get('/public-files', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas') ||
+        !\BinktermPHP\BbsConfig::isFeatureEnabled('public_files_index')) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.not_found'
+        ]);
+        return;
+    }
+
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->query("
+        SELECT id, tag, description, domain, is_active,
+               (SELECT COUNT(*) FROM files f WHERE f.file_area_id = fa.id AND f.status = 'approved') AS file_count
+        FROM file_areas fa
+        WHERE is_public = TRUE AND is_private = FALSE AND is_active = TRUE
+        ORDER BY tag ASC
+    ");
+    $publicAreas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    $template = new Template();
+    $template->renderResponse('public_files.twig', [
+        'public_areas' => $publicAreas,
     ]);
 });
 
@@ -1275,6 +1388,21 @@ SimpleRouter::get('/about', function() {
 
     $template = new Template();
     $template->renderResponse('about.twig');
+});
+
+// QWK Offline Mail page
+SimpleRouter::get('/qwk', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('qwk.twig');
 });
 
 // Include local/custom routes if they exist

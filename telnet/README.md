@@ -243,6 +243,31 @@ SyncTERM provides the best experience with full ANSI color support:
 - Consider firewall rules to restrict access by IP
 - Monitor console logs for suspicious login activity
 
+### Fail2ban
+
+The telnet daemon writes to `data/logs/telnetd.log`. If you want repeat
+failures of the pre-login ESC anti-bot challenge to trigger temporary IP bans,
+example fail2ban files are included in:
+
+- `docs/fail2ban/filter.d/binkterm-telnet-esc.conf`
+- `docs/fail2ban/jail.d/binkterm-telnet-esc.local.example`
+
+Example install steps on Linux:
+
+```bash
+sudo cp docs/fail2ban/filter.d/binkterm-telnet-esc.conf /etc/fail2ban/filter.d/
+sudo cp docs/fail2ban/jail.d/binkterm-telnet-esc.local.example /etc/fail2ban/jail.d/binkterm-telnet-esc.local
+sudo sed -i 's#/path/to/binkterm#/var/www/binkterm-php#' /etc/fail2ban/jail.d/binkterm-telnet-esc.local
+sudo systemctl restart fail2ban
+sudo fail2ban-client status binkterm-telnet-esc
+```
+
+The provided filter matches log lines like:
+
+```text
+[2026-03-19 02:12:09] [1441153] [INFO] Bot/timeout on ESC challenge from 66.205.238.49:45072 — connection dropped
+```
+
 ### API Access
 - Daemon requires access to BinktermPHP web API
 - API base defaults to SITE_URL from configuration

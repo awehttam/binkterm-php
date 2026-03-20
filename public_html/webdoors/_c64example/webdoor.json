@@ -1,0 +1,18 @@
+{
+    "webdoor_version": "1.0",
+    "game": {
+        "id": "c64example",
+        "name": "C64 Example Game",
+        "version": "1.0",
+        "author": "",
+        "description": "Template for C64 game WebDoors.",
+        "entry_point": "index.php"
+    },
+    "requirements": {
+        "min_host_version": "1.0",
+        "features": []
+    },
+    "config": {
+        "credits_cost_per_session": 0
+    }
+}

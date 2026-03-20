@@ -49,6 +49,16 @@ class AppearanceConfig
         return __DIR__ . '/../data/houserules.md';
     }
 
+    private static function getLoginSplashPath(): string
+    {
+        return __DIR__ . '/../data/login_splash.md';
+    }
+
+    private static function getRegisterSplashPath(): string
+    {
+        return __DIR__ . '/../data/register_splash.md';
+    }
+
     private static function getDefaults(): array
     {
         return [
@@ -67,6 +77,8 @@ class AppearanceConfig
                 'lock_theme' => false,
                 'logo_url' => '',
                 'footer_text' => '',
+                'hide_powered_by' => false,
+                'show_registration_badge' => true,
             ],
             'content' => [
                 'announcement' => [
@@ -283,6 +295,32 @@ class AppearanceConfig
     public static function getHouseRulesMarkdown(): ?string
     {
         $path = self::getHouseRulesPath();
+        if (!file_exists($path)) {
+            return null;
+        }
+        $content = @file_get_contents($path);
+        return ($content === false) ? null : $content;
+    }
+
+    /**
+     * Raw Markdown content of login splash, or null if not set.
+     */
+    public static function getLoginSplashMarkdown(): ?string
+    {
+        $path = self::getLoginSplashPath();
+        if (!file_exists($path)) {
+            return null;
+        }
+        $content = @file_get_contents($path);
+        return ($content === false) ? null : $content;
+    }
+
+    /**
+     * Raw Markdown content of registration splash, or null if not set.
+     */
+    public static function getRegisterSplashMarkdown(): ?string
+    {
+        $path = self::getRegisterSplashPath();
         if (!file_exists($path)) {
             return null;
         }

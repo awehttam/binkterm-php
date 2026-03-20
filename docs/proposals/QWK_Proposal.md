@@ -1180,6 +1180,51 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 
 ---
 
+## Relationship to Downlink Distribution
+
+The [Downlink Distribution Proposal](Downlink_Distribution_Proposal.md) introduces a fanout engine for distributing echomail to subordinate nodes and peers. QWK is one of two supported delivery transports in that system (the other being binkp). This creates a shared-code dependency on `QwkPacketGenerator`.
+
+### Two distinct QWK use cases
+
+| Use case | Context | Conference source | Authentication | Transport |
+|---|---|---|---|---|
+| **User offline mail** | BBS user downloads packet for offline reading | `qwk_pointers(user_id, echoarea_id)` | BBS user login | HTTP download |
+| **Downlink delivery** | Another BBS system collects its echomail | `downlink_areas(downlink_id, echoarea_id)` | `downlinks.session_password` via dedicated HTTP endpoint | HTTP download |
+
+These are separate use cases that share the QWK packet format and the `QwkPacketGenerator` class, but nothing else. They have different authentication models, different conference source tables, and different pointers/queue tables.
+
+### Required `QwkPacketGenerator` refactoring
+
+Currently `QwkPacketGenerator` is designed around a single user context (`$userId`). To support downlink delivery it must be refactored to accept either a **user context** or a **downlink context**:
+
+```php
+// User context (existing)
+$generator = new QwkPacketGenerator($userId);
+
+// Downlink context (new)
+$generator = new QwkPacketGenerator(downlinkId: $downlinkId);
+```
+
+When operating in downlink context:
+- Conference list is driven by `downlink_areas` (not user subscriptions or `qwk_pointers`)
+- Read pointers come from `downlink_outbound` queue state (not `qwk_pointers`)
+- SEEN-BY and PATH kludges are **not** included in QWK packets (the fanout engine already handled loop prevention before queuing)
+- BinktermPHP adds SEEN-BY/PATH when tossing inbound REP replies back into echomail
+
+### Downlink QWK authentication
+
+QWK downlinks do not use BBS user accounts. They authenticate via `session_password` against a dedicated HTTP endpoint (separate from the user QWK download endpoint). The `downlinks` table provides all session credentials.
+
+### What does not change
+
+- The QWK packet format itself (CONTROL.DAT, MESSAGES.DAT, *.NDX structure) is identical for both use cases.
+- The REP packet upload and toss logic is identical — inbound REP messages are tossed into echomail the same way regardless of source.
+- `QwkNetworkService` and the hub polling scripts (`qwk_poll.php`, `telnet_daemon.php`) are entirely separate from downlink delivery and are unaffected.
+
+See the [Downlink Distribution Proposal](Downlink_Distribution_Proposal.md) for the full fanout engine design and transport abstraction details.
+
+---
+
 ## References
 
 - [QWK Format Specification](http://wiki.synchro.net/ref:qwk)

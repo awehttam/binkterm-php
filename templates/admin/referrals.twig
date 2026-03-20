@@ -1,0 +1,178 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.referrals.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-user-plus"></i>
+        {{ t('ui.admin.referrals.heading', {}, locale, ['common']) }}
+    </h2>
+    <a href="/admin" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.referrals.back', {}, locale, ['common']) }}
+    </a>
+</div>
+
+<div id="referrals-alert"></div>
+
+<div id="referrals-loading" class="text-center py-5">
+    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+    <p class="mt-2 text-muted">{{ t('ui.admin.referrals.loading', {}, locale, ['common']) }}</p>
+</div>
+
+<div id="referrals-content" style="display:none">
+
+    {# Summary row #}
+    <div class="row mb-4" id="referrals-summary"></div>
+
+    <div class="row">
+        {# Top referrers #}
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <strong>{{ t('ui.admin.referrals.top_referrers', {}, locale, ['common']) }}</strong>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.referrals.col_user', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.referrals.col_code', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.referrals.col_signups', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.referrals.col_bonus', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="referrers-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="referrers-empty" class="text-muted text-center py-3 small" style="display:none">
+                        {{ t('ui.admin.referrals.no_referrers', {}, locale, ['common']) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Recent referral signups #}
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <strong>{{ t('ui.admin.referrals.recent_signups', {}, locale, ['common']) }}</strong>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.referrals.col_user', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.referrals.col_referred_by', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.referrals.col_joined', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="recent-empty" class="text-muted text-center py-3 small" style="display:none">
+                        {{ t('ui.admin.referrals.no_recent', {}, locale, ['common']) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $.get('/admin/api/referrals')
+        .done(function(data) {
+            $('#referrals-loading').hide();
+            renderSummary(data.totals);
+            renderReferrers(data.referrers);
+            renderRecent(data.recent);
+            $('#referrals-content').show();
+        })
+        .fail(function() {
+            $('#referrals-loading').hide();
+            $('#referrals-alert').html(
+                '<div class="alert alert-danger">' +
+                window.t('ui.admin.referrals.load_failed', {}, 'Failed to load referral data') +
+                '</div>'
+            );
+        });
+});
+
+function renderSummary(totals) {
+    const referred = totals ? parseInt(totals.total_referred_users, 10) : 0;
+    const referrers = totals ? parseInt(totals.total_referrers, 10) : 0;
+
+    $('#referrals-summary').html(
+        statCard('fas fa-users', window.t('ui.admin.referrals.stat_referred_users', {}, 'Referred Users'), referred, 'primary') +
+        statCard('fas fa-user-check', window.t('ui.admin.referrals.stat_active_referrers', {}, 'Active Referrers'), referrers, 'success')
+    );
+}
+
+function statCard(icon, label, value, colour) {
+    return `<div class="col-sm-6">
+        <div class="card border-${colour} mb-3">
+            <div class="card-body text-center">
+                <div class="text-${colour} mb-1"><i class="${icon} fa-lg"></i></div>
+                <div class="display-6 fw-bold">${value}</div>
+                <div class="text-muted small">${escapeHtml(label)}</div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderReferrers(referrers) {
+    if (!referrers || referrers.length === 0) {
+        $('#referrers-empty').show();
+        return;
+    }
+    const rows = referrers.map(function(r) {
+        const creditsEnabled = {{ credits_enabled ? 'true' : 'false' }};
+        const bonusCell = creditsEnabled
+            ? `<td class="text-end">${escapeHtml(r.bonus_earned)}</td>`
+            : '<td class="text-end text-muted">—</td>';
+        return `<tr>
+            <td><a href="/admin/users?search=${encodeURIComponent(r.username)}">${escapeHtml(r.username)}</a>
+                <span class="text-muted small ms-1">${escapeHtml(r.real_name || '')}</span></td>
+            <td><code class="small">${escapeHtml(r.referral_code || '')}</code></td>
+            <td class="text-end">${escapeHtml(r.referral_count)}</td>
+            ${bonusCell}
+        </tr>`;
+    }).join('');
+    $('#referrers-tbody').html(rows);
+}
+
+function renderRecent(recent) {
+    if (!recent || recent.length === 0) {
+        $('#recent-empty').show();
+        return;
+    }
+    const rows = recent.map(function(r) {
+        const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '—';
+        return `<tr>
+            <td>${escapeHtml(r.username)}
+                <span class="text-muted small ms-1">${escapeHtml(r.real_name || '')}</span></td>
+            <td><a href="/admin/users?search=${encodeURIComponent(r.referred_by_username)}">${escapeHtml(r.referred_by_username || '—')}</a></td>
+            <td class="text-muted small">${escapeHtml(date)}</td>
+        </tr>`;
+    }).join('');
+    $('#recent-tbody').html(rows);
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}

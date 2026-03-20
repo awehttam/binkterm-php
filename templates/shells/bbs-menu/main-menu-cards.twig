@@ -3,13 +3,13 @@
 <div class="row row-cols-2 row-cols-md-3 g-3">
     {% for item in menuItems %}
     <div class="col">
-        <a href="{{ item.url | e }}" class="text-decoration-none">
+        <a href="{{ item.url | e }}" class="text-decoration-none{% if item.url == '/files' %} file-menu-link{% endif %}">
             <div class="card h-100 text-center bbs-menu-card" style="cursor:pointer;">
                 <div class="card-body py-4">
                     <div class="mb-2">
                         <span class="badge bg-primary fs-6">{{ item.key | upper | e }}</span>
                     </div>
-                    <i class="fas fa-{{ item.icon | default('circle') | e }} fa-2x text-primary mb-2"></i>
+                    <i class="fas fa-{{ item.icon | default('circle') | e }} fa-2x text-primary mb-2{% if item.url == '/files' %} file-menu-icon{% endif %}"></i>
                     <h6 class="card-title mb-0">{{ item.label | e }}</h6>
                 </div>
             </div>

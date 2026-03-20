@@ -26,6 +26,7 @@ use BinktermPHP\Database;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Nodelist\NodelistManager;
 use BinktermPHP\Binkp\SessionLogger;
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Admin\AdminDaemonClient;
 
 class CrashmailService
@@ -33,6 +34,7 @@ class CrashmailService
     private $db;
     private $config;
     private $nodelistManager;
+    private Logger $logger;
 
     // FidoNet message attribute flags
     const ATTR_PRIVATE = 0x0001;
@@ -56,6 +58,7 @@ class CrashmailService
         $this->db = Database::getInstance()->getPdo();
         $this->config = BinkpConfig::getInstance();
         $this->nodelistManager = new NodelistManager();
+        $this->logger = new Logger(\BinktermPHP\Config::getLogPath('crashmail.log'), Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -67,7 +70,7 @@ class CrashmailService
     public function queueCrashmail(int $netmailId): bool
     {
         if (!$this->config->getCrashmailEnabled()) {
-            error_log("[CRASHMAIL] Crashmail is disabled in configuration");
+            $this->logger->warning("Crashmail is disabled in configuration");
             return false;
         }
 
@@ -77,7 +80,7 @@ class CrashmailService
         $netmail = $stmt->fetch();
 
         if (!$netmail) {
-            error_log("[CRASHMAIL] Netmail ID {$netmailId} not found");
+            $this->logger->error("Netmail ID {$netmailId} not found");
             return false;
         }
 
@@ -85,7 +88,7 @@ class CrashmailService
         $stmt = $this->db->prepare("SELECT id FROM crashmail_queue WHERE netmail_id = ?");
         $stmt->execute([$netmailId]);
         if ($stmt->fetch()) {
-            error_log("[CRASHMAIL] Netmail ID {$netmailId} already queued");
+            $this->logger->info("Netmail ID {$netmailId} already queued");
             return true; // Already queued is not an error
         }
 
@@ -107,7 +110,7 @@ class CrashmailService
         ]);
 
         if ($success) {
-            error_log("[CRASHMAIL] Queued netmail ID {$netmailId} for crash delivery to {$netmail['to_address']}");
+            $this->logger->info("Queued netmail ID {$netmailId} for crash delivery to {$netmail['to_address']}");
 
             // Poke the admin daemon so the scheduler despools this immediately
             // rather than waiting for the next scheduled poll.
@@ -117,7 +120,7 @@ class CrashmailService
                 $client->close();
             } catch (\Throwable $e) {
                 // Non-fatal — the scheduled poll will pick it up within 5 minutes
-                error_log("[CRASHMAIL] Could not trigger immediate poll: " . $e->getMessage());
+                $this->logger->warning("Could not trigger immediate poll: " . $e->getMessage());
             }
         }
 
@@ -339,7 +342,7 @@ class CrashmailService
         $port = $queueItem['destination_port'] ?? 24554;
         $destAddress = $queueItem['destination_address'];
 
-        error_log("[CRASHMAIL] Attempting delivery to {$destAddress} via {$host}:{$port}");
+        $this->logger->info("Attempting delivery to {$destAddress} via {$host}:{$port}");
 
         // Start session logging
         $sessionLogger = new SessionLogger();
@@ -347,11 +350,12 @@ class CrashmailService
 
         // Create temporary packet file
         $tempPacket = null;
+        $preservePacket = false;
 
         try {
             // Create the packet in a temp location
             $tempPacket = $this->createTempPacket($queueItem);
-            error_log("[CRASHMAIL] Created temp packet: {$tempPacket}");
+            $this->logger->debug("Created temp packet: {$tempPacket}");
 
             // Create TCP connection
             $socket = @stream_socket_client(
@@ -381,8 +385,14 @@ class CrashmailService
             $attachment = null;
             if (!empty($queueItem['outbound_attachment_path'])) {
                 $attachPath = $queueItem['outbound_attachment_path'];
-                // Filename stored in the path: strip the token prefix (32 hex chars + underscore)
-                $attachFilename = preg_replace('/^[0-9a-f]{32}_/', '', basename($attachPath));
+                // For FILE_ATTACH netmails the subject line IS the filename (FTN convention).
+                // Fall back to stripping the upload-token prefix ({32hex}_name) for regular attachments.
+                $isFileAttach = ((int)$queueItem['attributes'] & self::ATTR_FILE_ATTACH) !== 0;
+                if ($isFileAttach && !empty($queueItem['subject'])) {
+                    $attachFilename = $queueItem['subject'];
+                } else {
+                    $attachFilename = preg_replace('/^[0-9a-f]{32}_/', '', basename($attachPath));
+                }
                 $attachment = [
                     'file_path'  => $attachPath,
                     'filename'   => $attachFilename,
@@ -394,6 +404,10 @@ class CrashmailService
             $deliveryResult = $this->performCrashDelivery($socket, $tempPacket, $destAddress, $password, $attachment);
             $success = $deliveryResult['success'];
 
+            if ($success && $this->config->getPreserveSentPackets()) {
+                $preservePacket = true;
+            }
+
             $sessionLogger->incrementStat('messages_sent', $success ? 1 : 0);
             if (isset($deliveryResult['auth_method'])) {
                 $sessionLogger->setAuthMethod($deliveryResult['auth_method']);
@@ -403,14 +417,26 @@ class CrashmailService
             return $success;
 
         } catch (\Exception $e) {
-            error_log("[CRASHMAIL] Delivery error: " . $e->getMessage());
+            $this->logger->error("Delivery error: " . $e->getMessage());
             $sessionLogger->endSession('failed', $e->getMessage());
             throw $e;
         } finally {
-            // Clean up temp packet
+            // Preserve or clean up the temp packet
             if ($tempPacket && file_exists($tempPacket)) {
-                unlink($tempPacket);
-                error_log("[CRASHMAIL] Cleaned up temp packet: {$tempPacket}");
+                if ($preservePacket) {
+                    $keepDir = $this->config->getPreservedSentPacketsPath();
+                    $destFilename = 'crashmail_' . ($queueItem['id'] ?? 0) . '_' . time() . '.pkt';
+                    $destPath = $keepDir . '/' . $destFilename;
+                    if (@rename($tempPacket, $destPath)) {
+                        $this->logger->info("Preserved sent crashmail packet: {$destFilename}");
+                    } else {
+                        $this->logger->warning("Failed to preserve crashmail packet, deleting");
+                        unlink($tempPacket);
+                    }
+                } else {
+                    unlink($tempPacket);
+                    $this->logger->debug("Cleaned up temp packet: " . basename($tempPacket));
+                }
             }
         }
     }
@@ -463,7 +489,7 @@ class CrashmailService
      */
     private function performCrashDelivery($socket, string $packetPath, string $destAddress, string $password, ?array $attachment = null): array
     {
-        error_log("[CRASHMAIL] Starting binkp session for crash delivery to {$destAddress}");
+        $this->logger->info("Starting binkp session for crash delivery to {$destAddress}");
 
         try {
             // Create BinkpSession in originator mode
@@ -471,9 +497,21 @@ class CrashmailService
             $session->setSessionType('crash_outbound');
             $session->setUplinkPassword($password);
 
+            // Set the uplink context so the session advertises only the AKA that
+            // belongs to the network handling this destination, rather than all AKAs.
+            // Without this, the primary (e.g. zone 1 FidoNet) address is presented to
+            // hosts that are only uplinks for other networks, causing "Bad password".
+            $routedUplink = $this->config->getUplinkForDestination($destAddress);
+            if ($routedUplink) {
+                // Disable CRAM-MD5 for non-uplink crash delivery — password is empty
+                // for nodelist/binkp_zone resolved destinations.
+                $routedUplink['crypt'] = false;
+                $session->setCurrentUplink($routedUplink);
+            }
+
             // Perform handshake
             $session->handshake();
-            error_log("[CRASHMAIL] Handshake completed with {$destAddress}");
+            $this->logger->info("Handshake completed with {$destAddress}");
 
             // Get the auth method used
             $authMethod = $session->getAuthMethod();
@@ -483,7 +521,7 @@ class CrashmailService
 
             // Send the attachment file if present
             if ($attachment !== null && !empty($attachment['file_path']) && file_exists($attachment['file_path'])) {
-                error_log("[CRASHMAIL] Sending attachment: {$attachment['filename']}");
+                $this->logger->info("Sending attachment: {$attachment['filename']}");
                 $this->sendAttachmentFile($socket, $attachment['file_path'], $attachment['filename']);
             }
 
@@ -497,7 +535,7 @@ class CrashmailService
             if ($confirmed && $attachment !== null && !empty($attachment['file_path']) && file_exists($attachment['file_path'])) {
                 $attachConfirmed = $this->waitForGot($socket, $attachment['filename']);
                 if ($attachConfirmed) {
-                    error_log("[CRASHMAIL] Attachment delivery confirmed: {$attachment['filename']}");
+                    $this->logger->info("Attachment delivery confirmed: {$attachment['filename']}");
                     // Clear attachment path from DB and remove temp file
                     if (!empty($attachment['netmail_id'])) {
                         $clrStmt = $this->db->prepare("UPDATE netmail SET outbound_attachment_path = NULL WHERE id = ?");
@@ -505,21 +543,21 @@ class CrashmailService
                     }
                     @unlink($attachment['file_path']);
                 } else {
-                    error_log("[CRASHMAIL] No M_GOT received for attachment: {$attachment['filename']}");
+                    $this->logger->warning("No M_GOT received for attachment: {$attachment['filename']}");
                 }
             }
 
             if ($confirmed) {
-                error_log("[CRASHMAIL] Delivery confirmed by remote");
+                $this->logger->info("Delivery confirmed by remote");
             } else {
-                error_log("[CRASHMAIL] No confirmation received from remote");
+                $this->logger->warning("No confirmation received from remote");
             }
 
             $session->close();
             return ['success' => $confirmed, 'auth_method' => $authMethod];
 
         } catch (\Exception $e) {
-            error_log("[CRASHMAIL] Session error: " . $e->getMessage());
+            $this->logger->error("Session error: " . $e->getMessage());
             if (is_resource($socket)) {
                 fclose($socket);
             }
@@ -536,14 +574,15 @@ class CrashmailService
         $fileSize = filesize($filePath);
         $timestamp = filemtime($filePath);
 
-        // Send M_FILE command
-        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        // Send M_FILE command — sanitize spaces to underscores (binkp has no quoting)
+        $wireName = str_replace(' ', '_', $filename);
+        $fileInfo = "{$wireName} {$fileSize} {$timestamp} 0";
         $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
             \BinktermPHP\Binkp\Protocol\BinkpFrame::M_FILE,
             $fileInfo
         );
         $frame->writeToSocket($socket);
-        error_log("[CRASHMAIL] Sent M_FILE: {$fileInfo}");
+        $this->logger->debug("Sent M_FILE: {$fileInfo}");
 
         // Send file data
         $handle = fopen($filePath, 'rb');
@@ -563,7 +602,7 @@ class CrashmailService
         }
         fclose($handle);
 
-        error_log("[CRASHMAIL] Sent {$bytesSent} bytes of packet data");
+        $this->logger->debug("Sent {$bytesSent} bytes of packet data");
     }
 
     /**
@@ -578,13 +617,15 @@ class CrashmailService
         $fileSize  = filesize($filePath);
         $timestamp = filemtime($filePath);
 
-        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        // Sanitize spaces to underscores (binkp has no quoting)
+        $wireName = str_replace(' ', '_', $filename);
+        $fileInfo = "{$wireName} {$fileSize} {$timestamp} 0";
         $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
             \BinktermPHP\Binkp\Protocol\BinkpFrame::M_FILE,
             $fileInfo
         );
         $frame->writeToSocket($socket);
-        error_log("[CRASHMAIL] Sent M_FILE for attachment: {$fileInfo}");
+        $this->logger->debug("Sent M_FILE for attachment: {$fileInfo}");
 
         $handle = fopen($filePath, 'rb');
         if (!$handle) {
@@ -603,7 +644,7 @@ class CrashmailService
         }
         fclose($handle);
 
-        error_log("[CRASHMAIL] Sent {$bytesSent} bytes of attachment data");
+        $this->logger->debug("Sent {$bytesSent} bytes of attachment data");
     }
 
     /**
@@ -629,18 +670,18 @@ class CrashmailService
                 switch ($frame->getCommand()) {
                     case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_GOT:
                         $gotData = $frame->getData();
-                        error_log("[CRASHMAIL] Received M_GOT (attachment wait): {$gotData}");
+                        $this->logger->debug("Received M_GOT (attachment wait): {$gotData}");
                         if (strpos($gotData, $filename) !== false) {
                             return true;
                         }
                         break;
 
                     case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_ERR:
-                        error_log("[CRASHMAIL] Received M_ERR while waiting for attachment GOT: " . $frame->getData());
+                        $this->logger->error("Received M_ERR while waiting for attachment GOT: " . $frame->getData());
                         return false;
 
                     default:
-                        error_log("[CRASHMAIL] Received command while waiting for attachment GOT: " . $frame->getCommand());
+                        $this->logger->debug("Received command while waiting for attachment GOT: " . $frame->getCommand());
                 }
             }
         }
@@ -658,7 +699,7 @@ class CrashmailService
             ''
         );
         $frame->writeToSocket($socket);
-        error_log("[CRASHMAIL] Sent M_EOB");
+        $this->logger->debug("Sent M_EOB");
     }
 
     /**
@@ -681,7 +722,7 @@ class CrashmailService
                 switch ($frame->getCommand()) {
                     case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_GOT:
                         $gotData = $frame->getData();
-                        error_log("[CRASHMAIL] Received M_GOT: {$gotData}");
+                        $this->logger->debug("Received M_GOT: {$gotData}");
                         // Check if it matches our file
                         if (strpos($gotData, basename($expectedFile, '.pkt')) !== false ||
                             strpos($gotData, $expectedFile) !== false) {
@@ -690,16 +731,16 @@ class CrashmailService
                         break;
 
                     case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_EOB:
-                        error_log("[CRASHMAIL] Received M_EOB");
+                        $this->logger->debug("Received M_EOB");
                         $eobReceived = true;
                         break;
 
                     case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_ERR:
-                        error_log("[CRASHMAIL] Received M_ERR: " . $frame->getData());
+                        $this->logger->error("Received M_ERR: " . $frame->getData());
                         return false;
 
                     default:
-                        error_log("[CRASHMAIL] Received command: " . $frame->getCommand());
+                        $this->logger->debug("Received command: " . $frame->getCommand());
                 }
             }
         }
@@ -738,7 +779,7 @@ class CrashmailService
         ");
         $stmt->execute([self::ATTR_SENT, $queueId]);
 
-        error_log("[CRASHMAIL] Queue item {$queueId} marked as sent");
+        $this->logger->info("Queue item {$queueId} marked as sent");
     }
 
     /**
@@ -758,7 +799,7 @@ class CrashmailService
         ");
         $stmt->execute([$error, $queueId]);
 
-        error_log("[CRASHMAIL] Queue item {$queueId} scheduled for retry: {$error}");
+        $this->logger->warning("Queue item {$queueId} scheduled for retry: {$error}");
     }
 
     /**
@@ -775,7 +816,7 @@ class CrashmailService
         ");
         $stmt->execute([$error, $queueId]);
 
-        error_log("[CRASHMAIL] Queue item {$queueId} permanently failed: {$error}");
+        $this->logger->error("Queue item {$queueId} permanently failed: {$error}");
     }
 
     /**

@@ -1,0 +1,53 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.public_files.title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block meta_tags %}
+<meta property="og:title" content="{{ t('ui.public_files.title', {}, 'common') }} — {{ system_name }}">
+<meta property="og:description" content="{{ t('ui.public_files.og_description', {}, 'common') }}">
+<meta property="og:url" content="{{ site_url }}/public-files">
+<meta property="og:type" content="website">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-folder-open"></i>
+        {{ t('ui.public_files.heading', {}, 'common') }}
+    </h2>
+</div>
+
+<p class="text-muted">{{ t('ui.public_files.description', {}, 'common') }}</p>
+
+{% if public_areas|length == 0 %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle me-2"></i>{{ t('ui.public_files.no_areas', {}, 'common') }}
+</div>
+{% else %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+    {% for area in public_areas %}
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-folder text-warning me-2"></i>
+                    <a href="/files/{{ area.tag|url_encode }}" class="text-decoration-none">{{ area.tag }}</a>
+                </h5>
+                {% if area.description %}
+                <p class="card-text text-muted small">{{ area.description }}</p>
+                {% endif %}
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted">
+                    <i class="fas fa-file me-1"></i>{{ area.file_count }} {{ t('ui.files.files_count_label', {}, 'common') }}
+                </small>
+                <a href="/files/{{ area.tag|url_encode }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-arrow-right me-1"></i>{{ t('ui.common.browse', {}, 'common') }}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

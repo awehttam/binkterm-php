@@ -140,7 +140,7 @@ function extractArchive($archiveFile, $type, $tempDir) {
             
         case 'LZH':
             $extractedFile = $tempDir . DIRECTORY_SEPARATOR . 'NODELIST.TXT';
-            $cmd = "lha e \"$archiveFile\" \"$tempDir\"";
+            $cmd = "lha ew=\"$tempDir\" \"$archiveFile\"";
             exec($cmd, $output, $returnCode);
             if ($returnCode !== 0) {
                 throw new Exception("LZH extraction failed. Make sure 'lha' command is available.");

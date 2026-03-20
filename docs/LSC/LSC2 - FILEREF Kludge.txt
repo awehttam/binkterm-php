@@ -1,0 +1,227 @@
+**********************************************************************
+LOVLYNET SPECIFICATION
+
+Title:   FILEREF Kludge for File-Referenced Echomail Threads
+Draft:   1
+Date:    2026-03-17
+Status:  Draft - LovlyNet Standards Council
+**********************************************************************
+
+
+1. INTRODUCTION
+---------------
+
+This document defines the FILEREF kludge line for use in LovlyNet and
+other FTN-compatible echomail messages that discuss a specific
+distributed file. Its purpose is to provide a machine-readable
+association between an echomail thread root and a file carried in a
+networked file area.
+
+The FILEREF kludge allows participating software to display comments or
+discussion threads alongside the referenced file without requiring any
+out-of-band mapping database shared between systems. Legacy software
+that does not recognize the kludge continues to see an ordinary
+echomail message with a normal human-readable subject.
+
+This specification is issued as a LovlyNet Standards Council (LSC)
+draft for implementation and review within LovlyNet-compatible
+software. Other FTN-compatible software MAY adopt it independently.
+
+
+2. DEFINITIONS
+--------------
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in FTA-1006.
+
+"Kludge line": A line in a FidoNet message body beginning with the
+ASCII SOH character (0x01), used to carry machine-readable metadata
+not intended for direct display to the end user.
+
+"File area identifier": A stable identifier naming a distributed FTN
+file area, consisting of an area tag and domain joined by `@`.
+
+"Thread root": The top-level echomail message that begins a discussion
+thread. Replies are descendants of that message via normal FidoNet
+threading mechanisms such as MSGID/REPLY.
+
+
+3. THE FILEREF KLUDGE
+---------------------
+
+3.1 Syntax
+
+The FILEREF kludge line has the following syntax:
+
+    ^AFILEREF: <area-id> <filename> <sha256>
+
+where ^A represents the ASCII SOH character (0x01), <area-id> is the
+network-visible file area identifier in the form `<tag>@<domain>`,
+<filename> is the canonical distributed filename, and <sha256> is the
+SHA-256 hash of the referenced file encoded as 64 hexadecimal
+characters.
+
+Example:
+
+    ^AFILEREF: NODELIST@fidonet NODELIST.Z53 3e7d2f4c0d0e7f7fe1b6a3f01f7a9a4a7b4b9b0c1d2e3f405162738495a6b7c
+
+3.2 Field Requirements
+
+The <area-id> and <filename> fields MUST each be a single token and
+therefore MUST NOT contain whitespace.
+
+The <area-id> field MUST contain exactly one `@` separator, with the
+area tag on the left and the network domain on the right. Both
+components MUST be non-empty.
+
+The <sha256> field MUST be exactly 64 hexadecimal characters. Emitting
+software SHOULD use lowercase hexadecimal, though receiving software
+SHOULD compare the value case-insensitively.
+
+This specification assumes the filename used on the FTN wire is already
+compatible with token-based parsing. Software that permits local
+filenames containing spaces or other transport-hostile characters
+SHOULD normalize them before distribution and SHOULD emit FILEREF using
+that canonical distributed filename.
+
+3.3 Placement
+
+The FILEREF kludge SHOULD be placed with other kludge lines at the
+beginning of the message body, before any visible text content, in
+accordance with common FidoNet kludge conventions.
+
+A message body SHOULD NOT contain more than one FILEREF kludge line. If
+multiple FILEREF kludge lines are present, implementations SHOULD use
+the first one encountered and ignore the remainder.
+
+3.4 Scope
+
+The FILEREF kludge identifies the file discussed by the message and its
+thread descendants. It is primarily intended for use on the thread root.
+
+Reply messages in the thread SHOULD rely on normal MSGID/REPLY
+threading rather than repeating the FILEREF kludge on every message.
+
+
+4. MATCHING SEMANTICS
+---------------------
+
+Software matching a message thread to a local file MUST treat the
+combination of <area-id>, <filename>, and <sha256> as the authoritative
+reference tuple.
+
+Two FILEREF kludges match if and only if:
+
+  - <area-id> matches exactly as a fully qualified `<tag>@<domain>`
+    identifier
+  - <filename> matches the canonical distributed filename exactly
+  - <sha256> matches case-insensitively as a 64-character hexadecimal
+    SHA-256 digest
+
+If the local system carries the same area identifier and filename but the
+SHA-256 digest differs, the FILEREF MUST be treated as referring to a
+different file revision or different file content.
+
+
+5. BEHAVIOR OF CONFORMING SOFTWARE
+----------------------------------
+
+5.1 Message Authors and Editors
+
+Software creating a new top-level echomail discussion for a specific
+file MAY insert the FILEREF kludge on that thread root.
+
+When the FILEREF kludge is used, the message subject SHOULD remain a
+human-readable filename or other plain-text subject that is useful on
+software that does not support FILEREF.
+
+5.2 Message Readers and File Browsers
+
+Software that encounters a FILEREF kludge:
+
+  - SHOULD parse and preserve the referenced tuple exactly.
+  - MAY use the tuple to associate the thread root and its replies with
+    a local file record.
+  - SHOULD verify the SHA-256 value against the local file before
+    presenting the message as commentary on that file.
+  - SHOULD fall back to ordinary echomail display if no matching local
+    file is available.
+
+5.3 Tosser and Packer Behavior
+
+Tossers, packers, and other mail-handling software MUST NOT alter,
+strip, or otherwise modify the FILEREF kludge line during normal
+message handling. The kludge MUST be preserved through normal FidoNet
+message routing processes.
+
+5.4 Unknown or Unsupported Implementations
+
+Software that does not recognize FILEREF MUST ignore its semantic
+meaning and continue to process the message as ordinary echomail.
+
+
+6. INTEROPERABILITY GUIDANCE
+----------------------------
+
+The FILEREF kludge is designed to coexist with software that has no
+knowledge of file-comment linkage. To maximize interoperability:
+
+  - Authors SHOULD use a normal visible subject, typically the filename.
+  - Readers MAY use ordinary subject matching as a non-authoritative
+    fallback when interacting with replies from software that preserved
+    the thread but did not originate or interpret FILEREF.
+  - Implementations SHOULD treat FILEREF as authoritative when present
+    and valid, and subject matching only as a best-effort heuristic.
+
+This allows discussion threads to remain readable and replyable across
+mixed software environments while still enabling exact matching between
+conforming implementations.
+
+
+7. SECURITY AND ROBUSTNESS CONSIDERATIONS
+-----------------------------------------
+
+Receiving software MUST treat FILEREF contents as untrusted input.
+Implementations SHOULD validate all three fields before acting on them.
+
+Software MUST NOT assume that a matching area tag and filename alone are
+sufficient for identity. The SHA-256 digest is required to distinguish
+similarly named or superseded files and to avoid false associations.
+
+Implementations SHOULD avoid using FILEREF to expose inaccessible or
+private files to unauthorized users. Authorization to view the file or
+the related message thread remains a local policy decision.
+
+
+8. IMPLEMENTATION NOTES
+-----------------------
+
+FILEREF defines only the transport-level declaration mechanism. It does
+not standardize how a user interface presents comments, how comment
+counts are cached, or how local database schemas model file metadata.
+
+An implementation MAY choose to attach FILEREF only to the first
+top-level message in a thread and then rely on normal threading for
+replies. This is the RECOMMENDED model because it avoids redundant
+metadata while preserving exact cross-node matching for the thread root.
+
+
+9. REFERENCES
+-------------
+
+  [1] FTS-0001  - A Basic FidoNet(r) Technical Standard
+  [2] FTS-0009  - The MSGID and REPLY kludges
+  [3] FTA-1006  - Key words to indicate requirement levels
+
+
+10. REVISION HISTORY
+--------------------
+
+  2026-03-17  Initial LovlyNet specification draft for the FILEREF
+              kludge.
+
+
+**********************************************************************
+END OF DOCUMENT
+**********************************************************************

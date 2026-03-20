@@ -59,6 +59,11 @@
             <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">{{ t('ui.binkp.queues_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="kept-packets-tab" data-bs-toggle="tab" data-bs-target="#kept-packets" type="button" role="tab"{% if license_valid %} onclick="onKeptPacketsTabOpen()"{% endif %}>
+                {{ t('ui.binkp.kept_packets_tab') }}{% if not license_valid %} <i class="fas fa-lock ms-1 text-warning small"></i>{% endif %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">{{ t('ui.binkp.logs_tab') }}</button>
         </li>
     </ul>
@@ -158,29 +163,158 @@
             </div>
         </div>
 
+        <!-- Kept Packets Tab -->
+        <div class="tab-pane fade" id="kept-packets" role="tabpanel">
+            {% if license_valid %}
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary active" id="keptInboundBtn" onclick="switchKeptType('inbound')">
+                        <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="keptOutboundBtn" onclick="switchKeptType('outbound')">
+                        <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
+                    </button>
+                </div>
+            </div>
+            <div id="kept-packets-content">
+                <div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>{{ t('ui.common.loading') }}</div>
+            </div>
+            {% else %}
+            <div style="position:relative;">
+                <!-- Blurred placeholder content -->
+                <div style="filter:blur(4px); pointer-events:none; user-select:none; opacity:0.6;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary active" disabled>
+                                <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" disabled>
+                                <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="accordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" disabled>
+                                    <strong>Mar-18-2026</strong><span class="badge bg-secondary ms-2">12</span>
+                                </button>
+                            </h2>
+                            <div class="accordion-collapse collapse show">
+                                <div class="accordion-body p-0">
+                                    <table class="table table-sm mb-0">
+                                        <thead><tr><th>Filename</th><th>From</th><th>To</th><th>Messages</th><th>Size</th><th>Date</th></tr></thead>
+                                        <tbody>
+                                            <tr><td><code>69ba718d.pkt</code></td><td>1:1/100</td><td>1:2/200</td><td>3</td><td>4.2 KB</td><td>2026-03-18 09:15:00</td></tr>
+                                            <tr><td><code>69ba93c4.pkt</code></td><td>1:1/100</td><td>1:3/300</td><td>7</td><td>8.1 KB</td><td>2026-03-18 09:22:00</td></tr>
+                                            <tr><td><code>69bab14d.pkt</code></td><td>1:2/200</td><td>1:1/100</td><td>1</td><td>1.9 KB</td><td>2026-03-18 09:30:00</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Lock overlay -->
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.75rem;">
+                    <i class="fas fa-lock fa-3x text-warning"></i>
+                    <h5 class="mb-0">{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                    <p class="text-muted mb-0">{{ t('ui.binkp.kept_packets_locked') }}</p>
+                    <a href="/admin/licensing" class="btn btn-warning btn-sm mt-1">
+                        <i class="fas fa-key me-1"></i>{{ t('ui.binkp.kept_packets_register') }}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
         <!-- Logs Tab -->
         <div class="tab-pane fade" id="logs" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>{{ t('ui.binkp.logs_heading') }}</h5>
-                <div>
-                    <select class="form-select form-select-sm d-inline-block w-auto" id="logLines">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="input-group input-group-sm" style="width: 220px;">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="logSearch" placeholder="{{ t('ui.common.search') }}" oninput="filterLogs()">
+                        <button class="btn btn-outline-secondary" type="button" id="logSearchClear" onclick="clearLogSearch()" style="display:none;" title="{{ t('ui.common.clear_search') }}"><i class="fas fa-times"></i></button>
+                    </div>
+                    <small class="text-muted" id="logMatchCount" style="display:none;"></small>
+                    <select class="form-select form-select-sm w-auto" id="logLines">
                         <option value="50">{{ t('ui.binkp.lines_option', {'count': 50}) }}</option>
                         <option value="100" selected>{{ t('ui.binkp.lines_option', {'count': 100}) }}</option>
                         <option value="200">{{ t('ui.binkp.lines_option', {'count': 200}) }}</option>
                         <option value="500">{{ t('ui.binkp.lines_option', {'count': 500}) }}</option>
                     </select>
-                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="refreshLogs()">
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshLogs()">
                         <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
                     </button>
                 </div>
             </div>
             <div class="card">
-                <div class="card-body">
-                    <pre id="log-content" style="height: 400px; overflow-y: auto; padding: 10px;">{{ t('ui.binkp.loading_logs') }}</pre>
+                <div class="card-body p-0">
+                    <pre id="log-content" style="height: 400px; overflow-y: auto; margin: 0; padding: 10px; font-size: 0.8em;"></pre>
+                </div>
+            </div>
+
+            <!-- Advanced Log Search -->
+            <div class="mt-3">
+                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleAdvancedLogSearch()">
+                    <i class="fas fa-search-plus"></i> {{ t('ui.binkp.advanced_log_search') }}
+                </button>
+            </div>
+            <div id="logAdvancedSearchPanel" style="display:none;" class="mt-2">
+                <div class="card border-secondary">
+                    <div class="card-header py-2 d-flex align-items-center gap-2">
+                        <i class="fas fa-search"></i>
+                        <strong>{{ t('ui.binkp.advanced_log_search') }}</strong>
+                        <small class="text-muted ms-auto" id="logSearchSummary"></small>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-2">{{ t('ui.binkp.advanced_log_search_help') }}</p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="logAdvancedQuery"
+                                   placeholder="{{ t('ui.binkp.advanced_log_search_placeholder') }}"
+                                   onkeydown="if(event.key==='Enter') runAdvancedLogSearch()">
+                            <button class="btn btn-primary" type="button" id="logAdvancedSearchBtn" onclick="runAdvancedLogSearch()">
+                                <i class="fas fa-search"></i> {{ t('ui.common.search') }}
+                            </button>
+                        </div>
+                        <div id="logAdvancedResults" style="display:none;">
+                            <small class="d-block mb-1">
+                                <span>{{ t('ui.binkp.log_search_legend_match') }}</span>
+                                &nbsp;·&nbsp;
+                                <span style="opacity:0.45;">{{ t('ui.binkp.log_search_legend_context') }}</span>
+                            </small>
+                            <pre id="log-search-content" style="height: 500px; overflow-y: auto; margin: 0; padding: 10px; font-size: 0.8em;"></pre>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- Packet Inspector Modal -->
+<div class="modal fade" id="packetInspectorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-code me-2"></i><span id="pktModalTitle"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="pktModalBody">
+                <div class="text-center py-4"><span class="spinner-border"></span></div>
+            </div>
+            <div class="modal-footer">
+                <a id="pktDownloadBtn" class="btn btn-outline-primary" href="#">
+                    <i class="fas fa-download me-1"></i>{{ t('ui.files.download') }}
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -440,16 +574,320 @@ function updateOutboundFiles(data) {
     container.innerHTML = html;
 }
 
+let _logLines = [];
+
 function refreshLogs() {
     const lines = document.getElementById('logLines').value;
     fetch(`/api/binkp/logs?lines=${lines}`)
         .then(response => response.json())
         .then(data => {
-            const logContent = document.getElementById('log-content');
-            logContent.textContent = data.logs.join('\n');
-            logContent.scrollTop = logContent.scrollHeight;
+            _logLines = data.logs || [];
+            filterLogs();
         })
         .catch(error => console.error('Error fetching logs:', error));
+}
+
+function filterLogs() {
+    const query = document.getElementById('logSearch').value.trim();
+    const logContent = document.getElementById('log-content');
+    const matchCount = document.getElementById('logMatchCount');
+    const clearBtn = document.getElementById('logSearchClear');
+
+    if (!query) {
+        logContent.textContent = _logLines.join('\n');
+        logContent.scrollTop = logContent.scrollHeight;
+        matchCount.style.display = 'none';
+        clearBtn.style.display = 'none';
+        return;
+    }
+
+    clearBtn.style.display = '';
+
+    // Case-insensitive filter + highlight
+    const lowerQuery = query.toLowerCase();
+    const matched = _logLines.filter(line => line.toLowerCase().includes(lowerQuery));
+
+    // Build highlighted HTML
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(${escaped})`, 'gi');
+    logContent.innerHTML = matched
+        .map(line => line
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(re, '<mark>$1</mark>')
+        )
+        .join('\n');
+
+    matchCount.textContent = window.t('ui.binkp.log_matches', {count: matched.length, total: _logLines.length}, `${matched.length} / ${_logLines.length} lines`);
+    matchCount.style.display = '';
+    logContent.scrollTop = 0;
+}
+
+function clearLogSearch() {
+    document.getElementById('logSearch').value = '';
+    filterLogs();
+}
+
+// ── Kept Packets ─────────────────────────────────────────────────────────────
+
+let _keptType = 'inbound';
+let _keptLoaded = { inbound: false, outbound: false };
+
+function onKeptPacketsTabOpen() {
+    if (!_keptLoaded[_keptType]) {
+        loadKeptPackets(_keptType);
+    }
+}
+
+function switchKeptType(type) {
+    _keptType = type;
+    document.getElementById('keptInboundBtn').classList.toggle('active', type === 'inbound');
+    document.getElementById('keptOutboundBtn').classList.toggle('active', type === 'outbound');
+    if (!_keptLoaded[type]) {
+        loadKeptPackets(type);
+    } else {
+        // Already loaded — just re-render from cache
+        renderKeptPackets(type, window._keptData[type]);
+    }
+}
+
+window._keptData = { inbound: null, outbound: null };
+
+function loadKeptPackets(type) {
+    const container = document.getElementById('kept-packets-content');
+    container.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>' + window.t('ui.common.loading', {}, 'Loading...') + '</div>';
+
+    fetch(`/api/binkp/kept-packets?type=${type}`)
+        .then(r => r.json())
+        .then(data => {
+            _keptLoaded[type] = true;
+            window._keptData[type] = data;
+            renderKeptPackets(type, data);
+        })
+        .catch(err => {
+            container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function renderKeptPackets(type, data) {
+    const container = document.getElementById('kept-packets-content');
+
+    if (!data || !data.success) {
+        container.innerHTML = `<div class="alert alert-warning">${data?.error || 'Failed to load.'}</div>`;
+        return;
+    }
+
+    if (!data.groups || !data.groups.length) {
+        container.innerHTML = `<p class="text-muted">${window.t('ui.binkp.kept_packets_empty', {}, 'No kept packets found.')}</p>`;
+        return;
+    }
+
+    const totalLabel = window.t('ui.binkp.kept_packets_total', { count: data.total }, `${data.total} packet(s)`);
+
+    let html = `<p class="text-muted small mb-3">${totalLabel}</p><div class="accordion" id="keptAccordion">`;
+
+    data.groups.forEach((group, gi) => {
+        const groupId   = `keptGroup${gi}`;
+        const collapseId = `keptCollapse${gi}`;
+        const dateLabel  = group.date || '—';
+        const count      = group.packets.length;
+
+        html += `
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="${groupId}">
+                <button class="accordion-button${gi > 0 ? ' collapsed' : ''}" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#${collapseId}"
+                        aria-expanded="${gi === 0 ? 'true' : 'false'}" aria-controls="${collapseId}">
+                    <strong>${dateLabel}</strong>
+                    <span class="badge bg-secondary ms-2">${count}</span>
+                </button>
+            </h2>
+            <div id="${collapseId}" class="accordion-collapse collapse${gi === 0 ? ' show' : ''}" data-bs-parent="#keptAccordion">
+                <div class="accordion-body p-0">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead><tr>
+                            <th>{{ t('ui.common.filename') }}</th>
+                            <th>{{ t('ui.binkp.from_address') }}</th>
+                            <th>{{ t('ui.binkp.to_address') }}</th>
+                            <th>{{ t('ui.binkp.message_count') }}</th>
+                            <th>{{ t('ui.common.size') }}</th>
+                            <th>{{ t('ui.common.date') }}</th>
+                        </tr></thead>
+                        <tbody>`;
+
+        group.packets.forEach(pkt => {
+            const size = pkt.size < 1024 ? pkt.size + ' B'
+                       : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
+                       : (pkt.size / 1048576).toFixed(2) + ' MB';
+            const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
+            const escDate = encodeURIComponent(group.date);
+            const escFile = encodeURIComponent(pkt.filename);
+            html += `<tr>
+                <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
+                <td>${pkt.orig_address}</td>
+                <td>${pkt.dest_address}</td>
+                <td>${msgs}</td>
+                <td>${size}</td>
+                <td><small class="text-muted">${pkt.modified}</small></td>
+            </tr>`;
+        });
+
+        html += `</tbody></table></div></div></div>`;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function openPacketInspector(type, date, filename) {
+    document.getElementById('pktModalTitle').textContent = decodeURIComponent(filename);
+    document.getElementById('pktModalBody').innerHTML =
+        '<div class="text-center py-4"><span class="spinner-border"></span></div>';
+    document.getElementById('pktDownloadBtn').href =
+        `/api/binkp/kept-packets/download?type=${type}&date=${date}&filename=${filename}`;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('packetInspectorModal'));
+    modal.show();
+
+    fetch(`/api/binkp/kept-packets/inspect?type=${type}&date=${date}&filename=${filename}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('pktModalBody').innerHTML =
+                    `<div class="alert alert-danger">${data.error || 'Failed to load packet.'}</div>`;
+                return;
+            }
+            renderPacketInspector(data);
+        })
+        .catch(err => {
+            document.getElementById('pktModalBody').innerHTML =
+                `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function renderPacketInspector(data) {
+    const p = data.packet;
+    const sizeKb = p.file_size < 1024 ? p.file_size + ' B'
+                 : p.file_size < 1048576 ? (p.file_size / 1024).toFixed(1) + ' KB'
+                 : (p.file_size / 1048576).toFixed(2) + ' MB';
+
+    let html = `
+    <h6 class="text-muted mb-3">{{ t('ui.binkp.pkt_header') }}</h6>
+    <table class="table table-sm table-bordered mb-4">
+        <tbody>
+            <tr><th style="width:35%">{{ t('ui.binkp.from_address') }}</th><td><code>${p.orig_address}</code></td></tr>
+            <tr><th>{{ t('ui.binkp.to_address') }}</th><td><code>${p.dest_address}</code></td></tr>
+            <tr><th>{{ t('ui.common.date') }}</th><td>${p.created}</td></tr>
+            <tr><th>{{ t('ui.common.size') }}</th><td>${sizeKb}</td></tr>
+            <tr><th>{{ t('ui.binkp.pkt_version') }}</th><td>${p.packet_version}</td></tr>
+            <tr><th>{{ t('ui.binkp.pkt_product') }}</th><td>${p.product_code}</td></tr>
+            <tr><th>{{ t('ui.binkp.pkt_password') }}</th><td>${p.has_password ? '<span class="badge bg-warning text-dark">{{ t("ui.binkp.pkt_password_set") }}</span>' : '<span class="text-muted">{{ t("ui.binkp.pkt_no_password") }}</span>'}</td></tr>
+        </tbody>
+    </table>`;
+
+    if (!data.messages || !data.messages.length) {
+        html += `<p class="text-muted">{{ t('ui.binkp.pkt_no_messages') }}</p>`;
+    } else {
+        html += `<h6 class="text-muted mb-2">{{ t('ui.binkp.pkt_messages') }} <span class="badge bg-secondary">${data.messages.length}</span></h6>
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr>
+                <th>#</th>
+                <th>{{ t('ui.binkp.pkt_from') }}</th>
+                <th>{{ t('ui.binkp.pkt_to') }}</th>
+                <th>{{ t('ui.binkp.pkt_subject') }}</th>
+                <th>{{ t('ui.common.date') }}</th>
+                <th>{{ t('ui.binkp.pkt_flags') }}</th>
+            </tr></thead>
+            <tbody>`;
+
+        data.messages.forEach((msg, i) => {
+            const flags = msg.flags.length
+                ? msg.flags.map(f => `<span class="badge bg-secondary me-1">${f}</span>`).join('')
+                : '—';
+            const addrInfo = (msg.orig_addr !== '0:0' ? `<br><small class="text-muted">${msg.orig_addr} → ${msg.dest_addr}</small>` : '');
+            html += `<tr>
+                <td class="text-muted">${i + 1}</td>
+                <td>${msg.from}${addrInfo}</td>
+                <td>${msg.to}</td>
+                <td>${msg.subject || '<span class="text-muted">—</span>'}</td>
+                <td><small class="text-muted">${msg.date}</small></td>
+                <td>${flags}</td>
+            </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+    }
+
+    document.getElementById('pktModalBody').innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toggleAdvancedLogSearch() {
+    const panel = document.getElementById('logAdvancedSearchPanel');
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? '' : 'none';
+    if (isHidden) {
+        document.getElementById('logAdvancedQuery').focus();
+    }
+}
+
+function runAdvancedLogSearch() {
+    const q = document.getElementById('logAdvancedQuery').value.trim();
+    if (q.length < 2) return;
+
+    const btn         = document.getElementById('logAdvancedSearchBtn');
+    const resultsDiv  = document.getElementById('logAdvancedResults');
+    const content     = document.getElementById('log-search-content');
+    const summary     = document.getElementById('logSearchSummary');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    resultsDiv.style.display = '';
+    content.textContent = '';
+    summary.textContent = '';
+
+    fetch(`/api/binkp/logs/search?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search"></i> ' + window.t('ui.common.search', {}, 'Search');
+
+            if (!data.success) {
+                content.textContent = data.error || 'Search failed.';
+                return;
+            }
+            if (!data.lines || !data.lines.length) {
+                content.textContent = window.t('ui.binkp.log_search_no_results', {}, 'No results found.');
+                summary.textContent = '';
+                return;
+            }
+
+            summary.textContent = window.t('ui.binkp.log_search_summary',
+                {matches: data.match_count, sessions: data.pid_count},
+                `${data.match_count} matches across ${data.pid_count} session(s)`);
+
+            // Build highlighted HTML — match lines normal weight, context lines muted
+            const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const re = new RegExp(`(${escaped})`, 'gi');
+
+            content.innerHTML = data.lines.map(item => {
+                const safe = item.line
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(re, '<mark>$1</mark>');
+                if (item.is_match) {
+                    return `<span style="display:block;">${safe}</span>`;
+                }
+                return `<span style="display:block;opacity:0.55;">${safe}</span>`;
+            }).join('');
+
+            content.scrollTop = 0;
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search"></i> ' + window.t('ui.common.search', {}, 'Search');
+            content.textContent = 'Error: ' + err.message;
+        });
 }
 
 

@@ -151,25 +151,6 @@ class AdminDaemonClient
         return $this->sendCommand('save_taglines', ['text' => $text]);
     }
 
-    public function listAds(): array
-    {
-        return $this->sendCommand('list_ads');
-    }
-
-    public function uploadAd(string $contentBase64, string $name = '', string $originalName = ''): array
-    {
-        return $this->sendCommand('upload_ad', [
-            'content_base64' => $contentBase64,
-            'name' => $name,
-            'original_name' => $originalName
-        ]);
-    }
-
-    public function deleteAd(string $name): array
-    {
-        return $this->sendCommand('delete_ad', ['name' => $name]);
-    }
-
     public function listCustomTemplates(): array
     {
         return $this->sendCommand('list_custom_templates');
@@ -245,6 +226,16 @@ class AdminDaemonClient
         return $this->sendCommand('set_house_rules', ['text' => $text]);
     }
 
+    public function setLoginSplash(string $text): array
+    {
+        return $this->sendCommand('set_login_splash', ['text' => $text]);
+    }
+
+    public function setRegisterSplash(string $text): array
+    {
+        return $this->sendCommand('set_register_splash', ['text' => $text]);
+    }
+
     public function listShellArt(): array
     {
         return $this->sendCommand('list_shell_art');
@@ -262,6 +253,24 @@ class AdminDaemonClient
     public function deleteShellArt(string $name): array
     {
         return $this->sendCommand('delete_shell_art', ['name' => $name]);
+    }
+
+    /**
+     * Write a license payload to data/license.json via the daemon.
+     *
+     * @param array<string,mixed> $licenseData Already-validated license array with 'payload' and 'signature' keys.
+     */
+    public function setLicense(array $licenseData): array
+    {
+        return $this->sendCommand('set_license', ['license' => $licenseData]);
+    }
+
+    /**
+     * Remove data/license.json via the daemon, reverting to Community Edition.
+     */
+    public function deleteLicense(): array
+    {
+        return $this->sendCommand('delete_license');
     }
 
     public function stopServices(): array
@@ -351,6 +360,27 @@ class AdminDaemonClient
         return $this->sendCommand('run_echomail_robot', ['robot_id' => $robotId]);
     }
 
+    /**
+     * Trigger a re-index of an ISO-backed file area.
+     *
+     * @param int $areaId File area ID
+     * @return array Daemon response
+     */
+    public function reindexIso(int $areaId): array
+    {
+        return $this->sendCommand('reindex_iso', ['area_id' => $areaId]);
+    }
+
+    /**
+     * Re-hatch a single file by running file_hatch.php via the admin daemon.
+     *
+     * @param  int $fileId The files.id to re-hatch
+     * @return array{ok:bool, result?:array, error?:string}
+     */
+    public function rehatchFile(int $fileId): array
+    {
+        return $this->sendCommand('rehatch_file', ['file_id' => $fileId]);
+    }
 
     public function close(): void
     {

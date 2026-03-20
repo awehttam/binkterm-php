@@ -42,7 +42,7 @@ class MessageHandler
         return self::ECHOMAIL_DATE_FIELD_DEFAULT;
     }
 
-    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
+    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
         if (!$user) {
@@ -57,7 +57,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedNetmail($userId, $page, $limit, $filter);
+            return $this->getThreadedNetmail($userId, $page, $limit, $filter, $sort);
         }
 
         // Get system's configured FidoNet addresses
@@ -119,6 +119,14 @@ class MessageHandler
         $params[] = $user['username'];
         $params[] = $user['real_name'];
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "n.date_received ASC",
+            'subject'  => "n.subject ASC",
+            'author'   => "n.from_name ASC",
+            default    => "CASE WHEN n.date_received > NOW() THEN 0 ELSE 1 END, n.date_received DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
@@ -128,10 +136,7 @@ class MessageHandler
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
-            ORDER BY CASE
-                WHEN n.date_received > NOW() THEN 0
-                ELSE 1
-            END, n.date_received DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
         
@@ -297,6 +302,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -342,6 +348,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -495,6 +502,7 @@ class MessageHandler
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
                    em.message_id, em.reply_to_id,
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                   COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -600,7 +608,8 @@ class MessageHandler
         }
 
         if ($type === 'netmail') {
-            // For netmail, user can access messages they sent OR received (must match name AND to_address must be one of our addresses)
+            // Use the same visibility rules as getNetmail('all') so any message shown
+            // in the inbox is also retrievable by the single-message API.
             if (!$user) {
                 return null;
             }
@@ -609,7 +618,13 @@ class MessageHandler
             try {
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 $myAddresses = $binkpConfig->getMyAddresses();
-                $myAddresses[] = $binkpConfig->getSystemAddress();
+                $systemAddress = $binkpConfig->getSystemAddress();
+                if ($systemAddress !== '') {
+                    $myAddresses[] = $systemAddress;
+                }
+                $myAddresses = array_values(array_unique(array_filter($myAddresses, static function ($value) {
+                    return trim((string)$value) !== '';
+                })));
             } catch (\Exception $e) {
                 $myAddresses = [];
             }
@@ -617,27 +632,30 @@ class MessageHandler
             if (!empty($myAddresses)) {
                 $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail
-                    WHERE id = ? AND (
-                        user_id = ?
-                        OR ((LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)) AND to_address IN ($addressPlaceholders))
-                        OR ((LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addressPlaceholders))
-                    )
+                    SELECT * FROM netmail n
+                    WHERE n.id = ?
+                      AND (
+                        n.user_id = ?
+                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                      )
+                      AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                               ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
                 ");
                 $params = [$messageId, $userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
-                // Add from_name parameters
+                $params[] = $userId;
                 $params[] = $user['username'];
                 $params[] = $user['real_name'];
-                // Add from_address parameters (reuse myAddresses)
-                $params = array_merge($params, $myAddresses);
                 $stmt->execute($params);
             } else {
-                // Fallback if no addresses configured - check user_id or from_name
+                // Fallback if no addresses are configured - mirror the inbox fallback.
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail WHERE id = ? AND (user_id = ? OR LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))
+                    SELECT * FROM netmail n
+                    WHERE n.id = ?
+                      AND n.user_id = ?
+                      AND n.deleted_by_sender = FALSE
                 ");
-                $stmt->execute([$messageId, $userId, $user['username'], $user['real_name']]);
+                $stmt->execute([$messageId, $userId]);
             }
         } else {
             // Echomail is public, so no user restriction needed
@@ -691,8 +709,15 @@ class MessageHandler
                 }
             }
 
+            // Add system names from nodelist for address tooltips
+            $message['from_system_name'] = $this->lookupSystemName($message['from_address'] ?? null);
+            if ($type === 'netmail') {
+                $message['to_system_name'] = $this->lookupSystemName($message['to_address'] ?? null);
+            }
+
             $message = $this->appendRawMessagePayload($message, $rawMessageBytes, $rawMessageCharset, $rawArtFormat);
             $message = $this->appendMarkdownRendering($message);
+            $message = $this->appendRipRendering($message);
         }
 
         return $message;
@@ -825,8 +850,8 @@ class MessageHandler
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq)
-            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status)
         ");
 
         $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
@@ -843,6 +868,7 @@ class MessageHandler
         $stmt->bindValue(':message_id', $msgId);
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
+        $stmt->bindValue(':freq_status', $isFreq ? 'pending' : null, $isFreq ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
 
         $result = $stmt->execute();
 
@@ -850,6 +876,7 @@ class MessageHandler
             $messageId = $this->db->lastInsertId();
 
             // Store attachment path and set FILE_ATTACH attribute when a file is attached
+            $recipientUser = null;
             if ($attachment !== null) {
                 if ($toAddress === $originAddress) {
                     // Local delivery: store directly into the recipient's private file area.
@@ -879,6 +906,17 @@ class MessageHandler
                     }
 
                     if ($recipientUser) {
+                        // Make a copy for the sender before moving the file to the recipient's area.
+                        $senderCopyPath = null;
+                        $senderIsDifferent = (int)$recipientUser['id'] !== (int)$fromUserId;
+                        if ($senderIsDifferent) {
+                            $senderCopyPath = $attachment['file_path'] . '.sendercopy';
+                            if (!copy($attachment['file_path'], $senderCopyPath)) {
+                                error_log("[NETMAIL] Failed to copy attachment for sender copy on message {$messageId}; sender will not have a copy.");
+                                $senderCopyPath = null;
+                            }
+                        }
+
                         try {
                             $fileAreaManager = new \BinktermPHP\FileAreaManager();
                             $fileAreaManager->storeNetmailAttachment(
@@ -891,6 +929,27 @@ class MessageHandler
                         } catch (\Exception $e) {
                             error_log("[NETMAIL] Failed to store local attachment for message {$messageId}: " . $e->getMessage());
                             @unlink($attachment['file_path']);
+                            @unlink($senderCopyPath);
+                            $senderCopyPath = null;
+                        }
+
+                        // Store a copy in the sender's private area
+                        if ($senderCopyPath !== null) {
+                            try {
+                                $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                                $fileAreaManager->storeNetmailAttachment(
+                                    (int)$fromUserId,
+                                    $senderCopyPath,
+                                    $attachment['filename'],
+                                    $messageId,
+                                    $originAddress,
+                                    'netmail_sent',
+                                    "Sent to {$toName}"
+                                );
+                            } catch (\Exception $e) {
+                                error_log("[NETMAIL] Failed to store sender copy for message {$messageId}: " . $e->getMessage());
+                                @unlink($senderCopyPath);
+                            }
                         }
                     } else {
                         error_log("[NETMAIL] Could not find recipient '{$toName}' for local attachment on message {$messageId}; file dropped.");
@@ -906,6 +965,46 @@ class MessageHandler
                         WHERE id = ?
                     ");
                     $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+                }
+            }
+
+            // Forward to recipient's email if they have forwarding enabled and this is local delivery.
+            // For local delivery the recipient is different from the sender.
+            if ($toAddress === $originAddress) {
+                // If $recipientUser was not resolved during attachment handling (no attachment),
+                // look it up now so the email forwarding hook has a user ID to work with.
+                if ($recipientUser === null) {
+                    $fwdRecipStmt = $this->db->prepare("
+                        SELECT id FROM users
+                        WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $fwdRecipStmt->execute([$toName, $toName]);
+                    $recipientUser = $fwdRecipStmt->fetch() ?: null;
+                }
+
+                if (isset($recipientUser['id']) && (int)$recipientUser['id'] !== (int)$fromUserId) {
+                    // Gather attachment paths from the files table for this message
+                    $fwdAttachments = [];
+                    if ($attachment !== null) {
+                        $attStmt = $this->db->prepare(
+                            "SELECT storage_path, filename FROM files WHERE message_id = ? AND message_type = 'netmail' AND owner_id = ? AND subfolder = 'attachments' LIMIT 5"
+                        );
+                        $attStmt->execute([$messageId, (int)$recipientUser['id']]);
+                        foreach ($attStmt->fetchAll() as $row) {
+                            if (!empty($row['storage_path']) && file_exists($row['storage_path'])) {
+                                $fwdAttachments[] = ['path' => $row['storage_path'], 'filename' => $row['filename']];
+                            }
+                        }
+                    }
+                    \BinktermPHP\Mail::maybeForwardNetmail(
+                        (int)$recipientUser['id'],
+                        $senderName,
+                        $originAddress,
+                        $subject,
+                        $finalMessageText,
+                        $fwdAttachments
+                    );
                 }
             }
 
@@ -989,6 +1088,9 @@ class MessageHandler
         $senderUser = $this->getUserById($fromUserId);
         $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
 
+        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $storage = $this->prepareLocalMessageStorage($finalMessageText);
+
         // Generate kludges for this local netmail
         $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId, null, $markupType);
 
@@ -1059,7 +1161,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '')
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1107,7 +1209,7 @@ class MessageHandler
             $markupAllowed = null;
         }
 
-        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain);
+        $kludgeLines = $prependKludges . $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -1264,26 +1366,117 @@ class MessageHandler
         return $stmt->fetchAll();
     }
 
-    public function searchMessages($query, $type = null, $echoarea = null, $userId = null)
+    /**
+     * Build a SQL WHERE fragment for text-based message searches.
+     * Returns [null, []] when no text search terms are present (date-only searches).
+     *
+     * @param string $query General search query used when $searchParams has no text fields
+     * @param array $searchParams Field-specific params: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
+     * @param string $tableAlias Table alias prefix, e.g. 'em.' or ''
+     * @return array [string|null $whereFragment, array $bindParams]
+     */
+    private function buildSearchWhereFragment($query, $searchParams, $tableAlias = '')
     {
-        $searchTerm = '%' . $query . '%';
+        $conditions = [];
+        $params = [];
 
+        $hasFieldSearch = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+
+        if ($hasFieldSearch) {
+            if (!empty($searchParams['from_name'])) {
+                $conditions[] = $tableAlias . 'from_name ILIKE ?';
+                $params[] = '%' . $searchParams['from_name'] . '%';
+            }
+            if (!empty($searchParams['subject'])) {
+                $conditions[] = $tableAlias . 'subject ILIKE ?';
+                $params[] = '%' . $searchParams['subject'] . '%';
+            }
+            if (!empty($searchParams['body'])) {
+                $conditions[] = $tableAlias . 'message_text ILIKE ?';
+                $params[] = '%' . $searchParams['body'] . '%';
+            }
+            return ['(' . implode(' AND ', $conditions) . ')', $params];
+        }
+
+        if ($query !== '') {
+            $searchTerm = '%' . $query . '%';
+            return [
+                '(' . $tableAlias . 'subject ILIKE ? OR ' . $tableAlias . 'message_text ILIKE ? OR ' . $tableAlias . 'from_name ILIKE ?)',
+                [$searchTerm, $searchTerm, $searchTerm]
+            ];
+        }
+
+        // No text search terms — caller handles date-only searches
+        return [null, []];
+    }
+
+    /**
+     * Build SQL conditions for date range filtering.
+     * Date arithmetic is done in PHP to avoid PDO/pgsql issues with ?::cast syntax.
+     *
+     * @param array $searchParams Keys 'date_from' and/or 'date_to' (YYYY-MM-DD strings)
+     * @param string $dateColumn Fully-qualified column name, e.g. 'em.date_received'
+     * @return array [array $conditions, array $bindParams]
+     */
+    private function buildDateRangeConditions($searchParams, $dateColumn)
+    {
+        $conditions = [];
+        $params = [];
+
+        if (!empty($searchParams['date_from'])) {
+            $conditions[] = "{$dateColumn} >= ?";
+            $params[] = $searchParams['date_from'] . ' 00:00:00';
+        }
+        if (!empty($searchParams['date_to'])) {
+            // Advance by one day so the range is inclusive of the end date
+            $dateTo = new \DateTime($searchParams['date_to']);
+            $dateTo->modify('+1 day');
+            $conditions[] = "{$dateColumn} < ?";
+            $params[] = $dateTo->format('Y-m-d') . ' 00:00:00';
+        }
+
+        return [$conditions, $params];
+    }
+
+    /**
+     * Search messages by query or field-specific parameters.
+     *
+     * @param string $query General search query (used when $searchParams is empty)
+     * @param string|null $type 'echomail' or 'netmail'
+     * @param string|null $echoarea Echo area tag to restrict search
+     * @param int|null $userId User ID for permission checking
+     * @param array $searchParams Field-specific search: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
+     * @return array
+     */
+    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [])
+    {
         if ($type === 'netmail') {
             if ($userId === null) {
                 // If no user ID provided, return empty results for privacy
                 return [];
             }
-            $stmt = $this->db->prepare("
-                SELECT * FROM netmail
-                WHERE (subject ILIKE ? OR message_text ILIKE ? OR from_name ILIKE ?)
-                AND user_id = ?
-                ORDER BY CASE
-                    WHEN date_received > NOW() THEN 0
-                    ELSE 1
-                END, date_received DESC
-                LIMIT 50
-            ");
-            $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
+            [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, '');
+            [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, 'date_received');
+
+            $sql = "SELECT id, from_name, from_address, to_name, to_address,
+                           subject, date_received, date_written, message_id, reply_to_id,
+                           art_format, message_charset, user_id,
+                           deleted_by_sender, deleted_by_recipient
+                    FROM netmail WHERE user_id = ?";
+            $params = [$userId];
+
+            if ($whereFragment !== null) {
+                $sql .= " AND {$whereFragment}";
+                $params = array_merge($params, $searchBindParams);
+            }
+            foreach ($dateConditions as $cond) {
+                $sql .= " AND {$cond}";
+            }
+            $params = array_merge($params, $dateParams);
+
+            $sql .= " ORDER BY CASE WHEN date_received > NOW() THEN 0 ELSE 1 END, date_received DESC LIMIT 50";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
         } else {
             $dateField = $this->getEchomailDateField();
             $isAdmin = false;
@@ -1291,14 +1484,30 @@ class MessageHandler
                 $user = $this->getUserById($userId);
                 $isAdmin = $user && !empty($user['is_admin']);
             }
+            [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
+            [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
+
             $sql = "
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
-                WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
+                WHERE 1=1
             ";
+            $params = [];
 
-            $params = [$searchTerm, $searchTerm, $searchTerm];
+            if ($whereFragment !== null) {
+                $sql .= " AND {$whereFragment}";
+                $params = array_merge($params, $searchBindParams);
+            }
+            foreach ($dateConditions as $cond) {
+                $sql .= " AND {$cond}";
+            }
+            $params = array_merge($params, $dateParams);
+
             if (!$isAdmin) {
                 $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
             }
@@ -1308,7 +1517,7 @@ class MessageHandler
                 $params[] = $echoarea;
             }
 
-            $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC";
+            $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC LIMIT 200";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
@@ -1323,12 +1532,11 @@ class MessageHandler
      * @param string $query The search query
      * @param string|null $echoarea Optional specific echo area to search within
      * @param int|null $userId User ID for permission checking
+     * @param array $searchParams Field-specific search: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
      * @return array Array with filter counts
      */
-    public function getSearchFilterCounts($query, $echoarea = null, $userId = null)
+    public function getSearchFilterCounts($query, $echoarea = null, $userId = null, $searchParams = [])
     {
-        $searchTerm = '%' . $query . '%';
-
         $isAdmin = false;
         $userRealName = null;
         if ($userId) {
@@ -1336,6 +1544,10 @@ class MessageHandler
             $isAdmin = $user && !empty($user['is_admin']);
             $userRealName = $user['real_name'] ?? null;
         }
+
+        $dateField = $this->getEchomailDateField();
+        [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
+        [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
 
         $sql = "
             SELECT
@@ -1352,11 +1564,19 @@ class MessageHandler
             LEFT JOIN saved_messages sm ON sm.message_id = em.id
                 AND sm.message_type = 'echomail'
                 AND sm.user_id = ?
-            WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
-                AND ea.is_active = TRUE
+            WHERE ea.is_active = TRUE
         ";
 
-        $params = [$userRealName, $userId, $userId, $searchTerm, $searchTerm, $searchTerm];
+        $params = [$userRealName, $userId, $userId];
+
+        if ($whereFragment !== null) {
+            $sql .= " AND {$whereFragment}";
+            $params = array_merge($params, $searchBindParams);
+        }
+        foreach ($dateConditions as $cond) {
+            $sql .= " AND {$cond}";
+        }
+        $params = array_merge($params, $dateParams);
 
         if (!$isAdmin) {
             $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
@@ -1388,17 +1608,34 @@ class MessageHandler
      * @param string $query The search query
      * @param string|null $echoarea Optional specific echo area to search within
      * @param int|null $userId User ID for permission checking
+     * @param array $searchParams Field-specific search: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
      * @return array Array of echo areas with their search result counts
      */
-    public function getSearchResultCounts($query, $echoarea = null, $userId = null)
+    public function getSearchResultCounts($query, $echoarea = null, $userId = null, $searchParams = [])
     {
-        $searchTerm = '%' . $query . '%';
-
         $isAdmin = false;
         if ($userId) {
             $user = $this->getUserById($userId);
             $isAdmin = $user && !empty($user['is_admin']);
         }
+
+        $dateField = $this->getEchomailDateField();
+        [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
+        [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
+
+        // Build the ON clause for the LEFT JOIN
+        $joinConditions = ['em.echoarea_id = ea.id'];
+        $params = [];
+        if ($whereFragment !== null) {
+            $joinConditions[] = $whereFragment;
+            $params = array_merge($params, $searchBindParams);
+        }
+        foreach ($dateConditions as $cond) {
+            $joinConditions[] = $cond;
+        }
+        $params = array_merge($params, $dateParams);
+
+        $joinClause = implode(' AND ', $joinConditions);
 
         $sql = "
             SELECT
@@ -1407,12 +1644,9 @@ class MessageHandler
                 ea.domain,
                 COUNT(em.id) as message_count
             FROM echoareas ea
-            LEFT JOIN echomail em ON em.echoarea_id = ea.id
-                AND (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
+            LEFT JOIN echomail em ON {$joinClause}
             WHERE ea.is_active = TRUE
         ";
-
-        $params = [$searchTerm, $searchTerm, $searchTerm];
 
         if (!$isAdmin) {
             $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
@@ -1429,6 +1663,60 @@ class MessageHandler
         $stmt->execute($params);
 
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Get filter counts (all, unread, read, tome, saved) for a specific set of message IDs.
+     * Much faster than re-running the full search query — used after searchMessages() returns results.
+     *
+     * @param array $messageIds Array of echomail IDs already fetched by searchMessages()
+     * @param int|null $userId
+     * @return array
+     */
+    public function getSearchFilterCountsByIds($messageIds, $userId)
+    {
+        if (empty($messageIds)) {
+            return ['all' => 0, 'unread' => 0, 'read' => 0, 'tome' => 0, 'saved' => 0, 'drafts' => 0];
+        }
+
+        $userRealName = null;
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $userRealName = $user['real_name'] ?? null;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+
+        $sql = "
+            SELECT
+                COUNT(*) as all_count,
+                COUNT(*) FILTER (WHERE mr.id IS NULL) as unread_count,
+                COUNT(*) FILTER (WHERE mr.id IS NOT NULL) as read_count,
+                COUNT(*) FILTER (WHERE em.to_name = ?) as tome_count,
+                COUNT(*) FILTER (WHERE sm.message_id IS NOT NULL) as saved_count
+            FROM echomail em
+            LEFT JOIN message_read_status mr ON mr.message_id = em.id
+                AND mr.message_type = 'echomail'
+                AND mr.user_id = ?
+            LEFT JOIN saved_messages sm ON sm.message_id = em.id
+                AND sm.message_type = 'echomail'
+                AND sm.user_id = ?
+            WHERE em.id IN ({$placeholders})
+        ";
+
+        $params = array_merge([$userRealName, $userId, $userId], $messageIds);
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+
+        return [
+            'all' => (int)$result['all_count'],
+            'unread' => (int)$result['unread_count'],
+            'read' => (int)$result['read_count'],
+            'tome' => (int)$result['tome_count'],
+            'saved' => (int)$result['saved_count'],
+            'drafts' => 0
+        ];
     }
 
     private function getUserById($userId)
@@ -1637,8 +1925,10 @@ class MessageHandler
             $binkdProcessor = new BinkdProcessor();
 
             // Set netmail attributes: PRIVATE always set; FILE_REQUEST (0x0800) for FREQs
+            // is_freq comes back from PostgreSQL as 't'/'f'; avoid !empty() which treats 'f' as truthy
             $message['attributes'] = 0x0001;
-            if (!empty($message['is_freq'])) {
+            $isFreqMsg = in_array($message['is_freq'], [true, 't', '1', 1, 'true'], true);
+            if ($isFreqMsg) {
                 $message['attributes'] |= 0x0800;
             }
 
@@ -1680,10 +1970,218 @@ class MessageHandler
             //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
-            // Log error but don't fail the message creation
             error_log("[SPOOL] Failed to spool netmail #{$messageId} (from=\"{$fromName}\" subject=\"{$subject}\"): " . $e->getMessage());
-            return false;
+            throw $e;
         }
+    }
+
+    /**
+     * Deliver a FREQ response file to a requesting node.
+     *
+     * Strategy:
+     *  1. If crashmail is enabled and the destination is directly resolvable,
+     *     queue a FILE_ATTACH crashmail (we connect to them).
+     *  2. Otherwise, write a FILE_ATTACH netmail packet + the file into a
+     *     per-node hold directory (data/outbound/hold/<address>/) so that
+     *     both sides can deliver it — either when they connect to us or when
+     *     we poll them. Also send a plain notification netmail via hub routing
+     *     telling them to connect and collect their files.
+     *
+     * Note: routed FILE_ATTACH netmail is intentionally avoided because hubs
+     * typically strip file attachments from forwarded messages.
+     *
+     * @param string $toAddress FTN address of the requesting node
+     * @param string $filePath  Absolute path to the staged file to deliver
+     * @param string $filename  Filename as presented to the recipient
+     * @throws \Exception on configuration or unrecoverable delivery failure
+     */
+    public function deliverFreqResponse(string $toAddress, string $filePath, string $filename): void
+    {
+        $binkpConfig   = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $sysopName     = $binkpConfig->getSystemSysop() ?: 'Sysop';
+        $originAddress = $binkpConfig->getOriginAddressByDestination($toAddress)
+                      ?: $binkpConfig->getSystemAddress();
+
+        if (!$originAddress) {
+            throw new \Exception("Cannot determine origin address for FREQ response to {$toAddress}");
+        }
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            throw new \Exception("FREQ response file not readable: {$filePath}");
+        }
+
+        // Try crashmail (direct delivery) first
+        if ($binkpConfig->getCrashmailEnabled()) {
+            $crashService = new \BinktermPHP\Crashmail\CrashmailService();
+            $routeInfo    = $crashService->resolveDestination($toAddress);
+            if (!empty($routeInfo['hostname'])) {
+                $netmailId = $this->insertFreqFileAttachNetmail(
+                    $originAddress, $toAddress, $sysopName, $filePath, $filename
+                );
+                $crashService->queueCrashmail($netmailId);
+                error_log("[FREQ] Response to {$toAddress} queued for crashmail: {$filename}");
+                return;
+            }
+        }
+
+        // Fallback: write FILE_ATTACH packet + file to per-node hold directory.
+        // Delivered when either side initiates a session with the requesting node.
+        $this->spoolFreqAttachToHold($originAddress, $toAddress, $sysopName, $filePath, $filename);
+        $this->sendFreqPickupNotification($originAddress, $toAddress, $sysopName, $filename);
+        error_log("[FREQ] Response to {$toAddress} staged in hold for pick-up: {$filename}");
+    }
+
+    /**
+     * Insert a FILE_ATTACH netmail record and return its ID.
+     * Used by both the crashmail and hold delivery paths.
+     */
+    private function insertFreqFileAttachNetmail(
+        string $originAddress,
+        string $toAddress,
+        string $sysopName,
+        string $filePath,
+        string $filename
+    ): int {
+        $attributes = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+
+        $kludgeLines = $this->generateNetmailKludges(
+            $originAddress, $toAddress, $sysopName, 'Sysop', $filename, null
+        );
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO netmail
+                (user_id, from_address, to_address, from_name, to_name, subject,
+                 message_text, message_charset, date_written, is_sent, message_id,
+                 kludge_lines, attributes, outbound_attachment_path, is_freq, freq_status)
+            VALUES
+                (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
+                 '', 'UTF-8', NOW(), FALSE, :message_id,
+                 :kludge_lines, :attributes, :attachment_path, FALSE, NULL)
+        ");
+        $stmt->execute([
+            ':from_address'    => $originAddress,
+            ':to_address'      => $toAddress,
+            ':from_name'       => $sysopName,
+            ':to_name'         => 'Sysop',
+            ':subject'         => $filename,
+            ':message_id'      => $msgId,
+            ':kludge_lines'    => $kludgeLines,
+            ':attributes'      => $attributes,
+            ':attachment_path' => $filePath,
+        ]);
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Write a FILE_ATTACH netmail packet and the attached file into a per-node
+     * hold directory (data/outbound/hold/<sanitized-address>/).
+     * BinkpSession::sendHoldFiles() delivers these when a session occurs with
+     * the destination node, regardless of which side initiated the connection.
+     */
+    private function spoolFreqAttachToHold(
+        string $originAddress,
+        string $toAddress,
+        string $sysopName,
+        string $filePath,
+        string $filename
+    ): void {
+        $holdDir = $this->getNodeHoldDir($toAddress);
+
+        // Insert the netmail record so it appears in the sender's sent items
+        $this->insertFreqFileAttachNetmail($originAddress, $toAddress, $sysopName, $filePath, $filename);
+
+        // Create the outbound packet in the hold directory
+        $packetPath = $holdDir . '/' . substr(uniqid(), -8) . '.pkt';
+        $message = [
+            'from_name'    => $sysopName,
+            'from_address' => $originAddress,
+            'to_name'      => 'Sysop',
+            'to_address'   => $toAddress,
+            'subject'      => $filename,
+            'message_text' => '',
+            'date_written' => date('D, d M Y H:i:s O'),
+            'attributes'   => \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                            | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                            | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL,
+            'kludge_lines' => '',
+        ];
+        $processor = new \BinktermPHP\BinkdProcessor();
+        $processor->createOutboundPacket([$message], $toAddress, $packetPath);
+
+        // Copy the attachment file to the hold directory so sendHoldFiles() can send both
+        $destFile = $holdDir . '/' . $filename;
+        if (!copy($filePath, $destFile)) {
+            throw new \RuntimeException("Failed to copy FREQ attachment to hold directory: {$destFile}");
+        }
+    }
+
+    /**
+     * Return (and create if needed) the per-node hold directory for a given FTN address.
+     * Address characters that are not alphanumeric are replaced with underscores.
+     */
+    private function getNodeHoldDir(string $address): string
+    {
+        $safe = preg_replace('/[^a-zA-Z0-9]/', '_', $address);
+        $dir  = \BinktermPHP\Config::BINKD_OUTBOUND . '/hold/' . $safe;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        return $dir;
+    }
+
+    /**
+     * Send a plain notification netmail (via hub routing) telling a node that
+     * their FREQ was fulfilled but requires a direct session to pick up the files.
+     */
+    private function sendFreqPickupNotification(
+        string $originAddress,
+        string $toAddress,
+        string $sysopName,
+        string $filename
+    ): void {
+        $subject = 'File Request Processed - Pick Up Required';
+        $body    = "Your file request for {$filename} has been processed.\n\n"
+                 . "The requested file(s) could not be delivered directly because your system\n"
+                 . "is not directly reachable from here. The file(s) are queued and waiting\n"
+                 . "for you to connect to us ({$originAddress}) to pick them up.\n\n"
+                 . "Please arrange a direct binkp session with {$originAddress} to collect\n"
+                 . "your files.\n\n"
+                 . "--- {$sysopName} @ {$originAddress}\n";
+
+        $kludgeLines = $this->generateNetmailKludges(
+            $originAddress, $toAddress, $sysopName, 'Sysop', $subject, null
+        );
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO netmail
+                (user_id, from_address, to_address, from_name, to_name, subject,
+                 message_text, message_charset, date_written, is_sent, message_id,
+                 kludge_lines, is_freq, freq_status)
+            VALUES
+                (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
+                 :message_text, 'UTF-8', NOW(), FALSE, :message_id,
+                 :kludge_lines, FALSE, NULL)
+        ");
+        $stmt->execute([
+            ':from_address'  => $originAddress,
+            ':to_address'    => $toAddress,
+            ':from_name'     => $sysopName,
+            ':to_name'       => 'Sysop',
+            ':subject'       => $subject,
+            ':message_text'  => $body,
+            ':message_id'    => $msgId,
+            ':kludge_lines'  => $kludgeLines,
+        ]);
+        $this->spoolOutboundNetmail((int)$this->db->lastInsertId());
     }
 
     private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
@@ -2029,10 +2527,13 @@ class MessageHandler
             'show_tearline' => 'BOOLEAN',
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
+            'remember_page_position' => 'BOOLEAN',
             'date_format' => 'STRING',
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
-            'default_tagline' => 'TAGLINE'
+            'default_tagline' => 'TAGLINE',
+            'forward_netmail_email' => 'BOOLEAN',
+            'echomail_digest' => 'DIGEST_FREQUENCY'
         ];
 
         $updates = [];
@@ -2084,6 +2585,10 @@ class MessageHandler
                     }
                     $params[] = $locale;
                     break;
+                case 'DIGEST_FREQUENCY':
+                    $freq = trim((string)$value);
+                    $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
+                    break;
                 default:
                     $params[] = $value;
                     break;
@@ -2127,6 +2632,36 @@ class MessageHandler
             $taglines[] = $trimmed;
         }
         return $taglines;
+    }
+
+    /**
+     * Look up the system name for a given FTN address from the nodelist.
+     *
+     * @param string|null $address FTN address (e.g. "1:123/456")
+     * @return string|null System name or null if not found
+     */
+    private function lookupSystemName(?string $address): ?string
+    {
+        if (empty($address)) {
+            return null;
+        }
+        try {
+            if (!preg_match('/^(\d+):(\d+)\/(\d+)(?:\.(\d+))?$/', $address, $m)) {
+                return null;
+            }
+            $zone  = (int)$m[1];
+            $net   = (int)$m[2];
+            $node  = (int)$m[3];
+            $point = isset($m[4]) ? (int)$m[4] : 0;
+            $stmt = $this->db->prepare(
+                "SELECT system_name FROM nodelist WHERE zone = ? AND net = ? AND node = ? AND point = ? LIMIT 1"
+            );
+            $stmt->execute([$zone, $net, $node, $point]);
+            $row = $stmt->fetch();
+            return $row ? ($row['system_name'] ?: null) : null;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -2799,6 +3334,9 @@ class MessageHandler
         $message = $this->cleanMessageForJson($message);
         $message = $this->appendMarkdownRendering($message);
 
+        // Add system names from nodelist for address tooltips
+        $message['from_system_name'] = $this->lookupSystemName($message['from_address'] ?? null);
+
         return [
             'success' => true,
             'message' => $message,
@@ -3366,6 +3904,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -3399,6 +3938,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -3618,6 +4158,57 @@ class MessageHandler
         return $message;
     }
 
+    private function looksLikeRipScript(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $lines = explode("\n", $normalized);
+        $ripLineCount = 0;
+        $supportedCommandCount = 0;
+
+        foreach ($lines as $line) {
+            $trimmed = ltrim($line);
+            if (!str_starts_with($trimmed, '!|')) {
+                continue;
+            }
+
+            $ripLineCount++;
+
+            if (preg_match('/\|c\d{2}\b/i', $trimmed) === 1
+                || preg_match('/\|L[0-9A-Z]{8,}/i', $trimmed) === 1
+                || preg_match('/\|@[0-9A-Z]{4}/i', $trimmed) === 1
+            ) {
+                $supportedCommandCount++;
+            }
+        }
+
+        return $ripLineCount > 0 && $supportedCommandCount > 0;
+    }
+
+    private function appendRipRendering(array $message): array
+    {
+        $message['is_rip'] = 0;
+        $message['rip_script'] = null;
+        $message['rip_html'] = null;
+
+        if (($message['message_type'] ?? 'echomail') !== 'echomail') {
+            return $message;
+        }
+
+        $rawText = (string)($message['message_text'] ?? '');
+        if (!$this->looksLikeRipScript($rawText)) {
+            return $message;
+        }
+
+        $message['rip_script'] = $rawText;
+        $message['is_rip'] = 1;
+
+        return $message;
+    }
+
     /**
      * Get threaded echomail messages from subscribed echoareas using MSGID/REPLY relationships
      */
@@ -3685,6 +4276,7 @@ class MessageHandler
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
                    em.message_id, em.reply_to_id,
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                   COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -3877,6 +4469,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -3906,6 +4499,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -4005,6 +4599,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -4224,7 +4819,7 @@ class MessageHandler
     /**
      * Get threaded netmail messages using MSGID/REPLY relationships
      */
-    public function getThreadedNetmail($userId, $page = 1, $limit = null, $filter = 'all')
+    public function getThreadedNetmail($userId, $page = 1, $limit = null, $filter = 'all', $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
         if (!$user) {
@@ -4319,11 +4914,16 @@ class MessageHandler
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
         
-        // Sort threads by most recent message in each thread
-        usort($threads, function($a, $b) {
-            $aLatest = $this->getLatestMessageInThread($a);
-            $bLatest = $this->getLatestMessageInThread($b);
-            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        // Sort threads according to the requested sort order
+        usort($threads, function($a, $b) use ($sort) {
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
+            return match($sort) {
+                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
+                'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
+                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+            };
         });
         
         // Apply pagination to threads
@@ -4395,6 +4995,193 @@ class MessageHandler
     }
 
     /**
+     * Return visible AreaFix/FileFix request and response netmail for a user.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getLovlyNetRequests(int $userId, string $hubAddress): array
+    {
+        $hubAddress = trim($hubAddress);
+        if ($hubAddress === '') {
+            return [];
+        }
+
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = $binkpConfig->getMyAddresses();
+            $systemAddress = $binkpConfig->getSystemAddress();
+            if ($systemAddress !== '') {
+                $myAddresses[] = $systemAddress;
+            }
+            $myAddresses = array_values(array_unique(array_filter($myAddresses, static function ($value) {
+                return trim((string)$value) !== '';
+            })));
+        } catch (\Throwable $e) {
+            $myAddresses = [];
+        }
+
+        if ($myAddresses === []) {
+            return [];
+        }
+
+        $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+        $sql = "
+            SELECT n.id, n.user_id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.message_text, n.date_written, n.date_received, n.is_sent,
+                   n.message_id, n.kludge_lines, n.bottom_kludges,
+                   CASE
+                       WHEN LOWER(n.to_name) = 'areafix' OR LOWER(n.from_name) LIKE 'areafix%' THEN 'echo'
+                       ELSE 'file'
+                   END AS request_type,
+                   CASE
+                       WHEN n.from_address = ? AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%') THEN 'incoming'
+                       ELSE 'outgoing'
+                   END AS direction
+            FROM netmail n
+            WHERE (
+                -- Requests are messages sent to AreaFix/FileFix at the configured hub address.
+                (
+                    n.from_address IN ($addressPlaceholders)
+                    AND n.to_address = ?
+                    AND LOWER(n.to_name) IN ('areafix', 'filefix')
+                    AND n.deleted_by_sender = FALSE
+                )
+                OR
+                -- Responses are messages from AreaFix/FileFix at the configured hub address.
+                (
+                    n.from_address = ?
+                    AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%')
+                    AND n.to_address IN ($addressPlaceholders)
+                    AND n.deleted_by_recipient = FALSE
+                )
+            )
+            ORDER BY COALESCE(n.date_written, n.date_received) ASC, n.id ASC
+        ";
+
+        $params = [$hubAddress];
+        $params = array_merge($params, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        if (!$rows) {
+            return [];
+        }
+
+        foreach ($rows as $index => &$row) {
+            $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
+            $timestamp = (string)($row['date_written'] ?: $row['date_received']);
+            $row['timestamp'] = $timestamp;
+            $row['excerpt'] = $this->buildLovlyNetExcerpt((string)($row['message_text'] ?? ''));
+            $row['status'] = ($row['direction'] ?? '') === 'incoming' ? 'response' : 'pending';
+            $row['response_message_id'] = null;
+            $row['linked_request_id'] = null;
+            $row['reply_msgid'] = null;
+            $row['normalized_message_id'] = $this->normalizeNetmailMsgId((string)($row['message_id'] ?? ''));
+
+            if (($row['direction'] ?? '') === 'incoming') {
+                $replyMsgId = $this->extractReplyFromKludge($this->buildNetmailKludgeText($row));
+                $row['reply_msgid'] = is_string($replyMsgId) ? trim($replyMsgId) : null;
+                $row['normalized_reply_msgid'] = $this->normalizeNetmailMsgId((string)$row['reply_msgid']);
+            } else {
+                $row['normalized_reply_msgid'] = null;
+            }
+        }
+        unset($row);
+
+        $outgoingByMsgId = [];
+        foreach ($rows as $index => $row) {
+            $normalizedMessageId = (string)($row['normalized_message_id'] ?? '');
+            if (($row['direction'] ?? '') === 'outgoing' && $normalizedMessageId !== '') {
+                $outgoingByMsgId[$normalizedMessageId] = $index;
+            }
+        }
+
+        foreach ($rows as $incomingIndex => &$incomingRow) {
+            if (($incomingRow['direction'] ?? '') !== 'incoming') {
+                continue;
+            }
+
+            $replyMsgId = trim((string)($incomingRow['normalized_reply_msgid'] ?? ''));
+            if ($replyMsgId === '' || !isset($outgoingByMsgId[$replyMsgId])) {
+                continue;
+            }
+
+            $outgoingIndex = $outgoingByMsgId[$replyMsgId];
+            $rows[$outgoingIndex]['status'] = 'responded';
+            $rows[$outgoingIndex]['response_message_id'] = (int)$incomingRow['id'];
+            $incomingRow['linked_request_id'] = (int)$rows[$outgoingIndex]['id'];
+        }
+        unset($incomingRow);
+
+        $rows = array_reverse($rows);
+        return array_map(function (array $row): array {
+            return [
+                'id' => (int)$row['id'],
+                'direction' => (string)$row['direction'],
+                'request_type' => (string)$row['request_type'],
+                'status' => (string)$row['status'],
+                'from_name' => (string)$row['from_name'],
+                'from_address' => (string)$row['from_address'],
+                'to_name' => (string)$row['to_name'],
+                'to_address' => (string)$row['to_address'],
+                'subject' => (string)($row['subject'] ?? ''),
+                'subject_hidden' => true,
+                'message_text' => (string)($row['message_text'] ?? ''),
+                'excerpt' => (string)($row['excerpt'] ?? ''),
+                'message_id' => (string)($row['message_id'] ?? ''),
+                'reply_msgid' => (string)($row['reply_msgid'] ?? ''),
+                'timestamp' => (string)($row['timestamp'] ?? ''),
+                'is_sent' => (bool)($row['is_sent'] ?? false),
+                'response_message_id' => isset($row['response_message_id']) ? (int)$row['response_message_id'] : null,
+                'linked_request_id' => isset($row['linked_request_id']) ? (int)$row['linked_request_id'] : null,
+            ];
+        }, $rows);
+    }
+
+    private function buildNetmailKludgeText(array $message): string
+    {
+        $parts = [];
+        if (!empty($message['kludge_lines'])) {
+            $parts[] = (string)$message['kludge_lines'];
+        }
+        if (!empty($message['bottom_kludges'])) {
+            $parts[] = (string)$message['bottom_kludges'];
+        }
+        if ($parts !== []) {
+            return implode("\n", $parts);
+        }
+
+        return (string)($message['message_text'] ?? '');
+    }
+
+    private function normalizeNetmailMsgId(string $msgId): string
+    {
+        $normalized = trim($msgId);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $normalized = trim($normalized, "<> \t\r\n");
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        return strtolower($normalized);
+    }
+
+    private function buildLovlyNetExcerpt(string $messageText, int $limit = 160): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($messageText)) ?? '';
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (mb_strlen($normalized) <= $limit) {
+            return $normalized;
+        }
+
+        return rtrim(mb_substr($normalized, 0, $limit - 3)) . '...';
+    }
+
+    /**
      * Get thread context for specific messages efficiently using reply_to_id
      */
     private function getThreadContextForMessages($pageMessages, $userId, $echoareaIds, $filterClause, $filterParams)
@@ -4422,6 +5209,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -4462,6 +5250,7 @@ class MessageHandler
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved

@@ -857,8 +857,31 @@ footer.bg-light a {
     color: var(--text-color);
 }
 
-.list-group-item:hover {
+.list-group-item:hover,
+.list-group-item-action:hover,
+.list-group-item-action:focus {
     background-color: var(--bg-secondary);
+    color: var(--text-color);
+}
+
+#echoareasList .list-group-item,
+#mobileEchoareasList .list-group-item {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+#echoareasList .list-group-item:hover,
+#mobileEchoareasList .list-group-item:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+}
+
+#echoareasList .list-group-item.active,
+#mobileEchoareasList .list-group-item.active {
+    background-color: var(--fidonet-blue);
+    border-color: var(--fidonet-blue);
+    color: #fff;
 }
 
 /* Pagination */
@@ -981,6 +1004,12 @@ a:hover {
     }
 }
 
+/* Fullscreen modal: strip Bootstrap's scrollbar-compensation padding so the
+   dialog truly fills the viewport with no gap on any edge. */
+.modal:has(.modal-dialog.modal-fullscreen) {
+    padding: 0 !important;
+}
+
 /* Echolist page - Dark theme overrides */
 #echolist-page .forums-table {
     background: rgba(0, 0, 0, 0.3);
@@ -1091,3 +1120,87 @@ a:hover {
 .sc-inverse {
     filter: invert(1);
 }
+
+/* Bootstrap contextual table rows — override bright backgrounds for dark theme */
+.table-warning, .table-warning > td, .table-warning > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 193, 7, 0.15);
+    --bs-table-striped-bg: rgba(255, 193, 7, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 193, 7, 0.25);
+    --bs-table-hover-bg: rgba(255, 193, 7, 0.25);
+    background-color: rgba(255, 193, 7, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-danger, .table-danger > td, .table-danger > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 77, 77, 0.15);
+    --bs-table-striped-bg: rgba(255, 77, 77, 0.22);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 77, 77, 0.25);
+    --bs-table-hover-bg: rgba(255, 77, 77, 0.25);
+    background-color: rgba(255, 77, 77, 0.15) !important;
+    color: var(--text-color) !important;
+}
+.table-secondary, .table-secondary > td, .table-secondary > th {
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: rgba(255, 255, 255, 0.07);
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.11);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-active-bg: rgba(255, 255, 255, 0.11);
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.11);
+    background-color: rgba(255, 255, 255, 0.07) !important;
+    color: var(--text-color) !important;
+}
+
+
+/* Breadcrumb */
+.breadcrumb {
+    background-color: var(--bg-secondary);
+}
+
+.breadcrumb-item a {
+    color: var(--fidonet-blue);
+}
+
+.breadcrumb-item.active {
+    color: var(--text-color);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--text-color-muted);
+}
+
+/* Accordion */
+.accordion-item {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+}
+
+.accordion-button {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--bg-card);
+    color: var(--text-color);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(77, 166, 255, 0.25);
+    border-color: var(--border-color);
+}
+
+.accordion-button::after {
+    filter: invert(1) brightness(0.8);
+}
+
+.accordion-body {
+    background-color: var(--bg-card);
+    color: var(--text-color);
+}
+
+/* Disabled dropdown items — grayed out but readable */
+.dropdown-item-locked { color: #888 !important; pointer-events: auto; cursor: not-allowed; }

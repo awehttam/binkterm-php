@@ -4,6 +4,7 @@ let currentSort = 'date_desc';
 let currentMessageId = null;
 let currentMessageIndex = -1;
 let currentMessages = [];
+let currentPagination = null;
 let modalClosedByBackButton = false;
 let threadedView = false;
 let userSettings = {};
@@ -14,6 +15,26 @@ let keyboardHelpVisible = false;
 let currentMessageData = null;
 let currentParsedMessage = null;
 let currentRenderMode = 'auto';
+let requestedMessageId = null;
+
+/**
+ * Render a FREQ status badge appropriate to the given status value.
+ * @param {string|null} status  'pending', 'fulfilled', 'denied', or null
+ * @returns {string} HTML badge string
+ */
+function renderFreqBadge(status) {
+    const icon = '<i class="fas fa-file-download"></i>';
+    if (status === 'fulfilled') {
+        return `<span class="badge bg-success ms-1">${icon} ${uiT('ui.freq.status_fulfilled', 'FREQ Fulfilled')}</span>`;
+    }
+    if (status === 'denied') {
+        return `<span class="badge bg-danger ms-1">${icon} ${uiT('ui.freq.status_denied', 'FREQ Denied')}</span>`;
+    }
+    if (status === 'pending') {
+        return `<span class="badge bg-warning text-dark ms-1">${icon} ${uiT('ui.freq.status_pending', 'FREQ Pending')}</span>`;
+    }
+    return `<span class="badge bg-info ms-1">${icon} ${uiT('ui.compose.freq.badge', 'FREQ')}</span>`;
+}
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -34,7 +55,13 @@ function uiT(key, fallback, params = {}) {
 
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
-        loadMessages();
+        const urlParams = new URLSearchParams(window.location.search);
+        const messageParam = urlParams.get('message');
+        requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
+
+        loadMessages(function() {
+            openRequestedMessage();
+        });
     });
     loadStats();
     loadAddressBook();
@@ -125,7 +152,7 @@ $(document).ready(function() {
     }, 120000);
 });
 
-function loadMessages() {
+function loadMessages(callback) {
     showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
@@ -147,8 +174,17 @@ function loadMessages() {
 
     $.get(url)
         .done(function(data) {
+            // If the saved page is beyond the last page, reset to page 1 and reload
+            if (currentPage > 1 && data.messages && data.messages.length === 0 && data.pagination && data.pagination.pages < currentPage) {
+                currentPage = 1;
+                loadMessages(callback);
+                return;
+            }
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
+            // Remember the current netmail page
+            saveNetmailPage();
+            if (typeof callback === 'function') callback(data);
         })
         .fail(function() {
             $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
@@ -282,7 +318,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td ${threadIndent}>
-                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
+                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : ''}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
                         <br>
                     </td>
                     <td>
@@ -293,7 +329,7 @@ function displayMessages(messages, isThreaded = false) {
                             <span class="badge bg-secondary">${uiT('ui.netmail.badge_netmail', 'NETMAIL')}</span>
                             ${isUnread ? `<span class="badge bg-primary ms-1">${uiT('ui.netmail.badge_new', 'NEW')}</span>` : ''}
                             ${msg.received_insecure ? `<span class="badge bg-warning text-dark ms-1" title="${uiT('ui.netmail.received_insecure_session_title', 'Received via insecure session')}"><i class="fas fa-exclamation-triangle"></i></span>` : ''}
-                            ${msg.is_freq ? `<span class="badge bg-info ms-1" title="${uiT('ui.compose.freq.badge', 'File Request')}"><i class="fas fa-file-download"></i> ${uiT('ui.compose.freq.badge', 'FREQ')}</span>` : ''}
+                            ${msg.is_freq ? renderFreqBadge(msg.freq_status) : ''}
                         </small>
                     </td>
                     <td>
@@ -322,6 +358,7 @@ function displayMessages(messages, isThreaded = false) {
 }
 
 function updatePagination(pagination) {
+    currentPagination = pagination;
     const container = $('#pagination');
     let html = '';
 
@@ -333,11 +370,23 @@ function updatePagination(pagination) {
             html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">${uiT('ui.common.previous', 'Previous')}</a></li>`;
         }
 
-        // Page numbers
-        for (let i = 1; i <= pagination.pages; i++) {
-            const active = i === pagination.page ? 'active' : '';
-            html += `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
-        }
+        // Page numbers: first, ellipsis, window around current, ellipsis, last
+        const cur = pagination.page, total = pagination.pages;
+        const pageBtn = (n) => {
+            const active = n === cur ? 'active' : '';
+            return `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${n})">${n}</a></li>`;
+        };
+        const ellipsis = `<li class="page-item disabled"><span class="page-link">&hellip;</span></li>`;
+
+        const pages = new Set([1, total]);
+        for (let i = Math.max(1, cur - 2); i <= Math.min(total, cur + 2); i++) pages.add(i);
+
+        let prev = 0;
+        [...pages].sort((a, b) => a - b).forEach(p => {
+            if (prev && p - prev > 1) html += ellipsis;
+            html += pageBtn(p);
+            prev = p;
+        });
 
         // Next button
         if (pagination.page < pagination.pages) {
@@ -425,6 +474,31 @@ function viewMessage(messageId) {
         });
 }
 
+function printMessage() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    win.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title>'
+        + '<style>'
+        + 'body{font-family:sans-serif;font-size:11pt;padding:1.5cm;color:#000;background:#fff}'
+        + '.message-header-full{border-bottom:1px solid #ccc;margin-bottom:1em;padding-bottom:.5em}'
+        + '.message-header-full strong{color:#333}'
+        + 'pre{white-space:pre-wrap;word-break:break-word;font-size:10pt;background:#f8f9fa;border:1px solid #dee2e6;padding:.75em;border-radius:4px}'
+        + '.message-origin{border-top:1px solid #ccc;margin-top:1em;padding-top:.5em;font-size:9pt;color:#666}'
+        + 'a{color:#000;text-decoration:none}'
+        + 'button,i.fas,i.far,.badge,.btn,#ansiRenderBadge,.modal-header-save-icon{display:none!important}'
+        + '</style>'
+        + '</head><body>'
+        + content.innerHTML
+        + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.onafterprint = function() { win.close(); };
+    win.print();
+}
+
 function displayMessageContent(message) {
     // Check if current user is the sender - use user_id comparison instead of address
     const currentUserId = window.currentUser ? window.currentUser.id : null;
@@ -507,17 +581,30 @@ function renderCurrentMessageBody() {
         return;
     }
 
+    const body = currentParsedMessage.messageBody;
+    const container = document.getElementById('messageBodyContainer');
+    if (!container) return;
+
+    if (currentRenderMode !== 'plain'
+            && typeof looksLikeSixel === 'function'
+            && looksLikeSixel(body)) {
+        renderSixelChunks(container, body, function (textChunk) {
+            return formatMessageBodyForDisplay(currentMessageData, textChunk, currentSearchTerms, {
+                formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
+            });
+        });
+        updateRenderModeBadge();
+        return;
+    }
+
     const bodyHtml = currentMessageData.markup_html && currentRenderMode === 'auto'
         ? currentMessageData.markup_html
-        : formatMessageBodyForDisplay(currentMessageData, currentParsedMessage.messageBody, currentSearchTerms, {
+        : formatMessageBodyForDisplay(currentMessageData, body, currentSearchTerms, {
             forcePlain: currentRenderMode === 'plain',
             formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
         });
 
-    const container = document.getElementById('messageBodyContainer');
-    if (container) {
-        container.innerHTML = bodyHtml;
-    }
+    container.innerHTML = bodyHtml;
     updateRenderModeBadge();
 }
 
@@ -582,12 +669,12 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
             <div class="row">
                 <div class="col-md-6">
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-6">
                     <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name)}
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.to_address)}</small>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.to_address, message.to_system_name)}</small>
                 </div>
             </div>
             <div class="row mt-2">
@@ -611,29 +698,16 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
             ${message.is_freq ? `
             <div class="row mt-2">
                 <div class="col-12">
-                    <span class="badge bg-info">
-                        <i class="fas fa-file-download"></i> ${uiT('ui.compose.freq.badge', 'File Request (FREQ)')}
-                    </span>
-                    <small class="text-muted ms-2">${uiT('ui.compose.freq.help', 'This message is a file request')}</small>
+                    ${renderFreqBadge(message.freq_status)}
+                    <small class="text-muted ms-2">${uiT('ui.compose.freq.help', 'File request — filename in subject line')}</small>
                 </div>
             </div>
             ` : ''}
         </div>
 
-        ${parsedMessage.kludgeLines.length > 0 ? `
-        <div class="message-headers mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">${uiT('ui.common.kludge_lines', 'Kludge Lines')}</h6>
-                <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
-                    <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">${uiT('ui.common.show_kludge_lines', 'Show Kludge Lines')}</span>
-                </button>
-            </div>
-            <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
-            </div>
+        <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
+            <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
         </div>
-        ` : ''}
 
         <div class="message-text">
             <div id="ansiRenderBadge" style="display:none;" class="mb-2">
@@ -695,8 +769,59 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     $('#deleteButton').show().off('click').on('click', function() {
         deleteMessage(currentMessageId);
     });
+
+    // Edit button is always shown — getMessage already enforces sender/receiver access
 }
 
+function openEditMessage() {
+    if (!currentMessageData) return;
+    const msg = currentMessageData;
+
+    $('#editMessageModalTitle').html(`<i class="fas fa-pencil-alt me-2"></i>${uiT('ui.echomail.edit_message', 'Edit Message')} #${currentMessageId}`);
+    $('#editMsgDbId').text(currentMessageId);
+    $('#editMsgId').text(msg.message_id || '');
+    $('#editMsgDate').text(formatFullDate(msg.date_written));
+    $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
+    $('#editMsgSubject').text(msg.subject || '');
+    $('#editArtFormat').val(msg.art_format || '');
+    $('#editCharset').val(msg.message_charset || '');
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', false);
+
+    $('#editMessageModal').modal('show');
+}
+
+function saveEditMessage() {
+    if (!currentMessageData) return;
+
+    const artFormat = $('#editArtFormat').val();
+    const charset   = $('#editCharset').val().trim();
+
+    $('#editMessageError').addClass('d-none');
+    $('#editMessageSuccess').addClass('d-none');
+    $('#saveEditMessageBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/api/messages/netmail/${currentMessageId}/edit`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ art_format: artFormat, message_charset: charset }),
+    }).done(function() {
+        currentMessageData.art_format      = artFormat || null;
+        currentMessageData.message_charset = charset || null;
+        const listMsg = currentMessages.find(m => m.id == currentMessageId);
+        if (listMsg) {
+            listMsg.art_format = artFormat || null;
+        }
+        $('#editMessageSuccess').removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    }).fail(function(xhr) {
+        const payload = xhr.responseJSON || {};
+        $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
+        $('#saveEditMessageBtn').prop('disabled', false);
+    });
+}
 
 function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
@@ -737,7 +862,72 @@ function searchMessages() {
             $('#pagination').empty();
         })
         .fail(function() {
-            showError(uiT('ui.netmail.search.failed', 'Search failed'));
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.netmail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
+        });
+}
+
+function openAdvancedSearch() {
+    $('#advSearchFromName').val('');
+    $('#advSearchSubject').val('');
+    $('#advSearchBody').val('');
+    $('#advSearchDateFrom').val('');
+    $('#advSearchDateTo').val('');
+    $('#advSearchError').addClass('d-none').text('');
+    $('#advancedSearchModal').modal('show');
+}
+
+function runAdvancedSearch() {
+    const fromName = $('#advSearchFromName').val().trim();
+    const subject = $('#advSearchSubject').val().trim();
+    const body = $('#advSearchBody').val().trim();
+    const dateFrom = $('#advSearchDateFrom').val();
+    const dateTo = $('#advSearchDateTo').val();
+
+    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const hasDate = dateFrom || dateTo;
+
+    // Validate: at least one field filled, and text fields must be 2+ chars each
+    if (textFields.length === 0 && !hasDate) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+    if (textFields.some(v => v.length < 2)) {
+        $('#advSearchError')
+            .removeClass('d-none')
+            .text(window.t('ui.common.advanced_search.fill_one_field', {}, 'Please fill in at least one field (minimum 2 characters for text fields).'));
+        return;
+    }
+
+    $('#advSearchError').addClass('d-none');
+    $('#advancedSearchModal').modal('hide');
+    showLoading('#messagesContainer');
+
+    // Collect text search terms for highlighting
+    currentSearchTerms = [fromName, subject, body]
+        .filter(v => v.length > 0)
+        .join(' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(term => term.length > 1);
+
+    const params = new URLSearchParams({ type: 'netmail' });
+    if (fromName) params.set('from_name', fromName);
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+
+    $.get('/api/messages/search?' + params.toString())
+        .done(function(data) {
+            displayMessages(data.messages);
+            $('#pagination').empty();
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + uiT('ui.netmail.search.failed', 'Search failed') + '</div>');
+            $('#pagination').empty();
         });
 }
 
@@ -809,11 +999,22 @@ function markMessageAsRead(messageId) {
 function sortMessages(sortBy) {
     currentSort = sortBy;
     currentPage = 1;
+    updateSortIndicator();
 
     // Save sort preference
     window.saveUserSetting('default_sort', sortBy);
 
     loadMessages();
+}
+
+function updateSortIndicator() {
+    $('.sort-option').each(function() {
+        const $el = $(this);
+        $el.find('.sort-active-indicator').remove();
+        if ($el.data('sort') === currentSort) {
+            $el.prepend('<i class="fas fa-arrow-right me-2 sort-active-indicator text-primary" style="font-size:0.75em;"></i>');
+        }
+    });
 }
 
 function toggleThreading() {
@@ -836,8 +1037,8 @@ function toggleThreading() {
 
 // User settings functions - apply netmail-specific settings after loading
 function loadNetmailSettings() {
-    if (typeof window.loadUserSettings === 'function') {
-        return window.loadUserSettings().then(function() {
+    const settingsPromise = typeof window.loadUserSettings === 'function'
+        ? window.loadUserSettings().then(function() {
             // Apply netmail-specific settings
             userSettings = window.userSettings;
 
@@ -854,11 +1055,37 @@ function loadNetmailSettings() {
             if (userSettings.default_sort) {
                 currentSort = userSettings.default_sort;
             }
-        });
-    } else {
-        // Fallback if global function not available
-        return Promise.resolve();
-    }
+            updateSortIndicator();
+        })
+        : Promise.resolve();
+
+    // Load last visited netmail page from DB (only if setting is enabled)
+    const pagePromise = $.get('/api/user/web-mail-state')
+        .then(function(data) {
+            if (!window.userSettings || !window.userSettings.remember_page_position) return;
+            if (data && data.settings && data.settings.web_netmail_page) {
+                const page = parseInt(data.settings.web_netmail_page, 10);
+                if (page >= 1) {
+                    currentPage = page;
+                }
+            }
+        })
+        .catch(function() {});
+
+    return Promise.all([settingsPromise, pagePromise]);
+}
+
+/**
+ * Persist the current netmail page to the DB (fire-and-forget).
+ */
+function saveNetmailPage() {
+    if (!window.userSettings || !window.userSettings.remember_page_position) return;
+    $.ajax({
+        url: '/api/user/web-mail-state',
+        method: 'POST',
+        data: JSON.stringify({ web_netmail_page: currentPage }),
+        contentType: 'application/json'
+    });
 }
 
 // Use global settings functions directly - no local wrappers needed
@@ -1229,7 +1456,17 @@ function navigateMessage(direction) {
     const newIndex = currentMessageIndex + direction;
 
     // Check bounds
-    if (newIndex < 0 || newIndex >= currentMessages.length) {
+    if (newIndex < 0) return;
+
+    if (newIndex >= currentMessages.length) {
+        if (direction > 0 && currentPagination && currentPagination.page < currentPagination.pages) {
+            currentPage = currentPagination.page + 1;
+            loadMessages(function() {
+                if (currentMessages.length > 0) {
+                    viewMessage(currentMessages[0].id);
+                }
+            });
+        }
         return;
     }
 
@@ -1271,6 +1508,14 @@ function updateNavigationButtons() {
     const prevBtn = $('#prevMessageBtn');
     const nextBtn = $('#nextMessageBtn');
 
+    if (currentMessageIndex < 0) {
+        prevBtn.prop('disabled', true);
+        nextBtn.prop('disabled', true);
+        prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
+        return;
+    }
+
     // Disable/enable previous button
     if (currentMessageIndex <= 0) {
         prevBtn.prop('disabled', true);
@@ -1279,11 +1524,27 @@ function updateNavigationButtons() {
     }
 
     // Disable/enable next button
-    if (currentMessageIndex >= currentMessages.length - 1) {
-        nextBtn.prop('disabled', true);
+    const atEnd = currentMessageIndex >= currentMessages.length - 1;
+    if (atEnd) {
+        const hasNextPage = currentPagination && currentPagination.page < currentPagination.pages;
+        nextBtn.prop('disabled', !hasNextPage);
+        nextBtn.attr('title', hasNextPage
+            ? uiT('ui.netmail.next_page_title', 'Load next page')
+            : uiT('ui.common.next_message', 'Next message'));
     } else {
         nextBtn.prop('disabled', false);
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
     }
+}
+
+function openRequestedMessage() {
+    if (!requestedMessageId) {
+        return;
+    }
+
+    const messageId = requestedMessageId;
+    requestedMessageId = null;
+    viewMessage(messageId);
 }
 
 function toggleSelectMode() {

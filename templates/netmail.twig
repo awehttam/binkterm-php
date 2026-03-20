@@ -46,10 +46,10 @@
                                 <i class="fas fa-sort"></i>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">{{ t('ui.common.sort.newest_first', {}, locale, ['common']) }}</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">{{ t('ui.common.sort.oldest_first', {}, locale, ['common']) }}</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">{{ t('ui.common.sort.by_subject', {}, locale, ['common']) }}</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">{{ t('ui.common.sort.by_author', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="date_desc" href="#" onclick="sortMessages('date_desc')">{{ t('ui.common.sort.newest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="date_asc" href="#" onclick="sortMessages('date_asc')">{{ t('ui.common.sort.oldest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="subject" href="#" onclick="sortMessages('subject')">{{ t('ui.common.sort.by_subject', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item sort-option" data-sort="author" href="#" onclick="sortMessages('author')">{{ t('ui.common.sort.by_author', {}, locale, ['common']) }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="toggleThreading()">
                                     <i class="fas fa-project-diagram"></i>
@@ -90,10 +90,15 @@
                 <div class="mb-3">
                     <input type="text" class="form-control" id="searchInput" placeholder="{{ t('ui.common.search_messages_placeholder', {}, locale, ['common']) }}">
                 </div>
-                <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
-                    <i class="fas fa-search"></i>
-                    {{ t('ui.common.search', {}, locale, ['common']) }}
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm flex-fill" onclick="searchMessages()">
+                        <i class="fas fa-search"></i>
+                        {{ t('ui.common.search', {}, locale, ['common']) }}
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="openAdvancedSearch()" title="{{ t('ui.common.advanced_search', {}, locale, ['common']) }}">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -152,6 +157,15 @@
                     </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="{{ t('ui.common.next_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="editMessageButton" onclick="openEditMessage()" title="{{ t('ui.common.edit', {}, locale, ['common']) }}">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleHeaders" onclick="toggleKludgeLines()" title="{{ t('ui.common.show_kludge_lines', {}, locale, ['common']) }}">
+                        <i class="fas fa-code" id="toggleIcon"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="printMessage()" title="{{ t('ui.common.print', {}, locale, ['common']) }}">
+                        <i class="fas fa-print"></i>
                     </button>
                 </div>
                 <h5 class="modal-title" id="messageSubject">{{ t('ui.common.message', {}, locale, ['common']) }}</h5>
@@ -216,6 +230,48 @@
                     </table>
                     <p class="text-muted small mb-0">{{ t('ui.echomail.shortcuts.dismiss', {}, locale, ['common']) }}</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Advanced Search Modal -->
+<div class="modal fade" id="advancedSearchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-sliders-h me-2"></i>{{ t('ui.common.advanced_search.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">{{ t('ui.common.advanced_search.help', {}, locale, ['common']) }}</p>
+                <div class="mb-3">
+                    <label for="advSearchFromName" class="form-label">{{ t('ui.common.advanced_search.from_name', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchFromName" placeholder="{{ t('ui.common.advanced_search.from_name_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label for="advSearchSubject" class="form-label">{{ t('ui.common.advanced_search.subject', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchSubject" placeholder="{{ t('ui.common.advanced_search.subject_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label for="advSearchBody" class="form-label">{{ t('ui.common.advanced_search.body', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchBody" placeholder="{{ t('ui.common.advanced_search.body_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ t('ui.common.advanced_search.date_range', {}, locale, ['common']) }}</label>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="date" class="form-control" id="advSearchDateFrom">
+                        <span class="text-muted flex-shrink-0">–</span>
+                        <input type="date" class="form-control" id="advSearchDateTo">
+                    </div>
+                </div>
+                <div id="advSearchError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="runAdvancedSearch()">
+                    <i class="fas fa-search me-1"></i>{{ t('ui.common.search', {}, locale, ['common']) }}
+                </button>
             </div>
         </div>
     </div>
@@ -291,6 +347,78 @@
         </div>
     </div>
 </div>
+<!-- Edit Message Modal -->
+<div class="modal fade" id="editMessageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editMessageModalTitle"><i class="fas fa-pencil-alt me-2"></i>{{ t('ui.echomail.edit_message', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-sm table-borderless mb-3">
+                    <tbody>
+                        <tr>
+                            <th class="text-muted small fw-normal ps-0" style="width:30%">{{ t('ui.common.db_id', {}, locale, ['common']) }}</th>
+                            <td class="small font-monospace" id="editMsgDbId"></td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted small fw-normal ps-0">{{ t('ui.common.message_id', {}, locale, ['common']) }}</th>
+                            <td class="small font-monospace" id="editMsgId"></td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted small fw-normal ps-0">{{ t('ui.common.date_label', {}, locale, ['common']) }}</th>
+                            <td class="small" id="editMsgDate"></td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted small fw-normal ps-0">{{ t('ui.common.from_label', {}, locale, ['common']) }}</th>
+                            <td class="small" id="editMsgFrom"></td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted small fw-normal ps-0">{{ t('ui.common.subject_label', {}, locale, ['common']) }}</th>
+                            <td class="small" id="editMsgSubject"></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <hr>
+                <div class="mb-3">
+                    <label for="editArtFormat" class="form-label">{{ t('ui.echomail.art_format', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="editArtFormat">
+                        <option value="">{{ t('ui.echomail.art_format_auto', {}, locale, ['common']) }}</option>
+                        <option value="plain">{{ t('ui.echomail.art_format_plain', {}, locale, ['common']) }}</option>
+                        <option value="ansi">{{ t('ui.echomail.art_format_ansi', {}, locale, ['common']) }}</option>
+                        <option value="amiga_ansi">{{ t('ui.echomail.art_format_amiga_ansi', {}, locale, ['common']) }}</option>
+                        <option value="petscii">{{ t('ui.echomail.art_format_petscii', {}, locale, ['common']) }}</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="editCharset" class="form-label">{{ t('ui.echomail.message_charset', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control font-monospace" id="editCharset" list="charsetSuggestions" placeholder="UTF-8">
+                    <datalist id="charsetSuggestions">
+                        <option value="UTF-8">
+                        <option value="CP437">
+                        <option value="CP850">
+                        <option value="ISO-8859-1">
+                        <option value="PETSCII">
+                        <option value="PETSCII-SHIFTED">
+                        <option value="AMIGA">
+                    </datalist>
+                    <div class="form-text">{{ t('ui.echomail.message_charset_help', {}, locale, ['common']) }}</div>
+                </div>
+                <div id="editMessageError" class="alert alert-danger d-none"></div>
+                <div id="editMessageSuccess" class="alert alert-success d-none">
+                    <i class="fas fa-check-circle me-2"></i>{{ t('ui.echomail.edit_message_saved', {}, locale, ['common']) }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="saveEditMessageBtn" onclick="saveEditMessage()">
+                    <i class="fas fa-save me-1"></i>{{ t('ui.common.save', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -299,6 +427,8 @@ window.systemAddress = '{{ system_address }}';
 window.currentUser = {{ current_user|json_encode(15)|raw }};
 </script>
 <script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
 <script src="/js/netmail.js"></script>
 
 <style>

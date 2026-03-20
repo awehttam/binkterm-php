@@ -2,6 +2,37 @@
 
 {% block title %}{{ t('ui.nodelist.node_details', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+<style>
+    #nodeMap {
+        height: 300px;
+        width: 100%;
+        border-radius: 0.375rem;
+        background: #111827;
+    }
+    #nodeMap .leaflet-tile-pane {
+        filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+    }
+    #nodeMap .leaflet-control-container .leaflet-bar a,
+    #nodeMap .leaflet-control-zoom a {
+        background: rgba(15, 23, 42, 0.92);
+        color: #e2e8f0;
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+    #nodeMap .leaflet-control-container .leaflet-bar a:hover,
+    #nodeMap .leaflet-control-zoom a:hover {
+        background: rgba(30, 41, 59, 0.98);
+        color: #fff;
+    }
+    #nodeMap .leaflet-popup-content-wrapper,
+    #nodeMap .leaflet-popup-tip {
+        background: #111827;
+        color: #e2e8f0;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="row">
@@ -96,10 +127,73 @@
                             {% if node.flags and node.flags|length > 0 %}
                                 <hr>
                                 <h6>{{ t('ui.nodelist.capabilities_flags') }}</h6>
+                                {% set flagDescriptions = {
+                                    'IBN':      'Internet BinkP Node — accepts binkp connections',
+                                    'INA':      'Internet Address — hostname or IP for internet connections',
+                                    'ITN':      'Internet Telnet Node — accepts telnet connections',
+                                    'IFC':      'Internet File/Conference — internet file sharing',
+                                    'IFT':      'Internet FTP — accepts FTP connections',
+                                    'IVM':      'Internet VoIP/Messaging',
+                                    'IMI':      'Internet MIME email',
+                                    'ISE':      'Internet SMTP/Email',
+                                    'IEM':      'Internet Email',
+                                    'IP':       'Internet IP address (legacy)',
+                                    'BINKP':    'BinkP capable',
+                                    'CM':       'Continuous Mail — accepts mail 24 hours a day',
+                                    'MO':       'Mail Only — does not accept human callers',
+                                    'LO':       'Listed Only — only accepts calls from listed nodes',
+                                    'MN':       'Mail and News',
+                                    'FREQ':     'File Request — will serve files on request',
+                                    'PING':     'Responds to ping requests',
+                                    'TRACE':    'Netmail tracing supported',
+                                    'HOLD':     'Mail on hold — not currently accepting connections',
+                                    'DOWN':     'System down — temporarily unavailable',
+                                    'PVT':      'Private node — address not published',
+                                    'HUB':      'Hub node',
+                                    'HOST':     'Net host node',
+                                    'REGION':   'Regional coordinator',
+                                    'ZONE':     'Zone coordinator',
+                                    'NEC':      'No EchoMail',
+                                    'V21':      'V.21 modem (300 baud)',
+                                    'V22':      'V.22 modem (1200 baud)',
+                                    'V29':      'V.29 modem (9600 baud)',
+                                    'V32':      'V.32 modem (9600 baud)',
+                                    'V32T':     'V.32 Terbo modem (19200 baud)',
+                                    'V32B':     'V.32bis modem (14400 baud)',
+                                    'VFC':      'Rockwell V.FC modem (28800 baud)',
+                                    'V34':      'V.34 modem (28800 baud)',
+                                    'V42':      'V.42 error correction',
+                                    'V42B':     'V.42bis compression',
+                                    'V90C':     'V.90 modem — client mode (56k download)',
+                                    'V90S':     'V.90 modem — server mode (56k upload)',
+                                    'H96':      'HST 9600',
+                                    'H14':      'HST 14400',
+                                    'H16':      'HST 16800',
+                                    'MAX':      'MaxLink protocol',
+                                    'PEP':      'PEP high-speed protocol',
+                                    'ZYX':      'ZyXEL proprietary protocol',
+                                    'XA':       'Xmodem/ASCII transfer',
+                                    'XB':       'Xmodem/CRC transfer',
+                                    'XC':       'Xmodem/1K transfer',
+                                    'XP':       'Xmodem/1K-G transfer',
+                                    'ZMO':      'ZModem (original)',
+                                    'ZMB':      'ZModem with crash recovery',
+                                    'XW':       'WXmodem (windowed Xmodem)',
+                                    'XX':       'Xmodem/CRC (alternate)',
+                                    'ISDN':     'ISDN connection',
+                                    'ISDNA':    'ISDN async',
+                                    'X25':      'X.25 packet network',
+                                    'POINTS24': 'Points file available 24 hours',
+                                    'ANUS':     'Allow Null User Session — accepts anonymous/insecure sessions'
+                                } %}
                                 <div class="row">
                                     {% for flag_name, flag_value in node.flags %}
                                         <div class="col-md-4 mb-2">
-                                            <span class="badge bg-info me-1">{{ flag_name }}</span>
+                                            <span class="badge bg-info me-1"
+                                                {% if flagDescriptions[flag_name] is defined %}
+                                                    data-bs-toggle="tooltip"
+                                                    data-bs-title="{{ flagDescriptions[flag_name] }}"
+                                                {% endif %}>{{ flag_name }}</span>
                                             {% if flag_value != true and flag_value != '1' %}
                                                 <small class="text-muted">{{ flag_value }}</small>
                                             {% endif %}
@@ -128,10 +222,10 @@
                                     <i class="fas fa-sign-in-alt"></i> {{ t('ui.nodelist.login_to_send_netmail') }}
                                 </a>
                                 {% endif %}
-                                {% if node.flags and node.flags['FREQ'] is defined %}
-                                    <button class="btn btn-info" onclick="alert('{{ t('ui.nodelist.file_request_coming_soon')|e('js') }}')">
-                                        <i class="fas fa-download"></i> {{ t('ui.nodelist.file_request') }}
-                                    </button>
+                                {% if freq_experimental_enabled and user and user.is_admin %}
+                                <button class="btn btn-info" onclick="showAllfilesModal()">
+                                    <i class="fas fa-file-download"></i> {{ t('ui.nodelist.request_allfiles') }}
+                                </button>
                                 {% endif %}
                             </div>
                         </div>
@@ -194,9 +288,125 @@
                     {% endif %}
                 </div>
             </div>
+
+            {% if node.latitude and node.longitude %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card" style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border-color: rgba(148,163,184,0.18);">
+                        <div class="card-header" style="border-color: rgba(148,163,184,0.18);">
+                            <h6 class="mb-0" style="color:#e2e8f0;"><i class="fas fa-map-marker-alt me-2"></i>{{ node.location|default(node.full_address) }}</h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <div id="nodeMap"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-muted small">
+                            <i class="fas fa-map-marker-alt me-1"></i> {{ t('ui.nodelist.no_coordinates') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 </div>
+
+<script src="/assets/leaflet/leaflet.js"></script>
+{% if node.latitude and node.longitude %}
+<script>
+(function() {
+    const lat  = {{ node.latitude|json_encode|raw }};
+    const lng  = {{ node.longitude|json_encode|raw }};
+    const name = {{ node.system_name|default('')|json_encode|raw }};
+    const addr = {{ node.full_address|json_encode|raw }};
+    const loc  = {{ node.location|default('')|json_encode|raw }};
+    const map = L.map('nodeMap', { scrollWheelZoom: false }).setView([lat, lng], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '\u00a9 <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18
+    }).addTo(map);
+    L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup('<strong>' + name + '</strong><br>' + addr + (loc ? '<br><small>' + loc + '</small>' : ''))
+        .openPopup();
+})();
+</script>
+{% endif %}
+
+{% if freq_experimental_enabled and user and user.is_admin %}
+<!-- ALLFILES FREQ Modal -->
+<div class="modal fade" id="allfilesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.nodelist.request_allfiles_title', {'node': node.full_address}) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>{{ t('ui.nodelist.request_allfiles_body') }}</p>
+                {% if not (node.flags and node.flags['FREQ'] is defined) %}
+                <div class="alert alert-warning py-2 small">
+                    <i class="fas fa-exclamation-triangle me-1"></i>{{ t('ui.nodelist.freq_not_advertised') }}
+                </div>
+                {% endif %}
+                <div class="mb-3">
+                    <label for="allfilesFilename" class="form-label">{{ t('ui.nodelist.request_allfiles_filename') }}</label>
+                    <select class="form-select" id="allfilesFilename" onchange="toggleAllfilesFilenameOther()">
+                        <option value="ALLFILES">ALLFILES</option>
+                        <option value="FILES">FILES</option>
+                        <option value="FILELIST">FILELIST</option>
+                        <option value="NODELIST">NODELIST</option>
+                        <option value="NODEDIFF">NODEDIFF</option>
+                        <option value="">{{ t('ui.nodelist.request_allfiles_to_other') }}</option>
+                    </select>
+                    <input type="text" class="form-control mt-2 d-none" id="allfilesFilenameOther" placeholder="{{ t('ui.nodelist.request_allfiles_filename_placeholder') }}" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label for="allfilesToName" class="form-label">{{ t('ui.nodelist.request_allfiles_to') }}</label>
+                    <select class="form-select" id="allfilesToName" onchange="toggleAllfilesToNameOther()">
+                        <option value="AllFix">AllFix</option>
+                        <option value="FileFix">FileFix</option>
+                        <option value="FileMgr">FileMgr</option>
+                        <option value="FileReq">FileReq</option>
+                        <option value="Files">Files</option>
+                        <option value="Sysop">Sysop</option>
+                        <option value="">{{ t('ui.nodelist.request_allfiles_to_other') }}</option>
+                    </select>
+                    <input type="text" class="form-control mt-2 d-none" id="allfilesToNameOther" placeholder="{{ t('ui.nodelist.request_allfiles_to_other_placeholder') }}" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label for="allfilesPassword" class="form-label">{{ t('ui.nodelist.request_allfiles_password') }}</label>
+                    <input type="text" class="form-control" id="allfilesPassword" autocomplete="off">
+                    <div class="form-text">{{ t('ui.nodelist.request_allfiles_password_help') }}</div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="allfilesCrashmail" checked>
+                        <label class="form-check-label" for="allfilesCrashmail">
+                            {{ t('ui.nodelist.request_allfiles_crashmail') }}
+                        </label>
+                    </div>
+                    <div class="form-text">{{ t('ui.nodelist.request_allfiles_crashmail_help') }}</div>
+                </div>
+                <div id="allfilesError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                <button type="button" class="btn btn-info" id="allfilesSendBtn" onclick="sendAllfilesFreq()">
+                    <i class="fas fa-file-download"></i> {{ t('ui.nodelist.send_request') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Context Menu for Host Links -->
 <div id="hostContextMenu" class="context-menu" style="display: none; position: absolute; z-index: 9999;">
@@ -239,6 +449,11 @@
 <script>
 // Context menu for host links
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialise Bootstrap tooltips for flag descriptions
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
+
     const contextMenu = document.getElementById('hostContextMenu');
     const menuHttp = document.getElementById('menuHttp');
     const menuTelnet = document.getElementById('menuTelnet');
@@ -276,6 +491,91 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove port number if present (e.g., "example.com:24554" -> "example.com")
         return hostname.split(':')[0];
     }
+
+    // ALLFILES FREQ functions
+    window.showAllfilesModal = function() {
+        document.getElementById('allfilesFilename').value = 'ALLFILES';
+        document.getElementById('allfilesFilenameOther').value = '';
+        document.getElementById('allfilesFilenameOther').classList.add('d-none');
+        document.getElementById('allfilesToName').value = 'FileFix';
+        document.getElementById('allfilesToNameOther').value = '';
+        document.getElementById('allfilesToNameOther').classList.add('d-none');
+        document.getElementById('allfilesPassword').value = '';
+        document.getElementById('allfilesCrashmail').checked = true;
+        document.getElementById('allfilesError').classList.add('d-none');
+        document.getElementById('allfilesSendBtn').disabled = false;
+        new bootstrap.Modal(document.getElementById('allfilesModal')).show();
+    };
+
+    window.toggleAllfilesFilenameOther = function() {
+        const sel = document.getElementById('allfilesFilename');
+        const other = document.getElementById('allfilesFilenameOther');
+        if (sel.value === '') {
+            other.classList.remove('d-none');
+            other.focus();
+        } else {
+            other.classList.add('d-none');
+        }
+    };
+
+    window.toggleAllfilesToNameOther = function() {
+        const sel = document.getElementById('allfilesToName');
+        const other = document.getElementById('allfilesToNameOther');
+        if (sel.value === '') {
+            other.classList.remove('d-none');
+            other.focus();
+        } else {
+            other.classList.add('d-none');
+        }
+    };
+
+    window.sendAllfilesFreq = function() {
+        const filenameSel = document.getElementById('allfilesFilename');
+        const filename = (filenameSel.value === '' ? document.getElementById('allfilesFilenameOther').value.trim() : filenameSel.value) || 'ALLFILES';
+        const toNameSel = document.getElementById('allfilesToName');
+        const toName = (toNameSel.value === '' ? document.getElementById('allfilesToNameOther').value.trim() : toNameSel.value) || 'FileFix';
+        const password = document.getElementById('allfilesPassword').value.trim();
+        const crashmail = document.getElementById('allfilesCrashmail').checked;
+        const btn = document.getElementById('allfilesSendBtn');
+        const errorBox = document.getElementById('allfilesError');
+
+        btn.disabled = true;
+        errorBox.classList.add('d-none');
+
+        const subject = password ? filename + ' ' + password : filename;
+
+        fetch('/api/messages/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'netmail',
+                to_address: '{{ node.full_address|e('js') }}',
+                to_name: toName,
+                subject: subject,
+                message_text: '',
+                is_freq: true,
+                crashmail: crashmail
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('allfilesModal')).hide();
+                if (window.showSuccess) {
+                    showSuccess('{{ t('ui.nodelist.request_allfiles_sent')|e('js') }}');
+                }
+            } else {
+                errorBox.textContent = (window.getApiErrorMessage ? window.getApiErrorMessage(data, '') : '') || data.error || '{{ t('ui.nodelist.request_allfiles_failed')|e('js') }}';
+                errorBox.classList.remove('d-none');
+                btn.disabled = false;
+            }
+        })
+        .catch(() => {
+            errorBox.textContent = '{{ t('ui.nodelist.request_allfiles_failed')|e('js') }}';
+            errorBox.classList.remove('d-none');
+            btn.disabled = false;
+        });
+    };
 
     // Handle menu item clicks
     menuHttp.addEventListener('click', function(e) {

@@ -17,13 +17,18 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Admin Daemon](#admin-daemon)
 - [Admin Client](#admin-client)
 - [Nodelist Updates](#nodelist-updates)
+- [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
+- [FREQ File Pickup](#freq-file-pickup)
+- [Outbound FREQ (File Request)](#outbound-freq-file-request)
 - [Echomail Robots](#echomail-robots)
 - [Create Translation Catalog](#create-translation-catalog)
 - [Generate Ad](#generate-ad)
 - [Log Rotate](#log-rotate)
 - [Post Ad](#post-ad)
+- [Post File to File Area](#post-file-to-file-area)
+- [Re-Hatch File to Outbound](#re-hatch-file-to-outbound)
 - [Restart Daemons](#restart-daemons)
 - [Who](#who)
 
@@ -318,6 +323,32 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
+## Re-Hatch File to Outbound
+Regenerate TIC file(s) for an existing stored file and queue the file plus TICs
+into `data/outbound` for re-sending to the area's uplinks:
+
+```bash
+# Re-hatch by file ID
+php scripts/file_hatch.php --file-id=123
+
+# Re-hatch by filename and area tag
+php scripts/file_hatch.php CHEVY.RIP LVLY_RIPSCRIP --domain=lovlynet
+
+# Allow rehatching a file that is not in approved status
+php scripts/file_hatch.php --file-id=123 --allow-nonapproved
+```
+
+Notes:
+
+- The script looks up an existing file record and resolves the current stored
+  file from disk; it does not re-upload the file.
+- It only works for non-local, non-private file areas, because it generates
+  outbound TIC files for configured uplinks.
+- Generated TIC passwords follow the normal TIC password precedence used by the
+  application.
+- Output is written to `data/outbound/`, including the file copy and one TIC
+  per matching uplink.
+
 By default, leftover unprocessed files in `data/inbound/` are moved to `data/inbound/unprocessed/` after they have been untouched for 24 hours.
 Set `BINKP_DELETE_UNPROCESSED_FILES=true` in `.env` to delete those stale files instead.
 
@@ -425,6 +456,69 @@ php scripts/update_nodelists.php --force
 php scripts/update_nodelists.php --help
 ```
 
+## Geocoding
+
+Both the BBS Directory and the Nodelist map use coordinates resolved from location strings via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API. Results are permanently cached in the `geocode_cache` table, so a given location string is only ever looked up once regardless of which script processed it first.
+
+The Nominatim API is rate-limited to **one request per second**. Scripts enforce this automatically.
+
+Environment variables (all optional):
+
+| Variable | Default | Description |
+|---|---|---|
+| `BBS_DIRECTORY_GEOCODING_ENABLED` | `true` | Set to `false` to disable all geocoding |
+| `BBS_DIRECTORY_GEOCODER_EMAIL` | _(none)_ | Contact email sent in API requests (good practice) |
+| `BBS_DIRECTORY_GEOCODER_URL` | Nominatim endpoint | Override with a self-hosted instance |
+| `BBS_DIRECTORY_GEOCODER_USER_AGENT` | Auto-generated | Custom `User-Agent` header |
+
+### Geocode Nodelist
+
+Populates `latitude`/`longitude` on nodelist entries that have a `location` field but no coordinates yet.
+
+```bash
+# Geocode all pending nodelist entries
+php scripts/geocode_nodelist.php
+
+# Limit to 100 entries per run (good for cron)
+php scripts/geocode_nodelist.php --limit=100
+
+# Re-geocode entries that already have coordinates
+php scripts/geocode_nodelist.php --force
+
+# Preview without writing changes
+php scripts/geocode_nodelist.php --dry-run
+```
+
+Options:
+- `--limit=N` — Process at most N nodes (default: all pending)
+- `--force` — Re-geocode nodes that already have coordinates
+- `--dry-run` — Show what would be processed without making changes
+
+Cron example (nightly, 100 nodes at a time):
+
+```
+0 3 * * * /usr/bin/php /path/to/binkterm/scripts/geocode_nodelist.php --limit=100
+```
+
+### Geocode BBS Directory
+
+Backfills coordinates for BBS Directory entries that have a location set but no coordinates.
+
+```bash
+# Geocode all pending BBS directory entries
+php scripts/geocode_bbs_directory.php
+
+# Limit to N entries
+php scripts/geocode_bbs_directory.php --limit=50
+
+# Preview without writing changes
+php scripts/geocode_bbs_directory.php --dry-run
+```
+
+Options:
+- `--limit=N` — Process at most N entries
+- `--dry-run` — Show how many rows would be updated without writing changes
+
 ## Database Backup
 
 Creates PostgreSQL database backups using `pg_dump` with connection settings from `.env`. Backups are saved to the `backups/` directory with a timestamp in the filename.
@@ -468,6 +562,84 @@ Options:
 - `--limit=N` — Maximum items to process (default: 10)
 - `--verbose` — Show detailed output
 - `--dry-run` — Check queue without attempting delivery
+
+## FREQ File Pickup
+
+Use this script when you have sent a FREQ request to a remote node that cannot
+reach you via crashmail. The remote system queues the requested files for you;
+run this script to connect outbound and collect them.
+
+```bash
+# Basic pickup — hostname resolved from nodelist
+php scripts/freq_pickup.php 1:123/456
+
+# Specify hostname manually
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
+
+# Custom port and session password
+php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554 --password=secret
+
+# Verbose debug output
+php scripts/freq_pickup.php 1:123/456 --log-level=DEBUG
+```
+
+Options:
+- `--hostname=HOST` — Hostname or IP to connect to (auto-resolved from nodelist if omitted)
+- `--port=PORT` — Port number (default: `24554`)
+- `--password=PASS` — Session password
+- `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default: `INFO`)
+
+The script resolves your local address from the same network as the destination
+so the remote system recognises you by the correct AKA. Any outbound packets
+queued for that node are also sent during the session.
+
+## Outbound FREQ (File Request)
+
+Requests one or more files from a remote binkp node. Two modes are supported:
+
+- **Default (.req file)** — builds a Bark-style `.req` file (FTS-0008) and
+  sends it to the remote node as a regular file transfer. The remote FREQ
+  handler processes the request and sends the files back, either in the same
+  session or the next time it connects. Use this with any FTN node.
+- **-g (M_GET / live-session)** — sends binkp `M_GET` commands during the
+  active session (FSP-1011). The remote must support binkp M_GET FREQ natively.
+  Use this when connecting to another BinktermPHP node or a known-compatible
+  system.
+
+Received files that are not FidoNet infrastructure files (`.pkt`, `.tic`,
+day-of-week bundles, etc.) are stored in the specified user's private file area
+under the **FREQ Responses** (`incoming`) subfolder. Infrastructure files are
+left in `data/inbound/` for `process_packets` to handle.
+
+```bash
+# Request a file by magic name (default .req mode)
+php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+
+# Request multiple files
+php scripts/freq_getfile.php 1:123/456 ALLFILES FILES
+
+# Store received files for a specific user
+php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
+
+# Use a session password
+php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
+
+# Use binkp M_GET (live-session FREQ)
+php scripts/freq_getfile.php -g 1:123/456 ALLFILES
+
+# Override hostname and port
+php scripts/freq_getfile.php --hostname=bbs.example.com --port=24554 1:123/456 ALLFILES
+```
+
+Options:
+- `-g` — Use binkp M_GET (live-session FREQ) instead of `.req` file
+- `--user=USERNAME` — Store received files for this user (default: first admin)
+- `--password=PASS` — Area password sent with the request
+- `--hostname=HOST` — Override hostname (skip nodelist/DNS lookup)
+- `--port=PORT` — Override port (default: `24554`)
+- `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default: `INFO`)
+- `--log-file=FILE` — Log file path (default: `data/logs/freq_getfile.log`)
+- `--no-console` — Suppress console output
 
 ## Echomail Robots
 
@@ -541,6 +713,42 @@ php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet
 
 # Post a specific ad file
 php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1.ans --subject="BBS Advertisement"
+```
+
+## Post File to File Area
+
+Posts a file into a file area from the command line, following the same path as a web upload: validation, deduplication, storage, and TIC distribution to configured uplinks. TIC generation is skipped automatically for local areas, private areas, and areas with no uplinks configured for their domain.
+
+```bash
+# Basic upload
+php scripts/post_file.php /path/to/file.zip NEWFILES "Cool new utility"
+
+# Specify domain for a networked area
+php scripts/post_file.php /path/to/NODELIST.Z30 NODELIST "Weekly nodelist" --domain=fidonet
+
+# With long description and custom uploader name
+php scripts/post_file.php /tmp/tool.zip UTILS "Useful tool" \
+    --long-desc="A multi-line description of what this tool does." \
+    --user=sysop
+```
+
+Arguments:
+- `file` — Path to the file to upload
+- `area-tag` — Tag of the destination file area (e.g. `NEWFILES`)
+- `description` — Short description shown in file listings
+
+Options:
+- `--domain=` — Domain of the file area. When omitted, the area is looked up by tag only (use this for local areas).
+- `--long-desc=` — Long description appended to the listing
+- `--user=` — Username recorded as the uploader (default: `sysop`)
+
+Output indicates how many TIC files were queued for outbound, or why distribution was skipped:
+
+```
+File added: ID 42, area NEWFILES
+TIC distribution: 2 TIC file(s) queued for outbound
+  a3f1c2b0.tic
+  d4e9f7a1.tic
 ```
 
 ## Restart Daemons

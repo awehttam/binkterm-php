@@ -1,0 +1,86 @@
+# BinktermPHP Documentation
+
+This index lists documents in operational priority order — essentials first, advanced features and optional components toward the end.
+
+> **Note:** This index is maintained by Claude and updated as features are added.
+
+---
+
+## Essential Setup & Operations
+
+- [Configuration Reference](CONFIGURATION.md) — Environment variables, .env settings, and core configuration options
+- [Command Line Interface](CLI.md) — All CLI scripts: binkp_server, binkp_poll, maintenance tools
+- [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
+
+---
+
+## FTN Networking
+
+- [Echo Areas](EchoAreas.md) — Creating, managing, and subscribing to echomail areas
+- [Echo Digests](EchoDigests.md) — Scheduled email digests of echomail areas
+- [File Areas](FileAreas.md) — File area configuration, uploads, and management
+- [LovlyNet](LovlyNet.md) — LovlyNet network file sharing and FileFix integration
+
+---
+
+## Access Methods (Terminal & SSH)
+
+- [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
+- [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
+
+---
+
+## Doors & Games
+
+- [Doors Overview](Doors.md) — Overview of door types and how to install them
+- [DOS Doors](DOSDoors.md) — Running classic DOS door games
+- [Native Doors](NativeDoors.md) — Native Linux/Unix door games
+- [Web Doors](WebDoors.md) — HTML5/JavaScript web-based door games
+- [C64 Doors](C64Doors.md) — Commodore 64 door games
+- [DOSBox Headless Mode](DOSBox_Headless_Mode.md) — Running DOSBox without a display for DOS doors
+
+---
+
+## Communication & Chat
+
+- [MRC Chat](MRC_Chat.md) — Multi-Relay Chat protocol integration
+- [Gemini Capsule](GeminiCapsule.md) — Gemini protocol capsule support
+
+---
+
+## Content & Display
+
+- [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
+- [ANSI Ads Generator](ANSI_Ads_Generator.md) — Generating ANSI-art advertisements
+- [RIPScrip Support](RIPScrip_Support.md) — RIPscrip vector graphics rendering in echomail and file areas
+- [Sixel Support](Sixel_Support.md) — DEC Sixel bitmap graphics in messages and file previews
+- [Pipe Code Support](Pipe_Code_Support.md) — BBS pipe color code rendering
+
+---
+
+## Economy & Engagement
+
+- [Credit System](CreditSystem.md) — User credit economy: earning, spending, and configuration
+- [Advertising](Advertising.md) — Ad banners, campaigns, and display configuration
+
+---
+
+## Automation
+
+- [Robots](Robots.md) — Echomail robot automation and response bots
+- [File Area Rules](FileAreas.md#file-area-rules) — Automated processing rules for incoming files
+- [Anti-Virus](AntiVirus.md) — File scanning integration for uploaded files
+
+---
+
+## Deployment & Infrastructure
+
+- [Docker](DOCKER.md) — Docker and docker-compose deployment
+- [Customizing](CUSTOMIZING.md) — Themes, shells, and appearance customization
+- [Localization](Localization.md) — Internationalization (i18n) and locale configuration
+
+---
+
+## Developer Reference
+
+- [Developer Guide](DEVELOPER_GUIDE.md) — Architecture overview, coding conventions, contribution guide

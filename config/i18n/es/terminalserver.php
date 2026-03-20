@@ -186,6 +186,9 @@ return [
     'ui.terminalserver.files.upload_duplicate'         => 'Este archivo ya existe en esta área.',
     'ui.terminalserver.files.upload_readonly'          => 'Esta área es de solo lectura. No se permiten subidas.',
     'ui.terminalserver.files.upload_admin_only'        => 'Solo los administradores pueden subir a esta área.',
+    'ui.terminalserver.files.files_back_hint'          => 'R)egresar a la carpeta padre',
+    'ui.terminalserver.files.not_a_file'               => 'Esa entrada es una carpeta, no un archivo.',
+    'ui.terminalserver.files.enter_folder_or_file'     => 'Ingrese el número de una carpeta para explorar, o de un archivo para ver detalles.',
 
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Configuración de Terminal',
