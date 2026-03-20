@@ -61,11 +61,52 @@
                 justify-content: flex-start !important;
             }
         }
+
+        .wizard-step-pip {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            flex-shrink: 0;
+            background-color: var(--bs-secondary-bg);
+            color: var(--bs-secondary-color);
+            border: 2px solid var(--bs-border-color);
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        .wizard-step-pip.active {
+            background-color: var(--bs-primary);
+            color: #fff;
+            border-color: var(--bs-primary);
+        }
+        .wizard-step-pip.done {
+            background-color: var(--bs-success);
+            color: #fff;
+            border-color: var(--bs-success);
+        }
+        .wizard-type-card {
+            cursor: pointer;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+        .wizard-type-card:hover {
+            border-color: var(--bs-primary);
+        }
+        .wizard-type-card.selected {
+            border-color: var(--bs-primary) !important;
+            border-width: 2px !important;
+            background-color: rgba(var(--bs-primary-rgb), 0.08);
+        }
     </style>
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2">{{ t('ui.admin.ad_campaigns.heading') }}</h1>
         <div class="d-flex gap-2">
             <a class="btn btn-outline-secondary" href="/admin/ads">{{ t('ui.admin.ad_campaigns.back_to_ads') }}</a>
+            <button class="btn btn-outline-primary" type="button" onclick="showCampaignWizard()">
+                <i class="fas fa-magic me-1"></i>{{ t('ui.admin.ad_campaigns.wizard_btn') }}
+            </button>
             <button class="btn btn-primary" type="button" onclick="showCampaignModal()">
                 <i class="fas fa-plus"></i> {{ t('ui.admin.ad_campaigns.add_campaign') }}
             </button>
@@ -262,6 +303,30 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="campaignWizardModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">{{ t('ui.admin.ad_campaigns.wizard_title') }}</h5>
+                        <div class="small text-muted" id="wizardStepLabel"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="px-4 pt-3 pb-0">
+                    <div class="d-flex align-items-center" id="wizardStepIndicator"></div>
+                </div>
+                <div class="modal-body" id="wizardBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                    <button type="button" class="btn btn-outline-secondary d-none" id="wizardBackBtn" onclick="wizardBack()">{{ t('ui.admin.ad_campaigns.wizard_back') }}</button>
+                    <button type="button" class="btn btn-primary" id="wizardNextBtn" onclick="wizardNext()">{{ t('ui.admin.ad_campaigns.wizard_next') }}</button>
+                    <button type="button" class="btn btn-success d-none" id="wizardFinishBtn" onclick="wizardFinish()">{{ t('ui.admin.ad_campaigns.wizard_finish') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -289,6 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
         adCampaignModal = new bootstrap.Modal(document.getElementById('campaignModal'));
         campaignAdPreviewModal = new bootstrap.Modal(document.getElementById('campaignAdPreviewModal'));
+        campaignWizardModal = new bootstrap.Modal(document.getElementById('campaignWizardModal'));
         document.getElementById('historyCampaignFilter').addEventListener('change', loadDetailedHistory);
         document.getElementById('historyStatusFilter').addEventListener('change', loadDetailedHistory);
         loadCampaignPage();
@@ -984,6 +1050,577 @@ function readJsonResponse(response) {
     return response.text().then(text => {
         if (!text) return { response, data: {} };
         return { response, data: JSON.parse(text) };
+    });
+}
+
+// =========================================================
+// Campaign Wizard
+// =========================================================
+
+let campaignWizardModal = null;
+let wizardCurrentStep = 1;
+let wizardSelectedType = null;
+let wizardCachedPayload = null;
+
+const WIZARD_PRESETS = {
+    weekly_bbs_ad: {
+        label: 'Weekly BBS Advertisement',
+        icon: 'fa-bullhorn',
+        description: 'Post a weekly BBS advertisement to one or more echoareas.',
+        frequency: 'Once per week (Mondays)',
+        schedules: [{ days_mask: 1 << 1, time_of_day: '10:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'BBS Ad: {title}',
+        has_end_date: false,
+    },
+    event: {
+        label: 'Event Advertisement',
+        icon: 'fa-calendar-alt',
+        description: 'Promote an upcoming event. Posts daily until the event date.',
+        frequency: 'Daily until event',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '14:00' }],
+        post_interval_minutes: 1440,
+        min_repeat_gap_minutes: 1440,
+        subject_template: 'EVENT: {title}',
+        has_end_date: true,
+        end_date_label: 'Event Date',
+    },
+    door_game: {
+        label: 'Door Game / Round Reset',
+        icon: 'fa-gamepad',
+        description: 'Announce a new door game or round reset (e.g. L.O.R.D., B.R.E.).',
+        frequency: 'Mon & Thu for 2 weeks',
+        schedules: [{ days_mask: (1 << 1) | (1 << 4), time_of_day: '11:00' }],
+        post_interval_minutes: 4320,
+        min_repeat_gap_minutes: 4320,
+        subject_template: 'NEW ROUND: {title}',
+        has_end_date: true,
+        end_date_label: 'Reset / Start Date',
+        end_date_default_offset: 14,
+    },
+    file_echo: {
+        label: 'File Echo Update',
+        icon: 'fa-file-archive',
+        description: 'Post a weekly summary of new files hatched or uploaded to the system.',
+        frequency: 'Weekly (Fridays)',
+        schedules: [{ days_mask: 1 << 5, time_of_day: '18:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'FILES: {title}',
+        has_end_date: false,
+    },
+    league_recruit: {
+        label: 'Inter-BBS League Recruitment',
+        icon: 'fa-trophy',
+        description: 'Seek players for a cross-platform inter-BBS tournament or league.',
+        frequency: 'Mon/Wed/Fri until deadline',
+        schedules: [{ days_mask: (1 << 1) | (1 << 3) | (1 << 5), time_of_day: '10:00' }],
+        post_interval_minutes: 2880,
+        min_repeat_gap_minutes: 2880,
+        subject_template: 'JOIN: {title}',
+        has_end_date: true,
+        end_date_label: 'Signup Deadline',
+    },
+    sub_of_week: {
+        label: 'Sub-Board of the Week',
+        icon: 'fa-comments',
+        description: 'Drive traffic to a specific message area to spark conversation.',
+        frequency: 'Once, expires in 7 days',
+        schedules: [{ days_mask: 1 << 1, time_of_day: '09:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'SUB OF THE WEEK: {title}',
+        has_end_date: true,
+        end_date_label: 'Expires On',
+        end_date_default_offset: 7,
+    },
+    anniversary: {
+        label: 'Anniversary / Milestone',
+        icon: 'fa-birthday-cake',
+        description: 'Celebrate a system anniversary or caller count milestone.',
+        frequency: 'Daily for 7 days',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '12:00' }],
+        post_interval_minutes: 1440,
+        min_repeat_gap_minutes: 1440,
+        subject_template: 'MILESTONE: {title}',
+        has_end_date: true,
+        end_date_label: 'Milestone Date',
+        end_date_default_offset: 7,
+    },
+    tech_notice: {
+        label: 'Technical Change Notice',
+        icon: 'fa-wrench',
+        description: 'Notify the network of an IP change, new SSH support, or hardware update.',
+        frequency: 'Every 2 days for 2 weeks',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '08:00' }],
+        post_interval_minutes: 2880,
+        min_repeat_gap_minutes: 2880,
+        subject_template: 'NOTICE: {title}',
+        has_end_date: true,
+        end_date_label: 'Effective Until',
+        end_date_default_offset: 14,
+    },
+    node_of_month: {
+        label: 'Node of the Month',
+        icon: 'fa-award',
+        description: 'Monthly shout-out to a partner BBS to foster community growth.',
+        frequency: 'Weekly through end of month',
+        schedules: [{ days_mask: 1 << 1, time_of_day: '10:00' }],
+        post_interval_minutes: 10080,
+        min_repeat_gap_minutes: 10080,
+        subject_template: 'NODE OF THE MONTH: {title}',
+        has_end_date: true,
+        end_date_label: 'Through End of Month',
+        end_date_default_end_of_month: true,
+    },
+};
+
+/**
+ * Open the wizard modal, reset state, go to step 1.
+ */
+function showCampaignWizard() {
+    wizardCurrentStep = 1;
+    wizardSelectedType = null;
+    wizardGoTo(1);
+    campaignWizardModal.show();
+}
+
+/**
+ * Navigate to a given wizard step, re-rendering step content and controls.
+ * @param {number} step
+ */
+function wizardGoTo(step) {
+    wizardCurrentStep = step;
+    renderWizardStepIndicator(step);
+
+    const stepTitles = [
+        uiT('ui.admin.ad_campaigns.wizard_step1_title', 'Choose Campaign Type'),
+        uiT('ui.admin.ad_campaigns.wizard_step2_title', 'Campaign Details'),
+        uiT('ui.admin.ad_campaigns.wizard_step3_title', 'Review & Confirm'),
+    ];
+    const stepLabel = document.getElementById('wizardStepLabel');
+    if (stepLabel) {
+        stepLabel.textContent = uiT('ui.admin.ad_campaigns.wizard_step_of', 'Step {current} of {total}', {
+            current: step,
+            total: 3,
+        }) + ' — ' + (stepTitles[step - 1] || '');
+    }
+
+    const backBtn = document.getElementById('wizardBackBtn');
+    const nextBtn = document.getElementById('wizardNextBtn');
+    const finishBtn = document.getElementById('wizardFinishBtn');
+    backBtn?.classList.toggle('d-none', step <= 1);
+    nextBtn?.classList.toggle('d-none', step >= 3);
+    finishBtn?.classList.toggle('d-none', step < 3);
+    if (finishBtn) {
+        finishBtn.disabled = false;
+        finishBtn.textContent = uiT('ui.admin.ad_campaigns.wizard_finish', 'Create Campaign');
+    }
+
+    const body = document.getElementById('wizardBody');
+    if (step === 1) {
+        body.innerHTML = renderWizardStep1();
+    } else if (step === 2) {
+        body.innerHTML = renderWizardStep2();
+    } else {
+        body.innerHTML = renderWizardStep3();
+    }
+}
+
+/**
+ * Render the three numbered step pips in the modal header.
+ * @param {number} currentStep
+ */
+function renderWizardStepIndicator(currentStep) {
+    const indicator = document.getElementById('wizardStepIndicator');
+    if (!indicator) {
+        return;
+    }
+
+    const stepLabels = [
+        uiT('ui.admin.ad_campaigns.wizard_step1_title', 'Type'),
+        uiT('ui.admin.ad_campaigns.wizard_step2_title', 'Details'),
+        uiT('ui.admin.ad_campaigns.wizard_step3_title', 'Review'),
+    ];
+
+    indicator.innerHTML = stepLabels.map((label, i) => {
+        const stepNum = i + 1;
+        const pipClass = stepNum < currentStep ? 'done' : (stepNum === currentStep ? 'active' : '');
+        const icon = stepNum < currentStep ? '<i class="fas fa-check"></i>' : String(stepNum);
+        const line = i < stepLabels.length - 1
+            ? '<div class="flex-grow-1 border-top mx-2" style="min-width:1rem;"></div>'
+            : '';
+        return `
+            <div class="d-flex align-items-center ${i < stepLabels.length - 1 ? 'flex-grow-1' : ''}">
+                <div class="wizard-step-pip ${pipClass}" title="${escapeHtml(label)}">${icon}</div>
+                <div class="ms-1 small d-none d-sm-block ${stepNum === currentStep ? '' : 'text-muted'}">${escapeHtml(label)}</div>
+                ${line}
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Render the type-selection card grid (step 1).
+ * @returns {string} HTML
+ */
+function renderWizardStep1() {
+    const cards = Object.entries(WIZARD_PRESETS).map(([key, preset]) => {
+        const selected = wizardSelectedType === key ? 'selected' : '';
+        return `
+            <div class="col">
+                <div class="card h-100 wizard-type-card ${selected}" onclick="wizardSelectType('${escapeJs(key)}')" role="button" tabindex="0">
+                    <div class="card-body text-center d-flex flex-column align-items-center p-3">
+                        <i class="fas ${escapeHtml(preset.icon)} fa-2x mb-2 text-primary"></i>
+                        <h6 class="card-title mb-1">${escapeHtml(preset.label)}</h6>
+                        <p class="card-text small text-muted flex-grow-1 mb-2">${escapeHtml(preset.description)}</p>
+                        <span class="badge bg-secondary">${escapeHtml(preset.frequency)}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    return `<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">${cards}</div>`;
+}
+
+/**
+ * Highlight the selected type card and update wizard state.
+ * @param {string} typeKey
+ */
+function wizardSelectType(typeKey) {
+    wizardSelectedType = typeKey;
+    const keys = Object.keys(WIZARD_PRESETS);
+    document.querySelectorAll('.wizard-type-card').forEach((card, i) => {
+        card.classList.toggle('selected', keys[i] === typeKey);
+    });
+}
+
+/**
+ * Render the campaign details form (step 2).
+ * @returns {string} HTML
+ */
+function renderWizardStep2() {
+    const preset = WIZARD_PRESETS[wizardSelectedType];
+    const systemName = {{ system_name|json_encode|raw }};
+    const defaultName = `${preset.label}: ${systemName}`;
+
+    const userOptions = (campaignMeta.users || []).map(user => {
+        const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
+        return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
+    }).join('');
+
+    const echoareas = Array.isArray(campaignMeta.echoareas) ? campaignMeta.echoareas : [];
+    const prioritized = [];
+    const remaining = [];
+    echoareas.forEach(area => {
+        const haystack = `${area.tag || ''} ${area.domain || ''}`.toUpperCase();
+        (haystack.includes('ADS') ? prioritized : remaining).push(area);
+    });
+    const buildAreaOption = area =>
+        `<option value="${escapeHtml(area.tag + '@' + area.domain)}">${escapeHtml(area.tag)} @ ${escapeHtml(area.domain)}</option>`;
+    const areaOptions = [
+        ...prioritized.map(buildAreaOption),
+        ...(prioritized.length && remaining.length ? ['<option value="" disabled>----</option>'] : []),
+        ...remaining.map(buildAreaOption),
+    ].join('');
+
+    let endDateField = '';
+    if (preset.has_end_date) {
+        const defaultDate = wizardEndDateDefault(preset);
+        endDateField = `
+            <div class="col-md-6">
+                <label class="form-label" for="wizardEndDate">${escapeHtml(preset.end_date_label)}</label>
+                <input class="form-control" type="date" id="wizardEndDate" value="${escapeHtml(defaultDate)}">
+                <div class="form-text">${uiT('ui.admin.ad_campaigns.wizard_disable_reminder', 'Reminder to disable this campaign after this date.')}</div>
+            </div>
+        `;
+    }
+
+    let adsHtml = '';
+    if (!Array.isArray(campaignMeta.ads) || campaignMeta.ads.length === 0) {
+        adsHtml = `<div class="text-muted small">${uiT('ui.admin.ad_campaigns.no_ads_available', 'No ads available yet.')} <a href="/admin/ads" target="_blank">Add an ad</a></div>`;
+    } else {
+        adsHtml = campaignMeta.ads.map(ad => `
+            <div class="form-check">
+                <input class="form-check-input wizard-ad-check" type="checkbox" value="${Number(ad.id)}" id="wizardAd${Number(ad.id)}">
+                <label class="form-check-label" for="wizardAd${Number(ad.id)}">${escapeHtml(ad.title || ad.slug || '')}</label>
+            </div>
+        `).join('');
+    }
+
+    return `
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas ${escapeHtml(preset.icon)} text-primary"></i>
+                    <span class="fw-semibold">${escapeHtml(preset.label)}</span>
+                    <span class="badge bg-secondary">${escapeHtml(preset.frequency)}</span>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label" for="wizardCampaignName">${uiT('ui.admin.ad_campaigns.wizard_campaign_name', 'Campaign Name')}</label>
+                <input class="form-control" type="text" id="wizardCampaignName" value="${escapeHtml(defaultName)}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="wizardToName">${uiT('ui.admin.ad_campaigns.to_name', 'To Name')}</label>
+                <input class="form-control" type="text" id="wizardToName" value="All">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="wizardUser">${uiT('ui.admin.ad_campaigns.post_as_user', 'Post As User')}</label>
+                <select class="form-select" id="wizardUser">
+                    <option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>
+                    ${userOptions}
+                </select>
+            </div>
+            ${endDateField}
+            <div class="col-12">
+                <label class="form-label" for="wizardTargetAreas">${uiT('ui.admin.ad_campaigns.echoarea_domain', 'Echoarea + Domain')}</label>
+                <select class="form-select" id="wizardTargetAreas" multiple size="6">
+                    ${areaOptions}
+                </select>
+                <div class="form-text">Hold Ctrl / Cmd to select multiple echoareas.</div>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="wizardSubjectTemplate">${uiT('ui.admin.ad_campaigns.subject_template', 'Subject Template')}</label>
+                <input class="form-control" type="text" id="wizardSubjectTemplate" value="${escapeHtml(preset.subject_template)}">
+                <div class="form-text"><strong>{title}</strong> = ad title &middot; <strong>{campaign}</strong> = this campaign&rsquo;s name &middot; <strong>{echoarea}</strong> / <strong>{domain}</strong> = posting destination</div>
+            </div>
+            <div class="col-12">
+                <label class="form-label">${uiT('ui.admin.ad_campaigns.wizard_select_ads', 'Assign Ads')}</label>
+                <div class="border rounded p-3" style="max-height: 220px; overflow-y: auto;">
+                    ${adsHtml}
+                </div>
+                <div class="form-text">${uiT('ui.admin.ad_campaigns.wizard_select_ads_help', 'Select one or more ads to include in this campaign.')}</div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Compute the default end date for a preset.
+ * @param {object} preset
+ * @returns {string} ISO date string (YYYY-MM-DD) or empty string
+ */
+function wizardEndDateDefault(preset) {
+    const today = new Date();
+    if (preset.end_date_default_end_of_month) {
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        return lastDay.toISOString().slice(0, 10);
+    }
+    if (preset.end_date_default_offset) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + preset.end_date_default_offset);
+        return d.toISOString().slice(0, 10);
+    }
+    return '';
+}
+
+/**
+ * Render the review/confirm summary (step 3).
+ * Step 2 DOM is still intact when this is called, so capture the payload now.
+ * @returns {string} HTML
+ */
+function renderWizardStep3() {
+    wizardCachedPayload = wizardBuildPayload();
+    const payload = wizardCachedPayload;
+    const preset = WIZARD_PRESETS[wizardSelectedType];
+    const schedule = preset.schedules[0];
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayStrip = dayNames.map((name, i) => {
+        const active = (schedule.days_mask & (1 << i)) !== 0;
+        return `<span class="badge ${active ? 'bg-primary' : 'bg-secondary'} me-1">${name}</span>`;
+    }).join('');
+
+    const targetList = payload.targets.length
+        ? payload.targets.map(t => `<code>${escapeHtml(t.echoarea_tag + '@' + t.domain)}</code>`).join(', ')
+        : uiT('ui.admin.ad_campaigns.select_target', 'None');
+
+    const selectedAdTitles = Array.from(document.querySelectorAll('.wizard-ad-check:checked'))
+        .map(cb => {
+            const ad = (campaignMeta.ads || []).find(a => Number(a.id) === Number(cb.value));
+            return ad ? escapeHtml(ad.title || ad.slug || '') : cb.value;
+        });
+
+    const endDate = document.getElementById('wizardEndDate')?.value;
+    const expiryRow = endDate ? `
+        <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_expires_label', 'Expires')}</dt>
+        <dd class="col-sm-8">${escapeHtml(endDate)}</dd>
+    ` : '';
+    const disableReminder = endDate ? `
+        <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mt-3" role="alert">
+            <i class="fas fa-exclamation-triangle mt-1 flex-shrink-0"></i>
+            <div>${uiT('ui.admin.ad_campaigns.wizard_disable_reminder', 'Remember to disable this campaign after this date.')}</div>
+        </div>
+    ` : '';
+
+    return `
+        <dl class="row mb-0">
+            <dt class="col-sm-4">${uiT('ui.common.title', 'Campaign Name')}</dt>
+            <dd class="col-sm-8 fw-semibold">${escapeHtml(payload.name)}</dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_posts_to', 'Posts to')}</dt>
+            <dd class="col-sm-8">${targetList}</dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_schedule_label', 'Schedule')}</dt>
+            <dd class="col-sm-8">
+                <div class="mb-1">${dayStrip}</div>
+                <div class="small text-muted">${escapeHtml(schedule.time_of_day)} ${escapeHtml(defaultCampaignTimezone)}</div>
+            </dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_frequency_label', 'Interval')}</dt>
+            <dd class="col-sm-8">${escapeHtml(wizardFormatInterval(preset.post_interval_minutes))}</dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_subject_label', 'Subject Template')}</dt>
+            <dd class="col-sm-8"><code>${escapeHtml(document.getElementById('wizardSubjectTemplate')?.value?.trim() || '')}</code></dd>
+            <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_ads_label', 'Ads')}</dt>
+            <dd class="col-sm-8">${selectedAdTitles.length ? selectedAdTitles.join(', ') : `<span class="text-muted">${uiT('ui.admin.ad_campaigns.no_ads_available', 'None')}</span>`}</dd>
+            ${expiryRow}
+        </dl>
+        ${disableReminder}
+    `;
+}
+
+/**
+ * Format a minute count as a human-readable interval string.
+ * @param {number} minutes
+ * @returns {string}
+ */
+function wizardFormatInterval(minutes) {
+    if (minutes >= 10080) {
+        return `${Math.round(minutes / 10080)} week(s)`;
+    }
+    if (minutes >= 1440) {
+        return `${Math.round(minutes / 1440)} day(s)`;
+    }
+    if (minutes >= 60) {
+        return `${Math.round(minutes / 60)} hour(s)`;
+    }
+    return `${minutes} minute(s)`;
+}
+
+/**
+ * Build the campaign creation payload from the current wizard form state.
+ * @returns {object}
+ */
+function wizardBuildPayload() {
+    const preset = WIZARD_PRESETS[wizardSelectedType];
+    const schedules = preset.schedules.map(s => ({
+        days_mask: s.days_mask,
+        time_of_day: s.time_of_day,
+        timezone: defaultCampaignTimezone,
+        is_active: true,
+    }));
+
+    const subjectTemplate = document.getElementById('wizardSubjectTemplate')?.value?.trim() || preset.subject_template;
+    const targets = Array.from(document.querySelectorAll('#wizardTargetAreas option:checked')).map(opt => {
+        const atIdx = opt.value.indexOf('@');
+        return {
+            echoarea_tag: atIdx >= 0 ? opt.value.slice(0, atIdx) : opt.value,
+            domain: atIdx >= 0 ? opt.value.slice(atIdx + 1) : '',
+            subject_template: subjectTemplate,
+            is_active: true,
+        };
+    });
+
+    const ads = Array.from(document.querySelectorAll('.wizard-ad-check:checked')).map(cb => ({
+        advertisement_id: Number(cb.value),
+        weight: 1,
+    }));
+
+    const endDate = document.getElementById('wizardEndDate')?.value;
+    const description = endDate
+        ? `${uiT('ui.admin.ad_campaigns.wizard_expires_label', 'Expires')}: ${endDate}`
+        : '';
+
+    return {
+        name: document.getElementById('wizardCampaignName')?.value?.trim() || preset.label,
+        description,
+        is_active: true,
+        from_user_id: Number(document.getElementById('wizardUser')?.value || 0),
+        to_name: document.getElementById('wizardToName')?.value?.trim() || 'All',
+        selection_mode: 'weighted_random',
+        post_interval_minutes: preset.post_interval_minutes,
+        min_repeat_gap_minutes: preset.min_repeat_gap_minutes,
+        schedules,
+        targets,
+        ads,
+        tag_filters: { include: [], exclude: [] },
+    };
+}
+
+/**
+ * Validate current step and advance to the next.
+ */
+function wizardNext() {
+    if (wizardCurrentStep === 1) {
+        if (!wizardSelectedType) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_type', 'Please select a campaign type.'));
+            return;
+        }
+        wizardGoTo(2);
+        return;
+    }
+
+    if (wizardCurrentStep === 2) {
+        if (!document.getElementById('wizardCampaignName')?.value?.trim()) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_name', 'Please enter a campaign name.'));
+            return;
+        }
+        if (!document.getElementById('wizardUser')?.value) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_user', 'Please select a user.'));
+            return;
+        }
+        if (document.querySelectorAll('#wizardTargetAreas option:checked').length === 0) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_target', 'Please select an echoarea target.'));
+            return;
+        }
+        if (document.querySelectorAll('.wizard-ad-check:checked').length === 0) {
+            alert(uiT('ui.admin.ad_campaigns.wizard_no_ads', 'Please select at least one ad.'));
+            return;
+        }
+        wizardGoTo(3);
+    }
+}
+
+/**
+ * Go back one wizard step.
+ */
+function wizardBack() {
+    if (wizardCurrentStep > 1) {
+        if (wizardCurrentStep === 3) {
+            wizardCachedPayload = null;
+        }
+        wizardGoTo(wizardCurrentStep - 1);
+    }
+}
+
+/**
+ * Submit the wizard payload to create the campaign.
+ */
+function wizardFinish() {
+    const payload = wizardCachedPayload;
+    const finishBtn = document.getElementById('wizardFinishBtn');
+    if (finishBtn) {
+        finishBtn.disabled = true;
+        finishBtn.textContent = 'Saving\u2026';
+    }
+
+    fetch('/admin/api/ad-campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    }).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || !data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign')));
+        }
+        campaignWizardModal.hide();
+        showCampaignAlert(uiT('ui.admin.ad_campaigns.wizard_created', 'Campaign created successfully.'), 'success');
+        loadCampaignPage();
+    }).catch(error => {
+        if (finishBtn) {
+            finishBtn.disabled = false;
+            finishBtn.textContent = uiT('ui.admin.ad_campaigns.wizard_finish', 'Create Campaign');
+        }
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign'), 'danger');
     });
 }
 
