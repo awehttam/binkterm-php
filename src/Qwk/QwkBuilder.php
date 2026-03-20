@@ -19,6 +19,7 @@ use BinktermPHP\BbsConfig;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Database;
 use BinktermPHP\EchoareaSubscriptionManager;
+use BinktermPHP\Version;
 use PDO;
 use ZipArchive;
 
