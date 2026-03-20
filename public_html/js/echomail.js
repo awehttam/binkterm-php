@@ -24,6 +24,7 @@ let originalFilterCounts = null;
 let isSearchActive = false;
 let currentPagination = null;
 let _messageRiptermLoaderPromise = null;
+let requestedMessageId = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -48,11 +49,12 @@ const USE_DATE_FIELD = (window.echomailDateField === 'written') ? 'written' : 'r
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
-        loadEchoareas();
-
-        // Check for search parameter in URL
         const urlParams = new URLSearchParams(window.location.search);
         const searchQuery = urlParams.get('search');
+        const messageParam = urlParams.get('message');
+        requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
+
+        loadEchoareas();
 
         if (searchQuery) {
             // Populate search input and trigger search
@@ -65,7 +67,9 @@ $(document).ready(function() {
             if (echoPageMemory[memKey]) {
                 currentPage = echoPageMemory[memKey];
             }
-            loadMessages();
+            loadMessages(function() {
+                openRequestedMessage();
+            });
         }
     });
     loadStats();
@@ -2141,6 +2145,14 @@ function updateNavigationButtons() {
     const prevBtn = $('#prevMessageBtn');
     const nextBtn = $('#nextMessageBtn');
 
+    if (currentMessageIndex < 0) {
+        prevBtn.prop('disabled', true);
+        nextBtn.prop('disabled', true);
+        prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
+        return;
+    }
+
     prevBtn.prop('disabled', currentMessageIndex <= 0);
     prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
 
@@ -2160,6 +2172,16 @@ function updateNavigationButtons() {
         nextBtn.prop('disabled', false);
         nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
     }
+}
+
+function openRequestedMessage() {
+    if (!requestedMessageId) {
+        return;
+    }
+
+    const messageId = requestedMessageId;
+    requestedMessageId = null;
+    viewMessage(messageId);
 }
 
 /**

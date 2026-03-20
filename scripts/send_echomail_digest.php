@@ -78,6 +78,11 @@ function log_msg(string $msg, bool $verbose, bool $force = false): void
     }
 }
 
+function buildEchomailMessageUrl(string $siteUrl, string $areaSlug, int $messageId): string
+{
+    return $siteUrl . '/echomail/' . rawurlencode($areaSlug) . '?message=' . $messageId;
+}
+
 /**
  * Determine whether enough time has passed since the last digest for the given
  * frequency.
@@ -106,7 +111,7 @@ function isDue(string $frequency, ?string $lastSent): bool
  * Build a plain-text digest body for one user.
  *
  * @param array  $addressed  Messages personally addressed to the user:
- *                           [['subject','from_name','area_tag','area_slug'], ...]
+ *                           [['subject','from_name','area_tag','area_slug','id'], ...]
  * @param array  $areas      Array of ['tag'=>string, 'name'=>string, 'messages'=>[...]]
  * @param string $systemName BBS system name
  * @param string $siteUrl    Base URL of the BBS
@@ -129,7 +134,7 @@ function buildPlainDigest(array $addressed, array $areas, string $systemName, st
         $lines[] = str_repeat('-', 40);
         foreach ($addressed as $msg) {
             $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ' in ' . $msg['area_tag'] . ')';
-            $lines[] = '  ' . $siteUrl . '/echomail/' . rawurlencode($msg['area_slug']);
+            $lines[] = '  ' . buildEchomailMessageUrl($siteUrl, $msg['area_slug'], (int)$msg['id']);
         }
         $lines[] = '';
     }
@@ -141,6 +146,9 @@ function buildPlainDigest(array $addressed, array $areas, string $systemName, st
 
         foreach ($area['messages'] as $msg) {
             $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ')';
+            if (!empty($msg['id'])) {
+                $lines[] = '  ' . buildEchomailMessageUrl($siteUrl, $area['slug'], (int)$msg['id']);
+            }
         }
 
         $lines[] = '  ' . $siteUrl . '/echomail/' . rawurlencode($area['slug']);
@@ -181,10 +189,10 @@ function buildHtmlDigest(array $addressed, array $areas, string $systemName, str
             $safeSubject  = htmlspecialchars($msg['subject'] ?: '(no subject)', ENT_QUOTES, 'UTF-8');
             $safeFrom     = htmlspecialchars($msg['from_name'], ENT_QUOTES, 'UTF-8');
             $safeAreaTag  = htmlspecialchars($msg['area_tag'], ENT_QUOTES, 'UTF-8');
-            $areaUrl      = $siteUrl . '/echomail/' . rawurlencode($msg['area_slug']);
-            $safeAreaUrl  = htmlspecialchars($areaUrl, ENT_QUOTES, 'UTF-8');
-            $addressedHtml .= '<li><strong>' . $safeSubject . '</strong> &mdash; from ' . $safeFrom
-                . ' in <a href="' . $safeAreaUrl . '">' . $safeAreaTag . '</a></li>';
+            $messageUrl   = buildEchomailMessageUrl($siteUrl, $msg['area_slug'], (int)$msg['id']);
+            $safeMessageUrl = htmlspecialchars($messageUrl, ENT_QUOTES, 'UTF-8');
+            $addressedHtml .= '<li><a href="' . $safeMessageUrl . '"><strong>' . $safeSubject . '</strong></a> &mdash; from '
+                . $safeFrom . ' in ' . $safeAreaTag . '</li>';
         }
         $addressedHtml .= '</ul></div>';
     }
@@ -204,7 +212,13 @@ function buildHtmlDigest(array $addressed, array $areas, string $systemName, str
         foreach ($area['messages'] as $msg) {
             $safeSubject = htmlspecialchars($msg['subject'] ?: '(no subject)', ENT_QUOTES, 'UTF-8');
             $safeFrom    = htmlspecialchars($msg['from_name'], ENT_QUOTES, 'UTF-8');
-            $areaHtml   .= '<li><strong>' . $safeSubject . '</strong> &mdash; ' . $safeFrom . '</li>';
+            if (!empty($msg['id'])) {
+                $messageUrl = buildEchomailMessageUrl($siteUrl, $area['slug'], (int)$msg['id']);
+                $safeMessageUrl = htmlspecialchars($messageUrl, ENT_QUOTES, 'UTF-8');
+                $areaHtml   .= '<li><a href="' . $safeMessageUrl . '"><strong>' . $safeSubject . '</strong></a> &mdash; ' . $safeFrom . '</li>';
+            } else {
+                $areaHtml   .= '<li><strong>' . $safeSubject . '</strong> &mdash; ' . $safeFrom . '</li>';
+            }
         }
 
         $areaHtml .= '</ul>';
@@ -324,7 +338,7 @@ foreach ($users as $user) {
     $realName  = trim((string)($user['real_name'] ?? ''));
     if ($realName !== '') {
         $addrStmt = $db->prepare("
-            SELECT em.subject, em.from_name, e.tag, e.domain,
+            SELECT em.id, em.subject, em.from_name, e.tag, e.domain,
                    em.date_received
             FROM echomail em
             JOIN echoareas e ON em.echoarea_id = e.id
@@ -340,6 +354,7 @@ foreach ($users as $user) {
                 ? $row['tag'] . '@' . $row['domain']
                 : $row['tag'];
             $addressed[] = [
+                'id'        => (int)$row['id'],
                 'subject'   => $row['subject'],
                 'from_name' => $row['from_name'],
                 'area_tag'  => $row['tag'],
@@ -352,6 +367,7 @@ foreach ($users as $user) {
     // bubble up first (we'll truncate to $maxAreas after grouping).
     $msgStmt = $db->prepare("
         SELECT e.id AS echoarea_id, e.tag, e.domain, e.description AS name,
+               em.id,
                em.subject, em.from_name, em.date_received
         FROM echomail em
         JOIN echoareas e ON em.echoarea_id = e.id
@@ -395,6 +411,7 @@ foreach ($users as $user) {
         $areas[$eid]['total']++;
         if (count($areas[$eid]['messages']) < $maxPerArea) {
             $areas[$eid]['messages'][] = [
+                'id'        => (int)$row['id'],
                 'subject'   => $row['subject'],
                 'from_name' => $row['from_name'],
             ];
