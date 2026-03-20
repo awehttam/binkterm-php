@@ -510,6 +510,9 @@ class QwkBuilder
         if (!empty($message['to_address'])) {
             $lines[] = "\x01TO: " . ($message['to_name'] ?? '') . ' <' . $message['to_address'] . '>';
         }
+        if (!empty($message['subject'])) {
+            $lines[] = "\x01SUBJECT: " . $message['subject'];
+        }
 
         return implode("\n", $lines) . "\n";
     }
