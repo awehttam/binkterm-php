@@ -361,11 +361,13 @@ function renderAreas(type, areas, containerSel, countSel) {
                         ${sub ? '' : 'disabled'}>
                     ${uiT('ui.admin.lovlynet.btn_resend', 'Resend File(s)')}
                 </button>` : '';
-        const syncTitle = !area.local_exists
-            ? uiT('ui.admin.lovlynet.sync_title_create_and_description', 'Create group and sync description')
-            : (area.has_setting_issues
-                ? uiT('ui.admin.lovlynet.sync_title_settings_and_description', 'Sync recommended settings and description')
-                : uiT('ui.admin.lovlynet.sync_title_description', 'Sync description'));
+        const syncTitle = type === 'echo'
+            ? uiT('ui.admin.lovlynet.sync_button_title', 'Sync settings')
+            : (!area.local_exists
+                ? uiT('ui.admin.lovlynet.sync_title_create_and_description', 'Create group and sync description')
+                : (area.has_setting_issues
+                    ? uiT('ui.admin.lovlynet.sync_title_settings_and_description', 'Sync recommended settings and description')
+                    : uiT('ui.admin.lovlynet.sync_title_description', 'Sync description')));
         const syncButton = syncNeeded ? `
                 <button class="btn btn-sm btn-outline-primary sync-btn"
                         data-type="${escapeHtmlAttr(type)}"

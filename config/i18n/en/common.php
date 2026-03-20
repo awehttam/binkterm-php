@@ -3498,6 +3498,7 @@ return [
     'ui.admin.lovlynet.request_button_file' => 'Initiate FILEFIX Request',
     'ui.admin.lovlynet.btn_rescan' => 'Rescan',
     'ui.admin.lovlynet.btn_rescan_title' => 'Request rescan of messages',
+    'ui.admin.lovlynet.sync_button_title' => 'Sync settings',
     'ui.admin.lovlynet.sync_title_description' => 'Sync description',
     'ui.admin.lovlynet.sync_title_settings_and_description' => 'Sync recommended settings and description',
     'ui.admin.lovlynet.sync_title_create_and_description' => 'Create group and sync description',

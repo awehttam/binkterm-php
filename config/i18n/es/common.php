@@ -3506,6 +3506,7 @@ return [
     'ui.admin.lovlynet.request_button_file' => 'Iniciar solicitud FILEFIX',
     'ui.admin.lovlynet.btn_rescan' => 'Reescanear',
     'ui.admin.lovlynet.btn_rescan_title' => 'Solicitar reescaneo de mensajes',
+    'ui.admin.lovlynet.sync_button_title' => 'Sincronizar configuracion',
     'ui.admin.lovlynet.rescan_modal_title' => 'Solicitud de reescaneo AreaFix',
     'ui.admin.lovlynet.rescan_modal_help' => 'Elija el área de eco suscrita para reescanear y cuánto historial solicitar a AreaFix.',
     'ui.admin.lovlynet.rescan_area_label' => 'Área de eco',

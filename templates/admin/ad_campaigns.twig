@@ -1667,7 +1667,7 @@ function wizardFinish() {
             .then(readJsonResponse)
             .then(({ response, data }) => {
                 if (!response.ok || !data.success) {
-                    throw new Error(apiError(data, 'Failed to create dynamic ad'));
+                    throw new Error(apiError(data, uiT('ui.admin.ads.create_dynamic_failed', 'Failed to create dynamic ad')));
                 }
                 return createCampaign([{ advertisement_id: Number(data.ad.id), weight: 1 }]);
             })
