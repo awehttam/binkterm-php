@@ -393,6 +393,16 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
         return message.rip_html;
     }
 
+    const hasPCBoard = !forcePlainText && (window.hasPCBoardCodes ? window.hasPCBoardCodes(text) : false);
+    if (hasPCBoard && window.renderPCBoardBuffer) {
+        let rendered = window.renderPCBoardBuffer(text);
+        rendered = linkifyUrls(rendered);
+        if (searchTerms && searchTerms.length > 0) {
+            rendered = highlightSearchTerms(rendered, searchTerms);
+        }
+        return `<div class="ansi-art-container art-format-ansi"><pre class="ansi-art art-format-ansi">${rendered}</pre></div>`;
+    }
+
     const hasAnsi = /\x1b\[[0-9;]*m/.test(text);
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
     const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
@@ -853,6 +863,10 @@ function loadUserSettings() {
                     threaded_view: false,
                     netmail_threaded_view: false,
                     quote_coloring: true,
+                    chat_notification_sound: 'notify3',
+                    echomail_notification_sound: 'disabled',
+                    netmail_notification_sound: 'notify1',
+                    file_notification_sound: 'disabled',
                     default_sort: 'date_desc',
                     timezone: 'America/Los_Angeles',
                     locale: window.appLocale || 'en',
@@ -863,10 +877,6 @@ function loadUserSettings() {
 
                 window.i18n.locale = window.userSettings.locale || window.appLocale || 'en';
                 loadI18nNamespaces(window.appI18nNamespaces || ['common']).finally(function() {
-                    chat_notification_sound: 'notify3',
-                    echomail_notification_sound: 'disabled',
-                    netmail_notification_sound: 'notify1',
-                    file_notification_sound: 'disabled',
                     // Apply font settings after loading defaults
                     applyFontSettings();
                     resolve(window.userSettings);

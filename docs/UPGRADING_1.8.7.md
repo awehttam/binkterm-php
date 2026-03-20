@@ -55,9 +55,15 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [In-App Documentation Browser](#in-app-documentation-browser)
   - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
   - [Advertising System](#advertising-system)
-- [Registration & Premium Features](#registration--premium-features)
+- [Premium Features and Registration](#premium-features-and-registration)
   - [Footer Registration Display](#footer-registration-display)
-  - [Premium Features and Registration](#premium-features-and-registration)
+  - [Registration Badge on Admin Dashboard](#registration-badge-on-admin-dashboard)
+  - [Branding Controls](#branding-controls)
+  - [Message Templates](#message-templates)
+  - [Economy Viewer Now Requires Registration](#economy-viewer-now-requires-registration)
+  - [Referral Analytics](#referral-analytics)
+  - [Custom Login and Registration Splash Pages](#custom-login-and-registration-splash-pages)
+  - [How to Register](#how-to-register)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Crashmail FILE_ATTACH Filename](#crashmail-file_attach-filename)
@@ -232,15 +238,15 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - The "Registered to" line in the page footer is now displayed inline with the
   "Powered by BinktermPHP" line (e.g. *Powered by BinktermPHP 1.8.7 - Registered
   to My BBS*) and no longer shows a separate badge icon.
+- Notification sound selectors in **Settings -> Notifications** now support a
+  **Disabled** option. New default sound assignments are **chat = notify3**,
+  **echomail = disabled**, **netmail = notify1**, and **new file = disabled**.
 
 **Echo List**
 - The `/echolist` page now includes a network filter dropdown. Select one or
   more networks (including Local) to limit the listing to those networks only.
   Selecting nothing shows all networks, matching the existing behaviour.
 
-- Notification sound selectors in **Settings -> Notifications** now support a
-  **Disabled** option. New default sound assignments are **chat = notify3**,
-  **echomail = disabled**, **netmail = notify1**, and **new file = disabled**.
 **Admin**
 - New **Database Statistics** page (`/admin/database-stats`) showing size and
   growth, activity metrics, query performance, replication status, maintenance
@@ -528,12 +534,6 @@ messages across their subscribed echo areas.  The digest is available in two
 frequencies — **Daily** and **Weekly** — and is configured in
 **Settings → Notifications**.  The option is disabled (Off) by default.
 
-This is a registered feature requiring a valid license.
-
-Each digest email lists, per echo area, the number of new messages along with
-subject lines and author names since the last digest was sent.  Full message
-bodies are not included to keep the email concise.
-
 The same Notifications panel also now allows per-event sound selection to be
 set to **Disabled**. Default sound assignments for users without saved
 preferences are:
@@ -542,6 +542,12 @@ preferences are:
 - **New echomail:** `disabled`
 - **New netmail:** `notify1`
 - **New file:** `disabled`
+
+This is a registered feature requiring a valid license.
+
+Each digest email lists, per echo area, the number of new messages along with
+subject lines and author names since the last digest was sent.  Full message
+bodies are not included to keep the email concise.
 
 **Cron setup** — Run the new script periodically to deliver digests.  Once per
 hour is recommended; the script enforces the per-user frequency internally:
@@ -1789,7 +1795,14 @@ php scripts/run_ad_campaigns.php --dry-run
 
 For full operational details, see [docs/Advertising.md](Advertising.md).
 
-## Registration & Premium Features
+## Premium Features and Registration
+
+This release introduces **Registration** as a way for sysops to support the
+continued development of BinktermPHP. BinktermPHP remains fully functional
+without registration — it is never required to run a BBS. Registered
+installations unlock a small set of extras as a thank-you for contributing.
+
+For registration options and instructions, see [REGISTER.md](../REGISTER.md).
 
 ### Footer Registration Display
 
@@ -1799,19 +1812,10 @@ BinktermPHP" line. It is now displayed inline:
 
 > Powered by BinktermPHP 1.8.7 - Registered to *System Name* | …
 
-The badge icon has been removed. The change applies when a valid licence is
-present; unlicensed installations are unaffected.
+The change applies when a valid licence is present; unlicensed installations are
+unaffected.
 
-### Premium Features and Registration
-
-This release introduces **Registration** as a way for sysops to support the
-continued development of BinktermPHP. BinktermPHP remains fully functional
-without registration — it is never required to run a BBS. Registered
-installations unlock a small set of extras as a thank-you for contributing.
-
-For registration options and instructions, see [REGISTER.md](../REGISTER.md).
-
-#### Registration Badge on Admin Dashboard
+### Registration Badge on Admin Dashboard
 
 The admin dashboard (`/admin`) now includes a **Registration Status** row in the
 system information section. It shows either an **Unregistered** badge with a
@@ -1819,7 +1823,7 @@ link to the licensing page, or a **Registered** badge with the licensed system
 name and licensee when a valid license is present. No action is required to
 enable this display.
 
-#### Branding Controls
+### Branding Controls
 
 Registered installations can now customise the site footer from the **Admin →
 Settings → Branding** panel:
@@ -1831,7 +1835,7 @@ Settings → Branding** panel:
 
 These options are stored in `data/bbs.json` and take effect immediately on save.
 
-#### Message Templates
+### Message Templates
 
 A **Templates** button (bookmark icon) now appears in the compose form toolbar
 for registered installations. Templates are reusable subject/body pairs that
@@ -1844,7 +1848,7 @@ select one from the list to pre-fill the subject and body fields.
 Templates are stored per-user in the database. No migration is required for
 existing users — the table was added in a prior release.
 
-#### Economy Viewer Now Requires Registration
+### Economy Viewer Now Requires Registration
 
 The **Economy Viewer** admin page (`/admin/economy`) now requires a valid
 license. Unlicensed installations receive a 403 response. The Economy Viewer
@@ -1852,7 +1856,7 @@ displays credit transaction volume, top earners and spenders, richest accounts,
 recent transactions, and overall economy health metrics (credits in circulation,
 average and median balances).
 
-#### Referral Analytics
+### Referral Analytics
 
 A new **Referral Analytics** admin page (`/admin/referral-analytics`) is
 available to registered installations. It shows:
@@ -1865,7 +1869,7 @@ available to registered installations. It shows:
 This page requires a valid license and is accessible via **Admin → Analytics →
 Referral Analytics**.
 
-#### Custom Login and Registration Splash Pages
+### Custom Login and Registration Splash Pages
 
 Registered installations can configure custom Markdown content that appears
 above the login and registration forms. This is useful for system announcements,
@@ -1883,7 +1887,7 @@ the repository as it is superseded by the splash pages feature.
 
 No configuration or migration is required.
 
-#### How to Register
+### How to Register
 
 Visit the **Admin → Licensing** page and click **How to Register** to open the
 registration modal, which displays the `REGISTER.md` document with current
