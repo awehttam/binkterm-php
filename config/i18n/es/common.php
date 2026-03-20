@@ -1802,6 +1802,10 @@ return [
     'ui.fileareas.comment_area_create_new' => 'Crear nueva área de echomail',
     'ui.fileareas.comment_area_create_help' => 'Se creará una nueva área de echomail local con esta etiqueta.',
 
+    'ui.fileareas.lovlynet_issue_title' => 'La configuracion recomendada de LovlyNet no coincide',
+    'ui.fileareas.lovlynet_issue_readonly_on' => 'LovlyNet recomienda hacer esta area de solo lectura',
+    'ui.fileareas.lovlynet_issue_readonly_off' => 'LovlyNet recomienda permitir subidas en esta area',
+
     // Admin Auto Feed
     'ui.admin.auto_feed.load_details_failed' => 'No se pudieron cargar los detalles del feed',
     'ui.admin.auto_feed.operation_failed' => 'La operacion fallo',
@@ -1943,6 +1947,10 @@ return [
     'ui.echoareas.lovlynet_sync_button_loading' => 'Sincronizando...',
     'ui.echoareas.lovlynet_sync_success' => 'Descripción actualizada desde LovlyNet',
     'ui.echoareas.lovlynet_sync_failed' => 'No se pudo sincronizar la descripción desde LovlyNet',
+
+    'ui.echoareas.lovlynet_issue_title' => 'La configuracion recomendada de LovlyNet no coincide',
+    'ui.echoareas.lovlynet_issue_sysop_only_on' => 'LovlyNet recomienda activar Solo acceso sysop',
+    'ui.echoareas.lovlynet_issue_sysop_only_off' => 'LovlyNet recomienda desactivar Solo acceso sysop',
 
     // BBS Menu Shell
     'ui.shell.menu' => 'Menu',
@@ -3489,6 +3497,11 @@ return [
     'ui.admin.lovlynet.toggle_failed' => 'Error al cambiar suscripción',
     'ui.admin.lovlynet.subscribed_ok' => 'Suscrito a {tag}',
     'ui.admin.lovlynet.unsubscribed_ok' => 'Suscripción cancelada de {tag}',
+    'ui.admin.lovlynet.issue_title' => 'La configuracion recomendada de LovlyNet no coincide',
+    'ui.admin.lovlynet.issue_sysop_only_on' => 'LovlyNet recomienda activar Solo acceso sysop',
+    'ui.admin.lovlynet.issue_sysop_only_off' => 'LovlyNet recomienda desactivar Solo acceso sysop',
+    'ui.admin.lovlynet.issue_readonly_on' => 'LovlyNet recomienda hacer esta area de solo lectura',
+    'ui.admin.lovlynet.issue_readonly_off' => 'LovlyNet recomienda permitir subidas en esta area',
     'ui.admin.lovlynet.request_button_echo' => 'Iniciar solicitud AREAFIX',
     'ui.admin.lovlynet.request_button_file' => 'Iniciar solicitud FILEFIX',
     'ui.admin.lovlynet.btn_rescan' => 'Reescanear',
@@ -3510,6 +3523,7 @@ return [
     'ui.admin.lovlynet.rescan_send_failed' => 'No se pudo enviar la solicitud de reescaneo',
     'ui.admin.lovlynet.rescan_sent' => 'Solicitud de reescaneo AreaFix enviada',
     'ui.admin.lovlynet.sync_title_description' => 'Sincronizar descripcion',
+    'ui.admin.lovlynet.sync_title_settings_and_description' => 'Sincronizar configuracion recomendada y descripcion',
     'ui.admin.lovlynet.sync_title_create_and_description' => 'Crear grupo y sincronizar descripcion',
     'ui.admin.lovlynet.request_modal_title_echo' => 'Solicitud AreaFix',
     'ui.admin.lovlynet.requests_load_failed' => 'No se pudo cargar el estado de las solicitudes',

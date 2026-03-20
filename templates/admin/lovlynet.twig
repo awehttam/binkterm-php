@@ -335,7 +335,8 @@ function renderAreas(type, areas, containerSel, countSel) {
         const rawTag = String(area.tag || '').trim();
         const desc = escapeHtml(area.description || '');
         const sub  = area.subscribed;
-        const syncNeeded = sub && (!area.local_exists || !!area.description_mismatch);
+        const syncNeeded = sub && (!area.local_exists || !!area.description_mismatch || !!area.has_setting_issues);
+        const issueIcon = buildLovlyNetSettingIssueIcon(area);
         const statusBadge = sub
             ? `<span class="badge bg-success">${uiT('ui.admin.lovlynet.subscribed', 'Subscribed')}</span>`
             : `<span class="badge bg-secondary">${uiT('ui.admin.lovlynet.not_subscribed', 'Not subscribed')}</span>`;
@@ -362,7 +363,9 @@ function renderAreas(type, areas, containerSel, countSel) {
                 </button>` : '';
         const syncTitle = !area.local_exists
             ? uiT('ui.admin.lovlynet.sync_title_create_and_description', 'Create group and sync description')
-            : uiT('ui.admin.lovlynet.sync_title_description', 'Sync description');
+            : (area.has_setting_issues
+                ? uiT('ui.admin.lovlynet.sync_title_settings_and_description', 'Sync recommended settings and description')
+                : uiT('ui.admin.lovlynet.sync_title_description', 'Sync description'));
         const syncButton = syncNeeded ? `
                 <button class="btn btn-sm btn-outline-primary sync-btn"
                         data-type="${escapeHtmlAttr(type)}"
@@ -372,11 +375,11 @@ function renderAreas(type, areas, containerSel, countSel) {
                 </button>` : '';
 
         const editTagTitle = uiT('ui.admin.lovlynet.edit_tag_title', 'Edit {tag}', { tag: rawTag });
-        let tagCell = `<code>${tag}</code>`;
+        let tagCell = `<code>${tag}</code>${issueIcon}`;
         if (area.local_exists) {
             tagCell = type === 'echo'
-                ? `<a href="/echoareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>`
-                : `<a href="/fileareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>`;
+                ? `<a href="/echoareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>${issueIcon}`
+                : `<a href="/fileareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>${issueIcon}`;
         }
 
         html += `<tr>
@@ -420,6 +423,46 @@ function renderAreas(type, areas, containerSel, countSel) {
         const $btn = $(this);
         syncLovlyNetArea($btn, $btn.data('type') || '', $btn.data('tag') || '');
     });
+}
+
+function buildLovlyNetSettingIssueMessages(area) {
+    const issues = Array.isArray(area.setting_issues) ? area.setting_issues : [];
+    const messages = [];
+
+    issues.forEach(function(issue) {
+        if (!issue) {
+            return;
+        }
+
+        if (issue.setting === 'sysop_only') {
+            messages.push(
+                issue.recommended
+                    ? uiT('ui.admin.lovlynet.issue_sysop_only_on', 'LovlyNet recommends enabling Sysop Access Only')
+                    : uiT('ui.admin.lovlynet.issue_sysop_only_off', 'LovlyNet recommends disabling Sysop Access Only')
+            );
+            return;
+        }
+
+        if (issue.setting === 'readonly') {
+            messages.push(
+                issue.recommended
+                    ? uiT('ui.admin.lovlynet.issue_readonly_on', 'LovlyNet recommends making this area read-only')
+                    : uiT('ui.admin.lovlynet.issue_readonly_off', 'LovlyNet recommends allowing uploads in this area')
+            );
+        }
+    });
+
+    return messages;
+}
+
+function buildLovlyNetSettingIssueIcon(area) {
+    const messages = buildLovlyNetSettingIssueMessages(area);
+    if (!messages.length) {
+        return '';
+    }
+
+    const tooltip = `${uiT('ui.admin.lovlynet.issue_title', 'LovlyNet recommended settings mismatch')}: ${messages.join('; ')}`;
+    return `<i class="fas fa-exclamation-triangle text-warning ms-2" title="${escapeHtmlAttr(tooltip)}"></i>`;
 }
 
 function toggleSubscription($btn, areaType, areaTag, action) {

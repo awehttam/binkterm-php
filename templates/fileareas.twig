@@ -504,6 +504,35 @@ function escapeJsString(value) {
         .replace(/>/g, '\\x3E');
 }
 
+function buildLovlyNetFileareaIssueMessages(area) {
+    const issues = Array.isArray(area.lovlynet_setting_issues) ? area.lovlynet_setting_issues : [];
+    const messages = [];
+
+    issues.forEach(function(issue) {
+        if (!issue || issue.setting !== 'readonly') {
+            return;
+        }
+
+        if (issue.recommended) {
+            messages.push(uiT('ui.fileareas.lovlynet_issue_readonly_on', 'LovlyNet recommends making this area read-only'));
+        } else {
+            messages.push(uiT('ui.fileareas.lovlynet_issue_readonly_off', 'LovlyNet recommends allowing uploads in this area'));
+        }
+    });
+
+    return messages;
+}
+
+function buildLovlyNetFileareaIssueIcon(area) {
+    const messages = buildLovlyNetFileareaIssueMessages(area);
+    if (!messages.length) {
+        return '';
+    }
+
+    const tooltip = `${uiT('ui.fileareas.lovlynet_issue_title', 'LovlyNet recommended settings mismatch')}: ${messages.join('; ')}`;
+    return `<i class="fas fa-exclamation-triangle text-warning ms-2" title="${escapeHtmlAttr(tooltip)}"></i>`;
+}
+
 function applySearchFilter() {
     let filtered = allFileareas;
 
@@ -576,6 +605,7 @@ function displayFileareas(fileareas) {
         const statusBadge = area.is_active
             ? `<span class="badge bg-success">${uiT('ui.common.active', 'Active')}</span>`
             : `<span class="badge bg-secondary">${uiT('ui.common.inactive', 'Inactive')}</span>`;
+        const lovlyNetIssueIcon = buildLovlyNetFileareaIssueIcon(area);
 
         const localBadge = area.is_local
             ? `<span class="badge bg-info ms-1">${uiT('ui.fileareas.local', 'Local')}</span>`
@@ -597,7 +627,7 @@ function displayFileareas(fileareas) {
 
         html += `
             <tr>
-                <td><strong>${escapeHtml(area.tag)}</strong></td>
+                <td><strong>${escapeHtml(area.tag)}</strong>${lovlyNetIssueIcon}</td>
                 <td>${escapeHtml(area.domain || '')}</td>
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
@@ -865,6 +895,15 @@ function formatBytes(bytes) {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function escapeHtmlAttr(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 $(document).on('change', '#fileareaFreqEnabled', function() {

@@ -187,6 +187,71 @@ class LovlyNetClient
     }
 
     /**
+     * Apply LovlyNet-recommended local settings for a subscribed area.
+     *
+     * The passed area is expected to include LovlyNet metadata plus either a
+     * local area id (`local_echoarea_id` / `local_filearea_id`) or enough tag /
+     * domain data to locate the local record.
+     */
+    public function applyRecommendedSettings(string $areaType, array $area): bool
+    {
+        $metadata = isset($area['metadata']) && is_array($area['metadata']) ? $area['metadata'] : [];
+        if ($metadata === []) {
+            return true;
+        }
+
+        if ($areaType === 'echo') {
+            if (!array_key_exists('sysop_only', $metadata)) {
+                return true;
+            }
+
+            $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($recommendedSysopOnly === null) {
+                return true;
+            }
+
+            $echoareaManager = new EchoareaManager();
+            $echoareaId = (int)($area['local_echoarea_id'] ?? $area['id'] ?? 0);
+            if ($echoareaId <= 0) {
+                $existing = $echoareaManager->findByTagAndDomains((string)($area['tag'] ?? ''), ['', 'lovlynet']);
+                $echoareaId = (int)($existing['id'] ?? 0);
+            }
+
+            return $echoareaId > 0
+                ? $echoareaManager->updateSysopOnly($echoareaId, $recommendedSysopOnly)
+                : false;
+        }
+
+        if ($areaType === 'file') {
+            if (!array_key_exists('readonly', $metadata)) {
+                return true;
+            }
+
+            $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($recommendedReadonly === null) {
+                return true;
+            }
+
+            $fileAreaManager = new FileAreaManager();
+            $fileAreaId = (int)($area['local_filearea_id'] ?? $area['id'] ?? 0);
+            if ($fileAreaId <= 0) {
+                $existing = $fileAreaManager->getFileAreaByTag((string)($area['tag'] ?? ''), (string)($area['domain'] ?? 'lovlynet'));
+                $fileAreaId = (int)($existing['id'] ?? 0);
+            }
+
+            $uploadPermission = $recommendedReadonly
+                ? FileAreaManager::UPLOAD_READ_ONLY
+                : FileAreaManager::UPLOAD_USERS_ALLOWED;
+
+            return $fileAreaId > 0
+                ? $fileAreaManager->updateUploadPermission($fileAreaId, $uploadPermission)
+                : false;
+        }
+
+        return false;
+    }
+
+    /**
      * Retrieve the remote AreaFix help text for this node.
      *
      * @return array{success:bool, help?:string, error?:string}

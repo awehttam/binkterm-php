@@ -74,7 +74,7 @@ class EchoareaManager
         $placeholders = implode(',', array_fill(0, count($tags), '?'));
         [$domainClause, $domainParams] = $this->buildDomainWhereClause($domains);
         $stmt = $this->db->prepare("
-            SELECT UPPER(tag) AS tag_key, id, domain, description 
+            SELECT UPPER(tag) AS tag_key, id, domain, description, is_sysop_only
             FROM echoareas
             WHERE UPPER(tag) IN ($placeholders)
               AND {$domainClause}
@@ -97,6 +97,7 @@ class EchoareaManager
             $area['local_echoarea_id'] = $local !== null ? (int)$local['id'] : null;
             $area['local_domain'] = $local['domain'] ?? null;
             $area['local_description'] = $local['description'] ?? null;
+            $area['local_is_sysop_only'] = $local !== null ? !empty($local['is_sysop_only']) : null;
             $remoteDescription = trim((string)($area['description'] ?? ''));
             $localDescription = trim((string)($local['description'] ?? ''));
             $area['description_mismatch'] = $local !== null && $remoteDescription !== '' && $remoteDescription !== $localDescription;
@@ -185,6 +186,16 @@ class EchoareaManager
 
         $stmt = $this->db->prepare("UPDATE echoareas SET description = ? WHERE id = ?");
         return $stmt->execute([$normalizedDescription, $id]);
+    }
+
+    public function updateSysopOnly(int $id, bool $isSysopOnly): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("UPDATE echoareas SET is_sysop_only = ? WHERE id = ?");
+        return $stmt->execute([$isSysopOnly ? 'true' : 'false', $id]);
     }
 
     /**

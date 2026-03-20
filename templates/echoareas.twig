@@ -337,6 +337,7 @@ let availableDomains = [];
 let pendingEchoareaTag = null;
 let pendingEchoareaDomain = null;
 let pendingEchoareaOpenHandled = false;
+let currentEchoareaInfo = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -504,6 +505,35 @@ function sortableHeader(label, col, width) {
     return `<th width="${width}" class="sortable-col${active}" onclick="setSortColumn('${col}')">${label}${sortIndicator(col)}</th>`;
 }
 
+function buildLovlyNetIssueMessages(area) {
+    const issues = Array.isArray(area.lovlynet_setting_issues) ? area.lovlynet_setting_issues : [];
+    const messages = [];
+
+    issues.forEach(function(issue) {
+        if (!issue || issue.setting !== 'sysop_only') {
+            return;
+        }
+
+        if (issue.recommended) {
+            messages.push(uiT('ui.echoareas.lovlynet_issue_sysop_only_on', 'LovlyNet recommends enabling Sysop Access Only'));
+        } else {
+            messages.push(uiT('ui.echoareas.lovlynet_issue_sysop_only_off', 'LovlyNet recommends disabling Sysop Access Only'));
+        }
+    });
+
+    return messages;
+}
+
+function buildLovlyNetIssueIcon(area) {
+    const messages = buildLovlyNetIssueMessages(area);
+    if (!messages.length) {
+        return '';
+    }
+
+    const tooltip = `${uiT('ui.echoareas.lovlynet_issue_title', 'LovlyNet recommended settings mismatch')}: ${messages.join('; ')}`;
+    return `<i class="fas fa-exclamation-triangle text-warning ms-2" title="${escapeHtmlAttr(tooltip)}"></i>`;
+}
+
 function applySearchFilter() {
     let filtered = allEchoareas;
 
@@ -573,6 +603,7 @@ function displayEchoareas(echoareas) {
             const statusIcon = isActive ? 
                 `<i class="fas fa-check-circle text-success" title="${uiT('ui.common.active', 'Active')}"></i>` :
                 `<i class="fas fa-pause-circle text-warning" title="${uiT('ui.common.inactive', 'Inactive')}"></i>`;
+            const lovlyNetIssueIcon = buildLovlyNetIssueIcon(area);
             
             html += `
                 <tr class="${rowClass}">
@@ -582,7 +613,7 @@ function displayEchoareas(echoareas) {
                         <div>
                             <div class="d-flex align-items-center mb-1">
                                 <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: ${area.color || '#28a745'}; border-radius: 3px; flex-shrink: 0;"></span>
-                                <span style="color: #ffc107; word-break: break-all;">${escapeHtml(area.tag)}</span>
+                                <span style="color: #ffc107; word-break: break-all;">${escapeHtml(area.tag)}</span>${lovlyNetIssueIcon}
                             </div>
                             <div class="ms-4">
                                 ${area.domain ? `<span class="badge bg-secondary me-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
@@ -630,6 +661,7 @@ function displayEchoareas(echoareas) {
 
 function showAddEchoareaModal() {
     currentEchoareaId = null;
+    currentEchoareaInfo = null;
     $('#echoareaModalTitle').text(uiT('ui.echoareas.add_echo_area', 'Add Echo Area'));
     $('#echoareaModalError').addClass('d-none').text('');
     $('#echoareaForm')[0].reset();
@@ -657,6 +689,7 @@ function editEchoarea(id) {
     $.get(`/api/echoareas/${id}`)
         .done(function(data) {
             const area = data.echoarea;
+            currentEchoareaInfo = area;
 
             $('#echoareaTag').val(area.tag);
             $('#echoareaDescription').val(area.description);
@@ -681,7 +714,8 @@ function editEchoarea(id) {
 
 function toggleLovlyNetSyncButton(area) {
     const isLovlyNet = String(area.domain || '').trim().toLowerCase() === 'lovlynet';
-    $('#echoareaLovlyNetSyncButton').toggleClass('d-none', !isLovlyNet);
+    const needsSync = !!area.description_mismatch || !!area.lovlynet_has_setting_issues;
+    $('#echoareaLovlyNetSyncButton').toggleClass('d-none', !(isLovlyNet && needsSync));
 }
 
 function syncLovlyNetEchoareaDescription() {
@@ -690,15 +724,23 @@ function syncLovlyNetEchoareaDescription() {
     }
 
     const $button = $('#echoareaLovlyNetSyncButton');
+    const areaTag = String($('#echoareaTag').val() || '').trim().toUpperCase();
     $button.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.echoareas.lovlynet_sync_button_loading', 'Syncing...')}`);
 
     $.ajax({
-        url: '/admin/api/lovlynet/echoarea-sync',
+        url: '/admin/api/lovlynet/area-sync',
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({ echoarea_id: currentEchoareaId }),
+        data: JSON.stringify({ area_type: 'echo', area_tag: areaTag }),
         success: function(response) {
             $('#echoareaDescription').val(response.description || '');
+            $('#echoareaSysopOnly').prop('checked', !!(currentEchoareaInfo && currentEchoareaInfo.lovlynet_metadata && currentEchoareaInfo.lovlynet_metadata.sysop_only));
+            if (currentEchoareaInfo) {
+                currentEchoareaInfo.description_mismatch = false;
+                currentEchoareaInfo.lovlynet_has_setting_issues = false;
+                currentEchoareaInfo.lovlynet_setting_issues = [];
+            }
+            toggleLovlyNetSyncButton(currentEchoareaInfo || {});
             const fallbackMessage = uiT('ui.echoareas.lovlynet_sync_success', 'Description updated from LovlyNet');
             const successMessage = window.getApiMessage
                 ? window.getApiMessage(response, fallbackMessage)
@@ -833,6 +875,12 @@ function updateColorSelection(color) {
     // Update selected state on swatches
     $('.color-swatch').removeClass('selected');
     $(`.color-swatch[data-color="${color}"]`).addClass('selected');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value)
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function escapeJsString(value) {

@@ -1833,22 +1833,88 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoPolicy = strtolower(trim((string)($echoarea['posting_name_policy'] ?? '')));
             if (in_array($echoPolicy, ['real_name', 'username'], true)) {
                 $echoarea['effective_posting_name_policy'] = $echoPolicy;
+            } else {
+                $resolvedPolicy = 'real_name';
+                $domain = trim((string)($echoarea['domain'] ?? ''));
+                if ($domain !== '' && $binkpConfig !== null) {
+                    try {
+                        $resolvedPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
+                    } catch (\Throwable $e) {
+                        $resolvedPolicy = 'real_name';
+                    }
+                }
+
+                $echoarea['effective_posting_name_policy'] = in_array($resolvedPolicy, ['real_name', 'username'], true)
+                    ? $resolvedPolicy
+                    : 'real_name';
+            }
+        }
+        unset($echoarea);
+
+        $lovlyNetTags = [];
+        foreach ($echoareas as $echoarea) {
+            if (strcasecmp(trim((string)($echoarea['domain'] ?? '')), 'lovlynet') !== 0) {
                 continue;
             }
 
-            $resolvedPolicy = 'real_name';
-            $domain = trim((string)($echoarea['domain'] ?? ''));
-            if ($domain !== '' && $binkpConfig !== null) {
-                try {
-                    $resolvedPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
-                } catch (\Throwable $e) {
-                    $resolvedPolicy = 'real_name';
+            $tag = strtoupper(trim((string)($echoarea['tag'] ?? '')));
+            if ($tag !== '') {
+                $lovlyNetTags[] = $tag;
+            }
+        }
+        $lovlyNetTags = array_values(array_unique($lovlyNetTags));
+        $lovlyNetMetadataByTag = [];
+
+        if ($lovlyNetTags !== []) {
+            try {
+                $lovlyNetClient = new \BinktermPHP\LovlyNetClient();
+                if ($lovlyNetClient->isConfigured()) {
+                    $lovlyNetAreas = $lovlyNetClient->getAreas();
+                    if (!empty($lovlyNetAreas['success'])) {
+                        foreach (($lovlyNetAreas['echoareas'] ?? []) as $remoteArea) {
+                            $remoteTag = strtoupper(trim((string)($remoteArea['tag'] ?? '')));
+                            if ($remoteTag === '' || !in_array($remoteTag, $lovlyNetTags, true)) {
+                                continue;
+                            }
+
+                            $metadata = $remoteArea['metadata'] ?? [];
+                            $lovlyNetMetadataByTag[$remoteTag] = is_array($metadata) ? $metadata : [];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $lovlyNetMetadataByTag = [];
+            }
+        }
+
+        foreach ($echoareas as &$echoarea) {
+            $echoarea['lovlynet_metadata'] = [];
+            $echoarea['lovlynet_setting_issues'] = [];
+            $echoarea['lovlynet_has_setting_issues'] = false;
+
+            if (strcasecmp(trim((string)($echoarea['domain'] ?? '')), 'lovlynet') !== 0) {
+                continue;
+            }
+
+            $tag = strtoupper(trim((string)($echoarea['tag'] ?? '')));
+            $metadata = $lovlyNetMetadataByTag[$tag] ?? [];
+            $issues = [];
+
+            if (array_key_exists('sysop_only', $metadata)) {
+                $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualSysopOnly = !empty($echoarea['is_sysop_only']);
+                if ($recommendedSysopOnly !== null && $recommendedSysopOnly !== $actualSysopOnly) {
+                    $issues[] = [
+                        'setting' => 'sysop_only',
+                        'recommended' => $recommendedSysopOnly,
+                        'actual' => $actualSysopOnly,
+                    ];
                 }
             }
 
-            $echoarea['effective_posting_name_policy'] = in_array($resolvedPolicy, ['real_name', 'username'], true)
-                ? $resolvedPolicy
-                : 'real_name';
+            $echoarea['lovlynet_metadata'] = $metadata;
+            $echoarea['lovlynet_setting_issues'] = $issues;
+            $echoarea['lovlynet_has_setting_issues'] = $issues !== [];
         }
         unset($echoarea);
 
@@ -1872,6 +1938,53 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoarea = $stmt->fetch();
 
         if ($echoarea) {
+            $echoarea['lovlynet_metadata'] = [];
+            $echoarea['lovlynet_setting_issues'] = [];
+            $echoarea['lovlynet_has_setting_issues'] = false;
+            $echoarea['description_mismatch'] = false;
+
+            if (strcasecmp(trim((string)($echoarea['domain'] ?? '')), 'lovlynet') === 0) {
+                try {
+                    $lovlyNetClient = new \BinktermPHP\LovlyNetClient();
+                    if ($lovlyNetClient->isConfigured()) {
+                        $lovlyNetAreas = $lovlyNetClient->getAreas();
+                        if (!empty($lovlyNetAreas['success'])) {
+                            foreach (($lovlyNetAreas['echoareas'] ?? []) as $remoteArea) {
+                                if (strcasecmp(trim((string)($remoteArea['tag'] ?? '')), trim((string)($echoarea['tag'] ?? ''))) !== 0) {
+                                    continue;
+                                }
+
+                                $metadata = $remoteArea['metadata'] ?? [];
+                                $issues = [];
+                                $recommendedSysopOnly = array_key_exists('sysop_only', $metadata)
+                                    ? filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+                                    : null;
+                                $actualSysopOnly = !empty($echoarea['is_sysop_only']);
+
+                                if ($recommendedSysopOnly !== null && $recommendedSysopOnly !== $actualSysopOnly) {
+                                    $issues[] = [
+                                        'setting' => 'sysop_only',
+                                        'recommended' => $recommendedSysopOnly,
+                                        'actual' => $actualSysopOnly,
+                                    ];
+                                }
+
+                                $echoarea['lovlynet_metadata'] = is_array($metadata) ? $metadata : [];
+                                $echoarea['lovlynet_setting_issues'] = $issues;
+                                $echoarea['lovlynet_has_setting_issues'] = $issues !== [];
+
+                                $remoteDescription = trim((string)($remoteArea['description'] ?? ''));
+                                $localDescription = trim((string)($echoarea['description'] ?? ''));
+                                $echoarea['description_mismatch'] = $remoteDescription !== '' && $remoteDescription !== $localDescription;
+                                break;
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Leave LovlyNet sync metadata empty when the remote lookup fails.
+                }
+            }
+
             echo json_encode(['echoarea' => $echoarea]);
         } else {
             http_response_code(404);
@@ -2145,6 +2258,73 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
         unset($fa);
+
+        $lovlyNetTags = [];
+        foreach ($fileareas as $filearea) {
+            if (strcasecmp(trim((string)($filearea['domain'] ?? '')), 'lovlynet') !== 0) {
+                continue;
+            }
+
+            $tag = strtoupper(trim((string)($filearea['tag'] ?? '')));
+            if ($tag !== '') {
+                $lovlyNetTags[] = $tag;
+            }
+        }
+        $lovlyNetTags = array_values(array_unique($lovlyNetTags));
+        $lovlyNetMetadataByTag = [];
+
+        if ($lovlyNetTags !== []) {
+            try {
+                $lovlyNetClient = new \BinktermPHP\LovlyNetClient();
+                if ($lovlyNetClient->isConfigured()) {
+                    $lovlyNetAreas = $lovlyNetClient->getAreas();
+                    if (!empty($lovlyNetAreas['success'])) {
+                        foreach (($lovlyNetAreas['fileareas'] ?? []) as $remoteArea) {
+                            $remoteTag = strtoupper(trim((string)($remoteArea['tag'] ?? '')));
+                            if ($remoteTag === '' || !in_array($remoteTag, $lovlyNetTags, true)) {
+                                continue;
+                            }
+
+                            $metadata = $remoteArea['metadata'] ?? [];
+                            $lovlyNetMetadataByTag[$remoteTag] = is_array($metadata) ? $metadata : [];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $lovlyNetMetadataByTag = [];
+            }
+        }
+
+        foreach ($fileareas as &$filearea) {
+            $filearea['lovlynet_metadata'] = [];
+            $filearea['lovlynet_setting_issues'] = [];
+            $filearea['lovlynet_has_setting_issues'] = false;
+
+            if (strcasecmp(trim((string)($filearea['domain'] ?? '')), 'lovlynet') !== 0) {
+                continue;
+            }
+
+            $tag = strtoupper(trim((string)($filearea['tag'] ?? '')));
+            $metadata = $lovlyNetMetadataByTag[$tag] ?? [];
+            $issues = [];
+
+            if (array_key_exists('readonly', $metadata)) {
+                $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualReadonly = ((int)($filearea['upload_permission'] ?? -1)) === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY;
+                if ($recommendedReadonly !== null && $recommendedReadonly !== $actualReadonly) {
+                    $issues[] = [
+                        'setting' => 'readonly',
+                        'recommended' => $recommendedReadonly,
+                        'actual' => $actualReadonly,
+                    ];
+                }
+            }
+
+            $filearea['lovlynet_metadata'] = $metadata;
+            $filearea['lovlynet_setting_issues'] = $issues;
+            $filearea['lovlynet_has_setting_issues'] = $issues !== [];
+        }
+        unset($filearea);
 
         $privateArea = $userId ? $manager->getPrivateFileArea((int)$userId) : null;
         if ($privateArea) {

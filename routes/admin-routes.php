@@ -4367,6 +4367,51 @@ SimpleRouter::get('/admin/api/bbs-directory/processor-types', function() {
 // LovlyNet subscription management
 // ============================================================================
 
+if (!function_exists('annotateLovlyNetAreasWithMetadataIssues')) {
+    /**
+     * @param array<int, array<string, mixed>> $areas
+     * @param string $areaType
+     * @return array<int, array<string, mixed>>
+     */
+    function annotateLovlyNetAreasWithMetadataIssues(array $areas, string $areaType): array
+    {
+        foreach ($areas as &$area) {
+            $metadata = isset($area['metadata']) && is_array($area['metadata']) ? $area['metadata'] : [];
+            $issues = [];
+
+            if ($areaType === 'echo' && array_key_exists('sysop_only', $metadata) && !empty($area['local_exists'])) {
+                $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualSysopOnly = !empty($area['local_is_sysop_only']);
+                if ($recommendedSysopOnly !== null && $recommendedSysopOnly !== $actualSysopOnly) {
+                    $issues[] = [
+                        'setting' => 'sysop_only',
+                        'recommended' => $recommendedSysopOnly,
+                        'actual' => $actualSysopOnly,
+                    ];
+                }
+            }
+
+            if ($areaType === 'file' && array_key_exists('readonly', $metadata) && !empty($area['local_exists'])) {
+                $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualReadonly = ((int)($area['local_upload_permission'] ?? -1)) === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY;
+                if ($recommendedReadonly !== null && $recommendedReadonly !== $actualReadonly) {
+                    $issues[] = [
+                        'setting' => 'readonly',
+                        'recommended' => $recommendedReadonly,
+                        'actual' => $actualReadonly,
+                    ];
+                }
+            }
+
+            $area['setting_issues'] = $issues;
+            $area['has_setting_issues'] = $issues !== [];
+        }
+        unset($area);
+
+        return $areas;
+    }
+}
+
 /**
  * GET /admin/lovlynet
  * Admin page for managing LovlyNet echo/file area subscriptions.
@@ -4404,6 +4449,8 @@ SimpleRouter::get('/admin/api/lovlynet/areas', function() {
     $fileAreaManager = new \BinktermPHP\FileAreaManager();
     $echoareas = $echoareaManager->annotateAreasWithLocalStatus($result['echoareas'], ['', 'lovlynet']);
     $fileareas = $fileAreaManager->annotateAreasWithLocalStatus($result['fileareas'], ['', 'lovlynet']);
+    $echoareas = annotateLovlyNetAreasWithMetadataIssues($echoareas, 'echo');
+    $fileareas = annotateLovlyNetAreasWithMetadataIssues($fileareas, 'file');
 
     echo json_encode([
         'echoareas'   => $echoareas,
@@ -4474,7 +4521,7 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
         }
 
         $echoareaManager = new \BinktermPHP\EchoareaManager();
-        $echoareaManager->createIfMissing([
+        $localEchoareaId = $echoareaManager->createIfMissing([
             'tag' => $remoteArea['tag'] ?? $areaTag,
             'description' => $remoteArea['description'] ?? '',
             'domain' => 'lovlynet',
@@ -4484,6 +4531,10 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
             'is_sysop_only' => false,
             'gemini_public' => false,
         ], ['', 'lovlynet']);
+
+        $client->applyRecommendedSettings('echo', array_merge($remoteArea, [
+            'local_echoarea_id' => $localEchoareaId,
+        ]));
     }
 
     $result = $client->setSubscription($action, $areaType, $areaTag);
@@ -4505,13 +4556,17 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
 
         if ($remoteArea !== null) {
             $fileAreaManager = new \BinktermPHP\FileAreaManager();
-            $fileAreaManager->createIfMissing([
+            $localFileareaId = $fileAreaManager->createIfMissing([
                 'tag' => $remoteArea['tag'] ?? $areaTag,
                 'description' => $remoteArea['description'] ?? '',
                 'domain' => 'lovlynet',
                 'is_local' => false,
                 'is_active' => true,
             ]);
+
+            $client->applyRecommendedSettings('file', array_merge($remoteArea, [
+                'local_filearea_id' => $localFileareaId,
+            ]));
         }
     }
 
@@ -4520,9 +4575,11 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
     if ($areaType === 'echo') {
         $echoareaManager = new \BinktermPHP\EchoareaManager();
         $echoareas = $echoareaManager->annotateAreasWithLocalStatus($echoareas, ['', 'lovlynet']);
+        $echoareas = annotateLovlyNetAreasWithMetadataIssues($echoareas, 'echo');
     } elseif ($areaType === 'file') {
         $fileAreaManager = new \BinktermPHP\FileAreaManager();
         $fileareas = $fileAreaManager->annotateAreasWithLocalStatus($fileareas, ['', 'lovlynet']);
+        $fileareas = annotateLovlyNetAreasWithMetadataIssues($fileareas, 'file');
     }
 
     echo json_encode([
@@ -4827,14 +4884,19 @@ SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
 
     if ($areaType === 'file') {
         $fileAreaManager = new \BinktermPHP\FileAreaManager();
-        $fileAreaId = $fileAreaManager->createIfMissing([
-            'tag' => $remoteArea['tag'] ?? $areaTag,
-            'description' => $description,
-            'domain' => 'lovlynet',
-            'is_local' => false,
-            'is_active' => true,
-            'replace_existing' => true,
-        ]);
+        $existingFileArea = $fileAreaManager->getFileAreaByTag((string)($remoteArea['tag'] ?? $areaTag), 'lovlynet');
+        if ($existingFileArea) {
+            $fileAreaId = (int)$existingFileArea['id'];
+        } else {
+            $fileAreaId = $fileAreaManager->createIfMissing([
+                'tag' => $remoteArea['tag'] ?? $areaTag,
+                'description' => $description,
+                'domain' => 'lovlynet',
+                'is_local' => false,
+                'is_active' => true,
+                'replace_existing' => true,
+            ]);
+        }
 
         if (!$fileAreaManager->updateDescription($fileAreaId, $description)) {
             apiError(
@@ -4844,18 +4906,27 @@ SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
                 ['success' => false]
             );
         }
+
+        $client->applyRecommendedSettings('file', array_merge($remoteArea, [
+            'local_filearea_id' => $fileAreaId,
+        ]));
     } else {
         $echoareaManager = new \BinktermPHP\EchoareaManager();
-        $echoareaId = $echoareaManager->createIfMissing([
-            'tag' => $remoteArea['tag'] ?? $areaTag,
-            'description' => $description,
-            'domain' => 'lovlynet',
-            'uplink_address' => $client->getHubAddress(),
-            'is_local' => false,
-            'is_active' => true,
-            'is_sysop_only' => false,
-            'gemini_public' => false,
-        ], ['', 'lovlynet']);
+        $existingEchoarea = $echoareaManager->findByTagAndDomains((string)($remoteArea['tag'] ?? $areaTag), ['', 'lovlynet']);
+        if ($existingEchoarea) {
+            $echoareaId = (int)$existingEchoarea['id'];
+        } else {
+            $echoareaId = $echoareaManager->createIfMissing([
+                'tag' => $remoteArea['tag'] ?? $areaTag,
+                'description' => $description,
+                'domain' => 'lovlynet',
+                'uplink_address' => $client->getHubAddress(),
+                'is_local' => false,
+                'is_active' => true,
+                'is_sysop_only' => false,
+                'gemini_public' => false,
+            ], ['', 'lovlynet']);
+        }
 
         if (!$echoareaManager->updateDescription($echoareaId, $description)) {
             apiError(
@@ -4865,6 +4936,10 @@ SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
                 ['success' => false]
             );
         }
+
+        $client->applyRecommendedSettings('echo', array_merge($remoteArea, [
+            'local_echoarea_id' => $echoareaId,
+        ]));
     }
 
     echo json_encode([

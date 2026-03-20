@@ -268,7 +268,7 @@ class FileAreaManager
         $placeholders = implode(',', array_fill(0, count($tags), '?'));
         [$domainClause, $domainParams] = $this->buildDomainWhereClause($domains);
         $stmt = $this->db->prepare("
-            SELECT UPPER(tag) AS tag_key, id, domain, description
+            SELECT UPPER(tag) AS tag_key, id, domain, description, upload_permission
             FROM file_areas
             WHERE UPPER(tag) IN ($placeholders)
               AND {$domainClause}
@@ -291,6 +291,7 @@ class FileAreaManager
             $area['local_filearea_id'] = $local !== null ? (int)$local['id'] : null;
             $area['local_domain'] = $local['domain'] ?? null;
             $area['local_description'] = $local['description'] ?? null;
+            $area['local_upload_permission'] = $local !== null ? (int)$local['upload_permission'] : null;
             $remoteDescription = trim((string)($area['description'] ?? ''));
             $localDescription = trim((string)($local['description'] ?? ''));
             $area['description_mismatch'] = $local !== null && $remoteDescription !== '' && $remoteDescription !== $localDescription;
@@ -313,6 +314,16 @@ class FileAreaManager
 
         $stmt = $this->db->prepare("UPDATE file_areas SET description = ?, updated_at = NOW() WHERE id = ?");
         return $stmt->execute([$normalizedDescription, $id]);
+    }
+
+    public function updateUploadPermission(int $id, int $uploadPermission): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("UPDATE file_areas SET upload_permission = ?, updated_at = NOW() WHERE id = ?");
+        return $stmt->execute([$uploadPermission, $id]);
     }
 
     /**
