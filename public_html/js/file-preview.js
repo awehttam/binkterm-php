@@ -365,11 +365,7 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
             })
             .then(({ isArchive, data }) => {
                 if (isArchive) {
-                    if (data.tool_unavailable) {
-                        renderArchiveToolUnavailableNotice(body);
-                    } else {
-                        renderArchiveBrowser(body, fileId, filename, data, shareQs);
-                    }
+                    renderArchiveBrowser(body, fileId, shareQs);
                     return;
                 }
                 // Not an archive — probe the preview endpoint for heuristic text detection
