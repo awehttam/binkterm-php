@@ -105,12 +105,14 @@ function isDue(string $frequency, ?string $lastSent): bool
 /**
  * Build a plain-text digest body for one user.
  *
+ * @param array  $addressed  Messages personally addressed to the user:
+ *                           [['subject','from_name','area_tag','area_slug'], ...]
  * @param array  $areas      Array of ['tag'=>string, 'name'=>string, 'messages'=>[...]]
  * @param string $systemName BBS system name
  * @param string $siteUrl    Base URL of the BBS
  * @return string
  */
-function buildPlainDigest(array $areas, string $systemName, string $siteUrl): string
+function buildPlainDigest(array $addressed, array $areas, string $systemName, string $siteUrl): string
 {
     $date  = date('l, F j Y');
     $lines = [];
@@ -119,6 +121,18 @@ function buildPlainDigest(array $areas, string $systemName, string $siteUrl): st
     $lines[] = $date;
     $lines[] = str_repeat('=', 60);
     $lines[] = '';
+
+    // Personal messages section — shown first if any exist
+    if (!empty($addressed)) {
+        $count   = count($addressed);
+        $lines[] = '*** MESSAGES ADDRESSED TO YOU (' . $count . ') ***';
+        $lines[] = str_repeat('-', 40);
+        foreach ($addressed as $msg) {
+            $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ' in ' . $msg['area_tag'] . ')';
+            $lines[] = '  ' . $siteUrl . '/echomail/' . rawurlencode($msg['area_slug']);
+        }
+        $lines[] = '';
+    }
 
     foreach ($areas as $area) {
         $count   = count($area['messages']);
@@ -143,13 +157,37 @@ function buildPlainDigest(array $areas, string $systemName, string $siteUrl): st
 
 /**
  * Build an HTML digest body for one user.
+ *
+ * @param array  $addressed  Messages personally addressed to the user.
+ * @param array  $areas      Echo area summaries.
+ * @param string $systemName BBS system name.
+ * @param string $siteUrl    Base URL of the BBS.
  */
-function buildHtmlDigest(array $areas, string $systemName, string $siteUrl): string
+function buildHtmlDigest(array $addressed, array $areas, string $systemName, string $siteUrl): string
 {
     $date         = date('l, F j Y');
     $safeSystem   = htmlspecialchars($systemName, ENT_QUOTES, 'UTF-8');
     $safeDate     = htmlspecialchars($date, ENT_QUOTES, 'UTF-8');
     $safeSiteUrl  = htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8');
+
+    // Personal messages block
+    $addressedHtml = '';
+    if (!empty($addressed)) {
+        $count          = count($addressed);
+        $addressedHtml .= '<div class="addressed">';
+        $addressedHtml .= '<h2>Messages Addressed to You (' . $count . ')</h2>';
+        $addressedHtml .= '<ul>';
+        foreach ($addressed as $msg) {
+            $safeSubject  = htmlspecialchars($msg['subject'] ?: '(no subject)', ENT_QUOTES, 'UTF-8');
+            $safeFrom     = htmlspecialchars($msg['from_name'], ENT_QUOTES, 'UTF-8');
+            $safeAreaTag  = htmlspecialchars($msg['area_tag'], ENT_QUOTES, 'UTF-8');
+            $areaUrl      = $siteUrl . '/echomail/' . rawurlencode($msg['area_slug']);
+            $safeAreaUrl  = htmlspecialchars($areaUrl, ENT_QUOTES, 'UTF-8');
+            $addressedHtml .= '<li><strong>' . $safeSubject . '</strong> &mdash; from ' . $safeFrom
+                . ' in <a href="' . $safeAreaUrl . '">' . $safeAreaTag . '</a></li>';
+        }
+        $addressedHtml .= '</ul></div>';
+    }
 
     $areaHtml = '';
     foreach ($areas as $area) {
@@ -190,6 +228,11 @@ function buildHtmlDigest(array $areas, string $systemName, string $siteUrl): str
             .area ul  { margin: 0 0 8px; padding-left: 1.2em; }
             .area ul li { margin-bottom: 2px; font-size: 0.9em; }
             .footer { font-size: 0.8em; color: #999; border-top: 1px solid #ddd; padding-top: 12px; margin-top: 20px; }
+            .addressed { border-left: 4px solid #cc6600; padding: 10px 16px; margin-bottom: 24px; background: #fff8f0; }
+            .addressed h2 { margin: 0 0 8px; font-size: 1em; color: #cc6600; }
+            .addressed ul { margin: 0; padding-left: 1.2em; }
+            .addressed ul li { margin-bottom: 4px; font-size: 0.9em; }
+            .addressed ul li a { color: #cc6600; }
         </style>
     </head>
     <body>
@@ -197,6 +240,7 @@ function buildHtmlDigest(array $areas, string $systemName, string $siteUrl): str
             <h1>{$safeSystem} — Echomail Digest</h1>
             <p>{$safeDate}</p>
         </div>
+        {$addressedHtml}
         {$areaHtml}
         <div class="footer">
             To change digest frequency or unsubscribe, visit
@@ -222,7 +266,7 @@ $siteUrl = \BinktermPHP\Config::getSiteUrl();
 
 // Fetch candidate users
 $sql = "
-    SELECT u.id, u.email, u.username,
+    SELECT u.id, u.email, u.username, u.real_name,
            us.echomail_digest,
            us.echomail_digest_last_sent
     FROM users u
@@ -274,6 +318,36 @@ foreach ($users as $user) {
         $since = (new DateTimeImmutable("-{$lookback}"))->format('Y-m-d H:i:s');
     }
 
+    // Fetch echomail personally addressed to this user (across all active areas).
+    // Uses real_name for matching since that's what FTN correspondents use.
+    $addressed = [];
+    $realName  = trim((string)($user['real_name'] ?? ''));
+    if ($realName !== '') {
+        $addrStmt = $db->prepare("
+            SELECT em.subject, em.from_name, e.tag, e.domain,
+                   em.date_received
+            FROM echomail em
+            JOIN echoareas e ON em.echoarea_id = e.id
+            WHERE LOWER(em.to_name) = LOWER(?)
+              AND em.date_received > ?
+              AND e.is_active = TRUE
+            ORDER BY em.date_received ASC
+            LIMIT 50
+        ");
+        $addrStmt->execute([$realName, $since]);
+        foreach ($addrStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $slug = !empty($row['domain'])
+                ? $row['tag'] . '@' . $row['domain']
+                : $row['tag'];
+            $addressed[] = [
+                'subject'   => $row['subject'],
+                'from_name' => $row['from_name'],
+                'area_tag'  => $row['tag'],
+                'area_slug' => $slug,
+            ];
+        }
+    }
+
     // Fetch new echomail in subscribed areas, ordered so the most active areas
     // bubble up first (we'll truncate to $maxAreas after grouping).
     $msgStmt = $db->prepare("
@@ -290,7 +364,7 @@ foreach ($users as $user) {
     $msgStmt->execute([$userId, $since]);
     $rows = $msgStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (empty($rows)) {
+    if (empty($rows) && empty($addressed)) {
         log_msg("User {$userId} ({$user['username']}): no new messages, skipping.", $verbose);
         // Still update last_sent so we don't keep checking every run
         if (!$dryRun) {
@@ -337,8 +411,10 @@ foreach ($users as $user) {
 
     $totalMessages = count($rows);
 
+    $addrCount = count($addressed);
     log_msg("User {$userId} ({$user['username']}): {$totalMessages} message(s) across {$totalAreas} area(s)" .
-        ($totalAreas > $maxAreas ? " (showing top {$maxAreas})" : '') . '.', $verbose);
+        ($totalAreas > $maxAreas ? " (showing top {$maxAreas})" : '') .
+        ($addrCount > 0 ? ", {$addrCount} addressed to user" : '') . '.', $verbose);
 
     if ($dryRun) {
         $shownAreas = count($areas);
@@ -348,8 +424,8 @@ foreach ($users as $user) {
     }
 
     $subject   = "Echomail Digest — {$systemName} — " . date('Y-m-d');
-    $plainText = buildPlainDigest(array_values($areas), $systemName, $siteUrl);
-    $htmlBody  = buildHtmlDigest(array_values($areas), $systemName, $siteUrl);
+    $plainText = buildPlainDigest($addressed, array_values($areas), $systemName, $siteUrl);
+    $htmlBody  = buildHtmlDigest($addressed, array_values($areas), $systemName, $siteUrl);
 
     $mail   = new Mail();
     $result = $mail->sendMail($user['email'], $subject, $htmlBody, $plainText);
