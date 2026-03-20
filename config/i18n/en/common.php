@@ -1206,6 +1206,7 @@ return [
     'ui.admin.filearea_rules.area_tag_hint' => 'e.g. NODELIST or NODELIST@fidonet',
     'ui.admin.filearea_rules.delete_area_confirm' => 'Delete this area and all its rules?',
     'ui.admin.filearea_rules.clone_rule' => 'Clone rule',
+    'ui.admin.filearea_rules.clone_rule_confirm' => 'Clone rule?',
     'ui.admin.filearea_rules.delete_rule_confirm' => 'Delete this rule?',
     'ui.admin.filearea_rules.json_parse_error' => 'JSON parse error — fix syntax before switching to the visual editor.',
     'ui.admin.filearea_rules.pattern_test_title' => 'Test pattern',

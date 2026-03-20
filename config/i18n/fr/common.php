@@ -981,6 +981,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.filearea_rules.area_tag_hint' => 'ex. NODELIST ou NODELIST@fidonet',
     'ui.admin.filearea_rules.delete_area_confirm' => 'Supprimer cette zone et toutes ses règles ?',
     'ui.admin.filearea_rules.clone_rule' => 'Cloner la règle',
+    'ui.admin.filearea_rules.clone_rule_confirm' => 'Cloner la règle ?',
     'ui.admin.filearea_rules.delete_rule_confirm' => 'Supprimer cette règle ?',
     'ui.admin.filearea_rules.json_parse_error' => 'Erreur d\'analyse JSON — corrigez la syntaxe avant de basculer vers l\'éditeur visuel.',
     'ui.admin.filearea_rules.pattern_test_title' => 'Tester le motif',

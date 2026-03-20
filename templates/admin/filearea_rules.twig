@@ -286,13 +286,13 @@ function renderRulesTable(rules, scope, areaTag) {
             <td class="align-middle"><code class="small">${fa || '<span class="text-muted">—</span>'}</code></td>
             <td class="align-middle text-end">
                 <div class="d-flex gap-1 justify-content-end">
-                    <button class="btn btn-sm btn-outline-secondary" title="${uiT('ui.admin.filearea_rules.clone_rule','Clone rule')}"
-                            onclick="cloneRule('${scopeA}','${tagA}',${idx})">
-                        <i class="fas fa-copy"></i>
-                    </button>
                     <button class="btn btn-sm btn-outline-secondary" title="${uiT('ui.admin.filearea_rules.edit_rule_title','Edit')}"
                             onclick="openEditModal('${scopeA}','${tagA}',${idx})">
                         <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" title="${uiT('ui.admin.filearea_rules.clone_rule','Clone rule')}"
+                            onclick="cloneRule('${scopeA}','${tagA}',${idx})">
+                        <i class="fas fa-copy"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-danger" title="${uiT('ui.admin.filearea_rules.delete_rule_confirm','Delete')}"
                             onclick="deleteRule('${scopeA}','${tagA}',${idx})">
@@ -467,6 +467,7 @@ function toggleEnabled(scope, areaTag, index, value) {
 
 // ─── Clone rule ───────────────────────────────────────────────────────────────
 function cloneRule(scope, areaTag, index) {
+    if (!confirm(uiT('ui.admin.filearea_rules.clone_rule_confirm', 'Clone rule?'))) return;
     const source = scope === 'global'
         ? guiState.global_rules[index]
         : guiState.area_rules[areaTag][index];
