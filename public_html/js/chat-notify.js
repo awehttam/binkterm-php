@@ -7,6 +7,7 @@
     let initialized = false;
     let pollInterval = null;
     let audioUnlocked = false;
+    const audioCache = new Map();
     let previousStats = {
         unread_netmail: 0,
         new_echomail: 0,
@@ -20,6 +21,15 @@
         netmail: 'notify1',
         files: 'disabled'
     };
+
+    function getAudio(soundName) {
+        if (!audioCache.has(soundName)) {
+            const audio = new Audio(`/sounds/${soundName}.mp3`);
+            audio.preload = 'auto';
+            audioCache.set(soundName, audio);
+        }
+        return audioCache.get(soundName);
+    }
 
     function getNotificationSound(key) {
         const sound = window.userSettings?.[key];
@@ -51,14 +61,40 @@
         if (soundName === 'disabled') {
             return;
         }
-        const audio = new Audio(`/sounds/${soundName}.mp3`);
-        audio.play().catch(() => {});
+        const audio = getAudio(soundName);
+        audio.muted = false;
+        audio.pause();
+        audio.currentTime = 0;
+        audio.play().catch(() => {
+            const retryAudio = new Audio(`/sounds/${soundName}.mp3`);
+            retryAudio.play().catch(() => {});
+        });
     }
 
-    function unlockAudio() {
+    async function unlockAudio() {
+        if (audioUnlocked) {
+            return;
+        }
         audioUnlocked = true;
         document.removeEventListener('pointerdown', unlockAudio);
         document.removeEventListener('keydown', unlockAudio);
+
+        // Prime each shipped sound after a user gesture so later notifications
+        // are not blocked by browser autoplay restrictions.
+        for (let i = 1; i <= 5; i++) {
+            const audio = getAudio(`notify${i}`);
+            audio.muted = true;
+            try {
+                audio.currentTime = 0;
+                await audio.play();
+                audio.pause();
+                audio.currentTime = 0;
+            } catch (err) {
+                // Ignore unlock failures; playback will retry on demand.
+            } finally {
+                audio.muted = false;
+            }
+        }
     }
 
     function maybePlayNotificationSounds(stats, suppressSounds = false) {
