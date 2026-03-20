@@ -84,6 +84,7 @@ return [
     'ui.common.previous_message' => 'Message précédent',
     'ui.common.next_message' => 'Message suivant',
     'ui.common.toggle_fullscreen' => 'Basculer en plein écran',
+    'ui.common.add' => 'Ajouter',
     'ui.common.cancel' => 'Annuler',
     'ui.common.clear_search' => 'Effacer la recherche',
     'ui.common.save' => 'Enregistrer',

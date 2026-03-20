@@ -105,6 +105,7 @@ return [
     'ui.common.next_message' => 'Next message',
     'ui.common.toggle_fullscreen' => 'Toggle fullscreen',
     'ui.common.print' => 'Print message',
+    'ui.common.add' => 'Add',
     'ui.common.cancel' => 'Cancel',
     'ui.common.back' => 'Back',
     'ui.common.clear_search' => 'Clear Search',

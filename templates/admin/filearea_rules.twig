@@ -205,7 +205,7 @@
             </div>
             <div class="modal-body">
                 <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.area_tag_label', {}, locale, ['common']) }}</label>
-                <input type="text" class="form-control font-monospace text-uppercase" id="newAreaTagInput" placeholder="NODELIST">
+                <input type="text" class="form-control font-monospace" id="newAreaTagInput" placeholder="NODELIST">
                 <div class="form-text">{{ t('ui.admin.filearea_rules.area_tag_hint', {}, locale, ['common']) }}</div>
             </div>
             <div class="modal-footer">
@@ -282,7 +282,6 @@ function renderRulesTable(rules, scope, areaTag) {
             </td>
             <td class="align-middle">${escHtml(rule.name || '')}</td>
             <td class="align-middle"><code class="small">${escHtml(rule.pattern || '')}</code></td>
-            <td class="align-middle"><small class="text-muted">${escHtml(rule.domain || '')}</small></td>
             <td class="align-middle"><code class="small">${sa || '<span class="text-muted">—</span>'}</code></td>
             <td class="align-middle"><code class="small">${fa || '<span class="text-muted">—</span>'}</code></td>
             <td class="align-middle text-end">
@@ -309,7 +308,6 @@ function renderRulesTable(rules, scope, areaTag) {
                 <th style="width:60px">${uiT('ui.admin.filearea_rules.col_enabled','Enabled')}</th>
                 <th>${uiT('ui.admin.filearea_rules.col_name','Name')}</th>
                 <th>${uiT('ui.admin.filearea_rules.col_pattern','Pattern')}</th>
-                <th>${uiT('ui.admin.filearea_rules.col_domain','Domain')}</th>
                 <th>${uiT('ui.admin.filearea_rules.col_success','On Success')}</th>
                 <th>${uiT('ui.admin.filearea_rules.col_fail','On Failure')}</th>
                 <th style="width:80px"></th>
@@ -512,7 +510,7 @@ document.getElementById('newAreaTagInput').addEventListener('keydown', e => {
 });
 
 document.getElementById('addAreaSaveBtn').addEventListener('click', () => {
-    const tag = document.getElementById('newAreaTagInput').value.trim().toUpperCase();
+    const tag = document.getElementById('newAreaTagInput').value.trim();
     if (!tag) return;
     if (!guiState.area_rules[tag]) {
         guiState.area_rules[tag] = [];
@@ -554,7 +552,7 @@ function normalizeState(data) {
     };
     if (data.area_rules && typeof data.area_rules === 'object') {
         for (const [k, v] of Object.entries(data.area_rules)) {
-            state.area_rules[k.toUpperCase()] = Array.isArray(v) ? v : [];
+            state.area_rules[k] = Array.isArray(v) ? v : [];
         }
     }
     return state;
