@@ -21,6 +21,8 @@ const previewPetsciiExts       = ['prg'];
 const previewPetsciiStreamExts = ['seq'];
 const previewD64Exts           = ['d64'];
 const previewRipExts           = ['rip'];
+const previewPCBoardExts       = ['bbs'];
+const previewArchiveExts       = ['zip','rar','r00','7z','tar','gz','tgz','bz2','tbz2','xz','txz','lzh','lha','arj','cab'];
 
 function getFileType(filename) {
     const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
@@ -38,6 +40,8 @@ function getFileType(filename) {
     if (previewPetsciiStreamExts.includes(ext))  return 'petscii_stream';
     if (previewD64Exts.includes(ext))            return 'd64';
     if (previewRipExts.includes(ext))            return 'rip';
+    if (previewPCBoardExts.includes(ext))        return 'pcboard';
+    if (previewArchiveExts.includes(ext))        return 'archive';
     return 'download';
 }
 
@@ -177,6 +181,26 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                 );
             });
 
+    } else if (type === 'pcboard') {
+        body.css('background', '#0a0a0a').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, {credentials: 'same-origin'})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(text => {
+                const artHtml = renderPCBoardBuffer(text);
+                body.css('background', '#0a0a0a').html(`
+                    <div class="ansi-art-container" style="overflow:auto;max-height:78vh;background:#0a0a0a;padding:8px;">
+                        <pre class="m-0">${artHtml}</pre>
+                    </div>
+                `);
+            })
+            .catch(() => {
+                body.css('background', '').html(
+                    `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`
+                );
+            });
+
     } else if (type === 'sixel') {
         body.css('background', '#000').html(
             `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
@@ -284,11 +308,11 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
     } else if (type === 'rip') {
         renderRipPreview(body, previewUrl);
 
-    } else if (filename.toLowerCase().endsWith('.zip')) {
+    } else if (type === 'archive') {
         body.css('background', '').html(
             `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
         );
-        renderZipBrowser(body, fileId, shareQs);
+        renderArchiveBrowser(body, fileId, shareQs);
 
     } else if (type === 'text_probe') {
         body.css('background', '').html(
@@ -680,45 +704,51 @@ function zipEntryIcon(type) {
 }
 
 /**
- * Render a browsable listing of a ZIP file's contents into a container.
- * Clicking an entry opens it via renderZipEntry().
+ * Render a browsable listing of an archive file's contents into a container.
+ * Detects archive type server-side by magic bytes.
+ * Clicking an entry opens it via renderArchiveEntry().
  *
  * @param {jQuery}  container
  * @param {number}  fileId
  * @param {string}  shareQs  - e.g. '' or '?share_area=X&share_filename=Y'
  */
-function renderZipBrowser(container, fileId, shareQs) {
-    const contentsUrl = `/api/files/${fileId}/zip-contents` + shareQs;
+function renderArchiveBrowser(container, fileId, shareQs) {
+    const contentsUrl = `/api/files/${fileId}/archive-contents` + shareQs;
 
     fetch(contentsUrl, {credentials: 'same-origin'})
         .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
         .then(data => {
-            const entries = data.entries || [];
+            if (data.error === 'tool_unavailable') {
+                renderArchiveToolUnavailableNotice(container, fileId, data.label || '', shareQs);
+                return;
+            }
+
+            const entries  = data.entries || [];
+            const arcLabel = data.label   || '';
 
             if (entries.length === 0) {
                 container.css('background', '').html(`
                     <div class="p-5 text-center text-muted">
                         <i class="fas fa-file-zipper fa-3x mb-3 d-block"></i>
-                        <p>${_fpT('ui.files.zip_empty', 'ZIP archive is empty')}</p>
+                        <p>${_fpT('ui.files.archive_empty', 'Archive is empty')}</p>
                     </div>
                 `);
                 return;
             }
 
-            // Compression methods supported by ZipArchive/libzip without a shell fallback
+            // comp_method is only reported for ZIP; for other formats assume supported.
             const SUPPORTED_COMP = [0, 8, 12, 14, 20];
 
             let rows = '';
             entries.forEach(function(entry) {
-                const type       = getFileType(entry.name);
-                const icon       = zipEntryIcon(type);
-                // Entries with non-standard compression may require shell fallback;
-                // flag them visually but still allow click (server will attempt unzip)
-                const legacyComp = !SUPPORTED_COMP.includes(entry.comp_method ?? 0);
+                const entryType  = getFileType(entry.name);
+                const icon       = zipEntryIcon(entryType);
+                const legacyComp = entry.comp_method !== undefined
+                    && !SUPPORTED_COMP.includes(entry.comp_method);
                 const entryQs   = shareQs
                     ? shareQs + '&path=' + encodeURIComponent(entry.path)
                     : '?path='           + encodeURIComponent(entry.path);
-                const entryUrl  = `/api/files/${fileId}/zip-entry` + entryQs;
+                const entryUrl  = `/api/files/${fileId}/archive-entry` + entryQs;
 
                 const dlBtn = `<a href="${entryUrl}" class="btn btn-sm btn-outline-secondary ms-2 flex-shrink-0" download="${escapeHtml(entry.name)}" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a>`;
 
@@ -742,8 +772,16 @@ function renderZipBrowser(container, fileId, shareQs) {
                 ? `<div class="px-3 py-2 text-muted small border-top">${_fpT('ui.files.zip_truncated', 'Showing first {count} entries', {count: entries.length})}</div>`
                 : '';
 
+            const labelBadge = arcLabel
+                ? `<div class="px-3 py-2 border-bottom d-flex align-items-center" style="background:#111;">
+                       <i class="fas fa-file-zipper text-muted me-2"></i>
+                       <span class="badge bg-secondary">${escapeHtml(arcLabel)}</span>
+                   </div>`
+                : '';
+
             container.css('background', '').html(`
                 <div>
+                    ${labelBadge}
                     ${rows}
                     ${truncNote}
                 </div>
@@ -752,32 +790,36 @@ function renderZipBrowser(container, fileId, shareQs) {
             container.find('.zip-entry-row').on('click', function() {
                 const path = $(this).data('path');
                 const name = $(this).data('name');
-                const idx = entries.findIndex(e => e.path === path);
-                renderZipEntry(container, fileId, path, name, shareQs,
-                    () => renderZipBrowser(container, fileId, shareQs),
+                const idx  = entries.findIndex(e => e.path === path);
+                renderArchiveEntry(container, fileId, path, name, shareQs,
+                    () => renderArchiveBrowser(container, fileId, shareQs),
                     entries, idx);
             });
         })
         .catch(function() {
             container.css('background', '').html(
-                `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load ZIP contents')}</div>`
+                `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load archive contents')}</div>`
             );
         });
 }
 
 /**
- * Fetch a ZIP entry, returning a Promise that resolves to {text} or {buffer}.
+ * Fetch an archive entry, returning a Promise that resolves to text or ArrayBuffer.
  * Rejects with {legacy:true} on 415 (unsupported compression method).
+ * Rejects with {toolUnavailable:true} on 503 (7z not installed).
  *
  * @param {string} url
  * @param {'text'|'buffer'} responseType
  * @returns {Promise}
  */
-function fetchZipEntry(url, responseType) {
+function fetchArchiveEntry(url, responseType) {
     return fetch(url, {credentials: 'same-origin'})
         .then(r => {
             if (r.status === 415) {
                 return r.json().then(err => Promise.reject({ legacy: true, compMethod: err.comp_method }));
+            }
+            if (r.status === 503) {
+                return Promise.reject({ toolUnavailable: true });
             }
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return responseType === 'buffer' ? r.arrayBuffer() : r.text();
@@ -785,7 +827,7 @@ function fetchZipEntry(url, responseType) {
 }
 
 /**
- * Render a "legacy compression" notice into a container with a full-ZIP download link.
+ * Render a "legacy compression" notice into a container with a full-archive download link.
  */
 function renderLegacyCompressionNotice(container, fileId, entryName, shareQs) {
     const dlUrl = `/api/files/${fileId}/download` + (shareQs || '');
@@ -795,29 +837,46 @@ function renderLegacyCompressionNotice(container, fileId, entryName, shareQs) {
             <p class="mb-1"><strong>${escapeHtml(entryName)}</strong></p>
             <p class="small mb-3">${_fpT('ui.files.zip_legacy_compression', 'This file uses a legacy compression format that cannot be previewed.')}</p>
             <a href="${dlUrl}" download class="btn btn-outline-secondary">
-                <i class="fas fa-download me-1"></i>${_fpT('ui.files.download_zip', 'Download full ZIP')}
+                <i class="fas fa-download me-1"></i>${_fpT('ui.files.download_archive', 'Download archive')}
             </a>
         </div>
     `);
 }
 
 /**
- * Preview a single entry from inside a ZIP file.
+ * Render a "tool unavailable" notice when 7z is not installed on the server.
+ */
+function renderArchiveToolUnavailableNotice(container, fileId, arcLabel, shareQs) {
+    const dlUrl = `/api/files/${fileId}/download` + (shareQs || '');
+    container.css('background', '').html(`
+        <div class="p-5 text-center text-muted">
+            <i class="fas fa-tools fa-3x mb-3 d-block"></i>
+            ${arcLabel ? `<p class="mb-1"><span class="badge bg-secondary">${escapeHtml(arcLabel)}</span></p>` : ''}
+            <p class="small mb-3">${_fpT('ui.files.archive_tool_unavailable', 'Archive tool (7z) is not available on this server.')}</p>
+            <a href="${dlUrl}" download class="btn btn-outline-secondary">
+                <i class="fas fa-download me-1"></i>${_fpT('ui.files.download_archive', 'Download archive')}
+            </a>
+        </div>
+    `);
+}
+
+/**
+ * Preview a single entry from inside an archive file.
  *
  * @param {jQuery}   container
  * @param {number}   fileId
- * @param {string}   entryPath    - full path within the ZIP
+ * @param {string}   entryPath    - full path within the archive
  * @param {string}   entryName    - basename
  * @param {string}   shareQs
  * @param {function} onBack       - called when the back button is clicked
- * @param {Array}    [entries]    - previewable entries list for prev/next nav
+ * @param {Array}    [entries]    - entry list for prev/next nav
  * @param {number}   [entryIndex] - index of current entry within entries
  */
-function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack, entries, entryIndex) {
+function renderArchiveEntry(container, fileId, entryPath, entryName, shareQs, onBack, entries, entryIndex) {
     const entryQs  = shareQs
         ? shareQs + '&path=' + encodeURIComponent(entryPath)
         : '?path='           + encodeURIComponent(entryPath);
-    const entryUrl = `/api/files/${fileId}/zip-entry` + entryQs;
+    const entryUrl = `/api/files/${fileId}/archive-entry` + entryQs;
     const type     = getFileType(entryName);
 
     const hasList  = Array.isArray(entries) && entries.length > 1;
@@ -825,7 +884,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
     const prevEntry = hasList && idx > 0                  ? entries[idx - 1] : null;
     const nextEntry = hasList && idx < entries.length - 1 ? entries[idx + 1] : null;
 
-    const navTo = (e) => renderZipEntry(container, fileId, e.path, e.name, shareQs, onBack, entries,
+    const navTo = (e) => renderArchiveEntry(container, fileId, e.path, e.name, shareQs, onBack, entries,
         entries.indexOf(e));
 
     const backBar = $('<div>').addClass('d-flex align-items-center px-3 py-2 border-bottom flex-shrink-0')
@@ -897,29 +956,31 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             ? 'background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;'
             : '';
         previewArea.css('background', '');
-        fetchZipEntry(entryUrl, 'text')
+        fetchArchiveEntry(entryUrl, 'text')
             .then(text => {
                 previewArea.html(`<pre class="m-0 p-3" style="max-height:70vh;overflow:auto;font-size:0.85em;white-space:pre-wrap;word-break:break-all;text-align:left;${preStyle}">${escapeHtml(text)}</pre>`);
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
     } else if (type === 'markdown') {
         previewArea.css('background', '');
-        fetchZipEntry(entryUrl, 'text')
+        fetchArchiveEntry(entryUrl, 'text')
             .then(html => {
                 previewArea.html(`<div class="p-3 text-start" style="max-height:70vh;overflow:auto;">${html}</div>`);
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
     } else if (type === 'ansi') {
         previewArea.css('background', '#0a0a0a');
-        fetchZipEntry(entryUrl, 'text')
+        fetchArchiveEntry(entryUrl, 'text')
             .then(text => {
                 const artHtml = renderAnsiBuffer(text, 80, 500);
                 previewArea.html(`
@@ -930,15 +991,34 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
+                else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
+            });
+
+    } else if (type === 'pcboard') {
+        previewArea.css('background', '#0a0a0a');
+        fetchArchiveEntry(entryUrl, 'text')
+            .then(text => {
+                const artHtml = renderPCBoardBuffer(text);
+                previewArea.html(`
+                    <div class="ansi-art-container" style="overflow:auto;max-height:70vh;background:#0a0a0a;padding:8px;">
+                        <pre class="m-0">${artHtml}</pre>
+                    </div>
+                `);
+            })
+            .catch(err => {
+                if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
     } else if (type === 'sixel') {
         previewArea.css('background', '#000');
-        fetchZipEntry(entryUrl, 'text')
+        fetchArchiveEntry(entryUrl, 'text')
             .then(text => { renderSixelFilePreview(previewArea, text); })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
@@ -948,7 +1028,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
     } else if (type === 'petscii') {
         previewArea.css('background', '#0000aa')
             .html(`<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x" style="color:#55ffff;"></i></div>`);
-        fetchZipEntry(entryUrl, 'buffer')
+        fetchArchiveEntry(entryUrl, 'buffer')
             .then(buf => {
                 const uBytes   = new Uint8Array(buf);
                 if (uBytes.length < 3) throw new Error('too short');
@@ -989,6 +1069,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else previewArea.html(`<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load preview')}</div>`);
             });
 
@@ -1009,6 +1090,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
                 if (r.status === 415) {
                     return r.json().then(err => Promise.reject({ legacy: true, compMethod: err.comp_method }));
                 }
+                if (r.status === 503) return Promise.reject({ toolUnavailable: true });
                 const ct = r.headers.get('Content-Type') || '';
                 if (!r.ok || !ct.startsWith('text/plain')) {
                     showDownload();
@@ -1022,6 +1104,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else showDownload();
             });
 
@@ -1045,6 +1128,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
                 if (r.status === 415) {
                     return r.json().then(err => Promise.reject({ legacy: true, compMethod: err.comp_method }));
                 }
+                if (r.status === 503) return Promise.reject({ toolUnavailable: true });
                 const ct = r.headers.get('Content-Type') || '';
                 if (!r.ok || !ct.startsWith('text/plain')) {
                     showDownload();
@@ -1058,6 +1142,7 @@ function renderZipEntry(container, fileId, entryPath, entryName, shareQs, onBack
             })
             .catch(err => {
                 if (err && err.legacy) renderLegacyCompressionNotice(previewArea, fileId, entryName, shareQs);
+                else if (err && err.toolUnavailable) renderArchiveToolUnavailableNotice(previewArea, fileId, '', shareQs);
                 else showDownload();
             });
     }

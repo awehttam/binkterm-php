@@ -2869,7 +2869,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ];
         $textExts = [
             'txt', 'log', 'nfo', 'diz', 'asc', 'cfg', 'ini', 'conf', 'lsm',
-            'json', 'xml', 'bat', 'sh', 'readme', 'ans',
+            'json', 'xml', 'bat', 'sh', 'readme', 'ans', 'bbs',
         ];
         $htmlExts = ['htm', 'html'];
 
@@ -2959,8 +2959,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (in_array($ext, $textExts)) {
             $content = (string)file_get_contents($storagePath);
             $charset = 'utf-8';
-            // Attempt CP437 → UTF-8 conversion for NFO/DIZ/ANSI files
-            if (in_array($ext, ['nfo', 'diz', 'ans'])) {
+            // Attempt CP437 → UTF-8 conversion for NFO/DIZ/ANSI/BBS files
+            if (in_array($ext, ['nfo', 'diz', 'ans', 'bbs'])) {
                 $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
                 if ($converted !== false && strlen($converted) > 0) {
                     $content = $converted;
@@ -3301,37 +3301,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $ext = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
         if ($ext !== 'zip') {
-            echo json_encode(['entries' => []]);
+            echo json_encode(['entries' => [], 'total' => 0]);
             return;
         }
 
-        $zip = new ZipArchive();
-        if ($zip->open($storagePath) !== true) {
-            http_response_code(422);
-            echo json_encode(['error' => 'Cannot open ZIP']);
-            return;
-        }
-
-        $entries = [];
-        $limit   = 500;
-        for ($i = 0; $i < $zip->numFiles && count($entries) < $limit; $i++) {
-            $stat = $zip->statIndex($i);
-            if ($stat === false) continue;
-            $name = $stat['name'];
-            if (str_ends_with($name, '/')) continue; // directory entry
-            $entries[] = [
-                'path'        => $name,
-                'name'        => basename($name),
-                'size'        => (int)$stat['size'],
-                'comp_method' => (int)($stat['comp_method'] ?? 0),
-            ];
-        }
-        $total = $zip->numFiles;
-        $zip->close();
-
-        usort($entries, fn($a, $b) => strcmp($a['path'], $b['path']));
-
-        echo json_encode(['entries' => $entries, 'total' => $total]);
+        $result = \BinktermPHP\ArchiveReader::listContents($storagePath, 'zip');
+        echo json_encode(['entries' => $result['entries'], 'total' => $result['total']]);
     })->where(['id' => '[0-9]+']);
 
     /**
@@ -3419,287 +3394,234 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $zip = new ZipArchive();
-        if ($zip->open($storagePath) !== true) {
-            http_response_code(422);
-            echo 'Cannot open ZIP';
-            return;
-        }
-
         // Normalize path separators (some ZIPs use backslashes)
         $entryPath = str_replace('\\', '/', $entryPath);
 
-        $exactZipName    = null;
-        $entryCompMethod = null;
-        $expectedSize    = -1;
-
-        // Find the entry by case-insensitive scan so we always have the exact
-        // stored name, compression method, and expected uncompressed size.
-        $lowerTarget = strtolower($entryPath);
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $stat = $zip->statIndex($i);
-            if ($stat !== false && strtolower(str_replace('\\', '/', $stat['name'])) === $lowerTarget) {
-                $exactZipName    = $stat['name'];
-                $entryCompMethod = $stat['comp_method'] ?? null;
-                $expectedSize    = (int)($stat['size'] ?? -1); // uncompressed size from central dir
-                break;
-            }
-        }
-
-        // Extract using ZipArchive.  Some old compression methods (shrink=1,
-        // reduce=2-5, implode=6) are unsupported by libzip: instead of returning
-        // false, libzip may silently return truncated/partial data.  Guard against
-        // this by comparing the result length to the expected uncompressed size.
-        $content = ($exactZipName !== null)
-            ? $zip->getFromName($exactZipName)   // exact name — no FL_NOCASE needed
-            : $zip->getFromName($entryPath, 0, ZipArchive::FL_NOCASE);
-
-        if ($content !== false && $expectedSize >= 0 && strlen($content) !== $expectedSize) {
-            // Partial extraction — treat as failure and let the shell fallback handle it
-            $content = false;
-        }
-
-        $zip->close();
-
-        $contentSource = $content === false ? 'none' : 'ziparchive';
-
-        // Fallback for legacy compression methods (implode=6, shrink=1, etc.) that
-        // libzip/ZipArchive cannot decompress. Extract to a temp directory and read
-        // the file back from disk; piping binary data through shell stdout on Windows
-        // can truncate at control characters such as DOS EOF (0x1A).
-        if ($content === false && $exactZipName !== null && function_exists('shell_exec')) {
-            $zipArg    = escapeshellarg($storagePath);
-            $nameArg   = escapeshellarg($exactZipName);
-            $null      = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-            $extractDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'bink_zip_' . bin2hex(random_bytes(8));
-
-            $deleteTree = function($path) use (&$deleteTree) {
-                if (!is_dir($path)) {
-                    if (is_file($path)) {
-                        @unlink($path);
-                    }
-                    return;
-                }
-
-                $items = scandir($path);
-                if ($items === false) {
-                    @rmdir($path);
-                    return;
-                }
-
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $child = $path . DIRECTORY_SEPARATOR . $item;
-                    if (is_dir($child)) {
-                        $deleteTree($child);
-                    } else {
-                        @unlink($child);
-                    }
-                }
-
-                @rmdir($path);
-            };
-
-            if (@mkdir($extractDir, 0700, true)) {
-                $destArg = escapeshellarg($extractDir);
-                $sevenZipDestArg = '-o' . escapeshellarg($extractDir);
-                $commands = [
-                    'unzip'     => "unzip -o $zipArg $nameArg -d $destArg 2>$null",
-                    'unzip.exe' => "unzip.exe -o $zipArg $nameArg -d $destArg 2>$null",
-                    '7z'        => "7z x -y $sevenZipDestArg $zipArg $nameArg 2>$null",
-                    '7za'       => "7za x -y $sevenZipDestArg $zipArg $nameArg 2>$null",
-                ];
-
-                try {
-                    foreach ($commands as $tool => $cmd) {
-                        @shell_exec($cmd);
-                        $extractedPath = $extractDir . DIRECTORY_SEPARATOR
-                            . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $exactZipName);
-                        if (is_file($extractedPath)) {
-                            $result = @file_get_contents($extractedPath);
-                            if ($result !== false) {
-                                $content = $result;
-                                $contentSource = $tool;
-                                break;
-                            }
-                        }
-                    }
-                } finally {
-                    $deleteTree($extractDir);
-                }
-            }
-        }
-
-        if ($content !== false && $expectedSize >= 0 && strlen($content) !== $expectedSize) {
-            error_log(sprintf(
-                'ZIP entry extraction size mismatch for file_id=%d path=%s method=%s source=%s expected=%d got=%d',
-                (int)$id,
-                $entryPath,
-                (string)$entryCompMethod,
-                $contentSource,
-                $expectedSize,
-                strlen($content)
-            ));
-            $content = false;
-            $contentSource = 'mismatch';
-        }
-
-        header('X-Zip-Entry-Method: ' . ($entryCompMethod ?? 'unknown'));
-        header('X-Zip-Entry-Expected-Size: ' . $expectedSize);
-        header('X-Zip-Entry-Actual-Size: ' . ($content === false ? -1 : strlen($content)));
-        header('X-Zip-Entry-Source: ' . $contentSource);
-
-        if ($content === false) {
+        try {
+            $content = \BinktermPHP\ArchiveReader::extractEntry($storagePath, $entryPath, 'zip');
+        } catch (\BinktermPHP\ArchiveLegacyCompressionException $e) {
             http_response_code(415);
             header('Content-Type: application/json');
             echo json_encode([
                 'error'       => 'legacy_compression',
-                'comp_method' => $entryCompMethod,
+                'comp_method' => $e->compMethod,
                 'message'     => 'Entry uses an unsupported legacy compression method and cannot be extracted.',
             ]);
             return;
         }
 
-        $entryName = basename($entryPath);
-        $ext       = strtolower(pathinfo($entryName, PATHINFO_EXTENSION));
-        $safe      = addslashes($entryName);
-        $encoded   = rawurlencode($entryName);
-
-        // RIPscrip — serve raw text; the browser-side RIPtermJS renderer handles it.
-        if ($ext === 'rip') {
-            header('Content-Type: text/plain; charset=utf-8');
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('X-Content-Type-Options: nosniff');
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
+        if ($content === false) {
+            http_response_code(404);
+            echo 'Entry not found';
             return;
         }
 
-        // Images
-        $imageMimes = [
-            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
-            'gif' => 'image/gif',  'webp' => 'image/webp', 'svg' => 'image/svg+xml',
-            'bmp' => 'image/bmp',  'ico'  => 'image/x-icon', 'avif' => 'image/avif',
-        ];
-        if (isset($imageMimes[$ext])) {
-            header('Content-Type: ' . $imageMimes[$ext]);
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('Content-Length: ' . strlen($content));
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
-            return;
+        \BinktermPHP\ArchiveReader::serveContent($content, basename($entryPath));
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/archive-contents
+     * List entries in any supported archive format, detected by magic bytes.
+     * Response: {"type":"zip","label":"ZIP","entries":[...],"total":int}
+     */
+    SimpleRouter::get('/files/{id}/archive-contents', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
         }
 
-        // Video / Audio
-        $mediaMimes = [
-            'mp4' => 'video/mp4',   'webm' => 'video/webm',  'mov' => 'video/quicktime',
-            'ogv' => 'video/ogg',   'm4v'  => 'video/mp4',
-            'mp3' => 'audio/mpeg',  'wav'  => 'audio/wav',   'ogg' => 'audio/ogg',
-            'flac'=> 'audio/flac',  'aac'  => 'audio/aac',   'm4a' => 'audio/mp4',
-            'opus'=> 'audio/ogg',
-        ];
-        if (isset($mediaMimes[$ext])) {
-            header('Content-Type: ' . $mediaMimes[$ext]);
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('Content-Length: ' . strlen($content));
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
-            return;
-        }
-
-        // Text (including ANSI — served as plain text; JS handles rendering)
-        $textExts = [
-            'txt','log','nfo','diz','asc','cfg','ini','conf','lsm',
-            'json','xml','bat','sh','readme','ans',
-        ];
-        $htmlExts = ['htm', 'html'];
-
-        if ($ext === 'md') {
-            $html = \BinktermPHP\MarkdownRenderer::toHtml($content);
-            header('Content-Type: text/html; charset=utf-8');
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('X-Content-Type-Options: nosniff');
-            header('Cache-Control: private, max-age=3600');
-            echo $html;
-            return;
-        }
-
-        if (in_array($ext, $htmlExts, true)) {
-            header('Content-Type: text/html; charset=utf-8');
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('Content-Security-Policy: default-src \'none\'; img-src data: blob: http: https:; style-src \'unsafe-inline\'; font-src data: http: https:; media-src data: blob: http: https:; frame-ancestors \'self\'; base-uri \'none\'; form-action \'none\'');
-            header('Referrer-Policy: no-referrer');
-            header('Cross-Origin-Resource-Policy: same-origin');
-            header('X-Content-Type-Options: nosniff');
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
-            return;
-        }
-
-        if (in_array($ext, $textExts)) {
-            if (in_array($ext, ['nfo', 'diz', 'ans'])) {
-                $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
-                if ($converted !== false && strlen($converted) > 0) {
-                    $content = $converted;
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
                 }
             }
-            header('Content-Type: text/plain; charset=utf-8');
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('X-Content-Type-Options: nosniff');
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
+        }
+
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth();
             return;
         }
 
-        // PRG / MOD — serve raw bytes for client-side rendering
-        if ($ext === 'prg' || $ext === 'mod') {
-            header('Content-Type: application/octet-stream');
-            header('Content-Disposition: inline; filename="' . $safe . '"');
-            header('Content-Length: ' . strlen($content));
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feature disabled']);
             return;
         }
 
-        // Unknown extension — heuristically detect text.
-        // Content is already in memory: reject if null bytes present,
-        // accept if ≥ 90% of the sample bytes are printable.
-        $sample  = substr($content, 0, 4096);
-        $zipText = false;
-        if ($sample !== '' && !str_contains($sample, "\x00")) {
-            $len = strlen($sample);
-            $printable = 0;
-            for ($i = 0; $i < $len; $i++) {
-                $b = ord($sample[$i]);
-                if (($b >= 0x20 && $b <= 0x7E) || $b === 0x09 || $b === 0x0A || $b === 0x0D || $b >= 0x80) {
-                    $printable++;
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+            return;
+        }
+
+        if (!$viaShare && !$viaPublicArea) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found on disk']);
+            return;
+        }
+
+        $type = \BinktermPHP\ArchiveReader::detectType($storagePath);
+        if ($type === null) {
+            http_response_code(415);
+            echo json_encode(['error' => 'not_an_archive']);
+            return;
+        }
+
+        $result = \BinktermPHP\ArchiveReader::listContents($storagePath, $type);
+
+        if (!empty($result['tool_unavailable'])) {
+            http_response_code(503);
+            echo json_encode(['error' => 'tool_unavailable', 'type' => $type, 'label' => \BinktermPHP\ArchiveReader::typeLabel($type)]);
+            return;
+        }
+
+        echo json_encode([
+            'type'    => $type,
+            'label'   => \BinktermPHP\ArchiveReader::typeLabel($type),
+            'entries' => $result['entries'],
+            'total'   => $result['total'],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/{id}/archive-entry?path=subdir/file.txt
+     * Serve a single entry from any supported archive, detected by magic bytes.
+     */
+    SimpleRouter::get('/files/{id}/archive-entry', function($id) {
+        $shareArea     = trim($_GET['share_area'] ?? '');
+        $shareFilename = trim($_GET['share_filename'] ?? '');
+        $viaShare      = false;
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+
+        $manager = new \BinktermPHP\FileAreaManager();
+
+        if (!$user && $shareArea !== '' && $shareFilename !== '') {
+            $shareResult = $manager->getSharedFile($shareArea, $shareFilename, null);
+            if ($shareResult['success'] && (int)($shareResult['file']['id'] ?? 0) === (int)$id) {
+                $viaShare = true;
+            }
+        }
+
+        $viaPublicArea = false;
+        if (!$user && !$viaShare) {
+            $checkFile = $manager->getFileById((int)$id);
+            if ($checkFile) {
+                $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
+                if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
+                    $viaPublicArea = true;
                 }
             }
-            $zipText = ($printable / $len) >= 0.90;
         }
 
-        if ($zipText) {
-            if (!mb_check_encoding($content, 'UTF-8')) {
-                $converted = @iconv('CP437', 'UTF-8//IGNORE', $content);
-                if ($converted !== false && strlen($converted) > 0) {
-                    $content = $converted;
-                }
-            }
-            header('Content-Type: text/plain; charset=utf-8');
-            header('Content-Disposition: inline; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-            header('X-Content-Type-Options: nosniff');
-            header('X-Binkterm-Heuristic: text');
-            header('Cache-Control: private, max-age=3600');
-            echo $content;
+        if (!$user && !$viaShare && !$viaPublicArea) {
+            RouteHelper::requireAuth();
             return;
         }
 
-        // Unknown — serve as download
-        header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . $safe . '"; filename*=UTF-8\'\'' . $encoded);
-        header('Content-Length: ' . strlen($content));
-        header('Cache-Control: no-cache, must-revalidate');
-        echo $content;
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo 'Feature disabled';
+            return;
+        }
+
+        $file = $manager->getFileById((int)$id);
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        if (!$viaShare && !$viaPublicArea) {
+            $userId  = $user['user_id'] ?? $user['id'] ?? null;
+            $isAdmin = !empty($user['is_admin']);
+            if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                echo 'Access denied';
+                return;
+            }
+        }
+
+        $storagePath = $manager->resolveFilePath($file);
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        $entryPath = $_GET['path'] ?? '';
+        if ($entryPath === '' || str_contains($entryPath, '..')) {
+            http_response_code(400);
+            echo 'Invalid path';
+            return;
+        }
+        $entryPath = str_replace('\\', '/', $entryPath);
+
+        $type = \BinktermPHP\ArchiveReader::detectType($storagePath);
+        if ($type === null) {
+            http_response_code(415);
+            echo 'Not a recognised archive';
+            return;
+        }
+
+        try {
+            $content = \BinktermPHP\ArchiveReader::extractEntry($storagePath, $entryPath, $type);
+        } catch (\BinktermPHP\ArchiveLegacyCompressionException $e) {
+            http_response_code(415);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error'       => 'legacy_compression',
+                'comp_method' => $e->compMethod,
+                'message'     => 'Entry uses an unsupported legacy compression method and cannot be extracted.',
+            ]);
+            return;
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'tool_unavailable') {
+                http_response_code(503);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'tool_unavailable']);
+                return;
+            }
+            throw $e;
+        }
+
+        if ($content === false) {
+            http_response_code(404);
+            echo 'Entry not found';
+            return;
+        }
+
+        \BinktermPHP\ArchiveReader::serveContent($content, basename($entryPath));
     })->where(['id' => '[0-9]+']);
 
     /**

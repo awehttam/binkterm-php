@@ -9,7 +9,11 @@ This document explains file area configuration, storage layout, and file area ru
 - [File Permissions](#file-permissions)
 - [Storage Layout](#storage-layout)
 - [File Area Rules](#file-area-rules)
-  - [Rule File Structure](#rule-file-structure)
+  - [Rules Editor](#rules-editor)
+    - [Visual Editor Tab](#visual-editor-tab)
+    - [JSON Editor Tab](#json-editor-tab)
+    - [Pattern Tester](#pattern-tester)
+  - [Configuration File Format](#configuration-file-format)
   - [Area Tag Syntax](#area-tag-syntax)
   - [Rule Fields](#rule-fields)
   - [Actions](#actions)
@@ -29,6 +33,10 @@ This document explains file area configuration, storage layout, and file area ru
   - [Database Records](#database-records)
   - [FILE_ID.DIZ Preview](#file_iddiz-preview)
   - [Limitations](#limitations)
+- [Content Preview](#content-preview)
+  - [Supported Formats](#supported-formats)
+  - [ZIP Browser](#zip-browser)
+  - [Auto-Detection in Messages](#auto-detection-in-messages)
 - [Public File Areas](#public-file-areas)
   - [Enabling Public Access](#enabling-public-access)
   - [Public File Area Index](#public-file-area-index)
@@ -201,7 +209,72 @@ Within each group, rules are checked in order. All matching rules run (unless a
 `stop` action halts processing). Rules are evaluated against the filename using
 a PHP regex pattern.
 
-### Rule File Structure
+### Rules Editor
+
+Rules are managed via **Admin → Area Management → File Area Rules**. The editor
+has two tabs that stay in sync — switch freely between them without losing work.
+
+#### Visual Editor Tab
+
+The default view shows two collapsible sections:
+
+- **Global Rules** — rules that run against every file area. Use these for
+  system-wide policies (e.g. blocking dangerous extensions or running a virus
+  scanner on all uploads).
+- **Area Rules** — one expandable group per area tag. Click **Add Area** to
+  create a new group, then add rules inside it.
+
+Each rule row shows the rule name, filename pattern, success/fail actions, and
+an enabled toggle. The action buttons on each row are:
+
+| Button | Action |
+|--------|--------|
+| Edit (pencil) | Open the rule modal pre-filled with the current values |
+| Clone (copy) | Duplicate the rule — inserts a copy immediately below with " (copy)" appended to the name |
+| Delete (trash) | Remove the rule after confirmation |
+
+**Add/Edit Rule modal fields:**
+
+| Field | Description |
+|-------|-------------|
+| Name | Human-readable label for the rule |
+| Enabled | Toggle — disabled rules are stored but skipped at runtime |
+| Filename Pattern | PHP-style regex (see [Rule Fields](#rule-fields)) |
+| Script | Command to execute on a match, with macro substitution |
+| Timeout (s) | Script execution time limit in seconds |
+| On Success | Action(s) when the script exits 0 |
+| On Failure | Action(s) when the script exits non-zero or times out |
+| Move to area | Target area tag for the `move:` action (Success or Failure) |
+
+#### JSON Editor Tab
+
+The raw `config/filearea_rules.json` content is available as a second tab for
+bulk edits, copy/paste, or version-controlled updates. Switching to the Visual
+tab parses and validates the JSON first — a parse error is shown inline and the
+switch is blocked until the JSON is valid. Switching to the JSON tab serialises
+the current GUI state.
+
+#### Pattern Tester
+
+Click the flask icon (⚗) next to the Filename Pattern field to expand an
+inline tester panel without leaving the modal:
+
+- **Free-text input** — type any filename to test it live against the current
+  pattern. A green **match** or grey **no match** badge updates as you type.
+- **Load files from area** — when editing a rule inside an area group, the
+  tester loads the actual filenames currently stored in that area and shows a
+  match/no-match badge next to each one. Useful for verifying a pattern before
+  deploying it against real data.
+
+The tester understands PHP-style delimited patterns (e.g. `/^NODELIST\.Z\d+$/i`)
+including flags. An unparseable pattern shows an **invalid regex** warning badge.
+
+### Configuration File Format
+
+Rules are stored in `config/filearea_rules.json`. The file is written
+automatically when you save from the admin editor, but you can also edit it
+directly on disk — changes take effect immediately on the next file arrival (no
+daemon restart required).
 
 ```json
 {
@@ -231,6 +304,16 @@ a PHP regex pattern.
   }
 }
 ```
+
+The top-level object has exactly two keys:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `global_rules` | array | Rules applied to every file area, in order |
+| `area_rules` | object | Keys are area tags (`TAG` or `TAG@DOMAIN`); values are arrays of rules |
+
+Both arrays may be empty (`[]`). The `area_rules` object may be empty (`{}`). The
+file must be valid JSON — comments are not supported.
 
 ### Area Tag Syntax
 
@@ -330,10 +413,10 @@ Debug logs are written to:
 ## Admin UI
 
 All file area management is accessible via **Admin → Area Management** in the
-navigation menu. This includes:
+navigation menu:
 
 - **Admin → Area Management → File Areas** — create, edit, and delete file areas
-- **Admin → Area Management → File Area Rules** — edit the automation rules configuration
+- **Admin → Area Management → File Area Rules** — visual and JSON editor for automation rules (see [Rules Editor](#rules-editor))
 
 Rule changes are saved through the admin daemon and take effect immediately for
 subsequent file arrivals.
@@ -718,6 +801,72 @@ preview panel with CP437→UTF-8 conversion applied. No extraction to disk occur
 | File deletion | Admin-only. Removes the database record; no disk change. Re-index with `--update` to refresh descriptions if the ISO changes. |
 | Move / rename | Filename and area moves are blocked. Description edits are allowed. |
 | ISO format | ISO 9660, Joliet, and Rock Ridge extensions are supported by the Linux kernel ISO driver. UDF discs can be mounted with `mount -t udf`. |
+
+---
+
+## Content Preview
+
+BinktermPHP renders many file types inline in the browser without requiring a
+download. Preview is triggered when a user clicks a file in any file area listing
+or follows a shared-file link. The preview modal also appears inside the ZIP
+browser when an individual archive entry is selected.
+
+### Supported Formats
+
+| Format | Extensions | Notes |
+|---|---|---|
+| **Image** | `jpg`, `jpeg`, `png`, `gif`, `webp`, `svg`, `bmp`, `ico`, `tiff`, `tif`, `avif` | Displayed inline; click to open full size in a new tab. |
+| **Video** | `mp4`, `webm`, `mov`, `ogv`, `m4v` | HTML5 `<video>` player. Browser codec support applies. |
+| **Audio** | `mp3`, `wav`, `ogg`, `flac`, `aac`, `m4a`, `opus` | HTML5 `<audio>` player. |
+| **HTML** | `htm`, `html` | Rendered in a sandboxed `<iframe>`. |
+| **Plain text** | `txt`, `log`, `nfo`, `diz`, `asc`, `cfg`, `ini`, `conf`, `lsm`, `json`, `xml`, `bat`, `sh` | Displayed in a scrollable `<pre>` block. `nfo` and `diz` use a retro dark theme. |
+| **Markdown** | `md` | Server-rendered to HTML and displayed in a styled panel. |
+| **ANSI art** | `ans` | Decoded client-side by `ansisys.js` using the full CP437 character set and CGA/VGA colour palette. |
+| **PCBoard BBS** | `bbs` | Decoded client-side by `pcboard.js`. Supports `@XY@` CGA colour codes, `@CLS@`, and common PCBoard control macros. CP437 characters are converted server-side before delivery. |
+| **Sixel** | `six`, `sixel` | Decoded client-side by `sixel.js` and rendered to a `<canvas>`. |
+| **PETSCII stream** | `seq` | Decoded client-side by `ansisys.js` using the Pet Me 64 font. A **Run on C64** button launches the built-in C64 emulator. |
+| **C64 PRG** | `prg` | Rendered as a PETSCII gallery via the `/api/files/{id}/prgs` endpoint. Each screen found in the file is shown as a canvas panel. |
+| **C64 D64 disk image** | `d64` | Disk directory and all PRG files within are listed and rendered as a PETSCII gallery. |
+| **RIPscrip** | `rip` | Decoded and rendered by `ansisys.js`. |
+| **MOD music** | `mod` | Played back client-side with an embedded MOD player. |
+| **ZIP archive** | `zip` | Opens the ZIP browser (see below). |
+| **Heuristic text** | `doc`, `msg` | Server probes the file; if it is ≥90% printable ASCII it is displayed as plain text, otherwise a download prompt is shown. |
+
+Files whose extension is not in any of the above lists show a download prompt.
+
+### ZIP Browser
+
+When a `.zip` file is opened, the browser fetches the archive's table of
+contents from `GET /api/files/{id}/zip-contents` and presents a file listing.
+Clicking an entry fetches that entry's raw bytes via
+`GET /api/files/{id}/zip-entry?path=…` and previews them inline using the same
+format detection rules as standalone files.
+
+`FILE_ID.DIZ` (case-insensitive) is automatically highlighted at the top of the
+listing when present.
+
+Text and art entries (`txt`, `nfo`, `diz`, `ans`, `bbs`, etc.) are served with
+CP437→UTF-8 conversion applied server-side so the client always receives a valid
+UTF-8 string. Unknown extensions that pass the ≥90% printable heuristic are also
+converted. Binary entries are served as raw bytes.
+
+> **Legacy compression note:** Entries compressed with older algorithms (e.g.
+> implode, shrink, reduce) that PHP's ZipArchive cannot decompress show a
+> *Legacy compression* notice with a link to download the full archive instead.
+
+### Auto-Detection in Messages
+
+When echomail or netmail message bodies are displayed, the renderer in `app.js`
+checks the text for known art-format signatures before falling back to plain
+text:
+
+1. **PCBoard** — detected if the body contains `@XY@` colour codes (where XY is
+   a two-digit hex CGA attribute), `@CLS@`, or `@NOSTOP@`.
+2. **ANSI** — detected if the body contains ESC sequences (`\x1b[`).
+3. **Plain text** — everything else.
+
+Detection runs only when `pcboard.js` / `ansisys.js` are loaded on the page
+(echomail and netmail templates include both scripts).
 
 ---
 

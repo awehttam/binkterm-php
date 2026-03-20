@@ -3376,6 +3376,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.zip_legacy_badge' => 'Compression héritée',
     'ui.files.zip_legacy_compression' => 'Ce fichier utilise un format de compression hérité qui ne peut pas être prévisualisé.',
     'ui.files.zip_truncated' => 'Affichage des {count} premières entrées',
+    'ui.files.archive_empty' => 'L\'archive est vide',
+    'ui.files.archive_tool_unavailable' => 'L\'outil d\'archive (7z) n\'est pas disponible sur ce serveur.',
+    'ui.files.download_archive' => 'Télécharger l\'archive',
 
     // Footer
     'ui.footer.registered_to' => 'Enregistré à {name}',
