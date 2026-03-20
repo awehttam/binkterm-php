@@ -1810,6 +1810,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.total_size' => 'Taille totale',
     'ui.files.file_details' => 'Détails du fichier',
     'ui.files.filename' => 'Nom du fichier',
+    'ui.files.description' => 'Description',
     'ui.files.size' => 'Taille',
     'ui.files.uploaded' => 'Téléversé',
     'ui.files.from' => 'De',

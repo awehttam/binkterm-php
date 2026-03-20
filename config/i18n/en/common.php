@@ -2165,6 +2165,7 @@ return [
     'ui.files.total_size' => 'Total Size',
     'ui.files.file_details' => 'File Details',
     'ui.files.filename' => 'Filename',
+    'ui.files.description' => 'Description',
     'ui.files.size' => 'Size',
     'ui.files.uploaded' => 'Uploaded',
     'ui.files.from' => 'From',

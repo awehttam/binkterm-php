@@ -2171,6 +2171,7 @@ return [
     'ui.files.total_size' => 'Tamano total',
     'ui.files.file_details' => 'Detalles del archivo',
     'ui.files.filename' => 'Nombre de archivo',
+    'ui.files.description' => 'Descripción',
     'ui.files.size' => 'Tamano',
     'ui.files.uploaded' => 'Subido',
     'ui.files.from' => 'De',

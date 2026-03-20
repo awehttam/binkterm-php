@@ -679,10 +679,11 @@ function displayRecentFiles(files) {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="55%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="25%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="35%">${uiT('ui.files.description', 'Description')}</th>
                         <th width="10%">${uiT('ui.files.size', 'Size')}</th>
                         <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
-                        <th width="20%">${uiT('ui.files.actions', 'Actions')}</th>
+                        <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -722,6 +723,7 @@ function displayRecentFiles(files) {
                         <i class="fas fa-folder text-warning me-2"></i>
                         <a href="#" class="file-preview-link fw-bold" onclick="${onclick}">${subfolderName}</a>
                     </td>
+                    <td></td>
                     <td>—</td>
                     <td><small>${uploadDate}</small></td>
                     <td></td>
@@ -752,10 +754,11 @@ function displayRecentFiles(files) {
 
         html += `
             <tr>
-                <td>
+                <td style="word-break: break-all;">
                     ${scanIcon}
                     <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge0}
                 </td>
+                <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
@@ -1069,8 +1072,8 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="40%">${uiT('ui.files.filename', 'Filename')}</th>
-                        <th width="20%">${uiT('ui.common.description', 'Description')}</th>
+                        <th width="25%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="35%">${uiT('ui.files.description', 'Description')}</th>
                         <th width="10%">${uiT('ui.files.size', 'Size')}</th>
                         <th width="15%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
                         <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
@@ -1146,11 +1149,11 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
 
         html += `
             <tr>
-                <td>
+                <td style="word-break: break-all;">
                     ${scanIcon}
                     <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge1}
                 </td>
-                <td><small class="text-muted">${shortDesc}</small></td>
+                <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
