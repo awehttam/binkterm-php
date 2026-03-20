@@ -107,7 +107,7 @@
             </div>
             <div class="card-body d-flex flex-column align-items-center">
                 <div class="fw-semibold mb-2 text-center" id="dashboardAdTitle">{{ dashboard_ad.title }}</div>
-                <div class="ansi-art-container">
+                <div class="ansi-art-container w-100" style="overflow: hidden;">
                     <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
                 </div>
                 {% if dashboard_ads|length > 1 %}
@@ -272,6 +272,8 @@ $(document).ready(function() {
     {% endif %}
     renderDashboardAd();
     updateDashboardAdPosition();
+
+    window.addEventListener('resize', scaleDashboardAd);
     });
 
     // Refresh dashboard data every 30 seconds (but not system news)
@@ -629,6 +631,33 @@ function copyReferralLink(button, evt) {
     }
 }
 
+function scaleDashboardAd() {
+    const pre = document.getElementById('dashboardAdAnsi');
+    if (!pre) {
+        return;
+    }
+    const container = pre.closest('.ansi-art-container');
+    if (!container) {
+        return;
+    }
+
+    // Reset transform to measure natural dimensions
+    pre.style.transform = '';
+    pre.style.transformOrigin = '';
+    container.style.height = '';
+
+    const containerWidth = container.clientWidth;
+    const naturalWidth = pre.scrollWidth;
+
+    if (naturalWidth > 0 && containerWidth > 0 && naturalWidth > containerWidth) {
+        const scale = containerWidth / naturalWidth;
+        pre.style.transform = `scale(${scale})`;
+        pre.style.transformOrigin = 'top left';
+        // Collapse container height to match scaled content
+        container.style.height = (pre.scrollHeight * scale) + 'px';
+    }
+}
+
 function renderDashboardAd() {
     const pre = document.getElementById('dashboardAdAnsi');
     if (!pre) {
@@ -644,6 +673,7 @@ function renderDashboardAd() {
             rendered = linkifyUrls(rendered);
         }
         pre.innerHTML = rendered;
+        requestAnimationFrame(scaleDashboardAd);
     };
 
     if (typeof renderAnsiTerminal === 'function') {
