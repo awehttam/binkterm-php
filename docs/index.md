@@ -11,6 +11,7 @@ This index lists documents in operational priority order — essentials first, a
 - [Configuration Reference](CONFIGURATION.md) — Environment variables, .env settings, and core configuration options
 - [Command Line Interface](CLI.md) — All CLI scripts: binkp_server, binkp_poll, maintenance tools
 - [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
+- [Upgrade Guide 1.8.8](UPGRADING_1.8.8.md) — Release-specific upgrade notes for the TIC incoming `FILE_ID.DIZ` lookup fix
 
 ---
 
