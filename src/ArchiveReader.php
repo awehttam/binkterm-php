@@ -469,10 +469,16 @@ class ArchiveReader
             return ['entries' => [], 'total' => 0, 'tool_unavailable' => true];
         }
 
-        $null   = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-        $output = @shell_exec($sevenZ . ' l -ba ' . escapeshellarg($path) . " 2>$null");
+        // Redirect stderr to stdout so we can detect "Cannot open" errors.
+        $output = @shell_exec($sevenZ . ' l -ba ' . escapeshellarg($path) . ' 2>&1');
         if ($output === null || $output === '') {
-            return ['entries' => [], 'total' => 0];
+            return ['entries' => [], 'total' => 0, 'tool_unavailable' => true];
+        }
+
+        // 7z reports this when it doesn't support the format (e.g. ARC).
+        if (str_contains($output, 'Cannot open the file as archive')
+            || str_contains($output, 'Can\'t open as archive')) {
+            return ['entries' => [], 'total' => 0, 'tool_unavailable' => true];
         }
 
         $all     = self::parse7zBareList($output);
