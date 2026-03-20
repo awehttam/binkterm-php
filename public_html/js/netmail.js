@@ -15,6 +15,7 @@ let keyboardHelpVisible = false;
 let currentMessageData = null;
 let currentParsedMessage = null;
 let currentRenderMode = 'auto';
+let requestedMessageId = null;
 
 /**
  * Render a FREQ status badge appropriate to the given status value.
@@ -54,7 +55,13 @@ function uiT(key, fallback, params = {}) {
 
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
-        loadMessages();
+        const urlParams = new URLSearchParams(window.location.search);
+        const messageParam = urlParams.get('message');
+        requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
+
+        loadMessages(function() {
+            openRequestedMessage();
+        });
     });
     loadStats();
     loadAddressBook();
@@ -1501,6 +1508,14 @@ function updateNavigationButtons() {
     const prevBtn = $('#prevMessageBtn');
     const nextBtn = $('#nextMessageBtn');
 
+    if (currentMessageIndex < 0) {
+        prevBtn.prop('disabled', true);
+        nextBtn.prop('disabled', true);
+        prevBtn.attr('title', uiT('ui.common.previous_message', 'Previous message'));
+        nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
+        return;
+    }
+
     // Disable/enable previous button
     if (currentMessageIndex <= 0) {
         prevBtn.prop('disabled', true);
@@ -1520,6 +1535,16 @@ function updateNavigationButtons() {
         nextBtn.prop('disabled', false);
         nextBtn.attr('title', uiT('ui.common.next_message', 'Next message'));
     }
+}
+
+function openRequestedMessage() {
+    if (!requestedMessageId) {
+        return;
+    }
+
+    const messageId = requestedMessageId;
+    requestedMessageId = null;
+    viewMessage(messageId);
 }
 
 function toggleSelectMode() {

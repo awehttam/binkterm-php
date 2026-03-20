@@ -83,6 +83,11 @@ function buildEchomailMessageUrl(string $siteUrl, string $areaSlug, int $message
     return $siteUrl . '/echomail/' . rawurlencode($areaSlug) . '?message=' . $messageId;
 }
 
+function buildNetmailMessageUrl(string $siteUrl, int $messageId): string
+{
+    return $siteUrl . '/netmail?message=' . $messageId;
+}
+
 /**
  * Determine whether enough time has passed since the last digest for the given
  * frequency.
@@ -110,6 +115,8 @@ function isDue(string $frequency, ?string $lastSent): bool
 /**
  * Build a plain-text digest body for one user.
  *
+ * @param array  $netmail    New netmail messages:
+ *                           [['subject','from_name','id'], ...]
  * @param array  $addressed  Messages personally addressed to the user:
  *                           [['subject','from_name','area_tag','area_slug','id'], ...]
  * @param array  $areas      Array of ['tag'=>string, 'name'=>string, 'messages'=>[...]]
@@ -117,15 +124,26 @@ function isDue(string $frequency, ?string $lastSent): bool
  * @param string $siteUrl    Base URL of the BBS
  * @return string
  */
-function buildPlainDigest(array $addressed, array $areas, string $systemName, string $siteUrl): string
+function buildPlainDigest(array $netmail, array $addressed, array $areas, string $systemName, string $siteUrl): string
 {
     $date  = date('l, F j Y');
     $lines = [];
 
-    $lines[] = "$systemName — Echomail Digest";
+    $lines[] = "$systemName — Mail Digest";
     $lines[] = $date;
     $lines[] = str_repeat('=', 60);
     $lines[] = '';
+
+    if (!empty($netmail)) {
+        $count   = count($netmail);
+        $lines[] = '*** NEW NETMAIL (' . $count . ') ***';
+        $lines[] = str_repeat('-', 40);
+        foreach ($netmail as $msg) {
+            $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ')';
+            $lines[] = '  ' . buildNetmailMessageUrl($siteUrl, (int)$msg['id']);
+        }
+        $lines[] = '';
+    }
 
     // Personal messages section — shown first if any exist
     if (!empty($addressed)) {
@@ -166,17 +184,34 @@ function buildPlainDigest(array $addressed, array $areas, string $systemName, st
 /**
  * Build an HTML digest body for one user.
  *
+ * @param array  $netmail    New netmail messages.
  * @param array  $addressed  Messages personally addressed to the user.
  * @param array  $areas      Echo area summaries.
  * @param string $systemName BBS system name.
  * @param string $siteUrl    Base URL of the BBS.
  */
-function buildHtmlDigest(array $addressed, array $areas, string $systemName, string $siteUrl): string
+function buildHtmlDigest(array $netmail, array $addressed, array $areas, string $systemName, string $siteUrl): string
 {
     $date         = date('l, F j Y');
     $safeSystem   = htmlspecialchars($systemName, ENT_QUOTES, 'UTF-8');
     $safeDate     = htmlspecialchars($date, ENT_QUOTES, 'UTF-8');
     $safeSiteUrl  = htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8');
+
+    $netmailHtml = '';
+    if (!empty($netmail)) {
+        $count       = count($netmail);
+        $netmailHtml .= '<div class="netmail">';
+        $netmailHtml .= '<h2>New Netmail (' . $count . ')</h2>';
+        $netmailHtml .= '<ul>';
+        foreach ($netmail as $msg) {
+            $safeSubject = htmlspecialchars($msg['subject'] ?: '(no subject)', ENT_QUOTES, 'UTF-8');
+            $safeFrom    = htmlspecialchars($msg['from_name'], ENT_QUOTES, 'UTF-8');
+            $messageUrl  = buildNetmailMessageUrl($siteUrl, (int)$msg['id']);
+            $safeMessageUrl = htmlspecialchars($messageUrl, ENT_QUOTES, 'UTF-8');
+            $netmailHtml .= '<li><a href="' . $safeMessageUrl . '"><strong>' . $safeSubject . '</strong></a> &mdash; from ' . $safeFrom . '</li>';
+        }
+        $netmailHtml .= '</ul></div>';
+    }
 
     // Personal messages block
     $addressedHtml = '';
@@ -229,7 +264,7 @@ function buildHtmlDigest(array $addressed, array $areas, string $systemName, str
     return <<<HTML
     <html>
     <head>
-        <title>Echomail Digest — {$safeSystem}</title>
+        <title>Mail Digest — {$safeSystem}</title>
         <style>
             body { font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 640px; margin: 0 auto; }
             .header { background: #0066cc; color: #fff; padding: 16px 20px; margin-bottom: 20px; }
@@ -247,13 +282,19 @@ function buildHtmlDigest(array $addressed, array $areas, string $systemName, str
             .addressed ul { margin: 0; padding-left: 1.2em; }
             .addressed ul li { margin-bottom: 4px; font-size: 0.9em; }
             .addressed ul li a { color: #cc6600; }
+            .netmail { border-left: 4px solid #198754; padding: 10px 16px; margin-bottom: 24px; background: #f4fff7; }
+            .netmail h2 { margin: 0 0 8px; font-size: 1em; color: #198754; }
+            .netmail ul { margin: 0; padding-left: 1.2em; }
+            .netmail ul li { margin-bottom: 4px; font-size: 0.9em; }
+            .netmail ul li a { color: #198754; }
         </style>
     </head>
     <body>
         <div class="header">
-            <h1>{$safeSystem} — Echomail Digest</h1>
+            <h1>{$safeSystem} — Mail Digest</h1>
             <p>{$safeDate}</p>
         </div>
+        {$netmailHtml}
         {$addressedHtml}
         {$areaHtml}
         <div class="footer">
@@ -332,6 +373,28 @@ foreach ($users as $user) {
         $since = (new DateTimeImmutable("-{$lookback}"))->format('Y-m-d H:i:s');
     }
 
+    // Fetch new inbound netmail for this user.
+    $netmail = [];
+    $netmailStmt = $db->prepare("
+        SELECT n.id, n.subject, n.from_name, n.date_received
+        FROM netmail n
+        WHERE n.user_id = ?
+          AND n.date_received > ?
+          AND COALESCE(n.deleted_by_recipient, FALSE) = FALSE
+          AND LOWER(n.from_name) <> LOWER(?)
+          AND LOWER(n.from_name) <> LOWER(?)
+        ORDER BY n.date_received ASC
+        LIMIT 50
+    ");
+    $netmailStmt->execute([$userId, $since, $user['username'], $user['real_name']]);
+    foreach ($netmailStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $netmail[] = [
+            'id'        => (int)$row['id'],
+            'subject'   => $row['subject'],
+            'from_name' => $row['from_name'],
+        ];
+    }
+
     // Fetch echomail personally addressed to this user (across all active areas).
     // Uses real_name for matching since that's what FTN correspondents use.
     $addressed = [];
@@ -380,7 +443,7 @@ foreach ($users as $user) {
     $msgStmt->execute([$userId, $since]);
     $rows = $msgStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (empty($rows) && empty($addressed)) {
+    if (empty($rows) && empty($addressed) && empty($netmail)) {
         log_msg("User {$userId} ({$user['username']}): no new messages, skipping.", $verbose);
         // Still update last_sent so we don't keep checking every run
         if (!$dryRun) {
@@ -429,9 +492,11 @@ foreach ($users as $user) {
     $totalMessages = count($rows);
 
     $addrCount = count($addressed);
+    $netmailCount = count($netmail);
     log_msg("User {$userId} ({$user['username']}): {$totalMessages} message(s) across {$totalAreas} area(s)" .
         ($totalAreas > $maxAreas ? " (showing top {$maxAreas})" : '') .
-        ($addrCount > 0 ? ", {$addrCount} addressed to user" : '') . '.', $verbose);
+        ($addrCount > 0 ? ", {$addrCount} addressed to user" : '') .
+        ($netmailCount > 0 ? ", {$netmailCount} new netmail" : '') . '.', $verbose);
 
     if ($dryRun) {
         $shownAreas = count($areas);
@@ -440,9 +505,9 @@ foreach ($users as $user) {
         continue;
     }
 
-    $subject   = "Echomail Digest — {$systemName} — " . date('Y-m-d');
-    $plainText = buildPlainDigest($addressed, array_values($areas), $systemName, $siteUrl);
-    $htmlBody  = buildHtmlDigest($addressed, array_values($areas), $systemName, $siteUrl);
+    $subject   = "Mail Digest — {$systemName} — " . date('Y-m-d');
+    $plainText = buildPlainDigest($netmail, $addressed, array_values($areas), $systemName, $siteUrl);
+    $htmlBody  = buildHtmlDigest($netmail, $addressed, array_values($areas), $systemName, $siteUrl);
 
     $mail   = new Mail();
     $result = $mail->sendMail($user['email'], $subject, $htmlBody, $plainText);
