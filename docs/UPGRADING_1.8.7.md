@@ -9,86 +9,55 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-- [Message Reader Improvements](#message-reader-improvements)
-- [Message Content Rendering](#message-content-rendering)
-  - [RIPscrip in Messages](#ripscrip-in-messages)
-  - [Sixel Graphics in Messages](#sixel-graphics-in-messages)
-  - [PCBoard @X Colour Codes in Messages](#pcboard-x-colour-codes-in-messages)
-- [Enhanced Message Search](#enhanced-message-search)
-  - [Search Reindexing](#search-reindexing)
-- [Echomail Reader Navigation](#echomail-reader-navigation)
-  - [Transparent Pagination](#transparent-pagination)
-  - [End-of-Echo Prompt](#end-of-echo-prompt)
-- [Echomail Info Bar](#echomail-info-bar)
-- [Page Position Memory](#page-position-memory)
-- [Node Address Links](#node-address-links)
-- [Echo Area Management Improvements](#echo-area-management-improvements)
-- [Comment Echo Area Dropdown Grouping](#comment-echo-area-dropdown-grouping)
-- [QWK/QWKE Offline Mail](#qwkqwke-offline-mail)
-- [Echomail Digest](#echomail-digest)
-- [File Area Subfolder Navigation](#file-area-subfolder-navigation)
-- [File Preview](#file-preview)
-  - [ANSI Art Rendering](#ansi-art-rendering)
-  - [MOD Tracker Preview](#mod-tracker-preview)
-  - [PETSCII / PRG Rendering](#petscii--prg-rendering)
-  - [D64 Disk Image Preview](#d64-disk-image-preview)
-  - [C64 Emulator](#c64-emulator)
-  - [RIPscrip File Preview](#ripscrip-file-preview)
-  - [Sixel Graphics](#sixel-graphics)
-  - [ZIP File Browser](#zip-file-browser)
-  - [Shared File Preview](#shared-file-preview)
-  - [Maximize Button](#file-preview-maximize-button)
-- [File Area Rules Visual Editor](#file-area-rules-visual-editor)
-- [ISO-Backed File Areas](#iso-backed-file-areas)
-  - [Behaviour](#behaviour)
-  - [Creating an ISO area](#creating-an-iso-area)
-  - [Import preview](#import-preview)
-  - [Catalogue formats](#catalogue-formats)
-  - [Subfolder navigation](#subfolder-navigation)
-  - [Importing files (CLI)](#importing-files-cli)
-  - [Migration](#migration)
-- [File Area Comments](#file-area-comments)
-- [Global File Search](#global-file-search)
-- [File Upload Filename Sanitization](#file-upload-filename-sanitization)
-- [Public File Areas](#public-file-areas)
-- [Gemini File Areas](#gemini-file-areas)
-- [Shared File Preview for Unauthenticated Visitors](#shared-file-preview-for-unauthenticated-visitors)
-- [Netmail Attachment Improvements](#netmail-attachment-improvements)
-- [Netmail Forwarding to Email](#netmail-forwarding-to-email)
-- [FREQ Enhancements](#freq-enhancements)
-- [Outbound FREQ (File Request)](#outbound-freq-file-request)
-- [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
-- [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
-- [BinkP Status Page Improvements](#binkp-status-page-improvements)
-  - [Log Search](#log-search)
-  - [Advanced Log Search](#advanced-log-search)
-  - [Kept Packets Viewer](#kept-packets-viewer)
-  - [Faster Poll Session Termination](#faster-poll-session-termination)
-- [LovlyNet Subscriptions](#lovlynet-subscriptions)
-  - [Sync Files](#sync-files)
-  - [AREAFIX Rescan Requests](#areafix-rescan-requests)
-  - [Request Tracking](#request-tracking)
-  - [Area Sync Integration](#area-sync-integration)
-  - [TIC File Password Field](#tic-file-password-field)
-- [Echo List Network Filter](#echo-list-network-filter)
-- [Nodelist Map](#nodelist-map)
-- [Nodelist Enhancements](#nodelist-enhancements)
-- [Credits System Updates](#credits-system-updates)
-- [Database Statistics Page](#database-statistics-page)
-- [Database Performance Improvements](#database-performance-improvements)
-- [Admin Menu Reorganization](#admin-menu-reorganization)
-- [In-App Documentation Browser](#in-app-documentation-browser)
-- [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
-- [Advertising System](#advertising-system)
-- [Footer Registration Display](#footer-registration-display)
-- [Premium Features and Registration](#premium-features-and-registration)
-  - [Registration Badge on Admin Dashboard](#registration-badge-on-admin-dashboard)
-  - [Branding Controls](#branding-controls)
-  - [Message Templates](#message-templates)
-  - [Economy Viewer Now Requires Registration](#economy-viewer-now-requires-registration)
-  - [Referral Analytics](#referral-analytics)
-  - [Custom Login and Registration Splash Pages](#custom-login-and-registration-splash-pages)
-  - [How to Register](#how-to-register)
+- [Messaging & Message Reader](#messaging--message-reader)
+  - [Message Reader Improvements](#message-reader-improvements)
+  - [Message Content Rendering](#message-content-rendering)
+  - [Enhanced Message Search](#enhanced-message-search)
+  - [Echomail Reader Navigation](#echomail-reader-navigation)
+  - [Echomail Info Bar](#echomail-info-bar)
+  - [Page Position Memory](#page-position-memory)
+  - [Node Address Links](#node-address-links)
+  - [Echo Area Management Improvements](#echo-area-management-improvements)
+  - [Comment Echo Area Dropdown Grouping](#comment-echo-area-dropdown-grouping)
+  - [QWK/QWKE Offline Mail](#qwkqwke-offline-mail)
+  - [Echomail Digest](#echomail-digest)
+- [File Areas & Preview](#file-areas--preview)
+  - [File Area Subfolder Navigation](#file-area-subfolder-navigation)
+  - [File Preview](#file-preview)
+  - [File Area Rules Visual Editor](#file-area-rules-visual-editor)
+  - [ISO-Backed File Areas](#iso-backed-file-areas)
+  - [File Area Comments](#file-area-comments)
+  - [Global File Search](#global-file-search)
+  - [File Upload Filename Sanitization](#file-upload-filename-sanitization)
+  - [Public File Areas](#public-file-areas)
+  - [Gemini File Areas](#gemini-file-areas)
+  - [Shared File Preview for Unauthenticated Visitors](#shared-file-preview-for-unauthenticated-visitors)
+- [Netmail & Attachments](#netmail--attachments)
+  - [Netmail Attachment Improvements](#netmail-attachment-improvements)
+  - [Netmail Forwarding to Email](#netmail-forwarding-to-email)
+- [FTN Networking](#ftn-networking)
+  - [FREQ Enhancements](#freq-enhancements)
+  - [Outbound FREQ (File Request)](#outbound-freq-file-request)
+  - [Crashmail Logging and Packet Preservation](#crashmail-logging-and-packet-preservation)
+  - [BinkP Inbound File Collision Handling](#binkp-inbound-file-collision-handling)
+  - [BinkP Status Page Improvements](#binkp-status-page-improvements)
+  - [LovlyNet Subscriptions](#lovlynet-subscriptions)
+  - [Echo List Network Filter](#echo-list-network-filter)
+- [Nodelist](#nodelist)
+  - [Nodelist Map](#nodelist-map)
+  - [Nodelist Enhancements](#nodelist-enhancements)
+- [Credits & Economy](#credits--economy)
+  - [Credits System Updates](#credits-system-updates)
+- [Admin & System](#admin--system)
+  - [Database Statistics Page](#database-statistics-page)
+  - [Database Performance Improvements](#database-performance-improvements)
+  - [Admin Menu Reorganization](#admin-menu-reorganization)
+  - [In-App Documentation Browser](#in-app-documentation-browser)
+  - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
+  - [Advertising System](#advertising-system)
+- [Registration & Premium Features](#registration--premium-features)
+  - [Footer Registration Display](#footer-registration-display)
+  - [Premium Features and Registration](#premium-features-and-registration)
 - [Bug Fixes](#bug-fixes)
   - [Crashmail AKA Selection](#crashmail-aka-selection)
   - [Crashmail FILE_ATTACH Filename](#crashmail-file_attach-filename)
@@ -343,7 +312,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - File preview on shared file pages now works for visitors who are not logged in,
   including PETSCII/PRG rendering and the Run on C64 emulator button.
 
-## Message Reader Improvements
+## Messaging & Message Reader
+
+### Message Reader Improvements
 
 The kludge lines panel in the echomail and netmail message readers is now
 hidden by default. A small **`</>`** icon button in the modal header toolbar
@@ -356,14 +327,14 @@ A **print button** (printer icon) is also in the toolbar. Clicking it opens
 the message in a minimal popup window and triggers the browser print dialog.
 The popup closes automatically after printing or cancelling.
 
-## Message Content Rendering
+### Message Content Rendering
 
 The echomail and netmail message readers now support multiple rich content
 formats beyond ANSI art and plain text. Format detection is automatic — no
 configuration is required, and existing messages are rendered correctly the
 first time they are viewed after upgrading.
 
-### RIPscrip in Messages
+#### RIPscrip in Messages
 
 The echomail reader detects RIPscrip content automatically and renders it
 inline using the built-in RIP renderer instead of showing the raw command
@@ -371,7 +342,7 @@ stream. Detection is based on RIP command lines beginning with `!|` plus
 recognised drawing and text opcodes. Messages that do not match continue
 through the normal ANSI/plain text rendering path.
 
-### Sixel Graphics in Messages
+#### Sixel Graphics in Messages
 
 DEC sixel sequences (`ESC P … q … ESC \`) embedded in echomail or netmail
 message bodies are detected, extracted, and rendered as inline `<canvas>`
@@ -379,7 +350,7 @@ elements between the surrounding text segments. Sixel images in file
 attachments and ZIP archives are also supported — see
 [Sixel Graphics](#sixel-graphics) under File Preview.
 
-### PCBoard @X Colour Codes in Messages
+#### PCBoard @X Colour Codes in Messages
 
 Messages containing PCBoard `@X` colour codes are detected and rendered with
 the correct foreground and background colours, matching the display style of
@@ -391,7 +362,7 @@ including ANSI art, MOD tracker music, PETSCII/PRG, D64 disk images, Sixel,
 RIPscrip, and multi-format archive browsing — see the
 [File Preview](#file-preview) section below.
 
-## Enhanced Message Search
+### Enhanced Message Search
 
 The search sidebar now includes an **Advanced Search** button (sliders icon)
 that opens a modal with individual fields for poster name, subject, message body,
@@ -401,7 +372,7 @@ ones you need.
 The simple search bar continues to work as before (searches across all fields at
 once).
 
-### Search Reindexing
+#### Search Reindexing
 
 This release adds trigram GIN indexes (`pg_trgm`) on the `subject` and
 `message_text` columns of both `echomail` and `netmail`. These indexes make
@@ -413,15 +384,15 @@ at the migration step — this is normal. Do not interrupt it.
 
 A date range index on `echomail(date_received)` is also added in this release.
 
-## Echomail Reader Navigation
+### Echomail Reader Navigation
 
-### Transparent Pagination
+#### Transparent Pagination
 
 When reading messages in an echo and reaching the last message on the current
 page, clicking Next automatically loads the next page and opens its first
 message — no manual page flipping required.
 
-### End-of-Echo Prompt
+#### End-of-Echo Prompt
 
 When the last message in an echo is reached (all pages exhausted), clicking
 Next now shows a confirmation panel inside the message reader:
@@ -435,14 +406,14 @@ The next/previous navigation buttons in the modal header now always display
 descriptive tooltips ("Next message", "Previous message", "Load next page",
 "End of echo").
 
-## Echomail Info Bar
+### Echomail Info Bar
 
 An info bar now appears above the message list when an echo area is selected,
 showing the area tag, domain, and description alongside Subscribe/Unsubscribe
 and Post Message buttons. The echomail page title header has been replaced by
 the info bar.
 
-## Page Position Memory
+### Page Position Memory
 
 The echomail and netmail readers now remember the last page you were viewing
 and restore it automatically when you return.
@@ -461,7 +432,7 @@ sessions and devices. Migration `v1.11.0.28` adds the `remember_page_position`
 column to `user_settings` (default `FALSE`) and is applied automatically by
 `setup.php`.
 
-## Node Address Links
+### Node Address Links
 
 FTN node addresses displayed in message headers are now clickable links to the
 nodelist node view page:
@@ -470,7 +441,7 @@ nodelist node view page:
 - **Netmail** — From: and To: addresses (both in the message reader and in the
   folder list rows)
 
-## Echo Area Management Improvements
+### Echo Area Management Improvements
 
 The echo area management table (Admin → Echo Areas) has been updated with two
 quality-of-life improvements:
@@ -488,7 +459,7 @@ most popular at a glance.
 No database migration is required; subscriber counts are derived from the
 existing `user_echoarea_subscriptions` table.
 
-## Comment Echo Area Dropdown Grouping
+### Comment Echo Area Dropdown Grouping
 
 The **Comment Echo Area** dropdown in the file area editor now groups echo areas
 intelligently based on the network of the file area being edited.
@@ -502,7 +473,7 @@ intelligently based on the network of the file area being edited.
 
 No configuration or migration is required.
 
-## QWK/QWKE Offline Mail
+### QWK/QWKE Offline Mail
 
 BinktermPHP now supports **QWK offline mail** — the classic BBS offline mail
 exchange format popular since 1987. Users can download a QWK packet containing
@@ -510,14 +481,14 @@ all new messages from their personal mail (netmail) and every subscribed echo
 area, take it offline to read and reply in a local mail reader, then upload the
 resulting REP reply packet to post their replies.
 
-### Supported Formats
+#### Supported Formats
 
 | Format | Description |
 |--------|-------------|
 | **QWK** | Standard QWK format; compatible with most offline readers (MultiMail, OLX, Yarn, etc.) |
 | **QWKE** | QWK Extended; backward-compatible with QWK readers, adds full FidoNet metadata (MSGID, REPLY, address kludges) for readers that support threading and netmail addressing (MultiMail, NeoQWK, Synchronet, etc.) |
 
-### How to Use
+#### How to Use
 
 1. Navigate to **QWK Offline Mail** in the web interface sidebar.
 2. Select your preferred format (QWK or QWKE).
@@ -530,7 +501,7 @@ resulting REP reply packet to post their replies.
    Replies are posted to the appropriate echo areas and your outbound netmail
    queue automatically.
 
-### Database Migration
+#### Database Migration
 
 Migration `v1.11.0.34_qwk_support.sql` creates two new tables:
 
@@ -541,13 +512,13 @@ Migration `v1.11.0.34_qwk_support.sql` creates two new tables:
 
 This migration is applied automatically by `php scripts/setup.php`.
 
-### Recommended Readers
+#### Recommended Readers
 
 - **MultiMail** (cross-platform, Windows/Linux/macOS) — full QWK and QWKE support
 - **OLX** / **Yarn** — good QWK compatibility
 - **NeoQWK** / **Synchronet** — recommended for QWKE extended format
 
-## Echomail Digest
+### Echomail Digest
 
 Users can now opt in to a periodic echomail digest email that summarises new
 messages across their subscribed echo areas.  The digest is available in two
@@ -578,7 +549,9 @@ A database migration (`v1.11.0.31`) adds `echomail_digest` and
 `echomail_digest_last_sent` to `user_settings` and is applied automatically by
 `setup.php`.
 
-## File Area Subfolder Navigation
+## File Areas & Preview
+
+### File Area Subfolder Navigation
 
 The file browser now supports virtual subfolders within file areas. Subfolders
 appear as folder icons in the file listing and are navigable by clicking. A
@@ -604,7 +577,7 @@ file record.
 A new database migration (`v1.11.0.22`) adds the `subfolder` column. This is
 applied automatically by `setup.php`.
 
-## File Preview
+### File Preview
 
 Clicking a filename in the file browser now opens a preview modal instead of
 going straight to a download.
@@ -639,14 +612,14 @@ The modal header includes:
 
 No configuration or migration is required for this feature.
 
-### ANSI Art Rendering
+#### ANSI Art Rendering
 
 Files with the `.ans` extension are fetched as text (the backend converts them
 from CP437 to UTF-8 automatically) and passed to the ANSI decoder. The result
 is displayed in the preview modal with the standard ANSI colour palette on a
 dark background, identically to how ANSI art in message bodies is rendered.
 
-### MOD Tracker Preview
+#### MOD Tracker Preview
 
 Files with the `.mod` extension now open in an inline tracker player in the
 preview modal.
@@ -664,7 +637,7 @@ used for other previewable files.
 
 No configuration or migration is required.
 
-### PETSCII / PRG Rendering
+#### PETSCII / PRG Rendering
 
 Files with the `.prg` extension, and ZIP archives that contain `.prg` files,
 are rendered using the C64 screen RAM decoder.
@@ -702,7 +675,7 @@ Returns a JSON array of PRG entries, each with `name`, `load_address`, and
 base64-encoded `data_b64`. Works for both standalone `.prg` files and ZIP
 archives.
 
-### D64 Disk Image Preview
+#### D64 Disk Image Preview
 
 `.d64` Commodore 64 floppy disk image files now open in the preview modal as a
 PRG gallery.
@@ -726,7 +699,7 @@ response includes an additional `disk_name` field.
 
 No configuration or migration is required.
 
-### C64 Emulator
+#### C64 Emulator
 
 A **Run on C64** button is available on every C64 content type in the preview
 modal, powered by [jsc64](https://github.com/Reggino/jsc64) — a JavaScript
@@ -757,7 +730,7 @@ Character ROM binaries. These are included in the vendor directory
 
 **No configuration or migration is required.**
 
-### RIPscrip File Preview
+#### RIPscrip File Preview
 
 Files with the `.rip` extension now render inline in the preview modal.
 The server-side `RipScriptRenderer` class converts the RIPscrip data to an SVG
@@ -773,7 +746,7 @@ image, which is returned by the `/api/files/{id}/preview` endpoint as
 
 No configuration or migration is required.
 
-### Sixel Graphics
+#### Sixel Graphics
 
 DEC sixel images are now decoded and rendered natively in the browser with no
 server-side processing and no external libraries.
@@ -799,7 +772,7 @@ server-side processing and no external libraries.
 
 No configuration or database migration is required.
 
-### ZIP File Browser
+#### ZIP File Browser
 
 Opening a ZIP file in the preview modal now shows a **browsable file listing**
 instead of only displaying `FILE_ID.DIZ`.
@@ -835,7 +808,7 @@ ZIP browser listing.
 No configuration or migration is required. For legacy ZIP support, install at
 least one supported extractor such as `unzip` or `7z`.
 
-### Shared File Preview
+#### Shared File Preview
 
 The shared file link page (`/shared/file/{area}/{filename}`) now renders the
 same inline preview as the file browser. All supported types work — images,
@@ -844,7 +817,7 @@ visitor to be logged in.
 
 No configuration or migration is required.
 
-### File Preview Maximize Button
+#### File Preview Maximize Button
 
 The file preview modal now has a **maximize** toggle button in the header
 (expand/compress icon), matching the existing maximize behaviour in the echomail
@@ -857,12 +830,12 @@ opened. This preference is independent of the message reader fullscreen setting.
 
 No configuration or migration is required.
 
-## File Area Rules Visual Editor
+### File Area Rules Visual Editor
 
 The file area rules editor (`/admin/file-area-rules`) has been redesigned with
 a full graphical interface while keeping the raw JSON editor as a second tab.
 
-### Visual Editor Tab
+#### Visual Editor Tab
 
 - **Rules table** lists each rule with its name, filename pattern, domain
   scope, success/fail actions, and an enabled toggle.
@@ -874,7 +847,7 @@ a full graphical interface while keeping the raw JSON editor as a second tab.
   for building variations of an existing rule.
 - **Delete** removes a rule after confirmation.
 
-### Pattern Tester
+#### Pattern Tester
 
 Each rule row has a **flask icon** that expands an inline pattern tester panel:
 
@@ -886,13 +859,13 @@ Each rule row has a **flask icon** that expands an inline pattern tester panel:
 - Supports PHP-style delimited regex (e.g. `/\.zip$/i`) as well as plain
   substrings.
 
-### JSON Editor Tab
+#### JSON Editor Tab
 
 The raw JSON textarea is still available as the second tab for bulk edits or
 copy/paste. Switching between tabs syncs the state: Visual → JSON serializes
 `guiState`; JSON → Visual parses the textarea and re-renders the table.
 
-## ISO-Backed File Areas
+### ISO-Backed File Areas
 
 A file area can now be backed by a CD/DVD ISO image on the server, allowing
 sysops to expose large shareware CD collections (Simtel, Walnut Creek, etc.)
@@ -906,7 +879,7 @@ directories work too — the system only requires a readable path in the
 > offline will cause file requests to return 503 until the path is accessible
 > again.
 
-### Behaviour
+#### Behaviour
 
 - ISO areas are **read-only** — uploads, renames, and moves are blocked.
   Admin file deletion removes the database record only; no disk change is made.
@@ -916,7 +889,7 @@ directories work too — the system only requires a readable path in the
   returns 503.
 - ZIP files inside the ISO display `FILE_ID.DIZ` in the preview modal.
 
-### Creating an ISO area
+#### Creating an ISO area
 
 1. Mount the ISO using any suitable method and note the resulting path.
    On Linux: `sudo mount -o loop,ro /srv/isos/simtel.iso /srv/iso_mounts/simtel`
@@ -928,7 +901,7 @@ directories work too — the system only requires a readable path in the
 5. Save. The status badge shows **Accessible** when the path is reachable.
 6. Click **Re-index ISO** to open the import preview.
 
-### Import preview
+#### Import preview
 
 Clicking **Re-index ISO** opens a preview modal before writing anything to the
 database. Each directory in the ISO is shown as a row with:
@@ -946,7 +919,7 @@ Click **Apply Import** to commit. Import options in the modal header:
 | **Flat import** | All files imported to the area root, directory structure ignored. |
 | **Catalogue only** | Only import files listed in `FILES.BBS` / `DESCRIPT.ION`. Unlisted files are skipped. If no catalogue exists in a directory, all files there are imported. |
 
-### Catalogue formats
+#### Catalogue formats
 
 The importer recognises the following description files, tried in priority
 order. If a higher-priority file is found but yields no entries, the next
@@ -964,7 +937,7 @@ format is tried automatically.
 Comparisons are case-insensitive so `files.bbs`, `FILES.BBS`, and `Files.Bbs`
 are all recognised.
 
-### Subfolder navigation
+#### Subfolder navigation
 
 The ISO directory tree is exposed as browsable subfolders in the file browser.
 Each subdirectory is stored as an `iso_subdir` record in the `files` table —
@@ -978,7 +951,7 @@ description for the folder.
   content) from the folder row's trash icon. Only database records are removed;
   ISO files are not touched.
 
-### Importing files (CLI)
+#### Importing files (CLI)
 
 The importer is also available from the command line:
 
@@ -989,17 +962,17 @@ php scripts/import_iso.php --area=<id> [--update] [--dry-run] [--verbose]
 Files are imported from `FILES.BBS` / `DESCRIPT.ION` catalogues found in each
 directory. If no catalogue is present, the filename is used as the description.
 
-### Migration
+#### Migration
 
 This feature requires database migrations. Run `php scripts/setup.php` as
 part of the standard upgrade procedure.
 
-## File Area Comments
+### File Area Comments
 
 Each file area can now be linked to an echomail echo area that acts as a
 comment thread for all files in that area.
 
-### How it works
+#### How it works
 
 - When a user opens the file detail panel or the file preview modal, a
   **Comments** section appears below the file information (or below the
@@ -1015,7 +988,7 @@ comment thread for all files in that area.
 - A comment count badge is displayed next to filenames that have comments in
   the file listing.
 
-### Setup — linking an echo area
+#### Setup — linking an echo area
 
 1. In the admin panel, open **File Areas** and edit the file area you want to
    enable comments for.
@@ -1031,7 +1004,7 @@ comment thread for all files in that area.
 4. To disable comments, choose **— None (Disabled) —** from the dropdown and
    save.
 
-### Database migration
+#### Database migration
 
 The migration `v1.11.0.32_file_area_comments.sql` adds:
 
@@ -1040,7 +1013,7 @@ The migration `v1.11.0.32_file_area_comments.sql` adds:
 
 This migration runs automatically as part of `php scripts/setup.php`.
 
-## Global File Search
+### Global File Search
 
 A **Search Files** card now appears in the file browser sidebar, between the
 File Areas list and the Status panel. Typing two or more characters triggers a
@@ -1053,14 +1026,14 @@ to that area), Description, Size, Uploaded date, Info button, Download button.
 Results are limited to 100 entries ordered by area tag then filename.
 Private areas belonging to other users are excluded.
 
-### Search indexes
+#### Search indexes
 
 Migration `v1.11.0.27` enables the `pg_trgm` PostgreSQL extension and creates
 GIN trigram indexes on `files.filename` and `files.short_description`. These
 indexes make `ILIKE '%term%'` queries fast regardless of how many files are in
 the database.
 
-## File Upload Filename Sanitization
+### File Upload Filename Sanitization
 
 Spaces in filenames are now replaced with underscores (`_`) when a file is
 uploaded to a file area, both through the web interface and via the
@@ -1074,31 +1047,31 @@ field delimiters in their wire formats.
 Use the **Rename** action in the file browser to update them if needed before
 they are distributed to uplinks.
 
-## Public File Areas
+### Public File Areas
 
 Individual file areas can now be flagged as **public**, allowing unauthenticated
 visitors to browse the file listing and download files without a BBS account.
 This is a registered (premium) feature.
 
-### What guests can do on a public area
+#### What guests can do on a public area
 
 - Browse the file listing (filename, description, size, date)
 - Download files
 - Open the file preview modal (images, text/NFO, ANSI, ZIP browser, etc.)
 
-### What guests cannot do
+#### What guests cannot do
 
 - Post or view file comments
 - Upload files
 - Access any area that is not flagged public
 
-### Enabling public access on an area
+#### Enabling public access on an area
 
 In **Admin → Area Management → File Areas**, edit the area and check the
 **Public** checkbox. The checkbox is only shown on registered installations;
 on unregistered installations a lock notice appears in its place.
 
-### Public file area index page
+#### Public file area index page
 
 A new BBS setting **Enable Public Files Index** (Admin → BBS Settings → BBS
 Features) controls whether an index page at `/public-files` is available.
@@ -1108,12 +1081,12 @@ When enabled, the index lists all public areas in a card grid and a
 When disabled (the default), public areas are still accessible via their
 direct URL (`/files/AREATAG`) — they simply are not listed on a discovery page.
 
-### Database migration
+#### Database migration
 
 Migration `v1.11.0.33_public_file_areas.sql` adds an `is_public` boolean
 column to the `file_areas` table. Run `php scripts/setup.php` to apply it.
 
-## Gemini File Areas
+### Gemini File Areas
 
 File areas can now be exposed via the Gemini capsule server. When a file area
 has **Gemini Public** enabled, Gemini clients can browse the area and download
@@ -1146,7 +1119,7 @@ exposed regardless of this setting.
 A new database migration (`v1.11.0.20`) adds the `gemini_public` column to the
 `file_areas` table. This is applied automatically by `setup.php`.
 
-## Shared File Preview for Unauthenticated Visitors
+### Shared File Preview for Unauthenticated Visitors
 
 Shared file links (`/shared/file/{area}/{filename}`) previously displayed file
 metadata but required the visitor to be logged in to see any preview. The inline
@@ -1164,9 +1137,11 @@ This covers all preview types, including:
 
 No configuration or migration is required.
 
-## Netmail Attachment Improvements
+## Netmail & Attachments
 
-### Sender Copy
+### Netmail Attachment Improvements
+
+#### Sender Copy
 
 When a local netmail with a file attachment is delivered between two users on
 the same system, the sender now receives a copy of the attachment in their own
@@ -1175,7 +1150,7 @@ private file area (under the `attachments` subfolder), tagged as
 
 Previously only the recipient received the file; the sender had no local copy.
 
-### Attachment Viewer Filtering
+#### Attachment Viewer Filtering
 
 When viewing a netmail that has attachments, each viewer now sees only the
 copy stored in an area they can access:
@@ -1185,7 +1160,7 @@ copy stored in an area they can access:
 - If only one copy exists (e.g. historical messages from before this release),
   the single copy is shown to both parties as before.
 
-### Duplicate Hash Constraint Removed
+#### Duplicate Hash Constraint Removed
 
 The `UNIQUE(file_area_id, file_hash)` constraint on the `files` table has been
 replaced with a plain index. The unique constraint was causing INSERT failures
@@ -1197,7 +1172,7 @@ removed.
 A new database migration (`v1.11.0.23`) performs this change automatically via
 `setup.php`.
 
-## Netmail Forwarding to Email
+### Netmail Forwarding to Email
 
 Users can now opt in to have incoming netmail automatically forwarded to their
 registered email address. This is a registered-only feature and requires SMTP
@@ -1228,12 +1203,14 @@ sender and that the user should log in to the BBS to reply.
 A database migration (`v1.11.0.30`) adds the `forward_netmail_email` column
 to `user_settings` and is applied automatically by `setup.php`.
 
-## FREQ Enhancements
+## FTN Networking
+
+### FREQ Enhancements
 
 > **Note:** FREQ support in this release is experimental and sysop-only.
 > Compatibility with third-party BinkP implementations varies.
 
-### Response Delivery
+#### Response Delivery
 
 FREQ responses are now delivered as FILE_ATTACH netmail via two paths:
 
@@ -1254,7 +1231,7 @@ netmail, making that approach unreliable.
 
 `setup.php` creates the `data/outbound/hold/` directory automatically.
 
-### Outbound FREQ Response Routing
+#### Outbound FREQ Response Routing
 
 When `freq_getfile.php` sends a file request, the request is now persisted to a
 new `freq_requests_outbound` database table. When the remote node fulfils the
@@ -1271,7 +1248,7 @@ all other received files (netmail attachments, packets, etc.) are left in
 A new database migration (`v1.11.0.24`) creates the `freq_requests_outbound`
 table. This is applied automatically by `setup.php`.
 
-### BinkP AKA Selection Fix
+#### BinkP AKA Selection Fix
 
 When connecting to a node that is not a configured uplink, BinktermPHP now
 selects the uplink whose network covers the destination address and advertises
@@ -1284,9 +1261,9 @@ primary AKA to be advertised to all remote hosts regardless of network. This
 resulted in "Bad password" rejections when delivering to nodes that are uplinks
 for one network but not for the zone associated with your primary address.
 
-## Outbound FREQ (File Request)
+### Outbound FREQ (File Request)
 
-### freq_getfile.php
+#### freq_getfile.php
 
 A new CLI script allows you to request files from a remote binkp system:
 
@@ -1301,35 +1278,35 @@ DNS. Received files are stored in your private file area and are visible in the
 file browser under **My Files → FREQ Responses**. See [CLI.md](CLI.md) for the
 full option reference.
 
-### Nodelist File Request Dialog
+#### Nodelist File Request Dialog
 
 The file request dialog on the nodelist node view page now includes **AllFix**
 as a selectable addressee alongside FileFix, FileMgr, FileReq, and Sysop.
 AllFix is a file area manager robot name, not a magic filename.
 
-### ALLFILES.TXT Formatting
+#### ALLFILES.TXT Formatting
 
 The dynamically generated `ALLFILES.TXT` file listing now uses plain ASCII
 (no UTF-8 em dashes) and formats columns dynamically based on the longest
 filename in each area. Long descriptions wrap at 80 characters with continuation
 lines aligned to the description column.
 
-## Crashmail Logging and Packet Preservation
+### Crashmail Logging and Packet Preservation
 
-### Structured Log File
+#### Structured Log File
 
 Crashmail delivery now writes to `data/logs/crashmail.log` using the same
 structured logger as the binkp server (timestamp, PID, level, message). Previously
 all output went only to the PHP error log.
 
-### Preserve Sent Packets
+#### Preserve Sent Packets
 
 When **Preserve Sent Packets** is enabled in the binkp configuration, crashmail
 packets are now moved to the preserved sent packets directory on successful
 delivery instead of always being deleted. The preserved file is named
 `crashmail_<id>_<timestamp>.pkt`.
 
-## BinkP Inbound File Collision Handling
+### BinkP Inbound File Collision Handling
 
 When an inbound BinkP session delivers a file whose filename already exists in
 the `data/inbound/` directory, the new file is now saved with a numeric suffix
@@ -1340,9 +1317,9 @@ filename as required by the BinkP protocol.
 Previously a collision would clobber the existing inbound file with no
 warning.
 
-## BinkP Status Page Improvements
+### BinkP Status Page Improvements
 
-### Log Search
+#### Log Search
 
 The Logs tab now has an inline search box. Type any term to filter the
 currently-loaded log lines in real time. Non-matching lines are hidden;
@@ -1350,7 +1327,7 @@ matching lines remain visible with the search term highlighted. A match
 count (`N / M lines`) is shown while a filter is active. Click the × button
 or clear the box to restore the full view.
 
-### Advanced Log Search
+#### Advanced Log Search
 
 A new **Advanced Search** panel (toggle button below the log view) searches
 the **entire** log across all BinkP-related log files — `binkp_poll.log`,
@@ -1362,7 +1339,7 @@ When a match is found, the search automatically expands the results to include
 match). Direct matches are shown at full brightness; session-context lines are
 dimmed. The header shows a summary such as `4 matches across 2 session(s)`.
 
-### Kept Packets Viewer
+#### Kept Packets Viewer
 
 > **Registered feature** — requires a valid license.
 
@@ -1391,7 +1368,7 @@ Packets are grouped by date directory (newest first). Each packet row shows:
 
 Message body text is never shown or transmitted to the browser.
 
-### Faster Poll Session Termination
+#### Faster Poll Session Termination
 
 BinkP poll sessions now terminate immediately once both sides have exchanged
 `M_EOB` and no file transfer is active. Previously the mailer waited up to 30
@@ -1399,14 +1376,14 @@ seconds for a same-session response file that never materialises in practice —
 response packets (e.g. areafix replies) always arrive in a subsequent poll.
 This change removes the unnecessary wait from every outbound poll.
 
-## LovlyNet Subscriptions
+### LovlyNet Subscriptions
 
 A new admin page at **Admin → Area Management → LovlyNet Areas**
 (`/admin/lovlynet`) provides a central view of all echo and file areas
 available on the LovlyNet hub, with one-click subscribe and unsubscribe
 controls.
 
-### Features
+#### Features
 
 - **Echo Areas** and **File Areas** tabs, each listing every area published by
   the LovlyNet hub.
@@ -1416,7 +1393,7 @@ controls.
 - The page reads credentials from `config/lovlynet.json`, which is written
   automatically when your node is registered with LovlyNet.
 
-### Requirements
+#### Requirements
 
 `config/lovlynet.json` must exist and contain valid credentials:
 
@@ -1434,7 +1411,7 @@ area list.
 
 No database migration is required for this feature.
 
-### Sync Files
+#### Sync Files
 
 Subscribed file areas now have a **Sync Files** button that opens a modal for
 reconciling your local file area against what LovlyNet has available.
@@ -1450,27 +1427,27 @@ The modal has two sections:
   `%RESEND <file> <area>` FileFix request to the hub for each selected file,
   causing the hub to re-send those files to your node.
 
-### AREAFIX Rescan Requests
+#### AREAFIX Rescan Requests
 
 The LovlyNet admin page can now send `%RESCAN` AREAFIX requests to the hub.
 This is useful after subscribing to a new echo area to request that the hub
 forward recent messages you missed before subscribing.
 
-### Request Tracking
+#### Request Tracking
 
 Outbound FileFix and AREAFIX requests sent through the LovlyNet admin page are
 tracked and displayed in a **Requests** tab, showing the request text, the area
 it was sent for, and the timestamp. This gives you a history of what was
 requested and when, useful when diagnosing missing files or messages.
 
-### Area Sync Integration
+#### Area Sync Integration
 
 When subscribing or unsubscribing to echo and file areas through the LovlyNet
 page, the local area configuration is now updated immediately — echo areas are
 linked or unlinked from the uplink, and file areas are created or deactivated
 as appropriate. Previously, area syncing required a separate manual step.
 
-### TIC File Password Field
+#### TIC File Password Field
 
 TIC password handling now uses this precedence when generating outbound TIC
 files:
@@ -1484,7 +1461,7 @@ the configured Areafix password by taking the first 8 characters and converting
 them to uppercase. The derived value is written to both `config/lovlynet.json`
 and the LovlyNet uplink entry in `config/binkp.json`.
 
-## Echo List Network Filter
+### Echo List Network Filter
 
 The `/echolist` page now includes a **network filter** dropdown in the Filter
 card alongside the existing subscribed-only, unread-only, and text search
@@ -1500,7 +1477,9 @@ unread messages in FidoNet areas simultaneously.
 
 No configuration or migration is required.
 
-## Nodelist Map
+## Nodelist
+
+### Nodelist Map
 
 The nodelist page now includes a **Map** tab alongside the existing list view.
 Nodes are plotted on an interactive Leaflet map with marker clustering to keep
@@ -1548,21 +1527,23 @@ to be `true` (the default). See `.env.example` for optional tuning variables
 A new database migration (`v1.11.0.18`) adds `latitude` and `longitude` columns
 to the `nodelist` table. This is applied automatically by `setup.php`.
 
-## Nodelist Enhancements
+### Nodelist Enhancements
 
-### Flag Filter
+#### Flag Filter
 
 The nodelist search page now includes a **multi-select flag filter**. Select one
 or more flags (CM, IBN, INA, FREQ, MO, etc.) to narrow the results to nodes
 that carry all of the chosen flags.
 
-### Node View Map
+#### Node View Map
 
 The nodelist node detail page now includes a dark interactive map below the
 info panels when the node has geocoded coordinates. If coordinates are missing,
 a notice is shown with instructions to run `scripts/geocode_nodelist.php`.
 
-## Credits System Updates
+## Credits & Economy
+
+### Credits System Updates
 
 This release adds four new optional credits settings:
 
@@ -1586,7 +1567,9 @@ section:
 "file_download_reward": 0
 ```
 
-## Database Statistics Page
+## Admin & System
+
+### Database Statistics Page
 
 A new admin page at `/admin/database-stats` provides a comprehensive view of
 PostgreSQL internals, organized into six tabs:
@@ -1617,7 +1600,7 @@ Then add it to `shared_preload_libraries` in `postgresql.conf` and restart
 PostgreSQL. The statistics page works without it but the slow/frequent query
 tabs will be empty.
 
-## Database Performance Improvements
+### Database Performance Improvements
 
 Several tables that were generating excessive sequential scans have been
 addressed with new indexes and one query change. These are applied automatically
@@ -1648,12 +1631,12 @@ three columns. It now queries only messages newer than the last seen message ID
 stored as `last_chat_max_id` in user meta. Existing users will have this
 initialized silently on first poll with no false notification badge.
 
-## Admin Menu Reorganization
+### Admin Menu Reorganization
 
 The admin navigation dropdown has been reorganized to reduce clutter and group
 related items into logical submenus.
 
-### Analytics Submenu
+#### Analytics Submenu
 
 A new **Analytics** submenu consolidates reporting pages:
 
@@ -1668,7 +1651,7 @@ License-gated items remain visible in both the nav menu and the admin dashboard
 but are non-functional — they link to `#`, show a lock icon, and carry a
 `title` attribute reading *Registered Feature*.
 
-### Community Submenu
+#### Community Submenu
 
 A new **Community** submenu groups interactive community features:
 
@@ -1677,26 +1660,26 @@ A new **Community** submenu groups interactive community features:
 - Polls
 - Shoutbox
 
-### Ads Top-Level Menu
+#### Ads Top-Level Menu
 
 Advertising management now lives under a separate **Ads** top-level admin menu:
 
 - Advertisements
 - Ad Campaigns
 
-### Area Management Submenu Changes
+#### Area Management Submenu Changes
 
 **Auto Feed** has been moved inside the **Area Management** submenu (below a
 divider), since it is directly related to echo area configuration. It was
 previously a top-level item in the Admin dropdown.
 
-### Chat Submenu Renamed
+#### Chat Submenu Renamed
 
 The admin submenu previously labelled *Local Chat* has been renamed to **Chat**,
 since it contains configuration for both local chat rooms and remote MRC (Multi
 Relay Chat) settings.
 
-## In-App Documentation Browser
+### In-App Documentation Browser
 
 A new documentation browser is available at **Admin → Help → Documentation**
 (`/admin/docs`). It renders the Markdown files in `docs/` directly in the
@@ -1715,40 +1698,40 @@ required.
 - Path traversal is blocked server-side; only files inside `docs/` with
   safe filenames are served.
 
-## Telnet and SSH File Area Fixes
+### Telnet and SSH File Area Fixes
 
-### Virtual Subfolder Navigation
+#### Virtual Subfolder Navigation
 
 The Telnet file area browser now supports the same virtual subfolder structure
 as the web interface. Users navigating the file area over Telnet can enter
 subfolders (e.g. *Netmail Attachments*, *FREQ Responses*, ISO subdirectories)
 and return to the parent level, matching the web experience.
 
-### Pagination Fix
+#### Pagination Fix
 
 The Telnet file area listing was previously capped at a single page of results,
 meaning only the first N files in an area were shown. The listing now iterates
 all pages and displays every file in the area.
 
-### ISO File Download via ZMODEM
+#### ISO File Download via ZMODEM
 
 Files stored in ISO-backed file areas can now be downloaded over Telnet using
 ZMODEM. Previously ZMODEM transfers from ISO areas were blocked because the
 Telnet server did not resolve the physical path for ISO-backed files. The
 transfer path is now resolved correctly before initiating the ZMODEM session.
 
-### SSH User Identification
+#### SSH User Identification
 
 The SSH server now correctly associates the session with the authenticated user's
 account. This fixes a regression where SSH sessions appeared as anonymous in
 session logs despite the user having logged in successfully.
 
-## Advertising System
+### Advertising System
 
 The old flat-file `bbs_ads/` ad store has been replaced by a database-backed
 advertising library.
 
-### Migration
+#### Migration
 
 Running `php scripts/setup.php` applies the advertising migrations and imports
 existing ANSI ads from `bbs_ads/`. Imported ads are marked enabled by default
@@ -1758,7 +1741,7 @@ Existing flat-file ads from the legacy `bbs_ads/` directory are migrated into
 the database automatically on upgrade, so you don't lose content switching from
 the old system.
 
-### Advertisements
+#### Advertisements
 
 A new admin page at **Admin -> Ads -> Advertisements** lets the sysop:
 
@@ -1768,7 +1751,7 @@ A new admin page at **Admin -> Ads -> Advertisements** lets the sysop:
 - tag ads with freeform labels
 - choose whether an ad is eligible for dashboard display and/or campaign posting
 
-### Campaigns
+#### Campaigns
 
 A new admin page at **Admin -> Ads -> Ad Campaigns** manages scheduled ad
 posting.
@@ -1781,7 +1764,7 @@ Campaigns support:
 - weighted ad assignment
 - post history for both manual and automatic runs
 
-### Scheduler
+#### Scheduler
 
 `scripts/binkp_scheduler.php` now processes due advertising campaigns
 automatically. For testing or manual execution, use:
@@ -1794,7 +1777,9 @@ php scripts/run_ad_campaigns.php --dry-run
 
 For full operational details, see [docs/Advertising.md](Advertising.md).
 
-## Footer Registration Display
+## Registration & Premium Features
+
+### Footer Registration Display
 
 The "Registered to" line in the page footer has been simplified. Previously it
 appeared as a separate line with a badge icon below the "Powered by
@@ -1805,7 +1790,7 @@ BinktermPHP" line. It is now displayed inline:
 The badge icon has been removed. The change applies when a valid licence is
 present; unlicensed installations are unaffected.
 
-## Premium Features and Registration
+### Premium Features and Registration
 
 This release introduces **Registration** as a way for sysops to support the
 continued development of BinktermPHP. BinktermPHP remains fully functional
@@ -1814,7 +1799,7 @@ installations unlock a small set of extras as a thank-you for contributing.
 
 For registration options and instructions, see [REGISTER.md](../REGISTER.md).
 
-### Registration Badge on Admin Dashboard
+#### Registration Badge on Admin Dashboard
 
 The admin dashboard (`/admin`) now includes a **Registration Status** row in the
 system information section. It shows either an **Unregistered** badge with a
@@ -1822,7 +1807,7 @@ link to the licensing page, or a **Registered** badge with the licensed system
 name and licensee when a valid license is present. No action is required to
 enable this display.
 
-### Branding Controls
+#### Branding Controls
 
 Registered installations can now customise the site footer from the **Admin →
 Settings → Branding** panel:
@@ -1834,7 +1819,7 @@ Settings → Branding** panel:
 
 These options are stored in `data/bbs.json` and take effect immediately on save.
 
-### Message Templates
+#### Message Templates
 
 A **Templates** button (bookmark icon) now appears in the compose form toolbar
 for registered installations. Templates are reusable subject/body pairs that
@@ -1847,7 +1832,7 @@ select one from the list to pre-fill the subject and body fields.
 Templates are stored per-user in the database. No migration is required for
 existing users — the table was added in a prior release.
 
-### Economy Viewer Now Requires Registration
+#### Economy Viewer Now Requires Registration
 
 The **Economy Viewer** admin page (`/admin/economy`) now requires a valid
 license. Unlicensed installations receive a 403 response. The Economy Viewer
@@ -1855,7 +1840,7 @@ displays credit transaction volume, top earners and spenders, richest accounts,
 recent transactions, and overall economy health metrics (credits in circulation,
 average and median balances).
 
-### Referral Analytics
+#### Referral Analytics
 
 A new **Referral Analytics** admin page (`/admin/referral-analytics`) is
 available to registered installations. It shows:
@@ -1868,7 +1853,7 @@ available to registered installations. It shows:
 This page requires a valid license and is accessible via **Admin → Analytics →
 Referral Analytics**.
 
-### Custom Login and Registration Splash Pages
+#### Custom Login and Registration Splash Pages
 
 Registered installations can configure custom Markdown content that appears
 above the login and registration forms. This is useful for system announcements,
@@ -1886,7 +1871,7 @@ the repository as it is superseded by the splash pages feature.
 
 No configuration or migration is required.
 
-### How to Register
+#### How to Register
 
 Visit the **Admin → Licensing** page and click **How to Register** to open the
 registration modal, which displays the `REGISTER.md` document with current
