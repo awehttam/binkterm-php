@@ -402,6 +402,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // Documentation browser
+    SimpleRouter::get('/docs', function() {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->index();
+    });
+
+    SimpleRouter::get('/docs/view/{name}', function(string $name) {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->view($name);
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
