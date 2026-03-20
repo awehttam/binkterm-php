@@ -22,7 +22,7 @@ const previewPetsciiStreamExts = ['seq'];
 const previewD64Exts           = ['d64'];
 const previewRipExts           = ['rip'];
 const previewPCBoardExts       = ['bbs'];
-const previewArchiveExts       = ['zip','rar','r00','7z','tar','gz','tgz','bz2','tbz2','xz','txz','lzh','lha','arj','cab'];
+const previewArchiveExts       = ['zip','rar','r00','7z','tar','gz','tgz','bz2','tbz2','xz','txz','lzh','lha','arc','arj','cab'];
 
 function getFileType(filename) {
     const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();

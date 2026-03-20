@@ -78,6 +78,10 @@ class ArchiveReader
         if (str_starts_with($bytes, "\xFD\x37\x7A\x58\x5A\x00")) {
             return 'xz';
         }
+        // ARC: \x1a followed by compression method byte 1–9
+        if (strlen($bytes) >= 2 && $bytes[0] === "\x1A" && ord($bytes[1]) >= 1 && ord($bytes[1]) <= 9) {
+            return 'arc';
+        }
         // ARJ: \x60\xea
         if (str_starts_with($bytes, "\x60\xEA")) {
             return 'arj';
@@ -112,6 +116,7 @@ class ArchiveReader
             'bz2'  => 'BZip2',
             'xz'   => 'XZ',
             'lzh'  => 'LZH',
+            'arc'  => 'ARC',
             'arj'  => 'ARJ',
             'cab'  => 'Cabinet',
             'tar'  => 'TAR',
