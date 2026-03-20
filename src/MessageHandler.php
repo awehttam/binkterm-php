@@ -608,7 +608,8 @@ class MessageHandler
         }
 
         if ($type === 'netmail') {
-            // For netmail, user can access messages they sent OR received (must match name AND to_address must be one of our addresses)
+            // Use the same visibility rules as getNetmail('all') so any message shown
+            // in the inbox is also retrievable by the single-message API.
             if (!$user) {
                 return null;
             }
@@ -617,7 +618,13 @@ class MessageHandler
             try {
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 $myAddresses = $binkpConfig->getMyAddresses();
-                $myAddresses[] = $binkpConfig->getSystemAddress();
+                $systemAddress = $binkpConfig->getSystemAddress();
+                if ($systemAddress !== '') {
+                    $myAddresses[] = $systemAddress;
+                }
+                $myAddresses = array_values(array_unique(array_filter($myAddresses, static function ($value) {
+                    return trim((string)$value) !== '';
+                })));
             } catch (\Exception $e) {
                 $myAddresses = [];
             }
@@ -625,27 +632,30 @@ class MessageHandler
             if (!empty($myAddresses)) {
                 $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail
-                    WHERE id = ? AND (
-                        user_id = ?
-                        OR ((LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)) AND to_address IN ($addressPlaceholders))
-                        OR ((LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addressPlaceholders))
-                    )
+                    SELECT * FROM netmail n
+                    WHERE n.id = ?
+                      AND (
+                        n.user_id = ?
+                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                      )
+                      AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                               ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
                 ");
                 $params = [$messageId, $userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
-                // Add from_name parameters
+                $params[] = $userId;
                 $params[] = $user['username'];
                 $params[] = $user['real_name'];
-                // Add from_address parameters (reuse myAddresses)
-                $params = array_merge($params, $myAddresses);
                 $stmt->execute($params);
             } else {
-                // Fallback if no addresses configured - check user_id or from_name
+                // Fallback if no addresses are configured - mirror the inbox fallback.
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail WHERE id = ? AND (user_id = ? OR LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))
+                    SELECT * FROM netmail n
+                    WHERE n.id = ?
+                      AND n.user_id = ?
+                      AND n.deleted_by_sender = FALSE
                 ");
-                $stmt->execute([$messageId, $userId, $user['username'], $user['real_name']]);
+                $stmt->execute([$messageId, $userId]);
             }
         } else {
             // Echomail is public, so no user restriction needed
