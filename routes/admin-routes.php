@@ -2166,6 +2166,40 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        // File area rules: filenames for pattern tester
+        SimpleRouter::get('/filearea-rules/filenames', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $tag    = strtoupper(trim((string)($_GET['tag'] ?? '')));
+            $domain = trim((string)($_GET['domain'] ?? ''));
+
+            if ($tag === '') {
+                echo json_encode(['success' => true, 'filenames' => []]);
+                return;
+            }
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                $area = $manager->getFileAreaByTag($tag, $domain);
+                if (!$area) {
+                    echo json_encode(['success' => true, 'filenames' => [], 'area_found' => false]);
+                    return;
+                }
+                $files = $manager->getFiles((int)$area['id'], null, true);
+                $filenames = array_values(array_map(fn($f) => $f['filename'], $files));
+                echo json_encode(['success' => true, 'filenames' => $filenames, 'area_found' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.filearea_rules.load_failed', 'Failed to load filenames');
+            }
+        });
+
         // Advertisements
         SimpleRouter::get('/ads', function() {
             $user = RouteHelper::requireAdmin();

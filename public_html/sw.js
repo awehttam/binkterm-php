@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v419';
+const CACHE_NAME = 'binkcache-v422';
 
 // Static assets to precache
 const staticAssets = [
@@ -34,7 +34,15 @@ const staticAssets = [
 let _cache = null;
 function getCache() {
     if (_cache) return Promise.resolve(_cache);
-    return caches.open(CACHE_NAME).then((c) => { _cache = c; return c; });
+    // Race against a timeout — Cache Storage can deadlock in Edge when another
+    // browser process holds the cache lock (e.g. PWA + browser window both open).
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('cache-open-timeout')), 3000)
+    );
+    return Promise.race([
+        caches.open(CACHE_NAME).then((c) => { _cache = c; return c; }),
+        timeout
+    ]);
 }
 
 // Install event - cache static assets and activate immediately
@@ -129,6 +137,10 @@ self.addEventListener('fetch', (event) => {
                         return networkResponse;
                     });
                 });
+            }).catch(() => {
+                // Cache unavailable (lock timeout or error) — fall back to network
+                // so the page loads rather than hanging with a white screen.
+                return fetch(request);
             })
         );
     }
@@ -148,6 +160,8 @@ self.addEventListener('fetch', (event) => {
                         return networkResponse;
                     });
                 });
+            }).catch(() => {
+                return fetch(request);
             })
         );
     }

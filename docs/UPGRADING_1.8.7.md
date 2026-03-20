@@ -84,6 +84,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
 - [Admin Menu Reorganization](#admin-menu-reorganization)
 - [QWK/QWKE Offline Mail](#qwkqwke-offline-mail)
 - [Advertising System](#advertising-system)
+- [In-App Documentation Browser](#in-app-documentation-browser)
+- [File Area Rules Visual Editor](#file-area-rules-visual-editor)
+- [Service Worker PWA Deadlock Fix](#service-worker-pwa-deadlock-fix)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -300,6 +303,22 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   content that appears above the login and registration forms.
 - **Netmail forwarding to email** — users can opt in to have incoming netmail
   forwarded to their email address, including file attachments.
+
+**Admin**
+- New **Documentation Browser** (`/admin/docs`) renders the `docs/` Markdown
+  files directly in the admin panel, with a curated index and inter-document
+  navigation.
+- The **File Area Rules** editor now has a full visual interface (add/edit/delete
+  rules via a form modal, clone rules, toggle enabled/disabled) while keeping
+  the raw JSON editor as a second tab. An inline **pattern tester** shows which
+  filenames from the actual area match the rule's regex, and accepts free-text
+  input for quick manual testing.
+
+**Service Worker**
+- Fixed a PWA white-screen deadlock in Microsoft Edge that occurred when a PWA
+  window and a regular browser window were open simultaneously. `caches.open()`
+  now times out after 3 seconds and falls back to direct network requests so the
+  page loads even when the Cache Storage lock is held by another process.
 
 **Telnet / SSH**
 - Telnet file area browser now supports virtual subfolders.
@@ -1823,6 +1842,102 @@ This migration is applied automatically by `php scripts/setup.php`.
 - **MultiMail** (cross-platform, Windows/Linux/macOS) — full QWK and QWKE support
 - **OLX** / **Yarn** — good QWK compatibility
 - **NeoQWK** / **Synchronet** — recommended for QWKE extended format
+
+## In-App Documentation Browser
+
+A new documentation browser is available at **Admin → Help → Documentation**
+(`/admin/docs`). It renders the Markdown files in `docs/` directly in the
+admin panel using the existing `MarkdownRenderer` — no external library
+required.
+
+- The landing page is `docs/index.md`, a curated operational index organized
+  by priority (setup → networking → access → features → deployment →
+  developer reference).
+- Click any link to read the full document; a **← Back to Index** button
+  returns to the index.
+- Relative `.md` links between documents are automatically rewritten so
+  navigation works correctly.
+- Proposal documents (`docs/proposals/`) are excluded from the browser for
+  clarity; they remain accessible on disk.
+- Path traversal is blocked server-side; only files inside `docs/` with
+  safe filenames are served.
+
+## File Area Rules Visual Editor
+
+The file area rules editor (`/admin/file-area-rules`) has been redesigned with
+a full graphical interface while keeping the raw JSON editor as a second tab.
+
+### Visual Editor Tab
+
+- **Rules table** lists each rule with its name, filename pattern, domain
+  scope, success/fail actions, and an enabled toggle.
+- **Add Rule / Edit Rule modal** provides labelled form fields for every rule
+  property: name, filename pattern (PHP-style regex or plain glob), script,
+  success action, fail action, timeout, domain, and enabled flag.
+- **Clone Rule** button on each row duplicates the rule (with " (copy)"
+  appended to the name) and inserts it immediately below the original — useful
+  for building variations of an existing rule.
+- **Delete** removes a rule after confirmation.
+
+### Pattern Tester
+
+Each rule row has a **flask icon** that expands an inline pattern tester panel:
+
+- **Load files from area** — enters the tag and domain from the rule's scope,
+  then fetches the actual filenames from that file area via API. Each filename
+  is shown with a ✓ / ✗ badge indicating whether the pattern matches.
+- **Free-text input** — type any filename to test it against the current
+  pattern live, without needing files in the area.
+- Supports PHP-style delimited regex (e.g. `/\.zip$/i`) as well as plain
+  substrings.
+
+### JSON Editor Tab
+
+The raw JSON textarea is still available as the second tab for bulk edits or
+copy/paste. Switching between tabs syncs the state: Visual → JSON serializes
+`guiState`; JSON → Visual parses the textarea and re-renders the table.
+
+## Service Worker PWA Deadlock Fix
+
+**Affected configuration:** Microsoft Edge when BinktermPHP is installed as a
+PWA (pinned to the taskbar) *and* a regular Edge browser window is open at the
+same time.
+
+**Symptom:** Launching the PWA showed a blank white page. The browser appeared
+frozen — right-click was unresponsive and the network inspector showed no
+traffic. Closing other Edge processes sometimes resolved it.
+
+**Root cause:** Edge uses separate browser processes for PWA instances and
+regular browser windows. Both processes share the same Cache Storage, and Edge
+can hold a write lock on the cache from one process while the other is waiting
+to open it. The service worker's `caches.open()` call would hang indefinitely
+waiting for the lock, blocking all fetch handlers and leaving the page
+permanently blank.
+
+**Fix:** The service worker now wraps every `caches.open()` call in a
+`Promise.race()` with a 3-second timeout:
+
+```js
+function getCache() {
+    if (_cache) return Promise.resolve(_cache);
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('cache-open-timeout')), 3000)
+    );
+    return Promise.race([
+        caches.open(CACHE_NAME).then((c) => { _cache = c; return c; }),
+        timeout
+    ]);
+}
+```
+
+If the cache lock isn't acquired within 3 seconds, all fetch handlers fall
+back to direct network requests via `.catch(() => fetch(request))`. This
+ensures the page loads normally rather than hanging indefinitely. Once the
+lock is released, the cached reference is stored and subsequent requests are
+served from cache as usual.
+
+The cache version was bumped to force clients to pick up the updated service
+worker.
 
 ## Upgrade Instructions
 
