@@ -224,9 +224,14 @@
                                     <option value="weighted_random">{{ t('ui.admin.ad_campaigns.selection_weighted_random') }}</option>
                                 </select>
                             </div>
-                            <div class="col-12">
+                            <div class="col-md-8">
                                 <label class="form-label" for="campaignDescription">{{ t('ui.common.description') }}</label>
                                 <input class="form-control" type="text" id="campaignDescription">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="campaignEndAt">{{ t('ui.admin.ad_campaigns.end_at') }}</label>
+                                <input class="form-control" type="date" id="campaignEndAt">
+                                <div class="form-text">{{ t('ui.admin.ad_campaigns.end_at_help') }}</div>
                             </div>
                             <div class="col-12">
                                 <div class="form-check">
@@ -646,6 +651,7 @@ function editCampaign(id) {
         document.getElementById('campaignId').value = String(campaign.id || '');
         document.getElementById('campaignName').value = campaign.name || '';
         document.getElementById('campaignDescription').value = campaign.description || '';
+        document.getElementById('campaignEndAt').value = campaign.end_at ? campaign.end_at.slice(0, 10) : '';
         document.getElementById('campaignToName').value = campaign.to_name || 'All';
         document.getElementById('campaignSelectionMode').value = campaign.selection_mode || 'weighted_random';
         document.getElementById('campaignIsActive').checked = !!campaign.is_active;
@@ -931,6 +937,7 @@ function collectCampaignPayload() {
     return {
         name: document.getElementById('campaignName').value.trim(),
         description: document.getElementById('campaignDescription').value.trim(),
+        end_at: document.getElementById('campaignEndAt').value || null,
         is_active: document.getElementById('campaignIsActive').checked,
         from_user_id: Number(document.getElementById('campaignUser').value || 0),
         to_name: document.getElementById('campaignToName').value.trim(),
@@ -1109,6 +1116,7 @@ const WIZARD_PRESETS = {
         min_repeat_gap_minutes: 10080,
         subject_template: 'FILES: {title}',
         has_end_date: false,
+        default_content_command: {{ (constant('PHP_BINARY') ~ ' ' ~ app_base_dir ~ '/scripts/report_newfiles.php')|json_encode|raw }},
     },
     league_recruit: {
         label: 'Inter-BBS League Recruitment',
@@ -1387,6 +1395,13 @@ function renderWizardStep2() {
                 <input class="form-control" type="text" id="wizardSubjectTemplate" value="${escapeHtml(preset.subject_template)}">
                 <div class="form-text"><strong>{title}</strong> = ad title &middot; <strong>{campaign}</strong> = this campaign&rsquo;s name &middot; <strong>{echoarea}</strong> / <strong>{domain}</strong> = posting destination</div>
             </div>
+            ${preset.default_content_command != null ? `
+            <div class="col-12">
+                <label class="form-label" for="wizardContentCommand">${uiT('ui.admin.ads.content_command', 'Content Command')}</label>
+                <input class="form-control font-monospace" type="text" id="wizardContentCommand" maxlength="1024" value="${escapeHtml(preset.default_content_command)}">
+                <div class="form-text">${uiT('ui.admin.ads.content_command_help', 'An executable that writes the post body to stdout. A dynamic ad will be created automatically.')}</div>
+            </div>
+            ` : `
             <div class="col-12">
                 <label class="form-label">${uiT('ui.admin.ad_campaigns.wizard_select_ads', 'Assign Ads')}</label>
                 <div class="border rounded p-3" style="max-height: 220px; overflow-y: auto;">
@@ -1394,6 +1409,7 @@ function renderWizardStep2() {
                 </div>
                 <div class="form-text">${uiT('ui.admin.ad_campaigns.wizard_select_ads_help', 'Select one or more ads to include in this campaign.')}</div>
             </div>
+            `}
         </div>
     `;
 }
@@ -1472,7 +1488,10 @@ function renderWizardStep3() {
             <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_subject_label', 'Subject Template')}</dt>
             <dd class="col-sm-8"><code>${escapeHtml(document.getElementById('wizardSubjectTemplate')?.value?.trim() || '')}</code></dd>
             <dt class="col-sm-4">${uiT('ui.admin.ad_campaigns.wizard_ads_label', 'Ads')}</dt>
-            <dd class="col-sm-8">${selectedAdTitles.length ? selectedAdTitles.join(', ') : `<span class="text-muted">${uiT('ui.admin.ad_campaigns.no_ads_available', 'None')}</span>`}</dd>
+            <dd class="col-sm-8">${payload._content_command
+                ? `<i class="fas fa-terminal me-1"></i><code>${escapeHtml(payload._content_command)}</code> <span class="text-muted small">(dynamic)</span>`
+                : selectedAdTitles.length ? selectedAdTitles.join(', ') : `<span class="text-muted">${uiT('ui.admin.ad_campaigns.no_ads_available', 'None')}</span>`
+            }</dd>
             ${expiryRow}
         </dl>
         ${disableReminder}
@@ -1526,14 +1545,15 @@ function wizardBuildPayload() {
         weight: 1,
     }));
 
-    const endDate = document.getElementById('wizardEndDate')?.value;
-    const description = endDate
-        ? `${uiT('ui.admin.ad_campaigns.wizard_expires_label', 'Expires')}: ${endDate}`
-        : '';
+    const contentCommand = document.getElementById('wizardContentCommand')?.value?.trim() || null;
+    const endDate = document.getElementById('wizardEndDate')?.value || null;
+    const campaignName = document.getElementById('wizardCampaignName')?.value?.trim() || preset.label;
 
     return {
-        name: document.getElementById('wizardCampaignName')?.value?.trim() || preset.label,
-        description,
+        name: campaignName,
+        _content_command: contentCommand,  // used by wizardFinish to auto-create an ad; not sent to campaign API
+        description: '',
+        end_at: endDate,
         is_active: true,
         from_user_id: Number(document.getElementById('wizardUser')?.value || 0),
         to_name: document.getElementById('wizardToName')?.value?.trim() || 'All',
@@ -1573,7 +1593,8 @@ function wizardNext() {
             alert(uiT('ui.admin.ad_campaigns.wizard_no_target', 'Please select an echoarea target.'));
             return;
         }
-        if (document.querySelectorAll('.wizard-ad-check:checked').length === 0) {
+        const hasContentCommand = (document.getElementById('wizardContentCommand')?.value?.trim() || '') !== '';
+        if (!hasContentCommand && document.querySelectorAll('.wizard-ad-check:checked').length === 0) {
             alert(uiT('ui.admin.ad_campaigns.wizard_no_ads', 'Please select at least one ad.'));
             return;
         }
@@ -1595,33 +1616,65 @@ function wizardBack() {
 
 /**
  * Submit the wizard payload to create the campaign.
+ * If a content_command was specified, first creates a dynamic ad, then links it to the campaign.
  */
 function wizardFinish() {
-    const payload = wizardCachedPayload;
+    const payload = { ...wizardCachedPayload };
+    const contentCommand = payload._content_command || null;
+    delete payload._content_command;
+
     const finishBtn = document.getElementById('wizardFinishBtn');
     if (finishBtn) {
         finishBtn.disabled = true;
         finishBtn.textContent = 'Saving\u2026';
     }
 
-    fetch('/admin/api/ad-campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    }).then(readJsonResponse).then(({ response, data }) => {
-        if (!response.ok || !data.success) {
-            throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign')));
+    const createCampaign = (extraAds) => {
+        if (extraAds.length > 0) {
+            payload.ads = [...(payload.ads || []), ...extraAds];
         }
-        campaignWizardModal.hide();
-        showCampaignAlert(uiT('ui.admin.ad_campaigns.wizard_created', 'Campaign created successfully.'), 'success');
-        loadCampaignPage();
-    }).catch(error => {
+        return fetch('/admin/api/ad-campaigns', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }).then(readJsonResponse).then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign')));
+            }
+            campaignWizardModal.hide();
+            showCampaignAlert(uiT('ui.admin.ad_campaigns.wizard_created', 'Campaign created successfully.'), 'success');
+            loadCampaignPage();
+        });
+    };
+
+    const onError = (error) => {
         if (finishBtn) {
             finishBtn.disabled = false;
             finishBtn.textContent = uiT('ui.admin.ad_campaigns.wizard_finish', 'Create Campaign');
         }
         showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.save_failed', 'Failed to save ad campaign'), 'danger');
-    });
+    };
+
+    if (contentCommand) {
+        // Create a dynamic ad first, then link it to the campaign
+        const formData = new FormData();
+        formData.append('title', payload.name);
+        formData.append('content_command', contentCommand);
+        formData.append('allow_auto_post', '1');
+        formData.append('is_active', '1');
+
+        fetch('/admin/api/ads/upload', { method: 'POST', body: formData })
+            .then(readJsonResponse)
+            .then(({ response, data }) => {
+                if (!response.ok || !data.success) {
+                    throw new Error(apiError(data, 'Failed to create dynamic ad'));
+                }
+                return createCampaign([{ advertisement_id: Number(data.ad.id), weight: 1 }]);
+            })
+            .catch(onError);
+    } else {
+        createCampaign([]).catch(onError);
+    }
 }
 
 function renderCampaignAdPreview(element) {

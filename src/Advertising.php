@@ -308,9 +308,10 @@ class Advertising
             throw new \InvalidArgumentException('Advertisement title is required');
         }
 
+        $contentCommand = trim((string)($data['content_command'] ?? ''));
         $content = self::ensureUtf8((string)($data['content'] ?? ''));
-        if ($content === '') {
-            throw new \InvalidArgumentException('Advertisement content is required');
+        if ($content === '' && $contentCommand === '') {
+            throw new \InvalidArgumentException('Advertisement content or a content command is required');
         }
 
         $slugInput = trim((string)($data['slug'] ?? ''));
@@ -328,6 +329,7 @@ class Advertising
                 description,
                 content,
                 content_hash,
+                content_command,
                 source_type,
                 legacy_filename,
                 created_by_user_id,
@@ -339,7 +341,7 @@ class Advertising
                 dashboard_priority,
                 start_at,
                 end_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
 
@@ -349,6 +351,7 @@ class Advertising
             $description,
             $content,
             hash('sha256', $content),
+            $contentCommand !== '' ? $contentCommand : null,
             $sourceType,
             $legacyFilename !== '' ? $legacyFilename : null,
             $userId,
@@ -381,11 +384,12 @@ class Advertising
 
         $slugInput = trim((string)($data['slug'] ?? $existing['slug']));
         $slug = $this->getUniqueSlug($slugInput !== '' ? $slugInput : $title, $id);
+        $contentCommand = trim((string)($data['content_command'] ?? $existing['content_command'] ?? ''));
         $content = array_key_exists('content', $data)
             ? self::ensureUtf8((string)$data['content'])
-            : (string)$existing['content'];
-        if ($content === '') {
-            throw new \InvalidArgumentException('Advertisement content is required');
+            : (string)($existing['content'] ?? '');
+        if ($content === '' && $contentCommand === '') {
+            throw new \InvalidArgumentException('Advertisement content or a content command is required');
         }
 
         $stmt = $this->db->prepare("
@@ -395,6 +399,7 @@ class Advertising
                 description = ?,
                 content = ?,
                 content_hash = ?,
+                content_command = ?,
                 legacy_filename = ?,
                 updated_by_user_id = ?,
                 is_active = ?,
@@ -414,6 +419,7 @@ class Advertising
             trim((string)($data['description'] ?? $existing['description'] ?? '')),
             $content,
             hash('sha256', $content),
+            $contentCommand !== '' ? $contentCommand : null,
             $this->normalizeLegacyFilename((string)($data['legacy_filename'] ?? ($existing['legacy_filename'] ?? ''))) ?: null,
             $userId,
             $this->asPgBool(!empty($data['is_active'] ?? $existing['is_active'])),
@@ -522,6 +528,8 @@ class Advertising
             throw new \InvalidArgumentException('At least one valid campaign schedule is required');
         }
 
+        $endAt = $this->parseEndAt($data['end_at'] ?? null);
+
         $stmt = $this->db->prepare("
             INSERT INTO advertisement_campaigns (
                 name,
@@ -532,9 +540,10 @@ class Advertising
                 selection_mode,
                 post_interval_minutes,
                 min_repeat_gap_minutes,
+                end_at,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
         $stmt->execute([
@@ -545,7 +554,8 @@ class Advertising
             trim((string)($data['to_name'] ?? 'All')) ?: 'All',
             trim((string)($data['selection_mode'] ?? 'weighted_random')) ?: 'weighted_random',
             max(1, (int)($data['post_interval_minutes'] ?? 10080)),
-            max(0, (int)($data['min_repeat_gap_minutes'] ?? 10080))
+            max(0, (int)($data['min_repeat_gap_minutes'] ?? 10080)),
+            $endAt
         ]);
 
         $campaignId = (int)$stmt->fetchColumn();
@@ -593,6 +603,10 @@ class Advertising
             throw new \InvalidArgumentException('At least one valid campaign schedule is required');
         }
 
+        $endAt = array_key_exists('end_at', $data)
+            ? $this->parseEndAt($data['end_at'])
+            : ($existing['end_at'] ?? null);
+
         $stmt = $this->db->prepare("
             UPDATE advertisement_campaigns
             SET name = ?,
@@ -603,6 +617,7 @@ class Advertising
                 selection_mode = ?,
                 post_interval_minutes = ?,
                 min_repeat_gap_minutes = ?,
+                end_at = ?,
                 updated_at = NOW()
             WHERE id = ?
         ");
@@ -615,6 +630,7 @@ class Advertising
             trim((string)($data['selection_mode'] ?? $existing['selection_mode'] ?? 'weighted_random')) ?: 'weighted_random',
             max(1, (int)($data['post_interval_minutes'] ?? $existing['post_interval_minutes'] ?? 10080)),
             max(0, (int)($data['min_repeat_gap_minutes'] ?? $existing['min_repeat_gap_minutes'] ?? 10080)),
+            $endAt,
             $id
         ]);
 
@@ -669,8 +685,29 @@ class Advertising
             ? array_filter([$this->getCampaignById($campaignId)])
             : array_filter($this->listCampaigns(), static fn(array $campaign): bool => !empty($campaign['is_active']));
 
+        $nowUtc = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
         $results = [];
         foreach ($campaigns as $campaign) {
+            // Auto-deactivate campaigns that have passed their end_at
+            if (!empty($campaign['end_at'])) {
+                try {
+                    $endAt = new \DateTimeImmutable((string)$campaign['end_at'], new \DateTimeZone('UTC'));
+                    if ($nowUtc > $endAt) {
+                        $this->db->prepare("UPDATE advertisement_campaigns SET is_active = 'false', updated_at = NOW() WHERE id = ?")
+                            ->execute([(int)$campaign['id']]);
+                        $results[] = [
+                            'campaign_id' => (int)$campaign['id'],
+                            'campaign_name' => $campaign['name'],
+                            'status' => 'skipped',
+                            'reason' => 'Campaign has passed its end date and has been deactivated'
+                        ];
+                        continue;
+                    }
+                } catch (\Throwable $e) {
+                    // Invalid end_at — ignore and continue
+                }
+            }
+
             $dueSchedules = $force ? [['id' => null, 'legacy' => true]] : $this->getDueCampaignSchedules($campaign);
             if ($dueSchedules === []) {
                 continue;
@@ -1196,6 +1233,8 @@ class Advertising
         $row['schedule_count'] = (int)($row['schedule_count'] ?? 0);
         $row['is_active'] = $this->dbBool($row['is_active'] ?? false);
         $row['tag_filters'] = $row['tag_filters'] ?? ['include' => [], 'exclude' => []];
+        // end_at: keep as ISO string or null
+        $row['end_at'] = isset($row['end_at']) && $row['end_at'] !== '' ? $row['end_at'] : null;
         return $row;
     }
 
@@ -1273,7 +1312,7 @@ class Advertising
         }
 
         $subject = $this->renderCampaignSubject((string)$target['subject_template'], $ad, $campaign, $target);
-        $messageBody = self::stripSauce((string)($ad['content'] ?? ''));
+
         if ($dryRun) {
             return [
                 'campaign_id' => (int)$campaign['id'],
@@ -1282,8 +1321,30 @@ class Advertising
                 'status' => 'dry-run',
                 'advertisement_id' => (int)$ad['id'],
                 'advertisement_title' => $ad['title'],
-                'subject' => $subject
+                'subject' => $subject,
+                'content_source' => !empty($ad['content_command']) ? 'dynamic' : 'static'
             ];
+        }
+
+        // Resolve message body — dynamic command takes precedence over static content
+        if (!empty($ad['content_command'])) {
+            [$dynamicBody, $commandError] = $this->runContentCommand((string)$ad['content_command']);
+            if ($commandError !== null) {
+                $this->logPostResult((int)$ad['id'], (string)$target['echoarea_tag'], (string)$target['domain'], $subject, (int)$campaign['from_user_id'], 'campaign', 'skipped', $commandError, (int)$campaign['id']);
+                return [
+                    'campaign_id' => (int)$campaign['id'],
+                    'campaign_name' => $campaign['name'],
+                    'target' => $target['echoarea_tag'] . '@' . $target['domain'],
+                    'status' => 'skipped',
+                    'advertisement_id' => (int)$ad['id'],
+                    'advertisement_title' => $ad['title'],
+                    'subject' => $subject,
+                    'reason' => $commandError
+                ];
+            }
+            $messageBody = $dynamicBody;
+        } else {
+            $messageBody = self::stripSauce((string)($ad['content'] ?? ''));
         }
 
         try {
@@ -1402,7 +1463,7 @@ class Advertising
         $sql .= "
             GROUP BY a.id, ca.weight
             ORDER BY
-                CASE WHEN ca.campaign_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+                CASE WHEN MAX(ca.campaign_id) IS NOT NULL THEN 1 ELSE 0 END DESC,
                 a.dashboard_priority DESC,
                 a.updated_at DESC,
                 a.id ASC
@@ -1657,6 +1718,33 @@ class Advertising
     }
 
     /**
+     * Parse an end_at value from API input.
+     * Accepts a date string (YYYY-MM-DD) or datetime string, or null/empty to clear.
+     * Returns a UTC datetime string suitable for PostgreSQL, or null.
+     */
+    private function parseEndAt(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $str = trim((string)$value);
+        if ($str === '') {
+            return null;
+        }
+        try {
+            // If only a date (YYYY-MM-DD), treat as end of that day in UTC
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $str)) {
+                $dt = new \DateTimeImmutable($str . ' 23:59:59', new \DateTimeZone('UTC'));
+            } else {
+                $dt = new \DateTimeImmutable($str, new \DateTimeZone('UTC'));
+            }
+            return $dt->format('Y-m-d H:i:sP');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
@@ -1671,7 +1759,42 @@ class Advertising
         $row['allow_auto_post'] = $this->dbBool($row['allow_auto_post'] ?? false);
         $row['tags'] = self::normalizeTags((string)($row['tags_csv'] ?? ''));
         $row['name'] = (string)($row['legacy_filename'] ?? $row['slug']);
+        $row['content_command'] = isset($row['content_command']) && $row['content_command'] !== '' ? $row['content_command'] : null;
         return $row;
+    }
+
+    /**
+     * Execute a content_command and return [string $output, ?string $errorReason].
+     * Returns a non-null error reason if the command should cause the post to be skipped.
+     */
+    private function runContentCommand(string $command): array
+    {
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($command, $descriptors, $pipes, null, null);
+        if (!is_resource($process)) {
+            return ['', 'Failed to launch content_command process'];
+        }
+
+        fclose($pipes[0]);
+        $output = (string)stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        if ($exitCode !== 0) {
+            return ['', "content_command exited with code {$exitCode}"];
+        }
+
+        if (trim($output) === '') {
+            return ['', 'content_command produced no output'];
+        }
+
+        return [$output, null];
     }
 
     private function dbBool($value): bool

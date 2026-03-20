@@ -175,6 +175,7 @@ class Template
         $this->twig->addGlobal('app_version', Version::getVersion());
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
+        $this->twig->addGlobal('app_base_dir', dirname(__DIR__));
 
         // Expose whether an upgrade notes page exists for the current version
         $upgradingFile = __DIR__ . '/../docs/UPGRADING_' . Version::getVersion() . '.md';

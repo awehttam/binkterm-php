@@ -2243,43 +2243,52 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
 
-            if (!isset($_FILES['ad_file'])) {
+            $contentCommand = trim((string)($_POST['content_command'] ?? ''));
+            $hasFile = isset($_FILES['ad_file']) && ($_FILES['ad_file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+
+            if (!$hasFile && $contentCommand === '') {
                 http_response_code(400);
                 apiError('errors.admin.ads.upload.no_file', apiLocalizedText('errors.admin.ads.upload.no_file', 'No advertisement file uploaded'));
                 return;
             }
 
-            $file = $_FILES['ad_file'];
-            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-                http_response_code(400);
-                apiError('errors.admin.ads.upload.upload_error', apiLocalizedText('errors.admin.ads.upload.upload_error', 'Advertisement upload failed'));
-                return;
-            }
+            $content = '';
+            $legacyFilename = trim((string)($_POST['legacy_filename'] ?? ''));
+            $defaultTitle = 'Advertisement';
 
-            $maxSize = 1024 * 1024;
-            if (!empty($file['size']) && $file['size'] > $maxSize) {
-                http_response_code(400);
-                apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
-                return;
-            }
+            if ($hasFile) {
+                $file = $_FILES['ad_file'];
+                $maxSize = 1024 * 1024;
+                if (!empty($file['size']) && $file['size'] > $maxSize) {
+                    http_response_code(400);
+                    apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
+                    return;
+                }
 
-            $content = @file_get_contents($file['tmp_name']);
-            if ($content === false) {
-                http_response_code(400);
-                apiError('errors.admin.ads.upload.read_failed', apiLocalizedText('errors.admin.ads.upload.read_failed', 'Failed to read uploaded advertisement file'));
-                return;
+                $content = @file_get_contents($file['tmp_name']);
+                if ($content === false) {
+                    http_response_code(400);
+                    apiError('errors.admin.ads.upload.read_failed', apiLocalizedText('errors.admin.ads.upload.read_failed', 'Failed to read uploaded advertisement file'));
+                    return;
+                }
+
+                if ($legacyFilename === '') {
+                    $legacyFilename = (string)($file['name'] ?? '');
+                }
+                $defaultTitle = pathinfo((string)($file['name'] ?? 'Advertisement'), PATHINFO_FILENAME);
             }
 
             try {
                 $ads = new \BinktermPHP\Advertising();
-                $duplicates = $ads->findDuplicatesByContent($content);
+                $duplicates = $content !== '' ? $ads->findDuplicatesByContent($content) : [];
                 $created = $ads->createAd([
-                    'title' => trim((string)($_POST['title'] ?? pathinfo((string)($file['name'] ?? 'Advertisement'), PATHINFO_FILENAME))),
+                    'title' => trim((string)($_POST['title'] ?? $defaultTitle)),
                     'slug' => trim((string)($_POST['slug'] ?? '')),
                     'description' => trim((string)($_POST['description'] ?? '')),
                     'tags' => trim((string)($_POST['tags'] ?? '')),
                     'content' => $content,
-                    'legacy_filename' => trim((string)($_POST['legacy_filename'] ?? ($file['name'] ?? ''))),
+                    'content_command' => $contentCommand,
+                    'legacy_filename' => $legacyFilename,
                     'source_type' => 'upload',
                     'is_active' => !isset($_POST['is_active']) || $_POST['is_active'] !== '0',
                     'show_on_dashboard' => !empty($_POST['show_on_dashboard']),
@@ -2543,7 +2552,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'results' => $results,
                     'message_code' => 'ui.admin.ad_campaigns.run_complete'
                 ]);
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 http_response_code(500);
                 apiError('errors.admin.ad_campaigns.run_failed', apiLocalizedText('errors.admin.ad_campaigns.run_failed', 'Failed to run ad campaign'));
             }

@@ -55,6 +55,8 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [In-App Documentation Browser](#in-app-documentation-browser)
   - [Telnet and SSH File Area Fixes](#telnet-and-ssh-file-area-fixes)
   - [Advertising System](#advertising-system)
+    - [Campaign Quick Setup Wizard](#campaign-quick-setup-wizard)
+    - [Dynamic Ads](#dynamic-ads)
 - [Premium Features and Registration](#premium-features-and-registration)
   - [Footer Registration Display](#footer-registration-display)
   - [Registration Badge on Admin Dashboard](#registration-badge-on-admin-dashboard)
@@ -1781,6 +1783,30 @@ Campaigns support:
 - multiple schedules by day, time, and timezone
 - weighted ad assignment
 - post history for both manual and automatic runs
+- optional expiry date — campaign is automatically deactivated when the date passes
+
+#### Campaign Quick Setup Wizard
+
+A **Quick Setup** button opens a three-step wizard that creates a pre-configured
+campaign for one of nine common use cases (weekly BBS ad, event announcement,
+door game promotion, file echo update, and more). The wizard sets sensible
+defaults for schedule, interval, and subject template, then lets the sysop
+supply the name, posting user, and echoarea targets before reviewing and
+creating in one step.
+
+The **File Echo Update** type automatically creates a dynamic ad (see below)
+linked to `scripts/report_newfiles.php` — no static ANSI file is needed.
+
+#### Dynamic Ads
+
+An ad can now carry a **Content Command** — a path to an executable on the
+server — instead of static ANSI content. At post time the command is run and
+its stdout becomes the message body. The post is skipped (and logged) if the
+command exits non-zero or produces no output. This enables fully dynamic
+content such as weekly file area reports or system statistics.
+
+To create a dynamic ad, leave the file picker empty in the upload form and
+fill in the **Content Command** field instead.
 
 #### Scheduler
 
