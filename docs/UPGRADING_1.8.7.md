@@ -65,6 +65,11 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   - [Kept Packets Viewer](#kept-packets-viewer)
   - [Faster Poll Session Termination](#faster-poll-session-termination)
 - [LovlyNet Subscriptions](#lovlynet-subscriptions)
+  - [Sync Files](#sync-files)
+  - [AREAFIX Rescan Requests](#areafix-rescan-requests)
+  - [Request Tracking](#request-tracking)
+  - [Area Sync Integration](#area-sync-integration)
+  - [TIC File Password Field](#tic-file-password-field)
 - [Echo List Network Filter](#echo-list-network-filter)
 - [Nodelist Map](#nodelist-map)
 - [Nodelist Enhancements](#nodelist-enhancements)
@@ -1428,6 +1433,42 @@ is missing or incomplete, the page shows a configuration notice instead of the
 area list.
 
 No database migration is required for this feature.
+
+### Sync Files
+
+Subscribed file areas now have a **Sync Files** button that opens a modal for
+reconciling your local file area against what LovlyNet has available.
+
+The modal has two sections:
+
+- **Local Files (not in LovlyNet)** — files present in your local area that
+  have not been hatched to LovlyNet. Each file has a **Hatch** button that
+  immediately re-hatches it via the admin daemon so LovlyNet receives it.
+- **LovlyNet Files** — the full file list from the LovlyNet hub for that area,
+  fetched from `files.bbs`. Files are shown 25 per page with cross-page
+  checkbox selection. Selecting files and clicking **Send %RESEND** sends a
+  `%RESEND <file> <area>` FileFix request to the hub for each selected file,
+  causing the hub to re-send those files to your node.
+
+### AREAFIX Rescan Requests
+
+The LovlyNet admin page can now send `%RESCAN` AREAFIX requests to the hub.
+This is useful after subscribing to a new echo area to request that the hub
+forward recent messages you missed before subscribing.
+
+### Request Tracking
+
+Outbound FileFix and AREAFIX requests sent through the LovlyNet admin page are
+tracked and displayed in a **Requests** tab, showing the request text, the area
+it was sent for, and the timestamp. This gives you a history of what was
+requested and when, useful when diagnosing missing files or messages.
+
+### Area Sync Integration
+
+When subscribing or unsubscribing to echo and file areas through the LovlyNet
+page, the local area configuration is now updated immediately — echo areas are
+linked or unlinked from the uplink, and file areas are created or deactivated
+as appropriate. Previously, area syncing required a separate manual step.
 
 ### TIC File Password Field
 
