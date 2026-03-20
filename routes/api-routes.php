@@ -7581,6 +7581,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($userId) {
                 $meta = new \BinktermPHP\UserMeta();
                 $settings['shell'] = $meta->getValue((int)$userId, 'shell') ?? '';
+                $settings['chat_notification_sound'] = $meta->getValue((int)$userId, 'chat_notification_sound') ?? 'notify3';
+                $settings['echomail_notification_sound'] = $meta->getValue((int)$userId, 'echomail_notification_sound') ?? 'disabled';
+                $settings['netmail_notification_sound'] = $meta->getValue((int)$userId, 'netmail_notification_sound') ?? 'notify1';
+                $settings['file_notification_sound'] = $meta->getValue((int)$userId, 'file_notification_sound') ?? 'disabled';
             }
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -7604,6 +7608,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $settings = $input['settings'];
+            $metaSettingsUpdated = false;
 
             if (isset($settings['locale'])) {
                 $translator = new Translator();
@@ -7612,18 +7617,58 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $resolver->persistLocale($settings['locale']);
             }
 
+            $validNotificationSounds = ['disabled', 'notify1', 'notify2', 'notify3', 'notify4', 'notify5'];
+
             // Handle shell preference separately (stored in UserMeta, not user_settings table)
-            if (isset($settings['shell']) && $userId && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
-                $shellVal = (string)$settings['shell'];
-                if (in_array($shellVal, ['web', 'bbs-menu'], true)) {
-                    $meta = new \BinktermPHP\UserMeta();
-                    $meta->setValue((int)$userId, 'shell', $shellVal);
+            if ($userId) {
+                $meta = new \BinktermPHP\UserMeta();
+
+                if (isset($settings['shell']) && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
+                    $shellVal = (string)$settings['shell'];
+                    if (in_array($shellVal, ['web', 'bbs-menu'], true)) {
+                        $meta->setValue((int)$userId, 'shell', $shellVal);
+                        $metaSettingsUpdated = true;
+                    }
+                }
+
+                $notificationSoundMetaKeys = [
+                    'chat_notification_sound',
+                    'echomail_notification_sound',
+                    'netmail_notification_sound',
+                    'file_notification_sound'
+                ];
+
+                foreach ($notificationSoundMetaKeys as $key) {
+                    if (!isset($settings[$key])) {
+                        continue;
+                    }
+
+                    $soundVal = (string)$settings[$key];
+                    if (!in_array($soundVal, $validNotificationSounds, true)) {
+                        if ($key === 'chat_notification_sound') {
+                            $soundVal = 'notify3';
+                        } elseif ($key === 'netmail_notification_sound') {
+                            $soundVal = 'notify1';
+                        } else {
+                            $soundVal = 'disabled';
+                        }
+                    }
+
+                    $meta->setValue((int)$userId, $key, $soundVal);
+                    $metaSettingsUpdated = true;
                 }
             }
-            unset($settings['shell']);
+
+            unset(
+                $settings['shell'],
+                $settings['chat_notification_sound'],
+                $settings['echomail_notification_sound'],
+                $settings['netmail_notification_sound'],
+                $settings['file_notification_sound']
+            );
 
             $handler = new MessageHandler();
-            $result = $handler->updateUserSettings($userId, $settings);
+            $result = empty($settings) ? $metaSettingsUpdated : $handler->updateUserSettings($userId, $settings);
 
             if ($result) {
                 echo json_encode([

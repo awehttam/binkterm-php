@@ -238,6 +238,9 @@ upgrade will appear to pause — this is normal. Do not interrupt it.
   more networks (including Local) to limit the listing to those networks only.
   Selecting nothing shows all networks, matching the existing behaviour.
 
+- Notification sound selectors in **Settings -> Notifications** now support a
+  **Disabled** option. New default sound assignments are **chat = notify3**,
+  **echomail = disabled**, **netmail = notify1**, and **new file = disabled**.
 **Admin**
 - New **Database Statistics** page (`/admin/database-stats`) showing size and
   growth, activity metrics, query performance, replication status, maintenance
@@ -530,6 +533,15 @@ This is a registered feature requiring a valid license.
 Each digest email lists, per echo area, the number of new messages along with
 subject lines and author names since the last digest was sent.  Full message
 bodies are not included to keep the email concise.
+
+The same Notifications panel also now allows per-event sound selection to be
+set to **Disabled**. Default sound assignments for users without saved
+preferences are:
+
+- **Chat:** `notify3`
+- **New echomail:** `disabled`
+- **New netmail:** `notify1`
+- **New file:** `disabled`
 
 **Cron setup** — Run the new script periodically to deliver digests.  Once per
 hour is recommended; the script enforces the per-user frequency internally:

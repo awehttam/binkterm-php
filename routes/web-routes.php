@@ -684,12 +684,30 @@ SimpleRouter::get('/settings', function() {
         $defaultTagline = '';
     }
 
+    $notificationSounds = [];
+    try {
+        $notificationSounds = ['disabled'];
+        $soundDir = __DIR__ . '/../public_html/sounds';
+        $soundFiles = glob($soundDir . '/notify*.mp3') ?: [];
+        natsort($soundFiles);
+        foreach ($soundFiles as $soundFile) {
+            $notificationSounds[] = pathinfo($soundFile, PATHINFO_FILENAME);
+        }
+    } catch (\Exception $e) {
+        $notificationSounds = [];
+    }
+
+    if (empty($notificationSounds)) {
+        $notificationSounds = ['disabled', 'notify1', 'notify2', 'notify3', 'notify4', 'notify5'];
+    }
+
     $templateVars = [
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
         'system_sysop' => $sysopName,
         'taglines' => $taglines,
         'default_tagline' => $defaultTagline,
+        'notification_sounds' => $notificationSounds,
         'license_valid' => \BinktermPHP\License::isValid(),
     ];
 

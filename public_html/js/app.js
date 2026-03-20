@@ -863,6 +863,10 @@ function loadUserSettings() {
 
                 window.i18n.locale = window.userSettings.locale || window.appLocale || 'en';
                 loadI18nNamespaces(window.appI18nNamespaces || ['common']).finally(function() {
+                    chat_notification_sound: 'notify3',
+                    echomail_notification_sound: 'disabled',
+                    netmail_notification_sound: 'notify1',
+                    file_notification_sound: 'disabled',
                     // Apply font settings after loading defaults
                     applyFontSettings();
                     resolve(window.userSettings);

@@ -201,6 +201,42 @@
                     <div class="mb-3">
                         <label class="form-label">{{ t('ui.settings.notifications', {}, locale, ['common']) }}</label>
 
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="chatNotificationSound">{{ t('ui.settings.chat_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="chatNotificationSound" name="chat_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="echomailNotificationSound">{{ t('ui.settings.echomail_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="echomailNotificationSound" name="echomail_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="netmailNotificationSound">{{ t('ui.settings.netmail_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="netmailNotificationSound" name="netmail_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="fileNotificationSound">{{ t('ui.settings.file_notification_sound', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="fileNotificationSound" name="file_notification_sound">
+                                    {% for sound in notification_sounds %}
+                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text mb-3">{{ t('ui.settings.notification_sound_help', {}, locale, ['common']) }}</div>
+
                         {% if license_valid %}
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="forwardNetmailEmail" name="forward_netmail_email">
@@ -416,6 +452,10 @@ $(document).ready(function() {
     $('#signatureText').on('input', function() {
         enforceSignatureLineLimit(this);
     });
+
+    $('#chatNotificationSound, #echomailNotificationSound, #netmailNotificationSound, #fileNotificationSound').on('change', function() {
+        previewNotificationSound($(this).val());
+    });
 });
 
 function enforceSignatureLineLimit(textarea) {
@@ -424,6 +464,19 @@ function enforceSignatureLineLimit(textarea) {
     if (lines.length > 4) {
         textarea.value = lines.slice(0, 4).join('\n');
     }
+}
+
+function previewNotificationSound(soundName) {
+    if (soundName === 'disabled') {
+        return;
+    }
+    const selectedSound = typeof soundName === 'string' && /^notify\d+$/.test(soundName)
+        ? soundName
+        : 'notify1';
+    const audio = new Audio(`/sounds/${selectedSound}.mp3`);
+    audio.play().catch(function() {
+        // Ignore autoplay/playback failures during preview.
+    });
 }
 
 function loadSettings() {
@@ -455,6 +508,10 @@ function loadSettings() {
             $('#quoteColoring').prop('checked', data.quote_coloring !== false);
 
             // Notifications
+            $('#chatNotificationSound').val(data.chat_notification_sound || 'notify3');
+            $('#echomailNotificationSound').val(data.echomail_notification_sound || 'disabled');
+            $('#netmailNotificationSound').val(data.netmail_notification_sound || 'notify1');
+            $('#fileNotificationSound').val(data.file_notification_sound || 'disabled');
             $('#forwardNetmailEmail').prop('checked', data.forward_netmail_email === true);
             $('#echomailDigest').val(data.echomail_digest || 'none');
 
@@ -497,6 +554,10 @@ function saveSettings() {
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
         remember_page_position: $('#rememberPagePosition').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
+        chat_notification_sound: $('#chatNotificationSound').val() || 'notify3',
+        echomail_notification_sound: $('#echomailNotificationSound').val() || 'disabled',
+        netmail_notification_sound: $('#netmailNotificationSound').val() || 'notify1',
+        file_notification_sound: $('#fileNotificationSound').val() || 'disabled',
         forward_netmail_email: $('#forwardNetmailEmail').is(':checked'),
         echomail_digest: $('#echomailDigest').val() || 'none',
         show_origin: $('#showOrigin').is(':checked'),
