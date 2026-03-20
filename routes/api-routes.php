@@ -5552,6 +5552,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
 
         if ($message) {
+            $messageTag = (string)($message['echoarea'] ?? '');
+            $messageDomain = (string)($message['domain'] ?? '');
+            $requestedTag = (string)$echoarea;
+            $requestedDomain = (string)$domain;
+
+            $tagMatches = strcasecmp($messageTag, $requestedTag) === 0;
+            $domainMatches = strcasecmp($messageDomain, $requestedDomain) === 0;
+
+            if (!$tagMatches || !$domainMatches) {
+                http_response_code(404);
+                apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+                return;
+            }
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -5571,7 +5585,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode($message);
         } else {
             http_response_code(404);
-            apiError('', apiLocalizedText('', ''));
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
         }
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 

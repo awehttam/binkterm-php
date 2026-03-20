@@ -35,6 +35,7 @@ use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\License;
 use BinktermPHP\Mail;
+use BinktermPHP\MessageHandler;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 
 // ── Argument parsing ────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ function log_msg(string $msg, bool $verbose, bool $force = false): void
 
 function buildEchomailMessageUrl(string $siteUrl, string $areaSlug, int $messageId): string
 {
-    return $siteUrl . '/echomail/' . rawurlencode($areaSlug) . '?message=' . $messageId;
+    return $siteUrl . '/echomail?message=' . $messageId;
 }
 
 function buildNetmailMessageUrl(string $siteUrl, int $messageId): string
@@ -318,6 +319,7 @@ try {
 }
 
 $siteUrl = \BinktermPHP\Config::getSiteUrl();
+$messageHandler = new MessageHandler();
 
 // Fetch candidate users
 $sql = "
@@ -373,26 +375,30 @@ foreach ($users as $user) {
         $since = (new DateTimeImmutable("-{$lookback}"))->format('Y-m-d H:i:s');
     }
 
-    // Fetch new inbound netmail for this user.
+    // Fetch new netmail using the same visibility rules as the normal netmail UI.
     $netmail = [];
-    $netmailStmt = $db->prepare("
-        SELECT n.id, n.subject, n.from_name, n.date_received
-        FROM netmail n
-        WHERE n.user_id = ?
-          AND n.date_received > ?
-          AND COALESCE(n.deleted_by_recipient, FALSE) = FALSE
-          AND LOWER(n.from_name) <> LOWER(?)
-          AND LOWER(n.from_name) <> LOWER(?)
-        ORDER BY n.date_received ASC
-        LIMIT 50
-    ");
-    $netmailStmt->execute([$userId, $since, $user['username'], $user['real_name']]);
-    foreach ($netmailStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $netmailResult = $messageHandler->getNetmail($userId, 1, 500, 'all', false, 'date_desc');
+    foreach (($netmailResult['messages'] ?? []) as $row) {
+        $receivedAt = isset($row['date_received']) ? strtotime((string)$row['date_received']) : false;
+        $sinceTs = strtotime($since);
+        if ($receivedAt === false || $sinceTs === false || $receivedAt <= $sinceTs) {
+            continue;
+        }
+
+        $fromName = (string)($row['from_name'] ?? '');
+        if (strcasecmp($fromName, (string)$user['username']) === 0 || strcasecmp($fromName, (string)$user['real_name']) === 0) {
+            continue;
+        }
+
         $netmail[] = [
             'id'        => (int)$row['id'],
             'subject'   => $row['subject'],
-            'from_name' => $row['from_name'],
+            'from_name' => $fromName,
         ];
+
+        if (count($netmail) >= 50) {
+            break;
+        }
     }
 
     // Fetch echomail personally addressed to this user (across all active areas).
