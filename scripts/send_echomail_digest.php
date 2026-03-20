@@ -84,9 +84,9 @@ function buildEchomailMessageUrl(string $siteUrl, string $areaSlug, int $message
     return $siteUrl . '/echomail?message=' . $messageId;
 }
 
-function buildNetmailMessageUrl(string $siteUrl, int $messageId): string
+function buildNetmailInboxUrl(string $siteUrl): string
 {
-    return $siteUrl . '/netmail?message=' . $messageId;
+    return $siteUrl . '/netmail';
 }
 
 /**
@@ -141,8 +141,8 @@ function buildPlainDigest(array $netmail, array $addressed, array $areas, string
         $lines[] = str_repeat('-', 40);
         foreach ($netmail as $msg) {
             $lines[] = '  ' . $msg['subject'] . '  (from ' . $msg['from_name'] . ')';
-            $lines[] = '  ' . buildNetmailMessageUrl($siteUrl, (int)$msg['id']);
         }
+        $lines[] = '  ' . buildNetmailInboxUrl($siteUrl);
         $lines[] = '';
     }
 
@@ -207,11 +207,10 @@ function buildHtmlDigest(array $netmail, array $addressed, array $areas, string 
         foreach ($netmail as $msg) {
             $safeSubject = htmlspecialchars($msg['subject'] ?: '(no subject)', ENT_QUOTES, 'UTF-8');
             $safeFrom    = htmlspecialchars($msg['from_name'], ENT_QUOTES, 'UTF-8');
-            $messageUrl  = buildNetmailMessageUrl($siteUrl, (int)$msg['id']);
-            $safeMessageUrl = htmlspecialchars($messageUrl, ENT_QUOTES, 'UTF-8');
-            $netmailHtml .= '<li><a href="' . $safeMessageUrl . '"><strong>' . $safeSubject . '</strong></a> &mdash; from ' . $safeFrom . '</li>';
+            $netmailHtml .= '<li><strong>' . $safeSubject . '</strong> &mdash; from ' . $safeFrom . '</li>';
         }
-        $netmailHtml .= '</ul></div>';
+        $safeNetmailUrl = htmlspecialchars(buildNetmailInboxUrl($siteUrl), ENT_QUOTES, 'UTF-8');
+        $netmailHtml .= '</ul><p><a href="' . $safeNetmailUrl . '">Open Netmail Inbox &rarr;</a></p></div>';
     }
 
     // Personal messages block
@@ -390,8 +389,13 @@ foreach ($users as $user) {
             continue;
         }
 
+        $messageId = (int)($row['id'] ?? 0);
+        if ($messageId <= 0 || $messageHandler->getMessage($messageId, 'netmail', $userId) === null) {
+            continue;
+        }
+
         $netmail[] = [
-            'id'        => (int)$row['id'],
+            'id'        => $messageId,
             'subject'   => $row['subject'],
             'from_name' => $fromName,
         ];
