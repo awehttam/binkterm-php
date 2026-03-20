@@ -38,6 +38,16 @@ A hard refresh bypasses the cache without unregistering the service worker:
 
 **Note:** After clearing, you will be logged out and will need to sign in again. This is normal.
 
+### Q: How do I handle LHA/LZH archives?
+### Q: I can't unpack the AmigaNet Node List
+### Q: I can't view Amiga archives
+**A:** Install `lhasa`.
+
+On Debian/Ubuntu:
+```bash
+apt-get install lhasa
+```
+
 ---
 
 ## Support
