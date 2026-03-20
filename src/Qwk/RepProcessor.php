@@ -346,9 +346,16 @@ class RepProcessor
         // Split QWKE kludge prefix from the body text.
         [$kludgeLines, $cleanBody] = $this->splitQwkeBody($body);
 
+        // Extract plain-text QWKE extended headers (Subject:, To:, From:) written
+        // by clients like MultiMail that don't use ^A prefixes for these fields.
+        [$extHeaders, $cleanBody] = $this->extractQwkePlaintextHeaders($cleanBody);
+
         // Attempt to recover charset from QWKE kludges; fall back to CP437→UTF-8.
         $charset   = $this->detectCharset($kludgeLines);
         $cleanBody = $this->normaliseEncoding($cleanBody, $charset);
+
+        // QWKE plain-text Subject: overrides the 25-char fixed header field.
+        $subject = $extHeaders['subject'] ?? $subject;
 
         return [
             '_total_blocks'     => $blockCount,
@@ -389,6 +396,36 @@ class RepProcessor
         }
 
         return [implode("\n", $kludges), implode("\n", $bodyLines)];
+    }
+
+    /**
+     * Extract plain-text QWKE extended headers (Subject:, To:, From:) from the
+     * top of the message body, as written by clients like MultiMail.
+     *
+     * These headers have no ^A prefix and are followed by a blank line separator.
+     * Returns [headers_array, body_with_headers_removed].
+     */
+    private function extractQwkePlaintextHeaders(string $body): array
+    {
+        $lines   = explode("\n", $body);
+        $headers = [];
+        $i       = 0;
+
+        while ($i < count($lines)) {
+            if (preg_match('/^(Subject|To|From):\s*(.*)/i', $lines[$i], $m)) {
+                $headers[strtolower($m[1])] = rtrim($m[2]);
+                $i++;
+            } else {
+                break;
+            }
+        }
+
+        // Skip the blank line separator that follows the extended headers.
+        if (!empty($headers) && $i < count($lines) && trim($lines[$i]) === '') {
+            $i++;
+        }
+
+        return [$headers, implode("\n", array_slice($lines, $i))];
     }
 
     /**
