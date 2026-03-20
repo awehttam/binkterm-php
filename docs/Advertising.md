@@ -186,6 +186,109 @@ echo $report;
 exit(0);
 ```
 
+### What the Content Command Is For
+
+Use **Content Command** when the ad body should be generated fresh at post time
+instead of being stored as a fixed ANSI file in the ad library.
+
+Good fits include:
+
+- recent files reports
+- joke or quote of the day
+- league standings or tournament ladders
+- nightly maintenance bulletins
+- rotating "what changed this week" summaries
+- generated network or system-status notices
+
+The field can contain a full command line, not just a bare script path. For
+example:
+
+```bash
+php scripts/report_newfiles.php
+php scripts/report_newfiles.php --since=14d
+/usr/bin/php /opt/binkterm/scripts/joke_of_the_day.php
+```
+
+Use absolute paths where practical so scheduled runs do not depend on
+interactive shell state.
+
+### Content Command Examples
+
+#### 1. Weekly New Files Digest
+
+The built-in [scripts/report_newfiles.php](/C:/devel/binktest/scripts/report_newfiles.php)
+script is the standard example. It queries recent public uploads and hatched
+files, groups them by file area, and writes a ready-to-post report to stdout.
+
+Example commands:
+
+```bash
+php scripts/report_newfiles.php
+php scripts/report_newfiles.php --since=14d
+php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
+```
+
+Typical use:
+
+- create a dynamic ad titled `Weekly File Echo Update`
+- set **Content Command** to `php scripts/report_newfiles.php --since=7d`
+- attach that ad to a Friday campaign posting into one or more file
+  announcement echoes
+
+#### 2. Joke of the Day
+
+A small custom script can select one joke from a text file, database table, or
+cached external source and emit it as a formatted post.
+
+Example command:
+
+```bash
+php scripts/joke_of_the_day.php
+```
+
+Example output:
+
+```text
+Joke of the Day
+---------------
+Why do programmers mix up Halloween and Christmas?
+Because OCT 31 == DEC 25.
+```
+
+Typical use:
+
+- schedule daily or weekly to a casual chat echo
+- have the script exit `1` if there is no approved joke for that run
+- add ANSI color codes if you want it to render like a styled ad
+
+#### 3. Custom Generated Bulletins
+
+The same feature works for any generated content you want to post on a schedule.
+
+These are examples of scripts that you could write:
+
+- `php scripts/door_tournament_results.php`
+- `php scripts/top_uploaders.php --days=30`
+- `php scripts/system_status_digest.php`
+- `php scripts/sub_of_the_week.php`
+
+Scripts like these can read local database tables, config files, or other
+prepared data and emit a complete plain-text or ANSI bulletin for echomail.
+
+### Recommended Pattern
+
+For recurring generated posts:
+
+1. Write a script that can run unattended from the command line.
+2. Make it output the full message body to stdout.
+3. Return exit code `0` when the script succeeds and has content to post.
+4. Return exit code `1` when there is nothing worth posting.
+5. Create a dynamic ad that points at that command.
+6. Assign the ad to a campaign with the desired schedule and targets.
+
+This keeps scheduling, targeting, and post logging inside the advertising
+system while your script controls only the generated body text.
+
 ## Scheduler Integration
 
 Campaigns are processed automatically by `scripts/binkp_scheduler.php`.
