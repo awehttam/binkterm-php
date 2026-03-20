@@ -131,22 +131,53 @@
                     <dt class="col-sm-5">{{ t('ui.dashboard.user', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ current_user.username }}</dd>
 
-                    <dt class="col-sm-5">{{ t('ui.dashboard.addresses', {}, locale, ['common']) }}:</dt>
+                    {% if network_addresses|length > 0 %}
+                    <dt class="col-sm-5">{{ t('ui.dashboard.networks', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">
-                        {% if network_addresses|length > 0 %}
-                            {% for addr in network_addresses %}
-                                <div class="mb-1">
-                                    <span class="badge bg-secondary me-1">{{ addr.domain }}</span>
-                                    <code>{{ addr.address }}</code>
-                                </div>
-                            {% endfor %}
-                        {% else %}
-                            <code>{{ fidonet_origin }}</code>
-                        {% endif %}
+                        {% for addr in network_addresses %}
+                            <span class="badge bg-secondary me-1 mb-1">{{ addr.domain }}</span>
+                        {% endfor %}
                     </dd>
+                    {% endif %}
+
+                    <dt class="col-sm-5">{{ t('ui.dashboard.online_now', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ online_user_count }}</dd>
+
+                    <dt class="col-sm-5">{{ t('ui.dashboard.active_today', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ active_today_count }}</dd>
                 </dl>
             </div>
         </div>
+
+        {% if bbs_feature_enabled('voting_booth') %}
+        <div class="card mt-4" id="votingBoothCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-vote-yea me-2"></i>
+                    {{ t('ui.dashboard.voting_booth', {}, locale, ['common']) }}
+                </h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="votingBoothBody">
+                <div class="text-center">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
+                </div>
+            </div>
+            <div class="card-footer text-end py-2">
+                <a href="/polls/create" title="{{ t('ui.dashboard.create_poll_title', {}, locale, ['common']) }}" style="text-decoration: none; font-size: 1.2rem;">
+                    <i class="fas fa-file-circle-plus"></i>
+                </a>
+            </div>
+        </div>
+        {% endif %}
 
         {% if referral_enabled %}
         <div class="card mt-4">
@@ -177,36 +208,6 @@
                 </div>
 
                 <div id="referralList" class="mt-3"></div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if bbs_feature_enabled('voting_booth') %}
-        <div class="card mt-4" id="votingBoothCard">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">
-                    <i class="fas fa-vote-yea me-2"></i>
-                    {{ t('ui.dashboard.voting_booth', {}, locale, ['common']) }}
-                </h6>
-                <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body" id="votingBoothBody">
-                <div class="text-center">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
-                </div>
-            </div>
-            <div class="card-footer text-end py-2">
-                <a href="/polls/create" title="{{ t('ui.dashboard.create_poll_title', {}, locale, ['common']) }}" style="text-decoration: none; font-size: 1.2rem;">
-                    <i class="fas fa-file-circle-plus"></i>
-                </a>
             </div>
         </div>
         {% endif %}

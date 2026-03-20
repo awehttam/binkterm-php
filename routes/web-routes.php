@@ -81,12 +81,17 @@ SimpleRouter::get('/', function() {
         }
     }
 
+    $onlineCount = $auth->getOnlineUserCount(15);
+    $activeTodayCount = $auth->getActiveTodayCount();
+
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
         'dashboard_ad' => $ad,
         'dashboard_ads' => $dashboardAds,
         'dashboard_ad_rotate_interval_seconds' => $dashboardAdRotateInterval,
         'shell_art_content' => $shellArtContent,
+        'online_user_count' => $onlineCount,
+        'active_today_count' => $activeTodayCount,
     ]);
 });
 
