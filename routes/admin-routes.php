@@ -11,6 +11,67 @@ use BinktermPHP\UserMeta;
 use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
 
+if (!function_exists('extractUploadedLicenseData')) {
+    /**
+     * @param array<string,mixed> $file
+     * @return array<string,mixed>
+     */
+    function extractUploadedLicenseData(array $file): array
+    {
+        $tmpName = (string)($file['tmp_name'] ?? '');
+        $originalName = (string)($file['name'] ?? '');
+        $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('No uploaded file was received.');
+        }
+
+        if ($ext === 'json') {
+            $content = @file_get_contents($tmpName);
+            if ($content === false) {
+                throw new \RuntimeException('Failed to read uploaded license file.');
+            }
+        } elseif ($ext === 'zip') {
+            if (!class_exists('ZipArchive')) {
+                throw new \RuntimeException('ZIP uploads require the PHP zip extension.');
+            }
+
+            $zip = new \ZipArchive();
+            if ($zip->open($tmpName) !== true) {
+                throw new \RuntimeException('Failed to open uploaded ZIP file.');
+            }
+
+            $content = false;
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entryName = (string)$zip->getNameIndex($i);
+                $normalized = str_replace('\\', '/', $entryName);
+                if (strcasecmp(basename($normalized), 'license.json') !== 0) {
+                    continue;
+                }
+
+                $content = $zip->getFromIndex($i);
+                if ($content !== false) {
+                    break;
+                }
+            }
+            $zip->close();
+
+            if ($content === false) {
+                throw new \RuntimeException('ZIP file does not contain a readable license.json.');
+            }
+        } else {
+            throw new \RuntimeException('Please upload a license.json or a ZIP containing license.json.');
+        }
+
+        $licenseData = json_decode((string)$content, true);
+        if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+            throw new \RuntimeException('Invalid license format. Expected {payload: {...}, signature: "..."}.' );
+        }
+
+        return $licenseData;
+    }
+}
+
 if (!function_exists('apiError')) {
     function apiError(string $errorCode, string $message, ?int $status = null, array $extra = []): void
     {
@@ -127,12 +188,24 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         RouteHelper::requireAdmin();
         header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
-        $licenseData = $input['license'] ?? null;
+        try {
+            if (!empty($_FILES['license_file'])) {
+                $upload = $_FILES['license_file'];
+                if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    throw new \RuntimeException('Failed to receive uploaded license file.');
+                }
+                $licenseData = extractUploadedLicenseData($upload);
+            } else {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $licenseData = $input['license'] ?? null;
 
-        if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+                if (!is_array($licenseData) || !isset($licenseData['payload'], $licenseData['signature'])) {
+                    throw new \RuntimeException('Invalid license format. Expected {payload: {...}, signature: "..."}.' );
+                }
+            }
+        } catch (\RuntimeException $e) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Invalid license format. Expected {payload: {...}, signature: "..."}.']);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             return;
         }
 

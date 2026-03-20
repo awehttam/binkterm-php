@@ -40,6 +40,11 @@
                     <textarea class="form-control font-monospace" id="licenseJson" rows="10"
                               placeholder='{"payload": {...}, "signature": "..."}'></textarea>
                 </div>
+                <div class="mb-3">
+                    <label for="licenseFile" class="form-label">{{ t('ui.admin.licensing.license_file_label', {}, 'common') }}</label>
+                    <input type="file" class="form-control" id="licenseFile" accept=".json,.zip,application/json,application/zip">
+                    <div class="form-text">{{ t('ui.admin.licensing.license_file_help', {}, 'common') }}</div>
+                </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-fidonet" onclick="uploadLicense()">
                         <i class="fas fa-upload me-1"></i>
@@ -178,8 +183,41 @@ function renderLicenseStatus(data) {
 
 function uploadLicense() {
     const json = $('#licenseJson').val().trim();
-    if (!json) {
-        showUploadAlert('danger', 'Please paste the license JSON.');
+    const fileInput = document.getElementById('licenseFile');
+    const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+    if (!json && !file) {
+        showUploadAlert('danger', window.t('ui.admin.licensing.upload_missing_input', {}, 'Please paste the license JSON or choose a license.json / ZIP file.'));
+        return;
+    }
+
+    if (file) {
+        const formData = new FormData();
+        formData.append('license_file', file);
+
+        $.ajax({
+            url: '/admin/api/license',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(data) {
+                if (data.success) {
+                    showUploadAlert('success', data.message || 'License installed successfully.');
+                    $('#licenseJson').val('');
+                    $('#licenseFile').val('');
+                    loadLicenseStatus();
+                } else {
+                    showUploadAlert('danger', data.error || 'Failed to install license.');
+                }
+            },
+            error: function(xhr) {
+                const msg = xhr.responseJSON && xhr.responseJSON.error
+                    ? xhr.responseJSON.error
+                    : 'Request failed.';
+                showUploadAlert('danger', msg);
+            }
+        });
         return;
     }
 
@@ -187,7 +225,7 @@ function uploadLicense() {
     try {
         parsed = JSON.parse(json);
     } catch (e) {
-        showUploadAlert('danger', 'Invalid JSON: ' + e.message);
+        showUploadAlert('danger', window.t('ui.admin.licensing.invalid_json_prefix', { message: e.message }, 'Invalid JSON: {message}'));
         return;
     }
 
@@ -200,6 +238,7 @@ function uploadLicense() {
             if (data.success) {
                 showUploadAlert('success', data.message || 'License installed successfully.');
                 $('#licenseJson').val('');
+                $('#licenseFile').val('');
                 loadLicenseStatus();
             } else {
                 showUploadAlert('danger', data.error || 'Failed to install license.');
