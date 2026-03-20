@@ -89,7 +89,7 @@ class Template
     private function addGlobalVariables(?array $currentUser = null)
     {
         if ($currentUser === null) {
-            $currentUser = $this->auth->getCurrentUser();
+            $currentUser = $this->auth->getCurrentUser() ?: null;
         }
 
         $currentUserId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
