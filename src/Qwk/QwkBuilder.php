@@ -19,7 +19,6 @@ use BinktermPHP\BbsConfig;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Database;
 use BinktermPHP\EchoareaSubscriptionManager;
-use BinktermPHP\Version;
 use PDO;
 use ZipArchive;
 
@@ -181,7 +180,7 @@ class QwkBuilder
         // Conferences 1–N: subscribed echo areas.
         $subscriptionManager = new EchoareaSubscriptionManager();
         $echoareas           = $subscriptionManager->getUserSubscribedEchoareas($userId);
-        $conferenceNumbers   = $this->getOrCreateConferenceNumbers($userId, $echoareas);
+        $conferenceNumbers   = (new QwkConferenceNumberManager())->getOrCreateConferenceNumbers($echoareas);
 
         usort($echoareas, function(array $a, array $b) use ($conferenceNumbers) {
             return ($conferenceNumbers[(int)$a['id']] ?? PHP_INT_MAX)
@@ -211,66 +210,6 @@ class QwkBuilder
         }
 
         return $conferences;
-    }
-
-    /**
-     * Return persistent conference numbers for this user's subscribed
-     * echoareas, allocating new numbers only for areas not yet mapped.
-     *
-     * @param array $echoareas
-     * @return array<int,int>
-     */
-    private function getOrCreateConferenceNumbers(int $userId, array $echoareas): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT echoarea_id, conference_number
-            FROM qwk_user_conference_map
-            WHERE user_id = ?
-        ");
-        $stmt->execute([$userId]);
-
-        $numbersByArea = [];
-        $usedNumbers   = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $echoareaId = (int)$row['echoarea_id'];
-            $conferenceNumber = (int)$row['conference_number'];
-            $numbersByArea[$echoareaId] = $conferenceNumber;
-            $usedNumbers[$conferenceNumber] = true;
-        }
-
-        if (empty($echoareas)) {
-            return $numbersByArea;
-        }
-
-        $insertStmt = $this->db->prepare("
-            INSERT INTO qwk_user_conference_map (user_id, echoarea_id, conference_number, created_at, updated_at)
-            VALUES (:user_id, :echoarea_id, :conference_number, NOW(), NOW())
-            ON CONFLICT (user_id, echoarea_id)
-            DO UPDATE SET updated_at = NOW()
-        ");
-
-        foreach ($echoareas as $area) {
-            $echoareaId = (int)$area['id'];
-            if (isset($numbersByArea[$echoareaId])) {
-                continue;
-            }
-
-            $conferenceNumber = 1;
-            while (isset($usedNumbers[$conferenceNumber])) {
-                $conferenceNumber++;
-            }
-
-            $insertStmt->execute([
-                ':user_id' => $userId,
-                ':echoarea_id' => $echoareaId,
-                ':conference_number' => $conferenceNumber,
-            ]);
-
-            $numbersByArea[$echoareaId] = $conferenceNumber;
-            $usedNumbers[$conferenceNumber] = true;
-        }
-
-        return $numbersByArea;
     }
 
     // -------------------------------------------------------------------------

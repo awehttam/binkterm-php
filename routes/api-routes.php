@@ -9252,42 +9252,8 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 ]
             ];
 
-            $mapStmt = $db->prepare("
-                SELECT echoarea_id, conference_number
-                FROM qwk_user_conference_map
-                WHERE user_id = ?
-            ");
-            $mapStmt->execute([$userId]);
-
-            $conferenceNumbers = [];
-            $usedNumbers       = [];
-            foreach ($mapStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $echoareaId = (int)$row['echoarea_id'];
-                $conferenceNumber = (int)$row['conference_number'];
-                $conferenceNumbers[$echoareaId] = $conferenceNumber;
-                $usedNumbers[$conferenceNumber] = true;
-            }
-
-            $insertMapStmt = $db->prepare("
-                INSERT INTO qwk_user_conference_map (user_id, echoarea_id, conference_number, created_at, updated_at)
-                VALUES (?, ?, ?, NOW(), NOW())
-                ON CONFLICT (user_id, echoarea_id)
-                DO UPDATE SET updated_at = NOW()
-            ");
-
-            foreach ($areas as $area) {
-                $echoareaId = (int)$area['id'];
-                if (!isset($conferenceNumbers[$echoareaId])) {
-                    $conferenceNumber = 1;
-                    while (isset($usedNumbers[$conferenceNumber])) {
-                        $conferenceNumber++;
-                    }
-
-                    $insertMapStmt->execute([$userId, $echoareaId, $conferenceNumber]);
-                    $conferenceNumbers[$echoareaId] = $conferenceNumber;
-                    $usedNumbers[$conferenceNumber] = true;
-                }
-            }
+            $conferenceNumbers = (new \BinktermPHP\Qwk\QwkConferenceNumberManager())
+                ->getOrCreateConferenceNumbers($areas);
 
             usort($areas, function(array $a, array $b) use ($conferenceNumbers) {
                 return ($conferenceNumbers[(int)$a['id']] ?? PHP_INT_MAX)

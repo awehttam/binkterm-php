@@ -10,7 +10,7 @@
 - [FTN Networking](#ftn-networking)
   - [BinkP Handshake Timeout Handling](#binkp-handshake-timeout-handling)
 - [QWK Offline Mail](#qwk-offline-mail)
-  - [Stable Per-User Conference Numbers](#stable-per-user-conference-numbers)
+  - [Stable BBS-Wide Conference Numbers](#stable-bbs-wide-conference-numbers)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -24,7 +24,7 @@
 - BinkP now handles exported socket timeouts more consistently during handshake reads.
 
 **QWK Offline Mail**
-- QWK conference numbers are now stored persistently per user so subscribe and unsubscribe changes do not renumber existing conferences.
+- QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
 
 ## File Areas & TIC Processing
 
@@ -61,28 +61,28 @@ valid frame, but the local side fails the read during handshake processing.
 
 ## QWK Offline Mail
 
-### Stable Per-User Conference Numbers
+### Stable BBS-Wide Conference Numbers
 
-Version 1.8.8 now stores QWK conference numbers in a persistent per-user map
-instead of rebuilding them from the current subscription order on every packet
-download.
+Version 1.8.8 now stores QWK conference numbers as canonical BBS-wide values on
+echo areas instead of rebuilding them from the current subscription order on
+every packet download.
 
 This means:
 
-- Existing conference numbers stay stable for a given user.
-- Unsubscribing from an area does not renumber later conferences.
-- Re-subscribing to a previously mapped area reuses the same conference number.
-- New subscriptions receive the next available conference number for that user.
+- Conference numbers are stable across the entire BBS, not just per user.
+- Subscribing or unsubscribing from an area no longer affects conference IDs.
+- Every user sees the same QWK conference number for the same echo area.
+- New echo areas receive the next available canonical conference number.
 
 The system still records a per-download conference map in `qwk_download_log`
 for REP reply import safety, but packet generation and the QWK status view now
-use the persistent mapping table.
+use the canonical echo area conference number.
 
 ## Upgrade Instructions
 
-This release adds a database migration for the persistent QWK conference map.
-Run setup during upgrade so existing users are backfilled from their latest QWK
-download state where available.
+This release adds a database migration for canonical QWK conference numbers on
+echo areas. Run setup during upgrade so existing areas are backfilled with BBS-
+wide conference IDs before users download new packets.
 
 ### From Git
 
