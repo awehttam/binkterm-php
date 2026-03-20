@@ -7,6 +7,8 @@
 - [Summary of Changes](#summary-of-changes)
 - [File Areas & TIC Processing](#file-areas--tic-processing)
   - [FILE_ID.DIZ Selection for Incoming TIC ZIPs](#file_iddiz-selection-for-incoming-tic-zips)
+- [FTN Networking](#ftn-networking)
+  - [BinkP Handshake Timeout Handling](#binkp-handshake-timeout-handling)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -15,9 +17,9 @@
 
 **File Areas & TIC Processing**
 - Incoming TIC ZIP processing now uses `FILE_ID.DIZ` only from the archive root.
-- If the ZIP has no root-level `FILE_ID.DIZ`, the processor will use `/directory/FILE_ID.DIZ` only when that single directory is the only directory at the archive root.
-- `FILE_ID.DIZ` files nested deeper than one level are now ignored.
-- This prevents the wrong long description from being pulled from deeply nested packaging layouts.
+
+**FTN Networking**
+- BinkP now handles exported socket timeouts more consistently during handshake reads.
 
 ## File Areas & TIC Processing
 
@@ -41,10 +43,21 @@ Version 1.8.8 tightens that lookup logic:
 This change improves compatibility with common single-top-level-directory ZIP
 layouts while avoiding incorrect descriptions from nested archive content.
 
+## FTN Networking
+
+### BinkP Handshake Timeout Handling
+
+Version 1.8.8 also tightens timeout handling for binkp sessions after sockets
+are converted to stream resources. The exported stream now relies on stream
+timeouts consistently instead of mixing native socket timeouts with stream I/O.
+
+This helps avoid false handshake timeouts where the remote has already sent a
+valid frame, but the local side fails the read during handshake processing.
+
 ## Upgrade Instructions
 
 This release does not add database migrations or new required configuration for
-this fix. A normal application upgrade is sufficient.
+these fixes. A normal application upgrade is sufficient.
 
 ### From Git
 
