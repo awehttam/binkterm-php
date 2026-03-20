@@ -512,14 +512,10 @@ class QwkBuilder
         if (!empty($message['subject'])) {
             $lines[] = "Subject: " . $message['subject'];
         }
-        if (!empty($message['to_address'])) {
-            $lines[] = "To: " . ($message['to_name'] ?? '') . ' <' . $message['to_address'] . '>';
-        } elseif (!empty($message['to_name'])) {
+        if (!empty($message['to_name'])) {
             $lines[] = "To: " . $message['to_name'];
         }
-        if (!empty($message['from_address'])) {
-            $lines[] = "From: " . ($message['from_name'] ?? '') . ' <' . $message['from_address'] . '>';
-        } elseif (!empty($message['from_name'])) {
+        if (!empty($message['from_name'])) {
             $lines[] = "From: " . $message['from_name'];
         }
 
