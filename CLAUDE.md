@@ -150,12 +150,12 @@ The project uses key-based localization for both Twig and JavaScript. Translatio
 - `config/i18n/<locale>/common.php`
 - `config/i18n/<locale>/errors.php`
 
-Current baseline locales are `en` and `es`.
+Current locale folders under `config/i18n/` must be kept in sync when adding or renaming keys. Do not update only the language you are actively reading; French keys are easy to miss, so check all locale directories every time.
 
 ### Core Rules
 - Never hardcode new user-facing UI text in templates/JS when adding or changing features.
 - Add a translation key first, then use it from Twig/JS.
-- Keep `en` and `es` in sync for every new key in normal feature work.
+- Keep every locale in `config/i18n/` in sync for every new key in normal feature work, including `fr` when present.
 - Prefer stable key names by page/feature area, e.g. `ui.settings.*`, `ui.polls.*`, `errors.polls.*`.
 - Do not change existing key names unless required (avoid breaking references).
 
@@ -178,6 +178,8 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
   - `loadI18nNamespaces([...])`
   - endpoint: `GET /api/i18n/catalog?ns=common,errors&locale=<locale>`
 - JS should always include a fallback string for resilience.
+- Treat fallback strings as localized UI text too: if you introduce a new fallback in JS/Twig, add the matching `ui.*` or `errors.*` key to every locale directory first instead of inventing a raw English string inline.
+- Do not pass new raw English strings directly to helpers like `apiError(...)`, `getApiErrorMessage(...)`, `window.t(...)`, `uiT(...)`, toast helpers, or modal helpers; `php scripts/check_i18n_hardcoded_strings.php` will flag those.
 
 ### API Errors and `error_code`
 - API responses should use structured errors via `apiError(error_code, message, status, extra)` and return:
@@ -185,9 +187,10 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
   - `error` (human fallback)
 - Frontend should resolve display text with `window.getApiErrorMessage(payload, fallback)`.
 - Do not rely on matching raw error message text in frontend logic.
+- When wiring frontend error handling, prefer an existing translation key for the fallback; if none exists, add one before writing the JS/Twig.
 - For new API errors:
   1. Add/choose `errors.*` key in route code.
-  2. Add that key to `config/i18n/en/errors.php` (and `es/errors.php`).
+  2. Add that key to every locale's `errors.php` file under `config/i18n/`.
   3. Use `getApiErrorMessage` in UI handling.
 
 ### Locale Resolution / Config
@@ -206,11 +209,12 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
 - Goal:
   - no new hardcoded string violations
   - no missing `errors.*` catalog keys used by `apiError(...)`
+  - no locale folders left behind when adding keys, especially `config/i18n/fr/`
 
 ### Practical Checklist for New UI/API Work
-1. Add new `ui.*`/`errors.*` keys to `en` and `es`.
+1. Add new `ui.*`/`errors.*` keys to every locale under `config/i18n/` (`en`, `es`, `fr`, etc.).
 2. Replace literals in Twig with `t(...)`.
-3. Replace JS literals with `window.t(...)` (or `uiT(...)`) fallbacks.
+3. Replace JS literals with `window.t(...)` (or `uiT(...)`) fallbacks, but do not invent a new inline fallback unless the corresponding catalog key was added first.
 4. Ensure API errors return `error_code`.
 5. Run both i18n check scripts before commit.
 
