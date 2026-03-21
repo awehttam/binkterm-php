@@ -741,6 +741,9 @@ function mergeCatalogs(catalogs) {
     });
 }
 
+// In-flight namespace fetch promises keyed by sorted ns+locale string
+const _i18nInflight = {};
+
 function loadI18nNamespaces(namespaces = []) {
     const normalized = (namespaces || [])
         .map(ns => String(ns || '').trim())
@@ -754,10 +757,21 @@ function loadI18nNamespaces(namespaces = []) {
         return Promise.resolve();
     }
 
-    const nsParam = encodeURIComponent(missing.join(','));
     const localeParam = encodeURIComponent(window.i18n.locale || window.appLocale || 'en');
+    const inflightKey = missing.slice().sort().join(',') + '@' + localeParam;
 
-    return fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
+    // If a fetch for this exact set is already in-flight, reuse it
+    if (_i18nInflight[inflightKey]) {
+        return _i18nInflight[inflightKey];
+    }
+
+    // Mark namespaces as loading now to prevent duplicate fetches from
+    // concurrent callers that haven't awaited the result yet
+    missing.forEach(ns => { window.i18n.loadedNamespaces[ns] = true; });
+
+    const nsParam = encodeURIComponent(missing.join(','));
+
+    const promise = fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
         .then(function(response) {
             if (!response.ok) {
                 throw new Error('i18n catalog load failed');
@@ -777,8 +791,16 @@ function loadI18nNamespaces(namespaces = []) {
             mergeCatalogs(payload.catalogs || {});
         })
         .catch(function() {
-            // Non-fatal in Phase 0: app keeps English literals as fallback.
+            // Non-fatal: app keeps English literals as fallback.
+            // Un-mark so a future call can retry
+            missing.forEach(ns => { delete window.i18n.loadedNamespaces[ns]; });
+        })
+        .finally(function() {
+            delete _i18nInflight[inflightKey];
         });
+
+    _i18nInflight[inflightKey] = promise;
+    return promise;
 }
 
 $(document).ready(function() {
