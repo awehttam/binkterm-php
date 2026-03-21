@@ -141,6 +141,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Search Capabilities** - Full-text trigram search across messages and echo areas, plus global cross-area file search
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
+- **Service Worker Caching** - Static assets, scripts, and localisation data are cached by a service worker for fast repeat loads and a responsive experience on slow or intermittent connections
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 - **MRC Chat** - Real-time multi-BBS chat via the MRC (Multi Relay Chat) network; connects users across BBSes in shared rooms with private messaging support (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
