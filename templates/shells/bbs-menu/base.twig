@@ -119,6 +119,9 @@
     <script src="/js/chat-notify.js"></script>
     {% endif %}
     {% include 'custom/header.insert.twig' ignore missing %}
+    {% if debug_ansi_not_perfect %}
+    <style>.ansi-art-container pre, .ansi-art { font-family: inherit !important; }</style>
+    {% endif %}
 </head>
 <body class="bbs-menu-shell">
 

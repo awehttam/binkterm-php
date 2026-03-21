@@ -97,6 +97,9 @@
     {% endif %}
     {# Include custom header insertions if available #}
     {% include 'custom/header.insert.twig' ignore missing %}
+    {% if debug_ansi_not_perfect %}
+    <style>.ansi-art-container pre, .ansi-art { font-family: inherit !important; }</style>
+    {% endif %}
 </head>
 <body>
     <!-- Update notification toast -->
