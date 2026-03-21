@@ -4423,6 +4423,18 @@ if (!function_exists('annotateLovlyNetAreasWithMetadataIssues')) {
                 }
             }
 
+            if ($areaType === 'file' && array_key_exists('replace', $metadata) && !empty($area['local_exists'])) {
+                $recommendedReplace = filter_var($metadata['replace'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualReplace = !empty($area['local_replace_existing']);
+                if ($recommendedReplace !== null && $recommendedReplace !== $actualReplace) {
+                    $issues[] = [
+                        'setting' => 'replace',
+                        'recommended' => $recommendedReplace,
+                        'actual' => $actualReplace,
+                    ];
+                }
+            }
+
             $area['setting_issues'] = $issues;
             $area['has_setting_issues'] = $issues !== [];
         }
@@ -5141,20 +5153,36 @@ SimpleRouter::get('/admin/api/lovlynet/registration', function() {
         return;
     }
 
-    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    // Try to fetch current values from the LovlyNet server; fall back to local BinkpConfig
+    $remote = $client->getRemoteRegistration();
+    if ($remote['success']) {
+        $defaults = [
+            'system_name' => $remote['system_name'],
+            'sysop_name'  => $remote['sysop_name'],
+            'hostname'    => $remote['hostname'],
+            'binkp_port'  => $remote['binkp_port'],
+            'site_url'    => $remote['site_url'],
+        ];
+        $isPassive = $remote['is_passive'];
+    } else {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $defaults = [
+            'system_name' => $binkpConfig->getSystemName(),
+            'sysop_name'  => $binkpConfig->getSystemSysop(),
+            'hostname'    => $binkpConfig->getSystemHostname(),
+            'binkp_port'  => $binkpConfig->getBinkpPort(),
+            'site_url'    => \BinktermPHP\Config::getSiteUrl(),
+        ];
+        $isPassive = $status['is_passive'];
+    }
 
     echo json_encode([
         'ftn_address'   => $status['ftn_address'],
         'hub_address'   => $status['hub_address'],
         'registered_at' => $status['registered_at'],
         'updated_at'    => $status['updated_at'],
-        'defaults' => [
-            'system_name' => $binkpConfig->getSystemName(),
-            'sysop_name'  => $binkpConfig->getSystemSysop(),
-            'hostname'    => $binkpConfig->getSystemHostname(),
-            'binkp_port'  => $binkpConfig->getBinkpPort(),
-            'site_url'    => \BinktermPHP\Config::getSiteUrl(),
-        ],
+        'is_passive'    => $isPassive,
+        'defaults'      => $defaults,
     ]);
 });
 
@@ -5215,11 +5243,156 @@ SimpleRouter::post('/admin/api/lovlynet/update-registration', function() {
     }
 
     $regData = $result['data']['data'] ?? $result['data'] ?? [];
+    $regData['is_passive'] = $isPassive;
     if (!$client->saveRegistrationUpdate($regData)) {
         error_log('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
     }
 
     echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /admin/api/lovlynet/checklist
+ * Return the status of LovlyNet setup checklist items.
+ */
+SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $recommendedPattern = '/^LOVLYNET\\.(Z|A|L|R|J)[0-9]{2}$/i';
+    $areaKey = 'LVLY_NODELIST@LOVLYNET';
+
+    $ruleExists = false;
+    $patternMatches = false;
+    $nodelistRuleDaemonError = false;
+
+    try {
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        $rulesConfig = $daemonClient->getFileAreaRulesConfig();
+        $configJson = $rulesConfig['config_json'] ?? null;
+
+        if ($configJson !== null) {
+            $parsed = json_decode($configJson, true);
+            if (is_array($parsed)) {
+                $areaRules = $parsed['area_rules'][$areaKey]
+                    ?? $parsed['area_rules']['LVLY_NODELIST']
+                    ?? [];
+                foreach ($areaRules as $rule) {
+                    if (isset($rule['pattern'])) {
+                        $ruleExists = true;
+                        if ($rule['pattern'] === $recommendedPattern) {
+                            $patternMatches = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+        $nodelistRuleDaemonError = true;
+    }
+
+    // Check default area subscriptions using is_default flag from areas response
+    $defaultAreasItem = ['id' => 'default_areas', 'ok' => true, 'unsubscribed_echo' => [], 'unsubscribed_file' => [], 'fetch_error' => false];
+
+    $lovlyClient = new \BinktermPHP\LovlyNetClient();
+    $areasResult = $lovlyClient->getAreas();
+
+    if (!$areasResult['success']) {
+        $defaultAreasItem['fetch_error'] = true;
+    } else {
+        $missingEcho = [];
+        foreach ($areasResult['echoareas'] as $area) {
+            if (!empty($area['is_default']) && empty($area['subscribed'])) {
+                $missingEcho[] = strtoupper((string)($area['tag'] ?? ''));
+            }
+        }
+        $missingFile = [];
+        foreach ($areasResult['fileareas'] as $area) {
+            if (!empty($area['is_default']) && empty($area['subscribed'])) {
+                $missingFile[] = strtoupper((string)($area['tag'] ?? ''));
+            }
+        }
+
+        $defaultAreasItem['unsubscribed_echo'] = $missingEcho;
+        $defaultAreasItem['unsubscribed_file'] = $missingFile;
+        $defaultAreasItem['ok'] = ($missingEcho === [] && $missingFile === []);
+    }
+
+    echo json_encode([
+        'success' => true,
+        'items' => [
+            [
+                'id' => 'registration',
+                'ok' => true,
+            ],
+            $defaultAreasItem,
+            [
+                'id'              => 'nodelist_rule',
+                'ok'              => !$nodelistRuleDaemonError && $ruleExists && $patternMatches,
+                'has_rule'        => $ruleExists,
+                'pattern_matches' => $patternMatches,
+                'daemon_error'    => $nodelistRuleDaemonError,
+            ],
+        ],
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/checklist/fix-nodelist-rule
+ * Add/fix the LVLY_NODELIST file area rule with the recommended pattern and script.
+ */
+SimpleRouter::post('/admin/api/lovlynet/checklist/fix-nodelist-rule', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $areaKey = 'LVLY_NODELIST@LOVLYNET';
+    $newRule = [
+        'name'           => 'Import LovlyNet Nodelist',
+        'domain'         => 'lovlynet',
+        'pattern'        => '/^LOVLYNET\\.(Z|A|L|R|J)[0-9]{2}$/i',
+        'script'         => 'php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force',
+        'success_action' => 'keep',
+        'fail_action'    => 'keep+notify',
+        'enabled'        => true,
+        'timeout'        => 300,
+    ];
+
+    try {
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        $rulesConfig = $daemonClient->getFileAreaRulesConfig();
+        $configJson = $rulesConfig['config_json'] ?? null;
+
+        $parsed = is_string($configJson) ? json_decode($configJson, true) : null;
+        if (!is_array($parsed)) {
+            $parsed = ['global_rules' => [], 'area_rules' => []];
+        }
+        if (!isset($parsed['area_rules']) || !is_array($parsed['area_rules'])) {
+            $parsed['area_rules'] = [];
+        }
+
+        // Keep any existing rules for this area that have a different pattern,
+        // then append the canonical rule.
+        $existing = $parsed['area_rules'][$areaKey] ?? [];
+        $filtered = array_values(array_filter($existing, static function ($rule) use ($newRule) {
+            return ($rule['pattern'] ?? '') !== $newRule['pattern'];
+        }));
+        $filtered[] = $newRule;
+        $parsed['area_rules'][$areaKey] = $filtered;
+
+        $json = json_encode($parsed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('json_encode failed: ' . json_last_error_msg());
+        }
+        $daemonClient->saveFileAreaRulesConfig($json);
+
+        echo json_encode(['success' => true]);
+    } catch (\Exception $e) {
+        error_log('LovlyNet checklist fix-nodelist-rule failed: ' . $e->getMessage());
+        http_response_code(500);
+        apiError('errors.admin.lovlynet.checklist_fix_failed', $e->getMessage());
+    }
 });
 
 /**

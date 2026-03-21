@@ -534,6 +534,7 @@ return [
     'errors.admin.lovlynet.hatch_failed' => 'Failed to hatch file',
     'errors.admin.lovlynet.not_registered' => 'Not registered with LovlyNet',
     'errors.admin.lovlynet.registration_update_failed' => 'Registration update failed',
+    'errors.admin.lovlynet.checklist_fix_failed' => 'Failed to apply fix',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'QWK offline mail is not enabled on this system',

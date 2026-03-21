@@ -268,7 +268,7 @@ class FileAreaManager
         $placeholders = implode(',', array_fill(0, count($tags), '?'));
         [$domainClause, $domainParams] = $this->buildDomainWhereClause($domains);
         $stmt = $this->db->prepare("
-            SELECT UPPER(tag) AS tag_key, id, domain, description, upload_permission
+            SELECT UPPER(tag) AS tag_key, id, domain, description, upload_permission, replace_existing
             FROM file_areas
             WHERE UPPER(tag) IN ($placeholders)
               AND {$domainClause}
@@ -292,6 +292,7 @@ class FileAreaManager
             $area['local_domain'] = $local['domain'] ?? null;
             $area['local_description'] = $local['description'] ?? null;
             $area['local_upload_permission'] = $local !== null ? (int)$local['upload_permission'] : null;
+            $area['local_replace_existing'] = $local !== null ? !empty($local['replace_existing']) : null;
             $remoteDescription = trim((string)($area['description'] ?? ''));
             $localDescription = trim((string)($local['description'] ?? ''));
             $area['description_mismatch'] = $local !== null && $remoteDescription !== '' && $remoteDescription !== $localDescription;
@@ -324,6 +325,19 @@ class FileAreaManager
 
         $stmt = $this->db->prepare("UPDATE file_areas SET upload_permission = ?, updated_at = NOW() WHERE id = ?");
         return $stmt->execute([$uploadPermission, $id]);
+    }
+
+    /**
+     * Update the replace_existing flag for a file area.
+     */
+    public function updateReplaceExisting(int $id, bool $value): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("UPDATE file_areas SET replace_existing = ?, updated_at = NOW() WHERE id = ?");
+        return $stmt->execute([$value ? 'true' : 'false', $id]);
     }
 
     /**

@@ -474,6 +474,7 @@ function doRegistration($isUpdate = false) {
         'binkp_password' => $regData['binkp_password'],
         'areafix_password' => $regData['areafix_password'],
         'tic_password' => $ticPassword,
+        'is_passive' => !$isPublic,
         'registered_at' => $existingConfig['registered_at'] ?? date('c'),
         'updated_at' => date('c')
     ];

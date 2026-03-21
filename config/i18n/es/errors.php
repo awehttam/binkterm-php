@@ -534,6 +534,7 @@ return [
     'errors.admin.lovlynet.hatch_failed' => 'No se pudo enviar el archivo',
     'errors.admin.lovlynet.not_registered' => 'No registrado en LovlyNet',
     'errors.admin.lovlynet.registration_update_failed' => 'Error al actualizar el registro',
+    'errors.admin.lovlynet.checklist_fix_failed' => 'No se pudo aplicar la corrección',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'El correo sin conexion QWK no esta habilitado en este sistema',

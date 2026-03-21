@@ -4,7 +4,7 @@
 
 ## Table of Contents
 
-- [Summary of Changes](#summary-of-changes)
+7- [Summary of Changes](#summary-of-changes)
 - [File Areas & TIC Processing](#file-areas--tic-processing)
   - [FILE_ID.DIZ Selection for Incoming TIC ZIPs](#file_iddiz-selection-for-incoming-tic-zips)
 - [FTN Networking](#ftn-networking)
@@ -39,6 +39,10 @@
   - [DM Messages Disappear When No Prior History](#dm-messages-disappear-when-no-prior-history)
 - [Telnet/SSH BBS Server](#telnetssh-bbs-server)
   - [User Action Logging](#user-action-logging)
+- [LovlyNet Integration](#lovlynet-integration)
+  - [Setup Checklist](#setup-checklist)
+  - [replace Metadata Flag for File Areas](#replace-metadata-flag-for-file-areas)
+  - [Default Area Indicators on Echo and File Area Tabs](#default-area-indicators-on-echo-and-file-area-tabs)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -79,6 +83,11 @@
 - Hard refresh (Ctrl+Shift+R) now correctly bypasses the service worker cache, restoring the expected development behaviour.
 - Fixed room user count showing one more user than actually present.
 - Fixed sent DM messages disappearing immediately when there is no prior conversation history.
+
+**LovlyNet Integration**
+- The LovlyNet admin page has a new Setup Checklist column on the Setup tab that verifies registration status, default area subscriptions, and the LVLY_NODELIST file area rule. A Fix button can automatically create a canonical file area rule for nodelist import.
+- The `replace` metadata flag in `area_metadata.json` is now honoured: if LovlyNet recommends `replace: true` for a file area, BinktermPHP will detect and offer to correct a mismatch.
+- Echo and File area tab rows for default (recommended) areas now show a warning icon when the area is not yet subscribed.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -439,6 +448,49 @@ Example log entries:
 
 No configuration is required. Logging is active whenever the telnet/SSH daemon
 is running and `TELNETD_LOG_LEVEL` is `INFO` or lower (the default).
+
+## LovlyNet Integration
+
+### Setup Checklist
+
+The LovlyNet admin page (`/admin/lovlynet`) has been redesigned to a two-column
+layout on the Setup tab. The left column contains the existing Update Registration
+form. The right column contains a new **Setup Checklist** that is refreshed every
+time the tab is opened.
+
+The checklist verifies three items in order:
+
+| Item | What is checked |
+|------|----------------|
+| Registration | Always shown as complete — if you are on this page, registration has been done. |
+| Default Areas | Fetches the list of LovlyNet-recommended echo and file areas from the LovlyNet server and checks whether each is currently subscribed. Missing areas are listed with a hint to subscribe via the Echo Areas or File Areas tabs. |
+| LVLY_NODELIST File Area Rule | Checks `config/filearea_rules.json` for a rule whose pattern matches the canonical LovlyNet nodelist filename pattern (`/^LOVLYNET\.(Z\|A\|L\|R\|J)[0-9]{2}$/i`) on the `lovlynet` domain. If no matching rule is found, a **Fix** button appears that automatically creates a working rule and saves it via the admin daemon. |
+
+The default area subscription check uses an `is_default` flag added to every
+area returned by the LovlyNet areas API; no separate API call is required.
+
+### replace Metadata Flag for File Areas
+
+LovlyNet can now recommend the `replace` behaviour for file areas via
+`area_metadata.json`. When a file area's metadata contains `"replace": true`,
+BinktermPHP checks whether the local file area has `replace_existing` enabled.
+If there is a mismatch, an issue is reported in the same settings-issue system
+used for the existing `readonly` flag, and **Sync** will correct it.
+
+The `local_replace_existing` field is now included in the areas API response
+so the admin interface can display the current value alongside the recommendation.
+
+### Default Area Indicators on Echo and File Area Tabs
+
+On the Echo Areas and File Areas tabs of the LovlyNet admin page, any area that
+is marked as a default (recommended) area by the LovlyNet server but is not yet
+subscribed will now show an amber warning icon
+(`fa-exclamation-triangle text-warning`) next to the area tag in the table row.
+Hovering over the icon shows a tooltip explaining that this is a default area
+that has not been subscribed.
+
+Areas that are subscribed, or areas that are not flagged as defaults, are
+unaffected. The icon is removed automatically when the area is subscribed.
 
 ## Upgrade Instructions
 
