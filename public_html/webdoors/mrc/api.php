@@ -60,7 +60,13 @@ function handleStatus(PDO $db): void
     ]);
 }
 
-function handleRooms(PDO $db): void
+/**
+ * Query the room list, falling back to the configured default room if the
+ * server returned no rooms (e.g. fresh connection before LIST has arrived).
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function fetchRoomList(PDO $db): array
 {
     $stmt = $db->query("
         SELECT
@@ -75,10 +81,28 @@ function handleRooms(PDO $db): void
         GROUP BY r.room_name, r.topic, r.topic_set_by, r.topic_set_at, r.last_activity
         ORDER BY r.room_name
     ");
+    $rooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    if (empty($rooms)) {
+        $defaultRoom = MrcConfig::getInstance()->getDefaultRoom();
+        $rooms = [[
+            'room_name'    => $defaultRoom,
+            'topic'        => null,
+            'topic_set_by' => null,
+            'topic_set_at' => null,
+            'user_count'   => 0,
+            'last_activity' => null,
+        ]];
+    }
+
+    return $rooms;
+}
+
+function handleRooms(PDO $db): void
+{
     \WebDoorSDK\jsonResponse([
         'success' => true,
-        'rooms'   => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        'rooms'   => fetchRoomList($db)
     ]);
 }
 
@@ -364,20 +388,7 @@ function handlePoll(PDO $db, array $user): void
 
     // Rooms list (optional)
     if ($includeRooms) {
-        $stmt = $db->query("
-            SELECT
-                r.room_name,
-                r.topic,
-                r.topic_set_by,
-                r.topic_set_at,
-                COUNT(u.id) AS user_count,
-                r.last_activity
-            FROM mrc_rooms r
-            LEFT JOIN mrc_users u ON r.room_name = u.room_name
-            GROUP BY r.room_name, r.topic, r.topic_set_by, r.topic_set_at, r.last_activity
-            ORDER BY r.room_name
-        ");
-        $response['rooms'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $response['rooms'] = fetchRoomList($db);
     }
 
     // Heartbeat for joined room
