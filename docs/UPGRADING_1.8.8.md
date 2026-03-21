@@ -25,6 +25,7 @@
   - [Advertisements: Multimodal Content Rendering](#advertisements-multimodal-content-rendering)
   - [Advertisements: Upload Improvements](#advertisements-upload-improvements)
   - [Activity Stats: Login Source Breakdown](#activity-stats-login-source-breakdown)
+  - [Shared Message: Kludge Lines Removed](#shared-message-kludge-lines-removed)
 - [Telnet/SSH BBS Server](#telnetssh-bbs-server)
   - [User Action Logging](#user-action-logging)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -54,6 +55,7 @@
 - The advertisement uploader now accepts `.ans`, `.rip`, `.six`, and `.txt` files and raises the file size limit to 5 MB.
 - Newly created advertisements default to dashboard display disabled.
 - The Activity Stats overview now shows a per-source login breakdown under the Auth category row, distinguishing web, telnet, and SSH logins.
+- The kludge lines box has been removed from the public shared message view.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -265,6 +267,13 @@ Auth row into sub-rows showing login counts broken down by source. Each distinct
 login source (`web`, `telnet`, `ssh`) appears as an indented sub-row with its
 own count and progress bar, making it easy to see how users are connecting to
 the BBS.
+
+### Shared Message: Kludge Lines Removed
+
+The public shared message view previously displayed a collapsible kludge lines
+box beneath the message header. Kludge lines are internal FTN routing metadata
+not meaningful to general visitors. The box has been removed; the message body
+and origin line are now shown directly without it.
 
 ## Telnet/SSH BBS Server
 
