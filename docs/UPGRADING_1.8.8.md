@@ -26,6 +26,7 @@
   - [Advertisements: Upload Improvements](#advertisements-upload-improvements)
   - [Activity Stats: Login Source Breakdown](#activity-stats-login-source-breakdown)
   - [Shared Message: Kludge Lines Removed](#shared-message-kludge-lines-removed)
+  - [Font Awesome Brands Font Removed](#font-awesome-brands-font-removed)
 - [Telnet/SSH BBS Server](#telnetssh-bbs-server)
   - [User Action Logging](#user-action-logging)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -56,6 +57,7 @@
 - Newly created advertisements default to dashboard display disabled.
 - The Activity Stats overview now shows a per-source login breakdown under the Auth category row, distinguishing web, telnet, and SSH logins.
 - The kludge lines box has been removed from the public shared message view.
+- The Font Awesome brands webfont (`fa-brands-400.woff2`, ~108 KB) is no longer loaded; the single brands icon used (Markdown) has been replaced with an inline SVG.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -274,6 +276,17 @@ The public shared message view previously displayed a collapsible kludge lines
 box beneath the message header. Kludge lines are internal FTN routing metadata
 not meaningful to general visitors. The box has been removed; the message body
 and origin line are now shown directly without it.
+
+### Font Awesome Brands Font Removed
+
+The Font Awesome brands webfont (`fa-brands-400.woff2`) was the only brands
+asset used by the interface, and it was loaded solely to render the Markdown
+logo icon in the compose form. At ~108 KB it was disproportionately large for
+a single glyph.
+
+The icon has been replaced with an equivalent inline SVG and the brands font
+has been removed from the service worker precache. Browsers will no longer
+download it.
 
 ## Telnet/SSH BBS Server
 
