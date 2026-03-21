@@ -8,7 +8,7 @@
         <h1 class="h2">{{ t('ui.admin.bbs_settings.heading', {}, locale, ['common']) }}</h1>
     </div>
 
-    <div class="row g-4">
+    <div class="row g-4 settings-loading" id="bbsSettingsCards">
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
@@ -279,6 +279,7 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    setSettingsLoading('#bbsSettingsCards', true);
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadBbsSettings();
         loadBbsSystem();
@@ -345,6 +346,7 @@ function loadBbsSettings() {
             const referralBonusValue = parseInt(credits.referral_bonus, 10);
             document.getElementById('bbsCreditsReferralEnabled').checked = !!credits.referral_enabled;
             document.getElementById('bbsCreditsReferralBonus').value = Number.isNaN(referralBonusValue) ? 25 : referralBonusValue;
+            setSettingsLoading('#bbsSettingsCards', false);
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings'), 'danger');

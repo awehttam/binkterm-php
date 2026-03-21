@@ -27,6 +27,7 @@
   - [Activity Stats: Login Source Breakdown](#activity-stats-login-source-breakdown)
   - [Shared Message: Kludge Lines Removed](#shared-message-kludge-lines-removed)
   - [Font Awesome Brands Font Removed](#font-awesome-brands-font-removed)
+  - [Admin Settings: Loading Blur](#admin-settings-loading-blur)
 - [Telnet/SSH BBS Server](#telnetssh-bbs-server)
   - [User Action Logging](#user-action-logging)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -58,6 +59,7 @@
 - The Activity Stats overview now shows a per-source login breakdown under the Auth category row, distinguishing web, telnet, and SSH logins.
 - The kludge lines box has been removed from the public shared message view.
 - The Font Awesome brands webfont (`fa-brands-400.woff2`, ~108 KB) is no longer loaded; the single brands icon used (Markdown) has been replaced with an inline SVG.
+- Admin settings pages (BBS Settings, BinkP Configuration, MRC Settings, Appearance) now blur their content cards while settings are being fetched and show a centred spinner; cards stay blurred if the load fails.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -287,6 +289,17 @@ a single glyph.
 The icon has been replaced with an equivalent inline SVG and the brands font
 has been removed from the service worker precache. Browsers will no longer
 download it.
+
+### Admin Settings: Loading Blur
+
+Admin settings pages now blur their content cards while the initial settings
+fetch is in flight, and display a centred spinner so it is clear that data is
+loading. The blur and spinner are cleared once the data loads successfully. If
+the fetch fails the cards remain blurred, making the error state visually
+distinct from a loaded page.
+
+The following pages use this behaviour: BBS Settings, BinkP Configuration,
+MRC Settings, and Appearance.
 
 ## Telnet/SSH BBS Server
 

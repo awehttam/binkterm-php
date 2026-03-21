@@ -1237,6 +1237,34 @@ function formatFullDate(dateString) {
     });
 }
 
+/**
+ * Toggle a loading-blur state on settings cards or any container.
+ * While loading=true the target is blurred and non-interactive, and a
+ * centred spinner overlay is shown above the blurred content.
+ *
+ * @param {string|Element|jQuery} target  CSS selector, DOM element, or jQuery object
+ * @param {boolean}               loading true to apply blur, false to remove
+ */
+function setSettingsLoading(target, loading) {
+    $(target).toggleClass('settings-loading', loading);
+
+    const spinnerId = 'settings-loading-spinner';
+    if (loading) {
+        if (!document.getElementById(spinnerId)) {
+            $('body').append(
+                '<div id="' + spinnerId + '" class="settings-loading-spinner" aria-hidden="true">' +
+                '<div class="spinner-border" role="status"></div>' +
+                '</div>'
+            );
+        }
+    } else {
+        // Only remove spinner when no blurred elements remain
+        if ($(target).hasClass('settings-loading') === false && $('.settings-loading').length === 0) {
+            $('#' + spinnerId).remove();
+        }
+    }
+}
+
 function escapeHtml(text) {
     const map = {
         '&': '&amp;',
