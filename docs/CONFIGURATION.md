@@ -514,6 +514,26 @@ A documented example is provided in `config/bbs.json.example`.
 - Bind internal services (admin daemon, DOSBox bridge, PostgreSQL) to `127.0.0.1`.
 - Publish user-facing services through a reverse proxy (Caddy, Nginx, Apache) with TLS.
 
+### Apache: enabling gzip compression for JSON
+
+Apache's `mod_deflate` does not compress `application/json` by default, so API responses (including the i18n catalog) are sent uncompressed. Add the following to your VirtualHost or `.htaccess`:
+
+```apache
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/plain image/svg+xml
+    AddOutputFilterByType DEFLATE font/ttf font/opentype application/x-font-ttf application/x-font-otf
+    # Note: woff and woff2 are already compressed internally — do not add them here
+</IfModule>
+```
+
+Enable the module if not already active:
+
+```bash
+a2enmod deflate
+systemctl reload apache2
+```
+
 ---
 
 ## Welcome & Text Files

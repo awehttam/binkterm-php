@@ -21,6 +21,11 @@
   - [Settings: Sidebar Removed](#settings-sidebar-removed)
   - [ANSI Renderer: Debug Font Override](#ansi-renderer-debug-font-override)
   - [Dashboard: Today's Callers Timezone](#dashboard-todays-callers-timezone)
+  - [Advertisements: Multimodal Content Rendering](#advertisements-multimodal-content-rendering)
+  - [Advertisements: Upload Improvements](#advertisements-upload-improvements)
+  - [Activity Stats: Login Source Breakdown](#activity-stats-login-source-breakdown)
+- [Telnet/SSH BBS Server](#telnetssh-bbs-server)
+  - [User Action Logging](#user-action-logging)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -33,6 +38,9 @@
 **FTN Networking**
 - BinkP now handles exported socket timeouts more consistently during handshake reads.
 
+**Telnet/SSH BBS Server**
+- The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
+
 **Web Interface**
 - Sysops now see a "Today's Callers" list in the dashboard System Information box.
 - The profile page System Information box has been replaced with a "Your Network Information" card showing configured networks and a "Show Netmail Addresses" modal.
@@ -41,6 +49,10 @@
 - A `DEBUG_ANSI_NOT_PERFECT` environment variable can be set to `true` to disable the Perfect DOS VGA 437 font override on ANSI art, useful for testing how art looks in the user's existing monospace font.
 - A `DEBUG_ANSI_USE_CONSOLAS` environment variable can be set to `true` to use Consolas instead of Perfect DOS VGA 437 for ANSI art rendering.
 - Today's Callers on the dashboard is now anchored to the sysop's configured timezone, so the midnight cutoff reflects local time rather than UTC.
+- The advertisement display (dashboard ad box, ad modal, and full-page ad view) now renders RIPscrip, Sixel, ANSI/PCBoard, and plain-text content using the same multimodal pipeline as the echomail message viewer.
+- The advertisement uploader now accepts `.ans`, `.rip`, `.six`, and `.txt` files and raises the file size limit to 5 MB.
+- Newly created advertisements default to dashboard display disabled.
+- The Activity Stats overview now shows a per-source login breakdown under the Auth category row, distinguishing web, telnet, and SSH logins.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -203,6 +215,68 @@ them to restore the default Perfect DOS VGA 437 behaviour.
 The Today's Callers list now anchors midnight to the sysop's configured timezone
 rather than UTC. Users active after local midnight but before UTC midnight will
 no longer be excluded from the list.
+
+### Advertisements: Multimodal Content Rendering
+
+The advertisement display now uses the same multimodal rendering pipeline as the
+echomail message viewer. Ad content is rendered in priority order:
+
+1. **RIPscrip** — detected by the `!|` magic bytes; rendered via the RIPterm canvas engine.
+2. **Sixel** — detected by the DCS escape sequence; rendered via the Sixel decoder.
+3. **ANSI/PCBoard** — rendered through the existing ANSI and PCBoard colour processors.
+4. **Plain text** — displayed as-is when no special encoding is detected.
+
+This applies to the dashboard ad box, the ad modal popup, and the full-page ad view.
+
+### Advertisements: Upload Improvements
+
+The advertisement upload form has been updated to reflect the full range of
+supported content types:
+
+- The accepted file extensions are now `.ans`, `.rip`, `.six`, and `.txt`.
+- The file size limit has been raised from 1 MB to **5 MB**.
+- Newly uploaded advertisements default to **dashboard display disabled**. Enable
+  "Show on Dashboard" explicitly after uploading if the ad should appear in the
+  dashboard rotation.
+
+### Activity Stats: Login Source Breakdown
+
+The Activity by Category table in the Activity Stats overview now expands the
+Auth row into sub-rows showing login counts broken down by source. Each distinct
+login source (`web`, `telnet`, `ssh`) appears as an indented sub-row with its
+own count and progress bar, making it easy to see how users are connecting to
+the BBS.
+
+## Telnet/SSH BBS Server
+
+### User Action Logging
+
+The terminal server now emits INFO-level action entries to `data/logs/telnetd.log`
+for every significant user action. Each line includes timestamp, PID, and
+username so a sysop can reconstruct how the BBS is being used. Logged events:
+
+| Area | Events Logged |
+|------|--------------|
+| Main menu | Navigation to each section |
+| Netmail | Message list viewed, individual message read, compose started, send success/failure |
+| Echomail | Area entered, message list viewed, individual message read, compose started, post success/failure |
+| Files | Area entered, subfolder entered, file detail viewed, download started/complete/failed, upload started/complete/error |
+| Doors | Door launched (by name) |
+| Shoutbox | Section entered, message posted/failed |
+| Polls | Poll detail viewed, vote cast/failed |
+
+Example log entries:
+
+```
+[2026-03-21 04:55:10] [12345] [INFO] Menu [johndoe]: johndoe -> Echomail
+[2026-03-21 04:55:11] [12345] [INFO] Action [johndoe]: Echomail: read message list for FIDONET.NODE@fidonet
+[2026-03-21 04:55:20] [12345] [INFO] Action [johndoe]: Echomail: read message #4821 in FIDONET.NODE@fidonet
+[2026-03-21 04:55:55] [12345] [INFO] Action [johndoe]: Echomail: posted message to FIDONET.NODE@fidonet subject="Re: Hello"
+[2026-03-21 04:56:40] [12345] [INFO] Action [johndoe]: Files: download complete somefile.zip
+```
+
+No configuration is required. Logging is active whenever the telnet/SSH daemon
+is running and `TELNETD_LOG_LEVEL` is `INFO` or lower (the default).
 
 ## Upgrade Instructions
 

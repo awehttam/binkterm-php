@@ -630,7 +630,7 @@ return [
     // Admin Ads
     'ui.admin.ads.load_failed_with_status' => 'No se pudieron cargar los anuncios ({status})',
     'ui.admin.ads.load_failed' => 'No se pudieron cargar los anuncios',
-    'ui.admin.ads.select_file_to_upload' => 'Seleccione un archivo ANSI para cargar.',
+    'ui.admin.ads.select_file_to_upload' => 'Seleccione un archivo de anuncio para cargar, o ingrese un comando de contenido.',
     'ui.admin.ads.upload_failed_with_status' => 'Fallo la carga ({status})',
     'ui.admin.ads.uploaded' => 'Anuncio cargado correctamente.',
     'ui.admin.ads.upload_failed' => 'Fallo la carga',
@@ -646,7 +646,7 @@ return [
     'ui.admin.ads.info_text_prefix' => 'Cargue anuncios ANSI (`.ans`) en el directorio',
     'ui.admin.ads.info_text_suffix' => '. Los anuncios se muestran aleatoriamente en el panel.',
     'ui.admin.ads.upload_new' => 'Cargar nuevo anuncio',
-    'ui.admin.ads.ansi_file' => 'Archivo ANSI (.ans)',
+    'ui.admin.ads.ansi_file' => 'Archivo de anuncio (.ans, .rip, .six, .txt)',
     'ui.admin.ads.ansi_content' => 'Contenido ANSI',
     'ui.admin.ads.slug_optional' => 'Slug (opcional)',
     'ui.admin.ads.slug' => 'Slug',

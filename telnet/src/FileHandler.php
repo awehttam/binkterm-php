@@ -133,6 +133,8 @@ class FileHandler
             if (ctype_digit($input)) {
                 $idx = (int)$input - 1;
                 if ($idx >= 0 && $idx < count($areas)) {
+                    $areaTag = $areas[$idx]['tag'] ?? '';
+                    $this->server->logAction($state['username'] ?? 'unknown', "Files: entered area {$areaTag}");
                     $this->showFiles($conn, $state, $session, $areas[$idx]);
                 }
             }
@@ -319,9 +321,12 @@ class FileHandler
                     $entry = $pageEntries[$idx];
                     if ($entry['type'] === 'folder') {
                         $currentSubfolder = (string)($entry['data']['subfolder'] ?? '');
+                        $this->server->logAction($state['username'] ?? 'unknown', "Files: entered subfolder {$areaTag}/{$currentSubfolder}");
                         $page             = 1;
                         $needsFetch       = true;
                     } else {
+                        $fname = $entry['data']['filename'] ?? '?';
+                        $this->server->logAction($state['username'] ?? 'unknown', "Files: viewed details for {$areaTag}/{$fname}");
                         $this->showFileDetail($conn, $state, $session, $entry['data'], $downloadAvailable);
                         $needsFetch = false;
                     }
@@ -614,16 +619,19 @@ class FileHandler
         sleep(1);
 
         $this->zdbg('download resolved path=' . $storagePath . ' name=' . $name . ' source_type=' . ($fileRecord['source_type'] ?? 'n/a'));
+        $this->server->logAction($state['username'] ?? 'unknown', "Files: download started {$name}");
         $ok = ZmodemTransfer::send($conn, $storagePath, $name, !$this->isSsh);
         $this->zdbg('download send result=' . ($ok ? 'ok' : 'fail') . ' name=' . $name);
 
         TelnetUtils::writeLine($conn, '');
         if ($ok) {
+            $this->server->logAction($state['username'] ?? 'unknown', "Files: download complete {$name}");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->t('ui.terminalserver.files.download_done', 'Transfer complete.', [], $locale),
                 TelnetUtils::ANSI_GREEN
             ));
         } else {
+            $this->server->logAction($state['username'] ?? 'unknown', "Files: download failed/cancelled {$name}");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->t('ui.terminalserver.files.download_failed', 'Transfer failed or was cancelled.', [], $locale),
                 TelnetUtils::ANSI_RED
@@ -684,6 +692,7 @@ class FileHandler
         ));
 
         $tmpDir   = sys_get_temp_dir();
+        $this->server->logAction($state['username'] ?? 'unknown', "Files: upload started to area " . ($area['tag'] ?? ''));
         $destPath = ZmodemTransfer::receive($conn, $tmpDir, !$this->isSsh);
         $this->zdbg('upload receive result=' . ($destPath !== null ? 'ok' : 'fail'));
 
@@ -725,6 +734,8 @@ class FileHandler
             $manager = new FileAreaManager();
             $fileId  = $manager->uploadFileFromPath($areaId, $destPath, $shortDesc, '', $username, $userId);
 
+            $uploadedName = basename($destPath);
+            $this->server->logAction($state['username'] ?? 'unknown', "Files: upload complete to area " . ($area['tag'] ?? '') . " file_id={$fileId}");
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->t('ui.terminalserver.files.upload_done', 'File uploaded successfully (ID: {id}).', ['id' => $fileId], $locale),
@@ -733,6 +744,7 @@ class FileHandler
         } catch (\Exception $e) {
             @unlink($destPath);
             $errorMessage = $this->localizeUploadError($e->getMessage(), $locale);
+            $this->server->logAction($state['username'] ?? 'unknown', "Files: upload error to area " . ($area['tag'] ?? '') . ": {$errorMessage}");
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->t('ui.terminalserver.files.upload_error', 'Upload error: {error}', ['error' => $errorMessage], $locale),

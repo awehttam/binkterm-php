@@ -358,6 +358,138 @@ function looksLikeRipScript(text) {
     return ripLineCount > 0 && supportedCommandCount > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Shared RIPscrip renderer — used by the ad box and any other non-echomail
+// page that needs to render RIP content from raw text (not a URL).
+// ---------------------------------------------------------------------------
+
+let _sharedRiptermLoaderPromise = null;
+
+/**
+ * Lazily load the RIPterm JavaScript libraries (BGI.js + ripterm.js).
+ * Uses script-tag deduplication so the files are only ever fetched once even
+ * when called from multiple callers on the same page.
+ *
+ * @returns {Promise<void>}
+ */
+function loadRiptermForContent() {
+    if (_sharedRiptermLoaderPromise) return _sharedRiptermLoaderPromise;
+    if (window.RIPterm && window.BGI) {
+        _sharedRiptermLoaderPromise = Promise.resolve();
+        return _sharedRiptermLoaderPromise;
+    }
+
+    function _loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[data-ripterm-src="${src}"]`);
+            if (existing) {
+                if (existing.dataset.loaded === 'true') { resolve(); return; }
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.dataset.riptermSrc = src;
+            script.addEventListener('load', () => { script.dataset.loaded = 'true'; resolve(); }, { once: true });
+            script.addEventListener('error', reject, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    _sharedRiptermLoaderPromise = _loadScript('/vendor/riptermjs/BGI.js')
+        .then(() => _loadScript('/vendor/riptermjs/ripterm.js'));
+    return _sharedRiptermLoaderPromise;
+}
+
+/**
+ * Render a RIPscrip text payload into a DOM container element.
+ * Shows a spinner while loading, then replaces it with the rendered canvas.
+ *
+ * @param {HTMLElement} container
+ * @param {string}      ripText   Raw RIPscrip content
+ */
+function renderRipContent(container, ripText) {
+    const canvasId = `ripCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    container.innerHTML = `
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:70vh;padding:8px;text-align:center;background:#0a0a0a;border-radius:6px;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+    `;
+    loadRiptermForContent()
+        .then(async () => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+            const loading = container.querySelector('[data-rip-loading]');
+            const stage   = container.querySelector('[data-rip-stage]');
+            if (loading) loading.remove();
+            if (stage)   stage.classList.remove('d-none');
+        })
+        .catch((err) => {
+            console.error('RIP render failed:', err);
+            container.innerHTML = '<div class="alert alert-danger m-3">Failed to render RIPscrip content.</div>';
+        });
+}
+
+/**
+ * Render ad content using the same multimodal pipeline as the echomail viewer:
+ * RIPscrip → Sixel → ANSI/PCBoard/plain.
+ *
+ * Requires sixel.js and pcboard.js to be loaded on the page before calling.
+ *
+ * @param {HTMLElement} container Target element (will be replaced with rendered output)
+ * @param {string}      content   Raw ad content string
+ */
+function renderAdContent(container, content) {
+    if (!content || content.trim() === '') {
+        container.innerHTML = '';
+        return;
+    }
+
+    // RIPscrip
+    if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(content)) {
+        renderRipContent(container, content);
+        return;
+    }
+
+    // Sixel
+    if (typeof looksLikeSixel === 'function' && looksLikeSixel(content)) {
+        if (typeof renderSixelChunks === 'function') {
+            renderSixelChunks(container, content, function (chunk) {
+                return formatMessageBodyForDisplay({}, chunk, []);
+            });
+            return;
+        }
+    }
+
+    // ANSI / PCBoard / plain
+    const html = formatMessageBodyForDisplay({}, content, []);
+    container.innerHTML = '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    while (tmp.firstChild) container.appendChild(tmp.firstChild);
+}
+
 function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
     const text = bodyText || '';
     let forcePlainText = !!forcePlain;

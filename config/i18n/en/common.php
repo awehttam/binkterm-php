@@ -630,7 +630,7 @@ return [
     // Admin Ads
     'ui.admin.ads.load_failed_with_status' => 'Failed to load ads ({status})',
     'ui.admin.ads.load_failed' => 'Failed to load ads',
-    'ui.admin.ads.select_file_to_upload' => 'Select an ANSI file to upload.',
+    'ui.admin.ads.select_file_to_upload' => 'Select an advertisement file to upload, or enter a content command.',
     'ui.admin.ads.upload_failed_with_status' => 'Upload failed ({status})',
     'ui.admin.ads.uploaded' => 'Advertisement uploaded.',
     'ui.admin.ads.upload_failed' => 'Upload failed',
@@ -646,7 +646,7 @@ return [
     'ui.admin.ads.info_text_prefix' => 'Upload ANSI ads (`.ans`) to the',
     'ui.admin.ads.info_text_suffix' => 'directory. Ads are displayed randomly on the dashboard.',
     'ui.admin.ads.upload_new' => 'Upload New Advertisement',
-    'ui.admin.ads.ansi_file' => 'ANSI File (.ans)',
+    'ui.admin.ads.ansi_file' => 'Advertisement File (.ans, .rip, .six, .txt)',
     'ui.admin.ads.ansi_content' => 'ANSI Content',
     'ui.admin.ads.slug_optional' => 'Slug (optional)',
     'ui.admin.ads.slug' => 'Slug',

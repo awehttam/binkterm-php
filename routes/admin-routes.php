@@ -2331,7 +2331,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             if ($hasFile) {
                 $file = $_FILES['ad_file'];
-                $maxSize = 1024 * 1024;
+                $maxSize = 5 * 1024 * 1024;
                 if (!empty($file['size']) && $file['size'] > $maxSize) {
                     http_response_code(400);
                     apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
@@ -3588,6 +3588,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
         }
 
+        // Login breakdown by source (object_name: 'web', 'telnet', 'ssh', etc.)
+        $loginSourceStmt = $db->query("
+            SELECT COALESCE(object_name, 'web') AS source, COUNT(*) AS cnt
+            FROM user_activity_log ual
+            WHERE activity_type_id = 13 {$dateFilter}{$adminFilter}
+            GROUP BY COALESCE(object_name, 'web')
+            ORDER BY cnt DESC
+        ");
+        $loginBySource = [];
+        foreach ($loginSourceStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $loginBySource[$row['source']] = (int)$row['cnt'];
+        }
+
         // Popular echoareas (views and posts)
         $echoAreasStmt = $db->query("
             SELECT object_name AS name,
@@ -3761,6 +3774,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'netmail_reads'  => $byType[3] ?? 0,
                     'netmail_sends'  => $byType[4] ?? 0,
                 ],
+                'login_by_source' => $loginBySource,
             ],
             'popular_echoareas'     => $popularEchoareas,
             'popular_webdoors'      => $popularWebdoors,

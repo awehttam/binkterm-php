@@ -48,6 +48,7 @@ class NetmailHandler
      */
     public function show($conn, array &$state, string $session): void
     {
+        $this->server->logAction($state['username'] ?? 'unknown', "Netmail: read message list");
         $savedState = $this->loadSavedListState($session);
         $page          = $savedState['page'];
         $perPage       = MailUtils::getMessagesPerPage($state);
@@ -126,6 +127,8 @@ class NetmailHandler
      */
     public function compose($conn, array &$state, string $session, ?array $reply = null): void
     {
+        $action = $reply ? "Netmail: composing reply to msg #{$reply['id']}" : "Netmail: composing new message";
+        $this->server->logAction($state['username'] ?? 'unknown', $action);
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, '');
@@ -269,8 +272,10 @@ class NetmailHandler
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.sending', 'Sending netmail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
+            $this->server->logAction($state['username'] ?? 'unknown', "Netmail: sent message to {$toName} subject=\"{$subject}\"");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.send_success', '✓ Netmail sent successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {
+            $this->server->logAction($state['username'] ?? 'unknown', "Netmail: failed to send to {$toName}: " . ($result['error'] ?? 'unknown'));
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.send_failed', '✗ Failed to send netmail: {error}', ['error' => $result['error'] ?? 'Unknown error'], $state['locale']), TelnetUtils::ANSI_RED));
         }
         TelnetUtils::writeLine($conn, '');
@@ -302,6 +307,7 @@ class NetmailHandler
                 return [$page, $index];
             }
 
+            $this->server->logAction($state['username'] ?? 'unknown', "Netmail: read message #{$id}");
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
             $body         = $detail['data']['message_text'] ?? '';
             $markupFormat = $detail['data']['markup_format'] ?? null;

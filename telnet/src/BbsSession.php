@@ -515,22 +515,30 @@ class BbsSession
             if ($choice === '' || $choice === null) { break; }
 
             if ($choice === 'n') {
+                $this->log("Menu: {$username} -> Netmail");
                 $netmailHandler->show($conn, $state, $session);
                 $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
             } elseif ($choice === 'e') {
+                $this->log("Menu: {$username} -> Echomail");
                 $echomailHandler->showEchoareas($conn, $state, $session);
                 $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
             } elseif (!empty($shoutboxOption) && $choice === $shoutboxOption) {
+                $this->log("Menu: {$username} -> Shoutbox");
                 $shoutboxHandler->show($conn, $state, $session, 20);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
+                $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);
             } elseif (!empty($doorsOption) && $choice === $doorsOption) {
+                $this->log("Menu: {$username} -> Door Games");
                 $doorHandler->show($conn, $state, $session);
             } elseif (!empty($filesOption) && $choice === $filesOption) {
+                $this->log("Menu: {$username} -> Files");
                 $fileHandler->show($conn, $state, $session);
             } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
+                $this->log("Menu: {$username} -> Who's Online");
                 $this->showWhosOnline($conn, $state, $session);
             } elseif ($choice === 't') {
+                $this->log("Menu: {$username} -> Terminal Settings");
                 $terminalSettingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
                 TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
@@ -2007,6 +2015,20 @@ class BbsSession
     private function log(string $message): void
     {
         $this->logger?->info($message);
+    }
+
+    /**
+     * Log a user action from a handler class.
+     *
+     * Handlers receive a BbsSession reference and call this to emit
+     * INFO-level action entries to the session log file.
+     *
+     * @param string $username The authenticated username
+     * @param string $action   A short action description, e.g. "Echomail: read area FIDONET.NODE"
+     */
+    public function logAction(string $username, string $action): void
+    {
+        $this->logger?->info("Action [{$username}]: {$action}");
     }
 
     /**

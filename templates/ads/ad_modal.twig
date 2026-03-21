@@ -7,9 +7,7 @@
             </div>
             <div class="modal-body">
                 {% if ad %}
-                    <div class="ansi-art-container">
-                        <pre class="ansi-art" id="{{ modal_id }}Ansi">{{ ad.content }}</pre>
-                    </div>
+                    <div id="{{ modal_id }}AdContainer" class="w-100" style="overflow: hidden;" data-ad-content="{{ ad.content|e('html_attr') }}"></div>
                 {% else %}
                     <p class="text-muted mb-0">{{ t('ui.ads.none_available', {}, locale, ['common']) }}</p>
                 {% endif %}
@@ -18,6 +16,9 @@
     </div>
 </div>
 
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const modalEl = document.getElementById('{{ modal_id }}');
@@ -26,28 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     modalEl.addEventListener('shown.bs.modal', () => {
-        const pre = document.getElementById('{{ modal_id }}Ansi');
-        if (!pre || pre.dataset.rendered) {
+        const container = document.getElementById('{{ modal_id }}AdContainer');
+        if (!container || container.dataset.rendered) {
             return;
         }
-
-        const renderAd = () => {
-            if (typeof renderAnsiTerminal !== 'function') {
-                return;
-            }
-            pre.innerHTML = renderAnsiTerminal(pre.textContent);
-            pre.dataset.rendered = 'true';
-        };
-
-        if (typeof renderAnsiTerminal === 'function') {
-            renderAd();
-            return;
+        container.dataset.rendered = 'true';
+        const content = container.dataset.adContent || '';
+        if (typeof renderAdContent === 'function') {
+            renderAdContent(container, content);
         }
-
-        const script = document.createElement('script');
-        script.src = '/js/ansisys.js';
-        script.onload = renderAd;
-        document.body.appendChild(script);
     });
 });
 </script>

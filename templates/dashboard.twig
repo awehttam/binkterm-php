@@ -107,9 +107,7 @@
             </div>
             <div class="card-body d-flex flex-column align-items-center">
                 <div class="fw-semibold mb-2 text-center" id="dashboardAdTitle">{{ dashboard_ad.title }}</div>
-                <div class="ansi-art-container w-100" style="overflow: hidden;">
-                    <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
-                </div>
+                <div id="dashboardAdContainer" class="w-100" style="overflow: hidden;"></div>
                 {% if dashboard_ads|length > 1 %}
                 <div class="small text-muted mt-2" id="dashboardAdPosition"></div>
                 {% endif %}
@@ -243,6 +241,9 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
 <script>
 let votingPolls = [];
 let votingPollIndex = 0;
@@ -283,7 +284,6 @@ $(document).ready(function() {
     renderDashboardAd();
     updateDashboardAdPosition();
 
-    window.addEventListener('resize', scaleDashboardAd);
     });
 
     // Refresh dashboard data every 30 seconds (but not system news)
@@ -641,60 +641,18 @@ function copyReferralLink(button, evt) {
     }
 }
 
-function scaleDashboardAd() {
-    const pre = document.getElementById('dashboardAdAnsi');
-    if (!pre) {
-        return;
-    }
-    const container = pre.closest('.ansi-art-container');
+function renderDashboardAd() {
+    const container = document.getElementById('dashboardAdContainer');
     if (!container) {
         return;
     }
 
-    // Reset transform to measure natural dimensions
-    pre.style.transform = '';
-    pre.style.transformOrigin = '';
-    container.style.height = '';
-
-    const containerWidth = container.clientWidth;
-    const naturalWidth = pre.scrollWidth;
-
-    if (naturalWidth > 0 && containerWidth > 0 && naturalWidth > containerWidth) {
-        const scale = containerWidth / naturalWidth;
-        pre.style.transform = `scale(${scale})`;
-        pre.style.transformOrigin = 'top left';
-        // Collapse container height to match scaled content
-        container.style.height = (pre.scrollHeight * scale) + 'px';
-    }
-}
-
-function renderDashboardAd() {
-    const pre = document.getElementById('dashboardAdAnsi');
-    if (!pre) {
+    const current = dashboardAds[dashboardAdIndex];
+    if (!current) {
         return;
     }
 
-    const renderAd = () => {
-        if (typeof renderAnsiTerminal !== 'function') {
-            return;
-        }
-        let rendered = renderAnsiTerminal(pre.textContent);
-        if (typeof linkifyUrls === 'function') {
-            rendered = linkifyUrls(rendered);
-        }
-        pre.innerHTML = rendered;
-        requestAnimationFrame(scaleDashboardAd);
-    };
-
-    if (typeof renderAnsiTerminal === 'function') {
-        renderAd();
-        return;
-    }
-
-    const script = document.createElement('script');
-    script.src = '/js/ansisys.js';
-    script.onload = renderAd;
-    document.body.appendChild(script);
+    renderAdContent(container, current.content || '');
 }
 
 function updateDashboardAdPosition() {
@@ -716,16 +674,14 @@ function showDashboardAd(delta) {
 
     dashboardAdIndex = (dashboardAdIndex + delta + dashboardAds.length) % dashboardAds.length;
     const current = dashboardAds[dashboardAdIndex];
-    const pre = document.getElementById('dashboardAdAnsi');
     const title = document.getElementById('dashboardAdTitle');
-    if (!pre || !current) {
+    if (!current) {
         return;
     }
 
     if (title) {
         title.textContent = current.title || '';
     }
-    pre.textContent = current.content || '';
     renderDashboardAd();
     updateDashboardAdPosition();
 }
