@@ -505,8 +505,18 @@ class RepProcessor
             $toName = 'Sysop';
         }
 
-        // Resolve to-address: prefer original message from_address via message map.
-        $toAddress = $this->resolveNetmailToAddress($toName, (int)$msg['reply_to_num'], $messageMap);
+        // Allow "User Name@zone:net/node[.point]" in the To field as a way to
+        // specify the FTN destination address when composing new netmail via QWK.
+        $embeddedAddress = null;
+        if (preg_match('/^(.*?)@(\d+:\d+\/\d+(?:\.\d+)?)$/', $toName, $m)) {
+            $embeddedAddress = $m[2];
+            $toName          = $m[1] !== '' ? trim($m[1]) : 'Sysop';
+        }
+
+        // Resolve to-address: embedded address takes priority, then message map
+        // (for replies to received netmail), then fall back to system address.
+        $toAddress = $embeddedAddress
+            ?? $this->resolveNetmailToAddress($toName, (int)$msg['reply_to_num'], $messageMap);
 
         // Find the internal reply-to message ID via the message map.
         $replyToId = $this->resolveReplyToId((int)$msg['reply_to_num'], 'netmail', $messageMap);
