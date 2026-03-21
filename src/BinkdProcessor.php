@@ -1726,7 +1726,7 @@ class BinkdProcessor
             $messageText .= "\r\n";
         }
         $messageText.="\r\n";
-        $messageText .= Version::getTearline() . "\r\n";
+        $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r\n";
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
