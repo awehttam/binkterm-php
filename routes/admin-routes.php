@@ -5122,6 +5122,107 @@ SimpleRouter::post('/admin/api/lovlynet/hatch-file', function() {
 });
 
 /**
+ * GET /admin/api/lovlynet/registration
+ * Return the local LovlyNet registration status and BinkpConfig defaults for the update form.
+ */
+SimpleRouter::get('/admin/api/lovlynet/registration', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $status = $client->getRegistrationStatus();
+
+    if (!$status['success']) {
+        http_response_code(404);
+        echo json_encode([
+            'error_code' => 'errors.admin.lovlynet.not_registered',
+            'error'      => $status['error'],
+        ]);
+        return;
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+    echo json_encode([
+        'ftn_address'   => $status['ftn_address'],
+        'hub_address'   => $status['hub_address'],
+        'registered_at' => $status['registered_at'],
+        'updated_at'    => $status['updated_at'],
+        'defaults' => [
+            'system_name' => $binkpConfig->getSystemName(),
+            'sysop_name'  => $binkpConfig->getSystemSysop(),
+            'hostname'    => $binkpConfig->getSystemHostname(),
+            'binkp_port'  => $binkpConfig->getBinkpPort(),
+            'site_url'    => \BinktermPHP\Config::getSiteUrl(),
+        ],
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/update-registration
+ * Update this node's registration with the LovlyNet registry.
+ *
+ * Body: { "system_name": "...", "sysop_name": "...", "hostname": "...",
+ *         "binkp_port": 24554, "site_url": "...", "is_passive": false }
+ */
+SimpleRouter::post('/admin/api/lovlynet/update-registration', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload', $user),
+            400
+        );
+        return;
+    }
+
+    $systemName = trim((string)($data['system_name'] ?? ''));
+    $sysopName  = trim((string)($data['sysop_name']  ?? ''));
+    $hostname   = trim((string)($data['hostname']    ?? ''));
+    $siteUrl    = trim((string)($data['site_url']    ?? ''));
+    $binkpPort  = (int)($data['binkp_port'] ?? 0);
+    $isPassive  = (bool)($data['is_passive'] ?? false);
+
+    if ($systemName === '' || $sysopName === '' || $hostname === '') {
+        apiError(
+            'errors.admin.lovlynet.registration_update_failed',
+            apiLocalizedText('errors.admin.lovlynet.registration_update_failed', 'Registration update failed', $user),
+            400
+        );
+        return;
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $client->updateRegistration([
+        'system_name' => $systemName,
+        'sysop_name'  => $sysopName,
+        'hostname'    => $hostname,
+        'binkp_port'  => $binkpPort,
+        'site_url'    => $siteUrl,
+        'is_passive'  => $isPassive,
+    ]);
+
+    if (!$result['success']) {
+        apiError(
+            'errors.admin.lovlynet.registration_update_failed',
+            $result['error'] ?? apiLocalizedText('errors.admin.lovlynet.registration_update_failed', 'Registration update failed', $user),
+            502
+        );
+        return;
+    }
+
+    $regData = $result['data']['data'] ?? $result['data'] ?? [];
+    if (!$client->saveRegistrationUpdate($regData)) {
+        error_log('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
  * GET /admin/api/zip-diag?id=FILE_ID&path=ENTRY_PATH
  * Diagnostic: test whether a ZIP entry can be extracted via ZipArchive or unzip.
  */

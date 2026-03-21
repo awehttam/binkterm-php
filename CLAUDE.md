@@ -249,6 +249,8 @@ The `getSiteUrl()` method:
 The admin daemon (scripts/admin_daemon.php) is a critical system management component.  It provides an API to the web interface
 for retrieving and setting configuration elements through various commands as well as polling and other tasks.
 
+**CRITICAL: The web server process cannot write config files.** The web server runs as a restricted user without write access to `config/` or other config locations. Any feature that needs to write or modify a config file (e.g. `config/lovlynet.json`, `config/binkp.json`, `data/bbs.json`) **must** do so via a command to the admin daemon — never by calling `file_put_contents()` or similar directly from a route or controller. The admin daemon runs as a user with the appropriate permissions to write those files.
+
 When adding new configuration settings you'll be working with the configuration daemon that performs the actual work.  The web interface will make an API request.
 
 You may need to add new commands, or update existing ones depending on the context of the setting being added.  Be sure to clarify and confirm this.

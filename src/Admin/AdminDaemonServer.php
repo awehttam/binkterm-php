@@ -577,6 +577,20 @@ class AdminDaemonServer
                     $ns     = (string)($data['ns'] ?? '');
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getI18nOverlay($locale, $ns)]);
                     break;
+                case 'save_lovlynet_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->saveLovlyNetConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'save_i18n_overlay':
                     $locale    = (string)($data['locale'] ?? '');
                     $ns        = (string)($data['ns'] ?? '');
@@ -1047,6 +1061,23 @@ class AdminDaemonServer
             'config_json' => $configJson,
             'example_json' => $exampleJson
         ];
+    }
+
+    private function saveLovlyNetConfig(array $config): void
+    {
+        $configPath = __DIR__ . '/../../config/lovlynet.json';
+        $backupPath = dirname($configPath) . '/lovlynet_' . date('Ymd_His') . '.json';
+
+        if (file_exists($configPath)) {
+            @copy($configPath, $backupPath);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode LovlyNet config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
     }
 
     private function writeWebdoorsConfig(array $config): void

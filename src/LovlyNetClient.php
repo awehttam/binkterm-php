@@ -252,6 +252,106 @@ class LovlyNetClient
     }
 
     /**
+     * Return the local registration status for display.
+     *
+     * Returns only non-sensitive fields (api_key is intentionally excluded).
+     *
+     * @return array{success:bool, ftn_address?:string, hub_address?:string, registered_at?:string, updated_at?:string, error?:string}
+     */
+    public function getRegistrationStatus(): array
+    {
+        $cfg = self::loadConfig();
+
+        if (empty($cfg)) {
+            return ['success' => false, 'error' => 'Not registered with LovlyNet'];
+        }
+
+        return [
+            'success'       => true,
+            'ftn_address'   => (string)($cfg['ftn_address']   ?? ''),
+            'hub_address'   => (string)($cfg['hub_address']   ?? ''),
+            'registered_at' => (string)($cfg['registered_at'] ?? ''),
+            'updated_at'    => (string)($cfg['updated_at']    ?? ''),
+        ];
+    }
+
+    /**
+     * Update this node's registration with the LovlyNet registry.
+     *
+     * Sends a POST to /api/register.php with the node_id in the body and
+     * X-API-Key in the header.  On success the caller should persist the
+     * returned data to config/lovlynet.json.
+     *
+     * @param  array $data  Keys: system_name, sysop_name, hostname, binkp_port, site_url, is_passive
+     * @return array{success:bool, data?:array, error?:string}
+     */
+    public function updateRegistration(array $data): array
+    {
+        $cfg = self::loadConfig();
+
+        if (empty($cfg['node_id']) || empty($cfg['api_key'])) {
+            return ['success' => false, 'error' => 'Not registered with LovlyNet'];
+        }
+
+        $payload = [
+            'node_id'     => $cfg['node_id'],
+            'system_name' => (string)($data['system_name'] ?? ''),
+            'sysop_name'  => (string)($data['sysop_name']  ?? ''),
+            'hostname'    => (string)($data['hostname']     ?? ''),
+            'binkp_port'  => (int)($data['binkp_port']      ?? 24554),
+            'site_url'    => (string)($data['site_url']     ?? ''),
+            'is_passive'  => (bool)($data['is_passive']     ?? false),
+            'system_info' => [
+                'software'    => \BinktermPHP\Version::getFullVersion(),
+                'php_version' => PHP_VERSION,
+            ],
+        ];
+
+        $registryUrl = 'https://' . ($cfg['hub_hostname'] ?? 'lovlynet.lovelybits.org') . '/api/register.php';
+
+        return $this->post($registryUrl, $payload);
+    }
+
+    /**
+     * Save updated registration data back to config/lovlynet.json.
+     *
+     * A timestamped backup (lovlynet_YYYYMMDD_HHMMSS.json) is written before
+     * overwriting the live file.  Only fields returned by the registry are
+     * updated; everything else (passwords already set, tic_password, etc.) is
+     * preserved as-is.
+     *
+     * @param  array $regData  The 'data' sub-array from a successful updateRegistration() call
+     * @return bool
+     */
+    public function saveRegistrationUpdate(array $regData): bool
+    {
+        $cfg = self::loadConfig();
+        if (empty($cfg)) {
+            return false;
+        }
+
+        foreach (['ftn_address', 'hub_address', 'hub_hostname', 'hub_port', 'binkp_password', 'areafix_password'] as $key) {
+            if (isset($regData[$key])) {
+                $cfg[$key] = $regData[$key];
+            }
+        }
+
+        $cfg['updated_at'] = date('c');
+
+        self::$config = $cfg;
+
+        $json = json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return false;
+        }
+
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        $result = $daemonClient->saveLovlyNetConfig($json);
+
+        return (bool)($result['ok'] ?? false);
+    }
+
+    /**
      * Retrieve the remote AreaFix help text for this node.
      *
      * @return array{success:bool, help?:string, error?:string}

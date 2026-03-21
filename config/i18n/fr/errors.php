@@ -412,6 +412,8 @@ return [
     // LovlyNet
     'errors.admin.lovlynet.filearea_files_failed' => 'Échec du chargement des fichiers de la zone de fichiers',
     'errors.admin.lovlynet.hatch_failed' => 'Échec du Hatch du fichier',
+    'errors.admin.lovlynet.not_registered' => 'Non enregistré sur LovlyNet',
+    'errors.admin.lovlynet.registration_update_failed' => 'Échec de la mise à jour de l\'enregistrement',
     'errors.admin.lovlynet.help_fetch_failed' => 'Échec du chargement du texte d\'aide',
     'errors.admin.lovlynet.invalid_area_type' => 'Type de zone invalide',
     'errors.admin.lovlynet.invalid_file_id' => 'Identifiant de fichier invalide',

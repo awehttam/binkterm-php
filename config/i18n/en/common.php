@@ -3598,6 +3598,26 @@ return [
     'ui.admin.lovlynet.sync_hatch_success' => 'File hatched to LovlyNet',
     'ui.admin.lovlynet.sync_hatch_failed' => 'Failed to hatch file',
 
+    // LovlyNet Setup tab
+    'ui.admin.lovlynet.tab_setup' => 'LovlyNet Setup',
+    'ui.admin.lovlynet.setup_status_title' => 'Registration Status',
+    'ui.admin.lovlynet.setup_ftn_address' => 'FTN Address',
+    'ui.admin.lovlynet.setup_hub_address' => 'Hub Address',
+    'ui.admin.lovlynet.setup_registered_at' => 'Registered',
+    'ui.admin.lovlynet.setup_updated_at' => 'Last Updated',
+    'ui.admin.lovlynet.setup_update_title' => 'Update Registration',
+    'ui.admin.lovlynet.setup_system_name' => 'System Name',
+    'ui.admin.lovlynet.setup_sysop_name' => 'Sysop Name',
+    'ui.admin.lovlynet.setup_hostname' => 'Hostname',
+    'ui.admin.lovlynet.setup_binkp_port' => 'Binkp Port',
+    'ui.admin.lovlynet.setup_site_url' => 'Site URL',
+    'ui.admin.lovlynet.setup_is_passive' => 'Passive node (poll-only, no inbound connections)',
+    'ui.admin.lovlynet.setup_update_warning' => 'Updating your registration will briefly unsubscribe and re-subscribe you to the default LovlyNet areas. Manually-subscribed areas are not affected.',
+    'ui.admin.lovlynet.setup_update_btn' => 'Update Registration',
+    'ui.admin.lovlynet.setup_update_ok' => 'Registration updated successfully',
+    'ui.admin.lovlynet.setup_update_failed' => 'Failed to update registration',
+    'ui.admin.lovlynet.setup_load_failed' => 'Failed to load registration status',
+
     // Public file areas index page
     'ui.public_files.title' => 'Public File Areas',
     'ui.public_files.heading' => 'Public File Areas',

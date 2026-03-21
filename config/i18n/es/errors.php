@@ -532,6 +532,8 @@ return [
     'errors.admin.lovlynet.filearea_files_failed' => 'No se pudieron cargar los archivos del área',
     'errors.admin.lovlynet.invalid_file_id' => 'ID de archivo no válido',
     'errors.admin.lovlynet.hatch_failed' => 'No se pudo enviar el archivo',
+    'errors.admin.lovlynet.not_registered' => 'No registrado en LovlyNet',
+    'errors.admin.lovlynet.registration_update_failed' => 'Error al actualizar el registro',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'El correo sin conexion QWK no esta habilitado en este sistema',
