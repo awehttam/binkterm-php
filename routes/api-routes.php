@@ -6684,9 +6684,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echomailCount = 0;
         }
 
+        // File transfer counts from activity log (type 6 = download, 7 = upload)
+        $fileStmt = $db->prepare("
+            SELECT activity_type_id, COUNT(*) AS count
+            FROM user_activity_log
+            WHERE user_id = ? AND activity_type_id IN (6, 7)
+            GROUP BY activity_type_id
+        ");
+        $fileStmt->execute([$user['user_id']]);
+        $fileCounts = [6 => 0, 7 => 0];
+        foreach ($fileStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $fileCounts[(int)$row['activity_type_id']] = (int)$row['count'];
+        }
+
         echo json_encode([
-            'netmail_count' => (int)$netmailCount,
-            'echomail_count' => (int)$echomailCount
+            'netmail_count'    => (int)$netmailCount,
+            'echomail_count'   => (int)$echomailCount,
+            'files_downloaded' => $fileCounts[6],
+            'files_uploaded'   => $fileCounts[7],
         ]);
     });
 
@@ -6733,9 +6748,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echomailCount = $echomailStmt->fetch()['count'];
         }
 
+        // File transfer counts from activity log (type 6 = download, 7 = upload)
+        $fileStmt = $db->prepare("
+            SELECT activity_type_id, COUNT(*) AS count
+            FROM user_activity_log
+            WHERE user_id = ? AND activity_type_id IN (6, 7)
+            GROUP BY activity_type_id
+        ");
+        $fileStmt->execute([$userId]);
+        $fileCounts = [6 => 0, 7 => 0];
+        foreach ($fileStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $fileCounts[(int)$row['activity_type_id']] = (int)$row['count'];
+        }
+
         echo json_encode([
-            'netmail_count' => (int)$netmailCount,
-            'echomail_count' => (int)$echomailCount
+            'netmail_count'    => (int)$netmailCount,
+            'echomail_count'   => (int)$echomailCount,
+            'files_downloaded' => $fileCounts[6],
+            'files_uploaded'   => $fileCounts[7],
         ]);
     });
 

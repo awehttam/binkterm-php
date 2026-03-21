@@ -14,6 +14,12 @@
   - [QWKE Subject Extended Header in REP Packets](#qwke-subject-extended-header-in-rep-packets)
   - [QWKE From/To Headers No Longer Include FTN Address](#qwke-fromto-headers-no-longer-include-ftn-address)
   - [FTN Address in To Field for New Netmail](#ftn-address-in-to-field-for-new-netmail)
+- [Web Interface](#web-interface)
+  - [Dashboard: Today's Callers](#dashboard-todays-callers)
+  - [Profile: Your Network Information](#profile-your-network-information)
+  - [Profile: File Transfer Stats](#profile-file-transfer-stats)
+  - [Settings: Sidebar Removed](#settings-sidebar-removed)
+  - [ANSI Renderer: Debug Font Override](#ansi-renderer-debug-font-override)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -25,6 +31,13 @@
 
 **FTN Networking**
 - BinkP now handles exported socket timeouts more consistently during handshake reads.
+
+**Web Interface**
+- Sysops now see a "Today's Callers" list in the dashboard System Information box.
+- The profile page System Information box has been replaced with a "Your Network Information" card showing configured networks and a "Show Netmail Addresses" modal.
+- The profile Activity Summary now includes files downloaded, files uploaded, and a download/upload ratio.
+- The user settings page sidebar (System Status, Quick Actions, Help & Support) has been removed.
+- A `DEBUG_ANSI_NOT_PERFECT` environment variable can be set to `true` to disable the Perfect DOS VGA 437 font override on ANSI art, useful for testing how art looks in the user's existing monospace font.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -124,6 +137,55 @@ FTN nodes directly from their QWK reader.
 Replies to received netmail continue to resolve the destination via the message
 index as before; this convention applies only to new messages with no reply
 reference.
+
+## Web Interface
+
+### Dashboard: Today's Callers
+
+Sysops (admin users) now see a "Today's Callers" entry at the bottom of the
+System Information card on the dashboard. It lists every distinct user who has
+had an active session since midnight, along with their most recent activity time.
+Non-admin users do not see this field.
+
+### Profile: Your Network Information
+
+The "System Information" card on the user profile page has been replaced with
+"Your Network Information". It displays the configured FTN networks in a compact
+two-per-row grid (network badge and node address side by side). A "Show Netmail
+Addresses" button opens a modal table with "Network Name" and "Network Address"
+columns, where the address is formatted as `RealName@zone:net/node` for direct
+copy-paste use.
+
+### Profile: File Transfer Stats
+
+The Activity Summary card on the profile page now includes three additional rows:
+
+- **Files Downloaded** — count of file download events from the activity log.
+- **Files Uploaded** — count of file upload events from the activity log.
+- **D/L Ratio** — downloads divided by uploads (e.g. `2.50:1`), or N/A when no
+  transfers have occurred.
+
+These counts are sourced from the `user_activity_log` table.
+
+### Settings: Sidebar Removed
+
+The user settings page previously showed a right-hand sidebar containing System
+Status (BinkP online indicator, last poll time, messages today), Quick Actions
+(compose netmail/echomail links), and Help & Support (GitHub links). These boxes
+have been removed. The main settings content now uses the full page width.
+
+### ANSI Renderer: Debug Font Override
+
+A new environment variable `DEBUG_ANSI_NOT_PERFECT` can be added to `.env` to
+test how ANSI art looks without the Perfect DOS VGA 437 font override:
+
+```
+DEBUG_ANSI_NOT_PERFECT=true
+```
+
+When set to `true`, the `.ansi-art` CSS font-family is reset to `inherit`, so
+art renders in whatever monospace font the rest of the page uses. Set to `false`
+or remove the variable to restore the default behaviour.
 
 ## Upgrade Instructions
 
