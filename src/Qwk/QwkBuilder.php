@@ -140,14 +140,20 @@ class QwkBuilder
     }
 
     /**
-     * Derive the 8-character BBSID from the system name.
+     * Return the 8-character BBSID.
      *
-     * Strips everything that is not an ASCII letter or digit, uppercases,
-     * and truncates to 8 characters.  Falls back to "BINKTERM" if the
-     * system name contains no usable characters.
+     * Uses the configured value from bbs.json (qwk.bbs_id) when set.
+     * Falls back to deriving it from the system name: strips everything that
+     * is not an ASCII letter or digit, uppercases, and truncates to 8
+     * characters.  Falls back to "BINKTERM" if no usable characters remain.
      */
     public function getBbsId(): string
     {
+        $configured = trim((string)(\BinktermPHP\BbsConfig::getConfig()['qwk']['bbs_id'] ?? ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
         $name = $this->binkpConfig->getSystemName();
         $id   = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name));
         $id   = substr($id, 0, 8);

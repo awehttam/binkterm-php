@@ -14,6 +14,7 @@
   - [QWKE Subject Extended Header in REP Packets](#qwke-subject-extended-header-in-rep-packets)
   - [QWKE From/To Headers No Longer Include FTN Address](#qwke-fromto-headers-no-longer-include-ftn-address)
   - [FTN Address in To Field for New Netmail](#ftn-address-in-to-field-for-new-netmail)
+  - [Configurable QWK BBS ID](#configurable-qwk-bbs-id)
 - [Web Interface](#web-interface)
   - [Dashboard: Today's Callers](#dashboard-todays-callers)
   - [Profile: Your Network Information](#profile-your-network-information)
@@ -59,6 +60,7 @@
 - REP packet processing now reads QWKE plain-text `Subject:` headers from the message body, fixing subject truncation to 25 characters for clients such as MultiMail.
 - QWKE outgoing `From:` and `To:` extended headers now contain only the name; the FTN address is no longer appended, preventing it from appearing as part of the reply-to name in offline readers.
 - New netmail sent via QWK can now specify the FTN destination by writing `Name@zone:net/node[.point]` in the To field.
+- The QWK BBS ID (packet filename and CONTROL.DAT identifier) is now a configurable setting so it remains stable if the sysop renames the board.
 
 ## File Areas & TIC Processing
 
@@ -152,6 +154,23 @@ FTN nodes directly from their QWK reader.
 Replies to received netmail continue to resolve the destination via the message
 index as before; this convention applies only to new messages with no reply
 reference.
+
+### Configurable QWK BBS ID
+
+The QWK BBS ID — used as the packet filename (`BBSID.QWK`) and in
+`CONTROL.DAT` — was previously derived from the system name on every packet
+build. Renaming the board would silently change the ID, breaking existing
+offline readers that had already configured the BBS.
+
+Version 1.8.8 adds a **QWK BBS ID** field to the admin BBS Settings page
+(under the QWK Offline Mail toggle). The value is up to 8 alphanumeric
+characters and is stored in `config/bbs.json` as `qwk.bbs_id`.
+
+The upgrade migration (`v1.11.0.48`) automatically derives the ID from the
+current system name and writes it to `bbs.json`, so existing installations
+receive a stable value without any manual action. After upgrading, the ID
+can be changed in the admin panel, but note that changing it will require
+users to reconfigure their offline readers.
 
 ## Web Interface
 
@@ -280,9 +299,10 @@ is running and `TELNETD_LOG_LEVEL` is `INFO` or lower (the default).
 
 ## Upgrade Instructions
 
-This release adds a database migration for canonical QWK conference numbers on
-echo areas. Run setup during upgrade so existing areas are backfilled with BBS-
-wide conference IDs before users download new packets.
+This release includes migrations for canonical QWK conference numbers and the
+new QWK BBS ID setting. Run setup during upgrade so existing areas are
+backfilled with BBS-wide conference IDs and the QWK BBS ID is populated from
+the current system name before users download new packets.
 
 ### From Git
 

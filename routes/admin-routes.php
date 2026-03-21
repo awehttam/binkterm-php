@@ -1228,6 +1228,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['dashboard_ad_rotate_interval_seconds'] = $dashboardAdRotateInterval;
                 }
 
+                if (isset($config['qwk']['bbs_id'])) {
+                    $bbsId = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)$config['qwk']['bbs_id']));
+                    $bbsId = substr($bbsId, 0, 8);
+                    $config['qwk']['bbs_id'] = $bbsId;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
