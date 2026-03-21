@@ -83,7 +83,21 @@ SimpleRouter::get('/', function() {
 
     $onlineCount = $auth->getOnlineUserCount(15);
     $activeTodayCount = $auth->getActiveTodayCount();
-    $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers() : null;
+    $adminTimezone = 'UTC';
+    if (!empty($user['is_admin'])) {
+        try {
+            $handler = new \BinktermPHP\MessageHandler();
+            $adminSettings = $handler->getUserSettings((int)($user['user_id'] ?? $user['id']));
+            $tz = $adminSettings['timezone'] ?? '';
+            if ($tz !== '') {
+                new \DateTimeZone($tz); // validate
+                $adminTimezone = $tz;
+            }
+        } catch (\Throwable $e) {
+            // fall back to UTC
+        }
+    }
+    $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
 
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,

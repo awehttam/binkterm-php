@@ -146,7 +146,7 @@
                         {% if todays_callers|length > 0 %}
                             <ul class="list-unstyled mb-0 small">
                                 {% for caller in todays_callers %}
-                                <li>{{ caller.username }} <span class="text-muted">{{ caller.last_activity|date('H:i') }}</span></li>
+                                <li>{{ caller.username }} <span class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</span></li>
                                 {% endfor %}
                             </ul>
                         {% else %}

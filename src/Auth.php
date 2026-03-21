@@ -286,22 +286,32 @@ class Auth
     }
 
     /**
-     * Get list of distinct users who have had an active session today (since midnight local/server date).
-     * Returns one row per user, showing their most recent activity time today.
+     * Get list of distinct users who have had an active session today (since midnight in the given timezone).
+     * Returns one row per user with last_activity converted to the given timezone.
      *
+     * @param string $timezone A valid PHP/IANA timezone name, e.g. 'America/New_York'
      * @return array Array of ['username', 'last_activity'] rows ordered by first seen today
      */
-    public function getTodaysCallers(): array
+    public function getTodaysCallers(string $timezone = 'UTC'): array
     {
-        $stmt = $this->db->query("
-            SELECT u.username, MAX(s.last_activity) AS last_activity
+        // Validate timezone to prevent SQL injection; fall back to UTC if unknown
+        try {
+            new \DateTimeZone($timezone);
+        } catch (\Exception $e) {
+            $timezone = 'UTC';
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT u.username,
+                   MAX(s.last_activity) AT TIME ZONE :tz AS last_activity
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
-            WHERE s.last_activity >= CURRENT_DATE
+            WHERE s.last_activity >= CURRENT_DATE AT TIME ZONE :tz2
               AND u.is_active = TRUE
             GROUP BY u.id, u.username
             ORDER BY MIN(s.last_activity) ASC
         ");
+        $stmt->execute([':tz' => $timezone, ':tz2' => $timezone]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
