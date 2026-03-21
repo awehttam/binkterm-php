@@ -2105,6 +2105,7 @@ return [
     'ui.profile.files_uploaded' => 'Archivos subidos',
     'ui.profile.transfer_ratio' => 'Ratio D/S',
     'ui.profile.ratio_na' => 'N/D',
+    'ui.profile.netmail_username_note' => '{username} también puede usarse en lugar de su nombre completo.',
     'ui.profile.credit_system' => 'Sistema de creditos',
     'ui.profile.credit_costs_rewards' => 'Costos y recompensas de creditos:',
     'ui.profile.daily_login' => 'Inicio diario',

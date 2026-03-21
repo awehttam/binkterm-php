@@ -204,6 +204,11 @@
                 <p class="text-muted p-3 mb-0">{{ t('ui.profile.no_networks_configured', {}, 'common') }}</p>
                 {% endif %}
             </div>
+            {% if network_addresses|length > 0 %}
+            <div class="modal-footer">
+                <small class="text-muted"><i class="fas fa-info-circle me-1"></i>{{ t('ui.profile.netmail_username_note', {'username': user_username}, 'common') }}</small>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

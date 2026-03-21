@@ -2082,6 +2082,7 @@ return [
     'ui.profile.netmail_addresses_title' => 'Netmail Addresses',
     'ui.profile.netmail_col_network' => 'Network Name',
     'ui.profile.netmail_col_address' => 'Network Address',
+    'ui.profile.netmail_username_note' => '{username} may also be used in place of your full name.',
     'ui.profile.system' => 'System',
     'ui.profile.address' => 'Address',
     'ui.profile.role' => 'Role',

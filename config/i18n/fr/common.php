@@ -1720,6 +1720,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.profile.files_uploaded' => 'Fichiers envoyés',
     'ui.profile.transfer_ratio' => 'Ratio D/E',
     'ui.profile.ratio_na' => 'N/A',
+    'ui.profile.netmail_username_note' => '{username} peut également être utilisé à la place de votre nom complet.',
     'ui.profile.credit_system' => 'Système de crédits',
     'ui.profile.credit_costs_rewards' => 'Coûts et récompenses en crédits :',
     'ui.profile.daily_login' => 'Connexion quotidienne',

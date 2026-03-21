@@ -20,6 +20,7 @@
   - [Profile: File Transfer Stats](#profile-file-transfer-stats)
   - [Settings: Sidebar Removed](#settings-sidebar-removed)
   - [ANSI Renderer: Debug Font Override](#ansi-renderer-debug-font-override)
+  - [Dashboard: Today's Callers Timezone](#dashboard-todays-callers-timezone)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -38,6 +39,8 @@
 - The profile Activity Summary now includes files downloaded, files uploaded, and a download/upload ratio.
 - The user settings page sidebar (System Status, Quick Actions, Help & Support) has been removed.
 - A `DEBUG_ANSI_NOT_PERFECT` environment variable can be set to `true` to disable the Perfect DOS VGA 437 font override on ANSI art, useful for testing how art looks in the user's existing monospace font.
+- A `DEBUG_ANSI_USE_CONSOLAS` environment variable can be set to `true` to use Consolas instead of Perfect DOS VGA 437 for ANSI art rendering.
+- Today's Callers on the dashboard is now anchored to the sysop's configured timezone, so the midnight cutoff reflects local time rather than UTC.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -176,16 +179,30 @@ have been removed. The main settings content now uses the full page width.
 
 ### ANSI Renderer: Debug Font Override
 
-A new environment variable `DEBUG_ANSI_NOT_PERFECT` can be added to `.env` to
-test how ANSI art looks without the Perfect DOS VGA 437 font override:
+Two new environment variables can be added to `.env` to test ANSI art rendering
+with different fonts:
 
 ```
 DEBUG_ANSI_NOT_PERFECT=true
 ```
 
 When set to `true`, the `.ansi-art` CSS font-family is reset to `inherit`, so
-art renders in whatever monospace font the rest of the page uses. Set to `false`
-or remove the variable to restore the default behaviour.
+art renders in whatever monospace font the rest of the page uses.
+
+```
+DEBUG_ANSI_USE_CONSOLAS=true
+```
+
+When set to `true`, Consolas is used instead of Perfect DOS VGA 437. Useful for
+comparing rendering between fonts. Only one of these variables should be set at
+a time; `DEBUG_ANSI_NOT_PERFECT` takes precedence. Set both to `false` or remove
+them to restore the default Perfect DOS VGA 437 behaviour.
+
+### Dashboard: Today's Callers Timezone
+
+The Today's Callers list now anchors midnight to the sysop's configured timezone
+rather than UTC. Users active after local midnight but before UTC midnight will
+no longer be excluded from the list.
 
 ## Upgrade Instructions
 
