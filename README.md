@@ -12,6 +12,10 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **Credits economy** — reward logins and participation, or charge for door games and premium features
 - **Message webshare** — let users share posts via secure, expiring links with public or private access
 - **Nodelist browser** — search and reference FTN nodes without leaving the interface
+- **Offline mail reading** — QWK packet support lets users download and reply to messages in their favourite offline reader
+- **Echomail digests** — users can receive a periodic email digest summarising new activity in their subscribed areas (daily or weekly)
+- **Advertising manager** — create and rotate ANSI, RIPscrip, Sixel, or plain-text ads on the dashboard, and manage automated postings
+- **System analytics** — activity stats, login source breakdown, and a full activity viewer for monitoring usage
 - **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
 - **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
 - **...and more**
@@ -150,17 +154,16 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
 - **Advertising** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and scheduled echomail ad campaigns (see [docs/Advertising.md](docs/Advertising.md))
-- **Outbound FREQ** - Users can request files from other FTN nodes directly from the nodelist browser
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
+- **Activity Analytics** - Full activity viewer, webshare link access tracking, credits economy viewer, and referral analytics; sysops see a Today's Callers list on the dashboard; user profiles show message counts, file transfer stats, and a download/upload ratio
 - **Nodelist Browsers** - Integrated nodelist updater and browser
 - **BBS Directory** - Public directory of known BBS systems, automatically populated from echomail announcements and supplementable with manual or user-submitted entries reviewed by the sysop
 - **Echomail Robots** - Generic rule-based framework that watches echo areas for matching messages and dispatches them to configurable processors. Ships with a built-in processor for FSXNet `ibbslastcall-data` announcements that auto-populates the BBS Directory. Custom processors can be added in `src/Robots/Processors/`. See [docs/Robots.md](docs/Robots.md).
 - **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
-- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English and Spanish out of the box.
-- **Message Artwork Encoding Editor** - In-browser tool for correcting the character encoding of ANSI and PETSCII art in messages when automatic detection is wrong; available to sysops on any echomail and to senders/receivers on netmail
+- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English, Spanish, and French out of the box.
 - **Email Notifications** - Registered feature: users can opt in to have incoming netmail forwarded to their email address (including FTN file attachments), and/or receive a periodic echomail digest summarising new activity in their subscribed areas (daily or weekly)
 - **QWK/QWKE Offline Mail** - Download QWK or QWKE offline mail packets containing new netmail and echomail for reading in offline readers (MultiMail, OLX, etc.), then upload REP reply packets to post replies
 - **Registration** - Optional registration unlocks premium features including custom login/registration splash pages, netmail email forwarding, echomail digest emails, economy viewer, and referral analytics. See [REGISTER.md](REGISTER.md) for details.
