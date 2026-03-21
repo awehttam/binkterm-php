@@ -9293,6 +9293,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 'format'             => $format,
                 'limit'              => $limit,
                 'hard_cap'           => $hardCap,
+                'is_dev'             => \BinktermPHP\Config::env('IS_DEV') === 'true',
             ]);
         } catch (\Exception $e) {
             error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
@@ -9330,6 +9331,40 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         $meta = new \BinktermPHP\UserMeta();
         $meta->setValue($userId, 'qwk_format', $format);
         echo json_encode(['success' => true, 'format' => $format]);
+    });
+
+    /**
+     * POST /api/qwk/reset
+     *
+     * Dev-only: purge all QWK state for the current user so packets can be
+     * re-downloaded from scratch.  Returns 403 unless IS_DEV=true in .env.
+     */
+    SimpleRouter::post('/reset', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (\BinktermPHP\Config::env('IS_DEV') !== 'true') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Not available outside dev mode.']);
+            return;
+        }
+
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            $db->prepare("DELETE FROM qwk_conference_state  WHERE user_id = ?")->execute([$userId]);
+            $db->prepare("DELETE FROM qwk_download_log      WHERE user_id = ?")->execute([$userId]);
+            $db->prepare("DELETE FROM qwk_message_index     WHERE user_id = ?")->execute([$userId]);
+            $db->prepare("DELETE FROM qwk_imported_hashes   WHERE user_id = ?")->execute([$userId]);
+
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            error_log('[QWK] reset failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
     });
 
 
