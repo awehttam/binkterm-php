@@ -28,6 +28,15 @@
   - [Shared Message: Kludge Lines Removed](#shared-message-kludge-lines-removed)
   - [Font Awesome Brands Font Removed](#font-awesome-brands-font-removed)
   - [Admin Settings: Loading Blur](#admin-settings-loading-blur)
+- [MRC Chat](#mrc-chat)
+  - [Default Room Fallback](#default-room-fallback)
+  - [First DM Message Now Visible](#first-dm-message-now-visible)
+  - [Tab Completion for Usernames](#tab-completion-for-usernames)
+  - [Tab Completion for Slash Commands](#tab-completion-for-slash-commands)
+  - [Polling Mode Toggle](#polling-mode-toggle)
+  - [Hard Refresh Now Bypasses Service Worker Cache](#hard-refresh-now-bypasses-service-worker-cache)
+  - [Room User Count Off By One](#room-user-count-off-by-one)
+  - [DM Messages Disappear When No Prior History](#dm-messages-disappear-when-no-prior-history)
 - [Telnet/SSH BBS Server](#telnetssh-bbs-server)
   - [User Action Logging](#user-action-logging)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -60,6 +69,16 @@
 - The kludge lines box has been removed from the public shared message view.
 - The Font Awesome brands webfont (`fa-brands-400.woff2`, ~108 KB) is no longer loaded; the single brands icon used (Markdown) has been replaced with an inline SVG.
 - Admin settings pages (BBS Settings, BinkP Configuration, MRC Settings, Appearance) now blur their content cards while settings are being fetched and show a centred spinner; cards stay blurred if the load fails.
+
+**MRC Chat**
+- When the server returns no rooms, the MRC chat WebDoor now shows the configured default room instead of an empty list.
+- Fixed a bug where the first message sent in a new DM conversation was not visible until the next poll.
+- Tab-completion of usernames in the chat input: type a partial name and press Tab to complete it, press Tab again to cycle through all matching online users.
+- Tab-completion now also works for slash commands: type `/` or a partial command name and press Tab to complete or cycle through matching commands. `/msg` also completes the username argument.
+- A toggle in the chat sidebar lets users switch between simple polling and long polling; the choice is remembered in localStorage.
+- Hard refresh (Ctrl+Shift+R) now correctly bypasses the service worker cache, restoring the expected development behaviour.
+- Fixed room user count showing one more user than actually present.
+- Fixed sent DM messages disappearing immediately when there is no prior conversation history.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -300,6 +319,95 @@ distinct from a loaded page.
 
 The following pages use this behaviour: BBS Settings, BinkP Configuration,
 MRC Settings, and Appearance.
+
+## MRC Chat
+
+### Default Room Fallback
+
+When the MRC daemon first connects, the server may not have sent a room list
+yet. Previously the chat WebDoor showed an empty room list in this window.
+Version 1.8.8 falls back to the default room configured in MRC Settings so
+there is always at least one room available to join.
+
+### First DM Message Now Visible
+
+When opening a new direct message conversation by clicking a user, the first
+message sent was not visible. The DM view was opened *after* sending, which
+reset the message cursor and triggered a history reload that then overwrote the
+local echo.
+
+The fix loads the DM view and its history *before* sending the message, so the
+local echo is appended in the correct position and remains visible without being
+displaced by the subsequent poll.
+
+### Tab Completion for Usernames
+
+The MRC chat input now supports Tab-completion of online usernames. Type the
+beginning of a username and press Tab to complete it. If more than one online
+user matches the prefix, pressing Tab again cycles through the other matches;
+Tab wraps back to the first match after the last one. Typing any other character
+resets the cycle so the next Tab starts a fresh completion from the current
+cursor position.
+
+### Tab Completion for Slash Commands
+
+Tab-completion in the chat input now also covers slash commands. Typing `/`
+followed by Tab cycles through all available commands alphabetically. Typing a
+partial command name (e.g. `/mo`) and pressing Tab completes it to `/motd `.
+Pressing Tab again cycles through any other commands that share the prefix.
+
+For `/msg`, Tab-completion also applies to the username argument: after typing
+`/msg ` (or a partial username), pressing Tab completes the username from the
+list of users currently in the room.
+
+Available commands for completion: `/help`, `/identify`, `/motd`, `/msg`,
+`/register`, `/rooms`, `/topic`, `/update`.
+
+### Polling Mode Toggle
+
+A button in the MRC chat sidebar lets users switch between **Simple Poll**
+(short HTTP requests on a fixed interval) and **Long Poll** (a persistent
+connection that returns as soon as new messages arrive). The chosen mode is
+saved in localStorage and restored on the next visit.
+
+Simple Poll is the safer choice in certain environments. Long Poll offers lower
+message latency on servers that support long-running HTTP connections.
+
+### Hard Refresh Now Bypasses Service Worker Cache
+
+The service worker's fetch handler now checks the browser's request cache mode.
+When a hard refresh is performed (Ctrl+Shift+R), the browser signals
+`cache: 'reload'` and the service worker passes the request straight through to
+the network instead of serving from its own cache. This restores the expected
+behaviour where a hard refresh always retrieves fresh files.
+
+### DM Messages Disappear When No Prior History
+
+When opening a DM conversation for the first time (no prior messages between
+the two users), sent messages vanished immediately after being echoed locally.
+The initial history poll returned no messages, leaving `lastPrivateMessageId`
+at `0`. Every subsequent timer poll then evaluated `append = false` and
+replaced the entire chat area, wiping the local echo. Incoming replies from
+the other person were similarly lost until the page was reloaded.
+
+The fix sets `lastPrivateMessageId` to `-1` after the initial history load
+when no messages were found. `-1 !== 0` triggers append mode on all subsequent
+polls, and `WHERE id > -1` on the server is equivalent to `WHERE id > 0` since
+message IDs start at 1.
+
+### Room User Count Off By One
+
+The room list occasionally showed one more user than was actually present. A
+join announcement from the MRC server includes the user's real BBS name (e.g.
+`user@MyBBS`), which inserts a row with `bbs_name = 'MyBBS'`. The subsequent
+USERLIST from the server inserts the same user with `bbs_name = 'unknown'`.
+Because the unique key on `mrc_users` includes `bbs_name`, both rows coexisted
+until the next USERLIST sweep replaced them, causing the `COUNT` in the room
+list query to be inflated.
+
+The fix changes the room count query to `COUNT(DISTINCT username)` so it
+matches the deduplicated user panel regardless of how many rows exist for a
+given username.
 
 ## Telnet/SSH BBS Server
 

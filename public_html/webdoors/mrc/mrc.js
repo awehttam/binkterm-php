@@ -21,8 +21,9 @@ class MrcClient {
         this.viewedRoom = null;
         this.viewMode = 'room'; // room | private
         this.privateUser = null;
-        this.pollInterval = 2000; // 2 seconds
         this.pollTimer = null;
+        this.longPollActive = false;
+        this.longPollXhr = null;
         this.lastRoomsPollAt = 0;
         this.lastMessageId = 0;
         this.lastPrivateMessageId = 0;
@@ -37,10 +38,13 @@ class MrcClient {
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
         this.localBbs = window.mrcCurrentBbs || null;
+        this.pollMode = localStorage.getItem('mrc_poll_mode') || 'simple'; // 'longpoll' | 'simple'
         this.missingPresenceCount = 0;
         this.inputHistory = [];
         this.historyIndex = -1;
         this.historySavedInput = '';
+        this.currentUsers = [];
+        this.tabState = null; // { prefix, matches, index } while cycling
 
         this.init();
     }
@@ -56,7 +60,23 @@ class MrcClient {
             this.updateCharCount();
         });
 
+        // Tab completion — prevent default and complete.
+        // Also notify the parent page so it can refocus us if the browser
+        // moves focus out of the iframe despite preventDefault.
+        document.getElementById('message-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                window.parent.postMessage({ type: 'mrc:keepFocus' }, '*');
+                this.handleTabComplete();
+            }
+        });
+
         $('#message-input').on('keydown', (e) => {
+            // Any key other than Tab/Shift resets tab-completion cycling
+            if (e.key !== 'Tab' && e.key !== 'Shift') {
+                this.tabState = null;
+            }
+
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 if (this.inputHistory.length === 0) return;
@@ -117,6 +137,9 @@ class MrcClient {
         // Check connection status
         this.checkStatus();
 
+        // Wire poll-mode toggle button
+        this.initPollModeButton();
+
         // Initial poll (includes rooms + unread init)
         this.poll(true, true);
 
@@ -157,6 +180,14 @@ class MrcClient {
         } else {
             statusEl.html('<i class="bi bi-circle-fill text-warning"></i> Connecting...');
         }
+    }
+
+    /**
+     * Wire the poll-mode toggle button.
+     */
+    initPollModeButton() {
+        this.updatePollModeButton();
+        $('#poll-mode-btn').on('click', () => this.togglePollMode());
     }
 
     /**
@@ -257,6 +288,9 @@ class MrcClient {
 
                 // Load initial data (includes rooms + users + messages)
                 await this.poll(true);
+
+                // Restart long poll with the new room's cursor.
+                this.restartLongPoll();
 
                 // Focus message input
                 $('#message-input').focus();
@@ -395,6 +429,7 @@ class MrcClient {
         const userCount = $('#user-count');
 
         const normalizedUsers = this.dedupeUsers(users);
+        this.currentUsers = normalizedUsers;
         userList.empty();
         userCount.text(normalizedUsers.length);
 
@@ -553,23 +588,183 @@ class MrcClient {
     }
 
     /**
-     * Start unified polling
+     * Start unified polling. Uses long-poll or simple interval polling
+     * depending on this.pollMode.
      */
     startPolling() {
         this.stopPolling();
-
-        this.pollTimer = setInterval(() => {
+        if (this.pollMode === 'simple') {
+            // Simple interval polling — safer on platforms where long-running
+            // HTTP connections are terminated (e.g. PHP built-in server).
             this.poll(false);
-        }, this.pollInterval);
+            this.pollTimer = setInterval(() => this.poll(false), 3000);
+        } else {
+            this.longPollActive = true;
+            this.runLongPoll();
+        }
     }
 
     /**
-     * Stop unified polling
+     * Toggle between long-poll and simple interval polling modes,
+     * persist the choice to localStorage, and restart polling.
+     */
+    togglePollMode() {
+        this.pollMode = this.pollMode === 'longpoll' ? 'simple' : 'longpoll';
+        localStorage.setItem('mrc_poll_mode', this.pollMode);
+        this.startPolling();
+        this.updatePollModeButton();
+    }
+
+    /**
+     * Update the poll-mode toggle button label to reflect the current mode.
+     */
+    updatePollModeButton() {
+        const btn = $('#poll-mode-btn');
+        if (this.pollMode === 'simple') {
+            // Currently in simple mode — clicking switches to long poll
+            btn.html('<i class="bi bi-lightning-charge"></i> Use long poll').attr('title', 'Switch to long polling (lower latency, keeps connection open)');
+        } else {
+            // Currently in long poll mode — clicking switches to simple
+            btn.html('<i class="bi bi-arrow-repeat"></i> Use simple poll').attr('title', 'Switch to simple polling (safer for some server configs)');
+        }
+    }
+
+    /**
+     * Stop long-poll loop and cancel any in-flight request.
      */
     stopPolling() {
+        this.longPollActive = false;
+        if (this.longPollXhr) {
+            this.longPollXhr.abort();
+            this.longPollXhr = null;
+        }
         if (this.pollTimer) {
             clearInterval(this.pollTimer);
             this.pollTimer = null;
+        }
+    }
+
+    /**
+     * Abort the in-flight long-poll request so the loop immediately restarts
+     * with the current view state. Call this after any room/mode change.
+     * In simple poll mode this is a no-op; the next interval tick picks up
+     * the new state automatically.
+     */
+    restartLongPoll() {
+        if (this.pollMode === 'simple') return;
+        if (this.longPollXhr) {
+            this.longPollXhr.abort(); // doLongPoll catches the abort and loops again
+        }
+    }
+
+    /**
+     * Self-restarting long-poll loop. Runs until stopPolling() is called.
+     * Errors (network failures, etc.) trigger a 2-second back-off before retry.
+     */
+    async runLongPoll() {
+        while (this.longPollActive) {
+            try {
+                await this.doLongPoll();
+            } catch (e) {
+                if (!this.longPollActive) break;
+                // Back off briefly on unexpected errors before retrying.
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+    }
+
+    /**
+     * Perform a single long-poll request. Holds open for up to ~20 s server-side;
+     * returns as soon as new messages or unread DMs arrive, or on timeout.
+     * An intentional abort (from restartLongPoll) returns silently so the loop
+     * can restart immediately with fresh state.
+     */
+    async doLongPoll() {
+        const xhr = $.ajax({
+            url: 'api.php',
+            method: 'GET',
+            dataType: 'json',
+            timeout: 30000, // 30 s client-side safety net (server responds in ≤ 20 s)
+            data: {
+                action:        'longpoll',
+                view_mode:     this.viewMode,
+                view_room:     this.viewedRoom  || '',
+                join_room:     this.joinedRoom  || '',
+                with_user:     this.privateUser || '',
+                after:         this.lastMessageId,
+                after_private: this.lastPrivateMessageId,
+                after_unread:  this.lastPrivateGlobalId,
+            }
+        });
+
+        this.longPollXhr = xhr;
+
+        try {
+            const response = await xhr;
+            this.longPollXhr = null;
+            if (!this.longPollActive) return;
+            this.processLongPollResponse(response);
+        } catch (e) {
+            this.longPollXhr = null;
+            // Abort is intentional (restartLongPoll called) — return so the
+            // while loop immediately starts the next request.
+            if (!this.longPollActive || e.statusText === 'abort') return;
+            throw e; // Propagate real errors so runLongPoll can back off.
+        }
+    }
+
+    /**
+     * Process a long-poll response the same way poll() handles its response,
+     * but without the rooms/users-only slow-poll logic.
+     */
+    processLongPollResponse(response) {
+        if (!response || !response.success) return;
+
+        if (response.messages) {
+            if (this.viewMode === 'private') {
+                const append = this.lastPrivateMessageId !== 0;
+                this.renderMessages(response.messages, append);
+                if (response.messages.length > 0) {
+                    const maxId = Math.max(...response.messages.map(m => m.id));
+                    this.lastPrivateMessageId = Math.max(this.lastPrivateMessageId, maxId);
+                    this.syncPrivateUnreadFromMessages(response.messages);
+                }
+            } else if (this.viewedRoom) {
+                const append = this.lastMessageId !== 0;
+                this.renderMessages(response.messages, append);
+                if (response.messages.length > 0) {
+                    const maxId = Math.max(...response.messages.map(m => m.id));
+                    this.lastMessageId = Math.max(this.lastMessageId, maxId);
+                }
+            }
+        }
+
+        if (response.users) {
+            this.renderUsers(response.users);
+        }
+
+        if (response.rooms) {
+            this.renderRooms(response.rooms);
+            this.lastRoomsPollAt = Date.now();
+        }
+
+        if (response.private_unread) {
+            const counts = response.private_unread.counts || {};
+            Object.keys(counts).forEach(sender => {
+                if (this.privateUser && sender === this.privateUser && this.viewMode === 'private') {
+                    return;
+                }
+                this.privateUnread[sender] = (this.privateUnread[sender] || 0) + counts[sender];
+            });
+            if (typeof response.private_unread.latest_id === 'number') {
+                this.lastPrivateGlobalId = Math.max(this.lastPrivateGlobalId, response.private_unread.latest_id);
+            }
+            this.updatePrivateUnreadBadge();
+            this.unreadInitDone = true;
+
+            if (counts.SERVER) {
+                this.fetchSystemNotices();
+            }
         }
     }
 
@@ -679,6 +874,121 @@ class MrcClient {
     }
 
     /**
+     * Tab-complete the partial nick at the cursor.
+     * Cycles through matches on successive Tab presses.
+     * Appends ": " after the nick when completing at the start of the line,
+     * or a space when completing mid-message.
+     */
+    handleTabComplete() {
+        const input = $('#message-input');
+        const val = input.val();
+        const pos = input[0].selectionStart;
+
+        if (this.tabState) {
+            // Continuing a cycle — verify the value still contains the previously
+            // inserted completion starting at wordStart (cursor-position-independent).
+            const prev = this.tabState.matches[this.tabState.index];
+            const suffix = ' ';
+            const prevInserted = prev + suffix;
+            const fromWordStart = val.slice(this.tabState.wordStart);
+
+            if (fromWordStart.startsWith(prevInserted)) {
+                // Swap out the previous match for the next one
+                this.tabState.index = (this.tabState.index + 1) % this.tabState.matches.length;
+                const next = this.tabState.matches[this.tabState.index];
+                const nextInserted = next + suffix;
+                const after = fromWordStart.slice(prevInserted.length);
+                const completed = val.slice(0, this.tabState.wordStart) + nextInserted + after;
+                const newPos = this.tabState.wordStart + nextInserted.length;
+                input.val(completed);
+                input[0].setSelectionRange(newPos, newPos);
+                this.updateCharCount();
+                return;
+            }
+
+            // Value was modified — treat as a fresh completion
+            this.tabState = null;
+        }
+
+        // Fresh completion
+        const before = val.slice(0, pos);
+
+        // Slash command completion
+        if (val.startsWith('/')) {
+            const spaceIdx = val.indexOf(' ');
+
+            // Cursor is on the command word itself (e.g. "/mo|" or "/msg|")
+            if (spaceIdx === -1 || pos <= spaceIdx) {
+                const partial = before.slice(1); // strip leading /
+                const prefix = partial.toLowerCase();
+                const commands = ['help', 'identify', 'motd', 'msg', 'register', 'rooms', 'topic', 'update'];
+                const matches = commands.filter(c => c.startsWith(prefix));
+                if (matches.length === 0) return;
+
+                // wordStart is 1 (the character after /)
+                this.tabState = { prefix, matches, index: 0, wordStart: 1 };
+                const match = matches[0];
+                const suffix = ' ';
+                const completed = '/' + match + suffix + val.slice(pos);
+                const newPos = 1 + match.length + suffix.length;
+                input.val(completed);
+                input[0].setSelectionRange(newPos, newPos);
+                this.updateCharCount();
+                return;
+            }
+
+            // Cursor is past the command — complete username for /msg
+            const command = val.slice(1, spaceIdx).toLowerCase();
+            if (command === 'msg') {
+                const afterCmd = val.slice(spaceIdx + 1, pos);
+                // Only complete on the username token (before any second space)
+                if (afterCmd.indexOf(' ') === -1) {
+                    const wordStart = spaceIdx + 1;
+                    const prefix = afterCmd.toLowerCase();
+                    const matches = this.currentUsers
+                        .map(u => u.username)
+                        .filter(u => u && u.toLowerCase().startsWith(prefix));
+                    if (matches.length === 0) return;
+
+                    this.tabState = { prefix, matches, index: 0, wordStart };
+                    const match = matches[0];
+                    const suffix = ' ';
+                    const completed = val.slice(0, wordStart) + match + suffix + val.slice(pos);
+                    const newPos = wordStart + match.length + suffix.length;
+                    input.val(completed);
+                    input[0].setSelectionRange(newPos, newPos);
+                    this.updateCharCount();
+                }
+            }
+            return;
+        }
+
+        // Username completion for regular messages
+        const wordStart = before.lastIndexOf(' ') + 1;
+        const partial = before.slice(wordStart);
+
+        if (!partial) return;
+
+        const prefix = partial.toLowerCase();
+        const matches = this.currentUsers
+            .map(u => u.username)
+            .filter(u => u && u.toLowerCase().startsWith(prefix));
+
+        if (matches.length === 0) return;
+
+        this.tabState = { prefix, matches, index: 0, wordStart };
+
+        const match = matches[0];
+        const suffix = ' ';
+        const completed = val.slice(0, wordStart) + match + suffix + val.slice(pos);
+        const newPos = wordStart + match.length + suffix.length;
+
+        input.val(completed);
+        input[0].setSelectionRange(newPos, newPos);
+        this.updateCharCount();
+    }
+
+    /**
      * Scroll chat to bottom
      */
     scrollToBottom() {
@@ -742,6 +1052,12 @@ class MrcClient {
      * Send a private message and open the DM view.
      */
     async sendPrivateMessage(username, message) {
+        // Open the DM view and load history BEFORE sending so the echo
+        // is appended after a stable cursor — not after a cursor reset.
+        if (this.viewMode !== 'private' || this.privateUser !== username) {
+            await this.startPrivateChat(username);
+        }
+
         try {
             const response = await $.ajax({
                 url: 'api.php?action=send',
@@ -758,7 +1074,6 @@ class MrcClient {
             if (response.success) {
                 $('#message-input').val('');
                 this.updateCharCount();
-                await this.startPrivateChat(username);
                 this.echoSentMessage(message);
             }
         } catch (error) {
@@ -787,6 +1102,14 @@ class MrcClient {
         );
 
         await this.poll(false);
+        // If no prior history existed, lastPrivateMessageId is still 0.
+        // Set it to -1 so subsequent polls use append mode (id > -1 is
+        // equivalent to id > 0) instead of doing a full replace that would
+        // wipe the locally echoed sent message.
+        if (this.lastPrivateMessageId === 0) {
+            this.lastPrivateMessageId = -1;
+        }
+        this.restartLongPoll();
         $('#message-input').focus();
         this.clearPrivateUnread(username);
     }
@@ -805,6 +1128,7 @@ class MrcClient {
         if (!suppressPoll) {
             this.poll(false);
         }
+        this.restartLongPoll();
         if (this.viewedRoom) {
             $('#current-room-topic').text('');
         }
@@ -1022,6 +1346,7 @@ class MrcClient {
         );
 
         await this.poll(false);
+        this.restartLongPoll();
     }
 
     /**

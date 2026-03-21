@@ -73,5 +73,19 @@ document.addEventListener('keydown', function(e) {
         document.exitFullscreen();
     }
 });
+
+// Refocus input inside the iframe when the WebDoor requests it (e.g. Tab completion).
+// Same-origin iframes allow direct DOM access, so we can focus the element directly.
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'mrc:keepFocus') {
+        const frame = document.getElementById('game-frame');
+        if (frame && frame.contentDocument) {
+            const input = frame.contentDocument.getElementById('message-input');
+            if (input) {
+                input.focus();
+            }
+        }
+    }
+});
 </script>
 {% endblock %}

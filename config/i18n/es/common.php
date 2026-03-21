@@ -1533,7 +1533,7 @@ return [
     'ui.admin.mrc_settings.bbs_description' => 'Descripcion del BBS',
     'ui.admin.mrc_settings.placeholder.server_host' => 'mrc.bottomlessabyss.net',
     'ui.admin.mrc_settings.placeholder.bbs_name' => 'BinktermPHP BBS',
-    'ui.admin.mrc_settings.placeholder.platform' => 'BINKTERMPHP/Linux64/1.0.0',
+    'ui.admin.mrc_settings.placeholder.platform' => 'BINKTERMPHP/Linux64/1.3.0',
     'ui.admin.mrc_settings.placeholder.sysop' => 'Sysop',
     'ui.admin.mrc_settings.placeholder.website' => 'https://example.com',
     'ui.admin.mrc_settings.placeholder.telnet' => 'telnet://bbs.example.com:23',

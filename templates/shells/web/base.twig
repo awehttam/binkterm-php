@@ -534,139 +534,42 @@
         });
     </script>
     <script>
-        let swRegistration = null;
-        let updatePending = false;
-        let pageNavigating = false;
-
         if ('serviceWorker' in navigator) {
-            // Track if page is navigating
-            window.addEventListener('beforeunload', () => {
-                pageNavigating = true;
-            });
+            // Single notification path: the SW sends UPDATE_AVAILABLE only when it has
+            // replaced an older cache version (not on first install or same-version reloads).
+            // A guard prevents the toast from showing more than once per page load, even if
+            // the message arrives multiple times (e.g. multiple tabs triggering the SW).
+            let updateNotified = false;
 
-            // Listen for messages from service worker BEFORE registration
             navigator.serviceWorker.addEventListener('message', (event) => {
-                console.log('[Page] Received message from SW:', event.data);
-                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-                    console.log('[Page] Update available:', event.data.version);
-                    showUpdateNotification();
-                }
-            });
-
-            // Detect when a new SW claims this page (skipWaiting + clients.claim path).
-            // hadController guards against showing the toast on a fresh install (no previous SW).
-            const hadController = !!navigator.serviceWorker.controller;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (hadController) {
-                    console.log('[Page] Controller changed, showing update notification');
-                    showUpdateNotification();
+                if (event.data && event.data.type === 'UPDATE_AVAILABLE' && !updateNotified) {
+                    updateNotified = true;
+                    const toastEl = document.getElementById('updateToast');
+                    if (toastEl) {
+                        bootstrap.Toast.getOrCreateInstance(toastEl).show();
+                    }
                 }
             });
 
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
-                        console.log('[Page] Service Worker registered! Scope is:', registration.scope);
-                        swRegistration = registration;
-
-                        // Always check for SW updates on page load. Since HTML is served
-                        // fresh by PHP it bypasses the SW cache, making this an effective
-                        // substitute for a hard refresh — especially on mobile.
+                        // Trigger a background check so pages opened from the back/forward
+                        // cache also pick up any update that landed while they were cached.
                         registration.update();
-
-                        // Check if there's already a waiting or installing SW
-                        if (registration.waiting) {
-                            console.log('[Page] SW already waiting, showing update notification');
-                            showUpdateNotification();
-                        } else if (registration.installing) {
-                            console.log('[Page] SW already installing, watching for completion');
-                            const installingWorker = registration.installing;
-                            installingWorker.addEventListener('statechange', () => {
-                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    showUpdateNotification();
-                                }
-                            });
-                        }
-
-                        // Listen for new SW installing
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            console.log('[Page] New service worker found, installing...');
-
-                            newWorker.addEventListener('statechange', () => {
-                                console.log('[Page] SW state changed to:', newWorker.state);
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('[Page] New SW installed, showing update notification');
-                                    showUpdateNotification();
-                                }
-                            });
-                        });
-
-                        // Check for updates periodically (every 60 seconds)
-                        setInterval(() => {
-                            console.log('[Page] Checking for updates...');
-                            registration.update();
-                        }, 60000);
+                        // Keep long-lived sessions up to date.
+                        setInterval(() => registration.update(), 60000);
                     })
                     .catch(err => {
-                        console.log('[Page] Service Worker registration failed:', err);
+                        console.warn('[SW] Registration failed:', err);
                     });
             });
-
-            // Show pending notification when page becomes visible
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible' && updatePending && !pageNavigating) {
-                    console.log('[Page] Page visible, showing pending update notification');
-                    showUpdateNotificationNow();
-                }
-            });
-        }
-
-        function showUpdateNotification() {
-            // Delay slightly to avoid showing during navigation
-            setTimeout(() => {
-                // Only show if page is visible and not navigating
-                if (document.visibilityState === 'visible' && !pageNavigating) {
-                    showUpdateNotificationNow();
-                } else {
-                    // Queue for later when page becomes visible
-                    console.log('[Page] Page not ready for notification, queuing for later');
-                    updatePending = true;
-                }
-            }, 500); // 500ms delay to avoid navigation conflicts
-        }
-
-        function showUpdateNotificationNow() {
-            const toastEl = document.getElementById('updateToast');
-            if (toastEl) {
-                updatePending = false;
-                const toast = new bootstrap.Toast(toastEl);
-                toast.show();
-            }
         }
 
         function activateUpdate() {
-            if (!swRegistration) { window.location.reload(); return; }
-
-            const doSkip = () => {
-                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    window.location.reload();
-                }, { once: true });
-            };
-
-            if (swRegistration.waiting) {
-                doSkip();
-            } else if (swRegistration.installing) {
-                swRegistration.installing.addEventListener('statechange', function handler() {
-                    if (this.state === 'installed') {
-                        this.removeEventListener('statechange', handler);
-                        doSkip();
-                    }
-                });
-            } else {
-                window.location.reload();
-            }
+            // The SW already activated via skipWaiting() during install.
+            // A plain reload is all that is needed to pick up the new cached assets.
+            window.location.reload();
         }
     </script>
 
