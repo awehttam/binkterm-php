@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v443';
+const CACHE_NAME = 'binkcache-v444';
 
 // Static assets to precache
 const staticAssets = [
@@ -28,7 +28,13 @@ const staticAssets = [
     '/vendor/fontawesome-6.4.0/webfonts/fa-regular-400.woff2',
     '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2',
     '/vendor/riptermjs/BGI.js',
-    '/vendor/riptermjs/ripterm.js'
+    '/vendor/riptermjs/ripterm.js',
+    // Notification sounds
+    '/sounds/notify1.mp3',
+    '/sounds/notify2.mp3',
+    '/sounds/notify3.mp3',
+    '/sounds/notify4.mp3',
+    '/sounds/notify5.mp3'
 ];
 
 // Keep a reference to the open cache to avoid re-opening on every fetch
