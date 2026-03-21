@@ -2855,6 +2855,8 @@ return [
     'ui.dashboard.user' => 'User',
     'ui.dashboard.addresses' => 'Addresses',
     'ui.dashboard.networks' => 'Networks',
+    'ui.dashboard.todays_callers' => "Today's Callers",
+    'ui.dashboard.no_callers_today' => 'None yet today',
     'ui.dashboard.online_now' => 'Online Now',
     'ui.dashboard.active_today' => 'Active Today',
     'ui.dashboard.my_referral_link' => 'My Referral Link',

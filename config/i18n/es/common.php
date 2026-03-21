@@ -2863,6 +2863,8 @@ return [
     'ui.dashboard.user' => 'Usuario',
     'ui.dashboard.addresses' => 'Direcciones',
     'ui.dashboard.networks' => 'Redes',
+    'ui.dashboard.todays_callers' => 'Llamadas de hoy',
+    'ui.dashboard.no_callers_today' => 'Ninguno hoy todavía',
     'ui.dashboard.online_now' => 'En línea ahora',
     'ui.dashboard.active_today' => 'Activos hoy',
     'ui.dashboard.my_referral_link' => 'Mi enlace de referidos',

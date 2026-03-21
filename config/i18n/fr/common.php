@@ -2342,6 +2342,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.dashboard.echoareas.header_area' => 'Zone Echo',
     'ui.dashboard.echoareas.header_unread_total' => 'Total non lu',
     'ui.dashboard.networks' => 'Réseaux',
+    'ui.dashboard.todays_callers' => "Appelants du jour",
+    'ui.dashboard.no_callers_today' => "Aucun appel aujourd'hui",
     'ui.dashboard.online_now' => 'En ligne maintenant',
     'ui.dashboard.active_today' => 'Actifs aujourd\'hui',
     'ui.settings.title' => 'Paramètres',

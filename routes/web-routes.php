@@ -83,6 +83,7 @@ SimpleRouter::get('/', function() {
 
     $onlineCount = $auth->getOnlineUserCount(15);
     $activeTodayCount = $auth->getActiveTodayCount();
+    $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers() : null;
 
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
@@ -92,6 +93,7 @@ SimpleRouter::get('/', function() {
         'shell_art_content' => $shellArtContent,
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
+        'todays_callers' => $todaysCallers,
     ]);
 });
 

@@ -286,6 +286,26 @@ class Auth
     }
 
     /**
+     * Get list of distinct users who have had an active session today (since midnight local/server date).
+     * Returns one row per user, showing their most recent activity time today.
+     *
+     * @return array Array of ['username', 'last_activity'] rows ordered by first seen today
+     */
+    public function getTodaysCallers(): array
+    {
+        $stmt = $this->db->query("
+            SELECT u.username, MAX(s.last_activity) AS last_activity
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.last_activity >= CURRENT_DATE
+              AND u.is_active = TRUE
+            GROUP BY u.id, u.username
+            ORDER BY MIN(s.last_activity) ASC
+        ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Update user's location
      *
      * @param int $userId User ID
