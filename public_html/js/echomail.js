@@ -1340,8 +1340,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: message.from_name })}">${escapeHtml(message.from_name)}</a>
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; border-bottom: 1px dashed var(--text-color);">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">
@@ -1389,6 +1388,10 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     `;
 
     $('#messageContent').html(html);
+
+    const echoNetmailAddr = (message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address;
+    const echoNetmailName = (message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name;
+    initSenderPopover(message, echoNetmailAddr, echoNetmailName);
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);

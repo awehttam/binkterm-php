@@ -668,8 +668,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; border-bottom: 1px dashed var(--text-color);">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-6">
@@ -745,6 +744,8 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     `;
 
     $('#messageContent').html(html);
+
+    initSenderPopover(message, message.from_address, message.from_name);
 
     // Set up reply button
     if (!isSent) {

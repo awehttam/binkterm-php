@@ -47,6 +47,16 @@ body {
     margin-right: 8px;
 }
 
+/* Theme-aware popovers */
+.popover {
+    --bs-popover-bg: var(--message-bg);
+    --bs-popover-body-color: var(--text-color);
+    --bs-popover-border-color: var(--border-color);
+    --bs-popover-arrow-border: var(--border-color);
+    --bs-popover-header-bg: var(--message-bg);
+    --bs-popover-header-color: var(--text-color);
+}
+
 /* Cards */
 .card {
     border: 1px solid var(--border-color);

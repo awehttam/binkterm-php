@@ -1276,6 +1276,45 @@ function escapeHtml(text) {
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
 
+/**
+ * Initialise a Bootstrap popover on the sender name element rendered in message views.
+ *
+ * @param {object} message      - Message object with from_name, from_address, from_system_name
+ * @param {string} netmailAddr  - FTN address to pre-fill in the netmail compose link
+ * @param {string} netmailName  - Display name to pre-fill in the netmail compose link
+ */
+function initSenderPopover(message, netmailAddr, netmailName) {
+    const el = document.getElementById('senderNamePopoverTrigger');
+    if (!el) return;
+
+    const existing = bootstrap.Popover.getInstance(el);
+    if (existing) existing.dispose();
+
+    const toAddr = netmailAddr || message.from_address || '';
+    const toName = netmailName || message.from_name || '';
+
+    const content = [
+        `<div class="fw-semibold">${escapeHtml(message.from_name || '')}</div>`,
+        message.from_system_name ? `<div class="text-muted small">${escapeHtml(message.from_system_name)}</div>` : '',
+        message.from_address     ? `<div class="text-muted small font-monospace">${escapeHtml(message.from_address)}</div>` : '',
+        toAddr ? `<div class="mt-2"><a href="/compose/netmail?to=${encodeURIComponent(toAddr)}&to_name=${encodeURIComponent(toName)}" class="btn btn-sm btn-primary w-100">${uiT('ui.nodelist.send_netmail', 'Send Netmail')}</a></div>` : '',
+    ].join('');
+
+    const pop = new bootstrap.Popover(el, {
+        html: true,
+        content: content,
+        trigger: 'click',
+        placement: 'bottom',
+        sanitize: false,
+    });
+
+    $(document).off('click.senderPopoverDismiss').on('click.senderPopoverDismiss', function(e) {
+        if (!$(e.target).closest('#senderNamePopoverTrigger, .popover').length) {
+            pop.hide();
+        }
+    });
+}
+
 // Message handling functions
 function loadMessages(type, area = null, page = 1) {
     let url = `/api/messages/${type}`;

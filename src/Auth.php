@@ -306,12 +306,12 @@ class Auth
                    MAX(s.last_activity) AT TIME ZONE :tz AS last_activity
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
-            WHERE s.last_activity >= CURRENT_DATE AT TIME ZONE :tz2
+            WHERE s.last_activity >= date_trunc('day', NOW() AT TIME ZONE :tz2) AT TIME ZONE :tz3
               AND u.is_active = TRUE
             GROUP BY u.id, u.username
             ORDER BY MIN(s.last_activity) ASC
         ");
-        $stmt->execute([':tz' => $timezone, ':tz2' => $timezone]);
+        $stmt->execute([':tz' => $timezone, ':tz2' => $timezone, ':tz3' => $timezone]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
