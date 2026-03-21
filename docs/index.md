@@ -62,7 +62,8 @@ This index lists documents in operational priority order — essentials first, a
 ## Economy & Engagement
 
 - [Credit System](CreditSystem.md) — User credit economy: earning, spending, and configuration
-- [Advertising](Advertising.md) — Ad banners, campaigns, and display configuration
+- [Advertising](Advertising.md) — Ad banners, Broadcast Manager, and display configuration
+- [Weather Reports](Weather.md) — Automated weather report generation and echomail posting
 
 ---
 

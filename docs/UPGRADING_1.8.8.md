@@ -43,6 +43,11 @@
   - [Setup Checklist](#setup-checklist)
   - [replace Metadata Flag for File Areas](#replace-metadata-flag-for-file-areas)
   - [Default Area Indicators on Echo and File Area Tabs](#default-area-indicators-on-echo-and-file-area-tabs)
+- [Weather Reports](#weather-reports)
+  - [Weather Configuration Admin Page](#weather-configuration-admin-page)
+- [Broadcast Manager](#broadcast-manager)
+  - [Rename from Ad Campaigns](#rename-from-ad-campaigns)
+  - [Weather Report Preset](#weather-report-preset)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -83,6 +88,12 @@
 - Hard refresh (Ctrl+Shift+R) now correctly bypasses the service worker cache, restoring the expected development behaviour.
 - Fixed room user count showing one more user than actually present.
 - Fixed sent DM messages disappearing immediately when there is no prior conversation history.
+
+**Weather Reports**
+- A new Weather Report configuration page is available under Admin → Community → Weather Report. It provides a form-based editor for `config/weather.json` (API key, locations, units) with a Load Example button to seed from `weather.json.example`. `scripts/README_weather.md` has been deprecated; documentation has moved to `docs/Weather.md`.
+
+**Broadcast Manager**
+- The "Ad Campaigns" section has been renamed to **Broadcast Manager** and the "Advertisements" page has been renamed to **Content Library** throughout the UI. The menu group is now labelled **Ads and Bulletins**. URLs and internal identifiers are unchanged. The Broadcast Manager now includes a **Weather Report** quick-setup preset that pre-configures a daily 3:00 AM schedule and sets the content command to `weather_report.php`. The preset is greyed out when `config/weather.json` is not present.
 
 **LovlyNet Integration**
 - The LovlyNet admin page has a new Setup Checklist column on the Setup tab that verifies registration status, default area subscriptions, and the LVLY_NODELIST file area rule. A Fix button can automatically create a canonical file area rule for nodelist import.
@@ -491,6 +502,58 @@ that has not been subscribed.
 
 Areas that are subscribed, or areas that are not flagged as defaults, are
 unaffected. The icon is removed automatically when the area is subscribed.
+
+## Weather Reports
+
+### Weather Configuration Admin Page
+
+A new admin page at **Admin → Community → Weather Report** provides a form-based
+editor for `config/weather.json`. Previously this file had to be created and
+edited by hand using `config/weather.json.example` as a guide.
+
+The page offers:
+
+- Fields for report title, coverage area, OpenWeatherMap API key, units
+  (metric/imperial/standard), API timeout, and maximum locations.
+- A location manager with add, edit, and remove actions for each city
+  (name, latitude, longitude).
+- A **Load Example** button that appears when no `config/weather.json` exists
+  yet, seeding all fields from `weather.json.example` so there is a working
+  starting point.
+- Saves are written via the admin daemon, consistent with how other config
+  files are managed.
+
+`scripts/README_weather.md` has been deprecated and replaced with a stub
+that redirects to the new documentation at `docs/Weather.md`.
+
+## Broadcast Manager
+
+### Rename from Ad Campaigns
+
+The section previously labelled **Ad Campaigns** in the admin navigation has
+been renamed to **Broadcast Manager**. The page previously labelled
+**Advertisements** has been renamed to **Content Library**. The menu group
+that contains both has been renamed from **Ads** to **Ads and Bulletins** to
+better reflect that it now covers both traditional ANSI content and automated
+bulletins such as weather reports and file area updates.
+
+No URLs, database columns, config keys, or template file names have changed.
+Existing campaigns continue to function without any action required.
+
+### Weather Report Preset
+
+The Broadcast Manager quick-setup wizard now includes a **Weather Report**
+preset. Selecting it pre-fills:
+
+- A daily schedule running at 3:00 AM every day of the week.
+- A content command pointing to `scripts/weather_report.php`, which prints
+  the report to stdout for the scheduler to post.
+- A subject template of `Daily Weather Report`.
+
+The preset is disabled (greyed out with a tooltip) when `config/weather.json`
+does not exist. Configure the weather report first via
+**Admin → Community → Weather Report**, then return to the Broadcast Manager
+to create the campaign.
 
 ## Upgrade Instructions
 

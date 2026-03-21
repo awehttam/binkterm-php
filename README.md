@@ -153,7 +153,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
-- **Advertising** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and scheduled echomail ad campaigns (see [docs/Advertising.md](docs/Advertising.md))
+- **Advertising & Broadcasts** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and a Broadcast Manager for scheduled echomail posts including ads, weather reports, and automated bulletins (see [docs/Advertising.md](docs/Advertising.md))
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
@@ -182,7 +182,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Server Management** - Start/stop binkp server daemon (Linux/UNIX only)
 - **Status Monitoring** - Real-time system and connection status
 - **Scheduling Control** - Manage automated polling schedules
-- **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
+- **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](docs/Weather.md))
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
@@ -682,7 +682,7 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 - Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
 ### BBS Advertising System
-Advertising is now managed through the built-in ad library at **Admin -> Ads**.
+Advertising is now managed through the built-in Content Library at **Admin -> Ads and Bulletins -> Content Library**.
 
 ANSI ads are stored in the database, can be previewed and edited in the browser, and can be used both for dashboard rotation and scheduled echomail posting.
 

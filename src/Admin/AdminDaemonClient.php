@@ -271,6 +271,24 @@ class AdminDaemonClient
     }
 
     /**
+     * Read config/weather.json (and the example) via the daemon.
+     */
+    public function getWeatherConfig(): array
+    {
+        return $this->sendCommand('get_weather_config');
+    }
+
+    /**
+     * Write config/weather.json via the daemon.
+     *
+     * @param string $json JSON-encoded weather config
+     */
+    public function saveWeatherConfig(string $json): array
+    {
+        return $this->sendCommand('save_weather_config', ['json' => $json]);
+    }
+
+    /**
      * Remove data/license.json via the daemon, reverting to Community Edition.
      */
     public function deleteLicense(): array

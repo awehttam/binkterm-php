@@ -486,7 +486,7 @@ A documented example is provided in `config/bbs.json.example`.
 | `config/dosdoors.json` | DOS door game drop files and node settings | [docs/DOSDoors.md](DOSDoors.md) |
 | `config/nativedoors.json` | Native Linux/Windows door programs | [docs/NativeDoors.md](NativeDoors.md) |
 | `config/themes.json` | Appearance system shell assignments | [docs/CUSTOMIZING.md](CUSTOMIZING.md) |
-| `config/weather.json` | Weather report API key and defaults | [scripts/README_weather.md](../scripts/README_weather.md) |
+| `config/weather.json` | Weather report API key and defaults | [docs/Weather.md](Weather.md) |
 | `config/lovlynet.json` | LovlyNet network registration | [docs/LovlyNet.md](LovlyNet.md) |
 | `config/taglines.txt` | One tagline per line; randomly appended to messages | — |
 | `config/filearea_rules.json` | Automated file area processing rules | [docs/FileAreas.md](FileAreas.md) |

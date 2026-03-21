@@ -388,7 +388,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $user = RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/ad_campaigns.twig');
+        $template->renderResponse('admin/ad_campaigns.twig', [
+            'weather_configured' => file_exists(__DIR__ . '/../config/weather.json'),
+        ]);
     });
 
     // BBS settings page
@@ -3964,6 +3966,95 @@ SimpleRouter::get('/admin/subscriptions', function() {
     if ($data !== null) {
         $template = new Template();
         $template->renderResponse('admin_subscriptions.twig', $data);
+    }
+});
+
+// ─── Weather Config Admin ────────────────────────────────────────────────────
+
+// Weather configuration page
+SimpleRouter::get('/admin/weather-config', function() {
+    RouteHelper::requireAdmin();
+    $template = new Template();
+    $template->renderResponse('admin/weather_config.twig');
+});
+
+// GET current weather config
+SimpleRouter::get('/admin/api/weather-config', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+    try {
+        $result = $daemon->getWeatherConfig();
+        echo json_encode(['success' => true, 'data' => $result]);
+    } catch (\Exception $e) {
+        http_response_code(503);
+        echo json_encode(['success' => false, 'error' => 'daemon_unreachable', 'daemon_error' => true]);
+    }
+});
+
+// POST save weather config
+SimpleRouter::post('/admin/api/weather-config', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        return;
+    }
+
+    // Validate required fields
+    $title        = trim((string)($body['title'] ?? ''));
+    $coverageArea = trim((string)($body['coverage_area'] ?? ''));
+    $apiKey       = trim((string)($body['api_key'] ?? ''));
+    $locations    = $body['locations'] ?? [];
+    $settings     = $body['settings'] ?? [];
+
+    if ($title === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.title_required']);
+        return;
+    }
+    if ($apiKey === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.api_key_required']);
+        return;
+    }
+    if (!is_array($locations) || count($locations) === 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.locations_required']);
+        return;
+    }
+
+    $config = [
+        'title'         => $title,
+        'coverage_area' => $coverageArea,
+        'api_key'       => $apiKey,
+        'locations'     => array_values(array_map(function($loc) {
+            return [
+                'name' => trim((string)($loc['name'] ?? '')),
+                'lat'  => (float)($loc['lat'] ?? 0),
+                'lon'  => (float)($loc['lon'] ?? 0),
+            ];
+        }, $locations)),
+        'settings'      => [
+            'api_timeout'   => max(1, (int)($settings['api_timeout'] ?? 10)),
+            'max_locations' => max(1, (int)($settings['max_locations'] ?? 10)),
+            'units'         => in_array($settings['units'] ?? '', ['metric', 'imperial', 'standard'], true)
+                                ? $settings['units']
+                                : 'metric',
+        ],
+    ];
+
+    $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+    try {
+        $daemon->saveWeatherConfig(json_encode($config));
+        echo json_encode(['success' => true]);
+    } catch (\Exception $e) {
+        http_response_code(503);
+        echo json_encode(['success' => false, 'error' => 'daemon_unreachable', 'daemon_error' => true]);
     }
 });
 

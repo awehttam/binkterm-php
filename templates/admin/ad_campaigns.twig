@@ -1143,18 +1143,19 @@ const WIZARD_PRESETS = {
         end_date_label: 'Expires On',
         end_date_default_offset: 7,
     },
-    anniversary: {
-        label: 'Anniversary / Milestone',
-        icon: 'fa-birthday-cake',
-        description: 'Celebrate a system anniversary or caller count milestone.',
-        frequency: 'Daily for 7 days',
-        schedules: [{ days_mask: 0b1111111, time_of_day: '12:00' }],
+    weather_report: {
+        label: 'Weather Report',
+        icon: 'fa-cloud-sun',
+        description: 'Post a daily weather report.',
+        frequency: 'Daily at 3:00 AM',
+        schedules: [{ days_mask: 0b1111111, time_of_day: '03:00' }],
         post_interval_minutes: 1440,
         min_repeat_gap_minutes: 1440,
-        subject_template: 'MILESTONE: {title}',
-        has_end_date: true,
-        end_date_label: 'Milestone Date',
-        end_date_default_offset: 7,
+        subject_template: 'Daily Weather Report',
+        has_end_date: false,
+        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/weather_report.php')|json_encode|raw }},
+        disabled: {{ weather_configured ? 'false' : 'true' }},
+        disabled_reason: {{ weather_configured ? 'null' : '"Weather report must be configured first"'|raw }},
     },
     tech_notice: {
         label: 'Technical Change Notice',
@@ -1229,6 +1230,7 @@ function wizardGoTo(step) {
     const body = document.getElementById('wizardBody');
     if (step === 1) {
         body.innerHTML = renderWizardStep1();
+        body.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
     } else if (step === 2) {
         body.innerHTML = renderWizardStep2();
     } else {
@@ -1275,6 +1277,23 @@ function renderWizardStepIndicator(currentStep) {
  */
 function renderWizardStep1() {
     const cards = Object.entries(WIZARD_PRESETS).map(([key, preset]) => {
+        if (preset.disabled) {
+            return `
+                <div class="col">
+                    <div class="card h-100 wizard-type-card"
+                         style="opacity:0.5;cursor:not-allowed;"
+                         data-bs-toggle="tooltip" data-bs-placement="top"
+                         title="${escapeHtml(preset.disabled_reason)}">
+                        <div class="card-body text-center d-flex flex-column align-items-center p-3">
+                            <i class="fas ${escapeHtml(preset.icon)} fa-2x mb-2 text-muted"></i>
+                            <h6 class="card-title mb-1 text-muted">${escapeHtml(preset.label)}</h6>
+                            <p class="card-text small text-muted flex-grow-1 mb-2">${escapeHtml(preset.description)}</p>
+                            <span class="badge bg-secondary">${escapeHtml(preset.frequency)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         const selected = wizardSelectedType === key ? 'selected' : '';
         return `
             <div class="col">
@@ -1298,6 +1317,7 @@ function renderWizardStep1() {
  * @param {string} typeKey
  */
 function wizardSelectType(typeKey) {
+    if (WIZARD_PRESETS[typeKey]?.disabled) return;
     wizardSelectedType = typeKey;
     const keys = Object.keys(WIZARD_PRESETS);
     document.querySelectorAll('.wizard-type-card').forEach((card, i) => {

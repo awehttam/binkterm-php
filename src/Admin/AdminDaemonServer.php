@@ -693,6 +693,23 @@ class AdminDaemonServer
                     $this->deleteLicenseFile();
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'get_weather_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWeatherConfig()]);
+                    break;
+                case 'save_weather_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->saveWeatherConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWeatherConfig()]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -1791,6 +1808,36 @@ class AdminDaemonServer
         $json = json_encode($licenseData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($json === false || @file_put_contents($path, $json . "\n", LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write license file');
+        }
+    }
+
+    private function getWeatherConfig(): array
+    {
+        $configPath  = __DIR__ . '/../../config/weather.json';
+        $examplePath = __DIR__ . '/../../config/weather.json.example';
+
+        $active     = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active'      => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson,
+        ];
+    }
+
+    private function saveWeatherConfig(array $config): void
+    {
+        $configPath = __DIR__ . '/../../config/weather.json';
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode weather config');
+        }
+
+        if (file_put_contents($configPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException('Failed to write weather config');
         }
     }
 
