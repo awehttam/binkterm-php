@@ -1344,6 +1344,15 @@ tail -f data/logs/binkp_server.log
 You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.
 See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
 
+## LovlyNet Standards Council (LSC)
+
+BinktermPHP implements LovlyNet Standards Council (LSC) specifications to enhance FTN communication beyond the base FidoNet protocols. These standards are developed by LovlyNet and proposed to the broader FTN community.
+
+| Standard | Title | Status | Document |
+|----------|-------|--------|----------|
+| LSC-001 | MARKUP Kludge — rich-text formatting in echomail and netmail | Community Draft / Proposed for FTSC | [LSC1 - Markup Kludge.txt](docs/LSC/LSC1%20-%20Markup%20Kludge.txt) |
+| LSC-002 | FILEREF Kludge — file-referenced echomail threads | Draft — LovlyNet Standards Council | [LSC2 - FILEREF Kludge.txt](docs/LSC/LSC2%20-%20FILEREF%20Kludge.txt) |
+
 ## Getting Help
 If you encounter issues not covered here:
 
