@@ -30,6 +30,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Post File to File Area](#post-file-to-file-area)
 - [Re-Hatch File to Outbound](#re-hatch-file-to-outbound)
 - [Restart Daemons](#restart-daemons)
+- [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
 
 ## Message Posting Tool
@@ -771,6 +772,39 @@ bash scripts/restart_daemons.sh --stop mrc
 # List available services
 bash scripts/restart_daemons.sh --list
 ```
+
+## RAM Usage Report
+
+Reports the resident set size (RSS / physical RAM) of all services required to run BinktermPHP: web servers, PHP-FPM, PostgreSQL, and all BinktermPHP daemons.
+
+```bash
+# Human-readable table
+bash scripts/ram_usage.sh
+
+# JSON output (for monitoring tools / jq)
+bash scripts/ram_usage.sh --json
+```
+
+Example output:
+
+```
+Service                           Procs   RSS KB   RSS MB
+────────────────────────────────  ───────  ───────  ───────
+Apache (httpd)                        5    82340     80.4
+Caddy                                 1    24680     24.1
+php-fpm                               4    91200     89.1
+PostgreSQL (postgres)                 7   112640    110.0
+admin_daemon                          1    18240     17.8
+binkp_server                          1    21880     21.4
+binkp_scheduler                       1    17640     17.2
+mrc_daemon                            -        -        -
+gemini_daemon                         -        -        -
+telnetd                               1    18920     18.5
+────────────────────────────────  ───────  ───────  ───────
+TOTAL                                       ...      ...
+```
+
+Services that are not running are shown with `-` rather than an error. The script reads `/proc/<pid>/status` directly for accurate RSS values.
 
 ## Who
 
