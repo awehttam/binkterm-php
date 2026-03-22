@@ -488,7 +488,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         RouteHelper::requireAdmin();
         $controller = new \BinktermPHP\Web\DocsController();
         $controller->view($name);
-    });
+    })->where(['name' => '[A-Za-z0-9_.\-]+']);
 
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {

@@ -11,7 +11,6 @@ This index lists documents in operational priority order — essentials first, a
 - [Configuration Reference](CONFIGURATION.md) — Environment variables, .env settings, and core configuration options
 - [Command Line Interface](CLI.md) — All CLI scripts: binkp_server, binkp_poll, maintenance tools
 - [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
-- [Upgrade Guide 1.8.8](UPGRADING_1.8.8.md) — Release-specific upgrade notes for the TIC incoming `FILE_ID.DIZ` lookup fix
 
 ---
 
@@ -86,3 +85,26 @@ This index lists documents in operational priority order — essentials first, a
 ## Developer Reference
 
 - [Developer Guide](DEVELOPER_GUIDE.md) — Architecture overview, coding conventions, contribution guide
+
+---
+
+## Upgrading
+
+Release-specific upgrade notes, listed newest-first.
+
+- [Upgrading to 1.8.8](UPGRADING_1.8.8.md)
+- [Upgrading to 1.8.7](UPGRADING_1.8.7.md)
+- [Upgrading to 1.8.6](UPGRADING_1.8.6.md)
+- [Upgrading to 1.8.5](UPGRADING_1.8.5.md)
+- [Upgrading to 1.8.4](UPGRADING_1.8.4.md)
+- [Upgrading to 1.8.3](UPGRADING_1.8.3.md)
+- [Upgrading to 1.8.2](UPGRADING_1.8.2.md)
+- [Upgrading to 1.8.0](UPGRADING_1.8.0.md)
+- [Upgrading to 1.7.9](UPGRADING_1.7.9.md)
+- [Upgrading to 1.7.8](UPGRADING_1.7.8.md)
+- [Upgrading to 1.7.7](UPGRADING_1.7.7.md)
+- [Upgrading to 1.7.5](UPGRADING_1.7.5.md)
+- [Upgrading to 1.7.2](UPGRADING_1.7.2.md)
+- [Upgrading to 1.7.1](UPGRADING_1.7.1.md)
+- [Upgrading to 1.7.0](UPGRADING_1.7.0.md)
+- [Upgrading to 1.6.7](UPGRADING_1.6.7.md)
