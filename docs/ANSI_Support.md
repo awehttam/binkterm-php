@@ -254,6 +254,23 @@ window.userSettings.ansi_parsing = false;  // Disable ANSI parsing
 
 When disabled, ANSI codes are stripped and messages display as plain text.
 
+## Renderer Mode
+
+The HTML renderer can operate in two modes, controlled by the `ANSI_RENDERER_MODE` environment variable in `.env`:
+
+| Value | Behaviour | Default |
+|---|---|---|
+| `grouped` | Consecutive characters with identical styling are merged into a single `<span>`. Produces compact HTML and enables URL hyperlinking inside ANSI art. | ✅ Yes |
+| `perchar` | Every character gets its own `<span>`. Maximally precise — each cell is independently addressable — but URLs cannot be auto-hyperlinked because they are fragmented across individual spans. | No |
+
+```bash
+# .env
+ANSI_RENDERER_MODE=grouped   # default
+ANSI_RENDERER_MODE=perchar   # one span per character
+```
+
+Use `perchar` if you observe rendering differences with specific art files and want to compare. `grouped` is recommended for normal operation.
+
 ## Compatibility
 
 ### Fully Supported

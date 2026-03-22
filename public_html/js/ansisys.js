@@ -593,6 +593,77 @@ class ArtHtmlRenderer {
         }
     }
 
+    getCellClasses(cell) {
+        const classes = [];
+        const fgClass = this.getColorClass(cell.fg, false);
+        const bgClass = this.getColorClass(cell.bg, true);
+        if (fgClass && cell.fg !== 7) classes.push(fgClass);
+        if (bgClass && cell.bg !== 0) classes.push(bgClass);
+        if (cell.bold) classes.push('ansi-bold');
+        if (cell.dim) classes.push('ansi-dim');
+        if (cell.italic) classes.push('ansi-italic');
+        if (cell.underline) classes.push('ansi-underline');
+        if (cell.blink) classes.push('ansi-blink');
+        if (cell.reverse) classes.push('ansi-reverse');
+        return classes;
+    }
+
+    render(buffer) {
+        let html = '';
+        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+
+        for (let r = 0; r < rowsToRender; r++) {
+            const row = buffer.buffer[r];
+            let lastNonSpace = -1;
+            for (let c = row.length - 1; c >= 0; c--) {
+                if (row[c].char !== ' ' || row[c].bg !== 0) {
+                    lastNonSpace = c;
+                    break;
+                }
+            }
+
+            // Group consecutive cells with identical styling into one span
+            let spanOpen = false;
+            let currentClassStr = null;
+
+            for (let c = 0; c <= lastNonSpace; c++) {
+                const cell = row[c];
+                const classes = this.getCellClasses(cell);
+                const classStr = classes.join(' ');
+
+                if (classStr !== currentClassStr) {
+                    if (spanOpen) html += '</span>';
+                    if (classStr) {
+                        html += `<span class="${classStr}">`;
+                        spanOpen = true;
+                    } else {
+                        spanOpen = false;
+                    }
+                    currentClassStr = classStr;
+                }
+
+                html += this.escapeChar(cell.char);
+            }
+
+            if (spanOpen) html += '</span>';
+
+            if (r < rowsToRender - 1) {
+                html += '\n';
+            }
+        }
+
+        return html;
+    }
+}
+
+/**
+ * Per-character HTML renderer — identical styling logic to ArtHtmlRenderer but
+ * wraps every cell in its own <span>. Enabled via ANSI_RENDERER_MODE=perchar.
+ * Trade-off: more verbose HTML, but each character is independently addressable.
+ * Note: URL hyperlinking does not work in this mode because URLs are fragmented
+ * across individual spans.
+ */
+class ArtHtmlRendererPerChar extends ArtHtmlRenderer {
     render(buffer) {
         let html = '';
         const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
@@ -609,20 +680,12 @@ class ArtHtmlRenderer {
 
             for (let c = 0; c <= lastNonSpace; c++) {
                 const cell = row[c];
-                const classes = ['ansi-c'];
-                const fgClass = this.getColorClass(cell.fg, false);
-                const bgClass = this.getColorClass(cell.bg, true);
-
-                if (fgClass && cell.fg !== 7) classes.push(fgClass);
-                if (bgClass && cell.bg !== 0) classes.push(bgClass);
-                if (cell.bold) classes.push('ansi-bold');
-                if (cell.dim) classes.push('ansi-dim');
-                if (cell.italic) classes.push('ansi-italic');
-                if (cell.underline) classes.push('ansi-underline');
-                if (cell.blink) classes.push('ansi-blink');
-                if (cell.reverse) classes.push('ansi-reverse');
-
-                html += `<span class="${classes.join(' ')}">${this.escapeChar(cell.char)}</span>`;
+                const classes = this.getCellClasses(cell);
+                if (classes.length > 0) {
+                    html += `<span class="${classes.join(' ')}">${this.escapeChar(cell.char)}</span>`;
+                } else {
+                    html += this.escapeChar(cell.char);
+                }
             }
 
             if (r < rowsToRender - 1) {
@@ -1232,7 +1295,9 @@ function findScreenRamOffset(bytes) {
 function renderAnsiBuffer(text, cols = 80, rows = 500) {
     const buffer = new ArtScreenBuffer(cols, rows);
     const decoder = new ArtAnsiDecoder(buffer);
-    const renderer = new ArtHtmlRenderer();
+    const renderer = (window.siteConfig?.ansiRendererMode === 'perchar')
+        ? new ArtHtmlRendererPerChar()
+        : new ArtHtmlRenderer();
     decoder.decode(text);
     return renderer.render(buffer);
 }

@@ -112,6 +112,7 @@
         window.appLocale = {{ locale|json_encode|raw }};
         window.appDefaultLocale = {{ default_locale|json_encode|raw }};
         window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
+        window.siteConfig = { ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }} };
     </script>
     <script src="/js/app.js"></script>
     <script src="/js/ansisys.js"></script>

@@ -69,17 +69,24 @@ function handleStatus(PDO $db): void
  */
 function fetchRoomList(PDO $db): array
 {
+    // Count distinct users from both server-reported presence (mrc_users) and
+    // local webdoor sessions (mrc_local_presence) to avoid undercounting.
     $stmt = $db->query("
         SELECT
             r.room_name,
             r.topic,
             r.topic_set_by,
             r.topic_set_at,
-            COUNT(DISTINCT u.username) AS user_count,
-            r.last_activity
+            r.last_activity,
+            (
+                SELECT COUNT(DISTINCT username)
+                FROM (
+                    SELECT username FROM mrc_users WHERE room_name = r.room_name
+                    UNION
+                    SELECT username FROM mrc_local_presence WHERE room_name = r.room_name
+                ) all_users
+            ) AS user_count
         FROM mrc_rooms r
-        LEFT JOIN mrc_users u ON r.room_name = u.room_name
-        GROUP BY r.room_name, r.topic, r.topic_set_by, r.topic_set_at, r.last_activity
         ORDER BY r.room_name
     ");
     $rooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -372,12 +379,20 @@ function handlePoll(PDO $db, array $user): void
         }
     }
 
-    // Users list for joined room
+    // Users list for joined room — include both server-reported (mrc_users) and
+    // locally-connected (mrc_local_presence) users so that the local user
+    // appears immediately after joining, before the server's USERLIST arrives.
     if ($joinRoom !== '') {
         $joinRoom = MrcClient::sanitizeName($joinRoom);
         $stmt = $db->prepare("
-            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen, is_afk, afk_message
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   COALESCE(is_afk, false) AS is_afk, afk_message
             FROM mrc_users
+            WHERE room_name = :room
+            UNION ALL
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   false AS is_afk, NULL AS afk_message
+            FROM mrc_local_presence
             WHERE room_name = :room
             ORDER BY username
         ");
@@ -446,11 +461,19 @@ function handleLongPoll(PDO $db, array $user): void
     }
 
     // Fetch slow-changing data once up-front; included in every response.
+    // Include both server-reported (mrc_users) and locally-connected
+    // (mrc_local_presence) users so the local user is visible immediately.
     $users = [];
     if ($joinRoom !== '') {
         $stmt = $db->prepare("
-            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen, is_afk, afk_message
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   COALESCE(is_afk, false) AS is_afk, afk_message
             FROM mrc_users
+            WHERE room_name = :room
+            UNION ALL
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   false AS is_afk, NULL AS afk_message
+            FROM mrc_local_presence
             WHERE room_name = :room
             ORDER BY username
         ");
@@ -573,8 +596,14 @@ function handleUsers(PDO $db): void
     }
 
     $stmt = $db->prepare("
-        SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen, is_afk, afk_message
+        SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+               COALESCE(is_afk, false) AS is_afk, afk_message
         FROM mrc_users
+        WHERE room_name = :room
+        UNION ALL
+        SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+               false AS is_afk, NULL AS afk_message
+        FROM mrc_local_presence
         WHERE room_name = :room
         ORDER BY username
     ");

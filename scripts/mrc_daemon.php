@@ -418,48 +418,65 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
         case 'USERLIST':
             // Server sending current room user list (response to USERLIST or NEWROOM)
             // Format: USERLIST:user1,user2,...  f6=room
+            //
+            // Sync strategy: never blindly wipe then refill.
+            // - If the server returns a non-empty list: remove users no longer
+            //   present and upsert users that are, preserving any entries not
+            //   mentioned (e.g. local webdoor users whose NEWROOM hasn't echoed
+            //   back yet).
+            // - Only when the server explicitly returns 0 users do we clear all
+            //   non-local entries for the room.
             $room = $packet['f6'];
-            if ($room && $params !== '') {
-                $users = array_values(array_filter(array_map('trim', explode(',', $params)), 'strlen'));
-                if (count($users) === 0) {
-                    mrcLog("MRC: USERLIST empty/invalid for room {$room} (raw={$params})");
-                    break;
-                }
-                // Ensure room exists before inserting users (foreign key requirement)
-                $db->prepare("
-                    INSERT INTO mrc_rooms (room_name, last_activity)
-                    VALUES (:room, CURRENT_TIMESTAMP)
-                    ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
-                ")->execute(['room' => $room]);
-                // Replace foreign user list for this room — preserve local (webdoor) users.
-                // Wrap in a transaction to avoid empty-list flashes during polling.
-                $db->beginTransaction();
-                try {
-                    $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
-                    $stmt->execute(['room' => $room]);
-                    $insertStmt = $db->prepare("
-                        INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
-                        VALUES (:username, :bbs_name, :room, false, CURRENT_TIMESTAMP)
-                        ON CONFLICT (username, bbs_name, room_name) DO UPDATE
-                        SET last_seen = CURRENT_TIMESTAMP
-                    ");
-                    foreach ($users as $u) {
-                        $trimmed = $u;
-                        $insertStmt->execute([
-                            'username' => $trimmed,
-                            'bbs_name' => 'unknown',
-                            'room' => $room
-                        ]);
-                    }
-                    $db->commit();
-                } catch (Throwable $e) {
-                    if ($db->inTransaction()) {
-                        $db->rollBack();
-                    }
-                    mrcLog("MRC: USERLIST update failed for room {$room}: " . $e->getMessage(), 'ERROR');
-                }
-                mrcLog("MRC: Room {$room} users (" . count($users) . "): {$params}");
+            if (!$room) break;
+
+            $users = ($params !== '')
+                ? array_values(array_filter(array_map('trim', explode(',', $params)), 'strlen'))
+                : [];
+
+            // Ensure room exists (foreign key requirement for mrc_users).
+            $db->prepare("
+                INSERT INTO mrc_rooms (room_name, last_activity)
+                VALUES (:room, CURRENT_TIMESTAMP)
+                ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
+            ")->execute(['room' => $room]);
+
+            if (count($users) === 0) {
+                // Server reports empty room — remove all non-local presence.
+                $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false")
+                   ->execute(['room' => $room]);
+                mrcLog("MRC: USERLIST empty for room {$room}, cleared remote users");
+                break;
             }
+
+            // Sync: remove non-local users who are no longer in the server list,
+            // then upsert the users who are present.
+            try {
+                $placeholders = implode(',', array_fill(0, count($users), '?'));
+                $deleteStmt = $db->prepare("
+                    DELETE FROM mrc_users
+                    WHERE room_name = ?
+                      AND is_local = false
+                      AND username NOT IN ({$placeholders})
+                ");
+                $deleteStmt->execute(array_merge([$room], $users));
+
+                $insertStmt = $db->prepare("
+                    INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
+                    VALUES (:username, :bbs_name, :room, false, CURRENT_TIMESTAMP)
+                    ON CONFLICT (username, bbs_name, room_name) DO UPDATE
+                    SET last_seen = CURRENT_TIMESTAMP
+                ");
+                foreach ($users as $u) {
+                    $insertStmt->execute([
+                        'username' => $u,
+                        'bbs_name' => 'unknown',
+                        'room'     => $room,
+                    ]);
+                }
+            } catch (Throwable $e) {
+                mrcLog("MRC: USERLIST sync failed for room {$room}: " . $e->getMessage(), 'ERROR');
+            }
+            mrcLog("MRC: Room {$room} users (" . count($users) . "): {$params}");
             break;
 
         case 'HELLO':
