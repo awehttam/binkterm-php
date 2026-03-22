@@ -55,6 +55,10 @@
   - [Message Edit: Character Set Selector](#message-edit-character-set-selector)
   - [Charset Alias Normalization](#charset-alias-normalization)
   - [Sender Name Popover with BBS Lookup](#sender-name-popover-with-bbs-lookup)
+  - [To Name Autocomplete from Address Book](#to-name-autocomplete-from-address-book)
+  - [Art Format Field Now Forces ANSI Renderer](#art-format-field-now-forces-ansi-renderer)
+  - [Message Body Preserves Multiple Spaces](#message-body-preserves-multiple-spaces)
+  - [PETSCII Removed from Message Viewer](#petscii-removed-from-message-viewer)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -80,6 +84,10 @@
 - Clicking a node address in the netmail message list now shows a Bootstrap popover with the BBS system name, location, and a "View full node details" button. Point addresses that are not in the nodelist fall back to the parent node entry.
 - The "Art Encoding" field in the netmail and echomail message edit dialogs has been renamed to **Character Set** and changed from a free-text input to a dropdown. The dropdown lists only valid iconv-compatible charsets. Messages with an unrecognised stored charset show it as a labelled "(unknown)" option so it is preserved if the edit is saved without changing it.
 - Clicking the sender name in the echomail list or the From field in the netmail message view now shows a popover with the BBS system name, location, FTN address, and buttons to send netmail or view the full nodelist entry. Point addresses are resolved to the boss node for the lookup.
+- The **To Name** field in the netmail compose form now supports address book autocomplete: typing two or more characters shows a dropdown of matching contacts with their node address, network badge, and BBS name. Selecting an entry fills both the To Name and To Address fields.
+- Setting a message's Art Format to `ansi` now correctly forces ANSI rendering regardless of heuristic detection. Previously only `amiga_ansi` and `petscii` were treated as explicit overrides.
+- PETSCII has been removed as an Art Format option from the echomail, netmail, and echo area edit dialogs, and from the message viewer render mode cycle. PETSCII is a binary format that cannot survive FTN text transport. The PETSCII renderer in `ansisys.js` is retained for file area previews of `.prg` and `.seq` files.
+- The message body renderer now preserves multiple consecutive spaces and tabs (`white-space: pre-wrap`), fixing space-aligned tables and ASCII art that were being collapsed to single spaces by the browser.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -695,6 +703,64 @@ point.
 The popover implementation is shared between echomail and netmail to avoid
 duplication. The trigger element uses a standard solid underline in both
 contexts.
+
+### To Name Autocomplete from Address Book
+
+The **To Name** field in the netmail compose form now provides inline
+autocomplete backed by the user's address book. Typing two or more characters
+triggers a debounced search and shows a dropdown beneath the field. Each result
+displays:
+
+- The contact's name (bold)
+- Their node address in monospace, a network badge (e.g. `fidonet`), and the
+  BBS system name pulled from the imported nodelist
+
+Selecting an entry fills both fields at once: **To Name** is set to the
+contact's name and **To Address** is set to their FTN node address. The
+crashmail checkbox is also toggled to match the contact's `Always Crashmail`
+preference. Full keyboard navigation (↑/↓/Enter/Escape) is supported.
+
+### Art Format Field Now Forces ANSI Renderer
+
+Setting a message's **Art Format** to `ansi` now unconditionally triggers the
+ANSI renderer when the message is displayed. Previously only `amiga_ansi` was
+treated as an explicit override; `ansi` fell through to heuristic detection
+(cursor codes, dense colour lines) and was silently ignored for messages that
+did not meet those thresholds.
+
+### Message Body Preserves Multiple Spaces
+
+The plain-text message renderer (`formatMessageText` in `public_html/js/app.js`)
+now applies `white-space: pre-wrap` to each rendered line. This preserves
+multiple consecutive spaces and tabs exactly as they appear in the raw message
+text, fixing the display of space-aligned tables and column-formatted content
+that were previously collapsed to a single space by standard HTML rendering.
+
+The font and size are unchanged — only whitespace handling is affected. Messages
+rendered as ANSI art, PCBoard colour, or forced plain text (`<pre>`) are not
+affected by this change.
+
+### PETSCII Removed from Message Viewer
+
+PETSCII is a binary format used by Commodore 64 programs (`.prg`) and
+sequential files (`.seq`). Because FTN echomail and netmail are text-based
+transports, binary PETSCII data cannot survive the journey intact and the
+format is not meaningful in this context.
+
+The **PETSCII** option has been removed from:
+
+- The **Art Format** dropdown in the echomail and netmail message edit dialogs
+- The **Art Format Hint** dropdown on the echo area settings page
+- The render mode cycle button in the echomail and netmail message viewers
+- `ArtFormatDetector::detectArtFormat()` in `src/ArtFormatDetector.php` — the
+  PETSCII encoding name list, byte-level heuristic, and related constants have
+  all been removed
+
+Any message that already has `art_format = petscii` stored in the database
+will continue to display (falling back to the auto renderer). The PETSCII
+decoder (`ArtPetsciiDecoder`, `renderPetsciiBuffer`) remains in `ansisys.js`
+and is still used by the file area file previewer for `.prg` and `.seq`
+downloads, where PETSCII format is detected purely by file extension.
 
 ### Charset Alias Normalization
 

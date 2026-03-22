@@ -62,8 +62,11 @@
                         </div>
                         <div class="col-md-6">
                             <label for="toName" class="form-label">{{ t('ui.compose.to_name_required', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" id="toName" name="to_name"
-                                   value="{{ to_name_value }}" required>
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="toName" name="to_name"
+                                       value="{{ to_name_value }}" required autocomplete="off">
+                                <div id="nameSearchDropdown" class="dropdown-menu w-100" style="display:none; top:100%; left:0; position:absolute; z-index:1050; max-height:220px; overflow-y:auto; overflow-x:hidden;"></div>
+                            </div>
                         </div>
                     </div>
                     {% if crashmail_enabled %}
@@ -466,6 +469,141 @@ let markdownSupportTimer = null;
     });
 })();
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Address book To Name autocomplete ─────────────────────────────────────────
+(function() {
+    // Only active on netmail compose
+    if (!document.getElementById('toAddress')) return;
+
+    let abSearchTimer = null;
+    let abActiveIndex = -1;
+    let abCurrentResults = [];
+
+    function getDropdown() { return document.getElementById('nameSearchDropdown'); }
+    function getInput()    { return document.getElementById('toName'); }
+
+    function closeDropdown() {
+        const dd = getDropdown();
+        if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+        abActiveIndex = -1;
+        abCurrentResults = [];
+    }
+
+    function renderResults(entries) {
+        const dd = getDropdown();
+        if (!dd) return;
+        abCurrentResults = entries;
+        abActiveIndex = -1;
+        dd.innerHTML = '';
+
+        if (entries.length === 0) {
+            dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2">' +
+                uiT('ui.address_book.no_entries_found', 'No entries found') + '</span>';
+        } else {
+            entries.forEach(function(entry, i) {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item text-wrap py-2';
+                item.href = '#';
+                let addrHtml = entry.node_address ? '<span class="font-monospace">' + escapeHtml(entry.node_address) + '</span>' : '';
+                if (entry.node_domain) {
+                    addrHtml += ' <span class="badge bg-secondary ms-1" style="font-size:0.7em;">' + escapeHtml(entry.node_domain) + '</span>';
+                }
+                if (entry.node_system_name) {
+                    addrHtml += ' <span class="text-muted">&mdash; ' + escapeHtml(entry.node_system_name) + '</span>';
+                }
+                item.innerHTML =
+                    '<div class="fw-semibold">' + escapeHtml(entry.name || '') + '</div>' +
+                    (addrHtml ? '<div class="small text-muted">' + addrHtml + '</div>' : '');
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    selectEntry(entry);
+                });
+                item.dataset.index = i;
+                dd.appendChild(item);
+            });
+        }
+        dd.style.display = 'block';
+    }
+
+    function selectEntry(entry) {
+        const nameInput = getInput();
+        if (nameInput) nameInput.value = entry.name || '';
+
+        const addrInput = document.getElementById('toAddress');
+        if (addrInput) addrInput.value = entry.node_address || '';
+
+        const crashmail = document.getElementById('crashmail');
+        if (crashmail) crashmail.checked = !!entry.always_crashmail;
+
+        if (typeof refreshMarkdownSupportForNetmail === 'function') {
+            refreshMarkdownSupportForNetmail();
+        }
+        closeDropdown();
+    }
+
+    function highlightItem(newIndex) {
+        const dd = getDropdown();
+        if (!dd) return;
+        const items = dd.querySelectorAll('a.dropdown-item');
+        items.forEach(function(el, i) { el.classList.toggle('active', i === newIndex); });
+        abActiveIndex = newIndex;
+    }
+
+    function doSearch(q) {
+        const dd = getDropdown();
+        if (dd) {
+            dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2"><i class="fas fa-spinner fa-spin me-1"></i>' +
+                uiT('ui.compose.node_search.searching', 'Searching...') + '</span>';
+            dd.style.display = 'block';
+        }
+        fetch('/api/address-book/search/' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) { if (data.success) renderResults(data.entries || []); })
+            .catch(function() { closeDropdown(); });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = getInput();
+        if (!input) return;
+
+        input.addEventListener('input', function() {
+            const val = input.value.trim();
+            clearTimeout(abSearchTimer);
+            if (val.length < 2) { closeDropdown(); return; }
+            abSearchTimer = setTimeout(function() { doSearch(val); }, 300);
+        });
+
+        input.addEventListener('keydown', function(e) {
+            const dd = getDropdown();
+            if (!dd || dd.style.display === 'none') return;
+            const items = dd.querySelectorAll('a.dropdown-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightItem(Math.min(abActiveIndex + 1, items.length - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightItem(Math.max(abActiveIndex - 1, 0));
+            } else if (e.key === 'Enter' && abActiveIndex >= 0) {
+                e.preventDefault();
+                if (abCurrentResults[abActiveIndex]) selectEntry(abCurrentResults[abActiveIndex]);
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+
+        input.addEventListener('blur', function() {
+            setTimeout(closeDropdown, 150);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#nameSearchDropdown') && e.target !== input) {
+                closeDropdown();
+            }
+        });
+    });
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;

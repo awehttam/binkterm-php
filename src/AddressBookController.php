@@ -245,32 +245,44 @@ class AddressBookController
     }
 
     /**
-     * Search address book entries for autocomplete
+     * Search address book entries for autocomplete.
+     * Includes system_name from the nodelist for entries that have a node address.
      */
     public function searchEntries($userId, $query, $limit = 10)
     {
         $searchTerm = '%' . $query . '%';
-        
+        $exactTerm  = $query . '%';
+
         $stmt = $this->db->prepare("
-            SELECT id, name, messaging_user_id, node_address, email, always_crashmail
-            FROM address_book
-            WHERE user_id = ?
-                AND (name ILIKE ? OR messaging_user_id ILIKE ? OR node_address ILIKE ?)
-            ORDER BY 
-                CASE 
-                    WHEN name ILIKE ? THEN 1
-                    WHEN messaging_user_id ILIKE ? THEN 2
-                    WHEN node_address ILIKE ? THEN 3
+            SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.always_crashmail,
+                nl.system_name AS node_system_name,
+                nl.domain      AS node_domain
+            FROM address_book ab
+            LEFT JOIN LATERAL (
+                SELECT n.system_name, n.domain FROM nodelist n
+                WHERE ab.node_address ~ E'^\\d+:\\d+/\\d+'
+                  AND n.zone  = (regexp_match(ab.node_address, E'^(\\d+):'))[1]::integer
+                  AND n.net   = (regexp_match(ab.node_address, E':(\\d+)/'))[1]::integer
+                  AND n.node  = (regexp_match(ab.node_address, E'/(\\d+)'))[1]::integer
+                  AND n.point = 0
+                ORDER BY n.id
+                LIMIT 1
+            ) nl ON true
+            WHERE ab.user_id = ?
+                AND (ab.name ILIKE ? OR ab.messaging_user_id ILIKE ? OR ab.node_address ILIKE ?)
+            ORDER BY
+                CASE
+                    WHEN ab.name ILIKE ? THEN 1
+                    WHEN ab.messaging_user_id ILIKE ? THEN 2
+                    WHEN ab.node_address ILIKE ? THEN 3
                     ELSE 4
                 END,
-                name ASC
+                ab.name ASC
             LIMIT ?
         ");
-        
-        // Priority search: exact matches first, then partial matches
-        $exactTerm = $query . '%';
+
         $stmt->execute([$userId, $searchTerm, $searchTerm, $searchTerm, $exactTerm, $exactTerm, $exactTerm, $limit]);
-        
+
         return $stmt->fetchAll();
     }
 

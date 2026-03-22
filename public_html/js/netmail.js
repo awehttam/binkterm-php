@@ -586,7 +586,7 @@ function displayMessageContent(message) {
 }
 
 function getNextRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'plain'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }

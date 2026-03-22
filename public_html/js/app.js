@@ -122,7 +122,7 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
 
     const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30));
-    const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : '';
+    const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : ' style="white-space: pre-wrap;"';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
     // If so, use the full terminal renderer instead of line-by-line processing
@@ -274,7 +274,7 @@ function normalizeViewerRenderMode(mode) {
 }
 
 function getNextViewerRenderMode(mode) {
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
     const normalized = normalizeViewerRenderMode(mode);
     const currentIndex = modes.indexOf(normalized);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
@@ -289,8 +289,6 @@ function getViewerRenderModeLabel(mode) {
             return window.t ? window.t('ui.echomail.viewer_mode_ansi', {}, 'ANSI') : 'ANSI';
         case 'amiga_ansi':
             return window.t ? window.t('ui.echomail.viewer_mode_amiga_ansi', {}, 'Amiga ANSI') : 'Amiga ANSI';
-        case 'petscii':
-            return window.t ? window.t('ui.echomail.viewer_mode_petscii', {}, 'PETSCII') : 'PETSCII';
         case 'plain':
             return window.t ? window.t('ui.echomail.viewer_mode_plain', {}, 'Plain Text') : 'Plain Text';
         default:
@@ -545,7 +543,7 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
-    const explicitBinaryArtMode = ['ansi', 'amiga_ansi', 'petscii'].includes(requestedFormat);
+    const explicitBinaryArtMode = ['ansi', 'amiga_ansi'].includes(requestedFormat);
     const shouldRenderAnsiArt = !forcePlainText && (
         explicitBinaryArtMode ||
         hasCursorAnsi ||
@@ -558,7 +556,7 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
         let rendered = renderArtMessage(text, {
             format: renderFormat,
             bytesBase64: rawBytesB64,
-            cols: renderFormat === 'petscii' ? 40 : 80,
+            cols: 80,
             rows: 500
         });
         rendered = linkifyUrls(rendered);

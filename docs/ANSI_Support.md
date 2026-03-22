@@ -305,11 +305,41 @@ BinktermPHP uses intelligent detection to optimize performance:
 
 This ensures fast rendering for most messages while still supporting complex ANSI art when needed.
 
+## Amiga ANSI
+
+Amiga ANSI art uses the same ANSI X3.64 escape sequence syntax as standard
+PC ANSI but was authored for the Amiga's Topaz terminal font and colour
+palette rather than IBM's CP437 character set.
+
+BinktermPHP renders Amiga ANSI through a separate `ArtAmigaAnsiDecoder` that
+extends the standard decoder with two differences:
+
+1. **Font** — the `art-format-amiga-ansi` CSS class selects the
+   **Topaz Unicode KS13** font (with Topaz Plus as a fallback), which
+   reproduces the authentic Amiga screen appearance. Place the font files
+   at `public_html/fonts/TopazPlus.ttf` and
+   `public_html/fonts/topaz_unicode_ks13_regular.ttf` to activate them.
+
+2. **Default colours** — the container uses a dark blue-tinted background
+   (`#06090f`) with light blue default text (`#cfd8ff`) instead of the
+   standard black/white ANSI defaults, matching the Amiga Workbench palette.
+
+3. **Character translation** — non-breaking space (`U+00A0`) is mapped to a
+   regular space to prevent layout issues; `÷` and `×` pass through unchanged.
+
+### Selecting Amiga ANSI rendering
+
+Set a message's **Art Format** field to `amiga_ansi`, or use the render mode
+cycle button in the message viewer to switch to **Amiga ANSI** manually.
+
+The escape sequence parser itself is identical to the standard ANSI renderer —
+only the font and default colour scheme differ.
+
 ## Related
 
 - [Pipe Code Support](Pipe_Code_Support.md) - BBS pipe codes (|XX format)
-- CSS styling in `/css/ansisys.css`
-- JavaScript implementation in `/js/ansisys.js`
+- CSS styling in `public_html/css/ansisys.css`
+- JavaScript implementation in `public_html/js/ansisys.js`
 
 ## References
 

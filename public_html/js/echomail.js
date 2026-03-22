@@ -609,7 +609,6 @@ function displayMessages(messages, isThreaded = false) {
             const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? `<i class="fas fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>` : `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>`;
-            const petsciiIcon = msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : '';
             const shareIcon = isShared ? `<i class="fas fa-share-alt text-success me-1" title="${uiT('ui.common.shared', 'Shared')}"></i>` : '';
             const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn"
                                  data-message-id="${msg.id}"
@@ -639,7 +638,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<span class="echo-from-popover" style="cursor:pointer; text-decoration:underline;" onclick="event.stopPropagation(); handleEchoFromClick(this)" data-from-name="${escapeHtml(msg.from_name)}" data-from-address="${escapeHtml(msg.from_address || '')}" data-to-address="${escapeHtml((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : (msg.from_address || ''))}" data-to-name="${escapeHtml((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}" data-subject="${escapeHtml('Re: ' + (msg.subject || ''))}">${escapeHtml(msg.from_name)}</span>
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<span class="echo-from-popover" style="cursor:pointer; text-decoration:underline;" onclick="event.stopPropagation(); handleEchoFromClick(this)" data-from-name="${escapeHtml(msg.from_name)}" data-from-address="${escapeHtml(msg.from_address || '')}" data-to-address="${escapeHtml((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : (msg.from_address || ''))}" data-to-name="${escapeHtml((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}" data-subject="${escapeHtml('Re: ' + (msg.subject || ''))}">${escapeHtml(msg.from_name)}</span>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -924,7 +923,7 @@ function getNextRenderMode(mode) {
     if (window.getNextViewerRenderMode) {
         return window.getNextViewerRenderMode(mode);
     }
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -1123,7 +1122,7 @@ function isAnsiAdCandidate(message, bodyText) {
     if (format === 'ansi' || format === 'amiga_ansi') {
         return true;
     }
-    if (format === 'petscii' || format === 'rip' || format === 'plain') {
+    if (format === 'rip' || format === 'plain') {
         return false;
     }
 
