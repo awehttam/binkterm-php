@@ -52,6 +52,11 @@ on 40-column systems like the C64), or off if you prefer to manage line
 length yourself. Wrapping happens at word boundaries where possible. The
 setting is remembered per user.
 
+The compose form now warns you if your message is approaching or has exceeded
+the 16 KB FidoNet message limit. A yellow warning appears as you type once
+you pass 80% of the limit, and a red error if you go over. The same checks
+run at send time.
+
 --- CHARACTER SET HANDLING ---
 
 Replies now honour the charset of the message you are replying to. Replying
