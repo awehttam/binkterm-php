@@ -53,12 +53,14 @@ echo "Found " . count($echoareas) . " echo areas.  Mode: {$mode}\n\n";
 $prefixes = [
     'LVLY_',     // LovlyNet
     'MIN_',      // Micronet / Miniature Net
-    'DOVE_',     // Dovenet
+    'DOVE-',     // Dovenet (hyphen separator)
+    'DOVE_',     // Dovenet (underscore separator)
     'FSX_',      // fsxNet
     'AGL_',      // Agoranet
     'AGN_',      // Agoranet alternate
     'HACK_',     // Hackernet
-    'HBN_',      // Hobbynet
+    'HNET_',     // Hobbynet
+    'HBN_',      // Hobbynet alternate
     'CFN_',      // CoffeeNet
     'TQN_',      // TQNet
     'WIN_',      // Winlink?
@@ -70,6 +72,8 @@ $prefixes = [
     'NET_',
     'FIDONET_',
     'FIDO_',
+    'NIX_',      // Nixnet
+    'RTN_',      // Retronet
 ];
 
 $suffixes = [
@@ -111,9 +115,10 @@ $interestCategories = [
         'name' => 'Retro Computing & Vintage Hardware',
         'keywords' => [
             'RETRO', 'VINTAGE', 'CLASSIC', 'C64', 'COMMODORE', 'AMIGA', 'ATARI',
-            'APPLE2', 'APPLE_2', 'TRS', 'CP/M', 'CPM', 'ZX', 'SPECTRUM',
-            'MSX', 'TANDY', 'KAYPRO', 'OSBORNE', 'ALTAIR', 'S100',
-            'OLDCOMP', 'OLD_COMP', 'HISTORIC', 'MUSEUM',
+            'APPLE2', 'APPLE_2', 'APPLE', 'TRS80', 'TRS-80', 'CP/M', 'CPM', 'ZX',
+            'SPECTRUM', 'MSX', 'TANDY', 'KAYPRO', 'OSBORNE', 'ALTAIR', 'S100',
+            'OLDCOMP', 'OLD_COMP', 'MUSEUM', 'MAINFRAME', 'COL_ADAM', 'TI99',
+            'TI-99', 'RTN_TI',
         ],
     ],
     [
@@ -122,6 +127,8 @@ $interestCategories = [
             'BBS', 'FIDONET', 'FIDO', 'SYSOP', 'DOOR', 'ANSI', 'ASCII',
             'NODELIST', 'ECHOMAIL', 'NETMAIL', 'BINKP', 'FTN', 'MAILER',
             'FOSSIL', 'TICFILE', 'FILEECHO', 'POINTLIST',
+            'ECHO_ADS', 'FILEFIND', 'BOT', 'ADMIN', 'OPS', 'SYNCANNO',
+            'SYNCOPS', 'SYNCJS', 'ANNOUNCE',
         ],
     ],
     [
@@ -185,7 +192,7 @@ $interestCategories = [
             'HAM', 'HAMRADIO', 'RADIO', 'AMATEUR', 'QRP', 'QSL',
             'ELECTRON', 'CIRCUIT', 'ARDUINO', 'RASPBERRY', 'RASPI',
             'MICROCONTROL', 'HARDWARE', 'SOLDERING', 'PCB',
-            'RF', 'SDR', 'CW', 'MORSE',
+            'SDR', 'MORSE',
         ],
     ],
     [
@@ -193,8 +200,8 @@ $interestCategories = [
         'keywords' => [
             'NETWORK', 'SECURITY', 'HACK', 'HACKER', 'INFOSEC',
             'PENTEST', 'CTF', 'CRYPTO', 'ENCRYPT', 'FIREWALL',
-            'TCP', 'IP', 'PROTOCOL', 'WIFI', 'WIRELESS',
-            'PRIVACY', 'VPN', 'TOR',
+            'TCP/IP', 'PROTOCOL', 'WIFI', 'WIRELESS',
+            'PRIVACY', 'VPN', 'TOR', 'INTERNET', 'MOBILE',
         ],
     ],
     [
@@ -204,6 +211,7 @@ $interestCategories = [
             'GOVERN', 'GOVERNMENT', 'LAW', 'LEGAL', 'LIBERTARIAN',
             'CONSERV', 'LIBERAL', 'DEMOCRAT', 'REPUBLICAN',
             'ELECTION', 'DEBATE', 'OPINION', 'EDITORIAL',
+            'GUN', 'CONSPRCY', 'CONSPIR',
         ],
     ],
     [
@@ -224,11 +232,13 @@ $interestCategories = [
         ],
     ],
     [
-        'name' => 'Sports & Fitness',
+        'name' => 'Sports, Fitness & Outdoors',
         'keywords' => [
             'SPORT', 'SPORTS', 'FOOTBALL', 'SOCCER', 'BASEBALL', 'BASKETBALL',
             'HOCKEY', 'TENNIS', 'GOLF', 'CYCLING', 'RUNNING', 'FITNESS',
             'GYM', 'WORKOUT', 'MARTIAL', 'RACING', 'MOTORSPORT',
+            'CAMP', 'CAMPING', 'HIKE', 'HIKING', 'OUTDOOR', 'HUNTING',
+            'FISHING', 'DIVING', 'SCUBA', 'CLIMBING', 'PICKLEBALL',
         ],
     ],
     [
@@ -294,11 +304,36 @@ $interestCategories = [
         ],
     ],
     [
+        'name' => 'Hobbies & Crafts',
+        'keywords' => [
+            'HOBBY', 'HOBBIES', 'CRAFT', 'CRAFTS', 'ANTIQUE', 'BASKETRY',
+            'BEADING', 'CERAMICS', 'CROCHET', 'CROSS_STITCH', 'DOLLMAKING',
+            'ENAMELING', 'FLOWERS', 'GLASS', 'JEWELRY', 'LEGO', 'MODEL',
+            'MODELS', 'HORSE', 'PICKLEBALL', 'SCUBA', 'WOOD', 'KNITTING',
+            'SEWING', 'QUILTING', 'EMBROIDERY', 'ORIGAMI', 'MINIATURE',
+            'COLLECTIBLE', 'COLLECT', 'BUY_SELL',
+        ],
+    ],
+    [
+        'name' => 'Genealogy & Family History',
+        'keywords' => [
+            'GENEALOGY', 'GENEALOG', 'GENEAOLOGY', 'ANCESTRY', 'FAMILY_HIST',
+            'FAMILY_TREE', 'HERITAGE', 'LINEAGE',
+        ],
+    ],
+    [
+        'name' => 'Paranormal & Conspiracy',
+        'keywords' => [
+            'UFO', 'PARANORMAL', 'CONSPIRACY', 'CONSPRCY', 'ALIEN',
+            'CRYPTID', 'BIGFOOT', 'GHOST', 'SUPERNATURAL', 'PSYCH',
+        ],
+    ],
+    [
         'name' => 'General Chat & Social',
         'keywords' => [
             'CHAT', 'GENERAL', 'TALK', 'SOCIAL', 'DISCUSS',
             'LOUNGE', 'OFFTOPIC', 'OFF_TOPIC', 'RANDOM', 'MISC',
-            'INTRO', 'INTRODUCE', 'HELLO', 'HI',
+            'INTRO', 'INTRODUCE', 'HELLO', 'HI', 'STATS', 'OTHER',
         ],
     ],
     [
@@ -348,7 +383,7 @@ function callAnthropicApi(string $apiKey, string $userMessage): ?string
 {
     $payload = json_encode([
         'model'      => 'claude-haiku-4-5-20251001',
-        'max_tokens' => 2048,
+        'max_tokens' => 8192,
         'messages'   => [['role' => 'user', 'content' => $userMessage]],
     ]);
 
@@ -382,12 +417,15 @@ function callAnthropicApi(string $apiKey, string $userMessage): ?string
  * Classify ALL echo areas via the Anthropic API in one batch.
  * Returns array<tag, interest_name|null>.
  */
-function classifyByAi(string $apiKey, array $echoareas, array $categoryNames): array
+/**
+ * Classify a single batch of echo areas via the API.
+ * Returns array<tag, interest_name|null> for that batch.
+ */
+function classifyBatch(string $apiKey, array $batch, string $categoryList): array
 {
-    $categoryList = implode("\n", array_map(fn($n) => "  - {$n}", $categoryNames));
     $areaList = implode("\n", array_map(
         fn($a) => '  ' . $a['tag'] . (!empty($a['description']) ? ': ' . $a['description'] : ''),
-        $echoareas
+        $batch
     ));
 
     $prompt = <<<PROMPT
@@ -405,27 +443,48 @@ Respond with ONLY a JSON object mapping each tag exactly as given to the best ca
 Example: {"AREA_TAG": "Category Name", "OTHER_TAG": "Another Category"}
 PROMPT;
 
-    echo "[AI] Classifying " . count($echoareas) . " area(s) via Anthropic API...\n";
-
     $text = callAnthropicApi($apiKey, $prompt);
     if ($text === null) {
-        return array_fill_keys(array_column($echoareas, 'tag'), null);
+        return array_fill_keys(array_column($batch, 'tag'), null);
     }
 
     if (preg_match('/\{[\s\S]*\}/u', $text, $m)) {
         $decoded = json_decode($m[0], true);
         if (is_array($decoded)) {
-            // Ensure every area has an entry, defaulting to null
             $results = [];
-            foreach ($echoareas as $area) {
+            foreach ($batch as $area) {
                 $results[$area['tag']] = $decoded[$area['tag']] ?? null;
             }
             return $results;
         }
     }
 
-    echo "[AI] Could not parse JSON from API response.\n";
-    return array_fill_keys(array_column($echoareas, 'tag'), null);
+    echo "[AI] Could not parse JSON for batch — marking as uncategorised.\n";
+    return array_fill_keys(array_column($batch, 'tag'), null);
+}
+
+/**
+ * Classify all echo areas via the Anthropic API, batching to avoid token limits.
+ * Returns array<tag, interest_name|null>.
+ */
+function classifyByAi(string $apiKey, array $echoareas, array $categoryNames, int $batchSize = 50): array
+{
+    $categoryList = implode("\n", array_map(fn($n) => "  - {$n}", $categoryNames));
+    $total        = count($echoareas);
+    $batches      = array_chunk($echoareas, $batchSize);
+    $batchCount   = count($batches);
+
+    echo "[AI] Classifying {$total} area(s) in {$batchCount} batch(es) of up to {$batchSize}...\n";
+
+    $results = [];
+    foreach ($batches as $i => $batch) {
+        $batchNum = $i + 1;
+        echo "[AI] Batch {$batchNum}/{$batchCount} (" . count($batch) . " areas)...\n";
+        $batchResults = classifyBatch($apiKey, $batch, $categoryList);
+        $results = array_merge($results, $batchResults);
+    }
+
+    return $results;
 }
 
 // ---------------------------------------------------------------------------
