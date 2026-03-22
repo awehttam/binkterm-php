@@ -250,7 +250,7 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="taglineSelect" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
+                    <label for="taglineSelect" class="form-label">{{ t('ui.compose.select_tagline', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="taglineSelect" name="tagline">
                         <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
                         {% for tagline in taglines %}
@@ -260,6 +260,8 @@
                     <div class="form-text">{{ t('ui.compose.tagline_help', {}, locale, ['common']) }}</div>
                 </div>
                 
+                <div id="sendStatus" class="mb-3" style="display: none;"></div>
+
                 <div class="d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
                         <i class="fas fa-times"></i>
@@ -294,8 +296,6 @@
                     </div>
                 </div>
             </form>
-            
-            <div id="sendStatus" class="mt-3" style="display: none;"></div>
         </div>
     </div>
 
@@ -658,6 +658,8 @@ $('#insertFileBtn').on('click', function() {
 });
 
 const MESSAGE_MAX_BYTES = 16384;
+const MESSAGE_WARN_BYTES = Math.floor(MESSAGE_MAX_BYTES * 0.8); // ~13 KB
+let messageSizeWarnAcknowledged = false;
 
 /**
  * Estimate the encoded byte size of the message body for the selected charset.
@@ -1369,6 +1371,22 @@ $(document).ready(function() {
     // Initialise hard wrap keydown handler
     initHardWrap();
 
+    // Real-time message size warning — show/hide #sendStatus as user types/pastes
+    $('#messageText').on('input', function() {
+        const bytes = getMessageByteCount();
+        if (bytes > MESSAGE_MAX_BYTES) {
+            const kb = (bytes / 1024).toFixed(1);
+            const msg = window.t('ui.compose.body_too_large', { kb }, `Message body is ${kb} KB and exceeds the 16 KB FidoNet limit.`);
+            $('#sendStatus').show().html(`<div class="alert alert-danger mb-0"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(msg)}</div>`);
+        } else if (bytes > MESSAGE_WARN_BYTES) {
+            const kb = (bytes / 1024).toFixed(1);
+            const msg = window.t('ui.compose.body_size_warning_inline', { kb }, `Message body is ${kb} KB — approaching the 16 KB FidoNet limit.`);
+            $('#sendStatus').show().html(`<div class="alert alert-warning mb-0"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(msg)}</div>`);
+        } else {
+            $('#sendStatus').hide().html('');
+        }
+    });
+
     // Address validation for netmail
     if (messageType === 'netmail') {
         $('#toAddress').on('blur', function() {
@@ -1540,6 +1558,28 @@ function sendMessage() {
     const messageType = $('#messageType').val();
     const form = $('#composeForm');
 
+    // Sync markdown editor content to hidden textarea if active
+    syncEditorToTextarea();
+
+    // Enforce 16 KB message body limit; warn when approaching (check before
+    // form validity so the error is always visible regardless of other fields)
+    const msgBytes = getMessageByteCount();
+    if (msgBytes > MESSAGE_MAX_BYTES) {
+        const kb = (msgBytes / 1024).toFixed(1);
+        const tooLargeMsg = window.t('ui.compose.body_too_large', { kb }, `Message body is ${kb} KB and exceeds the 16 KB FidoNet limit.`);
+        $('#sendStatus').show().html(`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(tooLargeMsg)}</div>`);
+        messageSizeWarnAcknowledged = false;
+        return;
+    }
+    if (msgBytes > MESSAGE_WARN_BYTES && !messageSizeWarnAcknowledged) {
+        const kb = (msgBytes / 1024).toFixed(1);
+        const warnMsg = window.t('ui.compose.body_size_warning', { kb }, `Message body is ${kb} KB — approaching the 16 KB FidoNet limit. Click Send again to proceed.`);
+        $('#sendStatus').show().html(`<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(warnMsg)}</div>`);
+        messageSizeWarnAcknowledged = true;
+        return;
+    }
+    messageSizeWarnAcknowledged = false;
+
     // Validate form
     if (!form[0].checkValidity()) {
         form[0].reportValidity();
@@ -1551,16 +1591,6 @@ function sendMessage() {
         if (!validateFidonetAddressField('#toAddress')) {
             return;
         }
-    }
-
-    // Sync markdown editor content to hidden textarea if active
-    syncEditorToTextarea();
-
-    // Enforce 16 KB message body limit
-    if (getMessageByteCount() > MESSAGE_MAX_BYTES) {
-        const tooLargeMsg = window.t('errors.body_too_large', {}, 'Message body exceeds the 16 KB FidoNet limit');
-        $('#sendStatus').html(`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(tooLargeMsg)}</div>`);
-        return;
     }
 
     // Collect cross-post areas
