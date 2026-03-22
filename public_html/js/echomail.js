@@ -638,7 +638,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<span class="echo-from-popover" style="cursor:pointer; text-decoration:underline;" onclick="event.stopPropagation(); handleEchoFromClick(this)" data-from-name="${escapeHtml(msg.from_name)}" data-from-address="${escapeHtml(msg.from_address || '')}" data-to-address="${escapeHtml((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : (msg.from_address || ''))}" data-to-name="${escapeHtml((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}" data-subject="${escapeHtml('Re: ' + (msg.subject || ''))}">${escapeHtml(msg.from_name)}</span>
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<span class="echo-from-popover" style="cursor:pointer;" onclick="event.stopPropagation(); handleEchoFromClick(this)" data-from-name="${escapeHtml(msg.from_name)}" data-from-address="${escapeHtml(msg.from_address || '')}" data-to-address="${escapeHtml((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : (msg.from_address || ''))}" data-to-name="${escapeHtml((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}" data-subject="${escapeHtml('Re: ' + (msg.subject || ''))}">${escapeHtml(msg.from_name)}</span>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -1339,7 +1339,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; text-decoration:underline;">${escapeHtml(message.from_name)}</span>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">

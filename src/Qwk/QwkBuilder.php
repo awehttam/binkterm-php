@@ -51,6 +51,20 @@ class QwkBuilder
     private const BLOCK_SIZE          = 128;
     private const ACTIVE_FLAG         = 0xE1;
 
+    /**
+     * Charset used for QWKE body encoding.
+     *
+     * 'CP437'  — converts UTF-8 body text back to CP437 via iconv before
+     *             packing; emits ^ACHRS: CP437 2.  Best compatibility with
+     *             offline readers whose ANSI renderers expect single-byte
+     *             CP437 characters (the traditional QWK charset).
+     *
+     * 'UTF-8'  — keeps body as UTF-8; emits ^ACHRS: UTF-8 4.  Correct for
+     *             readers that fully support QWKE and Unicode, but breaks
+     *             ANSI art rendering in most current readers.
+     */
+    private const QWKE_EXPORT_CHARSET = 'CP437';
+
     private PDO $db;
     private BinkpConfig $binkpConfig;
 
@@ -451,7 +465,11 @@ class QwkBuilder
         $bodyText = $this->stripKludgeLines($bodyText);
 
         if ($qwke) {
-            // Prepend QWKE kludge lines and keep body as UTF-8.
+            if (self::QWKE_EXPORT_CHARSET !== 'UTF-8') {
+                // Convert body from UTF-8 storage encoding to the target export charset.
+                $converted = @iconv('UTF-8', self::QWKE_EXPORT_CHARSET . '//TRANSLIT//IGNORE', $bodyText);
+                $bodyText  = ($converted !== false && $converted !== '') ? $converted : $bodyText;
+            }
             $combined = $this->buildQwkePrefix($message) . $bodyText;
         } else {
             // Plain QWK: convert body to CP437 via iconv (mbstring does not support CP437).
@@ -526,7 +544,9 @@ class QwkBuilder
         }
 
         // ^A-prefixed FTN kludge lines follow the QWKE headers.
-        $lines[] = "\x01CHRS: UTF-8 4";
+        // CHRS level: 2 = single-byte (CP437/CP1252/etc.), 4 = UTF-8.
+        $chrsLevel = (self::QWKE_EXPORT_CHARSET === 'UTF-8') ? 4 : 2;
+        $lines[]   = "\x01CHRS: " . self::QWKE_EXPORT_CHARSET . ' ' . $chrsLevel;
 
         // Emit stored kludge lines verbatim (they already contain ^A prefixes
         // and cover MSGID, REPLY, TZUTC, INTL, etc.).
