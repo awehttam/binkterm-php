@@ -545,7 +545,7 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
-    const explicitBinaryArtMode = ['amiga_ansi', 'petscii'].includes(requestedFormat);
+    const explicitBinaryArtMode = ['ansi', 'amiga_ansi', 'petscii'].includes(requestedFormat);
     const shouldRenderAnsiArt = !forcePlainText && (
         explicitBinaryArtMode ||
         hasCursorAnsi ||
