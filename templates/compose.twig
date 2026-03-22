@@ -9,7 +9,7 @@
         <i class="fas fa-{{ type == 'netmail' ? 'envelope' : 'comments' }}"></i>
         {{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }}
     </h2>
-    <a href="/{{ type }}" class="btn btn-outline-secondary">
+    <a href="{% if type == 'echomail' and echoarea is defined and echoarea %}/echomail/{{ echoarea|split('@')|first }}{% else %}/{{ type }}{% endif %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i>
         {{ t('ui.compose.back_to_prefix', {}, locale, ['common']) }} {{ type|title }}
     </a>
@@ -145,8 +145,16 @@
                     </div>
                     <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
-                    <div class="form-text" id="messageTextHint">
-                        {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
+                    <input type="file" id="insertFileInput" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <div class="form-text mb-0" id="messageTextHint">
+                            {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
+                        </div>
+                        <button type="button" id="insertFileBtn"
+                                class="btn btn-sm btn-outline-secondary"
+                                title="{{ t('ui.compose.insert_file', {}, locale, ['common']) }}">
+                            <i class="fa fa-file-import"></i> {{ t('ui.compose.insert_file', {}, locale, ['common']) }}
+                        </button>
                     </div>
                     <div class="form-text" id="scHint" style="display: none;">{{ t('ui.compose.stylecodes.active_prefix', {}, locale, ['common']) }} <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
@@ -269,15 +277,12 @@
     </div>
 
     <div class="col-lg-4" id="composeSidebar">
-        <div class="d-flex justify-content-end mb-2">
-            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.hide_panel', {}, locale, ['common']) }}">
-                <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
-            </button>
-        </div>
-
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">{{ t('ui.compose.message_guidelines', {}, locale, ['common']) }}</h6>
+                <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.hide_panel', {}, locale, ['common']) }}">
+                    <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
+                </button>
             </div>
             <div class="card-body">
                 {% if type == 'netmail' %}
@@ -312,23 +317,6 @@
             </div>
         </div>
 
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.compose.your_info', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-4">{{ t('ui.common.name', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-8">{{ user_name }}</dd>
-
-                    <dt class="col-4">{{ t('ui.compose.system', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-8">{{ system_name_display }}</dd>
-
-                    <dt class="col-4">{{ t('ui.compose.address', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-8">{{ system_address_display }}</dd>
-                </dl>
-            </div>
-        </div>
     </div>
 
     <div id="sidebarShowBtn" class="d-none align-items-start pt-1">
@@ -494,6 +482,71 @@ const replyCharset    = {{ reply_charset|default("UTF-8")|json_encode|raw }};
         if (!sel.value) { sel.value = 'UTF-8'; }
     }
 })();
+
+// Charset label → TextDecoder encoding label
+const charsetDecoderMap = {
+    'UTF-8':      'utf-8',
+    'CP437':      'ibm437',
+    'CP850':      'ibm850',
+    'CP852':      'ibm852',
+    'CP866':      'ibm866',
+    'ISO-8859-1': 'iso-8859-1',
+    'ISO-8859-2': 'iso-8859-2'
+};
+
+$('#insertFileBtn').on('click', function() {
+    $('#insertFileInput').val('').trigger('click');
+});
+
+const MESSAGE_MAX_BYTES = 16384;
+
+/**
+ * Estimate the encoded byte size of the message body for the selected charset.
+ * UTF-8 is measured exactly; single-byte charsets use character count as an
+ * upper bound (iconv drops unmappable chars so actual bytes will be ≤ this).
+ */
+function getMessageByteCount() {
+    const text = $('#messageText').val();
+    const charset = $('#charsetSelect').val() || 'UTF-8';
+    if (charset === 'UTF-8') {
+        return new TextEncoder().encode(text).length;
+    }
+    // Single-byte charsets: 1 byte per character after encoding
+    return text.length;
+}
+
+
+$('#insertFileInput').on('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+
+    const charsetVal  = $('#charsetSelect').val() || 'UTF-8';
+    const decoderLabel = charsetDecoderMap[charsetVal] || 'utf-8';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        let text;
+        try {
+            text = new TextDecoder(decoderLabel).decode(new Uint8Array(e.target.result));
+        } catch (err) {
+            // Fallback to UTF-8 if the decoder label is unsupported
+            text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+        }
+
+        const ta = document.getElementById('messageText');
+        const start = ta.selectionStart;
+        const end   = ta.selectionEnd;
+        ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = start + text.length;
+        ta.focus();
+
+        // Keep the hidden textarea in sync if the markdown editor is active
+        if (mdEditorActive) {
+            $('#mdEditorText').val(ta.value);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+});
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
@@ -1258,6 +1311,13 @@ function sendMessage() {
     // Sync markdown editor content to hidden textarea if active
     syncEditorToTextarea();
 
+    // Enforce 16 KB message body limit
+    if (getMessageByteCount() > MESSAGE_MAX_BYTES) {
+        const tooLargeMsg = window.t('errors.body_too_large', {}, 'Message body exceeds the 16 KB FidoNet limit');
+        $('#sendStatus').html(`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(tooLargeMsg)}</div>`);
+        return;
+    }
+
     // Collect cross-post areas
     const crossPostAreas = [];
     $('.cross-post-check:checked').each(function() {
@@ -1326,7 +1386,13 @@ function sendMessage() {
                 }
 
                 setTimeout(function() {
-                    window.location.href = `/${messageType}`;
+                    let returnUrl = `/${messageType}`;
+                    if (messageType === 'echomail') {
+                        const areaVal = $('#echoarea').val() || '';
+                        const areaTag = areaVal.split('@')[0];
+                        if (areaTag) returnUrl = `/echomail/${encodeURIComponent(areaTag)}`;
+                    }
+                    window.location.href = returnUrl;
                 }, 2000);
             },
             error: function(xhr) {

@@ -464,29 +464,40 @@
     </script>
     <script>
         if ('serviceWorker' in navigator) {
-            // Single notification path: the SW sends UPDATE_AVAILABLE only when it has
-            // replaced an older cache version (not on first install or same-version reloads).
-            // A guard prevents the toast from showing more than once per page load, even if
-            // the message arrives multiple times (e.g. multiple tabs triggering the SW).
             let updateNotified = false;
 
+            function showUpdateToast() {
+                if (updateNotified) return;
+                updateNotified = true;
+                const toastEl = document.getElementById('updateToast');
+                if (toastEl && window.bootstrap) {
+                    bootstrap.Toast.getOrCreateInstance(toastEl).show();
+                }
+            }
+
+            // Path 1: SW sends UPDATE_AVAILABLE after activate + clients.claim().
             navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'UPDATE_AVAILABLE' && !updateNotified) {
-                    updateNotified = true;
-                    const toastEl = document.getElementById('updateToast');
-                    if (toastEl) {
-                        bootstrap.Toast.getOrCreateInstance(toastEl).show();
-                    }
+                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+                    showUpdateToast();
                 }
             });
 
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
-                        // Trigger a background check so pages opened from the back/forward
-                        // cache also pick up any update that landed while they were cached.
+                        // Path 2: a new SW found and activates during this page load.
+                        function watchWorker(worker) {
+                            if (!worker) return;
+                            worker.addEventListener('statechange', () => {
+                                if (worker.state === 'activated') showUpdateToast();
+                            });
+                        }
+                        registration.addEventListener('updatefound', () => {
+                            watchWorker(registration.installing);
+                        });
+                        if (registration.installing) watchWorker(registration.installing);
+
                         registration.update();
-                        // Keep long-lived sessions up to date.
                         setInterval(() => registration.update(), 60000);
                     })
                     .catch(err => {

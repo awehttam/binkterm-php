@@ -3069,6 +3069,7 @@ return [
     'ui.compose.markup_format_help' => 'Enviar con formato de marcado. Markdown y StyleCodes son compatibles en redes compatibles.',
     'ui.compose.charset' => 'Codificación',
     'ui.compose.charset_help' => 'Codificación de caracteres para el paquete saliente. Use CP437 para sistemas FTN heredados que no admiten UTF-8.',
+    'ui.compose.insert_file' => 'Insertar archivo',
     'ui.compose.hide_panel' => 'Ocultar panel',
     'ui.compose.show_panel' => 'Mostrar panel',
     'ui.compose.netmail_guidelines' => 'Guia de Netmail:',

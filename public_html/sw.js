@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v474';
+const CACHE_NAME = 'binkcache-v476';
 
 // Static assets to precache
 const staticAssets = [
@@ -51,22 +51,19 @@ function getCache() {
     ]);
 }
 
-// Install event - cache static assets and activate immediately
+// Install event - cache static assets and activate immediately.
+// Always delete and re-create the cache on install so that a version bump
+// guarantees fresh assets even if the same cache name was previously populated
+// with older content (e.g. a redeployment without a CACHE_NAME bump, or
+// DevTools "Update on reload" forcing a reinstall of the same version).
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME)
+        caches.delete(CACHE_NAME)
+            .then(() => caches.open(CACHE_NAME))
             .then(async (cache) => {
                 _cache = cache;
-                // Only fetch assets not already in this cache version
-                const missing = (await Promise.all(
-                    staticAssets.map(url => cache.match(url).then(hit => hit ? null : url))
-                )).filter(Boolean);
-                if (missing.length > 0) {
-                    console.log('[SW] Caching', missing.length, 'new static assets');
-                    await cache.addAll(missing);
-                } else {
-                    console.log('[SW] All static assets already cached');
-                }
+                console.log('[SW] Caching', staticAssets.length, 'static assets');
+                await cache.addAll(staticAssets);
             })
             .then(() => {
                 console.log('[SW] New version installed, skipping wait');

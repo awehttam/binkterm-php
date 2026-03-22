@@ -2502,6 +2502,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.compose.markup_format_help' => 'Envoyer avec mise en forme. Markdown et StyleCodes sont pris en charge sur les réseaux compatibles.',
     'ui.compose.charset' => 'Encodage',
     'ui.compose.charset_help' => 'Encodage de caractères pour le paquet sortant. Utilisez CP437 pour les systèmes FTN hérités qui ne prennent pas en charge UTF-8.',
+    'ui.compose.insert_file' => 'Insérer un fichier',
     'ui.compose.hide_panel' => 'Masquer le panneau',
     'ui.compose.show_panel' => 'Afficher le panneau',
     'ui.compose.netmail_guidelines' => 'Consignes Netmail :',

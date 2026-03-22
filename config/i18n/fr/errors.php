@@ -471,6 +471,7 @@ return [
     // Messages - Echomail
     'errors.messages.echomail.edit.admin_required' => 'Des privilèges administrateur sont requis',
     'errors.messages.echomail.edit.invalid_art_format' => 'Valeur de format artistique invalide',
+    'errors.messages.body_too_large' => 'Le corps du message dépasse la limite FidoNet de 16 Ko',
     'errors.messages.echomail.edit.nothing_to_update' => 'Aucun champ à mettre à jour',
     'errors.messages.echomail.edit.save_failed' => 'Échec de l\'enregistrement des modifications',
     'errors.messages.echomail.save_ad.admin_required' => 'Des privilèges administrateur sont requis',

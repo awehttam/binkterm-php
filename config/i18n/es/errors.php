@@ -57,6 +57,7 @@ return [
     'errors.messages.echomail.not_found' => 'Mensaje no encontrado',
     'errors.messages.echomail.edit.admin_required' => 'Se requieren privilegios de administrador',
     'errors.messages.echomail.edit.invalid_art_format' => 'Formato de arte no valido',
+    'errors.messages.body_too_large' => 'El cuerpo del mensaje supera el límite de 16 KB de FidoNet',
     'errors.messages.echomail.edit.nothing_to_update' => 'No hay campos para actualizar',
     'errors.messages.echomail.edit.save_failed' => 'Error al guardar los cambios',
     'errors.messages.echomail.save_ad.admin_required' => 'Se requieren privilegios de administrador',

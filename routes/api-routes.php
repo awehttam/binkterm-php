@@ -5850,6 +5850,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $requestedCharset = strtoupper(trim((string)($input['charset'] ?? '')));
         $charset = in_array($requestedCharset, $allowedCharsets, true) ? $requestedCharset : null;
 
+        // Enforce 16 KB FidoNet message body limit.
+        // Check against the UTF-8 byte length of the input; single-byte charset
+        // output will always be ≤ this (iconv drops unmappable characters).
+        $messageText = (string)($input['message_text'] ?? '');
+        if (strlen($messageText) > 16384) {
+            apiError('errors.messages.body_too_large',
+                apiLocalizedText('errors.messages.body_too_large', 'Message body exceeds the 16 KB FidoNet limit', $user),
+                400);
+        }
+
         $handler = new MessageHandler();
 
         try {
