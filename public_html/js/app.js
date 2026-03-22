@@ -1276,10 +1276,175 @@ function escapeHtml(text) {
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
 
+// ── Shared FTN sender popover ─────────────────────────────────────────────────
+
+const _ftnSenderPopoverCache = {};
+
 /**
- * Initialise a Bootstrap popover on the sender name element rendered in message views.
+ * Look up an FTN node for a sender popover.  Point addresses (zone:net/node.point)
+ * are resolved to the boss node.  Results are cached.
  *
- * @param {object} message      - Message object with from_name, from_address, from_system_name
+ * @param  {string} address  FTN address string
+ * @returns {Promise<{node: object|null, isPoint: boolean}>}
+ */
+function _lookupFtnNodeForPopover(address) {
+    if (!address) return Promise.resolve({ node: null, isPoint: false });
+
+    const pointMatch = address.match(/^(\d+:\d+\/\d+)\.(\d+)$/);
+    const isPoint = !!(pointMatch && pointMatch[2] !== '0');
+    const lookupAddr = isPoint ? pointMatch[1] : address;
+
+    if (_ftnSenderPopoverCache[lookupAddr] !== undefined) {
+        return Promise.resolve({ node: _ftnSenderPopoverCache[lookupAddr], isPoint });
+    }
+
+    return fetch(`/api/nodelist/node?address=${encodeURIComponent(lookupAddr)}`)
+        .then(r => r.json())
+        .then(data => {
+            _ftnSenderPopoverCache[lookupAddr] = data.node || null;
+            return { node: _ftnSenderPopoverCache[lookupAddr], isPoint };
+        })
+        .catch(() => {
+            _ftnSenderPopoverCache[lookupAddr] = null;
+            return { node: null, isPoint };
+        });
+}
+
+/**
+ * Build the inner HTML for a sender popover, optionally including BBS name from nodelist.
+ *
+ * @param {string}      fromName
+ * @param {string}      fromAddress
+ * @param {string}      toAddress    - Address for the Send Netmail button
+ * @param {string}      toName
+ * @param {string}      subject      - Optional subject to pre-fill
+ * @param {object|null} node         - Nodelist entry (may be null)
+ * @param {boolean}     isPoint      - Whether fromAddress is a point address
+ * @returns {string}  HTML string
+ */
+function _buildFtnSenderPopoverHtml(fromName, fromAddress, toAddress, toName, subject, node, isPoint) {
+    const parts = [`<div class="fw-semibold">${escapeHtml(fromName)}</div>`];
+
+    if (node && node.system_name) {
+        let bbs = escapeHtml(node.system_name);
+        if (isPoint) bbs += ` <span class="text-muted">(${uiT('ui.nodelist.point', 'Point')})</span>`;
+        parts.push(`<div class="text-muted small">${bbs}</div>`);
+        if (node.location) {
+            parts.push(`<div class="text-muted small">${escapeHtml(node.location)}</div>`);
+        }
+    }
+
+    if (fromAddress) {
+        parts.push(`<div class="text-muted small font-monospace">${escapeHtml(fromAddress)}</div>`);
+    }
+
+    if (toAddress || (node && node.address)) {
+        parts.push('<div class="mt-2 d-grid gap-1">');
+        if (toAddress) {
+            let url = `/compose/netmail?to=${encodeURIComponent(toAddress)}&to_name=${encodeURIComponent(toName)}`;
+            if (subject) url += `&subject=${encodeURIComponent(subject)}`;
+            parts.push(`<a href="${url}" class="btn btn-sm btn-primary">${uiT('ui.nodelist.send_netmail', 'Send Netmail')}</a>`);
+        }
+        if (node && node.address) {
+            parts.push(`<a href="/nodelist/view?address=${encodeURIComponent(node.address)}" class="btn btn-sm btn-outline-secondary">${uiT('ui.nodelist.view_full_details', 'View full node details')}</a>`);
+        }
+        parts.push('</div>');
+    }
+
+    return parts.join('');
+}
+
+/**
+ * Return cached nodelist data for an FTN address synchronously, or null if not
+ * yet fetched.  Applies the same point→boss resolution as _lookupFtnNodeForPopover.
+ *
+ * @param  {string} address
+ * @returns {{ node: object|null, isPoint: boolean, hit: boolean }}
+ */
+function _ftnNodeFromCache(address) {
+    if (!address) return { node: null, isPoint: false, hit: true };
+    const pointMatch = address.match(/^(\d+:\d+\/\d+)\.(\d+)$/);
+    const isPoint = !!(pointMatch && pointMatch[2] !== '0');
+    const lookupAddr = isPoint ? pointMatch[1] : address;
+    const hit = Object.prototype.hasOwnProperty.call(_ftnSenderPopoverCache, lookupAddr);
+    return { node: hit ? _ftnSenderPopoverCache[lookupAddr] : null, isPoint, hit };
+}
+
+/**
+ * Show a sender-name popover on `el`, performing an async nodelist lookup.
+ * The popover is always recreated on open so the content option is always
+ * current — avoids stale-spinner issues from Bootstrap re-rendering the
+ * original content option on subsequent show() calls.
+ *
+ * @param {Element} el
+ * @param {object}  opts
+ * @param {string}  opts.fromName
+ * @param {string}  opts.fromAddress
+ * @param {string}  opts.toAddress
+ * @param {string}  opts.toName
+ * @param {string}  [opts.subject]
+ * @param {string}  [opts.placement]       - Bootstrap placement (default 'bottom')
+ * @param {string}  [opts.siblingSelector] - CSS selector for sibling popovers to close
+ */
+function showFtnSenderPopover(el, opts) {
+    if (opts.siblingSelector) {
+        document.querySelectorAll(opts.siblingSelector).forEach(function(other) {
+            if (other !== el) {
+                const p = bootstrap.Popover.getInstance(other);
+                if (p) p.hide();
+            }
+        });
+    }
+
+    const existing = bootstrap.Popover.getInstance(el);
+    if (existing) {
+        // If currently visible, close it (toggle behaviour)
+        if (el.getAttribute('aria-describedby')) {
+            existing.hide();
+            return;
+        }
+        // Hidden but instance still attached — dispose so we recreate below
+        existing.dispose();
+    }
+
+    // Use cached node data immediately if available so there is no spinner
+    // on repeat opens of the same address.
+    const address = opts.fromAddress || '';
+    const cached = _ftnNodeFromCache(address);
+    const initialContent = cached.hit
+        ? _buildFtnSenderPopoverHtml(opts.fromName || '', address, opts.toAddress || '', opts.toName || '', opts.subject || '', cached.node, cached.isPoint)
+        : '<i class="fas fa-spinner fa-spin"></i>';
+
+    const pop = new bootstrap.Popover(el, {
+        html: true,
+        content: initialContent,
+        trigger: 'manual',
+        placement: opts.placement || 'bottom',
+        sanitize: false,
+    });
+    pop.show();
+
+    if (!cached.hit) {
+        _lookupFtnNodeForPopover(address).then(function(result) {
+            if (!bootstrap.Popover.getInstance(el)) return; // dismissed before lookup finished
+            const html = _buildFtnSenderPopoverHtml(
+                opts.fromName || '', address,
+                opts.toAddress || '', opts.toName || '',
+                opts.subject || '', result.node, result.isPoint
+            );
+            const popId = el.getAttribute('aria-describedby');
+            const popEl = popId ? document.getElementById(popId) : null;
+            if (popEl) popEl.querySelector('.popover-body').innerHTML = html;
+        });
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Initialise a click handler on the sender name element in message views.
+ *
+ * @param {object} message      - Message object with from_name, from_address
  * @param {string} netmailAddr  - FTN address to pre-fill in the netmail compose link
  * @param {string} netmailName  - Display name to pre-fill in the netmail compose link
  */
@@ -1293,24 +1458,21 @@ function initSenderPopover(message, netmailAddr, netmailName) {
     const toAddr = netmailAddr || message.from_address || '';
     const toName = netmailName || message.from_name || '';
 
-    const content = [
-        `<div class="fw-semibold">${escapeHtml(message.from_name || '')}</div>`,
-        message.from_system_name ? `<div class="text-muted small">${escapeHtml(message.from_system_name)}</div>` : '',
-        message.from_address     ? `<div class="text-muted small font-monospace">${escapeHtml(message.from_address)}</div>` : '',
-        toAddr ? `<div class="mt-2"><a href="/compose/netmail?to=${encodeURIComponent(toAddr)}&to_name=${encodeURIComponent(toName)}" class="btn btn-sm btn-primary w-100">${uiT('ui.nodelist.send_netmail', 'Send Netmail')}</a></div>` : '',
-    ].join('');
-
-    const pop = new bootstrap.Popover(el, {
-        html: true,
-        content: content,
-        trigger: 'click',
-        placement: 'bottom',
-        sanitize: false,
-    });
+    el.onclick = function(e) {
+        e.stopPropagation();
+        showFtnSenderPopover(el, {
+            fromName: message.from_name || '',
+            fromAddress: message.from_address || '',
+            toAddress: toAddr,
+            toName: toName,
+            placement: 'bottom',
+        });
+    };
 
     $(document).off('click.senderPopoverDismiss').on('click.senderPopoverDismiss', function(e) {
         if (!$(e.target).closest('#senderNamePopoverTrigger, .popover').length) {
-            pop.hide();
+            const pop = bootstrap.Popover.getInstance(el);
+            if (pop) pop.hide();
         }
     });
 }

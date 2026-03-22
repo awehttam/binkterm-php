@@ -333,7 +333,7 @@ function displayMessages(messages, isThreaded = false) {
                         </small>
                     </td>
                     <td>
-                        <small class="font-monospace node-addr-popover text-primary" style="cursor:pointer; text-decoration:underline; text-decoration-style:dotted;" data-address="${escapeHtml(isSent ? msg.to_address : msg.from_address)}" onclick="event.stopPropagation(); handleNodeAddrClick(this)">${escapeHtml(isSent ? msg.to_address : msg.from_address)}</small>
+                        <small class="font-monospace node-addr-popover text-primary" style="cursor:pointer; text-decoration:underline;" data-address="${escapeHtml(isSent ? msg.to_address : msg.from_address)}" onclick="event.stopPropagation(); handleNodeAddrClick(this)">${escapeHtml(isSent ? msg.to_address : msg.from_address)}</small>
                         ${(isSent ? msg.to_domain : msg.from_domain) ? `<br><span class="badge bg-secondary" style="font-size: 0.7em;">${isSent ? msg.to_domain : msg.from_domain}</span>` : ''}
                     </td>
                     <td title="${formatFullDate(msg.date_written)}">
@@ -737,7 +737,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; border-bottom: 1px dashed var(--text-color);">${escapeHtml(message.from_name)}</span>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; text-decoration:underline;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-6">

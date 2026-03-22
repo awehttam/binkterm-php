@@ -29,6 +29,7 @@
   - [Font Awesome Brands Font Removed](#font-awesome-brands-font-removed)
   - [Admin Settings: Loading Blur](#admin-settings-loading-blur)
   - [Profile: Activity Log Tab](#profile-activity-log-tab)
+  - [Service Worker: Spurious Reload Prompt Fixed](#service-worker-spurious-reload-prompt-fixed)
 - [MRC Chat](#mrc-chat)
   - [Default Room Fallback](#default-room-fallback)
   - [First DM Message Now Visible](#first-dm-message-now-visible)
@@ -42,6 +43,8 @@
   - [User Action Logging](#user-action-logging)
 - [LovlyNet Integration](#lovlynet-integration)
   - [Setup Checklist](#setup-checklist)
+  - [Setup Checklist: Five Parallel Checks](#setup-checklist-five-parallel-checks)
+  - [BinkP CRAM-MD5 Default](#binkp-cram-md5-default)
   - [replace Metadata Flag for File Areas](#replace-metadata-flag-for-file-areas)
   - [Default Area Indicators on Echo and File Area Tabs](#default-area-indicators-on-echo-and-file-area-tabs)
   - [Metadata Respected on Area Creation](#metadata-respected-on-area-creation)
@@ -51,6 +54,7 @@
   - [Outgoing Charset Selector](#outgoing-charset-selector)
   - [Message Edit: Character Set Selector](#message-edit-character-set-selector)
   - [Charset Alias Normalization](#charset-alias-normalization)
+  - [Sender Name Popover with BBS Lookup](#sender-name-popover-with-bbs-lookup)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -75,6 +79,7 @@
 - The netmail compose To Address field now includes a nodelist autocomplete: typing a system name, location, or partial address triggers a live search and presents a dropdown of matching nodes showing the FTN address, network badge, system name, and location. Selecting an entry populates the To Address field.
 - Clicking a node address in the netmail message list now shows a Bootstrap popover with the BBS system name, location, and a "View full node details" button. Point addresses that are not in the nodelist fall back to the parent node entry.
 - The "Art Encoding" field in the netmail and echomail message edit dialogs has been renamed to **Character Set** and changed from a free-text input to a dropdown. The dropdown lists only valid iconv-compatible charsets. Messages with an unrecognised stored charset show it as a labelled "(unknown)" option so it is preserved if the edit is saved without changing it.
+- Clicking the sender name in the echomail list or the From field in the netmail message view now shows a popover with the BBS system name, location, FTN address, and buttons to send netmail or view the full nodelist entry. Point addresses are resolved to the boss node for the lookup.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -95,6 +100,7 @@
 - The Font Awesome brands webfont (`fa-brands-400.woff2`, ~108 KB) is no longer loaded; the single brands icon used (Markdown) has been replaced with an inline SVG.
 - Admin settings pages (BBS Settings, BinkP Configuration, MRC Settings, Appearance) now blur their content cards while settings are being fetched and show a centred spinner; cards stay blurred if the load fails.
 - The user profile page now shows an **Activity Log** tab (admin/sysop only) listing recent events from the `user_activity_log` table. The existing transaction history is presented on an adjacent **Transaction History** tab. Both tabs are hidden from regular users.
+- Fixed a spurious "New version available" reload prompt appearing during normal page navigation caused by a secondary service worker activation watcher.
 
 **MRC Chat**
 - When the server returns no rooms, the MRC chat WebDoor now shows the configured default room instead of an empty list.
@@ -113,7 +119,8 @@
 - The "Ad Campaigns" section has been renamed to **Broadcast Manager** and the "Advertisements" page has been renamed to **Content Library** throughout the UI. The menu group is now labelled **Ads and Bulletins**. URLs and internal identifiers are unchanged. The Broadcast Manager now includes a **Weather Report** quick-setup preset that pre-configures a daily 3:00 AM schedule and sets the content command to `weather_report.php`. The preset is greyed out when `config/weather.json` is not present.
 
 **LovlyNet Integration**
-- The LovlyNet admin page has a new Setup Checklist column on the Setup tab that verifies registration status, default area subscriptions, and the LVLY_NODELIST file area rule. A Fix button can automatically create a canonical file area rule for nodelist import.
+- The LovlyNet admin page has a new Setup Checklist column on the Setup tab that verifies registration status, hub connectivity, uplink configuration, default area subscriptions, and the LVLY_NODELIST file area rule. All five checks run in parallel and update as each result arrives. A Fix button can automatically create a canonical file area rule for nodelist import.
+- New BinkP uplinks added by the LovlyNet setup script now default to CRAM-MD5 authentication.
 - The `replace` metadata flag in `area_metadata.json` is now honoured: if LovlyNet recommends `replace: true` for a file area, BinktermPHP will detect and offer to correct a mismatch.
 - Echo and File area tab rows for default (recommended) areas now show a warning icon when the area is not yet subscribed.
 - When creating echo or file areas during subscription or area-sync, `area_metadata.json` recommended fields (`sysop_only`, `readonly`, `replace`) are now applied at creation time rather than only as a post-creation correction.
@@ -373,6 +380,18 @@ only) with two tabs:
 Regular users do not see either tab. The card is only rendered when the viewing
 user is an admin.
 
+### Service Worker: Spurious Reload Prompt Fixed
+
+A "New version available" reload toast was appearing during normal page
+navigation, not just when a genuine service worker update had been installed.
+The registration code previously watched for any service worker activation event
+and showed the prompt whenever one fired — including activations that occur as
+part of the browser's normal navigation lifecycle.
+
+The secondary activation watcher has been removed. The reload prompt is now
+shown only when the service worker itself signals that it replaced an older
+version, which is the correct trigger.
+
 ## MRC Chat
 
 ### Default Room Fallback
@@ -502,16 +521,33 @@ layout on the Setup tab. The left column contains the existing Update Registrati
 form. The right column contains a new **Setup Checklist** that is refreshed every
 time the tab is opened.
 
-The checklist verifies three items in order:
+The checklist verifies five items simultaneously. All five checks are dispatched in parallel and each row updates independently as its result arrives, so fast checks (registration, uplink configuration) resolve immediately while slower ones (hub connectivity) do not block the display.
 
 | Item | What is checked |
 |------|----------------|
 | Registration | Always shown as complete — if you are on this page, registration has been done. |
+| Hub Connectivity | Performs a live BinkP authentication test against the LovlyNet hub to verify the configured credentials and network reachability. |
+| Uplink Configured | Verifies that a BinkP uplink entry for the LovlyNet hub exists in `config/binkp.json`. |
 | Default Areas | Fetches the list of LovlyNet-recommended echo and file areas from the LovlyNet server and checks whether each is currently subscribed. Missing areas are listed with a hint to subscribe via the Echo Areas or File Areas tabs. |
 | LVLY_NODELIST File Area Rule | Checks `config/filearea_rules.json` for a rule whose pattern matches the canonical LovlyNet nodelist filename pattern (`/^LOVLYNET\.(Z\|A\|L\|R\|J)[0-9]{2}$/i`) on the `lovlynet` domain. If no matching rule is found, a **Fix** button appears that automatically creates a working rule and saves it via the admin daemon. |
 
 The default area subscription check uses an `is_default` flag added to every
 area returned by the LovlyNet areas API; no separate API call is required.
+
+### Setup Checklist: Five Parallel Checks
+
+See the [Setup Checklist](#setup-checklist) section above. The checklist was
+previously a sequential three-item list that required each check to complete
+before the next began. It has been expanded to five items and now dispatches
+all checks in parallel, rendering each row with a spinner immediately and
+replacing it with the result as it arrives.
+
+### BinkP CRAM-MD5 Default
+
+The LovlyNet setup script (`scripts/lovlynet_setup.php`) now configures new
+BinkP uplink entries with `crypt: true`, enabling CRAM-MD5 authentication by
+default. Previously new uplinks were created with plain-text password
+authentication. Existing uplinks are not modified.
 
 ### replace Metadata Flag for File Areas
 
@@ -637,6 +673,28 @@ the **Art Format** selector above it.
 
 The charset list is centralised in `BinkpConfig::getSupportedCharsets()` and
 shared by the compose form and both edit dialogs.
+
+### Sender Name Popover with BBS Lookup
+
+Clicking the sender name in the echomail message list or the **From:** field in
+the netmail message view now opens a Bootstrap popover that includes the remote
+BBS name, location, and FTN address pulled live from the imported nodelist.
+
+The popover shows a spinner immediately, then fills in the details once the
+nodelist lookup completes. Two action buttons are provided:
+
+- **Send Netmail** — opens the compose form pre-addressed to the sender.
+- **View full node details** — links to the nodelist entry page for the node.
+
+**Point address handling:** If the sender's FTN address is a point address
+(e.g. `2:250/100.3`), the lookup is performed against the boss node
+(`2:250/100`) so the BBS name and location are resolved even for point systems
+that do not have their own nodelist entry. The popover notes the address is a
+point.
+
+The popover implementation is shared between echomail and netmail to avoid
+duplication. The trigger element uses a standard solid underline in both
+contexts.
 
 ### Charset Alias Normalization
 
