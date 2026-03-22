@@ -868,7 +868,11 @@ class AdminDaemonServer
 
     private function writeResponse($client, array $payload): void
     {
-        fwrite($client, json_encode($payload) . "\n");
+        // JSON_INVALID_UTF8_SUBSTITUTE prevents json_encode() from returning false when
+        // payload strings contain non-UTF-8 bytes (e.g. CP437/ISO-8859 error messages
+        // from remote BinkP servers).  Without this flag, json_encode returns false,
+        // fwrite sends only "\n", and the client throws "Invalid response from admin daemon".
+        fwrite($client, json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
     }
 
     private function logCommandResult(string $cmd, array $result): void

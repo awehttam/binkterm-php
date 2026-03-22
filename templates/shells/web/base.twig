@@ -558,18 +558,13 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
-                        // Path 2: a new SW found and activates during this page load.
-                        function watchWorker(worker) {
-                            if (!worker) return;
-                            worker.addEventListener('statechange', () => {
-                                if (worker.state === 'activated') showUpdateToast();
-                            });
-                        }
-                        registration.addEventListener('updatefound', () => {
-                            watchWorker(registration.installing);
-                        });
-                        if (registration.installing) watchWorker(registration.installing);
-
+                        // Path 1 (postMessage from SW) is the only notification mechanism.
+                        // Path 2 (watchWorker statechange) was removed: it fired on every
+                        // navigation where the browser detected a SW update and the new SW
+                        // activated, causing a spurious reload prompt as the user navigated
+                        // away.  Path 1 is sufficient — the SW already gates UPDATE_AVAILABLE
+                        // on replacedOld (old caches were purged), so it only fires for real
+                        // version upgrades on pages that were open before the update landed.
                         registration.update();
                         setInterval(() => registration.update(), 60000);
                     })

@@ -465,126 +465,137 @@ function showSetupAlert(type, msg) {
     setTimeout(function() { $el.addClass('d-none').removeClass('alert alert-success alert-danger'); }, 6000);
 }
 
+// Ordered list of checklist item IDs and their label keys (for skeleton rendering)
+var checklistItems = [
+    { id: 'registration',      labelKey: 'ui.admin.lovlynet.checklist_registration',      labelFallback: 'Registered with LovlyNet' },
+    { id: 'uplink_configured', labelKey: 'ui.admin.lovlynet.checklist_uplink_configured', labelFallback: 'LovlyNet uplink configured in BinkP' },
+    { id: 'binkp_auth_test',   labelKey: 'ui.admin.lovlynet.checklist_binkp_auth_test',   labelFallback: 'BinkP authentication to LovlyNet hub' },
+    { id: 'nodelist_rule',     labelKey: 'ui.admin.lovlynet.checklist_nodelist_rule',      labelFallback: 'LVLY_NODELIST file area rule' },
+    { id: 'default_areas',     labelKey: 'ui.admin.lovlynet.checklist_default_areas',     labelFallback: 'Default area subscriptions' },
+];
+
 function loadChecklist() {
-    $('#checklistBody').html('<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin"></i></div>');
-    $.get('/admin/api/lovlynet/checklist')
-        .done(function(data) {
-            renderChecklist(data.items || []);
-        })
-        .fail(function() {
-            $('#checklistBody').html(
-                '<div class="p-3"><div class="alert alert-danger mb-0">' +
-                escapeHtml(uiT('ui.admin.lovlynet.checklist_load_failed', 'Failed to load checklist')) +
-                '</div></div>'
-            );
-        });
+    // Render all 5 items immediately with spinners, then fire each request in parallel
+    let html = '<ul class="list-group list-group-flush">';
+    checklistItems.forEach(function(def) {
+        html += `<li class="list-group-item" id="checklist-row-${def.id}">`;
+        html += '<div class="d-flex align-items-center gap-2">';
+        html += '<i class="fas fa-spinner fa-spin text-muted flex-shrink-0"></i>';
+        html += `<strong>${escapeHtml(uiT(def.labelKey, def.labelFallback))}</strong>`;
+        html += '</div></li>';
+    });
+    html += '</ul>';
+    $('#checklistBody').html(html);
+
+    checklistItems.forEach(function(def) {
+        $.get('/admin/api/lovlynet/checklist/' + def.id)
+            .done(function(data) {
+                if (data && data.item) {
+                    renderChecklistRow(data.item);
+                }
+            })
+            .fail(function() {
+                $('#checklist-row-' + def.id).html(
+                    '<div class="d-flex align-items-center gap-2">' +
+                    '<i class="fas fa-circle-xmark text-danger flex-shrink-0"></i>' +
+                    `<strong>${escapeHtml(uiT(def.labelKey, def.labelFallback))}</strong>` +
+                    `<span class="text-danger small ms-1">${escapeHtml(uiT('ui.admin.lovlynet.checklist_load_failed', 'Failed to load'))}</span>` +
+                    '</div>'
+                );
+            });
+    });
 }
 
-function renderChecklist(items) {
-    if (!items.length) {
-        $('#checklistBody').html('<div class="p-3 text-muted small">—</div>');
-        return;
+function renderChecklistRow(item) {
+    const $row = $('#checklist-row-' + item.id);
+    if (!$row.length) { return; }
+    $row.html(getChecklistItemHtml(item));
+}
+
+function getChecklistItemHtml(item) {
+    if (item.id === 'registration') {
+        let h = '<div class="d-flex align-items-center gap-2">';
+        h += '<i class="fas fa-circle-check text-success"></i>';
+        h += `<strong>${escapeHtml(uiT('ui.admin.lovlynet.checklist_registration', 'Registered with LovlyNet'))}</strong>`;
+        h += `<span class="text-success small ms-1">${escapeHtml(uiT('ui.admin.lovlynet.checklist_registration_ok', 'Node is registered'))}</span>`;
+        h += '</div>';
+        return h;
     }
 
-    let html = '<ul class="list-group list-group-flush">';
+    if (item.id === 'uplink_configured') {
+        const ok = item.ok;
+        const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
+        const label = uiT('ui.admin.lovlynet.checklist_uplink_configured', 'LovlyNet uplink configured in BinkP');
+        const statusMsg = ok
+            ? uiT('ui.admin.lovlynet.checklist_uplink_configured_ok', 'Uplink is configured')
+            : uiT('ui.admin.lovlynet.checklist_uplink_configured_missing', 'No LovlyNet uplink found in BinkP configuration');
+        const hint = ok ? '' : uiT('ui.admin.lovlynet.checklist_uplink_configured_hint', 'Add a LovlyNet uplink under Admin \u2192 BinkP Configuration with domain set to "lovlynet".');
 
-    items.forEach(function(item) {
-        if (item.id === 'registration') {
-            html += '<li class="list-group-item">';
-            html += '<div class="d-flex align-items-center gap-2">';
-            html += `<i class="fas fa-circle-check text-success"></i>`;
-            html += `<strong>${escapeHtml(uiT('ui.admin.lovlynet.checklist_registration', 'Registered with LovlyNet'))}</strong>`;
-            html += `<span class="text-success small ms-1">${escapeHtml(uiT('ui.admin.lovlynet.checklist_registration_ok', 'Node is registered'))}</span>`;
-            html += '</div></li>';
-            return;
+        let h = '<div class="d-flex align-items-start gap-2">';
+        h += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+        h += '<div>';
+        h += `<strong>${escapeHtml(label)}</strong>`;
+        h += `<div class="small mt-1 ${ok ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
+        if (hint) { h += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`; }
+        h += '</div></div>';
+        return h;
+    }
+
+    if (item.id === 'binkp_auth_test') {
+        const ok = item.ok;
+        const daemonErr = !!item.daemon_error;
+        const iconClass = daemonErr ? 'fa-circle-question text-warning' : (ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger');
+        const label = uiT('ui.admin.lovlynet.checklist_binkp_auth_test', 'BinkP authentication to LovlyNet hub');
+        let statusMsg;
+        if (daemonErr) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_daemon_error', 'Cannot check — admin daemon is not running');
+        } else if (ok) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_ok', 'Authenticated successfully ({method})', { method: item.auth_method || '?' });
+        } else {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_failed', 'Authentication failed: {error}', { error: item.error || '' });
+        }
+        const statusClass = daemonErr ? 'text-warning' : (ok ? 'text-success' : 'text-danger');
+
+        let h = '<div class="d-flex align-items-start gap-2">';
+        h += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+        h += '<div>';
+        h += `<strong>${escapeHtml(label)}</strong>`;
+        h += `<div class="small mt-1 ${statusClass}">${escapeHtml(statusMsg)}</div>`;
+        h += '</div></div>';
+        return h;
+    }
+
+    if (item.id === 'default_areas') {
+        const ok = item.ok && !item.fetch_error;
+        const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
+        const label = uiT('ui.admin.lovlynet.checklist_default_areas', 'Default area subscriptions');
+        let statusMsg, hint = '';
+        if (item.fetch_error) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_error', 'Could not retrieve area data from LovlyNet');
+        } else if (ok) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_ok', 'All default areas subscribed');
+        } else {
+            const missing = [].concat(item.unsubscribed_echo || [], item.unsubscribed_file || []);
+            statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_missing', 'Missing subscriptions: {list}', { list: missing.join(', ') });
+            hint = uiT('ui.admin.lovlynet.checklist_default_areas_hint', 'Subscribe through the Echo Areas or File Areas tab.');
         }
 
-        if (item.id === 'uplink_configured') {
-            const ok = item.ok;
-            const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
-            const label = uiT('ui.admin.lovlynet.checklist_uplink_configured', 'LovlyNet uplink configured in BinkP');
-            const statusMsg = ok
-                ? uiT('ui.admin.lovlynet.checklist_uplink_configured_ok', 'Uplink is configured')
-                : uiT('ui.admin.lovlynet.checklist_uplink_configured_missing', 'No LovlyNet uplink found in BinkP configuration');
-            const hint = ok ? '' : uiT('ui.admin.lovlynet.checklist_uplink_configured_hint', 'Add a LovlyNet uplink under Admin \u2192 BinkP Configuration with domain set to "lovlynet".');
+        let h = '<div class="d-flex align-items-start gap-2">';
+        h += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+        h += '<div>';
+        h += `<strong>${escapeHtml(label)}</strong>`;
+        h += `<div class="small mt-1 ${ok ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
+        if (hint) { h += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`; }
+        h += '</div></div>';
+        return h;
+    }
 
-            html += '<li class="list-group-item">';
-            html += '<div class="d-flex align-items-start gap-2">';
-            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
-            html += '<div>';
-            html += `<strong>${escapeHtml(label)}</strong>`;
-            html += `<div class="small mt-1 ${ok ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
-            if (hint) {
-                html += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`;
-            }
-            html += '</div></div></li>';
-            return;
-        }
-
-        if (item.id === 'binkp_auth_test') {
-            const ok = item.ok;
-            const daemonErr = !!item.daemon_error;
-            const iconClass = daemonErr ? 'fa-circle-question text-warning' : (ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger');
-            const label = uiT('ui.admin.lovlynet.checklist_binkp_auth_test', 'BinkP authentication to LovlyNet hub');
-            let statusMsg;
-            if (daemonErr) {
-                statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_daemon_error', 'Cannot check — admin daemon is not running');
-            } else if (ok) {
-                statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_ok', 'Authenticated successfully ({method})', { method: item.auth_method || '?' });
-            } else {
-                statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_failed', 'Authentication failed: {error}', { error: item.error || '' });
-            }
-            const statusClass = daemonErr ? 'text-warning' : (ok ? 'text-success' : 'text-danger');
-
-            html += '<li class="list-group-item">';
-            html += '<div class="d-flex align-items-start gap-2">';
-            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
-            html += '<div>';
-            html += `<strong>${escapeHtml(label)}</strong>`;
-            html += `<div class="small mt-1 ${statusClass}">${escapeHtml(statusMsg)}</div>`;
-            html += '</div></div></li>';
-            return;
-        }
-
-        if (item.id === 'default_areas') {
-            const ok = item.ok && !item.fetch_error;
-            const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
-            const label = uiT('ui.admin.lovlynet.checklist_default_areas', 'Default area subscriptions');
-
-            let statusMsg, hint = '';
-            if (item.fetch_error) {
-                statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_error', 'Could not retrieve area data from LovlyNet');
-            } else if (ok) {
-                statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_ok', 'All default areas subscribed');
-            } else {
-                const missing = [].concat(item.unsubscribed_echo || [], item.unsubscribed_file || []);
-                statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_missing', 'Missing subscriptions: {list}', { list: missing.join(', ') });
-                hint = uiT('ui.admin.lovlynet.checklist_default_areas_hint', 'Subscribe through the Echo Areas or File Areas tab.');
-            }
-
-            html += '<li class="list-group-item">';
-            html += '<div class="d-flex align-items-start gap-2">';
-            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
-            html += '<div>';
-            html += `<strong>${escapeHtml(label)}</strong>`;
-            html += `<div class="small mt-1 ${ok && !item.fetch_error ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
-            if (hint) {
-                html += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`;
-            }
-            html += '</div></div></li>';
-            return;
-        }
-
-        if (item.id !== 'nodelist_rule') {
-            return;
-        }
-
+    if (item.id === 'nodelist_rule') {
         const ok = item.ok;
         const daemonError = !!item.daemon_error;
         const iconClass = daemonError
             ? 'fa-circle-question text-warning'
             : (ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger');
-
         let statusMsg;
         if (daemonError) {
             statusMsg = uiT('ui.admin.lovlynet.checklist_nodelist_rule_daemon_error', 'Cannot check — admin daemon is not running');
@@ -595,30 +606,26 @@ function renderChecklist(items) {
         } else {
             statusMsg = uiT('ui.admin.lovlynet.checklist_nodelist_rule_wrong_pattern', 'Rule exists but pattern does not match recommended value');
         }
-
         const label = uiT('ui.admin.lovlynet.checklist_nodelist_rule', 'LVLY_NODELIST file area rule');
         const desc  = uiT('ui.admin.lovlynet.checklist_nodelist_rule_desc', 'A file area rule must exist for LVLY_NODELIST@LOVLYNET with the recommended import pattern.');
         const statusClass = daemonError ? 'text-warning' : (ok ? 'text-success' : 'text-danger');
 
-        html += '<li class="list-group-item">';
-        html += '<div class="d-flex align-items-start justify-content-between gap-2">';
-        html += '<div class="flex-grow-1 min-w-0">';
-        html += `<div><i class="fas ${escapeHtmlAttr(iconClass)} me-1"></i><strong>${escapeHtml(label)}</strong></div>`;
-        html += `<div class="text-muted small mt-1">${escapeHtml(desc)}</div>`;
-        html += `<div class="small mt-1 ${statusClass}">${escapeHtml(statusMsg)}</div>`;
-        html += '</div>';
-
+        let h = '<div class="d-flex align-items-start justify-content-between gap-2">';
+        h += '<div class="flex-grow-1 min-w-0">';
+        h += `<div><i class="fas ${escapeHtmlAttr(iconClass)} me-1"></i><strong>${escapeHtml(label)}</strong></div>`;
+        h += `<div class="text-muted small mt-1">${escapeHtml(desc)}</div>`;
+        h += `<div class="small mt-1 ${statusClass}">${escapeHtml(statusMsg)}</div>`;
+        h += '</div>';
         if (!ok && !daemonError) {
-            html += `<button class="btn btn-sm btn-outline-warning flex-shrink-0" id="checklistFixNodelistBtn" onclick="fixNodelistRule(this)">`;
-            html += `<i class="fas fa-wrench me-1"></i>${escapeHtml(uiT('ui.admin.lovlynet.checklist_fix', 'Fix'))}`;
-            html += '</button>';
+            h += `<button class="btn btn-sm btn-outline-warning flex-shrink-0" id="checklistFixNodelistBtn" onclick="fixNodelistRule(this)">`;
+            h += `<i class="fas fa-wrench me-1"></i>${escapeHtml(uiT('ui.admin.lovlynet.checklist_fix', 'Fix'))}`;
+            h += '</button>';
         }
+        h += '</div>';
+        return h;
+    }
 
-        html += '</div></li>';
-    });
-
-    html += '</ul>';
-    $('#checklistBody').html(html);
+    return '';
 }
 
 function fixNodelistRule(btn) {

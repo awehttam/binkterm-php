@@ -5546,6 +5546,137 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
 });
 
 /**
+ * GET /admin/api/lovlynet/checklist/{id}
+ * Run a single LovlyNet setup checklist item and return its result.
+ * Accepted IDs: registration, uplink_configured, binkp_auth_test, nodelist_rule, default_areas
+ */
+SimpleRouter::get('/admin/api/lovlynet/checklist/{id}', function(string $id) {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $recommendedPattern = '/^LOVLYNET\\.(Z|A|L|R|J)[0-9]{2}$/i';
+    $areaKey = 'LVLY_NODELIST@LOVLYNET';
+
+    switch ($id) {
+        case 'registration':
+            echo json_encode(['success' => true, 'item' => ['id' => 'registration', 'ok' => true]]);
+            break;
+
+        case 'uplink_configured':
+            $uplinkConfigured = false;
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $lovlyUplink = $binkpConfig->getUplinkByDomain('lovlynet');
+                $uplinkConfigured = $lovlyUplink !== null
+                    && !empty($lovlyUplink['me'])
+                    && !empty($lovlyUplink['address'])
+                    && !empty($lovlyUplink['networks'])
+                    && ($lovlyUplink['enabled'] ?? true);
+            } catch (\Exception $e) {
+                // leave as false
+            }
+            echo json_encode(['success' => true, 'item' => ['id' => 'uplink_configured', 'ok' => $uplinkConfigured]]);
+            break;
+
+        case 'binkp_auth_test':
+            $binkpAuthOk      = false;
+            $binkpAuthError   = null;
+            $binkpAuthMethod  = null;
+            $binkpDaemonError = false;
+            try {
+                $daemonClient    = new \BinktermPHP\Admin\AdminDaemonClient();
+                $binkpAuthResult = $daemonClient->binkpAuthTest('lovlynet');
+                $binkpAuthOk     = true;
+                $binkpAuthMethod = $binkpAuthResult['auth_method'] ?? null;
+            } catch (\RuntimeException $e) {
+                $msg = $e->getMessage();
+                if (str_starts_with($msg, 'Failed to connect to admin daemon')) {
+                    $binkpDaemonError = true;
+                } else {
+                    $binkpAuthError = (string)preg_replace('/^Admin daemon error:\s*/', '', $msg);
+                }
+            }
+            echo json_encode(['success' => true, 'item' => [
+                'id'           => 'binkp_auth_test',
+                'ok'           => $binkpAuthOk,
+                'auth_method'  => $binkpAuthMethod,
+                'error'        => $binkpAuthError,
+                'daemon_error' => $binkpDaemonError,
+            ]]);
+            break;
+
+        case 'nodelist_rule':
+            $ruleExists             = false;
+            $patternMatches         = false;
+            $nodelistRuleDaemonError = false;
+            try {
+                $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                $rulesConfig  = $daemonClient->getFileAreaRulesConfig();
+                $configJson   = $rulesConfig['config_json'] ?? null;
+                if ($configJson !== null) {
+                    $parsed = json_decode($configJson, true);
+                    if (is_array($parsed)) {
+                        $areaRules = $parsed['area_rules'][$areaKey]
+                            ?? $parsed['area_rules']['LVLY_NODELIST']
+                            ?? [];
+                        foreach ($areaRules as $rule) {
+                            if (isset($rule['pattern'])) {
+                                $ruleExists = true;
+                                if ($rule['pattern'] === $recommendedPattern) {
+                                    $patternMatches = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+                $nodelistRuleDaemonError = true;
+            }
+            echo json_encode(['success' => true, 'item' => [
+                'id'              => 'nodelist_rule',
+                'ok'              => !$nodelistRuleDaemonError && $ruleExists && $patternMatches,
+                'has_rule'        => $ruleExists,
+                'pattern_matches' => $patternMatches,
+                'daemon_error'    => $nodelistRuleDaemonError,
+            ]]);
+            break;
+
+        case 'default_areas':
+            $defaultAreasItem = ['id' => 'default_areas', 'ok' => true, 'unsubscribed_echo' => [], 'unsubscribed_file' => [], 'fetch_error' => false];
+            $lovlyClient  = new \BinktermPHP\LovlyNetClient();
+            $areasResult  = $lovlyClient->getAreas();
+            if (!$areasResult['success']) {
+                $defaultAreasItem['fetch_error'] = true;
+            } else {
+                $missingEcho = [];
+                foreach ($areasResult['echoareas'] as $area) {
+                    if (!empty($area['is_default']) && empty($area['subscribed'])) {
+                        $missingEcho[] = strtoupper((string)($area['tag'] ?? ''));
+                    }
+                }
+                $missingFile = [];
+                foreach ($areasResult['fileareas'] as $area) {
+                    if (!empty($area['is_default']) && empty($area['subscribed'])) {
+                        $missingFile[] = strtoupper((string)($area['tag'] ?? ''));
+                    }
+                }
+                $defaultAreasItem['unsubscribed_echo'] = $missingEcho;
+                $defaultAreasItem['unsubscribed_file'] = $missingFile;
+                $defaultAreasItem['ok'] = ($missingEcho === [] && $missingFile === []);
+            }
+            echo json_encode(['success' => true, 'item' => $defaultAreasItem]);
+            break;
+
+        default:
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'unknown_item']);
+            break;
+    }
+});
+
+/**
  * POST /admin/api/lovlynet/checklist/fix-nodelist-rule
  * Add/fix the LVLY_NODELIST file area rule with the recommended pattern and script.
  */

@@ -639,7 +639,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<span class="echo-from-popover" style="cursor:pointer; border-bottom: 1px dashed currentColor;" onclick="event.stopPropagation(); handleEchoFromClick(this)" data-from-name="${escapeHtml(msg.from_name)}" data-from-address="${escapeHtml(msg.from_address || '')}" data-to-address="${escapeHtml((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : (msg.from_address || ''))}" data-to-name="${escapeHtml((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}" data-subject="${escapeHtml('Re: ' + (msg.subject || ''))}">${escapeHtml(msg.from_name)}</span>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -2796,6 +2796,58 @@ $(document).ready(function() {
 });
 
 // Save sender to address book from message modal
+// ── Echomail list from-name popover ──────────────────────────────────────────
+
+function handleEchoFromClick(el) {
+    // Close any other open from-name popovers
+    document.querySelectorAll('.echo-from-popover').forEach(function(other) {
+        if (other !== el) {
+            const p = bootstrap.Popover.getInstance(other);
+            if (p) p.hide();
+        }
+    });
+
+    let pop = bootstrap.Popover.getInstance(el);
+    if (pop) {
+        pop.toggle();
+        return;
+    }
+
+    const fromName    = el.dataset.fromName    || '';
+    const fromAddress = el.dataset.fromAddress || '';
+    const toAddress   = el.dataset.toAddress   || '';
+    const toName      = el.dataset.toName      || '';
+    const subject     = el.dataset.subject     || '';
+
+    const content = [
+        `<div class="fw-semibold">${escapeHtml(fromName)}</div>`,
+        fromAddress ? `<div class="text-muted small font-monospace">${escapeHtml(fromAddress)}</div>` : '',
+        toAddress
+            ? `<div class="mt-2"><a href="/compose/netmail?to=${encodeURIComponent(toAddress)}&to_name=${encodeURIComponent(toName)}&subject=${encodeURIComponent(subject)}" class="btn btn-sm btn-primary w-100">${uiT('ui.nodelist.send_netmail', 'Send Netmail')}</a></div>`
+            : '',
+    ].join('');
+
+    pop = new bootstrap.Popover(el, {
+        html: true,
+        content: content,
+        trigger: 'manual',
+        placement: 'bottom',
+        sanitize: false,
+    });
+    pop.show();
+}
+
+$(document).on('click.echoFromPopoverDismiss', function(e) {
+    if (!$(e.target).closest('.echo-from-popover, .popover').length) {
+        document.querySelectorAll('.echo-from-popover').forEach(function(el) {
+            const p = bootstrap.Popover.getInstance(el);
+            if (p) p.hide();
+        });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function saveToAddressBook(fromName, fromAddress, originalFromName, originalFromAddress) {
     const button = $('#saveAddressBookBtn');
     const originalHtml = button.html();
