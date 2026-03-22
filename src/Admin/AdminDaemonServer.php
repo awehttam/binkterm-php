@@ -278,7 +278,7 @@ class AdminDaemonServer
                             $this->writeResponse($client, ['ok' => false, 'error' => 'Uplink has no address configured']);
                             break;
                         }
-                        $binkpClient = new \BinktermPHP\Binkp\Protocol\BinkpClient($binkpConfig);
+                        $binkpClient = new \BinktermPHP\Binkp\Protocol\BinkpClient($binkpConfig, $this->logger);
                         $result = $binkpClient->connect($address);
                         $this->writeResponse($client, [
                             'ok'     => true,
