@@ -8876,6 +8876,46 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     /**
+     * GET /api/nodelist/node?address=...
+     * Look up a single nodelist entry by exact FTN address.
+     */
+    SimpleRouter::get('/nodelist/node', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $address = trim((string)($_GET['address'] ?? ''));
+        if ($address === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'address required']);
+            return;
+        }
+
+        $nodelistManager = new \BinktermPHP\Nodelist\NodelistManager();
+        $node = $nodelistManager->findNode($address);
+
+        // If point address not found, fall back to the parent node
+        if (!$node && strpos($address, '.') !== false) {
+            $parentAddress = preg_replace('/\.\d+$/', '', $address);
+            $node = $nodelistManager->findNode($parentAddress);
+        }
+
+        if (!$node) {
+            echo json_encode(['success' => true, 'node' => null]);
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'node' => [
+                'address'     => $node['full_address'],
+                'system_name' => $node['system_name'] ?? '',
+                'location'    => $node['location']    ?? '',
+                'domain'      => $node['domain']      ?? '',
+            ],
+        ]);
+    });
+
+    /**
      * GET /api/nodelist/search?q=...
      * Search nodelist nodes by system name, sysop name, or location.
      * Returns up to 10 matches for autocomplete use.

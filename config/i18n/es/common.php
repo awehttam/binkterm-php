@@ -2655,6 +2655,8 @@ return [
     'ui.nodelist.capabilities_flags' => 'Capacidades y banderas del nodo',
     'ui.nodelist.quick_actions' => 'Acciones rapidas',
     'ui.nodelist.send_netmail' => 'Enviar netmail',
+    'ui.nodelist.not_found' => 'No está en la lista de nodos',
+    'ui.nodelist.view_full_details' => 'Ver detalles completos del nodo',
     'ui.nodelist.login_to_send_netmail' => 'Inicie sesion para enviar netmail',
     'ui.nodelist.file_request' => 'Solicitud de archivo',
     'ui.nodelist.connection_information' => 'Informacion de conexion',

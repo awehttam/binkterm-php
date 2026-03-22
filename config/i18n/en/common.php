@@ -2647,6 +2647,8 @@ return [
     'ui.nodelist.capabilities_flags' => 'Node Capabilities & Flags',
     'ui.nodelist.quick_actions' => 'Quick Actions',
     'ui.nodelist.send_netmail' => 'Send Netmail',
+    'ui.nodelist.not_found' => 'Not in nodelist',
+    'ui.nodelist.view_full_details' => 'View full node details',
     'ui.nodelist.login_to_send_netmail' => 'Login to Send Netmail',
     'ui.nodelist.file_request' => 'File Request',
     'ui.nodelist.connection_information' => 'Connection Information',

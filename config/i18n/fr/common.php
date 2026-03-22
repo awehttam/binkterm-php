@@ -2153,6 +2153,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.nodelist.capabilities_flags' => 'Capacités et indicateurs du nœud',
     'ui.nodelist.quick_actions' => 'Actions rapides',
     'ui.nodelist.send_netmail' => 'Envoyer un Netmail',
+    'ui.nodelist.not_found' => 'Absent de la liste des nœuds',
+    'ui.nodelist.view_full_details' => 'Voir les détails complets du nœud',
     'ui.nodelist.login_to_send_netmail' => 'Connexion pour envoyer un Netmail',
     'ui.nodelist.file_request' => 'Demande de fichier',
     'ui.nodelist.connection_information' => 'Informations de connexion',
