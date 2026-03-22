@@ -4,7 +4,7 @@
 
 ## Table of Contents
 
-7- [Summary of Changes](#summary-of-changes)
+- [Summary of Changes](#summary-of-changes)
 - [File Areas & TIC Processing](#file-areas--tic-processing)
   - [FILE_ID.DIZ Selection for Incoming TIC ZIPs](#file_iddiz-selection-for-incoming-tic-zips)
 - [FTN Networking](#ftn-networking)
@@ -537,7 +537,7 @@ The checklist verifies five items simultaneously. All five checks are dispatched
 | Hub Connectivity | Performs a live BinkP authentication test against the LovlyNet hub to verify the configured credentials and network reachability. |
 | Uplink Configured | Verifies that a BinkP uplink entry for the LovlyNet hub exists in `config/binkp.json`. |
 | Default Areas | Fetches the list of LovlyNet-recommended echo and file areas from the LovlyNet server and checks whether each is currently subscribed. Missing areas are listed with a hint to subscribe via the Echo Areas or File Areas tabs. |
-| LVLY_NODELIST File Area Rule | Checks `config/filearea_rules.json` for a rule whose pattern matches the canonical LovlyNet nodelist filename pattern (`/^LOVLYNET\.(Z\|A\|L\|R\|J)[0-9]{2}$/i`) on the `lovlynet` domain. If no matching rule is found, a **Fix** button appears that automatically creates a working rule and saves it via the admin daemon. |
+| LVLY_NODELIST File Area Rule | Checks `config/filearea_rules.json` for a rule whose pattern matches the canonical LovlyNet nodelist filename pattern on the `lovlynet` domain. If no matching rule is found, a **Fix** button appears that automatically creates a working rule and saves it via the admin daemon. |
 
 The default area subscription check uses an `is_default` flag added to every
 area returned by the LovlyNet areas API; no separate API call is required.
