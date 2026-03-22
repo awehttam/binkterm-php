@@ -821,9 +821,46 @@ class BinkpConfig
             ['value' => 'CP850',      'label' => 'CP850 (Latin-1 DOS)'],
             ['value' => 'CP852',      'label' => 'CP852 (Central European DOS)'],
             ['value' => 'CP866',      'label' => 'CP866 (Cyrillic DOS)'],
+            ['value' => 'CP1252',     'label' => 'CP1252 (Windows Western European)'],
             ['value' => 'ISO-8859-1', 'label' => 'ISO-8859-1 (Latin-1)'],
             ['value' => 'ISO-8859-2', 'label' => 'ISO-8859-2 (Central European)'],
         ];
+    }
+
+    /**
+     * Normalize a CHRS charset value to a canonical iconv-compatible name.
+     *
+     * Maps known FTN aliases (e.g. IBMPC, IBM437) to their canonical equivalents
+     * so that the value can be matched against getSupportedCharsets() and passed
+     * to iconv without error.
+     *
+     * @param string $charset Raw charset string (e.g. from message_charset column)
+     * @return string Canonical charset name (e.g. "CP437")
+     */
+    public static function normalizeCharset(string $charset): string
+    {
+        $upper = strtoupper(trim($charset));
+
+        $aliases = [
+            'IBMPC'        => 'CP437',
+            'IBM437'       => 'CP437',
+            'IBM850'       => 'CP850',
+            'IBM852'       => 'CP852',
+            'IBM866'       => 'CP866',
+            // CP895 (Kamenický/Czech DOS) is not supported by iconv; CP850 is the
+            // closest iconv-supported encoding that covers Czech characters.
+            'CP895'        => 'CP850',
+            'LATIN-1'      => 'ISO-8859-1',
+            'LATIN1'       => 'ISO-8859-1',
+            'LATIN-2'      => 'ISO-8859-2',
+            'LATIN2'       => 'ISO-8859-2',
+            'WINDOWS-1252' => 'CP1252',
+            // ASCII is a 7-bit subset of UTF-8; replying in UTF-8 is safe.
+            'ASCII'        => 'UTF-8',
+            'US-ASCII'     => 'UTF-8',
+        ];
+
+        return $aliases[$upper] ?? $upper;
     }
 
 }

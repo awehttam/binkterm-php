@@ -143,6 +143,7 @@ return function($db) {
  - **Documentation index**: When adding a new documentation file to `docs/` (excluding `docs/proposals/`), update `docs/index.md` to include it in the appropriate section in operational priority order. When creating a new `UPGRADING_x.y.z.md` file, also add it to the **Upgrading** section at the bottom of `docs/index.md`, newest-first.
  - **Service Worker Cache**: When making changes to CSS or JavaScript files, or when updating i18n language strings in `config/i18n/`, increment the CACHE_NAME version in public_html/sw.js (e.g., 'binkcache-v2' to 'binkcache-v3') to force clients to download fresh copies. The service worker caches static assets and the i18n catalog (`/api/i18n/catalog`) to bypass aggressive browser caching on mobile devices.
  - **Timezone Display**: Dates and times are generally stored as UTC in the database. When presenting them to users, translate them to the user's own timezone unless there is a specific reason to show raw UTC.
+ - **Charset columns**: The `message_charset` column on `echomail` and `netmail` stores the canonical iconv-compatible charset name (e.g. `CP437`, `UTF-8`) as normalized by `BinkpConfig::normalizeCharset()`. The raw `CHRS` value from the original FTN packet is preserved as-is in the `kludge_lines` column and may differ (e.g. `IBMPC`, `ASCII`). Always use `message_charset` for encoding/decoding operations and pre-selecting the charset UI; read `kludge_lines` only when you need the original wire value.
  - Write phpDoc blocks when possible
 
 ## Localization (i18n) Workflow

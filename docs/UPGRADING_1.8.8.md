@@ -50,6 +50,7 @@
   - [Node Address Popover in Netmail List](#node-address-popover-in-netmail-list)
   - [Outgoing Charset Selector](#outgoing-charset-selector)
   - [Message Edit: Character Set Selector](#message-edit-character-set-selector)
+  - [Charset Alias Normalization](#charset-alias-normalization)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -68,6 +69,7 @@
 - BinkP now handles exported socket timeouts more consistently during handshake reads.
 
 **Echomail & Netmail**
+- Charset alias normalization: FTN alias values stored in `message_charset` (e.g. `IBMPC`, `ASCII`, `CP895`, `LATIN-1`) are now mapped to their canonical iconv-compatible equivalents at both storage time and reply time. `CP1252` has been added as a supported outgoing charset.
 - Outgoing echomail and netmail replies now honour the original message's `CHRS` charset. When replying to a CP437-encoded message the reply is re-encoded in CP437 and the `CHRS: CP437 2` kludge is set; if the body contains characters that cannot be represented the reply falls back to UTF-8.
 - A new **Encoding** selector in the compose form lets users explicitly choose the outgoing charset. It defaults to the original message's charset when replying, and to UTF-8 for new messages.
 - The netmail compose To Address field now includes a nodelist autocomplete: typing a system name, location, or partial address triggers a live search and presents a dropdown of matching nodes showing the FTN address, network badge, system name, and location. Selecting an entry populates the To Address field.
@@ -586,6 +588,7 @@ dropdown above the Markup Format selector. The available options are:
 | CP850 | Latin-1 DOS codepage 850 |
 | CP852 | Central European DOS codepage 852 |
 | CP866 | Cyrillic DOS codepage 866 |
+| CP1252 | Windows Western European |
 | ISO-8859-1 | Latin-1 |
 | ISO-8859-2 | Central European |
 
@@ -617,6 +620,7 @@ supported by iconv for body re-encoding:
 | CP850 | Latin-1 DOS codepage 850 |
 | CP852 | Central European DOS codepage 852 |
 | CP866 | Cyrillic DOS codepage 866 |
+| CP1252 | Windows Western European |
 | ISO-8859-1 | Latin-1 |
 | ISO-8859-2 | Central European |
 
@@ -633,6 +637,40 @@ the **Art Format** selector above it.
 
 The charset list is centralised in `BinkpConfig::getSupportedCharsets()` and
 shared by the compose form and both edit dialogs.
+
+### Charset Alias Normalization
+
+FTN software uses several aliases and legacy names for charsets in the `CHRS`
+kludge that are not accepted by PHP's iconv. Version 1.8.8 introduces a
+centralized `BinkpConfig::normalizeCharset()` method that maps these to their
+canonical equivalents.
+
+The normalization is applied at two points:
+
+- **Storage time** — when incoming packets are processed, the detected charset
+  is normalized before being written to the `message_charset` column.
+- **Reply time** — when opening the compose form for a reply, the stored charset
+  is normalized before pre-selecting the encoding dropdown, so the correct
+  option is highlighted even for messages stored under an alias.
+
+The full alias table:
+
+| Stored value | Normalized to | Notes |
+|---|---|---|
+| `IBMPC` | `CP437` | Common FTN alias for IBM PC codepage 437 |
+| `IBM437` | `CP437` | |
+| `ASCII` / `US-ASCII` | `UTF-8` | ASCII is a 7-bit subset of UTF-8 |
+| `CP895` | `CP850` | Kamenický (Czech DOS); not supported by iconv — CP850 is the closest substitute |
+| `IBM850` | `CP850` | |
+| `IBM852` | `CP852` | |
+| `IBM866` | `CP866` | |
+| `LATIN-1` / `LATIN1` | `ISO-8859-1` | |
+| `LATIN-2` / `LATIN2` | `ISO-8859-2` | |
+| `WINDOWS-1252` | `CP1252` | |
+
+Existing messages in the database with alias values in `message_charset` are
+not migrated — the normalization is applied on read when composing a reply, so
+no data migration is needed.
 
 ## Weather Reports
 

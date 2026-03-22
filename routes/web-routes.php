@@ -1119,7 +1119,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
   
           if ($originalMessage) {
               $templateVars['reply_markup_type'] = getMessageMarkupType($originalMessage) ?? '';
-              $templateVars['reply_charset'] = strtoupper((string)($originalMessage['message_charset'] ?? 'UTF-8')) ?: 'UTF-8';
+              $rawCharset = (string)($originalMessage['message_charset'] ?? 'UTF-8');
+              $templateVars['reply_charset'] = \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($rawCharset) ?: 'UTF-8';
               if ($type === 'netmail') {
                   $templateVars['reply_to_id'] = $replyId;
 
