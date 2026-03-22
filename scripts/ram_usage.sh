@@ -125,22 +125,21 @@ if $JSON_MODE; then
     printf '  "total_rss_mb": %s\n' "$(kb_to_mb "$GRAND_TOTAL_KB")"
     echo "}"
 else
-    printf "\n%-30s %8s %8s %8s\n" "Service" "Procs" "RSS KB" "RSS MB"
-    printf "%-30s %8s %8s %8s\n" "──────────────────────────────" "───────" "───────" "───────"
+    printf "\n| %-30s | %6s | %8s | %8s |\n" "Service" "Procs" "RSS KB" "RSS MB"
+    printf "| %-30s | %6s | %8s | %8s |\n" "------------------------------" "------" "--------" "--------"
 
     for i in "${!OUT_LABELS[@]}"; do
         kb="${OUT_KB[$i]}"
         count="${OUT_COUNTS[$i]}"
         if [[ "$count" -gt 0 ]]; then
-            printf "%-30s %8d %8d %8s\n" \
+            printf "| %-30s | %6d | %8d | %8s |\n" \
                 "${OUT_LABELS[$i]}" "$count" "$kb" "$(kb_to_mb "$kb")"
         else
-            printf "%-30s %8s %8s %8s\n" \
+            printf "| %-30s | %6s | %8s | %8s |\n" \
                 "${OUT_LABELS[$i]}" "-" "-" "-"
         fi
     done
 
-    printf "%-30s %8s %8s %8s\n" "──────────────────────────────" "───────" "───────" "───────"
-    printf "%-30s %8s %8d %8s\n" "TOTAL" "" "$GRAND_TOTAL_KB" "$(kb_to_mb "$GRAND_TOTAL_KB")"
+    printf "| %-30s | %6s | %8d | %8s |\n" "**TOTAL**" "" "$GRAND_TOTAL_KB" "$(kb_to_mb "$GRAND_TOTAL_KB")"
     echo ""
 fi

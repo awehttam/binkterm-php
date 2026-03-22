@@ -113,12 +113,6 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     const hasPipes = /\|[0-9A-Fa-f]{2}/.test(messageText);
     const hasColorCodes = hasAnsi || hasPipes;
 
-    // FTN software wraps lines at ~72 chars, which can split URLs across lines.
-    // Only rejoin when the line is >= 70 chars (strong FTN-wrap signal) AND it
-    // ends with a URL fragment AND the next line starts with URL-path characters.
-    // The length guard prevents merging a complete short URL with the next line.
-    messageText = joinFtnWrappedUrls(messageText);
-
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -650,35 +644,8 @@ function escapeRegex(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-
 // Convert URLs in text to clickable links (XSS-safe)
 // Must be called AFTER escapeHtml since we're inserting HTML anchor tags
-/**
- * Rejoin URLs that FTN software split across lines at its ~72-char wrap limit.
- * Only merges when the line is >= 70 chars (strong wrap signal) and ends with
- * a URL fragment, and the next line starts with URL-path characters. The length
- * guard prevents a complete short URL from being incorrectly merged with the
- * next line of text.
- */
-function joinFtnWrappedUrls(text) {
-    const lines = text.split(/\r?\n/);
-    const result = [];
-    let i = 0;
-    while (i < lines.length) {
-        let line = lines[i];
-        if (line.length >= 70 && i + 1 < lines.length) {
-            const urlFragMatch = line.match(/(https?:\/\/\S+)$/);
-            if (urlFragMatch && /^[a-z0-9\/_.\-~%]/.test(lines[i + 1])) {
-                line = line + lines[i + 1];
-                i++;
-            }
-        }
-        result.push(line);
-        i++;
-    }
-    return result.join('\n');
-}
-
 function linkifyUrls(text) {
     if (!text) return text;
 

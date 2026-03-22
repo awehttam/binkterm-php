@@ -788,20 +788,19 @@ bash scripts/ram_usage.sh --json
 Example output:
 
 ```
-Service                           Procs   RSS KB   RSS MB
-────────────────────────────────  ───────  ───────  ───────
-Apache (httpd)                        5    82340     80.4
-Caddy                                 1    24680     24.1
-php-fpm                               4    91200     89.1
-PostgreSQL (postgres)                 7   112640    110.0
-admin_daemon                          1    18240     17.8
-binkp_server                          1    21880     21.4
-binkp_scheduler                       1    17640     17.2
-mrc_daemon                            -        -        -
-gemini_daemon                         -        -        -
-telnetd                               1    18920     18.5
-────────────────────────────────  ───────  ───────  ───────
-TOTAL                                       ...      ...
+| Service                         | Procs  |   RSS KB |   RSS MB |
+| ------------------------------- | ------ | -------- | -------- |
+| Apache (httpd)                  |      5 |    82340 |     80.4 |
+| Caddy                           |      1 |    24680 |     24.1 |
+| php-fpm                         |      4 |    91200 |     89.1 |
+| PostgreSQL (postgres)           |      7 |   112640 |    110.0 |
+| admin_daemon                    |      1 |    18240 |     17.8 |
+| binkp_server                    |      1 |    21880 |     21.4 |
+| binkp_scheduler                 |      1 |    17640 |     17.2 |
+| mrc_daemon                      |      - |        - |        - |
+| gemini_daemon                   |      - |        - |        - |
+| telnetd                         |      1 |    18920 |     18.5 |
+| **TOTAL**                       |        |   387660 |    378.6 |
 ```
 
 Services that are not running are shown with `-` rather than an error. The script reads `/proc/<pid>/status` directly for accurate RSS values.
