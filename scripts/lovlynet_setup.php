@@ -541,7 +541,7 @@ function doRegistration($isUpdate = false) {
                 'allow_markup' => true,
                 'enabled' => true,
                 'compression' => false,
-                'crypt' => false,
+                'crypt' => true,
                 'poll_schedule' => '*/15 * * * *'
             ]);
         } else {
@@ -558,7 +558,7 @@ function doRegistration($isUpdate = false) {
                     'tic_password' => $ticPassword,
                     'allow_markup' => true,
                     'compression' => false,
-                    'crypt' => false,
+                    'crypt' => true,
                     'poll_schedule' => '*/15 * * * *'
                 ]
             );
