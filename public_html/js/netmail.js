@@ -854,7 +854,13 @@ function openEditMessage() {
     $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
     $('#editMsgSubject').text(msg.subject || '');
     $('#editArtFormat').val(msg.art_format || '');
-    $('#editCharset').val(msg.message_charset || '');
+    const editCharsetVal = msg.message_charset || 'UTF-8';
+    const $editCharsetSel = $('#editCharset');
+    $editCharsetSel.find('option.unknown-charset').remove();
+    if ($editCharsetSel.find('option[value="' + editCharsetVal + '"]').length === 0) {
+        $editCharsetSel.prepend('<option value="' + editCharsetVal + '" class="unknown-charset">' + editCharsetVal + ' (unknown)</option>');
+    }
+    $editCharsetSel.val(editCharsetVal);
     $('#editMessageError').addClass('d-none');
     $('#editMessageSuccess').addClass('d-none');
     $('#saveEditMessageBtn').prop('disabled', false);

@@ -807,5 +807,24 @@ class BinkpConfig
         $this->saveConfig();
     }
 
+    /**
+     * Return the list of charsets supported for outgoing message encoding.
+     * Each entry is ['value' => <charset string>, 'label' => <display label>].
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public static function getSupportedCharsets(): array
+    {
+        return [
+            ['value' => 'UTF-8',      'label' => 'UTF-8'],
+            ['value' => 'CP437',      'label' => 'CP437 (IBM PC / DOS)'],
+            ['value' => 'CP850',      'label' => 'CP850 (Latin-1 DOS)'],
+            ['value' => 'CP852',      'label' => 'CP852 (Central European DOS)'],
+            ['value' => 'CP866',      'label' => 'CP866 (Cyrillic DOS)'],
+            ['value' => 'ISO-8859-1', 'label' => 'ISO-8859-1 (Latin-1)'],
+            ['value' => 'ISO-8859-2', 'label' => 'ISO-8859-2 (Central European)'],
+        ];
+    }
+
 }
 

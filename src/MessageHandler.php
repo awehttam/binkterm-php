@@ -735,7 +735,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -836,8 +836,37 @@ class MessageHandler
             }
         }
 
+        // Determine target packet charset. If the caller supplied an explicit charset, use it.
+        // Otherwise, when replying, honour the original message's charset so legacy CP437 /
+        // ISO-8859 recipients receive correctly-encoded text. Falls back to UTF-8 when the
+        // charset is unknown or the body contains characters that can't be represented.
+        if ($charset !== null) {
+            $packetCharset = strtoupper($charset);
+            // Verify we can actually encode in the requested charset; fall back on failure
+            if ($packetCharset !== 'UTF-8') {
+                $testConvert = @iconv('UTF-8', $packetCharset . '//IGNORE', $messageText);
+                if ($testConvert === false || strlen($testConvert) === 0) {
+                    $packetCharset = 'UTF-8';
+                }
+            }
+        } else {
+            $packetCharset = 'UTF-8';
+            if (!empty($replyToId)) {
+                $csStmt = $this->db->prepare("SELECT message_charset FROM netmail WHERE id = ?");
+                $csStmt->execute([$replyToId]);
+                $originalCharset = $csStmt->fetchColumn();
+                if ($originalCharset && strtoupper($originalCharset) !== 'UTF-8') {
+                    $candidate = strtoupper($originalCharset);
+                    $testConvert = @iconv('UTF-8', $candidate . '//IGNORE', $messageText);
+                    if ($testConvert !== false && strlen($testConvert) > 0) {
+                        $packetCharset = $candidate;
+                    }
+                }
+            }
+        }
+
         // Generate kludges for this netmail
-        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId, null, $markupAllowed);
+        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId, null, $markupAllowed, $packetCharset);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -1161,7 +1190,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1209,7 +1238,36 @@ class MessageHandler
             $markupAllowed = null;
         }
 
-        $kludgeLines = $prependKludges . $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain);
+        // Determine target packet charset. If the caller supplied an explicit charset (e.g.
+        // from the compose form's encoding selector), use it. Otherwise, when replying,
+        // honour the original message's charset so legacy CP437 / ISO-8859 areas receive
+        // correctly-encoded text. Falls back to UTF-8 when the charset is unknown or the
+        // body contains characters that can't be represented.
+        if ($charset !== null) {
+            $packetCharset = strtoupper($charset);
+            if ($packetCharset !== 'UTF-8') {
+                $testConvert = @iconv('UTF-8', $packetCharset . '//IGNORE', $messageText);
+                if ($testConvert === false || strlen($testConvert) === 0) {
+                    $packetCharset = 'UTF-8';
+                }
+            }
+        } else {
+            $packetCharset = 'UTF-8';
+            if (!empty($replyToId)) {
+                $csStmt = $this->db->prepare("SELECT message_charset FROM echomail WHERE id = ?");
+                $csStmt->execute([$replyToId]);
+                $originalCharset = $csStmt->fetchColumn();
+                if ($originalCharset && strtoupper($originalCharset) !== 'UTF-8') {
+                    $candidate = strtoupper($originalCharset);
+                    $testConvert = @iconv('UTF-8', $candidate . '//IGNORE', $messageText);
+                    if ($testConvert !== false && strlen($testConvert) > 0) {
+                        $packetCharset = $candidate;
+                    }
+                }
+            }
+        }
+
+        $kludgeLines = $prependKludges . $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain, $packetCharset);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -3717,13 +3775,33 @@ class MessageHandler
 
     /**
      * Generate kludge lines for netmail messages
+     *
+     * @param string $charset Target charset for the outgoing packet (e.g. 'UTF-8', 'CP437').
+     *                        Determines the CHRS kludge value. Defaults to 'UTF-8'.
      */
-    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null, $markupType = null)
+    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null, $markupType = null, $charset = 'UTF-8')
     {
         $kludgeLines = [];
 
-        // Add CHRS kludge for UTF-8 encoding
-        $kludgeLines[] = "\x01CHRS: UTF-8 4";
+        // CHRS level per FSC-0054: 1=7-bit, 2=8-bit, 4=multi-byte (UTF-8)
+        $chrsLevelMap = [
+            'UTF-8'        => 4,
+            'CP437'        => 2,
+            'CP850'        => 2,
+            'CP852'        => 2,
+            'CP866'        => 2,
+            'ISO-8859-1'   => 2,
+            'ISO-8859-2'   => 2,
+            'ISO-8859-5'   => 2,
+            'WINDOWS-1250' => 4,
+            'WINDOWS-1251' => 4,
+            'WINDOWS-1252' => 4,
+            'KOI8-R'       => 2,
+            'KOI8-U'       => 2,
+        ];
+        $chrsCharset = strtoupper($charset);
+        $chrsLevel   = $chrsLevelMap[$chrsCharset] ?? 4;
+        $kludgeLines[] = "\x01CHRS: {$chrsCharset} {$chrsLevel}";
 
         if ($markupType === 'markdown') {
             $kludgeLines[] = "\x01MARKUP: Markdown 1.0";
@@ -3788,13 +3866,33 @@ class MessageHandler
 
     /**
      * Generate kludge lines for echomail messages
+     *
+     * @param string $charset Target charset for the outgoing packet (e.g. 'UTF-8', 'CP437').
+     *                        Determines the CHRS kludge value. Defaults to 'UTF-8'.
      */
-    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markupType = null, $domain = null)
+    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markupType = null, $domain = null, $charset = 'UTF-8')
     {
         $kludgeLines = [];
 
-        // Add CHRS kludge for UTF-8 encoding
-        $kludgeLines[] = "\x01CHRS: UTF-8 4 ";
+        // CHRS level per FSC-0054: 1=7-bit, 2=8-bit, 4=multi-byte (UTF-8)
+        $chrsLevelMap = [
+            'UTF-8'        => 4,
+            'CP437'        => 2,
+            'CP850'        => 2,
+            'CP852'        => 2,
+            'CP866'        => 2,
+            'ISO-8859-1'   => 2,
+            'ISO-8859-2'   => 2,
+            'ISO-8859-5'   => 2,
+            'WINDOWS-1250' => 4,
+            'WINDOWS-1251' => 4,
+            'WINDOWS-1252' => 4,
+            'KOI8-R'       => 2,
+            'KOI8-U'       => 2,
+        ];
+        $chrsCharset = strtoupper($charset);
+        $chrsLevel   = $chrsLevelMap[$chrsCharset] ?? 4;
+        $kludgeLines[] = "\x01CHRS: {$chrsCharset} {$chrsLevel}";
 
         if ($markupType === 'markdown') {
             $kludgeLines[] = "\x01MARKUP: Markdown 1.0";

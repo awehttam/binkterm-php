@@ -222,6 +222,9 @@ return [
     'errors.user.transactions.admin_required' => 'Admin privileges are required',
     'errors.user.transactions.user_not_found' => 'User not found',
     'errors.user.transactions.list_failed' => 'Failed to load transactions',
+    'errors.user.activity.admin_required' => 'Admin privileges are required',
+    'errors.user.activity.user_not_found' => 'User not found',
+    'errors.user.activity.list_failed' => 'Failed to load activity log',
 
     // Credits
     'errors.credits.feature_disabled' => 'Credits feature is disabled',

@@ -621,13 +621,38 @@ SimpleRouter::get('/profile/{username}', function($username) {
     $canViewSensitive = $isOwnProfile || !empty($currentUser['is_admin']);
     $viewerIsAdmin = !empty($currentUser['is_admin']);
 
-    // Get transaction history for admins
+    // Get transaction history and activity log for admins
     $transactions = [];
     if ($viewerIsAdmin && $creditsEnabled) {
         try {
             $transactions = \BinktermPHP\UserCredit::getTransactionHistory((int)$targetUser['id'], 10);
         } catch (\Throwable $e) {
             $transactions = [];
+        }
+    }
+
+    $activityLog = [];
+    if ($viewerIsAdmin) {
+        try {
+            $actStmt = $db->prepare('
+                SELECT
+                    ual.id,
+                    ual.created_at,
+                    ac.name  AS category,
+                    at.label AS activity,
+                    ual.object_name,
+                    ual.meta
+                FROM user_activity_log ual
+                JOIN activity_types      at ON at.id = ual.activity_type_id
+                JOIN activity_categories ac ON ac.id = at.category_id
+                WHERE ual.user_id = ?
+                ORDER BY ual.created_at DESC
+                LIMIT 25
+            ');
+            $actStmt->execute([(int)$targetUser['id']]);
+            $activityLog = $actStmt->fetchAll();
+        } catch (\Throwable $e) {
+            $activityLog = [];
         }
     }
 
@@ -651,6 +676,7 @@ SimpleRouter::get('/profile/{username}', function($username) {
         'can_view_sensitive' => $canViewSensitive,
         'viewer_is_admin' => $viewerIsAdmin,
         'transactions' => $transactions,
+        'activity_log' => $activityLog,
         'transfer_fee_percent' => $transferFeePercent
     ];
 
@@ -1093,6 +1119,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
   
           if ($originalMessage) {
               $templateVars['reply_markup_type'] = getMessageMarkupType($originalMessage) ?? '';
+              $templateVars['reply_charset'] = strtoupper((string)($originalMessage['message_charset'] ?? 'UTF-8')) ?: 'UTF-8';
               if ($type === 'netmail') {
                   $templateVars['reply_to_id'] = $replyId;
 

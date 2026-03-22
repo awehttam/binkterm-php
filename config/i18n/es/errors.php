@@ -222,6 +222,9 @@ return [
     'errors.user.transactions.admin_required' => 'Se requieren privilegios de administrador',
     'errors.user.transactions.user_not_found' => 'Usuario no encontrado',
     'errors.user.transactions.list_failed' => 'No se pudieron cargar las transacciones',
+    'errors.user.activity.admin_required' => 'Se requieren privilegios de administrador',
+    'errors.user.activity.user_not_found' => 'Usuario no encontrado',
+    'errors.user.activity.list_failed' => 'No se pudo cargar el registro de actividad',
 
     // Credits
     'errors.credits.feature_disabled' => 'La funcion de creditos esta deshabilitada',

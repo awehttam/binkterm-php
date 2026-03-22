@@ -198,6 +198,16 @@
                     <div class="form-text"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 128" style="width:1.25em;height:0.75em;vertical-align:-0.125em" class="me-1" aria-hidden="true" fill="currentColor"><rect width="208" height="128" rx="16" fill="none" stroke="currentColor" stroke-width="10"/><path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"/></svg>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
                 </div>
 
+                <div class="mb-3">
+                    <label class="form-label" for="charsetSelect">{{ t('ui.compose.charset', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="charsetSelect" name="charset">
+                        {% for cs in supported_charsets %}
+                        <option value="{{ cs.value }}">{{ cs.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">{{ t('ui.compose.charset_help', {}, locale, ['common']) }}</div>
+                </div>
+
                 <div class="mb-3" id="markdownSection" style="display: none;">
                     <label class="form-label" for="markupType">{{ t('ui.compose.markup_format', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="markupType" name="markup_type">
@@ -473,6 +483,17 @@ let mdEditorActive = false;
 let mdPreviewTimer = null;
 let scToolbarActive = false;
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
+const replyCharset    = {{ reply_charset|default("UTF-8")|json_encode|raw }};
+
+// Pre-select the charset from the reply context (or default to UTF-8 for new messages)
+(function() {
+    const sel = document.getElementById('charsetSelect');
+    if (sel && replyCharset) {
+        sel.value = replyCharset;
+        // If the value didn't match any option, fall back to UTF-8
+        if (!sel.value) { sel.value = 'UTF-8'; }
+    }
+})();
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
@@ -1255,7 +1276,8 @@ function sendMessage() {
             is_freq: $('#freqCheckbox').is(':checked'),
             tagline: $('#taglineSelect').val(),
             cross_post_areas: crossPostAreas,
-            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null
+            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null,
+            charset: $('#charsetSelect').val() || 'UTF-8'
         };
 
     // Show sending status

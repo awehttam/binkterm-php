@@ -28,6 +28,7 @@
   - [Shared Message: Kludge Lines Removed](#shared-message-kludge-lines-removed)
   - [Font Awesome Brands Font Removed](#font-awesome-brands-font-removed)
   - [Admin Settings: Loading Blur](#admin-settings-loading-blur)
+  - [Profile: Activity Log Tab](#profile-activity-log-tab)
 - [MRC Chat](#mrc-chat)
   - [Default Room Fallback](#default-room-fallback)
   - [First DM Message Now Visible](#first-dm-message-now-visible)
@@ -44,8 +45,11 @@
   - [replace Metadata Flag for File Areas](#replace-metadata-flag-for-file-areas)
   - [Default Area Indicators on Echo and File Area Tabs](#default-area-indicators-on-echo-and-file-area-tabs)
   - [Metadata Respected on Area Creation](#metadata-respected-on-area-creation)
-- [Netmail](#netmail)
-  - [Node Address Autocomplete](#node-address-autocomplete)
+- [Echomail & Netmail](#echomail--netmail)
+  - [Node Address Autocomplete in Netmail Compose](#node-address-autocomplete-in-netmail-compose)
+  - [Node Address Popover in Netmail List](#node-address-popover-in-netmail-list)
+  - [Outgoing Charset Selector](#outgoing-charset-selector)
+  - [Message Edit: Character Set Selector](#message-edit-character-set-selector)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -62,6 +66,13 @@
 
 **FTN Networking**
 - BinkP now handles exported socket timeouts more consistently during handshake reads.
+
+**Echomail & Netmail**
+- Outgoing echomail and netmail replies now honour the original message's `CHRS` charset. When replying to a CP437-encoded message the reply is re-encoded in CP437 and the `CHRS: CP437 2` kludge is set; if the body contains characters that cannot be represented the reply falls back to UTF-8.
+- A new **Encoding** selector in the compose form lets users explicitly choose the outgoing charset. It defaults to the original message's charset when replying, and to UTF-8 for new messages.
+- The netmail compose To Address field now includes a nodelist autocomplete: typing a system name, location, or partial address triggers a live search and presents a dropdown of matching nodes showing the FTN address, network badge, system name, and location. Selecting an entry populates the To Address field.
+- Clicking a node address in the netmail message list now shows a Bootstrap popover with the BBS system name, location, and a "View full node details" button. Point addresses that are not in the nodelist fall back to the parent node entry.
+- The "Art Encoding" field in the netmail and echomail message edit dialogs has been renamed to **Character Set** and changed from a free-text input to a dropdown. The dropdown lists only valid iconv-compatible charsets. Messages with an unrecognised stored charset show it as a labelled "(unknown)" option so it is preserved if the edit is saved without changing it.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -81,6 +92,7 @@
 - The kludge lines box has been removed from the public shared message view.
 - The Font Awesome brands webfont (`fa-brands-400.woff2`, ~108 KB) is no longer loaded; the single brands icon used (Markdown) has been replaced with an inline SVG.
 - Admin settings pages (BBS Settings, BinkP Configuration, MRC Settings, Appearance) now blur their content cards while settings are being fetched and show a centred spinner; cards stay blurred if the load fails.
+- The user profile page now shows an **Activity Log** tab (admin/sysop only) listing recent events from the `user_activity_log` table. The existing transaction history is presented on an adjacent **Transaction History** tab. Both tabs are hidden from regular users.
 
 **MRC Chat**
 - When the server returns no rooms, the MRC chat WebDoor now shows the configured default room instead of an empty list.
@@ -103,9 +115,6 @@
 - The `replace` metadata flag in `area_metadata.json` is now honoured: if LovlyNet recommends `replace: true` for a file area, BinktermPHP will detect and offer to correct a mismatch.
 - Echo and File area tab rows for default (recommended) areas now show a warning icon when the area is not yet subscribed.
 - When creating echo or file areas during subscription or area-sync, `area_metadata.json` recommended fields (`sysop_only`, `readonly`, `replace`) are now applied at creation time rather than only as a post-creation correction.
-
-**Netmail**
-- The To Address field in the netmail compose form now includes a nodelist autocomplete. Typing a system name, sysop name, or location triggers a live search against the imported nodelist and presents a dropdown of matching nodes showing the FTN address, network, system name, and location. Selecting an entry populates the To Address field.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.
@@ -347,6 +356,21 @@ distinct from a loaded page.
 The following pages use this behaviour: BBS Settings, BinkP Configuration,
 MRC Settings, and Appearance.
 
+### Profile: Activity Log Tab
+
+The user profile page now presents a tabbed card (visible to admin/sysop users
+only) with two tabs:
+
+- **Activity Log** — shows recent entries from the `user_activity_log` table:
+  timestamp (in the viewer's timezone), category badge, activity label, and an
+  object detail (e.g. the echo area tag for a "File Area Viewed" event). A
+  **Load More** button fetches the next 25 entries. File area view events
+  include the area tag as the detail field.
+- **Transaction History** — the existing credit transaction table, unchanged.
+
+Regular users do not see either tab. The card is only rendered when the viewing
+user is an admin.
+
 ## MRC Chat
 
 ### Default Room Fallback
@@ -509,6 +533,106 @@ that has not been subscribed.
 
 Areas that are subscribed, or areas that are not flagged as defaults, are
 unaffected. The icon is removed automatically when the area is subscribed.
+
+## Echomail & Netmail
+
+### Node Address Autocomplete in Netmail Compose
+
+The **To Address** field in the netmail compose form now doubles as a node
+search box. While the field contains non-FTN characters (i.e. no colon or
+slash) a debounced search fires against the imported nodelist. Results appear
+in a dropdown beneath the field showing:
+
+- FTN address
+- Network badge (e.g. FidoNet, LovlyNet)
+- System name
+- Location (in parentheses)
+
+Keyboard navigation (↑/↓/Enter/Escape) and mouse selection are both
+supported. Selecting an entry populates only the **To Address** field; the
+**To Name** field is left for the user to fill in. The help text below the
+field has been updated from "Fidonet address (e.g., 1:123/456)" to
+"FTN address or system name" to reflect the new capability.
+
+The autocomplete requires a nodelist to have been imported via the nodelist
+import process. If no nodelist data is present the search returns no results.
+
+### Node Address Popover in Netmail List
+
+In the netmail message list, sender and recipient node addresses are now
+displayed as linkable text (dotted underline, primary colour). Clicking an
+address opens a Bootstrap popover showing:
+
+- BBS system name
+- Location
+
+The popover also contains a **View full node details** button that links to
+the full nodelist entry page. Clicking anywhere else dismisses the popover.
+
+Point addresses that are not found in the nodelist are automatically
+looked up against their parent node (e.g. `1:123/456.1` → `1:123/456`),
+so the popover and the "View full node details" link resolve correctly even
+for point systems that do not have their own nodelist record.
+
+### Outgoing Charset Selector
+
+The compose form for both echomail and netmail now includes an **Encoding**
+dropdown above the Markup Format selector. The available options are:
+
+| Value | Description |
+|-------|-------------|
+| UTF-8 | Unicode — default for new messages |
+| CP437 | IBM PC / DOS codepage 437 |
+| CP850 | Latin-1 DOS codepage 850 |
+| CP852 | Central European DOS codepage 852 |
+| CP866 | Cyrillic DOS codepage 866 |
+| ISO-8859-1 | Latin-1 |
+| ISO-8859-2 | Central European |
+
+When replying to a message, the selector pre-selects the charset of the
+original message. A reply to a `CHRS: CP437 2` message will default to
+CP437 so the recipient's legacy system receives correctly-encoded bytes.
+
+If the message body contains characters that cannot be represented in the
+selected charset (e.g. an emoji in a CP437 message), BinktermPHP silently
+falls back to UTF-8 rather than losing content.
+
+The selected charset is written to the outgoing FTN packet as the
+`CHRS` kludge line and the message body bytes are re-encoded accordingly
+before the packet is written.
+
+### Message Edit: Character Set Selector
+
+The **Art Encoding** field in the message edit dialogs for both netmail and
+echomail has been renamed to **Character Set** and converted from a free-text
+input with a datalist to a `<select>` dropdown.
+
+The dropdown lists only charsets that are valid for the FTN `CHRS` kludge and
+supported by iconv for body re-encoding:
+
+| Value | Description |
+|-------|-------------|
+| UTF-8 | Unicode |
+| CP437 | IBM PC / DOS codepage 437 |
+| CP850 | Latin-1 DOS codepage 850 |
+| CP852 | Central European DOS codepage 852 |
+| CP866 | Cyrillic DOS codepage 866 |
+| ISO-8859-1 | Latin-1 |
+| ISO-8859-2 | Central European |
+
+If a stored message has a `message_charset` value that is not in the list
+(e.g. a legacy value such as `KOI8-R` or a former art-format hint like
+`PETSCII`), the edit dialog inserts it as a labelled `(unknown)` option at the
+top of the dropdown and pre-selects it. Saving the edit without changing the
+charset preserves the original value. The unknown option is removed and
+re-evaluated each time a different message is opened for editing.
+
+The help text that previously described the field as affecting only ANSI/PETSCII
+art rendering has been removed; art rendering format is controlled separately by
+the **Art Format** selector above it.
+
+The charset list is centralised in `BinkpConfig::getSupportedCharsets()` and
+shared by the compose form and both edit dialogs.
 
 ## Weather Reports
 

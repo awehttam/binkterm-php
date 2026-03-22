@@ -2569,7 +2569,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         if ($userId) {
-            ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+            $areaName = $area['tag'] ?? $area['name'] ?? null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId, $areaName);
         }
 
         echo json_encode([
@@ -5844,6 +5845,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Support both new markup_type and legacy send_markdown for backwards compatibility
         $markupType = $input['markup_type'] ?? (empty($input['send_markdown']) ? null : 'markdown');
 
+        // Validate and sanitise the user-supplied charset. Only allow known safe values.
+        $allowedCharsets = ['UTF-8', 'CP437', 'CP850', 'CP852', 'CP866', 'ISO-8859-1', 'ISO-8859-2', 'ISO-8859-5', 'WINDOWS-1250', 'WINDOWS-1251', 'WINDOWS-1252', 'KOI8-R', 'KOI8-U'];
+        $requestedCharset = strtoupper(trim((string)($input['charset'] ?? '')));
+        $charset = in_array($requestedCharset, $allowedCharsets, true) ? $requestedCharset : null;
+
         $handler = new MessageHandler();
 
         try {
@@ -5881,7 +5887,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['tagline'] ?? null,
                     $attachment,
                     $markupType,
-                    $isFreq
+                    $isFreq,
+                    $charset
                 );
             } elseif ($type === 'echomail') {
                 $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);
@@ -5901,7 +5908,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'],
                     $input['tagline'] ?? null,
                     false,
-                    $markupType
+                    $markupType,
+                    '',
+                    null,
+                    $charset
                 );
 
                 // Handle cross-posting to additional areas
@@ -6821,6 +6831,76 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (\Exception $e) {
             http_response_code(500);
             apiError('errors.user.transactions.list_failed', apiLocalizedText('errors.user.transactions.list_failed', 'Failed to load transactions', $user));
+        }
+    });
+
+    SimpleRouter::get('/user/activity/{userId}', function($userId) {
+        $user = RouteHelper::requireAuth();
+
+        // Only admins can view the activity log
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            apiError('errors.user.activity.admin_required', apiLocalizedText('errors.user.activity.admin_required', 'Admin privileges are required', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        // Verify target user exists and is active
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$userId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            apiError('errors.user.activity.user_not_found', apiLocalizedText('errors.user.activity.user_not_found', 'User not found', $user));
+            return;
+        }
+
+        $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+        $limit  = isset($_GET['limit'])  ? max(1, min(100, (int)$_GET['limit'])) : 25;
+
+        try {
+            $stmt = $db->prepare('
+                SELECT
+                    ual.id,
+                    ual.created_at,
+                    ac.name  AS category,
+                    at.label AS activity,
+                    ual.object_name,
+                    ual.meta
+                FROM user_activity_log ual
+                JOIN activity_types      at ON at.id = ual.activity_type_id
+                JOIN activity_categories ac ON ac.id = at.category_id
+                WHERE ual.user_id = ?
+                ORDER BY ual.created_at DESC
+                LIMIT ? OFFSET ?
+            ');
+            $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit,  PDO::PARAM_INT);
+            $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $rows = $stmt->fetchAll();
+
+            // Decode meta JSON so it arrives as an object, not a string
+            foreach ($rows as &$row) {
+                if (isset($row['meta']) && $row['meta'] !== null) {
+                    $row['meta'] = json_decode($row['meta'], true);
+                }
+            }
+            unset($row);
+
+            echo json_encode([
+                'success'  => true,
+                'activity' => $rows,
+                'offset'   => $offset,
+                'limit'    => $limit,
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.user.activity.list_failed', apiLocalizedText('errors.user.activity.list_failed', 'Failed to load activity log', $user));
         }
     });
 

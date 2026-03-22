@@ -143,72 +143,143 @@
     </div>
 </div>
 
-{% if viewer_is_admin and credits_enabled %}
+{% if viewer_is_admin %}
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ t('ui.user_profile.transaction_history', {}, 'common') }}</h5>
-                <span class="badge bg-secondary">{{ t('ui.user_profile.admin_view', {}, 'common') }}</span>
+                <ul class="nav nav-tabs card-header-tabs" id="adminTabList" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tab-activity" data-bs-toggle="tab" data-bs-target="#pane-activity" type="button" role="tab">
+                            <i class="fas fa-list-alt me-1"></i>
+                            {{ t('ui.user_profile.tab.activity_log', {}, 'common') }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-transactions" data-bs-toggle="tab" data-bs-target="#pane-transactions" type="button" role="tab">
+                            <i class="fas fa-receipt me-1"></i>
+                            {{ t('ui.user_profile.tab.transaction_history', {}, 'common') }}
+                        </button>
+                    </li>
+                </ul>
+                <span class="badge bg-secondary ms-2">{{ t('ui.user_profile.admin_view', {}, 'common') }}</span>
             </div>
-            <div class="card-body p-0">
-                {% if transactions|length > 0 %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 15%">{{ t('ui.user_profile.date', {}, 'common') }}</th>
-                                <th style="width: 15%">{{ t('ui.user_profile.type', {}, 'common') }}</th>
-                                <th>{{ t('ui.user_profile.description', {}, 'common') }}</th>
-                                <th style="width: 12%" class="text-end">{{ t('ui.user_profile.amount', {}, 'common') }}</th>
-                                <th style="width: 12%" class="text-end">{{ t('ui.user_profile.balance', {}, 'common') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactionTableBody">
-                            {% for tx in transactions %}
-                            <tr data-transaction-id="{{ tx.id }}">
-                                <td>
-                                    <small>{{ tx.created_at|date('m/d/Y') }}</small><br>
-                                    <small class="text-muted">{{ tx.created_at|date('g:i A') }}</small>
-                                </td>
-                                <td>
-                                    <span class="badge bg-{% if tx.transaction_type == 'daily_login' %}info{% elseif tx.transaction_type == 'system_reward' %}success{% elseif tx.transaction_type == 'payment' %}primary{% elseif tx.transaction_type == 'admin_adjustment' %}warning{% else %}secondary{% endif %}">
-                                        {% if tx.transaction_type == 'daily_login' %}
-                                            {{ t('ui.user_profile.transaction_type.daily_login', {}, 'common') }}
-                                        {% elseif tx.transaction_type == 'system_reward' %}
-                                            {{ t('ui.user_profile.transaction_type.system_reward', {}, 'common') }}
-                                        {% elseif tx.transaction_type == 'payment' %}
-                                            {{ t('ui.user_profile.transaction_type.payment', {}, 'common') }}
-                                        {% elseif tx.transaction_type == 'admin_adjustment' %}
-                                            {{ t('ui.user_profile.transaction_type.admin_adjustment', {}, 'common') }}
-                                        {% else %}
-                                            {{ t('ui.user_profile.transaction_type.unknown', {}, 'common') }}
-                                        {% endif %}
-                                    </span>
-                                </td>
-                                <td>{{ tx.description }}</td>
-                                <td class="text-end {% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
-                                    <strong>{{ tx.amount > 0 ? '+' : '' }}{{ credits_symbol }}{{ tx.amount }}</strong>
-                                </td>
-                                <td class="text-end">{{ credits_symbol }}{{ tx.balance_after }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <div class="tab-content">
+
+                {# ── Transaction History ───────────────────────────────────── #}
+                <div class="tab-pane fade" id="pane-transactions" role="tabpanel">
+                    {% if credits_enabled %}
+                        {% if transactions|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 15%">{{ t('ui.user_profile.date', {}, 'common') }}</th>
+                                        <th style="width: 15%">{{ t('ui.user_profile.type', {}, 'common') }}</th>
+                                        <th>{{ t('ui.user_profile.description', {}, 'common') }}</th>
+                                        <th style="width: 12%" class="text-end">{{ t('ui.user_profile.amount', {}, 'common') }}</th>
+                                        <th style="width: 12%" class="text-end">{{ t('ui.user_profile.balance', {}, 'common') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionTableBody">
+                                    {% for tx in transactions %}
+                                    <tr data-transaction-id="{{ tx.id }}">
+                                        <td>
+                                            <small>{{ tx.created_at|date('m/d/Y') }}</small><br>
+                                            <small class="text-muted">{{ tx.created_at|date('g:i A') }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{% if tx.transaction_type == 'daily_login' %}info{% elseif tx.transaction_type == 'system_reward' %}success{% elseif tx.transaction_type == 'payment' %}primary{% elseif tx.transaction_type == 'admin_adjustment' %}warning{% else %}secondary{% endif %}">
+                                                {% if tx.transaction_type == 'daily_login' %}
+                                                    {{ t('ui.user_profile.transaction_type.daily_login', {}, 'common') }}
+                                                {% elseif tx.transaction_type == 'system_reward' %}
+                                                    {{ t('ui.user_profile.transaction_type.system_reward', {}, 'common') }}
+                                                {% elseif tx.transaction_type == 'payment' %}
+                                                    {{ t('ui.user_profile.transaction_type.payment', {}, 'common') }}
+                                                {% elseif tx.transaction_type == 'admin_adjustment' %}
+                                                    {{ t('ui.user_profile.transaction_type.admin_adjustment', {}, 'common') }}
+                                                {% else %}
+                                                    {{ t('ui.user_profile.transaction_type.unknown', {}, 'common') }}
+                                                {% endif %}
+                                            </span>
+                                        </td>
+                                        <td>{{ tx.description }}</td>
+                                        <td class="text-end {% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                            <strong>{{ tx.amount > 0 ? '+' : '' }}{{ credits_symbol }}{{ tx.amount }}</strong>
+                                        </td>
+                                        <td class="text-end">{{ credits_symbol }}{{ tx.balance_after }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer bg-light" id="loadMoreSection">
+                            <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="loadMoreBtn" onclick="loadMoreTransactions()">
+                                <i class="fas fa-chevron-down me-2"></i>
+                                {{ t('ui.user_profile.load_more_transactions', {}, 'common') }}
+                            </button>
+                        </div>
+                        {% else %}
+                        <div class="p-3 text-center text-muted">
+                            <i class="fas fa-receipt fa-2x mb-2"></i>
+                            <p class="mb-0">{{ t('ui.user_profile.no_transactions_yet', {}, 'common') }}</p>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <div class="p-3 text-center text-muted">
+                        <i class="fas fa-ban fa-2x mb-2"></i>
+                        <p class="mb-0">{{ t('errors.credits.feature_disabled', {}, 'errors') }}</p>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="card-footer bg-light" id="loadMoreSection">
-                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="loadMoreBtn" onclick="loadMoreTransactions()">
-                        <i class="fas fa-chevron-down me-2"></i>
-                        {{ t('ui.user_profile.load_more_transactions', {}, 'common') }}
-                    </button>
+
+                {# ── Activity Log ──────────────────────────────────────────── #}
+                <div class="tab-pane fade show active" id="pane-activity" role="tabpanel">
+                    {% if activity_log|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 15%">{{ t('ui.user_profile.activity_log.date', {}, 'common') }}</th>
+                                    <th style="width: 13%">{{ t('ui.user_profile.activity_log.category', {}, 'common') }}</th>
+                                    <th style="width: 20%">{{ t('ui.user_profile.activity_log.activity', {}, 'common') }}</th>
+                                    <th>{{ t('ui.user_profile.activity_log.detail', {}, 'common') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activityTableBody">
+                                {% for entry in activity_log %}
+                                <tr>
+                                    <td>
+                                        <small>{{ entry.created_at|date('m/d/Y') }}</small><br>
+                                        <small class="text-muted">{{ entry.created_at|date('g:i A') }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if entry.category == 'message' %}primary{% elseif entry.category == 'file' %}success{% elseif entry.category == 'door' %}info{% elseif entry.category == 'chat' %}warning{% elseif entry.category == 'auth' %}danger{% else %}secondary{% endif %}">
+                                            {{ entry.category }}
+                                        </span>
+                                    </td>
+                                    <td><small>{{ entry.activity }}</small></td>
+                                    <td><small class="text-muted">{{ entry.object_name|default('') }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-light" id="loadMoreActivitySection">
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="loadMoreActivityBtn" onclick="loadMoreActivity()">
+                            <i class="fas fa-chevron-down me-2"></i>
+                            {{ t('ui.user_profile.activity_log.load_more', {}, 'common') }}
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="p-3 text-center text-muted">
+                        <i class="fas fa-list-alt fa-2x mb-2"></i>
+                        <p class="mb-0">{{ t('ui.user_profile.activity_log.no_activity', {}, 'common') }}</p>
+                    </div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="p-3 text-center text-muted">
-                    <i class="fas fa-receipt fa-2x mb-2"></i>
-                    <p class="mb-0">{{ t('ui.user_profile.no_transactions_yet', {}, 'common') }}</p>
-                </div>
-                {% endif %}
-            </div>
+
+            </div>{# end tab-content #}
         </div>
     </div>
 </div>
@@ -218,6 +289,7 @@
 {% block scripts %}
 <script>
 let currentOffset = 10; // We already loaded 10 transactions
+let activityOffset = 25; // We already loaded 25 activity entries
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -396,6 +468,51 @@ function getTransactionTypeLabel(type) {
         admin_adjustment: uiT('ui.user_profile.transaction_type.admin_adjustment', 'Admin Adjustment')
     };
     return map[type] || uiT('ui.user_profile.transaction_type.unknown', 'Unknown');
+}
+
+function getCategoryBadgeClass(category) {
+    const map = { message: 'primary', file: 'success', door: 'info', chat: 'warning', auth: 'danger' };
+    return map[category] || 'secondary';
+}
+
+function loadMoreActivity() {
+    const btn = $('#loadMoreActivityBtn');
+    const originalHtml = btn.html();
+
+    btn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}`);
+
+    $.get(`/api/user/activity/{{ profile_user_id }}?offset=${activityOffset}&limit=25`)
+        .done(function(data) {
+            if (data.activity && data.activity.length > 0) {
+                const tbody = $('#activityTableBody');
+                data.activity.forEach(function(entry) {
+                    const badgeClass = getCategoryBadgeClass(entry.category);
+                    const row = `<tr>
+                        <td>
+                            <small>${escapeHtml(entry.created_at)}</small>
+                        </td>
+                        <td><span class="badge bg-${badgeClass}">${escapeHtml(entry.category)}</span></td>
+                        <td><small>${escapeHtml(entry.activity)}</small></td>
+                        <td><small class="text-muted">${escapeHtml(entry.object_name || '')}</small></td>
+                    </tr>`;
+                    tbody.append(row);
+                });
+
+                activityOffset += data.activity.length;
+
+                if (data.activity.length < 25) {
+                    $('#loadMoreActivitySection').html(`<div class="text-center text-muted p-2"><small>${uiT('ui.user_profile.activity_log.no_more', 'No more activity')}</small></div>`);
+                }
+            } else {
+                $('#loadMoreActivitySection').html(`<div class="text-center text-muted p-2"><small>${uiT('ui.user_profile.activity_log.no_more', 'No more activity')}</small></div>`);
+            }
+        })
+        .fail(function() {
+            alert(uiT('ui.user_profile.activity_log.load_failed', 'Failed to load activity log'));
+        })
+        .always(function() {
+            btn.prop('disabled', false).html(originalHtml);
+        });
 }
 </script>
 {% endblock %}

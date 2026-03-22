@@ -220,6 +220,7 @@ class Template
         }
         $this->twig->addGlobal('license_valid', (bool)($licenseStatus['valid'] ?? false));
         $this->twig->addGlobal('license_tier', (string)($licenseStatus['tier'] ?? 'community'));
+        $this->twig->addGlobal('supported_charsets', \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets());
         $this->twig->addGlobal('license_licensee', $licenseStatus['licensee'] ?? null);
         $this->twig->addGlobal('license_system_name', $licenseStatus['system_name'] ?? null);
         $this->twig->addGlobal('license_features', (array)($licenseStatus['features'] ?? []));
