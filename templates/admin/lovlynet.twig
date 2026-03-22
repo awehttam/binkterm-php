@@ -499,6 +499,28 @@ function renderChecklist(items) {
             return;
         }
 
+        if (item.id === 'uplink_configured') {
+            const ok = item.ok;
+            const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
+            const label = uiT('ui.admin.lovlynet.checklist_uplink_configured', 'LovlyNet uplink configured in BinkP');
+            const statusMsg = ok
+                ? uiT('ui.admin.lovlynet.checklist_uplink_configured_ok', 'Uplink is configured')
+                : uiT('ui.admin.lovlynet.checklist_uplink_configured_missing', 'No LovlyNet uplink found in BinkP configuration');
+            const hint = ok ? '' : uiT('ui.admin.lovlynet.checklist_uplink_configured_hint', 'Add a LovlyNet uplink under Admin \u2192 BinkP Configuration with domain set to "lovlynet".');
+
+            html += '<li class="list-group-item">';
+            html += '<div class="d-flex align-items-start gap-2">';
+            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+            html += '<div>';
+            html += `<strong>${escapeHtml(label)}</strong>`;
+            html += `<div class="small mt-1 ${ok ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
+            if (hint) {
+                html += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`;
+            }
+            html += '</div></div></li>';
+            return;
+        }
+
         if (item.id === 'default_areas') {
             const ok = item.ok && !item.fetch_error;
             const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';

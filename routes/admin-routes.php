@@ -5478,6 +5478,20 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
         $defaultAreasItem['ok'] = ($missingEcho === [] && $missingFile === []);
     }
 
+    // Check whether a LovlyNet uplink is configured in binkp.json
+    $uplinkConfigured = false;
+    try {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $lovlyUplink = $binkpConfig->getUplinkByDomain('lovlynet');
+        $uplinkConfigured = $lovlyUplink !== null
+            && !empty($lovlyUplink['me'])
+            && !empty($lovlyUplink['address'])
+            && !empty($lovlyUplink['networks'])
+            && ($lovlyUplink['enabled'] ?? true);
+    } catch (\Exception $e) {
+        // leave as false
+    }
+
     echo json_encode([
         'success' => true,
         'items' => [
@@ -5485,7 +5499,10 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
                 'id' => 'registration',
                 'ok' => true,
             ],
-            $defaultAreasItem,
+            [
+                'id' => 'uplink_configured',
+                'ok' => $uplinkConfigured,
+            ],
             [
                 'id'              => 'nodelist_rule',
                 'ok'              => !$nodelistRuleDaemonError && $ruleExists && $patternMatches,
@@ -5493,6 +5510,7 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
                 'pattern_matches' => $patternMatches,
                 'daemon_error'    => $nodelistRuleDaemonError,
             ],
+            $defaultAreasItem,
         ],
     ]);
 });
