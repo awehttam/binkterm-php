@@ -43,6 +43,9 @@
   - [Setup Checklist](#setup-checklist)
   - [replace Metadata Flag for File Areas](#replace-metadata-flag-for-file-areas)
   - [Default Area Indicators on Echo and File Area Tabs](#default-area-indicators-on-echo-and-file-area-tabs)
+  - [Metadata Respected on Area Creation](#metadata-respected-on-area-creation)
+- [Netmail](#netmail)
+  - [Node Address Autocomplete](#node-address-autocomplete)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -99,6 +102,10 @@
 - The LovlyNet admin page has a new Setup Checklist column on the Setup tab that verifies registration status, default area subscriptions, and the LVLY_NODELIST file area rule. A Fix button can automatically create a canonical file area rule for nodelist import.
 - The `replace` metadata flag in `area_metadata.json` is now honoured: if LovlyNet recommends `replace: true` for a file area, BinktermPHP will detect and offer to correct a mismatch.
 - Echo and File area tab rows for default (recommended) areas now show a warning icon when the area is not yet subscribed.
+- When creating echo or file areas during subscription or area-sync, `area_metadata.json` recommended fields (`sysop_only`, `readonly`, `replace`) are now applied at creation time rather than only as a post-creation correction.
+
+**Netmail**
+- The To Address field in the netmail compose form now includes a nodelist autocomplete. Typing a system name, sysop name, or location triggers a live search against the imported nodelist and presents a dropdown of matching nodes showing the FTN address, network, system name, and location. Selecting an entry populates the To Address field.
 
 **QWK Offline Mail**
 - QWK conference numbers are now stored as canonical BBS-wide IDs on echo areas so packets use the system's conference numbering instead of subscription position.

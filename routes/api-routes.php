@@ -8874,6 +8874,37 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         });
     });
+
+    /**
+     * GET /api/nodelist/search?q=...
+     * Search nodelist nodes by system name, sysop name, or location.
+     * Returns up to 10 matches for autocomplete use.
+     */
+    SimpleRouter::get('/nodelist/search', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $q = trim((string)($_GET['q'] ?? ''));
+        if (strlen($q) < 2) {
+            echo json_encode(['success' => true, 'nodes' => []]);
+            return;
+        }
+
+        $nodelistManager = new \BinktermPHP\Nodelist\NodelistManager();
+        $results = $nodelistManager->searchNodes(['search_term' => $q]);
+
+        $nodes = [];
+        foreach (array_slice($results, 0, 10) as $node) {
+            $nodes[] = [
+                'address'     => $node['full_address'],
+                'system_name' => $node['system_name'] ?? '',
+                'location'    => $node['location']     ?? '',
+                'domain'      => $node['domain']       ?? '',
+            ];
+        }
+
+        echo json_encode(['success' => true, 'nodes' => $nodes]);
+    });
 });
 
 

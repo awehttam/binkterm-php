@@ -27,33 +27,36 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="toAddress" class="form-label">{{ t('ui.compose.to_address_label', {}, locale, ['common']) }}</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="toAddress" name="to_address" 
-                                       placeholder="" value="{{ reply_to_address }}" >
-                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
-                                        id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
-                                        title="{{ t('ui.compose.address_book.select_title', {}, locale, ['common']) }}">
-                                    <i class="fas fa-address-book"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
-                                    <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
-                                        {{ t('ui.address_book.title', {}, locale, ['common']) }}
-                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="{{ t('ui.compose.address_book.create_title', {}, locale, ['common']) }}">
-                                            <i class="fas fa-plus" ></i>
-                                        </button>
-                                    </h6></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li class="px-3">
-                                        <input type="text" class="form-control form-control-sm" id="composeAddressSearch" 
-                                               placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchAddressBookForCompose(this.value)">
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
-                                        <li><div class="text-center text-muted py-2">
-                                            <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
-                                        </div></li>
-                                    </div>
-                                </ul>
+                            <div class="position-relative">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="toAddress" name="to_address"
+                                           placeholder="" value="{{ reply_to_address }}" autocomplete="off">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                            id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
+                                            title="{{ t('ui.compose.address_book.select_title', {}, locale, ['common']) }}">
+                                        <i class="fas fa-address-book"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
+                                        <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
+                                            {{ t('ui.address_book.title', {}, locale, ['common']) }}
+                                            <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="{{ t('ui.compose.address_book.create_title', {}, locale, ['common']) }}">
+                                                <i class="fas fa-plus" ></i>
+                                            </button>
+                                        </h6></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li class="px-3">
+                                            <input type="text" class="form-control form-control-sm" id="composeAddressSearch"
+                                                   placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchAddressBookForCompose(this.value)">
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
+                                            <li><div class="text-center text-muted py-2">
+                                                <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
+                                            </div></li>
+                                        </div>
+                                    </ul>
+                                </div>
+                                <div id="nodeSearchDropdown" class="dropdown-menu w-100" style="display:none; top:100%; left:0; position:absolute; z-index:1050; max-height:220px; overflow-y:auto; overflow-x:hidden;"></div>
                             </div>
                             <div class="form-text">{{ t('ui.compose.fidonet_address_help', {}, locale, ['common']) }}</div>
                         </div>
@@ -338,6 +341,133 @@ function uiT(key, fallback, params = {}) {
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
+
+// ── Node address autocomplete ─────────────────────────────────────────────────
+(function() {
+    const FTN_RE = /^\d+:\d+\/\d+(\.\d+)?$/;
+    let nodeSearchTimer = null;
+    let activeIndex = -1;
+    let currentResults = [];
+
+    function getDropdown() { return document.getElementById('nodeSearchDropdown'); }
+    function getInput()    { return document.getElementById('toAddress'); }
+
+    function closeDropdown() {
+        const dd = getDropdown();
+        if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+        activeIndex = -1;
+        currentResults = [];
+    }
+
+    function renderResults(nodes) {
+        const dd = getDropdown();
+        if (!dd) return;
+        currentResults = nodes;
+        activeIndex = -1;
+        dd.innerHTML = '';
+
+        if (nodes.length === 0) {
+            dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2">' +
+                uiT('ui.compose.node_search.no_results', 'No nodes found') + '</span>';
+        } else {
+            nodes.forEach(function(node, i) {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item text-wrap';
+                item.href = '#';
+                const domainBadge = node.domain
+                    ? ' <span class="badge bg-secondary ms-1" style="font-size:0.7em;">' + escapeHtml(node.domain) + '</span>'
+                    : '';
+                item.innerHTML =
+                    '<strong class="font-monospace">' + escapeHtml(node.address) + '</strong>' + domainBadge + ' &mdash; ' +
+                    escapeHtml(node.system_name) +
+                    (node.location ? ' <small class="text-muted">(' + escapeHtml(node.location) + ')</small>' : '');
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    selectNode(node);
+                });
+                item.dataset.index = i;
+                dd.appendChild(item);
+            });
+        }
+        dd.style.display = 'block';
+    }
+
+    function selectNode(node) {
+        const input = getInput();
+        if (input) {
+            input.value = node.address;
+        }
+        closeDropdown();
+    }
+
+    function highlightItem(newIndex) {
+        const dd = getDropdown();
+        if (!dd) return;
+        const items = dd.querySelectorAll('a.dropdown-item');
+        items.forEach(function(el, i) {
+            el.classList.toggle('active', i === newIndex);
+        });
+        activeIndex = newIndex;
+    }
+
+    function doSearch(q) {
+        if (q.length < 2) { closeDropdown(); return; }
+        const dd = getDropdown();
+        if (dd) {
+            dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2"><i class="fas fa-spinner fa-spin me-1"></i>' +
+                uiT('ui.compose.node_search.searching', 'Searching...') + '</span>';
+            dd.style.display = 'block';
+        }
+        fetch('/api/nodelist/search?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) renderResults(data.nodes || []);
+            })
+            .catch(function() { closeDropdown(); });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = getInput();
+        if (!input) return;
+
+        input.addEventListener('input', function() {
+            const val = input.value.trim();
+            clearTimeout(nodeSearchTimer);
+            if (val === '' || FTN_RE.test(val)) { closeDropdown(); return; }
+            nodeSearchTimer = setTimeout(function() { doSearch(val); }, 300);
+        });
+
+        input.addEventListener('keydown', function(e) {
+            const dd = getDropdown();
+            if (!dd || dd.style.display === 'none') return;
+            const items = dd.querySelectorAll('a.dropdown-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightItem(Math.min(activeIndex + 1, items.length - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightItem(Math.max(activeIndex - 1, 0));
+            } else if (e.key === 'Enter' && activeIndex >= 0) {
+                e.preventDefault();
+                if (currentResults[activeIndex]) selectNode(currentResults[activeIndex]);
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+
+        input.addEventListener('blur', function() {
+            // Delay so mousedown on item fires first
+            setTimeout(closeDropdown, 150);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#nodeSearchDropdown') && e.target !== input) {
+                closeDropdown();
+            }
+        });
+    });
+})();
+// ─────────────────────────────────────────────────────────────────────────────
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
