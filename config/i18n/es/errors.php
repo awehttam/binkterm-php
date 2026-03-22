@@ -57,6 +57,7 @@ return [
     'errors.messages.echomail.not_found' => 'Mensaje no encontrado',
     'errors.messages.echomail.edit.admin_required' => 'Se requieren privilegios de administrador',
     'errors.messages.echomail.edit.invalid_art_format' => 'Formato de arte no valido',
+    'errors.messages.body_too_large' => 'El cuerpo del mensaje supera el límite de 16 KB de FidoNet',
     'errors.messages.echomail.edit.nothing_to_update' => 'No hay campos para actualizar',
     'errors.messages.echomail.edit.save_failed' => 'Error al guardar los cambios',
     'errors.messages.echomail.save_ad.admin_required' => 'Se requieren privilegios de administrador',
@@ -222,6 +223,9 @@ return [
     'errors.user.transactions.admin_required' => 'Se requieren privilegios de administrador',
     'errors.user.transactions.user_not_found' => 'Usuario no encontrado',
     'errors.user.transactions.list_failed' => 'No se pudieron cargar las transacciones',
+    'errors.user.activity.admin_required' => 'Se requieren privilegios de administrador',
+    'errors.user.activity.user_not_found' => 'Usuario no encontrado',
+    'errors.user.activity.list_failed' => 'No se pudo cargar el registro de actividad',
 
     // Credits
     'errors.credits.feature_disabled' => 'La funcion de creditos esta deshabilitada',
@@ -532,6 +536,9 @@ return [
     'errors.admin.lovlynet.filearea_files_failed' => 'No se pudieron cargar los archivos del área',
     'errors.admin.lovlynet.invalid_file_id' => 'ID de archivo no válido',
     'errors.admin.lovlynet.hatch_failed' => 'No se pudo enviar el archivo',
+    'errors.admin.lovlynet.not_registered' => 'No registrado en LovlyNet',
+    'errors.admin.lovlynet.registration_update_failed' => 'Error al actualizar el registro',
+    'errors.admin.lovlynet.checklist_fix_failed' => 'No se pudo aplicar la corrección',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'El correo sin conexion QWK no esta habilitado en este sistema',

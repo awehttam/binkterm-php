@@ -9,7 +9,7 @@
         <i class="fas fa-{{ type == 'netmail' ? 'envelope' : 'comments' }}"></i>
         {{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }}
     </h2>
-    <a href="/{{ type }}" class="btn btn-outline-secondary">
+    <a href="{% if type == 'echomail' and echoarea is defined and echoarea %}/echomail/{{ echoarea }}{% else %}/{{ type }}{% endif %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i>
         {{ t('ui.compose.back_to_prefix', {}, locale, ['common']) }} {{ type|title }}
     </a>
@@ -27,33 +27,36 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="toAddress" class="form-label">{{ t('ui.compose.to_address_label', {}, locale, ['common']) }}</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="toAddress" name="to_address" 
-                                       placeholder="" value="{{ reply_to_address }}" >
-                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
-                                        id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
-                                        title="{{ t('ui.compose.address_book.select_title', {}, locale, ['common']) }}">
-                                    <i class="fas fa-address-book"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
-                                    <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
-                                        {{ t('ui.address_book.title', {}, locale, ['common']) }}
-                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="{{ t('ui.compose.address_book.create_title', {}, locale, ['common']) }}">
-                                            <i class="fas fa-plus" ></i>
-                                        </button>
-                                    </h6></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li class="px-3">
-                                        <input type="text" class="form-control form-control-sm" id="composeAddressSearch" 
-                                               placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchAddressBookForCompose(this.value)">
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
-                                        <li><div class="text-center text-muted py-2">
-                                            <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
-                                        </div></li>
-                                    </div>
-                                </ul>
+                            <div class="position-relative">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="toAddress" name="to_address"
+                                           placeholder="" value="{{ reply_to_address }}" autocomplete="off">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                            id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
+                                            title="{{ t('ui.compose.address_book.select_title', {}, locale, ['common']) }}">
+                                        <i class="fas fa-address-book"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
+                                        <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
+                                            {{ t('ui.address_book.title', {}, locale, ['common']) }}
+                                            <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="{{ t('ui.compose.address_book.create_title', {}, locale, ['common']) }}">
+                                                <i class="fas fa-plus" ></i>
+                                            </button>
+                                        </h6></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li class="px-3">
+                                            <input type="text" class="form-control form-control-sm" id="composeAddressSearch"
+                                                   placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchAddressBookForCompose(this.value)">
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
+                                            <li><div class="text-center text-muted py-2">
+                                                <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
+                                            </div></li>
+                                        </div>
+                                    </ul>
+                                </div>
+                                <div id="nodeSearchDropdown" class="dropdown-menu w-100" style="display:none; top:100%; left:0; position:absolute; z-index:1050; max-height:220px; overflow-y:auto; overflow-x:hidden;"></div>
                             </div>
                             <div class="form-text">{{ t('ui.compose.fidonet_address_help', {}, locale, ['common']) }}</div>
                         </div>
@@ -142,15 +145,23 @@
                     </div>
                     <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
-                    <div class="form-text" id="messageTextHint">
-                        {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
+                    <input type="file" id="insertFileInput" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <div class="form-text mb-0" id="messageTextHint">
+                            {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
+                        </div>
+                        <button type="button" id="insertFileBtn"
+                                class="btn btn-sm btn-outline-secondary"
+                                title="{{ t('ui.compose.insert_file', {}, locale, ['common']) }}">
+                            <i class="fa fa-file-import"></i> {{ t('ui.compose.insert_file', {}, locale, ['common']) }}
+                        </button>
                     </div>
                     <div class="form-text" id="scHint" style="display: none;">{{ t('ui.compose.stylecodes.active_prefix', {}, locale, ['common']) }} <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
 
                 <!-- Markdown Editor (shown when "Send as Markdown" is checked) -->
                 <div class="mb-3" id="markdownEditorContainer" style="display: none;">
-                    <label class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }} <small class="text-muted ms-2"><i class="fab fa-markdown me-1"></i>{{ t('ui.compose.markdown.mode', {}, locale, ['common']) }}</small></label>
+                    <label class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }} <small class="text-muted ms-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 128" style="width:1.25em;height:0.75em;vertical-align:-0.125em" class="me-1" aria-hidden="true" fill="currentColor"><rect width="208" height="128" rx="16" fill="none" stroke="currentColor" stroke-width="10"/><path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"/></svg>{{ t('ui.compose.markdown.mode', {}, locale, ['common']) }}</small></label>
                     <div class="md-editor-wrapper">
                         <div class="md-editor-toolbar" role="toolbar" aria-label="{{ t('ui.compose.markdown.toolbar_aria', {}, locale, ['common']) }}">
                             <div class="btn-group btn-group-sm">
@@ -192,7 +203,17 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-text"><i class="fab fa-markdown me-1"></i>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
+                    <div class="form-text"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 128" style="width:1.25em;height:0.75em;vertical-align:-0.125em" class="me-1" aria-hidden="true" fill="currentColor"><rect width="208" height="128" rx="16" fill="none" stroke="currentColor" stroke-width="10"/><path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"/></svg>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="charsetSelect">{{ t('ui.compose.charset', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="charsetSelect" name="charset">
+                        {% for cs in supported_charsets %}
+                        <option value="{{ cs.value }}">{{ cs.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">{{ t('ui.compose.charset_help', {}, locale, ['common']) }}</div>
                 </div>
 
                 <div class="mb-3" id="markdownSection" style="display: none;">
@@ -256,15 +277,12 @@
     </div>
 
     <div class="col-lg-4" id="composeSidebar">
-        <div class="d-flex justify-content-end mb-2">
-            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.hide_panel', {}, locale, ['common']) }}">
-                <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
-            </button>
-        </div>
-
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">{{ t('ui.compose.message_guidelines', {}, locale, ['common']) }}</h6>
+                <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.hide_panel', {}, locale, ['common']) }}">
+                    <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
+                </button>
             </div>
             <div class="card-body">
                 {% if type == 'netmail' %}
@@ -299,23 +317,6 @@
             </div>
         </div>
 
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.compose.your_info', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-4">{{ t('ui.common.name', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-8">{{ user_name }}</dd>
-
-                    <dt class="col-4">{{ t('ui.compose.system', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-8">{{ system_name_display }}</dd>
-
-                    <dt class="col-4">{{ t('ui.compose.address', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-8">{{ system_address_display }}</dd>
-                </dl>
-            </div>
-        </div>
     </div>
 
     <div id="sidebarShowBtn" class="d-none align-items-start pt-1">
@@ -338,11 +339,214 @@ function uiT(key, fallback, params = {}) {
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
+
+// ── Node address autocomplete ─────────────────────────────────────────────────
+(function() {
+    const FTN_RE = /^\d+:\d+\/\d+(\.\d+)?$/;
+    let nodeSearchTimer = null;
+    let activeIndex = -1;
+    let currentResults = [];
+
+    function getDropdown() { return document.getElementById('nodeSearchDropdown'); }
+    function getInput()    { return document.getElementById('toAddress'); }
+
+    function closeDropdown() {
+        const dd = getDropdown();
+        if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+        activeIndex = -1;
+        currentResults = [];
+    }
+
+    function renderResults(nodes) {
+        const dd = getDropdown();
+        if (!dd) return;
+        currentResults = nodes;
+        activeIndex = -1;
+        dd.innerHTML = '';
+
+        if (nodes.length === 0) {
+            dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2">' +
+                uiT('ui.compose.node_search.no_results', 'No nodes found') + '</span>';
+        } else {
+            nodes.forEach(function(node, i) {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item text-wrap';
+                item.href = '#';
+                const domainBadge = node.domain
+                    ? ' <span class="badge bg-secondary ms-1" style="font-size:0.7em;">' + escapeHtml(node.domain) + '</span>'
+                    : '';
+                item.innerHTML =
+                    '<strong class="font-monospace">' + escapeHtml(node.address) + '</strong>' + domainBadge + ' &mdash; ' +
+                    escapeHtml(node.system_name) +
+                    (node.location ? ' <small class="text-muted">(' + escapeHtml(node.location) + ')</small>' : '');
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    selectNode(node);
+                });
+                item.dataset.index = i;
+                dd.appendChild(item);
+            });
+        }
+        dd.style.display = 'block';
+    }
+
+    function selectNode(node) {
+        const input = getInput();
+        if (input) {
+            input.value = node.address;
+        }
+        closeDropdown();
+    }
+
+    function highlightItem(newIndex) {
+        const dd = getDropdown();
+        if (!dd) return;
+        const items = dd.querySelectorAll('a.dropdown-item');
+        items.forEach(function(el, i) {
+            el.classList.toggle('active', i === newIndex);
+        });
+        activeIndex = newIndex;
+    }
+
+    function doSearch(q) {
+        if (q.length < 2) { closeDropdown(); return; }
+        const dd = getDropdown();
+        if (dd) {
+            dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2"><i class="fas fa-spinner fa-spin me-1"></i>' +
+                uiT('ui.compose.node_search.searching', 'Searching...') + '</span>';
+            dd.style.display = 'block';
+        }
+        fetch('/api/nodelist/search?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) renderResults(data.nodes || []);
+            })
+            .catch(function() { closeDropdown(); });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = getInput();
+        if (!input) return;
+
+        input.addEventListener('input', function() {
+            const val = input.value.trim();
+            clearTimeout(nodeSearchTimer);
+            if (val === '' || FTN_RE.test(val)) { closeDropdown(); return; }
+            nodeSearchTimer = setTimeout(function() { doSearch(val); }, 300);
+        });
+
+        input.addEventListener('keydown', function(e) {
+            const dd = getDropdown();
+            if (!dd || dd.style.display === 'none') return;
+            const items = dd.querySelectorAll('a.dropdown-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightItem(Math.min(activeIndex + 1, items.length - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightItem(Math.max(activeIndex - 1, 0));
+            } else if (e.key === 'Enter' && activeIndex >= 0) {
+                e.preventDefault();
+                if (currentResults[activeIndex]) selectNode(currentResults[activeIndex]);
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+
+        input.addEventListener('blur', function() {
+            // Delay so mousedown on item fires first
+            setTimeout(closeDropdown, 150);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#nodeSearchDropdown') && e.target !== input) {
+                closeDropdown();
+            }
+        });
+    });
+})();
+// ─────────────────────────────────────────────────────────────────────────────
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
 let scToolbarActive = false;
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
+const replyCharset    = {{ reply_charset|default("UTF-8")|json_encode|raw }};
+
+// Pre-select the charset from the reply context (or default to UTF-8 for new messages)
+(function() {
+    const sel = document.getElementById('charsetSelect');
+    if (sel && replyCharset) {
+        sel.value = replyCharset;
+        // If the value didn't match any option, fall back to UTF-8
+        if (!sel.value) { sel.value = 'UTF-8'; }
+    }
+})();
+
+// Charset label → TextDecoder encoding label
+const charsetDecoderMap = {
+    'UTF-8':      'utf-8',
+    'CP437':      'ibm437',
+    'CP850':      'ibm850',
+    'CP852':      'ibm852',
+    'CP866':      'ibm866',
+    'ISO-8859-1': 'iso-8859-1',
+    'ISO-8859-2': 'iso-8859-2'
+};
+
+$('#insertFileBtn').on('click', function() {
+    $('#insertFileInput').val('').trigger('click');
+});
+
+const MESSAGE_MAX_BYTES = 16384;
+
+/**
+ * Estimate the encoded byte size of the message body for the selected charset.
+ * UTF-8 is measured exactly; single-byte charsets use character count as an
+ * upper bound (iconv drops unmappable chars so actual bytes will be ≤ this).
+ */
+function getMessageByteCount() {
+    const text = $('#messageText').val();
+    const charset = $('#charsetSelect').val() || 'UTF-8';
+    if (charset === 'UTF-8') {
+        return new TextEncoder().encode(text).length;
+    }
+    // Single-byte charsets: 1 byte per character after encoding
+    return text.length;
+}
+
+
+$('#insertFileInput').on('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+
+    const charsetVal  = $('#charsetSelect').val() || 'UTF-8';
+    const decoderLabel = charsetDecoderMap[charsetVal] || 'utf-8';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        let text;
+        try {
+            text = new TextDecoder(decoderLabel).decode(new Uint8Array(e.target.result));
+        } catch (err) {
+            // Fallback to UTF-8 if the decoder label is unsupported
+            text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+        }
+
+        const ta = document.getElementById('messageText');
+        const start = ta.selectionStart;
+        const end   = ta.selectionEnd;
+        ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = start + text.length;
+        ta.focus();
+
+        // Keep the hidden textarea in sync if the markdown editor is active
+        if (mdEditorActive) {
+            $('#mdEditorText').val(ta.value);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+});
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
@@ -1107,6 +1311,13 @@ function sendMessage() {
     // Sync markdown editor content to hidden textarea if active
     syncEditorToTextarea();
 
+    // Enforce 16 KB message body limit
+    if (getMessageByteCount() > MESSAGE_MAX_BYTES) {
+        const tooLargeMsg = window.t('errors.body_too_large', {}, 'Message body exceeds the 16 KB FidoNet limit');
+        $('#sendStatus').html(`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(tooLargeMsg)}</div>`);
+        return;
+    }
+
     // Collect cross-post areas
     const crossPostAreas = [];
     $('.cross-post-check:checked').each(function() {
@@ -1125,7 +1336,8 @@ function sendMessage() {
             is_freq: $('#freqCheckbox').is(':checked'),
             tagline: $('#taglineSelect').val(),
             cross_post_areas: crossPostAreas,
-            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null
+            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null,
+            charset: $('#charsetSelect').val() || 'UTF-8'
         };
 
     // Show sending status
@@ -1174,7 +1386,12 @@ function sendMessage() {
                 }
 
                 setTimeout(function() {
-                    window.location.href = `/${messageType}`;
+                    let returnUrl = `/${messageType}`;
+                    if (messageType === 'echomail') {
+                        const areaVal = $('#echoarea').val() || '';
+                        if (areaVal) returnUrl = `/echomail/${encodeURIComponent(areaVal)}`;
+                    }
+                    window.location.href = returnUrl;
                 }, 2000);
             },
             error: function(xhr) {

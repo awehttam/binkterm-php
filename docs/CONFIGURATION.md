@@ -242,6 +242,14 @@ PERF_LOG_SLOW_MS=500
 
 # File area rule action log
 FILEAREA_RULE_ACTION_LOG=data/logs/filearea_rules.log
+
+# ⚠️  DEVELOPMENT MODE — NEVER enable on a production system.
+# Activates destructive diagnostic functions that can disrupt normal operation,
+# including the ability to purge per-user QWK state (conference pointers,
+# download log, message index, and deduplication hashes) via the web UI.
+# Any feature gated on IS_DEV is intentionally undocumented elsewhere because
+# it must not be accessible on a live system.
+# IS_DEV=true
 ```
 
 ---
@@ -478,7 +486,7 @@ A documented example is provided in `config/bbs.json.example`.
 | `config/dosdoors.json` | DOS door game drop files and node settings | [docs/DOSDoors.md](DOSDoors.md) |
 | `config/nativedoors.json` | Native Linux/Windows door programs | [docs/NativeDoors.md](NativeDoors.md) |
 | `config/themes.json` | Appearance system shell assignments | [docs/CUSTOMIZING.md](CUSTOMIZING.md) |
-| `config/weather.json` | Weather report API key and defaults | [scripts/README_weather.md](../scripts/README_weather.md) |
+| `config/weather.json` | Weather report API key and defaults | [docs/Weather.md](Weather.md) |
 | `config/lovlynet.json` | LovlyNet network registration | [docs/LovlyNet.md](LovlyNet.md) |
 | `config/taglines.txt` | One tagline per line; randomly appended to messages | — |
 | `config/filearea_rules.json` | Automated file area processing rules | [docs/FileAreas.md](FileAreas.md) |
@@ -505,6 +513,26 @@ A documented example is provided in `config/bbs.json.example`.
 - Expose only the services you actually run.
 - Bind internal services (admin daemon, DOSBox bridge, PostgreSQL) to `127.0.0.1`.
 - Publish user-facing services through a reverse proxy (Caddy, Nginx, Apache) with TLS.
+
+### Apache: enabling gzip compression for JSON
+
+Apache's `mod_deflate` does not compress `application/json` by default, so API responses (including the i18n catalog) are sent uncompressed. Add the following to your VirtualHost or `.htaccess`:
+
+```apache
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/plain image/svg+xml
+    AddOutputFilterByType DEFLATE font/ttf font/opentype application/x-font-ttf application/x-font-otf
+    # Note: woff and woff2 are already compressed internally — do not add them here
+</IfModule>
+```
+
+Enable the module if not already active:
+
+```bash
+a2enmod deflate
+systemctl reload apache2
+```
 
 ---
 

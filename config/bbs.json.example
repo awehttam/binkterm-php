@@ -15,6 +15,7 @@
     "dashboard_ad_rotate_interval_seconds": 20,
     "max_cross_post_areas": 5,
     "qwk": {
+        "bbs_id": "",
         "max_messages_per_download": 2500
     },
     "credits": {

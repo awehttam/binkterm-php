@@ -71,7 +71,7 @@ php scripts/weather_report.php --post --areas=WEATHER --user=admin
 php scripts/weather_report.php --config=/path/to/custom/weather.json
 ```
 
-The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [scripts/README_weather.md](../scripts/README_weather.md) for detailed setup instructions and configuration examples.
+The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [docs/Weather.md](Weather.md) for detailed setup instructions and configuration examples.
 
 ## Activity Digest Generator
 Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:

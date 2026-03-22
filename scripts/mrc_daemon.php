@@ -341,6 +341,16 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     SET last_list_seen = CURRENT_TIMESTAMP
                 ")->execute(['room' => $m[1]]);
                 mrcLog("MRC: Added room from LIST: {$m[1]}");
+                // Queue a USERLIST request so the room's user count is
+                // populated as soon as the room is discovered, without waiting
+                // for the next 60-second USERLIST refresh cycle.
+                $config  = MrcConfig::getInstance();
+                $bbsName = MrcClient::sanitizeName($config->getBbsName());
+                $newRoom = MrcClient::sanitizeName($m[1]);
+                $db->prepare("
+                    INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
+                    VALUES ('CLIENT', :bbs, :room, 'SERVER', 'ALL', '', 'USERLIST', 5)
+                ")->execute(['bbs' => $bbsName, 'room' => $newRoom]);
                 return;
             }
 
@@ -829,12 +839,12 @@ try {
             $lastIamHere = time();
         }
 
-        // Refresh user list for each room with active local users every 60 seconds.
-        // This catches remote users who joined before us or whose join announcement
-        // was missed.
+        // Refresh user list for all known rooms every 60 seconds.
+        // Requesting USERLIST for every room (not just locally-occupied ones)
+        // keeps remote user counts accurate for the room list display.
         if (time() - $lastUserListRefresh >= 60) {
             $db = getDb();
-            $stmt = $db->query("SELECT DISTINCT room_name FROM mrc_local_presence");
+            $stmt = $db->query("SELECT room_name FROM mrc_rooms");
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $room) {
                 $client->requestUserList($room);
             }

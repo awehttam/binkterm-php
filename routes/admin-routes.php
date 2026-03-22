@@ -388,7 +388,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $user = RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/ad_campaigns.twig');
+        $template->renderResponse('admin/ad_campaigns.twig', [
+            'weather_configured' => file_exists(__DIR__ . '/../config/weather.json'),
+        ]);
     });
 
     // BBS settings page
@@ -486,7 +488,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         RouteHelper::requireAdmin();
         $controller = new \BinktermPHP\Web\DocsController();
         $controller->view($name);
-    });
+    })->where(['name' => '[A-Za-z0-9_.\-]+']);
 
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
@@ -1226,6 +1228,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         throw new Exception('Dashboard ad rotation interval must be between 5 and 300 seconds');
                     }
                     $config['dashboard_ad_rotate_interval_seconds'] = $dashboardAdRotateInterval;
+                }
+
+                if (isset($config['qwk']['bbs_id'])) {
+                    $bbsId = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)$config['qwk']['bbs_id']));
+                    $bbsId = substr($bbsId, 0, 8);
+                    $config['qwk']['bbs_id'] = $bbsId;
                 }
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
@@ -2331,7 +2339,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             if ($hasFile) {
                 $file = $_FILES['ad_file'];
-                $maxSize = 1024 * 1024;
+                $maxSize = 5 * 1024 * 1024;
                 if (!empty($file['size']) && $file['size'] > $maxSize) {
                     http_response_code(400);
                     apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
@@ -3588,6 +3596,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
         }
 
+        // Login breakdown by source (object_name: 'web', 'telnet', 'ssh', etc.)
+        $loginSourceStmt = $db->query("
+            SELECT COALESCE(object_name, 'web') AS source, COUNT(*) AS cnt
+            FROM user_activity_log ual
+            WHERE activity_type_id = 13 {$dateFilter}{$adminFilter}
+            GROUP BY COALESCE(object_name, 'web')
+            ORDER BY cnt DESC
+        ");
+        $loginBySource = [];
+        foreach ($loginSourceStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $loginBySource[$row['source']] = (int)$row['cnt'];
+        }
+
         // Popular echoareas (views and posts)
         $echoAreasStmt = $db->query("
             SELECT object_name AS name,
@@ -3761,6 +3782,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'netmail_reads'  => $byType[3] ?? 0,
                     'netmail_sends'  => $byType[4] ?? 0,
                 ],
+                'login_by_source' => $loginBySource,
             ],
             'popular_echoareas'     => $popularEchoareas,
             'popular_webdoors'      => $popularWebdoors,
@@ -3944,6 +3966,95 @@ SimpleRouter::get('/admin/subscriptions', function() {
     if ($data !== null) {
         $template = new Template();
         $template->renderResponse('admin_subscriptions.twig', $data);
+    }
+});
+
+// ─── Weather Config Admin ────────────────────────────────────────────────────
+
+// Weather configuration page
+SimpleRouter::get('/admin/weather-config', function() {
+    RouteHelper::requireAdmin();
+    $template = new Template();
+    $template->renderResponse('admin/weather_config.twig');
+});
+
+// GET current weather config
+SimpleRouter::get('/admin/api/weather-config', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+    try {
+        $result = $daemon->getWeatherConfig();
+        echo json_encode(['success' => true, 'data' => $result]);
+    } catch (\Exception $e) {
+        http_response_code(503);
+        echo json_encode(['success' => false, 'error' => 'daemon_unreachable', 'daemon_error' => true]);
+    }
+});
+
+// POST save weather config
+SimpleRouter::post('/admin/api/weather-config', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        return;
+    }
+
+    // Validate required fields
+    $title        = trim((string)($body['title'] ?? ''));
+    $coverageArea = trim((string)($body['coverage_area'] ?? ''));
+    $apiKey       = trim((string)($body['api_key'] ?? ''));
+    $locations    = $body['locations'] ?? [];
+    $settings     = $body['settings'] ?? [];
+
+    if ($title === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.title_required']);
+        return;
+    }
+    if ($apiKey === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.api_key_required']);
+        return;
+    }
+    if (!is_array($locations) || count($locations) === 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.locations_required']);
+        return;
+    }
+
+    $config = [
+        'title'         => $title,
+        'coverage_area' => $coverageArea,
+        'api_key'       => $apiKey,
+        'locations'     => array_values(array_map(function($loc) {
+            return [
+                'name' => trim((string)($loc['name'] ?? '')),
+                'lat'  => (float)($loc['lat'] ?? 0),
+                'lon'  => (float)($loc['lon'] ?? 0),
+            ];
+        }, $locations)),
+        'settings'      => [
+            'api_timeout'   => max(1, (int)($settings['api_timeout'] ?? 10)),
+            'max_locations' => max(1, (int)($settings['max_locations'] ?? 10)),
+            'units'         => in_array($settings['units'] ?? '', ['metric', 'imperial', 'standard'], true)
+                                ? $settings['units']
+                                : 'metric',
+        ],
+    ];
+
+    $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+    try {
+        $daemon->saveWeatherConfig(json_encode($config));
+        echo json_encode(['success' => true]);
+    } catch (\Exception $e) {
+        http_response_code(503);
+        echo json_encode(['success' => false, 'error' => 'daemon_unreachable', 'daemon_error' => true]);
     }
 });
 
@@ -4403,6 +4514,18 @@ if (!function_exists('annotateLovlyNetAreasWithMetadataIssues')) {
                 }
             }
 
+            if ($areaType === 'file' && array_key_exists('replace', $metadata) && !empty($area['local_exists'])) {
+                $recommendedReplace = filter_var($metadata['replace'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualReplace = !empty($area['local_replace_existing']);
+                if ($recommendedReplace !== null && $recommendedReplace !== $actualReplace) {
+                    $issues[] = [
+                        'setting' => 'replace',
+                        'recommended' => $recommendedReplace,
+                        'actual' => $actualReplace,
+                    ];
+                }
+            }
+
             $area['setting_issues'] = $issues;
             $area['has_setting_issues'] = $issues !== [];
         }
@@ -4498,14 +4621,16 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
 
     $client = new \BinktermPHP\LovlyNetClient();
 
-    if ($action === 'subscribe' && $areaType === 'echo') {
+    if ($action === 'subscribe') {
         $areasResult = $client->getAreas();
         if (!$areasResult['success']) {
             http_response_code(502);
             echo json_encode(['error' => $areasResult['error']]);
             return;
         }
+    }
 
+    if ($action === 'subscribe' && $areaType === 'echo') {
         $remoteArea = null;
         foreach (($areasResult['echoareas'] ?? []) as $candidate) {
             if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
@@ -4520,21 +4645,79 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
             return;
         }
 
+        $metadata = isset($remoteArea['metadata']) && is_array($remoteArea['metadata'])
+            ? $remoteArea['metadata'] : [];
+        $isSysopOnly = false;
+        if (isset($metadata['sysop_only'])) {
+            $v = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($v !== null) {
+                $isSysopOnly = $v;
+            }
+        }
+
         $echoareaManager = new \BinktermPHP\EchoareaManager();
         $localEchoareaId = $echoareaManager->createIfMissing([
-            'tag' => $remoteArea['tag'] ?? $areaTag,
-            'description' => $remoteArea['description'] ?? '',
-            'domain' => 'lovlynet',
+            'tag'            => $remoteArea['tag'] ?? $areaTag,
+            'description'    => $remoteArea['description'] ?? '',
+            'domain'         => 'lovlynet',
             'uplink_address' => $client->getHubAddress(),
-            'is_local' => false,
-            'is_active' => true,
-            'is_sysop_only' => false,
-            'gemini_public' => false,
+            'is_local'       => false,
+            'is_active'      => true,
+            'is_sysop_only'  => $isSysopOnly,
+            'gemini_public'  => false,
         ], ['', 'lovlynet']);
 
         $client->applyRecommendedSettings('echo', array_merge($remoteArea, [
             'local_echoarea_id' => $localEchoareaId,
         ]));
+    }
+
+    if ($action === 'subscribe' && $areaType === 'file') {
+        $remoteArea = null;
+        foreach (($areasResult['fileareas'] ?? []) as $candidate) {
+            if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
+                $remoteArea = $candidate;
+                break;
+            }
+        }
+
+        if ($remoteArea !== null) {
+            $metadata = isset($remoteArea['metadata']) && is_array($remoteArea['metadata'])
+                ? $remoteArea['metadata'] : [];
+            $uploadPermission = \BinktermPHP\FileAreaManager::getDefaultUploadPermissionForArea(
+                $remoteArea['tag'] ?? $areaTag, 'lovlynet'
+            );
+            if (isset($metadata['readonly'])) {
+                $v = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $uploadPermission = $v
+                        ? \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY
+                        : \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+                }
+            }
+            $replaceExisting = true;
+            if (isset($metadata['replace'])) {
+                $v = filter_var($metadata['replace'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $replaceExisting = $v;
+                }
+            }
+
+            $fileAreaManager = new \BinktermPHP\FileAreaManager();
+            $localFileareaId = $fileAreaManager->createIfMissing([
+                'tag'               => $remoteArea['tag'] ?? $areaTag,
+                'description'       => $remoteArea['description'] ?? '',
+                'domain'            => 'lovlynet',
+                'is_local'          => false,
+                'is_active'         => true,
+                'upload_permission' => $uploadPermission,
+                'replace_existing'  => $replaceExisting,
+            ]);
+
+            $client->applyRecommendedSettings('file', array_merge($remoteArea, [
+                'local_filearea_id' => $localFileareaId,
+            ]));
+        }
     }
 
     $result = $client->setSubscription($action, $areaType, $areaTag);
@@ -4543,31 +4726,6 @@ SimpleRouter::post('/admin/api/lovlynet/subscription', function() {
         http_response_code(502);
         echo json_encode(['error' => $result['error']]);
         return;
-    }
-
-    if ($action === 'subscribe' && $areaType === 'file') {
-        $remoteArea = null;
-        foreach (($result['fileareas'] ?? []) as $candidate) {
-            if (strcasecmp(trim((string)($candidate['tag'] ?? '')), $areaTag) === 0) {
-                $remoteArea = $candidate;
-                break;
-            }
-        }
-
-        if ($remoteArea !== null) {
-            $fileAreaManager = new \BinktermPHP\FileAreaManager();
-            $localFileareaId = $fileAreaManager->createIfMissing([
-                'tag' => $remoteArea['tag'] ?? $areaTag,
-                'description' => $remoteArea['description'] ?? '',
-                'domain' => 'lovlynet',
-                'is_local' => false,
-                'is_active' => true,
-            ]);
-
-            $client->applyRecommendedSettings('file', array_merge($remoteArea, [
-                'local_filearea_id' => $localFileareaId,
-            ]));
-        }
     }
 
     $echoareas = $result['echoareas'] ?? [];
@@ -4888,13 +5046,35 @@ SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
         if ($existingFileArea) {
             $fileAreaId = (int)$existingFileArea['id'];
         } else {
+            $metadata = isset($remoteArea['metadata']) && is_array($remoteArea['metadata'])
+                ? $remoteArea['metadata'] : [];
+            $uploadPermission = \BinktermPHP\FileAreaManager::getDefaultUploadPermissionForArea(
+                $remoteArea['tag'] ?? $areaTag, 'lovlynet'
+            );
+            if (isset($metadata['readonly'])) {
+                $v = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $uploadPermission = $v
+                        ? \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY
+                        : \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+                }
+            }
+            $replaceExisting = true;
+            if (isset($metadata['replace'])) {
+                $v = filter_var($metadata['replace'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $replaceExisting = $v;
+                }
+            }
+
             $fileAreaId = $fileAreaManager->createIfMissing([
-                'tag' => $remoteArea['tag'] ?? $areaTag,
-                'description' => $description,
-                'domain' => 'lovlynet',
-                'is_local' => false,
-                'is_active' => true,
-                'replace_existing' => true,
+                'tag'               => $remoteArea['tag'] ?? $areaTag,
+                'description'       => $description,
+                'domain'            => 'lovlynet',
+                'is_local'          => false,
+                'is_active'         => true,
+                'upload_permission' => $uploadPermission,
+                'replace_existing'  => $replaceExisting,
             ]);
         }
 
@@ -4916,15 +5096,25 @@ SimpleRouter::post('/admin/api/lovlynet/area-sync', function() {
         if ($existingEchoarea) {
             $echoareaId = (int)$existingEchoarea['id'];
         } else {
+            $syncMetadata = isset($remoteArea['metadata']) && is_array($remoteArea['metadata'])
+                ? $remoteArea['metadata'] : [];
+            $isSysopOnly = false;
+            if (isset($syncMetadata['sysop_only'])) {
+                $v = filter_var($syncMetadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $isSysopOnly = $v;
+                }
+            }
+
             $echoareaId = $echoareaManager->createIfMissing([
-                'tag' => $remoteArea['tag'] ?? $areaTag,
-                'description' => $description,
-                'domain' => 'lovlynet',
+                'tag'            => $remoteArea['tag'] ?? $areaTag,
+                'description'    => $description,
+                'domain'         => 'lovlynet',
                 'uplink_address' => $client->getHubAddress(),
-                'is_local' => false,
-                'is_active' => true,
-                'is_sysop_only' => false,
-                'gemini_public' => false,
+                'is_local'       => false,
+                'is_active'      => true,
+                'is_sysop_only'  => $isSysopOnly,
+                'gemini_public'  => false,
             ], ['', 'lovlynet']);
         }
 
@@ -5099,6 +5289,286 @@ SimpleRouter::post('/admin/api/lovlynet/hatch-file', function() {
     }
 
     echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /admin/api/lovlynet/registration
+ * Return the local LovlyNet registration status and BinkpConfig defaults for the update form.
+ */
+SimpleRouter::get('/admin/api/lovlynet/registration', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $status = $client->getRegistrationStatus();
+
+    if (!$status['success']) {
+        http_response_code(404);
+        echo json_encode([
+            'error_code' => 'errors.admin.lovlynet.not_registered',
+            'error'      => $status['error'],
+        ]);
+        return;
+    }
+
+    // Try to fetch current values from the LovlyNet server; fall back to local BinkpConfig
+    $remote = $client->getRemoteRegistration();
+    if ($remote['success']) {
+        $defaults = [
+            'system_name' => $remote['system_name'],
+            'sysop_name'  => $remote['sysop_name'],
+            'hostname'    => $remote['hostname'],
+            'binkp_port'  => $remote['binkp_port'],
+            'site_url'    => $remote['site_url'],
+        ];
+        $isPassive = $remote['is_passive'];
+    } else {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $defaults = [
+            'system_name' => $binkpConfig->getSystemName(),
+            'sysop_name'  => $binkpConfig->getSystemSysop(),
+            'hostname'    => $binkpConfig->getSystemHostname(),
+            'binkp_port'  => $binkpConfig->getBinkpPort(),
+            'site_url'    => \BinktermPHP\Config::getSiteUrl(),
+        ];
+        $isPassive = $status['is_passive'];
+    }
+
+    echo json_encode([
+        'ftn_address'   => $status['ftn_address'],
+        'hub_address'   => $status['hub_address'],
+        'registered_at' => $status['registered_at'],
+        'updated_at'    => $status['updated_at'],
+        'is_passive'    => $isPassive,
+        'defaults'      => $defaults,
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/update-registration
+ * Update this node's registration with the LovlyNet registry.
+ *
+ * Body: { "system_name": "...", "sysop_name": "...", "hostname": "...",
+ *         "binkp_port": 24554, "site_url": "...", "is_passive": false }
+ */
+SimpleRouter::post('/admin/api/lovlynet/update-registration', function() {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        apiError(
+            'errors.admin.lovlynet.invalid_json',
+            apiLocalizedText('errors.admin.lovlynet.invalid_json', 'Invalid request payload', $user),
+            400
+        );
+        return;
+    }
+
+    $systemName = trim((string)($data['system_name'] ?? ''));
+    $sysopName  = trim((string)($data['sysop_name']  ?? ''));
+    $hostname   = trim((string)($data['hostname']    ?? ''));
+    $siteUrl    = trim((string)($data['site_url']    ?? ''));
+    $binkpPort  = (int)($data['binkp_port'] ?? 0);
+    $isPassive  = (bool)($data['is_passive'] ?? false);
+
+    if ($systemName === '' || $sysopName === '' || $hostname === '') {
+        apiError(
+            'errors.admin.lovlynet.registration_update_failed',
+            apiLocalizedText('errors.admin.lovlynet.registration_update_failed', 'Registration update failed', $user),
+            400
+        );
+        return;
+    }
+
+    $client = new \BinktermPHP\LovlyNetClient();
+    $result = $client->updateRegistration([
+        'system_name' => $systemName,
+        'sysop_name'  => $sysopName,
+        'hostname'    => $hostname,
+        'binkp_port'  => $binkpPort,
+        'site_url'    => $siteUrl,
+        'is_passive'  => $isPassive,
+    ]);
+
+    if (!$result['success']) {
+        apiError(
+            'errors.admin.lovlynet.registration_update_failed',
+            $result['error'] ?? apiLocalizedText('errors.admin.lovlynet.registration_update_failed', 'Registration update failed', $user),
+            502
+        );
+        return;
+    }
+
+    $regData = $result['data']['data'] ?? $result['data'] ?? [];
+    $regData['is_passive'] = $isPassive;
+    if (!$client->saveRegistrationUpdate($regData)) {
+        error_log('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /admin/api/lovlynet/checklist
+ * Return the status of LovlyNet setup checklist items.
+ */
+SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $recommendedPattern = '/^LOVLYNET\\.(Z|A|L|R|J)[0-9]{2}$/i';
+    $areaKey = 'LVLY_NODELIST@LOVLYNET';
+
+    $ruleExists = false;
+    $patternMatches = false;
+    $nodelistRuleDaemonError = false;
+
+    try {
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        $rulesConfig = $daemonClient->getFileAreaRulesConfig();
+        $configJson = $rulesConfig['config_json'] ?? null;
+
+        if ($configJson !== null) {
+            $parsed = json_decode($configJson, true);
+            if (is_array($parsed)) {
+                $areaRules = $parsed['area_rules'][$areaKey]
+                    ?? $parsed['area_rules']['LVLY_NODELIST']
+                    ?? [];
+                foreach ($areaRules as $rule) {
+                    if (isset($rule['pattern'])) {
+                        $ruleExists = true;
+                        if ($rule['pattern'] === $recommendedPattern) {
+                            $patternMatches = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+        $nodelistRuleDaemonError = true;
+    }
+
+    // Check default area subscriptions using is_default flag from areas response
+    $defaultAreasItem = ['id' => 'default_areas', 'ok' => true, 'unsubscribed_echo' => [], 'unsubscribed_file' => [], 'fetch_error' => false];
+
+    $lovlyClient = new \BinktermPHP\LovlyNetClient();
+    $areasResult = $lovlyClient->getAreas();
+
+    if (!$areasResult['success']) {
+        $defaultAreasItem['fetch_error'] = true;
+    } else {
+        $missingEcho = [];
+        foreach ($areasResult['echoareas'] as $area) {
+            if (!empty($area['is_default']) && empty($area['subscribed'])) {
+                $missingEcho[] = strtoupper((string)($area['tag'] ?? ''));
+            }
+        }
+        $missingFile = [];
+        foreach ($areasResult['fileareas'] as $area) {
+            if (!empty($area['is_default']) && empty($area['subscribed'])) {
+                $missingFile[] = strtoupper((string)($area['tag'] ?? ''));
+            }
+        }
+
+        $defaultAreasItem['unsubscribed_echo'] = $missingEcho;
+        $defaultAreasItem['unsubscribed_file'] = $missingFile;
+        $defaultAreasItem['ok'] = ($missingEcho === [] && $missingFile === []);
+    }
+
+    // Check whether a LovlyNet uplink is configured in binkp.json
+    $uplinkConfigured = false;
+    try {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $lovlyUplink = $binkpConfig->getUplinkByDomain('lovlynet');
+        $uplinkConfigured = $lovlyUplink !== null
+            && !empty($lovlyUplink['me'])
+            && !empty($lovlyUplink['address'])
+            && !empty($lovlyUplink['networks'])
+            && ($lovlyUplink['enabled'] ?? true);
+    } catch (\Exception $e) {
+        // leave as false
+    }
+
+    echo json_encode([
+        'success' => true,
+        'items' => [
+            [
+                'id' => 'registration',
+                'ok' => true,
+            ],
+            [
+                'id' => 'uplink_configured',
+                'ok' => $uplinkConfigured,
+            ],
+            [
+                'id'              => 'nodelist_rule',
+                'ok'              => !$nodelistRuleDaemonError && $ruleExists && $patternMatches,
+                'has_rule'        => $ruleExists,
+                'pattern_matches' => $patternMatches,
+                'daemon_error'    => $nodelistRuleDaemonError,
+            ],
+            $defaultAreasItem,
+        ],
+    ]);
+});
+
+/**
+ * POST /admin/api/lovlynet/checklist/fix-nodelist-rule
+ * Add/fix the LVLY_NODELIST file area rule with the recommended pattern and script.
+ */
+SimpleRouter::post('/admin/api/lovlynet/checklist/fix-nodelist-rule', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $areaKey = 'LVLY_NODELIST@LOVLYNET';
+    $newRule = [
+        'name'           => 'Import LovlyNet Nodelist',
+        'domain'         => 'lovlynet',
+        'pattern'        => '/^LOVLYNET\\.(Z|A|L|R|J)[0-9]{2}$/i',
+        'script'         => 'php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force',
+        'success_action' => 'keep',
+        'fail_action'    => 'keep+notify',
+        'enabled'        => true,
+        'timeout'        => 300,
+    ];
+
+    try {
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        $rulesConfig = $daemonClient->getFileAreaRulesConfig();
+        $configJson = $rulesConfig['config_json'] ?? null;
+
+        $parsed = is_string($configJson) ? json_decode($configJson, true) : null;
+        if (!is_array($parsed)) {
+            $parsed = ['global_rules' => [], 'area_rules' => []];
+        }
+        if (!isset($parsed['area_rules']) || !is_array($parsed['area_rules'])) {
+            $parsed['area_rules'] = [];
+        }
+
+        // Keep any existing rules for this area that have a different pattern,
+        // then append the canonical rule.
+        $existing = $parsed['area_rules'][$areaKey] ?? [];
+        $filtered = array_values(array_filter($existing, static function ($rule) use ($newRule) {
+            return ($rule['pattern'] ?? '') !== $newRule['pattern'];
+        }));
+        $filtered[] = $newRule;
+        $parsed['area_rules'][$areaKey] = $filtered;
+
+        $json = json_encode($parsed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('json_encode failed: ' . json_last_error_msg());
+        }
+        $daemonClient->saveFileAreaRulesConfig($json);
+
+        echo json_encode(['success' => true]);
+    } catch (\Exception $e) {
+        error_log('LovlyNet checklist fix-nodelist-rule failed: ' . $e->getMessage());
+        http_response_code(500);
+        apiError('errors.admin.lovlynet.checklist_fix_failed', $e->getMessage());
+    }
 });
 
 /**

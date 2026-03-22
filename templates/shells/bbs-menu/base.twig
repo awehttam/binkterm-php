@@ -119,6 +119,11 @@
     <script src="/js/chat-notify.js"></script>
     {% endif %}
     {% include 'custom/header.insert.twig' ignore missing %}
+    {% if debug_ansi_not_perfect %}
+    <style>.ansi-art-container pre, .ansi-art { font-family: inherit !important; }</style>
+    {% elseif debug_ansi_use_consolas %}
+    <style>.ansi-art-container pre, .ansi-art { font-family: Consolas, monospace !important; }</style>
+    {% endif %}
 </head>
 <body class="bbs-menu-shell">
 
@@ -183,6 +188,7 @@
                             </li>
                             <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
                             <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
+                            <li><a class="dropdown-item" href="/admin/weather-config"><i class="fas fa-cloud-sun"></i> {{ t('ui.base.admin.weather_config', {}, 'common') }}</a></li>
                         </ul>
                     </li>
                     <li class="dropdown-submenu">

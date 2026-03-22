@@ -31,7 +31,7 @@ class Version
      * This should be updated when releasing new versions.
      * Format: MAJOR.MINOR.PATCH
      */
-    private const VERSION = '1.8.7';
+    private const VERSION = '1.8.8';
     
     /**
      * Get the current application version
@@ -71,6 +71,23 @@ class Version
     public static function getTearline(): string
     {
         return '--- ' . self::getFullVersion();
+    }
+
+    /**
+     * Get a tearline string with an optional component inserted between the
+     * app name and the version number.
+     *
+     * Example: getTearlineWithComponent('WebDoor') => "--- BinktermPHP WebDoor v1.8.8"
+     *
+     * @param string|null $component Optional component label (e.g., "WebDoor", "QWK")
+     * @return string The tearline string
+     */
+    public static function getTearlineWithComponent(?string $component): string
+    {
+        if ($component === null || $component === '') {
+            return self::getTearline();
+        }
+        return '--- ' . self::getAppName() . ' ' . $component . ' v' . self::getVersion();
     }
     
     /**

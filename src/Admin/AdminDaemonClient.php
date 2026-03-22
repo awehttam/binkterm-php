@@ -96,6 +96,11 @@ class AdminDaemonClient
         return $this->sendCommand('reload_binkp_config');
     }
 
+    public function saveLovlyNetConfig(string $json): array
+    {
+        return $this->sendCommand('save_lovlynet_config', ['json' => $json]);
+    }
+
     public function getWebdoorsConfig(): array
     {
         return $this->sendCommand('get_webdoors_config');
@@ -263,6 +268,24 @@ class AdminDaemonClient
     public function setLicense(array $licenseData): array
     {
         return $this->sendCommand('set_license', ['license' => $licenseData]);
+    }
+
+    /**
+     * Read config/weather.json (and the example) via the daemon.
+     */
+    public function getWeatherConfig(): array
+    {
+        return $this->sendCommand('get_weather_config');
+    }
+
+    /**
+     * Write config/weather.json via the daemon.
+     *
+     * @param string $json JSON-encoded weather config
+     */
+    public function saveWeatherConfig(string $json): array
+    {
+        return $this->sendCommand('save_weather_config', ['json' => $json]);
     }
 
     /**

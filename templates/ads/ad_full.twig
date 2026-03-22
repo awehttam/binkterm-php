@@ -6,9 +6,7 @@
 <div class="row justify-content-center">
     <div class="col-12 d-flex justify-content-center">
         {% if ad %}
-            <div class="ansi-art-container">
-                <pre class="ansi-art" id="fullAdAnsi">{{ ad.content }}</pre>
-            </div>
+            <div id="fullAdContainer" class="w-100" style="overflow: hidden;" data-ad-content="{{ ad.content|e('html_attr') }}"></div>
         {% else %}
             <p class="text-muted">{{ t('ui.ads.none_available', {}, locale, ['common']) }}</p>
         {% endif %}
@@ -18,13 +16,15 @@
 
 {% block scripts %}
 <script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const pre = document.getElementById('fullAdAnsi');
-    if (!pre || typeof renderAnsiTerminal !== 'function') {
+    const container = document.getElementById('fullAdContainer');
+    if (!container || typeof renderAdContent !== 'function') {
         return;
     }
-    pre.innerHTML = renderAnsiTerminal(pre.textContent);
+    renderAdContent(container, container.dataset.adContent || '');
 });
 </script>
 {% endblock %}

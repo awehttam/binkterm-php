@@ -44,6 +44,28 @@ html, body {
     color: var(--text-color, #e0e0e0);
 }
 
+/* Top-level flex container — fills the iframe viewport */
+#mrc-app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Sidebars: fixed-width, scroll internally */
+#mrc-sidebar-left,
+#mrc-sidebar-right {
+    flex: 0 0 16.666%;
+    max-width: 16.666%;
+    overflow-y: auto;
+}
+
+/* Center column: grows to fill remaining width, stacks vertically */
+#mrc-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
 /* Sidebars */
 #mrc-sidebar-left,
 #mrc-sidebar-right {
@@ -190,7 +212,7 @@ html, body {
 /* ------------------------------------------------------------------ */
 
 #chat-messages {
-    height: calc(100vh - 200px);
+    min-height: 0;
     overflow-y: auto;
     scroll-behavior: smooth;
 }

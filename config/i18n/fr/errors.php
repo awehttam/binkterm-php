@@ -157,6 +157,9 @@ return [
     'errors.user.transactions.admin_required' => 'Des privilèges administrateur sont requis',
     'errors.user.transactions.user_not_found' => 'Utilisateur introuvable',
     'errors.user.transactions.list_failed' => 'Échec du chargement des transactions',
+    'errors.user.activity.admin_required' => 'Des privilèges administrateur sont requis',
+    'errors.user.activity.user_not_found' => 'Utilisateur introuvable',
+    'errors.user.activity.list_failed' => "Échec du chargement du journal d'activité",
     'errors.credits.feature_disabled' => 'La fonctionnalité des crédits est désactivée',
     'errors.credits.send.invalid_amount' => 'Le montant doit être compris entre 1 et 200',
     'errors.credits.send.self_transfer_forbidden' => 'Vous ne pouvez pas vous envoyer des crédits à vous-même',
@@ -412,6 +415,9 @@ return [
     // LovlyNet
     'errors.admin.lovlynet.filearea_files_failed' => 'Échec du chargement des fichiers de la zone de fichiers',
     'errors.admin.lovlynet.hatch_failed' => 'Échec du Hatch du fichier',
+    'errors.admin.lovlynet.not_registered' => 'Non enregistré sur LovlyNet',
+    'errors.admin.lovlynet.registration_update_failed' => 'Échec de la mise à jour de l\'enregistrement',
+    'errors.admin.lovlynet.checklist_fix_failed' => 'Échec de l\'application du correctif',
     'errors.admin.lovlynet.help_fetch_failed' => 'Échec du chargement du texte d\'aide',
     'errors.admin.lovlynet.invalid_area_type' => 'Type de zone invalide',
     'errors.admin.lovlynet.invalid_file_id' => 'Identifiant de fichier invalide',
@@ -465,6 +471,7 @@ return [
     // Messages - Echomail
     'errors.messages.echomail.edit.admin_required' => 'Des privilèges administrateur sont requis',
     'errors.messages.echomail.edit.invalid_art_format' => 'Valeur de format artistique invalide',
+    'errors.messages.body_too_large' => 'Le corps du message dépasse la limite FidoNet de 16 Ko',
     'errors.messages.echomail.edit.nothing_to_update' => 'Aucun champ à mettre à jour',
     'errors.messages.echomail.edit.save_failed' => 'Échec de l\'enregistrement des modifications',
     'errors.messages.echomail.save_ad.admin_required' => 'Des privilèges administrateur sont requis',

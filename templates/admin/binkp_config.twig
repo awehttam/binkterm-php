@@ -15,7 +15,7 @@
 
     <div id="binkpConfigAlert"></div>
 
-    <div class="row g-4">
+    <div class="row g-4" id="binkpConfigCards">
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
@@ -155,7 +155,7 @@
         </div>
     </div>
 
-    <div class="card shadow mt-4">
+    <div class="card shadow mt-4" id="binkpUplinksCard">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h6 class="mb-0">{{ t('ui.admin.binkp_config.uplinks.title', {}, locale, ['common']) }}</h6>
             <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal()">{{ t('ui.admin.binkp_config.uplinks.add_uplink', {}, locale, ['common']) }}</button>
@@ -327,6 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadBinkpConfig() {
+    setSettingsLoading('#binkpConfigCards, #binkpUplinksCard', true);
     fetch('/admin/api/binkp-config')
         .then(response => response.json())
         .then(data => {
@@ -336,6 +337,7 @@ function loadBinkpConfig() {
             binkpConfig = data.config || {};
             populateForm();
             renderUplinks();
+            setSettingsLoading('#binkpConfigCards, #binkpUplinksCard', false);
         })
         .catch(error => {
             showBinkpAlert(error.message || uiT('ui.admin.binkp_config.load_failed', 'Failed to load config'), 'danger');

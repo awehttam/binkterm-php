@@ -105,6 +105,7 @@ class QwkBuilder
         // Build in-memory file contents.
         $controlDat              = $this->buildControlDat($user, $conferences, $conferenceMessages);
         $doorId                  = $this->buildDoorId($qwke);
+        $toReaderExt             = $qwke ? $this->buildToReaderExt() : null;
         [$messagesDat, $messageMap] = $this->buildMessagesDat($conferences, $conferenceMessages, $qwke);
 
         // Write to a temp ZIP.
@@ -118,6 +119,9 @@ class QwkBuilder
 
         $zip->addFromString('CONTROL.DAT',  $controlDat);
         $zip->addFromString('DOOR.ID',      $doorId);
+        if ($toReaderExt !== null) {
+            $zip->addFromString('TOREADER.EXT', $toReaderExt);
+        }
         $zip->addFromString('MESSAGES.DAT', $messagesDat);
         $zip->close();
 
@@ -136,14 +140,20 @@ class QwkBuilder
     }
 
     /**
-     * Derive the 8-character BBSID from the system name.
+     * Return the 8-character BBSID.
      *
-     * Strips everything that is not an ASCII letter or digit, uppercases,
-     * and truncates to 8 characters.  Falls back to "BINKTERM" if the
-     * system name contains no usable characters.
+     * Uses the configured value from bbs.json (qwk.bbs_id) when set.
+     * Falls back to deriving it from the system name: strips everything that
+     * is not an ASCII letter or digit, uppercases, and truncates to 8
+     * characters.  Falls back to "BINKTERM" if no usable characters remain.
      */
     public function getBbsId(): string
     {
+        $configured = trim((string)(\BinktermPHP\BbsConfig::getConfig()['qwk']['bbs_id'] ?? ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
         $name = $this->binkpConfig->getSystemName();
         $id   = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name));
         $id   = substr($id, 0, 8);
@@ -181,9 +191,19 @@ class QwkBuilder
         // Conferences 1–N: subscribed echo areas.
         $subscriptionManager = new EchoareaSubscriptionManager();
         $echoareas           = $subscriptionManager->getUserSubscribedEchoareas($userId);
-        $number              = 1;
+        $conferenceNumbers   = (new QwkConferenceNumberManager())->getOrCreateConferenceNumbers($echoareas);
+
+        usort($echoareas, function(array $a, array $b) use ($conferenceNumbers) {
+            return ($conferenceNumbers[(int)$a['id']] ?? PHP_INT_MAX)
+                <=> ($conferenceNumbers[(int)$b['id']] ?? PHP_INT_MAX);
+        });
 
         foreach ($echoareas as $area) {
+            $number = $conferenceNumbers[(int)$area['id']] ?? null;
+            if ($number === null) {
+                continue;
+            }
+
             $name = strtoupper($area['tag']);
             if (!empty($area['domain'])) {
                 $name .= '@' . strtoupper($area['domain']);
@@ -198,7 +218,6 @@ class QwkBuilder
                 'domain'      => $area['domain'] ?? '',
                 'is_netmail'  => false,
             ];
-            $number++;
         }
 
         return $conferences;
@@ -292,6 +311,27 @@ class QwkBuilder
         if ($qwke) {
             $lines[] = 'CONTROLTYPE = QWKE';
         }
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * Generate TOREADER.EXT content for QWKE exports.
+     *
+     * This advertises the extension keywords we currently emit as QWKE
+     * control lines in message bodies.
+     */
+    private function buildToReaderExt(): string
+    {
+        $lines = [
+            'CHRS',
+            'MSGID',
+            'REPLY',
+            'TZUTC',
+            'INTL',
+            'FMPT',
+            'TOPT',
+        ];
 
         return implode("\r\n", $lines) . "\r\n";
     }
@@ -473,33 +513,35 @@ class QwkBuilder
     {
         $lines = [];
 
-        // Character set — always UTF-8.
+        // QWKE plain-text extended headers must come first, with no ^A prefix,
+        // so that readers (e.g. MultiMail) find them at the start of the body.
+        if (!empty($message['subject'])) {
+            $lines[] = "Subject: " . $message['subject'];
+        }
+        if (!empty($message['to_name'])) {
+            $lines[] = "To: " . $message['to_name'];
+        }
+        if (!empty($message['from_name'])) {
+            $lines[] = "From: " . $message['from_name'];
+        }
+
+        // ^A-prefixed FTN kludge lines follow the QWKE headers.
         $lines[] = "\x01CHRS: UTF-8 4";
 
         // Emit stored kludge lines verbatim (they already contain ^A prefixes
         // and cover MSGID, REPLY, TZUTC, INTL, etc.).
         $storedKludges = trim((string)($message['kludge_lines'] ?? ''));
         if ($storedKludges !== '') {
-            // Normalise line endings and re-emit each kludge line.
             foreach (preg_split('/\r\n|\r|\n/', $storedKludges) as $kludgeLine) {
                 $kludgeLine = rtrim($kludgeLine);
                 if ($kludgeLine === '') {
                     continue;
                 }
-                // Ensure the ^A prefix is present (it should already be, but be defensive).
                 if (ord($kludgeLine[0]) !== 0x01) {
                     $kludgeLine = "\x01" . $kludgeLine;
                 }
                 $lines[] = $kludgeLine;
             }
-        }
-
-        // QWKE extended FROM / TO lines carrying the FidoNet addresses.
-        if (!empty($message['from_address'])) {
-            $lines[] = "\x01FROM: " . ($message['from_name'] ?? '') . ' <' . $message['from_address'] . '>';
-        }
-        if (!empty($message['to_address'])) {
-            $lines[] = "\x01TO: " . ($message['to_name'] ?? '') . ' <' . $message['to_address'] . '>';
         }
 
         return implode("\n", $lines) . "\n";

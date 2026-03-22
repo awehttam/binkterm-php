@@ -75,6 +75,12 @@
             <span class="badge bg-secondary ms-1" id="fileCount">-</span>
         </a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#setupTab" id="setupTabLink">
+            <i class="fas fa-cog me-1"></i>
+            {{ t('ui.admin.lovlynet.tab_setup') }}
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content">
@@ -104,6 +110,84 @@
             <div class="card-body p-0" id="fileAreasContainer">
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="setupTab">
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <strong>{{ t('ui.admin.lovlynet.setup_status_title') }}</strong>
+                    </div>
+                    <div class="card-body" id="setupStatusBody">
+                        <div class="text-center py-3 text-muted">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <strong>{{ t('ui.admin.lovlynet.setup_update_title') }}</strong>
+                    </div>
+                    <div class="card-body">
+                        <form id="lovlynetUpdateForm">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="setupSystemName" class="form-label">{{ t('ui.admin.lovlynet.setup_system_name') }}</label>
+                                    <input type="text" class="form-control" id="setupSystemName" maxlength="60" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="setupSysopName" class="form-label">{{ t('ui.admin.lovlynet.setup_sysop_name') }}</label>
+                                    <input type="text" class="form-control" id="setupSysopName" maxlength="60" required>
+                                </div>
+                                <div class="col-md-8">
+                                    <label for="setupHostname" class="form-label">{{ t('ui.admin.lovlynet.setup_hostname') }}</label>
+                                    <input type="text" class="form-control" id="setupHostname" maxlength="255" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="setupBinkpPort" class="form-label">{{ t('ui.admin.lovlynet.setup_binkp_port') }}</label>
+                                    <input type="number" class="form-control" id="setupBinkpPort" min="1" max="65535">
+                                </div>
+                                <div class="col-md-12">
+                                    <label for="setupSiteUrl" class="form-label">{{ t('ui.admin.lovlynet.setup_site_url') }}</label>
+                                    <input type="url" class="form-control" id="setupSiteUrl" maxlength="255">
+                                </div>
+                                <div class="col-md-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="setupIsPassive">
+                                        <label class="form-check-label" for="setupIsPassive">
+                                            {{ t('ui.admin.lovlynet.setup_is_passive') }}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                {{ t('ui.admin.lovlynet.setup_update_warning') }}
+                            </div>
+                            <div id="setupFormAlert" class="mt-3 d-none"></div>
+                            <div class="mt-3 d-flex gap-2">
+                                <button type="submit" class="btn btn-primary" id="setupUpdateBtn">
+                                    <i class="fas fa-save me-1"></i>
+                                    {{ t('ui.admin.lovlynet.setup_update_btn') }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card">
+                    <div class="card-header">
+                        <strong>{{ t('ui.admin.lovlynet.checklist_title') }}</strong>
+                    </div>
+                    <div class="card-body p-0" id="checklistBody">
+                        <div class="text-center py-3 text-muted">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -284,7 +368,255 @@ $(document).ready(function() {
     }
 
     $('#lovlynetRescanMode').on('change', updateLovlyNetRescanForm);
+
+    // Load setup tab content when shown; checklist refreshes on every visit
+    document.getElementById('setupTabLink').addEventListener('shown.bs.tab', function() {
+        if (!document.getElementById('setupStatusBody').dataset.loaded) {
+            loadRegistrationStatus();
+        }
+        loadChecklist();
+    });
+
+    $('#lovlynetUpdateForm').on('submit', function(e) {
+        e.preventDefault();
+        submitRegistrationUpdate();
+    });
 });
+
+function loadRegistrationStatus() {
+    $.get('/admin/api/lovlynet/registration')
+        .done(function(data) {
+            document.getElementById('setupStatusBody').dataset.loaded = '1';
+            let html = '<dl class="row mb-0">';
+            html += `<dt class="col-sm-3">${uiT('ui.admin.lovlynet.setup_ftn_address', 'FTN Address')}</dt>`;
+            html += `<dd class="col-sm-9 font-monospace">${escapeHtml(data.ftn_address)}</dd>`;
+            html += `<dt class="col-sm-3">${uiT('ui.admin.lovlynet.setup_hub_address', 'Hub Address')}</dt>`;
+            html += `<dd class="col-sm-9 font-monospace">${escapeHtml(data.hub_address)}</dd>`;
+            html += `<dt class="col-sm-3">${uiT('ui.admin.lovlynet.setup_registered_at', 'Registered')}</dt>`;
+            html += `<dd class="col-sm-9">${escapeHtml(formatLovlyNetDate(data.registered_at))}</dd>`;
+            if (data.updated_at) {
+                html += `<dt class="col-sm-3">${uiT('ui.admin.lovlynet.setup_updated_at', 'Last Updated')}</dt>`;
+                html += `<dd class="col-sm-9">${escapeHtml(formatLovlyNetDate(data.updated_at))}</dd>`;
+            }
+            html += '</dl>';
+            $('#setupStatusBody').html(html);
+
+            // Pre-fill form with defaults
+            const d = data.defaults || {};
+            $('#setupSystemName').val(d.system_name || '');
+            $('#setupSysopName').val(d.sysop_name || '');
+            $('#setupHostname').val(d.hostname || '');
+            $('#setupBinkpPort').val(d.binkp_port || 24554);
+            $('#setupSiteUrl').val(d.site_url || '');
+            // is_passive: use saved value if present, otherwise infer from hub hostname
+            const isPassive = data.is_passive !== null
+                ? data.is_passive
+                : (data.hub_address || '').toLowerCase().includes('passive');
+            $('#setupIsPassive').prop('checked', !!isPassive);
+        })
+        .fail(function(xhr) {
+            const payload = xhr.responseJSON;
+            const msg = (payload && payload.error)
+                ? payload.error
+                : uiT('ui.admin.lovlynet.setup_load_failed', 'Failed to load registration status');
+            $('#setupStatusBody').html(`<div class="alert alert-danger mb-0">${escapeHtml(msg)}</div>`);
+        });
+}
+
+function submitRegistrationUpdate() {
+    const $btn = $('#setupUpdateBtn');
+    const originalHtml = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>' + uiT('ui.common.loading', 'Loading...'));
+
+    const payload = {
+        system_name: $('#setupSystemName').val().trim(),
+        sysop_name:  $('#setupSysopName').val().trim(),
+        hostname:    $('#setupHostname').val().trim(),
+        binkp_port:  parseInt($('#setupBinkpPort').val(), 10) || 24554,
+        site_url:    $('#setupSiteUrl').val().trim(),
+        is_passive:  $('#setupIsPassive').is(':checked'),
+    };
+
+    $.ajax({
+        url: '/admin/api/lovlynet/update-registration',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+    }).done(function() {
+        $btn.prop('disabled', false).html(originalHtml);
+        showSetupAlert('success', uiT('ui.admin.lovlynet.setup_update_ok', 'Registration updated successfully'));
+        delete document.getElementById('setupStatusBody').dataset.loaded;
+        loadRegistrationStatus();
+    }).fail(function(xhr) {
+        $btn.prop('disabled', false).html(originalHtml);
+        const payload = xhr.responseJSON;
+        const msg = (payload && payload.error)
+            ? payload.error
+            : uiT('ui.admin.lovlynet.setup_update_failed', 'Failed to update registration');
+        showSetupAlert('danger', msg);
+    });
+}
+
+function showSetupAlert(type, msg) {
+    const $el = $('#setupFormAlert');
+    $el.removeClass('d-none alert-success alert-danger')
+       .addClass('alert alert-' + type)
+       .html(escapeHtml(msg));
+    setTimeout(function() { $el.addClass('d-none').removeClass('alert alert-success alert-danger'); }, 6000);
+}
+
+function loadChecklist() {
+    $('#checklistBody').html('<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin"></i></div>');
+    $.get('/admin/api/lovlynet/checklist')
+        .done(function(data) {
+            renderChecklist(data.items || []);
+        })
+        .fail(function() {
+            $('#checklistBody').html(
+                '<div class="p-3"><div class="alert alert-danger mb-0">' +
+                escapeHtml(uiT('ui.admin.lovlynet.checklist_load_failed', 'Failed to load checklist')) +
+                '</div></div>'
+            );
+        });
+}
+
+function renderChecklist(items) {
+    if (!items.length) {
+        $('#checklistBody').html('<div class="p-3 text-muted small">—</div>');
+        return;
+    }
+
+    let html = '<ul class="list-group list-group-flush">';
+
+    items.forEach(function(item) {
+        if (item.id === 'registration') {
+            html += '<li class="list-group-item">';
+            html += '<div class="d-flex align-items-center gap-2">';
+            html += `<i class="fas fa-circle-check text-success"></i>`;
+            html += `<strong>${escapeHtml(uiT('ui.admin.lovlynet.checklist_registration', 'Registered with LovlyNet'))}</strong>`;
+            html += `<span class="text-success small ms-1">${escapeHtml(uiT('ui.admin.lovlynet.checklist_registration_ok', 'Node is registered'))}</span>`;
+            html += '</div></li>';
+            return;
+        }
+
+        if (item.id === 'uplink_configured') {
+            const ok = item.ok;
+            const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
+            const label = uiT('ui.admin.lovlynet.checklist_uplink_configured', 'LovlyNet uplink configured in BinkP');
+            const statusMsg = ok
+                ? uiT('ui.admin.lovlynet.checklist_uplink_configured_ok', 'Uplink is configured')
+                : uiT('ui.admin.lovlynet.checklist_uplink_configured_missing', 'No LovlyNet uplink found in BinkP configuration');
+            const hint = ok ? '' : uiT('ui.admin.lovlynet.checklist_uplink_configured_hint', 'Add a LovlyNet uplink under Admin \u2192 BinkP Configuration with domain set to "lovlynet".');
+
+            html += '<li class="list-group-item">';
+            html += '<div class="d-flex align-items-start gap-2">';
+            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+            html += '<div>';
+            html += `<strong>${escapeHtml(label)}</strong>`;
+            html += `<div class="small mt-1 ${ok ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
+            if (hint) {
+                html += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`;
+            }
+            html += '</div></div></li>';
+            return;
+        }
+
+        if (item.id === 'default_areas') {
+            const ok = item.ok && !item.fetch_error;
+            const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';
+            const label = uiT('ui.admin.lovlynet.checklist_default_areas', 'Default area subscriptions');
+
+            let statusMsg, hint = '';
+            if (item.fetch_error) {
+                statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_error', 'Could not retrieve area data from LovlyNet');
+            } else if (ok) {
+                statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_ok', 'All default areas subscribed');
+            } else {
+                const missing = [].concat(item.unsubscribed_echo || [], item.unsubscribed_file || []);
+                statusMsg = uiT('ui.admin.lovlynet.checklist_default_areas_missing', 'Missing subscriptions: {list}', { list: missing.join(', ') });
+                hint = uiT('ui.admin.lovlynet.checklist_default_areas_hint', 'Subscribe through the Echo Areas or File Areas tab.');
+            }
+
+            html += '<li class="list-group-item">';
+            html += '<div class="d-flex align-items-start gap-2">';
+            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+            html += '<div>';
+            html += `<strong>${escapeHtml(label)}</strong>`;
+            html += `<div class="small mt-1 ${ok && !item.fetch_error ? 'text-success' : 'text-danger'}">${escapeHtml(statusMsg)}</div>`;
+            if (hint) {
+                html += `<div class="text-muted small mt-1">${escapeHtml(hint)}</div>`;
+            }
+            html += '</div></div></li>';
+            return;
+        }
+
+        if (item.id !== 'nodelist_rule') {
+            return;
+        }
+
+        const ok = item.ok;
+        const daemonError = !!item.daemon_error;
+        const iconClass = daemonError
+            ? 'fa-circle-question text-warning'
+            : (ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger');
+
+        let statusMsg;
+        if (daemonError) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_nodelist_rule_daemon_error', 'Cannot check — admin daemon is not running');
+        } else if (ok) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_nodelist_rule_ok', 'Rule configured correctly');
+        } else if (!item.has_rule) {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_nodelist_rule_missing', 'Rule missing');
+        } else {
+            statusMsg = uiT('ui.admin.lovlynet.checklist_nodelist_rule_wrong_pattern', 'Rule exists but pattern does not match recommended value');
+        }
+
+        const label = uiT('ui.admin.lovlynet.checklist_nodelist_rule', 'LVLY_NODELIST file area rule');
+        const desc  = uiT('ui.admin.lovlynet.checklist_nodelist_rule_desc', 'A file area rule must exist for LVLY_NODELIST@LOVLYNET with the recommended import pattern.');
+        const statusClass = daemonError ? 'text-warning' : (ok ? 'text-success' : 'text-danger');
+
+        html += '<li class="list-group-item">';
+        html += '<div class="d-flex align-items-start justify-content-between gap-2">';
+        html += '<div class="flex-grow-1 min-w-0">';
+        html += `<div><i class="fas ${escapeHtmlAttr(iconClass)} me-1"></i><strong>${escapeHtml(label)}</strong></div>`;
+        html += `<div class="text-muted small mt-1">${escapeHtml(desc)}</div>`;
+        html += `<div class="small mt-1 ${statusClass}">${escapeHtml(statusMsg)}</div>`;
+        html += '</div>';
+
+        if (!ok && !daemonError) {
+            html += `<button class="btn btn-sm btn-outline-warning flex-shrink-0" id="checklistFixNodelistBtn" onclick="fixNodelistRule(this)">`;
+            html += `<i class="fas fa-wrench me-1"></i>${escapeHtml(uiT('ui.admin.lovlynet.checklist_fix', 'Fix'))}`;
+            html += '</button>';
+        }
+
+        html += '</div></li>';
+    });
+
+    html += '</ul>';
+    $('#checklistBody').html(html);
+}
+
+function fixNodelistRule(btn) {
+    const $btn = $(btn);
+    const originalHtml = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: '/admin/api/lovlynet/checklist/fix-nodelist-rule',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+    }).done(function() {
+        loadChecklist();
+    }).fail(function(xhr) {
+        $btn.prop('disabled', false).html(originalHtml);
+        const payload = xhr.responseJSON;
+        const msg = (payload && payload.error)
+            ? payload.error
+            : uiT('errors.admin.lovlynet.checklist_fix_failed', 'Failed to apply fix');
+        showSetupAlert('danger', msg);
+    });
+}
 
 let _allAreas = { echoareas: [], fileareas: [] };
 function loadAreas() {
@@ -337,6 +669,10 @@ function renderAreas(type, areas, containerSel, countSel) {
         const sub  = area.subscribed;
         const syncNeeded = sub && (!area.local_exists || !!area.description_mismatch || !!area.has_setting_issues);
         const issueIcon = buildLovlyNetSettingIssueIcon(area);
+        const isDefaultUnsubscribed = !sub && !!area.is_default;
+        const defaultIcon = isDefaultUnsubscribed
+            ? `<i class="fas fa-exclamation-triangle text-warning ms-2" title="${escapeHtmlAttr(uiT('ui.admin.lovlynet.default_area_not_subscribed', 'Recommended default area — not subscribed'))}"></i>`
+            : '';
         const statusBadge = sub
             ? `<span class="badge bg-success">${uiT('ui.admin.lovlynet.subscribed', 'Subscribed')}</span>`
             : `<span class="badge bg-secondary">${uiT('ui.admin.lovlynet.not_subscribed', 'Not subscribed')}</span>`;
@@ -377,11 +713,11 @@ function renderAreas(type, areas, containerSel, countSel) {
                 </button>` : '';
 
         const editTagTitle = uiT('ui.admin.lovlynet.edit_tag_title', 'Edit {tag}', { tag: rawTag });
-        let tagCell = `<code>${tag}</code>${issueIcon}`;
+        let tagCell = `<code>${tag}</code>${issueIcon}${defaultIcon}`;
         if (area.local_exists) {
             tagCell = type === 'echo'
-                ? `<a href="/echoareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>${issueIcon}`
-                : `<a href="/fileareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>${issueIcon}`;
+                ? `<a href="/echoareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>${issueIcon}${defaultIcon}`
+                : `<a href="/fileareas?tag=${encodeURIComponent(rawTag)}&domain=lovlynet" title="${escapeHtmlAttr(editTagTitle)}"><code>${tag}</code></a>${issueIcon}${defaultIcon}`;
         }
 
         html += `<tr>
@@ -450,6 +786,15 @@ function buildLovlyNetSettingIssueMessages(area) {
                 issue.recommended
                     ? uiT('ui.admin.lovlynet.issue_readonly_on', 'LovlyNet recommends making this area read-only')
                     : uiT('ui.admin.lovlynet.issue_readonly_off', 'LovlyNet recommends allowing uploads in this area')
+            );
+            return;
+        }
+
+        if (issue.setting === 'replace') {
+            messages.push(
+                issue.recommended
+                    ? uiT('ui.admin.lovlynet.issue_replace_on', 'LovlyNet recommends enabling file replacement in this area')
+                    : uiT('ui.admin.lovlynet.issue_replace_off', 'LovlyNet recommends disabling file replacement in this area')
             );
         }
     });
@@ -604,14 +949,12 @@ function formatLovlyNetDate(value) {
     if (!value) {
         return '';
     }
-    if (typeof window.formatFullDate === 'function') {
-        return window.formatFullDate(value);
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (m) {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[parseInt(m[2], 10) - 1] + ' ' + parseInt(m[3], 10) + ', ' + m[1] + ' ' + m[4] + ':' + m[5];
     }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-    return date.toLocaleString();
+    return String(value);
 }
 
 function getLovlyNetMessageTitle(item) {

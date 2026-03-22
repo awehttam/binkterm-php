@@ -827,7 +827,7 @@ class WeatherReportGenerator
 
 // Main execution if run directly
 if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
-    // Parse command line arguments first
+    // Parse command line arguments
     $args = [];
     foreach ($argv ?? [] as $arg) {
         if (strpos($arg, '--') === 0) {
@@ -839,154 +839,122 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
             }
         }
     }
-    
-    // Check for demo mode, debug mode, and post mode
-    $demoMode = isset($args['demo']);
-    $debugMode = isset($args['debug']);
-    $postMode = isset($args['post']);
-    $username = $args['user'] ?? '';
-    $echoareas = $args['areas'] ?? 'LOCALTEST';
-    $domain = $args['domain'] ?? '';
+
+    $demoMode   = isset($args['demo']);
+    $debugMode  = isset($args['debug']);
+    $postMode   = isset($args['post']);
+    $helpMode   = isset($args['help']);
+    $username   = $args['user'] ?? '';
+    $echoareas  = $args['areas'] ?? 'LOCALTEST';
+    $domain     = $args['domain'] ?? '';
     $configPath = $args['config'] ?? null;
-    
-    // Try to create the weather generator
-    try {
-        $generator = new WeatherReportGenerator($configPath);
-        $config = $generator->getConfig();
-        $title = $config['title'] ?? 'Weather Report Generator';
-        echo "{$title}\n";
-        echo str_repeat("=", max(50, strlen($title))) . "\n\n";
-    } catch (Exception $e) {
+
+    // --help: show usage and sample echomail structure
+    if ($helpMode) {
         echo "Weather Report Generator\n";
         echo str_repeat("=", 50) . "\n\n";
-        echo "❌ Configuration Error: " . $e->getMessage() . "\n\n";
-        
-        if (!$demoMode) {
-            echo "You can:\n";
-            echo "1. Copy config/weather.json.example to config/weather.json and configure it\n";
-            echo "2. Run in demo mode: php scripts/weather_report.php --demo\n";
-            echo "3. Specify custom config: php scripts/weather_report.php --config=/path/to/config.json\n";
-            exit(1);
-        } else {
-            echo "Demo mode enabled - using fallback configuration\n\n";
-            // Create a minimal generator for demo mode
-            $generator = new class {
-                public function generateReport($demo = true) { 
-                    return "Demo weather report - configuration file needed for live data\n"; 
+        echo "Usage:\n";
+        echo "  php scripts/weather_report.php [options]\n\n";
+        echo "Options:\n";
+        echo "  (no flags)              Print the weather report to stdout\n";
+        echo "  --demo                  Use mock data instead of live API\n";
+        echo "  --post                  Post the report to echomail area(s)\n";
+        echo "  --areas=AREA[,AREA]     Echomail area(s) to post to (default: LOCALTEST)\n";
+        echo "  --domain=DOMAIN         Network domain for the echomail area\n";
+        echo "  --user=USERNAME         Post as this user (default: first user in DB)\n";
+        echo "  --config=/path/to/file  Use a custom weather.json config file\n";
+        echo "  --debug                 Test API connectivity only\n";
+        echo "  --help                  Show this help\n\n";
+        echo "Post examples:\n";
+        echo "  php scripts/weather_report.php --post\n";
+        echo "  php scripts/weather_report.php --post --areas=LOCALTEST,WEATHER\n";
+        echo "  php scripts/weather_report.php --post --user=admin\n";
+        echo "  php scripts/weather_report.php --post --areas=FSX_GEN --domain=fsxnet\n";
+        echo "  php scripts/weather_report.php --post --user=admin --areas=WEATHER --domain=fidonet\n\n";
+
+        // Show sample echomail message structure
+        try {
+            $generator = new WeatherReportGenerator($configPath);
+            $echomailData = $generator->createEchomailMessage('LOCALTEST', 'All', $username, true);
+            echo "Sample Echomail Message Structure:\n";
+            echo str_repeat("-", 36) . "\n";
+            foreach ($echomailData as $key => $value) {
+                if ($key === 'message_body') {
+                    echo "{$key}: [" . strlen($value) . " characters]\n";
+                } else {
+                    echo "{$key}: {$value}\n";
                 }
-                public function createEchomailMessage($area = 'LOCALTEST', $to = 'All', $user = '', $demo = false) {
-                    return ['type' => 'demo', 'message' => 'Demo message'];
-                }
-            };
+            }
+        } catch (Exception $e) {
+            echo "(Sample structure unavailable: " . $e->getMessage() . ")\n";
         }
+        exit(0);
     }
-    
-    // Debug mode - test API connectivity
+
+    // Try to initialise the generator
+    try {
+        $generator = new WeatherReportGenerator($configPath);
+    } catch (Exception $e) {
+        fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+        fwrite(STDERR, "Run with --help for usage information.\n");
+        exit(1);
+    }
+
+    // --debug: test API connectivity
     if ($debugMode) {
-        echo "DEBUG MODE: Testing API connectivity\n";
-        echo str_repeat("-", 40) . "\n\n";
-        
-        // Test with Vancouver coordinates
         $testUrl = "https://api.openweathermap.org/data/2.5/weather?lat=49.2827&lon=-123.1207&appid=" . $generator->getApiKey() . "&units=metric";
-        echo "Testing URL: {$testUrl}\n\n";
-        
+        echo "DEBUG: Testing API connectivity\n";
+        echo "URL: {$testUrl}\n\n";
+
         $context = stream_context_create([
             'http' => [
                 'timeout' => 10,
                 'user_agent' => 'BinktermPHP Weather Reporter/' . Version::getVersion()
             ]
         ]);
-        
-        echo "Making request...\n";
-        $response = @file_get_contents($testUrl, false, $context);
-        
-        if ($response === false) {
-            echo "❌ Request failed!\n";
-            $error = error_get_last();
-            if ($error) {
-                echo "Error: " . $error['message'] . "\n";
-            }
-        } else {
-            echo "✅ Request successful!\n";
-            echo "Response length: " . strlen($response) . " characters\n";
-            echo "First 200 characters: " . substr($response, 0, 200) . "\n\n";
-            
-            $data = json_decode($response, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                echo "❌ JSON decode error: " . json_last_error_msg() . "\n";
-            } else {
-                echo "✅ JSON decoded successfully\n";
-                if (isset($data['cod'])) {
-                    echo "API response code: " . $data['cod'] . "\n";
-                    if (isset($data['message'])) {
-                        echo "API message: " . $data['message'] . "\n";
-                    }
-                }
-                if (isset($data['name'])) {
-                    echo "Location: " . $data['name'] . "\n";
-                }
-                if (isset($data['main']['temp'])) {
-                    echo "Temperature: " . $data['main']['temp'] . "°C\n";
-                }
-            }
-        }
-        return;
-    }
-    
-    // Post mode - actually post to echomail
-    if ($postMode) {
-        echo "POST MODE: Posting weather report to echoarea(s)\n";
-        echo str_repeat("-", 50) . "\n\n";
 
-        if (!empty($username)) {
-            echo "User: {$username}\n";
+        $response = @file_get_contents($testUrl, false, $context);
+        if ($response === false) {
+            echo "❌ Request failed\n";
+            $error = error_get_last();
+            if ($error) { echo "Error: " . $error['message'] . "\n"; }
+            exit(1);
         }
-        echo "Areas: {$echoareas}\n";
-        if (!empty($domain)) {
-            echo "Domain: {$domain}\n";
+
+        echo "✅ Request successful (" . strlen($response) . " bytes)\n";
+        $data = json_decode($response, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            echo "❌ JSON decode error: " . json_last_error_msg() . "\n";
+            exit(1);
         }
-        echo "\n";
-        
-        $success = $generator->postWeatherReport($username, $echoareas, $domain,'All', $demoMode);
+
+        echo "✅ JSON decoded\n";
+        if (isset($data['cod']))          { echo "API code: " . $data['cod'] . "\n"; }
+        if (isset($data['message']))      { echo "API message: " . $data['message'] . "\n"; }
+        if (isset($data['name']))         { echo "Location: " . $data['name'] . "\n"; }
+        if (isset($data['main']['temp'])) { echo "Temperature: " . $data['main']['temp'] . "°C\n"; }
+        exit(0);
+    }
+
+    // --post: post to echomail area(s)
+    if ($postMode) {
+        $success = $generator->postWeatherReport($username, $echoareas, $domain, 'All', $demoMode);
         exit($success ? 0 : 1);
     }
-    
-    // Generate and display the weather report
-    if ($demoMode) {
-        echo "DEMO MODE: Showing sample weather report with mock data\n";
-        echo str_repeat("-", 55) . "\n\n";
-        echo $generator->generateReport(true);
-    } else {
-        echo "Weather Report:\n";
-        echo str_repeat("-", 20) . "\n";
-        $report = $generator->generateReport();
-        echo $report;
-        
-        // If no API key, show demo instructions
-        if (strpos($report, 'ERROR:') === 0) {
-            echo "\nTo see a demo report with sample data, run:\n";
-            echo "php scripts/weather_report.php --demo\n\n";
-        }
+
+    // Default: print the weather report
+    try {
+        $report = $generator->generateReport($demoMode);
+    } catch (Exception $e) {
+        fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+        exit(1);
     }
-    
-    // Create sample echomail message structure (but don't send)
-    echo "\nSample Echomail Message Structure:\n";
-    echo str_repeat("-", 36) . "\n";
-    $echomailData = $generator->createEchomailMessage('LOCALTEST', 'All', $username, $demoMode);
-    
-    foreach ($echomailData as $key => $value) {
-        if ($key === 'message_body') {
-            echo "{$key}: [" . strlen($value) . " characters]\n";
-        } else {
-            echo "{$key}: {$value}\n";
-        }
+
+    if (strpos($report, 'ERROR:') === 0) {
+        fwrite(STDERR, trim($report) . "\n");
+        exit(1);
     }
-    
-    echo "\n[Note: This is a test run. No messages were actually posted.]\n";
-    echo "Usage examples:\n";
-    echo "  Post to LOCALTEST:           php scripts/weather_report.php --post\n";
-    echo "  Post to multiple areas:      php scripts/weather_report.php --post --areas=LOCALTEST,WEATHER\n";
-    echo "  Post as specific user:       php scripts/weather_report.php --post --user=admin\n";
-    echo "  Post to specific network:    php scripts/weather_report.php --post --areas=FSX_GEN --domain=fsxnet\n";
-    echo "  Post with all options:       php scripts/weather_report.php --post --user=admin --areas=WEATHER --domain=fidonet\n";
+
+    echo $report;
+    exit(0);
 }

@@ -539,6 +539,7 @@ $(document).ready(function() {
 });
 
 function loadAppearanceConfig() {
+    setSettingsLoading('#appearanceTabContent', true);
     $.get('/admin/api/appearance')
         .done(function(response) {
             if (!response.success) return;
@@ -626,6 +627,7 @@ function loadAppearanceConfig() {
             if (d.register_splash !== null && d.register_splash !== undefined) {
                 $('#registerSplash').val(d.register_splash);
             }
+            setSettingsLoading('#appearanceTabContent', false);
         })
         .fail(function(xhr) {
             showAlert('danger', uiT('ui.admin.appearance.load_failed_prefix', 'Failed to load appearance config: ') + apiError(xhr.responseJSON, uiT('ui.common.unknown_error', 'Unknown error')));

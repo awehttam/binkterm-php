@@ -373,8 +373,12 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
         'All',
         $subject,
         $body,
-        null,
-        'Auto Feed RSS'
+        null,       // replyToId
+        'Auto Feed RSS', // tagline
+        false,      // skipCredits
+        null,       // markupType
+        '',         // prependKludges
+        'Auto Feed' // tearlineComponent
     );
 
     // Increment posted article counter

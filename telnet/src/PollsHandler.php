@@ -98,6 +98,8 @@ class PollsHandler
                 continue;
             }
 
+            $pollQuestion = $polls[$selectedIndex]['question'] ?? '';
+            $this->server->logAction($state['username'] ?? 'unknown', "Polls: viewed poll #{$polls[$selectedIndex]['id']} \"{$pollQuestion}\"");
             $this->showPollDetail($conn, $state, $session, $polls[$selectedIndex]);
         }
     }
@@ -186,8 +188,11 @@ class PollsHandler
 
             TelnetUtils::writeLine($conn, '');
             if (($response['data']['success'] ?? false) === true) {
+                $votedOption = $options[$selectedIndex]['option_text'] ?? '';
+                $this->server->logAction($state['username'] ?? 'unknown', "Polls: voted on poll #{$freshPoll['id']} option \"{$votedOption}\"");
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.polls.voted', 'Vote recorded.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
             } else {
+                $this->server->logAction($state['username'] ?? 'unknown', "Polls: vote failed on poll #{$freshPoll['id']}: " . ($response['data']['error'] ?? 'unknown'));
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? 'Vote failed.'), TelnetUtils::ANSI_RED));
             }
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));

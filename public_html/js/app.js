@@ -112,6 +112,13 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(messageText);
     const hasPipes = /\|[0-9A-Fa-f]{2}/.test(messageText);
     const hasColorCodes = hasAnsi || hasPipes;
+
+    // FTN software wraps lines at ~72 chars, which can split URLs across lines.
+    // Only rejoin when the line is >= 70 chars (strong FTN-wrap signal) AND it
+    // ends with a URL fragment AND the next line starts with URL-path characters.
+    // The length guard prevents merging a complete short URL with the next line.
+    messageText = joinFtnWrappedUrls(messageText);
+
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -358,6 +365,138 @@ function looksLikeRipScript(text) {
     return ripLineCount > 0 && supportedCommandCount > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Shared RIPscrip renderer — used by the ad box and any other non-echomail
+// page that needs to render RIP content from raw text (not a URL).
+// ---------------------------------------------------------------------------
+
+let _sharedRiptermLoaderPromise = null;
+
+/**
+ * Lazily load the RIPterm JavaScript libraries (BGI.js + ripterm.js).
+ * Uses script-tag deduplication so the files are only ever fetched once even
+ * when called from multiple callers on the same page.
+ *
+ * @returns {Promise<void>}
+ */
+function loadRiptermForContent() {
+    if (_sharedRiptermLoaderPromise) return _sharedRiptermLoaderPromise;
+    if (window.RIPterm && window.BGI) {
+        _sharedRiptermLoaderPromise = Promise.resolve();
+        return _sharedRiptermLoaderPromise;
+    }
+
+    function _loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[data-ripterm-src="${src}"]`);
+            if (existing) {
+                if (existing.dataset.loaded === 'true') { resolve(); return; }
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.dataset.riptermSrc = src;
+            script.addEventListener('load', () => { script.dataset.loaded = 'true'; resolve(); }, { once: true });
+            script.addEventListener('error', reject, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    _sharedRiptermLoaderPromise = _loadScript('/vendor/riptermjs/BGI.js')
+        .then(() => _loadScript('/vendor/riptermjs/ripterm.js'));
+    return _sharedRiptermLoaderPromise;
+}
+
+/**
+ * Render a RIPscrip text payload into a DOM container element.
+ * Shows a spinner while loading, then replaces it with the rendered canvas.
+ *
+ * @param {HTMLElement} container
+ * @param {string}      ripText   Raw RIPscrip content
+ */
+function renderRipContent(container, ripText) {
+    const canvasId = `ripCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    container.innerHTML = `
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:70vh;padding:8px;text-align:center;background:#0a0a0a;border-radius:6px;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+    `;
+    loadRiptermForContent()
+        .then(async () => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+            const loading = container.querySelector('[data-rip-loading]');
+            const stage   = container.querySelector('[data-rip-stage]');
+            if (loading) loading.remove();
+            if (stage)   stage.classList.remove('d-none');
+        })
+        .catch((err) => {
+            console.error('RIP render failed:', err);
+            container.innerHTML = '<div class="alert alert-danger m-3">Failed to render RIPscrip content.</div>';
+        });
+}
+
+/**
+ * Render ad content using the same multimodal pipeline as the echomail viewer:
+ * RIPscrip → Sixel → ANSI/PCBoard/plain.
+ *
+ * Requires sixel.js and pcboard.js to be loaded on the page before calling.
+ *
+ * @param {HTMLElement} container Target element (will be replaced with rendered output)
+ * @param {string}      content   Raw ad content string
+ */
+function renderAdContent(container, content) {
+    if (!content || content.trim() === '') {
+        container.innerHTML = '';
+        return;
+    }
+
+    // RIPscrip
+    if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(content)) {
+        renderRipContent(container, content);
+        return;
+    }
+
+    // Sixel
+    if (typeof looksLikeSixel === 'function' && looksLikeSixel(content)) {
+        if (typeof renderSixelChunks === 'function') {
+            renderSixelChunks(container, content, function (chunk) {
+                return formatMessageBodyForDisplay({}, chunk, []);
+            });
+            return;
+        }
+    }
+
+    // ANSI / PCBoard / plain
+    const html = formatMessageBodyForDisplay({}, content, []);
+    container.innerHTML = '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    while (tmp.firstChild) container.appendChild(tmp.firstChild);
+}
+
 function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
     const text = bodyText || '';
     let forcePlainText = !!forcePlain;
@@ -514,6 +653,32 @@ function escapeRegex(string) {
 
 // Convert URLs in text to clickable links (XSS-safe)
 // Must be called AFTER escapeHtml since we're inserting HTML anchor tags
+/**
+ * Rejoin URLs that FTN software split across lines at its ~72-char wrap limit.
+ * Only merges when the line is >= 70 chars (strong wrap signal) and ends with
+ * a URL fragment, and the next line starts with URL-path characters. The length
+ * guard prevents a complete short URL from being incorrectly merged with the
+ * next line of text.
+ */
+function joinFtnWrappedUrls(text) {
+    const lines = text.split(/\r?\n/);
+    const result = [];
+    let i = 0;
+    while (i < lines.length) {
+        let line = lines[i];
+        if (line.length >= 70 && i + 1 < lines.length) {
+            const urlFragMatch = line.match(/(https?:\/\/\S+)$/);
+            if (urlFragMatch && /^[a-z0-9\/_.\-~%]/.test(lines[i + 1])) {
+                line = line + lines[i + 1];
+                i++;
+            }
+        }
+        result.push(line);
+        i++;
+    }
+    return result.join('\n');
+}
+
 function linkifyUrls(text) {
     if (!text) return text;
 
@@ -741,6 +906,9 @@ function mergeCatalogs(catalogs) {
     });
 }
 
+// In-flight namespace fetch promises keyed by sorted ns+locale string
+const _i18nInflight = {};
+
 function loadI18nNamespaces(namespaces = []) {
     const normalized = (namespaces || [])
         .map(ns => String(ns || '').trim())
@@ -754,10 +922,21 @@ function loadI18nNamespaces(namespaces = []) {
         return Promise.resolve();
     }
 
-    const nsParam = encodeURIComponent(missing.join(','));
     const localeParam = encodeURIComponent(window.i18n.locale || window.appLocale || 'en');
+    const inflightKey = missing.slice().sort().join(',') + '@' + localeParam;
 
-    return fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
+    // If a fetch for this exact set is already in-flight, reuse it
+    if (_i18nInflight[inflightKey]) {
+        return _i18nInflight[inflightKey];
+    }
+
+    // Mark namespaces as loading now to prevent duplicate fetches from
+    // concurrent callers that haven't awaited the result yet
+    missing.forEach(ns => { window.i18n.loadedNamespaces[ns] = true; });
+
+    const nsParam = encodeURIComponent(missing.join(','));
+
+    const promise = fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
         .then(function(response) {
             if (!response.ok) {
                 throw new Error('i18n catalog load failed');
@@ -777,8 +956,16 @@ function loadI18nNamespaces(namespaces = []) {
             mergeCatalogs(payload.catalogs || {});
         })
         .catch(function() {
-            // Non-fatal in Phase 0: app keeps English literals as fallback.
+            // Non-fatal: app keeps English literals as fallback.
+            // Un-mark so a future call can retry
+            missing.forEach(ns => { delete window.i18n.loadedNamespaces[ns]; });
+        })
+        .finally(function() {
+            delete _i18nInflight[inflightKey];
         });
+
+    _i18nInflight[inflightKey] = promise;
+    return promise;
 }
 
 $(document).ready(function() {
@@ -1083,6 +1270,34 @@ function formatFullDate(dateString) {
     });
 }
 
+/**
+ * Toggle a loading-blur state on settings cards or any container.
+ * While loading=true the target is blurred and non-interactive, and a
+ * centred spinner overlay is shown above the blurred content.
+ *
+ * @param {string|Element|jQuery} target  CSS selector, DOM element, or jQuery object
+ * @param {boolean}               loading true to apply blur, false to remove
+ */
+function setSettingsLoading(target, loading) {
+    $(target).toggleClass('settings-loading', loading);
+
+    const spinnerId = 'settings-loading-spinner';
+    if (loading) {
+        if (!document.getElementById(spinnerId)) {
+            $('body').append(
+                '<div id="' + spinnerId + '" class="settings-loading-spinner" aria-hidden="true">' +
+                '<div class="spinner-border" role="status"></div>' +
+                '</div>'
+            );
+        }
+    } else {
+        // Only remove spinner when no blurred elements remain
+        if ($(target).hasClass('settings-loading') === false && $('.settings-loading').length === 0) {
+            $('#' + spinnerId).remove();
+        }
+    }
+}
+
 function escapeHtml(text) {
     const map = {
         '&': '&amp;',
@@ -1092,6 +1307,45 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+/**
+ * Initialise a Bootstrap popover on the sender name element rendered in message views.
+ *
+ * @param {object} message      - Message object with from_name, from_address, from_system_name
+ * @param {string} netmailAddr  - FTN address to pre-fill in the netmail compose link
+ * @param {string} netmailName  - Display name to pre-fill in the netmail compose link
+ */
+function initSenderPopover(message, netmailAddr, netmailName) {
+    const el = document.getElementById('senderNamePopoverTrigger');
+    if (!el) return;
+
+    const existing = bootstrap.Popover.getInstance(el);
+    if (existing) existing.dispose();
+
+    const toAddr = netmailAddr || message.from_address || '';
+    const toName = netmailName || message.from_name || '';
+
+    const content = [
+        `<div class="fw-semibold">${escapeHtml(message.from_name || '')}</div>`,
+        message.from_system_name ? `<div class="text-muted small">${escapeHtml(message.from_system_name)}</div>` : '',
+        message.from_address     ? `<div class="text-muted small font-monospace">${escapeHtml(message.from_address)}</div>` : '',
+        toAddr ? `<div class="mt-2"><a href="/compose/netmail?to=${encodeURIComponent(toAddr)}&to_name=${encodeURIComponent(toName)}" class="btn btn-sm btn-primary w-100">${uiT('ui.nodelist.send_netmail', 'Send Netmail')}</a></div>` : '',
+    ].join('');
+
+    const pop = new bootstrap.Popover(el, {
+        html: true,
+        content: content,
+        trigger: 'click',
+        placement: 'bottom',
+        sanitize: false,
+    });
+
+    $(document).off('click.senderPopoverDismiss').on('click.senderPopoverDismiss', function(e) {
+        if (!$(e.target).closest('#senderNamePopoverTrigger, .popover').length) {
+            pop.hide();
+        }
+    });
 }
 
 // Message handling functions

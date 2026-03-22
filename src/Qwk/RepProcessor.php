@@ -346,9 +346,16 @@ class RepProcessor
         // Split QWKE kludge prefix from the body text.
         [$kludgeLines, $cleanBody] = $this->splitQwkeBody($body);
 
+        // Extract plain-text QWKE extended headers (Subject:, To:, From:) written
+        // by clients like MultiMail that don't use ^A prefixes for these fields.
+        [$extHeaders, $cleanBody] = $this->extractQwkePlaintextHeaders($cleanBody);
+
         // Attempt to recover charset from QWKE kludges; fall back to CP437→UTF-8.
         $charset   = $this->detectCharset($kludgeLines);
         $cleanBody = $this->normaliseEncoding($cleanBody, $charset);
+
+        // QWKE plain-text Subject: overrides the 25-char fixed header field.
+        $subject = $extHeaders['subject'] ?? $subject;
 
         return [
             '_total_blocks'     => $blockCount,
@@ -389,6 +396,36 @@ class RepProcessor
         }
 
         return [implode("\n", $kludges), implode("\n", $bodyLines)];
+    }
+
+    /**
+     * Extract plain-text QWKE extended headers (Subject:, To:, From:) from the
+     * top of the message body, as written by clients like MultiMail.
+     *
+     * These headers have no ^A prefix and are followed by a blank line separator.
+     * Returns [headers_array, body_with_headers_removed].
+     */
+    private function extractQwkePlaintextHeaders(string $body): array
+    {
+        $lines   = explode("\n", $body);
+        $headers = [];
+        $i       = 0;
+
+        while ($i < count($lines)) {
+            if (preg_match('/^(Subject|To|From):\s*(.*)/i', $lines[$i], $m)) {
+                $headers[strtolower($m[1])] = rtrim($m[2]);
+                $i++;
+            } else {
+                break;
+            }
+        }
+
+        // Skip the blank line separator that follows the extended headers.
+        if (!empty($headers) && $i < count($lines) && trim($lines[$i]) === '') {
+            $i++;
+        }
+
+        return [$headers, implode("\n", array_slice($lines, $i))];
     }
 
     /**
@@ -468,8 +505,18 @@ class RepProcessor
             $toName = 'Sysop';
         }
 
-        // Resolve to-address: prefer original message from_address via message map.
-        $toAddress = $this->resolveNetmailToAddress($toName, (int)$msg['reply_to_num'], $messageMap);
+        // Allow "User Name@zone:net/node[.point]" in the To field as a way to
+        // specify the FTN destination address when composing new netmail via QWK.
+        $embeddedAddress = null;
+        if (preg_match('/^(.*?)@(\d+:\d+\/\d+(?:\.\d+)?)$/', $toName, $m)) {
+            $embeddedAddress = $m[2];
+            $toName          = $m[1] !== '' ? trim($m[1]) : 'Sysop';
+        }
+
+        // Resolve to-address: embedded address takes priority, then message map
+        // (for replies to received netmail), then fall back to system address.
+        $toAddress = $embeddedAddress
+            ?? $this->resolveNetmailToAddress($toName, (int)$msg['reply_to_num'], $messageMap);
 
         // Find the internal reply-to message ID via the message map.
         $replyToId = $this->resolveReplyToId((int)$msg['reply_to_num'], 'netmail', $messageMap);

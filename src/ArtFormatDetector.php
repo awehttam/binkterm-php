@@ -17,7 +17,7 @@ class ArtFormatDetector
     public static function normalizeDetectedEncoding(?string $encoding, ?string $rawBody = null): ?string
     {
         if ($encoding !== null && trim($encoding) !== '') {
-            return strtoupper(trim($encoding));
+            return \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($encoding);
         }
 
         if (is_string($rawBody) && $rawBody !== '' && mb_check_encoding($rawBody, 'UTF-8')) {

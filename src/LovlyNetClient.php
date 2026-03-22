@@ -140,6 +140,68 @@ class LovlyNetClient
     }
 
     /**
+     * Fetch this node's current registration record from the LovlyNet server.
+     *
+     * Calls GET /api/node.php?node_number=N and returns the stored system_name,
+     * sysop_name, hostname, binkp_port, site_url, and is_passive fields so the
+     * admin form can be pre-filled with what the server actually has on record.
+     *
+     * @return array{success:bool, system_name?:string, sysop_name?:string, hostname?:string, binkp_port?:int, site_url?:string, is_passive?:bool, error?:string}
+     */
+    public function getRemoteRegistration(): array
+    {
+        if (!$this->isConfigured()) {
+            return $this->notConfigured();
+        }
+
+        $url      = $this->baseUrl . '/api/node.php?node_number=' . $this->nodeNumber;
+        $response = $this->get($url);
+
+        if (!$response['success']) {
+            return ['success' => false, 'error' => $response['error']];
+        }
+
+        $data = $response['data']['data'] ?? [];
+
+        return [
+            'success'     => true,
+            'system_name' => (string)($data['system_name'] ?? ''),
+            'sysop_name'  => (string)($data['sysop_name']  ?? ''),
+            'hostname'    => (string)($data['hostname']     ?? ''),
+            'binkp_port'  => (int)($data['binkp_port']      ?? 24554),
+            'site_url'    => (string)($data['site_url']     ?? ''),
+            'is_passive'  => !empty($data['is_passive']),
+        ];
+    }
+
+    /**
+     * Fetch the server-configured default echo and file area tags.
+     *
+     * @return array{success:bool, echoareas:string[], fileareas:string[], error?:string}
+     */
+    public function getDefaultAreas(): array
+    {
+        if (!$this->isConfigured()) {
+            return $this->notConfigured();
+        }
+
+        $url      = $this->baseUrl . '/api/default_areas.php';
+        $response = $this->get($url);
+
+        if (!$response['success']) {
+            return ['success' => false, 'error' => $response['error'], 'echoareas' => [], 'fileareas' => []];
+        }
+
+        $data = $response['data']['data'] ?? [];
+
+        return [
+            'success'   => true,
+            'echoareas' => $data['echoareas'] ?? [],
+            'fileareas' => $data['fileareas'] ?? [],
+        ];
+    }
+
+    /**
      * Subscribe or unsubscribe our node to/from an area.
      *
      * Calls POST /api/area_subscription.php
@@ -223,12 +285,7 @@ class LovlyNetClient
         }
 
         if ($areaType === 'file') {
-            if (!array_key_exists('readonly', $metadata)) {
-                return true;
-            }
-
-            $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($recommendedReadonly === null) {
+            if (!array_key_exists('readonly', $metadata) && !array_key_exists('replace', $metadata)) {
                 return true;
             }
 
@@ -239,16 +296,134 @@ class LovlyNetClient
                 $fileAreaId = (int)($existing['id'] ?? 0);
             }
 
-            $uploadPermission = $recommendedReadonly
-                ? FileAreaManager::UPLOAD_READ_ONLY
-                : FileAreaManager::UPLOAD_USERS_ALLOWED;
+            if ($fileAreaId <= 0) {
+                return false;
+            }
 
-            return $fileAreaId > 0
-                ? $fileAreaManager->updateUploadPermission($fileAreaId, $uploadPermission)
-                : false;
+            $result = true;
+
+            if (array_key_exists('readonly', $metadata)) {
+                $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($recommendedReadonly !== null) {
+                    $uploadPermission = $recommendedReadonly
+                        ? FileAreaManager::UPLOAD_READ_ONLY
+                        : FileAreaManager::UPLOAD_USERS_ALLOWED;
+                    $result = $fileAreaManager->updateUploadPermission($fileAreaId, $uploadPermission) && $result;
+                }
+            }
+
+            if (array_key_exists('replace', $metadata)) {
+                $recommendedReplace = filter_var($metadata['replace'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($recommendedReplace !== null) {
+                    $result = $fileAreaManager->updateReplaceExisting($fileAreaId, $recommendedReplace) && $result;
+                }
+            }
+
+            return $result;
         }
 
         return false;
+    }
+
+    /**
+     * Return the local registration status for display.
+     *
+     * Returns only non-sensitive fields (api_key is intentionally excluded).
+     *
+     * @return array{success:bool, ftn_address?:string, hub_address?:string, registered_at?:string, updated_at?:string, error?:string}
+     */
+    public function getRegistrationStatus(): array
+    {
+        $cfg = self::loadConfig();
+
+        if (empty($cfg)) {
+            return ['success' => false, 'error' => 'Not registered with LovlyNet'];
+        }
+
+        return [
+            'success'       => true,
+            'ftn_address'   => (string)($cfg['ftn_address']   ?? ''),
+            'hub_address'   => (string)($cfg['hub_address']   ?? ''),
+            'registered_at' => (string)($cfg['registered_at'] ?? ''),
+            'updated_at'    => (string)($cfg['updated_at']    ?? ''),
+            'is_passive'    => isset($cfg['is_passive']) ? (bool)$cfg['is_passive'] : null,
+        ];
+    }
+
+    /**
+     * Update this node's registration with the LovlyNet registry.
+     *
+     * Sends a POST to /api/register.php with the node_id in the body and
+     * X-API-Key in the header.  On success the caller should persist the
+     * returned data to config/lovlynet.json.
+     *
+     * @param  array $data  Keys: system_name, sysop_name, hostname, binkp_port, site_url, is_passive
+     * @return array{success:bool, data?:array, error?:string}
+     */
+    public function updateRegistration(array $data): array
+    {
+        $cfg = self::loadConfig();
+
+        if (empty($cfg['node_id']) || empty($cfg['api_key'])) {
+            return ['success' => false, 'error' => 'Not registered with LovlyNet'];
+        }
+
+        $payload = [
+            'node_id'     => $cfg['node_id'],
+            'system_name' => (string)($data['system_name'] ?? ''),
+            'sysop_name'  => (string)($data['sysop_name']  ?? ''),
+            'hostname'    => (string)($data['hostname']     ?? ''),
+            'binkp_port'  => (int)($data['binkp_port']      ?? 24554),
+            'site_url'    => (string)($data['site_url']     ?? ''),
+            'is_passive'  => (bool)($data['is_passive']     ?? false),
+            'system_info' => [
+                'software'    => \BinktermPHP\Version::getFullVersion(),
+                'php_version' => PHP_VERSION,
+            ],
+        ];
+
+        $registryUrl = 'https://' . ($cfg['hub_hostname'] ?? 'lovlynet.lovelybits.org') . '/api/register.php';
+
+        return $this->post($registryUrl, $payload);
+    }
+
+    /**
+     * Save updated registration data back to config/lovlynet.json.
+     *
+     * A timestamped backup (lovlynet_YYYYMMDD_HHMMSS.json) is written before
+     * overwriting the live file.  Only fields returned by the registry are
+     * updated; everything else (passwords already set, tic_password, etc.) is
+     * preserved as-is.
+     *
+     * @param  array $regData  The 'data' sub-array from a successful updateRegistration() call
+     * @return bool
+     */
+    public function saveRegistrationUpdate(array $regData): bool
+    {
+        $cfg = self::loadConfig();
+        if (empty($cfg)) {
+            return false;
+        }
+
+        foreach (['ftn_address', 'hub_address', 'hub_hostname', 'hub_port', 'binkp_password', 'areafix_password', 'is_passive'] as $key) {
+            if (array_key_exists($key, $regData)) {
+                $cfg[$key] = $regData[$key];
+            }
+        }
+
+        $cfg['updated_at'] = date('c');
+
+        self::$config = $cfg;
+
+        $json = json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return false;
+        }
+
+        $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+        $result = $daemonClient->saveLovlyNetConfig($json);
+
+        return (bool)($result['ok'] ?? false);
     }
 
     /**

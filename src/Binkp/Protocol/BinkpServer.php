@@ -264,6 +264,10 @@ class BinkpServer
     
     private function socketToStream($socket)
     {
+        // Normalize exported sockets to stream-only timeout handling for
+        // consistency with the frame reader.
+        $this->clearSocketTimeouts($socket);
+
         $socketResource = socket_export_stream($socket);
         if ($socketResource === false) {
             throw new \Exception('Failed to convert socket to stream');
@@ -277,6 +281,12 @@ class BinkpServer
         stream_set_blocking($socketResource, true);
 
         return $socketResource;
+    }
+
+    private function clearSocketTimeouts($socket): void
+    {
+        @socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 0, 'usec' => 0]);
+        @socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 0, 'usec' => 0]);
     }
 
     private function configureTcpNoDelay($socket): void

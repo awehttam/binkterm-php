@@ -340,6 +340,7 @@
     function renderOverview(data) {
         const byCategory = (data.summary || {}).by_category || {};
         const byType = (data.summary || {}).by_type || {};
+        const loginBySource = (data.summary || {}).login_by_source || {};
 
         const echoViews = byType.echomail_views || 0;
         const echoSends = byType.echomail_sends || 0;
@@ -351,6 +352,7 @@
             netReads + netSends, netReads, netSends,
             byCategory.file || 0, byCategory.door || 0,
             byCategory.nodelist || 0, byCategory.chat || 0, byCategory.auth || 0,
+            ...Object.values(loginBySource),
         ];
         const maxCat = Math.max(...allVals);
 
@@ -388,7 +390,10 @@
             plainRow(uiT('ui.admin.activity_stats.doors', 'Doors'), byCategory.door || 0) +
             plainRow(uiT('ui.admin.activity_stats.nodelist', 'Nodelist'), byCategory.nodelist || 0) +
             plainRow(uiT('ui.admin.activity_stats.chat', 'Chat'), byCategory.chat || 0) +
-            plainRow(uiT('ui.admin.activity_stats.auth', 'Auth'), byCategory.auth || 0);
+            groupRow(uiT('ui.admin.activity_stats.auth', 'Auth'), byCategory.auth || 0) +
+            Object.entries(loginBySource).map(([src, cnt]) =>
+                subRow(escapeHtml(src.charAt(0).toUpperCase() + src.slice(1)), cnt, 'bg-info')
+            ).join('');
 
         const daily = data.daily || [];
         const dailyTbody = document.getElementById('daily-rows');

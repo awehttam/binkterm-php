@@ -83,25 +83,23 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.profile.system_information', {}, 'common') }}</h6>
+                <h6 class="mb-0">{{ t('ui.profile.your_network_information', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-6">{{ t('ui.profile.system', {}, 'common') }}:</dt>
-                    <dd class="col-6">{{ system_name_display }}</dd>
-                    
-                    <dt class="col-6">{{ t('ui.profile.address', {}, 'common') }}:</dt>
-                    <dd class="col-6">{{ system_address_display }}</dd>
-                    
-                    <dt class="col-6">{{ t('ui.profile.role', {}, 'common') }}:</dt>
-                    <dd class="col-6">
-                        {% if user_is_admin %}
-                            <span class="badge bg-danger">{{ t('ui.profile.role_administrator', {}, 'common') }}</span>
-                        {% else %}
-                            <span class="badge bg-primary">{{ t('ui.profile.role_user', {}, 'common') }}</span>
-                        {% endif %}
-                    </dd>
-                </dl>
+                {% if network_addresses|length > 0 %}
+                <div class="row g-1 mb-3">
+                    {% for net in network_addresses %}
+                    <div class="col-3"><span class="badge bg-secondary w-100 text-truncate" title="{{ net.domain }}">{{ net.domain }}</span></div>
+                    <div class="col-3"><small class="text-muted">{{ net.address }}</small></div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-3">{{ t('ui.profile.no_networks_configured', {}, 'common') }}</p>
+                {% endif %}
+                <button type="button" class="btn btn-outline-secondary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#netmailAddressesModal">
+                    <i class="fas fa-address-card me-1"></i>
+                    {{ t('ui.profile.show_netmail_addresses', {}, 'common') }}
+                </button>
             </div>
         </div>
         
@@ -122,13 +120,21 @@
 
                     <dt class="col-8">{{ t('ui.profile.netmail_sent', {}, 'common') }}:</dt>
                     <dd class="col-4"><span id="netmailCount">-</span></dd>
-                    
+
                     <dt class="col-8">{{ t('ui.profile.echomail_posted', {}, 'common') }}:</dt>
                     <dd class="col-4"><span id="echomailCount">-</span></dd>
-                    
 
                     <dt class="col-8">{{ t('ui.profile.total_messages', {}, 'common') }}:</dt>
                     <dd class="col-4"><strong><span id="totalCount">-</span></strong></dd>
+
+                    <dt class="col-8">{{ t('ui.profile.files_downloaded', {}, 'common') }}:</dt>
+                    <dd class="col-4"><span id="filesDownloaded">-</span></dd>
+
+                    <dt class="col-8">{{ t('ui.profile.files_uploaded', {}, 'common') }}:</dt>
+                    <dd class="col-4"><span id="filesUploaded">-</span></dd>
+
+                    <dt class="col-8">{{ t('ui.profile.transfer_ratio', {}, 'common') }}:</dt>
+                    <dd class="col-4"><span id="transferRatio">-</span></dd>
                 </dl>
             </div>
         </div>
@@ -162,6 +168,50 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Netmail Addresses Modal -->
+<div class="modal fade" id="netmailAddressesModal" tabindex="-1" aria-labelledby="netmailAddressesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="netmailAddressesModalLabel">
+                    <i class="fas fa-address-card me-2"></i>
+                    {{ t('ui.profile.netmail_addresses_title', {}, 'common') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                {% if network_addresses|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>{{ t('ui.profile.netmail_col_network', {}, 'common') }}</th>
+                                <th>{{ t('ui.profile.netmail_col_address', {}, 'common') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for net in network_addresses %}
+                            <tr>
+                                <td>{{ net.domain }}</td>
+                                <td class="font-monospace">{{ user_real_name }}@{{ net.address }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted p-3 mb-0">{{ t('ui.profile.no_networks_configured', {}, 'common') }}</p>
+                {% endif %}
+            </div>
+            {% if network_addresses|length > 0 %}
+            <div class="modal-footer">
+                <small class="text-muted"><i class="fas fa-info-circle me-1"></i>{{ t('ui.profile.netmail_username_note', {'username': user_username}, 'common') }}</small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -185,12 +235,29 @@ $(document).ready(function() {
 function loadActivityStats() {
     $.get('/api/user/stats')
         .done(function(data) {
-            $('#netmailCount').text(data.netmail_count || 0);
-            $('#echomailCount').text(data.echomail_count || 0);
-            $('#totalCount').text((data.netmail_count || 0) + (data.echomail_count || 0));
+            const netmail = data.netmail_count || 0;
+            const echomail = data.echomail_count || 0;
+            const dl = data.files_downloaded || 0;
+            const ul = data.files_uploaded || 0;
+
+            $('#netmailCount').text(netmail);
+            $('#echomailCount').text(echomail);
+            $('#totalCount').text(netmail + echomail);
+            $('#filesDownloaded').text(dl);
+            $('#filesUploaded').text(ul);
+
+            let ratio;
+            if (ul === 0 && dl === 0) {
+                ratio = uiT('ui.profile.ratio_na', 'N/A');
+            } else if (ul === 0) {
+                ratio = uiT('ui.profile.ratio_na', 'N/A');
+            } else {
+                ratio = (dl / ul).toFixed(2) + ':1';
+            }
+            $('#transferRatio').text(ratio);
         })
         .fail(function() {
-            $('#netmailCount, #echomailCount, #totalCount').text('?');
+            $('#netmailCount, #echomailCount, #totalCount, #filesDownloaded, #filesUploaded, #transferRatio').text('?');
         });
 }
 

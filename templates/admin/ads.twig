@@ -25,7 +25,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label" for="adFile">{{ t('ui.admin.ads.ansi_file') }}</label>
-                        <input class="form-control" type="file" id="adFile" name="ad_file" accept=".ans">
+                        <input class="form-control" type="file" id="adFile" name="ad_file" accept=".ans,.rip,.six,.txt">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="adContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
@@ -62,7 +62,7 @@
                             <label class="form-check-label" for="adIsActive">{{ t('ui.common.enabled') }}</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="adShowOnDashboard" name="show_on_dashboard" checked>
+                            <input class="form-check-input" type="checkbox" id="adShowOnDashboard" name="show_on_dashboard">
                             <label class="form-check-label" for="adShowOnDashboard">{{ t('ui.admin.ads.show_on_dashboard') }}</label>
                         </div>
                         <div class="form-check form-check-inline">
@@ -218,9 +218,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="ansi-art-container">
-                        <pre class="ansi-art" id="adPreviewAnsi"></pre>
-                    </div>
+                    <div id="adPreviewContainer" class="w-100" style="overflow: hidden;"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
@@ -232,6 +230,9 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
 <script>
 let currentAds = [];
 let adPreviewModal = null;
@@ -356,9 +357,10 @@ function previewAd(id) {
             }
 
             document.getElementById('adPreviewModalTitle').textContent = ad.title || uiT('ui.admin.ads.view', 'View');
-            const pre = document.getElementById('adPreviewAnsi');
-            pre.textContent = ad.content || '';
-            renderPreviewAnsi(pre);
+            const container = document.getElementById('adPreviewContainer');
+            if (container && typeof renderAdContent === 'function') {
+                renderAdContent(container, ad.content || '');
+            }
             if (adPreviewModal) {
                 adPreviewModal.show();
             }
@@ -370,14 +372,15 @@ function previewAd(id) {
 
 function previewEditedAd() {
     const title = document.getElementById('editAdTitle').value.trim() || uiT('ui.common.preview', 'Preview');
-    const pre = document.getElementById('adPreviewAnsi');
-    if (!pre) {
+    const container = document.getElementById('adPreviewContainer');
+    if (!container) {
         return;
     }
 
     document.getElementById('adPreviewModalTitle').textContent = title;
-    pre.textContent = document.getElementById('editAdContent').value || '';
-    renderPreviewAnsi(pre);
+    if (typeof renderAdContent === 'function') {
+        renderAdContent(container, document.getElementById('editAdContent').value || '');
+    }
     if (adPreviewModal) {
         adPreviewModal.show();
     }
@@ -419,7 +422,7 @@ function uploadAd() {
     const hasFile = fileInput.files && fileInput.files.length > 0;
 
     if (!hasFile && contentCommand === '') {
-        showAdsAlert(uiT('ui.admin.ads.select_file_to_upload', 'Select an ANSI file to upload, or enter a content command.'), 'warning');
+        showAdsAlert(uiT('ui.admin.ads.select_file_to_upload', 'Select an advertisement file to upload, or enter a content command.'), 'warning');
         return;
     }
 
@@ -585,35 +588,6 @@ function buildDuplicateWarning(duplicates) {
     return ' ' + uiT('ui.admin.ads.duplicate_warning', 'Matching ANSI content already exists: {items}', { items: names });
 }
 
-function renderPreviewAnsi(pre) {
-    if (!pre) {
-        return;
-    }
-
-    const render = () => {
-        if (typeof renderAnsiTerminal !== 'function') {
-            return;
-        }
-        pre.innerHTML = renderAnsiTerminal(pre.textContent);
-    };
-
-    if (typeof renderAnsiTerminal === 'function') {
-        render();
-        return;
-    }
-
-    const existing = document.querySelector('script[data-ads-ansi-preview="1"]');
-    if (existing) {
-        existing.addEventListener('load', render, { once: true });
-        return;
-    }
-
-    const script = document.createElement('script');
-    script.src = '/js/ansisys.js';
-    script.dataset.adsAnsiPreview = '1';
-    script.onload = render;
-    document.body.appendChild(script);
-}
 
 function showAdsAlert(message, type) {
     const container = document.getElementById('adsStatusAlert');
