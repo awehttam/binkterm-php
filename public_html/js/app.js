@@ -121,7 +121,7 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
     // If so, use the full terminal renderer instead of line-by-line processing
     if (shouldRenderAnsiArt) {
-        console.debug('[ANSI auto] detected via', hasCursorAnsi ? 'cursor ANSI' : hasColorCodes ? 'color codes' : 'unknown', '— rendering as ANSI art');
+        console.debug('[ANSI auto] detected via', hasCursorAnsi ? 'cursor ANSI' : hasColorCodes ? 'color codes' : 'unknown', '— rendering as ANSI art —', messageText.substring(0, 40).replace(/\n/g, '↵'));
         let rendered = renderAnsiTerminal(messageText);
         rendered = linkifyUrls(rendered);
         if (searchTerms && searchTerms.length > 0) {
@@ -543,7 +543,8 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     if (shouldRenderAnsiArt) {
         const renderFormat = explicitBinaryArtMode ? requestedFormat : 'ansi';
         if (!explicitBinaryArtMode) {
-            console.debug('[ANSI auto] detected via', hasAnsi ? 'ESC sequences' : hasPipes ? 'pipe codes' : 'cursor ANSI', '— rendering as ANSI art');
+            console.debug('[ANSI auto] detected via', hasAnsi ? 'ESC sequences' : hasPipes ? 'pipe codes' : 'cursor ANSI',
+                '— msg id:', message?.id, '— subject:', message?.subject);
         }
         let rendered = renderArtMessage(text, {
             format: renderFormat,
