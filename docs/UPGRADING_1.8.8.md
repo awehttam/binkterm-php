@@ -63,6 +63,7 @@
   - [Message Body Line Spacing Tightened](#message-body-line-spacing-tightened)
   - [Echomail Reader From Line Style](#echomail-reader-from-line-style)
   - [Compose Advanced Options Panel](#compose-advanced-options-panel)
+  - [Compose Hard Wrap](#compose-hard-wrap)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -96,6 +97,7 @@
 - Message body line spacing has been reduced from `1.6` to `1.2` across all themes, matching the tighter line cadence of BBS-style messages.
 - The **From** field in the echomail message reader now uses a solid underline (matching a hyperlink) instead of a dashed underline.
 - The compose form's Encoding and Markup Format selectors have been moved into a collapsible **Advanced Options** panel below the message textarea, keeping the default compose view clean. The panel's open/closed state is saved per-user and persists across sessions.
+- A **Hard Wrap** selector has been added to the Advanced Options panel. When enabled, the compose textarea automatically breaks lines at 79 characters (default) or 39 characters as the user types. Word-wrap is used when possible; a hard break is used if no space is found. The setting is saved per-user and persists across sessions.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -814,6 +816,23 @@ it each time.
 No workflow change is required for users who do not use those selectors — the
 panel is collapsed by default and the selectors continue to work identically
 when the panel is open.
+
+### Compose Hard Wrap
+
+A **Hard Wrap** selector is now available inside the Advanced Options panel.
+When active, the compose textarea automatically breaks lines while typing:
+
+- **79 characters** (default) — standard FTN line length
+- **39 characters** — narrow format for split-screen or half-width displays
+- **Off** — no automatic wrapping (previous behaviour)
+
+When the current line reaches the selected column limit and the user types a
+printable character, the editor word-wraps at the last space on the line. If
+no space is present, a hard break is inserted at the column limit. Pressing
+Space at or past the limit inserts a newline directly.
+
+The selected value is saved as the user preference `compose_hard_wrap` and
+restored on every compose page load.
 
 ### Charset Alias Normalization
 

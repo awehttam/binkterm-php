@@ -227,7 +227,7 @@
                             <div class="form-text">{{ t('ui.compose.charset_help', {}, locale, ['common']) }}</div>
                         </div>
 
-                        <div class="mb-0" id="markdownSection" style="display: none;">
+                        <div class="mb-3" id="markdownSection" style="display: none;">
                             <label class="form-label" for="markupType">{{ t('ui.compose.markup_format', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="markupType" name="markup_type">
                                 <option value="">{{ t('ui.compose.plain_text', {}, locale, ['common']) }}</option>
@@ -235,6 +235,16 @@
                                 <option value="stylecodes">{{ t('ui.compose.stylecodes_label', {}, locale, ['common']) }}</option>
                             </select>
                             <div class="form-text">{{ t('ui.compose.markup_format_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-0">
+                            <label class="form-label" for="hardWrapSelect">{{ t('ui.compose.hard_wrap', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="hardWrapSelect">
+                                <option value="79">{{ t('ui.compose.hard_wrap_79', {}, locale, ['common']) }}</option>
+                                <option value="39">{{ t('ui.compose.hard_wrap_39', {}, locale, ['common']) }}</option>
+                                <option value="0">{{ t('ui.compose.hard_wrap_off', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.compose.hard_wrap_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                 </div>
@@ -537,7 +547,7 @@ let markdownSupportTimer = null;
 
     function selectEntry(entry) {
         const nameInput = getInput();
-        if (nameInput) nameInput.value = entry.name || '';
+        if (nameInput) nameInput.value = entry.messaging_user_id || '';
 
         const addrInput = document.getElementById('toAddress');
         if (addrInput) addrInput.value = entry.node_address || '';
@@ -618,6 +628,7 @@ let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
 let scToolbarActive = false;
+let hardWrapLimit = 79; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 const replyCharset    = {{ reply_charset|default("UTF-8")|json_encode|raw }};
 
@@ -1222,6 +1233,64 @@ function mdToggleLinePrefix(ta, prefix) {
 /**
  * Show the markdown quick-reference help modal.
  */
+/**
+ * Hard-wrap keydown handler.
+ * When the cursor is at or past hardWrapLimit on its line and the user types a
+ * printable character, the line is broken at the last space (word wrap) or at
+ * the limit column (hard break if no space is available).
+ */
+function initHardWrap() {
+    const textarea = document.getElementById('messageText');
+    if (!textarea) return;
+
+    textarea.addEventListener('keydown', function(e) {
+        if (!hardWrapLimit) return;
+
+        // Ignore non-printable keys and modified keys (Ctrl/Meta/Alt combos)
+        if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+
+        const val = this.value;
+        const pos = this.selectionStart;
+
+        // Only wrap when cursor is at a collapsed selection (not selecting a range)
+        if (this.selectionStart !== this.selectionEnd) return;
+
+        const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+        const currentLineLength = pos - lineStart;
+
+        if (currentLineLength < hardWrapLimit) return;
+
+        e.preventDefault();
+
+        if (e.key === ' ') {
+            // Insert newline in place of the space
+            this.value = val.substring(0, pos) + '\n' + val.substring(pos);
+            this.selectionStart = this.selectionEnd = pos + 1;
+        } else {
+            // Find last space on current line to word-wrap at
+            const lineText = val.substring(lineStart, pos);
+            const lastSpaceRel = lineText.lastIndexOf(' ');
+
+            if (lastSpaceRel >= 0) {
+                // Replace the space with \n and append the new character after it
+                const breakPos = lineStart + lastSpaceRel;
+                this.value = val.substring(0, breakPos) + '\n' +
+                             val.substring(breakPos + 1, pos) + e.key +
+                             val.substring(pos);
+                // Cursor ends up just after the newly typed character
+                this.selectionStart = this.selectionEnd = pos + 1;
+            } else {
+                // No space found — hard break at cursor, then type the character
+                this.value = val.substring(0, pos) + '\n' + e.key + val.substring(pos);
+                this.selectionStart = this.selectionEnd = pos + 2;
+            }
+        }
+
+        // Keep byte counter and other input listeners in sync
+        $(this).trigger('input');
+    });
+}
+
 function showMarkdownHelp() {
     $('#markdownHelpModal').modal('show');
 }
@@ -1272,11 +1341,17 @@ $(document).ready(function() {
         }
     });
 
-    // Advanced Options panel — restore and persist open/closed state
+    // Advanced Options panel — restore and persist open/closed state and hard wrap setting
     loadUserSettings().then(function(settings) {
         if (settings.compose_advanced_open) {
             $('#advancedOptionsPanel').addClass('show');
             $('#advancedOptionsToggle').attr('aria-expanded', 'true');
+        }
+        // Restore hard wrap preference (default 79 if not set)
+        const savedWrap = settings.compose_hard_wrap;
+        if (savedWrap !== undefined && savedWrap !== null) {
+            hardWrapLimit = parseInt(savedWrap, 10) || 0;
+            $('#hardWrapSelect').val(String(hardWrapLimit));
         }
     });
     $('#advancedOptionsPanel').on('shown.bs.collapse', function() {
@@ -1284,6 +1359,15 @@ $(document).ready(function() {
     }).on('hidden.bs.collapse', function() {
         saveUserSetting('compose_advanced_open', false);
     });
+
+    // Hard wrap selector — update limit and persist preference
+    $('#hardWrapSelect').on('change', function() {
+        hardWrapLimit = parseInt($(this).val(), 10) || 0;
+        saveUserSetting('compose_hard_wrap', hardWrapLimit);
+    });
+
+    // Initialise hard wrap keydown handler
+    initHardWrap();
 
     // Address validation for netmail
     if (messageType === 'netmail') {
