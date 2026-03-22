@@ -7899,6 +7899,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['echomail_notification_sound'] = $meta->getValue((int)$userId, 'echomail_notification_sound') ?? 'disabled';
                 $settings['netmail_notification_sound'] = $meta->getValue((int)$userId, 'netmail_notification_sound') ?? 'notify1';
                 $settings['file_notification_sound'] = $meta->getValue((int)$userId, 'file_notification_sound') ?? 'disabled';
+                $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
+                $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
+                $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
             }
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -7971,6 +7974,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $meta->setValue((int)$userId, $key, $soundVal);
                     $metaSettingsUpdated = true;
                 }
+
+                if (isset($settings['compose_advanced_open'])) {
+                    $meta->setValue((int)$userId, 'compose_advanced_open', $settings['compose_advanced_open'] ? 'true' : 'false');
+                    $metaSettingsUpdated = true;
+                }
+
+                if (isset($settings['compose_hard_wrap'])) {
+                    $wrapVal = (int)$settings['compose_hard_wrap'];
+                    if (!in_array($wrapVal, [0, 39, 79], true)) {
+                        $wrapVal = 79;
+                    }
+                    $meta->setValue((int)$userId, 'compose_hard_wrap', (string)$wrapVal);
+                    $metaSettingsUpdated = true;
+                }
             }
 
             unset(
@@ -7978,7 +7995,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['chat_notification_sound'],
                 $settings['echomail_notification_sound'],
                 $settings['netmail_notification_sound'],
-                $settings['file_notification_sound']
+                $settings['file_notification_sound'],
+                $settings['compose_advanced_open'],
+                $settings['compose_hard_wrap']
             );
 
             $handler = new MessageHandler();

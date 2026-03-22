@@ -97,7 +97,7 @@
 - Message body line spacing has been reduced from `1.6` to `1.2` across all themes, matching the tighter line cadence of BBS-style messages.
 - The **From** field in the echomail message reader now uses a solid underline (matching a hyperlink) instead of a dashed underline.
 - The compose form's Encoding and Markup Format selectors have been moved into a collapsible **Advanced Options** panel below the message textarea, keeping the default compose view clean. The panel's open/closed state is saved per-user and persists across sessions.
-- A **Hard Wrap** selector has been added to the Advanced Options panel. When enabled, the compose textarea automatically breaks lines at 79 characters (default) or 39 characters as the user types. Word-wrap is used when possible; a hard break is used if no space is found. The setting is saved per-user and persists across sessions.
+- A **Hard Wrap** selector has been added to the Advanced Options panel. When enabled, the compose textarea automatically breaks lines at 79 characters (standard 80-column format, default), 39 characters (for readability on 40-column systems such as the C64), or can be turned off entirely. Word-wrap is used when possible; a hard break is used if no space is found. The setting is saved per-user and persists across sessions.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -822,9 +822,9 @@ when the panel is open.
 A **Hard Wrap** selector is now available inside the Advanced Options panel.
 When active, the compose textarea automatically breaks lines while typing:
 
-- **79 characters** (default) — standard FTN line length
-- **39 characters** — narrow format for split-screen or half-width displays
-- **Off** — no automatic wrapping (previous behaviour)
+- **79 characters** (default) — standard 80-column FTN format
+- **39 characters** — for readability on 40-column systems such as the C64
+- **Off** — no automatic wrapping; manage line length yourself
 
 When the current line reaches the selected column limit and the user types a
 printable character, the editor word-wraps at the last space on the line. If
