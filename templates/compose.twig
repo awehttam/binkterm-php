@@ -9,7 +9,7 @@
         <i class="fas fa-{{ type == 'netmail' ? 'envelope' : 'comments' }}"></i>
         {{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }}
     </h2>
-    <a href="{% if type == 'echomail' and echoarea is defined and echoarea %}/echomail/{{ echoarea|split('@')|first }}{% else %}/{{ type }}{% endif %}" class="btn btn-outline-secondary">
+    <a href="{% if type == 'echomail' and echoarea is defined and echoarea %}/echomail/{{ echoarea }}{% else %}/{{ type }}{% endif %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i>
         {{ t('ui.compose.back_to_prefix', {}, locale, ['common']) }} {{ type|title }}
     </a>
@@ -1389,8 +1389,7 @@ function sendMessage() {
                     let returnUrl = `/${messageType}`;
                     if (messageType === 'echomail') {
                         const areaVal = $('#echoarea').val() || '';
-                        const areaTag = areaVal.split('@')[0];
-                        if (areaTag) returnUrl = `/echomail/${encodeURIComponent(areaTag)}`;
+                        if (areaVal) returnUrl = `/echomail/${encodeURIComponent(areaVal)}`;
                     }
                     window.location.href = returnUrl;
                 }, 2000);
