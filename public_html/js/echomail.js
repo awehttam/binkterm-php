@@ -1339,7 +1339,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; border-bottom: 1px dashed var(--text-color);">${escapeHtml(message.from_name)}</span>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer; text-decoration:underline;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">

@@ -153,11 +153,17 @@
                         <div class="form-text mb-0" id="messageTextHint">
                             {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
                         </div>
-                        <button type="button" id="insertFileBtn"
-                                class="btn btn-sm btn-outline-secondary"
-                                title="{{ t('ui.compose.insert_file', {}, locale, ['common']) }}">
-                            <i class="fa fa-file-import"></i> {{ t('ui.compose.insert_file', {}, locale, ['common']) }}
-                        </button>
+                        <div class="d-flex gap-1">
+                            <button type="button" id="insertFileBtn"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    title="{{ t('ui.compose.insert_file', {}, locale, ['common']) }}">
+                                <i class="fa fa-file-import"></i> {{ t('ui.compose.insert_file', {}, locale, ['common']) }}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="advancedOptionsToggle"
+                                    data-bs-toggle="collapse" data-bs-target="#advancedOptionsPanel" aria-expanded="false" aria-controls="advancedOptionsPanel">
+                                <i class="fas fa-sliders-h me-1"></i>{{ t('ui.compose.advanced_options', {}, locale, ['common']) }}
+                            </button>
+                        </div>
                     </div>
                     <div class="form-text" id="scHint" style="display: none;">{{ t('ui.compose.stylecodes.active_prefix', {}, locale, ['common']) }} <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
@@ -209,24 +215,28 @@
                     <div class="form-text"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 128" style="width:1.25em;height:0.75em;vertical-align:-0.125em" class="me-1" aria-hidden="true" fill="currentColor"><rect width="208" height="128" rx="16" fill="none" stroke="currentColor" stroke-width="10"/><path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"/></svg>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label" for="charsetSelect">{{ t('ui.compose.charset', {}, locale, ['common']) }}</label>
-                    <select class="form-select" id="charsetSelect" name="charset">
-                        {% for cs in supported_charsets %}
-                        <option value="{{ cs.value }}">{{ cs.label }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text">{{ t('ui.compose.charset_help', {}, locale, ['common']) }}</div>
-                </div>
+                <div class="collapse mb-3" id="advancedOptionsPanel">
+                    <div class="card card-body bg-light py-3">
+                        <div class="mb-3">
+                            <label class="form-label" for="charsetSelect">{{ t('ui.compose.charset', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="charsetSelect" name="charset">
+                                {% for cs in supported_charsets %}
+                                <option value="{{ cs.value }}">{{ cs.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{{ t('ui.compose.charset_help', {}, locale, ['common']) }}</div>
+                        </div>
 
-                <div class="mb-3" id="markdownSection" style="display: none;">
-                    <label class="form-label" for="markupType">{{ t('ui.compose.markup_format', {}, locale, ['common']) }}</label>
-                    <select class="form-select" id="markupType" name="markup_type">
-                        <option value="">{{ t('ui.compose.plain_text', {}, locale, ['common']) }}</option>
-                        <option value="markdown">{{ t('ui.compose.markdown_label', {}, locale, ['common']) }}</option>
-                        <option value="stylecodes">{{ t('ui.compose.stylecodes_label', {}, locale, ['common']) }}</option>
-                    </select>
-                    <div class="form-text">{{ t('ui.compose.markup_format_help', {}, locale, ['common']) }}</div>
+                        <div class="mb-0" id="markdownSection" style="display: none;">
+                            <label class="form-label" for="markupType">{{ t('ui.compose.markup_format', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="markupType" name="markup_type">
+                                <option value="">{{ t('ui.compose.plain_text', {}, locale, ['common']) }}</option>
+                                <option value="markdown">{{ t('ui.compose.markdown_label', {}, locale, ['common']) }}</option>
+                                <option value="stylecodes">{{ t('ui.compose.stylecodes_label', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.compose.markup_format_help', {}, locale, ['common']) }}</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mb-3">
@@ -1260,6 +1270,19 @@ $(document).ready(function() {
             if (mdEditorActive) destroyMarkdownEditor();
             if (scToolbarActive) destroyStyleCodesToolbar();
         }
+    });
+
+    // Advanced Options panel — restore and persist open/closed state
+    loadUserSettings().then(function(settings) {
+        if (settings.compose_advanced_open) {
+            $('#advancedOptionsPanel').addClass('show');
+            $('#advancedOptionsToggle').attr('aria-expanded', 'true');
+        }
+    });
+    $('#advancedOptionsPanel').on('shown.bs.collapse', function() {
+        saveUserSetting('compose_advanced_open', true);
+    }).on('hidden.bs.collapse', function() {
+        saveUserSetting('compose_advanced_open', false);
     });
 
     // Address validation for netmail

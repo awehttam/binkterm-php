@@ -3120,6 +3120,7 @@ return [
     'ui.compose.system' => 'System',
     'ui.compose.address' => 'Address',
     'ui.compose.tagline_help' => 'Select a sysop-provided tagline to append below your signature.',
+    'ui.compose.advanced_options' => 'Advanced Options',
     'ui.compose.save_draft' => 'Save Draft',
     'ui.compose.templates.button' => 'Templates',
     'ui.compose.templates.loading' => 'Loading...',

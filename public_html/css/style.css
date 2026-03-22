@@ -409,7 +409,7 @@ a.file-preview-link:hover {
     word-wrap: break-word;
     color: var(--kludge-text);
     background-color: var(--kludge-bg);
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 .message-headers {
@@ -521,7 +521,7 @@ a.file-preview-link:hover {
 /* Mobile-friendly message formatting */
 .message-formatted {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    line-height: 1.6;
+    line-height: 1.2;
     word-wrap: break-word;
     overflow-wrap: break-word;
 }
@@ -632,7 +632,7 @@ a.file-preview-link:hover {
 @media (max-width: 768px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.5;
+        line-height: 1.2;
     }
     
     .message-paragraph {
@@ -663,7 +663,7 @@ a.file-preview-link:hover {
 @media (max-width: 576px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.4;
+        line-height: 1.2;
     }
     
     .message-preformatted {

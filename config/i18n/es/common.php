@@ -3128,6 +3128,7 @@ return [
     'ui.compose.system' => 'Sistema',
     'ui.compose.address' => 'Direccion',
     'ui.compose.tagline_help' => 'Seleccione un tagline del sysop para agregar debajo de su firma.',
+    'ui.compose.advanced_options' => 'Opciones avanzadas',
     'ui.compose.save_draft' => 'Guardar borrador',
     'ui.compose.templates.button' => 'Plantillas',
     'ui.compose.templates.loading' => 'Cargando...',

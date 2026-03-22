@@ -675,7 +675,7 @@ a:hover {
     word-wrap: break-word;
     color: var(--cyber-cyan);
     background-color: var(--cyber-dark);
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 .message-headers {
@@ -759,7 +759,7 @@ a:hover {
 /* Mobile-friendly message formatting */
 .message-formatted {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    line-height: 1.6;
+    line-height: 1.2;
     word-wrap: break-word;
     overflow-wrap: break-word;
     color: var(--text-color);
@@ -833,7 +833,7 @@ a:hover {
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
     font-size: 0.875rem;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -849,7 +849,7 @@ a:hover {
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -860,7 +860,7 @@ a:hover {
 @media (max-width: 768px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.5;
+        line-height: 1.2;
     }
 
     .message-paragraph {
@@ -889,7 +889,7 @@ a:hover {
 @media (max-width: 576px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.4;
+        line-height: 1.2;
     }
 
     .message-preformatted {

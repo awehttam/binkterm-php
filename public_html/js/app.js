@@ -114,14 +114,8 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     const hasColorCodes = hasAnsi || hasPipes;
 
     const lines = messageText.split(/\r?\n/);
-    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
-    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
 
-    // Check for ASCII art: require at least 5 leading spaces and multiple lines with this pattern
-    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
-    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
-
-    const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30));
+    const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || hasColorCodes);
     const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : ' style="white-space: pre-wrap;"';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
@@ -538,17 +532,11 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
     const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
     const hasColorCodes = hasAnsi || hasPipes;
-    const lines = text.split(/\r?\n/);
-    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
-    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
-    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
-    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
     const explicitBinaryArtMode = ['ansi', 'amiga_ansi'].includes(requestedFormat);
     const shouldRenderAnsiArt = !forcePlainText && (
         explicitBinaryArtMode ||
         hasCursorAnsi ||
-        (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) ||
-        (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30)
+        hasColorCodes
     );
 
     if (shouldRenderAnsiArt) {

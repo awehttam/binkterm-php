@@ -2561,6 +2561,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.compose.system' => 'Système',
     'ui.compose.address' => 'Adresse',
     'ui.compose.tagline_help' => 'Sélectionnez une accroche fournie par le sysop à ajouter sous votre signature.',
+    'ui.compose.advanced_options' => 'Options avancées',
     'ui.compose.save_draft' => 'Enregistrer le brouillon',
     'ui.compose.send_prefix' => 'Envoyer',
     'ui.compose.sending' => 'Envoi en cours...',

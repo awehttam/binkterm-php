@@ -59,6 +59,10 @@
   - [Art Format Field Now Forces ANSI Renderer](#art-format-field-now-forces-ansi-renderer)
   - [Message Body Preserves Multiple Spaces](#message-body-preserves-multiple-spaces)
   - [PETSCII Removed from Message Viewer](#petscii-removed-from-message-viewer)
+  - [ANSI Auto-Detection Simplified](#ansi-auto-detection-simplified)
+  - [Message Body Line Spacing Tightened](#message-body-line-spacing-tightened)
+  - [Echomail Reader From Line Style](#echomail-reader-from-line-style)
+  - [Compose Advanced Options Panel](#compose-advanced-options-panel)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -88,6 +92,10 @@
 - Setting a message's Art Format to `ansi` now correctly forces ANSI rendering regardless of heuristic detection. Previously only `amiga_ansi` and `petscii` were treated as explicit overrides.
 - PETSCII has been removed as an Art Format option from the echomail, netmail, and echo area edit dialogs, and from the message viewer render mode cycle. PETSCII is a binary format that cannot survive FTN text transport. The PETSCII renderer in `ansisys.js` is retained for file area previews of `.prg` and `.seq` files.
 - The message body renderer now preserves multiple consecutive spaces and tabs (`white-space: pre-wrap`), fixing space-aligned tables and ASCII art that were being collapsed to single spaces by the browser.
+- ANSI art auto-detection now triggers only on actual ANSI escape sequences or pipe colour codes. The previous leading-space and line-length heuristics have been removed; space-aligned ASCII art is now handled correctly by the `white-space: pre-wrap` rendering.
+- Message body line spacing has been reduced from `1.6` to `1.2` across all themes, matching the tighter line cadence of BBS-style messages.
+- The **From** field in the echomail message reader now uses a solid underline (matching a hyperlink) instead of a dashed underline.
+- The compose form's Encoding and Markup Format selectors have been moved into a collapsible **Advanced Options** panel below the message textarea, keeping the default compose view clean. The panel's open/closed state is saved per-user and persists across sessions.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -761,6 +769,51 @@ will continue to display (falling back to the auto renderer). The PETSCII
 decoder (`ArtPetsciiDecoder`, `renderPetsciiBuffer`) remains in `ansisys.js`
 and is still used by the file area file previewer for `.prg` and `.seq`
 downloads, where PETSCII format is detected purely by file extension.
+
+### ANSI Auto-Detection Simplified
+
+The ANSI art auto-detection heuristics in the message viewer have been
+simplified. Previously the renderer triggered on:
+
+- Actual ANSI escape sequences (cursor codes, SGR colour codes, pipe codes)
+- Messages with many lines that start with 5 or more leading spaces
+- Messages with long lines and dense colour codes
+
+The leading-space and line-length heuristics have been removed. The renderer
+now triggers only on actual ANSI/pipe escape sequences or an explicit
+`art_format` setting. Space-aligned ASCII art and text tables no longer need a
+separate rendering path — they are handled correctly by the `white-space:
+pre-wrap` applied to all plain-text message lines.
+
+### Message Body Line Spacing Tightened
+
+The `line-height` on `.message-formatted` has been reduced from `1.6` to `1.2`
+across all five theme stylesheets (`style.css`, `amber.css`, `dark.css`,
+`greenterm.css`, `cyberpunk.css`). The previous value produced noticeably loose
+line spacing compared to the tight terminal cadence of BBS messages.
+
+### Echomail Reader From Line Style
+
+The **From** sender name in the echomail message reader now uses
+`text-decoration: underline` (matching a hyperlink) instead of the previous
+`border-bottom: 1px dashed` dotted underline, consistent with the style used in
+the echomail message list and the netmail reader.
+
+### Compose Advanced Options Panel
+
+The **Encoding** and **Markup Format** selectors in the echomail and netmail
+compose forms have been moved into a collapsible **Advanced Options** panel.
+The panel is toggled by a button placed next to the **Insert File** button
+below the message textarea.
+
+The panel's open/closed state is saved as a user preference
+(`compose_advanced_open`) and restored on the next visit, so users who
+frequently change these settings can leave it open without having to re-expand
+it each time.
+
+No workflow change is required for users who do not use those selectors — the
+panel is collapsed by default and the selectors continue to work identically
+when the panel is open.
 
 ### Charset Alias Normalization
 

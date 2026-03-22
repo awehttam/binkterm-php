@@ -580,7 +580,7 @@ footer.bg-light a {
     word-wrap: break-word;
     color: var(--kludge-text);
     background-color: var(--kludge-bg);
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 .message-headers {
@@ -659,7 +659,7 @@ footer.bg-light a {
 /* Mobile-friendly message formatting */
 .message-formatted {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    line-height: 1.6;
+    line-height: 1.2;
     word-wrap: break-word;
     overflow-wrap: break-word;
     color: var(--text-color);
@@ -733,7 +733,7 @@ footer.bg-light a {
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
     font-size: 0.875rem;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -749,7 +749,7 @@ footer.bg-light a {
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -760,7 +760,7 @@ footer.bg-light a {
 @media (max-width: 768px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.5;
+        line-height: 1.2;
     }
 
     .message-paragraph {
@@ -791,7 +791,7 @@ footer.bg-light a {
 @media (max-width: 576px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.4;
+        line-height: 1.2;
     }
 
     .message-preformatted {
