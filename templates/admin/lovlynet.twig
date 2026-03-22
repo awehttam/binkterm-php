@@ -521,6 +521,31 @@ function renderChecklist(items) {
             return;
         }
 
+        if (item.id === 'binkp_auth_test') {
+            const ok = item.ok;
+            const daemonErr = !!item.daemon_error;
+            const iconClass = daemonErr ? 'fa-circle-question text-warning' : (ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger');
+            const label = uiT('ui.admin.lovlynet.checklist_binkp_auth_test', 'BinkP authentication to LovlyNet hub');
+            let statusMsg;
+            if (daemonErr) {
+                statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_daemon_error', 'Cannot check — admin daemon is not running');
+            } else if (ok) {
+                statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_ok', 'Authenticated successfully ({method})', { method: item.auth_method || '?' });
+            } else {
+                statusMsg = uiT('ui.admin.lovlynet.checklist_binkp_auth_test_failed', 'Authentication failed: {error}', { error: item.error || '' });
+            }
+            const statusClass = daemonErr ? 'text-warning' : (ok ? 'text-success' : 'text-danger');
+
+            html += '<li class="list-group-item">';
+            html += '<div class="d-flex align-items-start gap-2">';
+            html += `<i class="fas ${escapeHtmlAttr(iconClass)} mt-1 flex-shrink-0"></i>`;
+            html += '<div>';
+            html += `<strong>${escapeHtml(label)}</strong>`;
+            html += `<div class="small mt-1 ${statusClass}">${escapeHtml(statusMsg)}</div>`;
+            html += '</div></div></li>';
+            return;
+        }
+
         if (item.id === 'default_areas') {
             const ok = item.ok && !item.fetch_error;
             const iconClass = ok ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger';

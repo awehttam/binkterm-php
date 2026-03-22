@@ -5492,6 +5492,29 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
         // leave as false
     }
 
+    // Perform a binkp authentication test: connect to the LovlyNet hub and authenticate.
+    // sendCommand() returns $response['result'] directly on success and throws
+    // RuntimeException on failure. Connection failures begin with "Failed to connect
+    // to admin daemon"; binkp errors begin with "Admin daemon error: ".
+    $binkpAuthOk      = false;
+    $binkpAuthError   = null;
+    $binkpAuthMethod  = null;
+    $binkpDaemonError = false;
+    try {
+        $daemonClient2   = new \BinktermPHP\Admin\AdminDaemonClient();
+        $binkpAuthResult = $daemonClient2->binkpAuthTest('lovlynet');
+        $binkpAuthOk     = true;
+        $binkpAuthMethod = $binkpAuthResult['auth_method'] ?? null;
+    } catch (\RuntimeException $e) {
+        $msg = $e->getMessage();
+        if (str_starts_with($msg, 'Failed to connect to admin daemon')) {
+            $binkpDaemonError = true;
+        } else {
+            // Strip "Admin daemon error: " prefix to surface the real message
+            $binkpAuthError = (string)preg_replace('/^Admin daemon error:\s*/', '', $msg);
+        }
+    }
+
     echo json_encode([
         'success' => true,
         'items' => [
@@ -5502,6 +5525,13 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
             [
                 'id' => 'uplink_configured',
                 'ok' => $uplinkConfigured,
+            ],
+            [
+                'id'           => 'binkp_auth_test',
+                'ok'           => $binkpAuthOk,
+                'auth_method'  => $binkpAuthMethod,
+                'error'        => $binkpAuthError,
+                'daemon_error' => $binkpDaemonError,
             ],
             [
                 'id'              => 'nodelist_rule',

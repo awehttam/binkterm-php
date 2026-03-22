@@ -260,6 +260,37 @@ class AdminDaemonServer
                     $this->logger->info("Spawned background binkp_poll for {$upstream}");
                     $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
+                case 'binkp_auth_test':
+                    $domain = $data['domain'] ?? null;
+                    if (!$domain) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_domain']);
+                        break;
+                    }
+                    try {
+                        $binkpConfig = BinkpConfig::getInstance();
+                        $uplink = $binkpConfig->getUplinkByDomain($domain);
+                        if (!$uplink) {
+                            $this->writeResponse($client, ['ok' => false, 'error' => "No uplink configured for domain: {$domain}"]);
+                            break;
+                        }
+                        $address = $uplink['address'] ?? null;
+                        if (!$address) {
+                            $this->writeResponse($client, ['ok' => false, 'error' => 'Uplink has no address configured']);
+                            break;
+                        }
+                        $binkpClient = new \BinktermPHP\Binkp\Protocol\BinkpClient($binkpConfig);
+                        $result = $binkpClient->connect($address);
+                        $this->writeResponse($client, [
+                            'ok'     => true,
+                            'result' => [
+                                'auth_method'      => $result['auth_method'] ?? null,
+                                'remote_address'   => $result['remote_address'] ?? null,
+                            ],
+                        ]);
+                    } catch (\Exception $e) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => $e->getMessage()]);
+                    }
+                    break;
                 case 'get_bbs_config':
                     BbsConfig::reload();
                     $this->writeResponse($client, ['ok' => true, 'result' => BbsConfig::getConfig()]);
