@@ -1919,7 +1919,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         unset($echoarea);
 
         // Annotate each echoarea with the interest IDs it belongs to (when feature is enabled).
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
             $im  = new \BinktermPHP\InterestManager();
             $map = $im->getEchoareaInterestMap();
             foreach ($echoareas as &$echoarea) {
@@ -9605,7 +9605,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
      */
     SimpleRouter::get('/', function() {
         header('Content-Type: application/json');
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             echo json_encode(['error' => 'Not found']);
             return;
@@ -9633,7 +9633,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
     SimpleRouter::post('/{id}/subscribe', function($id) {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             echo json_encode(['error' => 'Not found']);
             return;
@@ -9668,7 +9668,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
     SimpleRouter::post('/{id}/unsubscribe', function($id) {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             echo json_encode(['error' => 'Not found']);
             return;
@@ -9705,7 +9705,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
      */
     SimpleRouter::get('/{id}/echoareas', function($id) {
         header('Content-Type: application/json');
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             echo json_encode(['error' => 'Not found']);
             return;
@@ -9741,7 +9741,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
-        if (!\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+        if (!\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
             http_response_code(404);
             apiError('errors.interests.feature_disabled', 'Interests feature is not enabled.');
             return;

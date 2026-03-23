@@ -415,7 +415,6 @@ function displayMobileEchoareas(echoareas) {
 }
 
 function displayMobileInterests(interests) {
-    const container = $('#mobileInterestsList');
     let html = '';
 
     if (interests && interests.length > 0) {
@@ -442,13 +441,16 @@ function displayMobileInterests(interests) {
         html = `<div class="text-center text-muted p-3">${uiT('ui.interests.no_interests', 'No interests available')}</div>`;
     }
 
-    container.html(html);
-
-    // Attach click handlers via event delegation (avoids inline onclick with encoded data)
-    container.off('click', '.list-group-item-action').on('click', '.list-group-item-action', function() {
-        const id   = parseInt($(this).data('interest-id'), 10);
-        const name = decodeURIComponent($(this).data('interest-name') || '');
-        selectInterest(id, name);
+    // Populate both mobile and desktop containers
+    ['#mobileInterestsList', '#desktopInterestsList'].forEach(function(selector) {
+        const c = $(selector);
+        if (c.length === 0) return;
+        c.html(html);
+        c.off('click', '.list-group-item-action').on('click', '.list-group-item-action', function() {
+            const id   = parseInt($(this).data('interest-id'), 10);
+            const name = decodeURIComponent($(this).data('interest-name') || '');
+            selectInterest(id, name);
+        });
     });
 }
 
@@ -467,10 +469,10 @@ function selectInterest(id, name) {
     // Collapse mobile accordion after selection
     $('#echoAreasCollapse').collapse('hide');
 
-    // Update active state in interest list and clear area list selection
-    $('#mobileInterestsList .list-group-item-action').removeClass('active');
-    $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
-    $('#mobileEchoareasList .list-group-item-action').removeClass('active');
+    // Update active state in interest lists (mobile + desktop) and clear area list selection
+    $('#mobileInterestsList .list-group-item-action, #desktopInterestsList .list-group-item-action').removeClass('active');
+    $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"], #desktopInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
+    $('#mobileEchoareasList .list-group-item-action, #echoareasList .list-group-item-action').removeClass('active');
 
     loadMessages();
 }

@@ -364,7 +364,7 @@ SimpleRouter::get('/echomail', function() {
     $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
 
     $hasInterests = false;
-    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
         $im = new \BinktermPHP\InterestManager();
         $hasInterests = count($im->getInterests(true)) > 0;
     }
@@ -392,7 +392,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
 
     $hasInterests = false;
-    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
         $im = new \BinktermPHP\InterestManager();
         $hasInterests = count($im->getInterests(true)) > 0;
     }
@@ -1453,7 +1453,7 @@ SimpleRouter::get('/about', function() {
 SimpleRouter::get('/interests', function() {
     $user = RouteHelper::requireAuth();
 
-    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
         http_response_code(404);
         $template = new Template();
         $template->renderResponse('404.twig');

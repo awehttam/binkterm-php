@@ -5836,7 +5836,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     SimpleRouter::get('/interests', function() {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5857,7 +5857,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** List all interests (including inactive). */
     SimpleRouter::get('/interests', function() {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5868,7 +5868,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** Get a single interest with its area lists. */
     SimpleRouter::get('/interests/{id}', function($id) {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5884,7 +5884,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** Create a new interest. */
     SimpleRouter::post('/interests', function() {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5912,7 +5912,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** Update an interest's metadata. */
     SimpleRouter::put('/interests/{id}', function($id) {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5940,7 +5940,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** Delete an interest. */
     SimpleRouter::delete('/interests/{id}', function($id) {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5955,7 +5955,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** Set echo areas for an interest (replaces current list). */
     SimpleRouter::post('/interests/{id}/echoareas', function($id) {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5973,7 +5973,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
     /** Set file areas for an interest (replaces current list). */
     SimpleRouter::post('/interests/{id}/fileareas', function($id) {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }
@@ -5994,7 +5994,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
      */
     SimpleRouter::post('/interests/generate', function() {
         RouteHelper::requireAdmin();
-        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
             http_response_code(404);
             return;
         }

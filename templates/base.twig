@@ -351,7 +351,7 @@
                                 <li><a class="dropdown-item" href="/profile">{{ t('ui.base.profile', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/settings">{{ t('ui.base.settings', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.subscriptions', {}, 'common') }}</a></li>
-                                {% if interests_enabled %}
+                                {% if interests_enabled and has_active_interests %}
                                 <li><a class="dropdown-item" href="/interests"><i class="fas fa-layer-group"></i> {{ t('ui.interests.nav_label', {}, 'common') }}</a></li>
                                 {% endif %}
                                 <li><hr class="dropdown-divider"></li>

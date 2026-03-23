@@ -156,7 +156,7 @@ class SubscriptionController
 
         $interests = [];
         $echoareaInterestMap = [];
-        if (Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+        if (Config::env('ENABLE_INTERESTS', 'true') === 'true') {
             $im = new InterestManager();
             $interests = $im->getInterests(true);
             $echoareaInterestMap = $im->getEchoareaInterestMap();
