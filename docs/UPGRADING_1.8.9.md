@@ -45,6 +45,8 @@
 - The Activity Statistics admin page (`/admin/activity-stats`) includes a new **Popular Interests** tab showing active interests ranked by subscriber count.
 - Controlled by `ENABLE_INTERESTS` in `.env`; defaults to `true`.
 - New documentation: `docs/Interests.md`.
+- First-time users visiting `/echomail` with no interest subscriptions are now redirected to `/echo-onboarding` (a new onboarding guide page) instead of directly to `/interests`. The guide explains what echomail is, how the network works, and how to get started, then offers a "Next: Select Interests" button and a skip link.
+- Users can reset the onboarding flag from the Settings page to revisit the guide.
 - The Area List tab in the echomail reader sidebar (desktop) and mobile accordion now includes an interest filter dropdown above the search box. Selecting an interest narrows the area list to only the echo areas belonging to that interest. The first option, "All Subscribed Areas", restores the full unfiltered list. The dropdown is only shown when interests are enabled and at least one active interest exists.
 
 **Echomail & Netmail**

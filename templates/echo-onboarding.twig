@@ -1,0 +1,82 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.echo_onboarding.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+
+        <div class="text-center mb-5">
+            <div class="mb-3">
+                <i class="fas fa-comments fa-4x text-primary"></i>
+            </div>
+            <h1 class="h2">{{ t('ui.echo_onboarding.heading', {}, locale, ['common']) }}</h1>
+            <p class="lead text-muted">{{ t('ui.echo_onboarding.intro', {}, locale, ['common']) }}</p>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="fas fa-network-wired fa-2x text-primary"></i>
+                        </div>
+                        <h5 class="card-title">{{ t('ui.echo_onboarding.what_is.title', {}, locale, ['common']) }}</h5>
+                        <p class="card-text text-muted small">{{ t('ui.echo_onboarding.what_is.body', {}, locale, ['common']) }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="fas fa-exchange-alt fa-2x text-success"></i>
+                        </div>
+                        <h5 class="card-title">{{ t('ui.echo_onboarding.how_it_works.title', {}, locale, ['common']) }}</h5>
+                        <p class="card-text text-muted small">{{ t('ui.echo_onboarding.how_it_works.body', {}, locale, ['common']) }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="fas fa-layer-group fa-2x text-warning"></i>
+                        </div>
+                        <h5 class="card-title">{{ t('ui.echo_onboarding.getting_started.title', {}, locale, ['common']) }}</h5>
+                        <p class="card-text text-muted small">{{ t('ui.echo_onboarding.getting_started.body', {}, locale, ['common']) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-5">
+            <div class="card-body p-4">
+                <h5 class="mb-3"><i class="fas fa-info-circle me-2 text-primary"></i>{{ t('ui.echo_onboarding.tips.title', {}, locale, ['common']) }}</h5>
+                <ul class="mb-0">
+                    <li class="mb-2">{{ t('ui.echo_onboarding.tips.tip_areas', {}, locale, ['common']) }}</li>
+                    {% if network_count > 1 %}
+                    <li class="mb-2">{{ t('ui.echo_onboarding.tips.tip_multi_network', {}, locale, ['common']) }}</li>
+                    {% endif %}
+                    <li class="mb-2">{{ t('ui.echo_onboarding.tips.tip_network', {}, locale, ['common']) }}</li>
+                    <li class="mb-2">{{ t('ui.echo_onboarding.tips.tip_posting', {}, locale, ['common']) }}</li>
+                    <li>{{ t('ui.echo_onboarding.tips.tip_interests', {}, locale, ['common']) }}</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
+            {% if interests_enabled %}
+            <a href="/interests" class="btn btn-primary btn-lg">
+                {{ t('ui.echo_onboarding.next_button', {}, locale, ['common']) }}
+                <i class="fas fa-arrow-right ms-2"></i>
+            </a>
+            {% endif %}
+            <a href="{{ skip_url }}" class="btn btn-outline-secondary btn-lg">
+                {{ t('ui.echo_onboarding.skip_button', {}, locale, ['common']) }}
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

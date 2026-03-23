@@ -8088,6 +8088,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Reset echomail onboarding flag so the user is sent through the guide again
+    SimpleRouter::post('/user/reset-onboarding', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'interests_onboarded', null);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to reset onboarding'), 500);
+        }
+    });
+
     // Terminal settings API endpoints
     SimpleRouter::get('/user/terminal-settings', function() {
         $user = RouteHelper::requireAuth();

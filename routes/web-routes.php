@@ -369,17 +369,14 @@ SimpleRouter::get('/echomail', function() {
         $activeInterests = $im->getInterests(true);
         $hasInterests = count($activeInterests) > 0;
 
-        // First-visit onboarding: if the user has never been redirected to the
-        // interests picker and has no interest subscriptions, send them there now.
+        // First-visit onboarding: redirect to the guide the first time a user
+        // visits echomail, regardless of their subscription state.
         if ($hasInterests && !$echoarea) {
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
             $meta = new \BinktermPHP\UserMeta();
             if (!$meta->getValue($userId, 'interests_onboarded')) {
                 $meta->setValue($userId, 'interests_onboarded', '1');
-                $subscribedIds = $im->getUserSubscribedInterestIds($userId);
-                if (empty($subscribedIds)) {
-                    return SimpleRouter::response()->redirect('/interests');
-                }
+                return SimpleRouter::response()->redirect('/echo-onboarding?from=echomail');
             }
         }
     }
@@ -954,6 +951,19 @@ SimpleRouter::post('/echoareas/import', function() {
 SimpleRouter::get('/echolist', function() {
     $user = RouteHelper::requireAuth();
 
+    // First-visit onboarding: same guard as /echomail
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        if (count($im->getInterests(true)) > 0) {
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta = new \BinktermPHP\UserMeta();
+            if (!$meta->getValue($userId, 'interests_onboarded')) {
+                $meta->setValue($userId, 'interests_onboarded', '1');
+                return SimpleRouter::response()->redirect('/echo-onboarding?from=echolist');
+            }
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('echolist.twig');
 });
@@ -1496,6 +1506,37 @@ SimpleRouter::get('/about', function() {
 
     $template = new Template();
     $template->renderResponse('about.twig');
+});
+
+// Echomail onboarding guide
+SimpleRouter::get('/echo-onboarding', function() {
+    RouteHelper::requireAuth();
+    $from = $_GET['from'] ?? 'echomail';
+    // Only allow known destinations
+    $skipUrl = $from === 'echolist' ? '/echolist' : '/echomail';
+
+    // Count distinct domains across enabled uplinks so the template can
+    // provide multi-network context when more than one network is connected.
+    $networkCount = 0;
+    try {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $domains = [];
+        foreach ($binkpConfig->getEnabledUplinks() as $uplink) {
+            $domain = trim((string)($uplink['domain'] ?? ''));
+            if ($domain !== '') {
+                $domains[$domain] = true;
+            }
+        }
+        $networkCount = count($domains);
+    } catch (\Throwable $e) {
+        // Config unavailable — leave count at 0; template falls back gracefully
+    }
+
+    $template = new Template();
+    $template->renderResponse('echo-onboarding.twig', [
+        'skip_url'      => $skipUrl,
+        'network_count' => $networkCount,
+    ]);
 });
 
 // Interests page
