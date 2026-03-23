@@ -2569,7 +2569,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         if ($userId) {
-            ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+            $areaName = $area['tag'] ?? $area['name'] ?? null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId, $areaName);
         }
 
         echo json_encode([
@@ -5844,6 +5845,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Support both new markup_type and legacy send_markdown for backwards compatibility
         $markupType = $input['markup_type'] ?? (empty($input['send_markdown']) ? null : 'markdown');
 
+        // Validate and sanitise the user-supplied charset. Only allow known safe values.
+        $allowedCharsets = ['UTF-8', 'CP437', 'CP850', 'CP852', 'CP866', 'ISO-8859-1', 'ISO-8859-2', 'ISO-8859-5', 'WINDOWS-1250', 'WINDOWS-1251', 'WINDOWS-1252', 'KOI8-R', 'KOI8-U'];
+        $requestedCharset = strtoupper(trim((string)($input['charset'] ?? '')));
+        $charset = in_array($requestedCharset, $allowedCharsets, true) ? $requestedCharset : null;
+
+        // Enforce 16 KB FidoNet message body limit.
+        // Check against the UTF-8 byte length of the input; single-byte charset
+        // output will always be ≤ this (iconv drops unmappable characters).
+        $messageText = (string)($input['message_text'] ?? '');
+        if (strlen($messageText) > 16384) {
+            apiError('errors.messages.body_too_large',
+                apiLocalizedText('errors.messages.body_too_large', 'Message body exceeds the 16 KB FidoNet limit', $user),
+                400);
+        }
+
         $handler = new MessageHandler();
 
         try {
@@ -5881,7 +5897,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['tagline'] ?? null,
                     $attachment,
                     $markupType,
-                    $isFreq
+                    $isFreq,
+                    $charset
                 );
             } elseif ($type === 'echomail') {
                 $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);
@@ -5901,7 +5918,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'],
                     $input['tagline'] ?? null,
                     false,
-                    $markupType
+                    $markupType,
+                    '',
+                    null,
+                    $charset
                 );
 
                 // Handle cross-posting to additional areas
@@ -6684,9 +6704,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echomailCount = 0;
         }
 
+        // File transfer counts from activity log (type 6 = download, 7 = upload)
+        $fileStmt = $db->prepare("
+            SELECT activity_type_id, COUNT(*) AS count
+            FROM user_activity_log
+            WHERE user_id = ? AND activity_type_id IN (6, 7)
+            GROUP BY activity_type_id
+        ");
+        $fileStmt->execute([$user['user_id']]);
+        $fileCounts = [6 => 0, 7 => 0];
+        foreach ($fileStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $fileCounts[(int)$row['activity_type_id']] = (int)$row['count'];
+        }
+
         echo json_encode([
-            'netmail_count' => (int)$netmailCount,
-            'echomail_count' => (int)$echomailCount
+            'netmail_count'    => (int)$netmailCount,
+            'echomail_count'   => (int)$echomailCount,
+            'files_downloaded' => $fileCounts[6],
+            'files_uploaded'   => $fileCounts[7],
         ]);
     });
 
@@ -6733,9 +6768,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echomailCount = $echomailStmt->fetch()['count'];
         }
 
+        // File transfer counts from activity log (type 6 = download, 7 = upload)
+        $fileStmt = $db->prepare("
+            SELECT activity_type_id, COUNT(*) AS count
+            FROM user_activity_log
+            WHERE user_id = ? AND activity_type_id IN (6, 7)
+            GROUP BY activity_type_id
+        ");
+        $fileStmt->execute([$userId]);
+        $fileCounts = [6 => 0, 7 => 0];
+        foreach ($fileStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $fileCounts[(int)$row['activity_type_id']] = (int)$row['count'];
+        }
+
         echo json_encode([
-            'netmail_count' => (int)$netmailCount,
-            'echomail_count' => (int)$echomailCount
+            'netmail_count'    => (int)$netmailCount,
+            'echomail_count'   => (int)$echomailCount,
+            'files_downloaded' => $fileCounts[6],
+            'files_uploaded'   => $fileCounts[7],
         ]);
     });
 
@@ -6791,6 +6841,76 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (\Exception $e) {
             http_response_code(500);
             apiError('errors.user.transactions.list_failed', apiLocalizedText('errors.user.transactions.list_failed', 'Failed to load transactions', $user));
+        }
+    });
+
+    SimpleRouter::get('/user/activity/{userId}', function($userId) {
+        $user = RouteHelper::requireAuth();
+
+        // Only admins can view the activity log
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            apiError('errors.user.activity.admin_required', apiLocalizedText('errors.user.activity.admin_required', 'Admin privileges are required', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        // Verify target user exists and is active
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$userId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            apiError('errors.user.activity.user_not_found', apiLocalizedText('errors.user.activity.user_not_found', 'User not found', $user));
+            return;
+        }
+
+        $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+        $limit  = isset($_GET['limit'])  ? max(1, min(100, (int)$_GET['limit'])) : 25;
+
+        try {
+            $stmt = $db->prepare('
+                SELECT
+                    ual.id,
+                    ual.created_at,
+                    ac.name  AS category,
+                    at.label AS activity,
+                    ual.object_name,
+                    ual.meta
+                FROM user_activity_log ual
+                JOIN activity_types      at ON at.id = ual.activity_type_id
+                JOIN activity_categories ac ON ac.id = at.category_id
+                WHERE ual.user_id = ?
+                ORDER BY ual.created_at DESC
+                LIMIT ? OFFSET ?
+            ');
+            $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit,  PDO::PARAM_INT);
+            $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $rows = $stmt->fetchAll();
+
+            // Decode meta JSON so it arrives as an object, not a string
+            foreach ($rows as &$row) {
+                if (isset($row['meta']) && $row['meta'] !== null) {
+                    $row['meta'] = json_decode($row['meta'], true);
+                }
+            }
+            unset($row);
+
+            echo json_encode([
+                'success'  => true,
+                'activity' => $rows,
+                'offset'   => $offset,
+                'limit'    => $limit,
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.user.activity.list_failed', apiLocalizedText('errors.user.activity.list_failed', 'Failed to load activity log', $user));
         }
     });
 
@@ -7779,6 +7899,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['echomail_notification_sound'] = $meta->getValue((int)$userId, 'echomail_notification_sound') ?? 'disabled';
                 $settings['netmail_notification_sound'] = $meta->getValue((int)$userId, 'netmail_notification_sound') ?? 'notify1';
                 $settings['file_notification_sound'] = $meta->getValue((int)$userId, 'file_notification_sound') ?? 'disabled';
+                $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
+                $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
+                $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
             }
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -7851,6 +7974,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $meta->setValue((int)$userId, $key, $soundVal);
                     $metaSettingsUpdated = true;
                 }
+
+                if (isset($settings['compose_advanced_open'])) {
+                    $meta->setValue((int)$userId, 'compose_advanced_open', $settings['compose_advanced_open'] ? 'true' : 'false');
+                    $metaSettingsUpdated = true;
+                }
+
+                if (isset($settings['compose_hard_wrap'])) {
+                    $wrapVal = (int)$settings['compose_hard_wrap'];
+                    if (!in_array($wrapVal, [0, 39, 79], true)) {
+                        $wrapVal = 79;
+                    }
+                    $meta->setValue((int)$userId, 'compose_hard_wrap', (string)$wrapVal);
+                    $metaSettingsUpdated = true;
+                }
             }
 
             unset(
@@ -7858,7 +7995,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['chat_notification_sound'],
                 $settings['echomail_notification_sound'],
                 $settings['netmail_notification_sound'],
-                $settings['file_notification_sound']
+                $settings['file_notification_sound'],
+                $settings['compose_advanced_open'],
+                $settings['compose_hard_wrap']
             );
 
             $handler = new MessageHandler();
@@ -8844,6 +8983,77 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         });
     });
+
+    /**
+     * GET /api/nodelist/node?address=...
+     * Look up a single nodelist entry by exact FTN address.
+     */
+    SimpleRouter::get('/nodelist/node', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $address = trim((string)($_GET['address'] ?? ''));
+        if ($address === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'address required']);
+            return;
+        }
+
+        $nodelistManager = new \BinktermPHP\Nodelist\NodelistManager();
+        $node = $nodelistManager->findNode($address);
+
+        // If point address not found, fall back to the parent node
+        if (!$node && strpos($address, '.') !== false) {
+            $parentAddress = preg_replace('/\.\d+$/', '', $address);
+            $node = $nodelistManager->findNode($parentAddress);
+        }
+
+        if (!$node) {
+            echo json_encode(['success' => true, 'node' => null]);
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'node' => [
+                'address'     => $node['full_address'],
+                'system_name' => $node['system_name'] ?? '',
+                'location'    => $node['location']    ?? '',
+                'domain'      => $node['domain']      ?? '',
+            ],
+        ]);
+    });
+
+    /**
+     * GET /api/nodelist/search?q=...
+     * Search nodelist nodes by system name, sysop name, or location.
+     * Returns up to 10 matches for autocomplete use.
+     */
+    SimpleRouter::get('/nodelist/search', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $q = trim((string)($_GET['q'] ?? ''));
+        if (strlen($q) < 2) {
+            echo json_encode(['success' => true, 'nodes' => []]);
+            return;
+        }
+
+        $nodelistManager = new \BinktermPHP\Nodelist\NodelistManager();
+        $results = $nodelistManager->searchNodes(['search_term' => $q]);
+
+        $nodes = [];
+        foreach (array_slice($results, 0, 10) as $node) {
+            $nodes[] = [
+                'address'     => $node['full_address'],
+                'system_name' => $node['system_name'] ?? '',
+                'location'    => $node['location']     ?? '',
+                'domain'      => $node['domain']       ?? '',
+            ];
+        }
+
+        echo json_encode(['success' => true, 'nodes' => $nodes]);
+    });
 });
 
 
@@ -9252,7 +9462,14 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 ]
             ];
 
-            $confNum = 1;
+            $conferenceNumbers = (new \BinktermPHP\Qwk\QwkConferenceNumberManager())
+                ->getOrCreateConferenceNumbers($areas);
+
+            usort($areas, function(array $a, array $b) use ($conferenceNumbers) {
+                return ($conferenceNumbers[(int)$a['id']] ?? PHP_INT_MAX)
+                    <=> ($conferenceNumbers[(int)$b['id']] ?? PHP_INT_MAX);
+            });
+
             foreach ($areas as $area) {
                 $lastId  = $stateByArea[(int)$area['id']] ?? 0;
                 $emStmt  = $db->prepare("SELECT COUNT(*) AS cnt FROM echomail WHERE echoarea_id = ? AND id > ?");
@@ -9260,12 +9477,11 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 $newCount = (int)$emStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
 
                 $conferences[] = [
-                    'number'       => $confNum,
+                    'number'       => $conferenceNumbers[(int)$area['id']],
                     'name'         => strtoupper($area['tag']) . (!empty($area['domain']) ? '@' . strtoupper($area['domain']) : ''),
                     'is_netmail'   => false,
                     'new_messages' => $newCount,
                 ];
-                $confNum++;
             }
 
             $totalNew = array_sum(array_column($conferences, 'new_messages'));
@@ -9287,6 +9503,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 'format'             => $format,
                 'limit'              => $limit,
                 'hard_cap'           => $hardCap,
+                'is_dev'             => \BinktermPHP\Config::env('IS_DEV') === 'true',
             ]);
         } catch (\Exception $e) {
             error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
@@ -9324,6 +9541,40 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         $meta = new \BinktermPHP\UserMeta();
         $meta->setValue($userId, 'qwk_format', $format);
         echo json_encode(['success' => true, 'format' => $format]);
+    });
+
+    /**
+     * POST /api/qwk/reset
+     *
+     * Dev-only: purge all QWK state for the current user so packets can be
+     * re-downloaded from scratch.  Returns 403 unless IS_DEV=true in .env.
+     */
+    SimpleRouter::post('/reset', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        header('Content-Type: application/json');
+
+        if (\BinktermPHP\Config::env('IS_DEV') !== 'true') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Not available outside dev mode.']);
+            return;
+        }
+
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            $db->prepare("DELETE FROM qwk_conference_state  WHERE user_id = ?")->execute([$userId]);
+            $db->prepare("DELETE FROM qwk_download_log      WHERE user_id = ?")->execute([$userId]);
+            $db->prepare("DELETE FROM qwk_message_index     WHERE user_id = ?")->execute([$userId]);
+            $db->prepare("DELETE FROM qwk_imported_hashes   WHERE user_id = ?")->execute([$userId]);
+
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            error_log('[QWK] reset failed for user ' . $userId . ': ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
     });
 
 

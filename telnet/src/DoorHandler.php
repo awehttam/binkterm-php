@@ -79,6 +79,7 @@ class DoorHandler
             if ($idx >= 0 && $idx < count($doorList)) {
                 $entry = $doorList[$idx];
                 $doorName = $entry['data']['name'] ?? $entry['id'];
+                $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
                 $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
                 return;
             }

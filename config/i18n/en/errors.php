@@ -57,6 +57,7 @@ return [
     'errors.messages.echomail.not_found' => 'Message not found',
     'errors.messages.echomail.edit.admin_required' => 'Admin privileges are required',
     'errors.messages.echomail.edit.invalid_art_format' => 'Invalid art format value',
+    'errors.messages.body_too_large' => 'Message body exceeds the 16 KB FidoNet limit',
     'errors.messages.echomail.edit.nothing_to_update' => 'No fields to update',
     'errors.messages.echomail.edit.save_failed' => 'Failed to save changes',
     'errors.messages.echomail.save_ad.admin_required' => 'Admin privileges are required',
@@ -222,6 +223,9 @@ return [
     'errors.user.transactions.admin_required' => 'Admin privileges are required',
     'errors.user.transactions.user_not_found' => 'User not found',
     'errors.user.transactions.list_failed' => 'Failed to load transactions',
+    'errors.user.activity.admin_required' => 'Admin privileges are required',
+    'errors.user.activity.user_not_found' => 'User not found',
+    'errors.user.activity.list_failed' => 'Failed to load activity log',
 
     // Credits
     'errors.credits.feature_disabled' => 'Credits feature is disabled',
@@ -532,6 +536,9 @@ return [
     'errors.admin.lovlynet.filearea_files_failed' => 'Failed to load file area files',
     'errors.admin.lovlynet.invalid_file_id' => 'Invalid file ID',
     'errors.admin.lovlynet.hatch_failed' => 'Failed to hatch file',
+    'errors.admin.lovlynet.not_registered' => 'Not registered with LovlyNet',
+    'errors.admin.lovlynet.registration_update_failed' => 'Registration update failed',
+    'errors.admin.lovlynet.checklist_fix_failed' => 'Failed to apply fix',
 
     // QWK Offline Mail
     'errors.qwk.disabled' => 'QWK offline mail is not enabled on this system',

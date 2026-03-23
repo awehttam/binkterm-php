@@ -11,7 +11,7 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">{{ t('ui.settings.display_preferences', {}, locale, ['common']) }}</h5>
@@ -348,65 +348,6 @@
         <div id="settingsStatus" class="mt-3" style="display: none;"></div>
     </div>
     
-    <div class="col-lg-4">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.settings.system_status', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-7">{{ t('ui.settings.binkp_status', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-5"><span class="badge bg-success">{{ t('ui.settings.online', {}, locale, ['common']) }}</span></dd>
-                    
-                    <dt class="col-7">{{ t('ui.settings.last_poll', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-5"><span id="lastPoll">-</span></dd>
-                    
-                    <dt class="col-7">{{ t('ui.settings.messages_today', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-5"><span id="messagesToday">-</span></dd>
-                </dl>
-            </div>
-        </div>
-        
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.settings.quick_actions', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="/compose/netmail" class="btn btn-outline-primary">
-                        <i class="fas fa-envelope"></i>
-                        {{ t('ui.settings.compose_netmail', {}, locale, ['common']) }}
-                    </a>
-                    <a href="/compose/echomail" class="btn btn-outline-primary">
-                        <i class="fas fa-comments"></i>
-                        {{ t('ui.settings.post_echomail', {}, locale, ['common']) }}
-                    </a>
-                    {#
-                    <button type="button" class="btn btn-outline-secondary" onclick="pollUplinks()">
-                        <i class="fas fa-sync"></i>
-                        Poll Uplinks
-                    </button>
-                    #}
-                </div>
-            </div>
-        </div>
-        
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.settings.help_support', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled mb-0">
-                    {#
-                    <li><a href="#" class="text-decoration-none"><i class="fas fa-book"></i> User Guide</a></li>
-                    <li><a href="#" class="text-decoration-none"><i class="fas fa-question-circle"></i> FAQ</a></li>
-                    #}
-                    <li><a href="https://github.com/awehttam/binkterm-php/issues" class="text-decoration-none"><i class="fas fa-bug"></i> {{ t('ui.base.admin.report_issue', {}, locale, ['common']) }}</a></li>
-                    <li><a href="https://github.com/awehttam/binkterm-php" class="text-decoration-none"><i class="fas fa-info-circle"></i> {{ t('ui.about.title', {}, locale, ['common']) }}</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Active Sessions Modal -->
@@ -441,7 +382,6 @@ function uiT(key, fallback, params = {}) {
 
 $(document).ready(function() {
     loadSettings();
-    loadSystemStatus();
 
     // Apply theme immediately when changed
     $('#theme').on('change', function() {
@@ -525,16 +465,6 @@ function loadSettings() {
         });
 }
 
-function loadSystemStatus() {
-    $.get('/api/system/status')
-        .done(function(data) {
-            $('#lastPoll').text(data.last_poll ? formatDate(data.last_poll) : uiT('ui.settings.never', 'Never'));
-            $('#messagesToday').text(data.messages_today || '0');
-        })
-        .fail(function() {
-            $('#lastPoll, #messagesToday').text('?');
-        });
-}
 
 function saveSettings() {
     // Collect all settings as an object

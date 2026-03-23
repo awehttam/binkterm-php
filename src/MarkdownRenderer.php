@@ -212,6 +212,27 @@ class MarkdownRenderer
             $text
         );
 
+        // Protect bare URLs (not already inside code spans or markdown link tokens).
+        // After htmlspecialchars, & is encoded as &amp; so we match &amp; as a unit
+        // to allow query strings to link correctly.
+        $bareUrls = [];
+        $text = preg_replace_callback(
+            '/\b(https?:\/\/(?:[^\s<>"\'&]|&amp;)+)/',
+            function ($m) use (&$bareUrls) {
+                $url = $m[1];
+                // Strip trailing punctuation that is likely not part of the URL
+                $trailing = '';
+                if (preg_match('/([.,;:!?)]+)$/', $url, $tm)) {
+                    $trailing = $tm[1];
+                    $url = substr($url, 0, -strlen($trailing));
+                }
+                $token = '%%BURL' . count($bareUrls) . '%%';
+                $bareUrls[$token] = '<a href="' . $url . '" target="_blank" rel="noopener noreferrer">' . $url . '</a>';
+                return $token . $trailing;
+            },
+            $text
+        );
+
         // Bold (**...** or __...__)
         $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
         $text = preg_replace('/__(.+?)__/', '<strong>$1</strong>', $text);
@@ -227,6 +248,9 @@ class MarkdownRenderer
 
         if (!empty($codeSpans)) {
             $text = strtr($text, $codeSpans);
+        }
+        if (!empty($bareUrls)) {
+            $text = strtr($text, $bareUrls);
         }
         if (!empty($links)) {
             $text = strtr($text, $links);

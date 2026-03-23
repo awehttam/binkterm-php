@@ -322,6 +322,12 @@ class BinkpClient
 
     private function socketToStream($socket)
     {
+        // Once the session uses fread()/fwrite() on the exported stream, rely on
+        // stream_set_timeout() only. Mixing SO_RCVTIMEO/SO_SNDTIMEO with stream
+        // I/O can produce false handshake timeouts even when a full frame is
+        // already waiting in the socket buffer.
+        $this->clearSocketTimeouts($socket);
+
         $socketResource = socket_export_stream($socket);
         if ($socketResource === false) {
             throw new \Exception('Failed to convert socket to stream');
@@ -335,6 +341,12 @@ class BinkpClient
         stream_set_blocking($socketResource, true);
 
         return $socketResource;
+    }
+
+    private function clearSocketTimeouts($socket): void
+    {
+        @socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 0, 'usec' => 0]);
+        @socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 0, 'usec' => 0]);
     }
 
     private function configureTcpNoDelay($socket): void

@@ -29,6 +29,7 @@ try {
         case 'private_unread': handlePrivateUnread($db, $user); break;
         case 'heartbeat': handleHeartbeat($db, $user);        break;
         case 'poll':     handlePoll($db, $user);              break;
+        case 'longpoll': handleLongPoll($db, $user);         break;
         case 'command':  handleCommand($db, $user);           break;
         case 'users':    handleUsers($db);                  break;
         case 'send':     handleSend($db, $user);            break;
@@ -60,25 +61,56 @@ function handleStatus(PDO $db): void
     ]);
 }
 
-function handleRooms(PDO $db): void
+/**
+ * Query the room list, falling back to the configured default room if the
+ * server returned no rooms (e.g. fresh connection before LIST has arrived).
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function fetchRoomList(PDO $db): array
 {
+    // Count distinct users from both server-reported presence (mrc_users) and
+    // local webdoor sessions (mrc_local_presence) to avoid undercounting.
     $stmt = $db->query("
         SELECT
             r.room_name,
             r.topic,
             r.topic_set_by,
             r.topic_set_at,
-            COUNT(u.id) AS user_count,
-            r.last_activity
+            r.last_activity,
+            (
+                SELECT COUNT(DISTINCT username)
+                FROM (
+                    SELECT username FROM mrc_users WHERE room_name = r.room_name
+                    UNION
+                    SELECT username FROM mrc_local_presence WHERE room_name = r.room_name
+                ) all_users
+            ) AS user_count
         FROM mrc_rooms r
-        LEFT JOIN mrc_users u ON r.room_name = u.room_name
-        GROUP BY r.room_name, r.topic, r.topic_set_by, r.topic_set_at, r.last_activity
         ORDER BY r.room_name
     ");
+    $rooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    if (empty($rooms)) {
+        $defaultRoom = MrcConfig::getInstance()->getDefaultRoom();
+        $rooms = [[
+            'room_name'    => $defaultRoom,
+            'topic'        => null,
+            'topic_set_by' => null,
+            'topic_set_at' => null,
+            'user_count'   => 0,
+            'last_activity' => null,
+        ]];
+    }
+
+    return $rooms;
+}
+
+function handleRooms(PDO $db): void
+{
     \WebDoorSDK\jsonResponse([
         'success' => true,
-        'rooms'   => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        'rooms'   => fetchRoomList($db)
     ]);
 }
 
@@ -347,12 +379,20 @@ function handlePoll(PDO $db, array $user): void
         }
     }
 
-    // Users list for joined room
+    // Users list for joined room — include both server-reported (mrc_users) and
+    // locally-connected (mrc_local_presence) users so that the local user
+    // appears immediately after joining, before the server's USERLIST arrives.
     if ($joinRoom !== '') {
         $joinRoom = MrcClient::sanitizeName($joinRoom);
         $stmt = $db->prepare("
-            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen, is_afk, afk_message
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   COALESCE(is_afk, false) AS is_afk, afk_message
             FROM mrc_users
+            WHERE room_name = :room
+            UNION ALL
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   false AS is_afk, NULL AS afk_message
+            FROM mrc_local_presence
             WHERE room_name = :room
             ORDER BY username
         ");
@@ -364,20 +404,7 @@ function handlePoll(PDO $db, array $user): void
 
     // Rooms list (optional)
     if ($includeRooms) {
-        $stmt = $db->query("
-            SELECT
-                r.room_name,
-                r.topic,
-                r.topic_set_by,
-                r.topic_set_at,
-                COUNT(u.id) AS user_count,
-                r.last_activity
-            FROM mrc_rooms r
-            LEFT JOIN mrc_users u ON r.room_name = u.room_name
-            GROUP BY r.room_name, r.topic, r.topic_set_by, r.topic_set_at, r.last_activity
-            ORDER BY r.room_name
-        ");
-        $response['rooms'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $response['rooms'] = fetchRoomList($db);
     }
 
     // Heartbeat for joined room
@@ -386,6 +413,176 @@ function handlePoll(PDO $db, array $user): void
     }
 
     \WebDoorSDK\jsonResponse($response);
+}
+
+/**
+ * Long-poll endpoint: holds the connection for up to 20 seconds and returns
+ * as soon as new messages or unread DMs arrive, or when the timeout expires.
+ *
+ * The session lock is released immediately so concurrent requests from the
+ * same user (e.g. sending a message) are never blocked by this handler.
+ * Users and rooms are fetched once up-front and included in every response
+ * so the client does not need a separate slow-poll interval.
+ */
+function handleLongPoll(PDO $db, array $user): void
+{
+    // Release PHP session lock so send/join requests are not blocked.
+    session_write_close();
+
+    // Allow this script to run longer than the default PHP max_execution_time.
+    set_time_limit(35);
+
+    $viewMode     = $_GET['view_mode']     ?? 'room';
+    $viewRoom     = $_GET['view_room']     ?? '';
+    $joinRoom     = $_GET['join_room']     ?? '';
+    $withUser     = $_GET['with_user']     ?? '';
+    $after        = isset($_GET['after'])         ? (int)$_GET['after']         : 0;
+    $afterPrivate = isset($_GET['after_private'])  ? (int)$_GET['after_private'] : 0;
+    $afterUnread  = isset($_GET['after_unread'])   ? (int)$_GET['after_unread']  : 0;
+
+    if (!empty($viewRoom) && strpos($viewRoom, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in room');
+    }
+    if (!empty($joinRoom) && strpos($joinRoom, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in room');
+    }
+    if (!empty($withUser) && strpos($withUser, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in user');
+    }
+
+    $username = !empty($user['username']) ? MrcClient::sanitizeName($user['username']) : '';
+    $viewRoom = $viewRoom !== '' ? MrcClient::sanitizeName($viewRoom) : '';
+    $joinRoom = $joinRoom !== '' ? MrcClient::sanitizeName($joinRoom) : '';
+    $withUser = $withUser !== '' ? MrcClient::sanitizeName($withUser) : '';
+
+    // Update presence heartbeat at the start of each long-poll cycle.
+    if ($joinRoom !== '' && $username !== '') {
+        upsertLocalPresence($db, $user, $joinRoom);
+    }
+
+    // Fetch slow-changing data once up-front; included in every response.
+    // Include both server-reported (mrc_users) and locally-connected
+    // (mrc_local_presence) users so the local user is visible immediately.
+    $users = [];
+    if ($joinRoom !== '') {
+        $stmt = $db->prepare("
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   COALESCE(is_afk, false) AS is_afk, afk_message
+            FROM mrc_users
+            WHERE room_name = :room
+            UNION ALL
+            SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+                   false AS is_afk, NULL AS afk_message
+            FROM mrc_local_presence
+            WHERE room_name = :room
+            ORDER BY username
+        ");
+        $stmt->execute(['room' => $joinRoom]);
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $rooms = fetchRoomList($db);
+
+    // Prepare message query parameters based on view mode.
+    $messageMode = 'room';
+    $msgStmt     = null;
+
+    if ($viewMode === 'private' && $withUser !== '' && $username !== '') {
+        $messageMode = 'private';
+        $msgStmt = $db->prepare("
+            SELECT id, from_user, from_site, from_room, to_user, to_room,
+                   message_body, msg_ext, is_private, received_at
+            FROM mrc_messages
+            WHERE is_private = true
+              AND id > :after
+              AND (
+                (from_user = :me AND to_user = :with_user)
+                OR (from_user = :with_user AND to_user = :me)
+              )
+            ORDER BY received_at ASC, id ASC
+            LIMIT 200
+        ");
+        $msgStmt->bindValue(':me', $username, PDO::PARAM_STR);
+        $msgStmt->bindValue(':with_user', $withUser, PDO::PARAM_STR);
+    } elseif ($viewRoom !== '') {
+        $msgStmt = $db->prepare("
+            SELECT id, from_user, from_site, from_room, to_user, to_room,
+                   message_body, msg_ext, is_private, received_at
+            FROM mrc_messages
+            WHERE (to_room = :room OR from_room = :room)
+              AND id > :after
+              AND is_private = false
+            ORDER BY received_at ASC, id ASC
+            LIMIT 200
+        ");
+        $msgStmt->bindValue(':room', $viewRoom, PDO::PARAM_STR);
+    }
+
+    // Prepare unread query.
+    $unreadStmt = null;
+    if ($username !== '') {
+        $unreadStmt = $db->prepare("
+            SELECT id, from_user
+            FROM mrc_messages
+            WHERE is_private = true
+              AND to_user = :me
+              AND id > :after
+            ORDER BY id ASC
+        ");
+        $unreadStmt->bindValue(':me', $username, PDO::PARAM_STR);
+    }
+
+    $timeout  = 20.0;   // seconds
+    $sleepUs  = 500000; // 500 ms
+    $deadline = microtime(true) + $timeout;
+
+    while (microtime(true) < $deadline) {
+        $messages = [];
+        if ($msgStmt !== null) {
+            $afterVal = ($messageMode === 'private') ? $afterPrivate : $after;
+            $msgStmt->bindValue(':after', $afterVal, PDO::PARAM_INT);
+            $msgStmt->execute();
+            $messages = $msgStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        $unreadCounts = [];
+        $latestUnreadId = $afterUnread;
+        if ($unreadStmt !== null) {
+            $unreadStmt->bindValue(':after', $afterUnread, PDO::PARAM_INT);
+            $unreadStmt->execute();
+            foreach ($unreadStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $from = $row['from_user'] ?? '';
+                if ($from !== '') {
+                    $unreadCounts[$from] = ($unreadCounts[$from] ?? 0) + 1;
+                }
+                $latestUnreadId = max($latestUnreadId, (int)$row['id']);
+            }
+        }
+
+        if (!empty($messages) || !empty($unreadCounts)) {
+            \WebDoorSDK\jsonResponse([
+                'success'         => true,
+                'messages'        => $messages,
+                'message_mode'    => $messageMode,
+                'private_unread'  => ['latest_id' => $latestUnreadId, 'counts' => $unreadCounts],
+                'users'           => $users,
+                'rooms'           => $rooms,
+            ]);
+            return;
+        }
+
+        usleep($sleepUs);
+    }
+
+    // Timeout — return empty so the client reconnects immediately.
+    \WebDoorSDK\jsonResponse([
+        'success'        => true,
+        'messages'       => [],
+        'message_mode'   => $messageMode,
+        'private_unread' => ['latest_id' => $afterUnread, 'counts' => []],
+        'users'          => $users,
+        'rooms'          => $rooms,
+        'timed_out'      => true,
+    ]);
 }
 
 function handleUsers(PDO $db): void
@@ -399,8 +596,14 @@ function handleUsers(PDO $db): void
     }
 
     $stmt = $db->prepare("
-        SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen, is_afk, afk_message
+        SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+               COALESCE(is_afk, false) AS is_afk, afk_message
         FROM mrc_users
+        WHERE room_name = :room
+        UNION ALL
+        SELECT username, bbs_name, room_name, ip_address, connected_at, last_seen,
+               false AS is_afk, NULL AS afk_message
+        FROM mrc_local_presence
         WHERE room_name = :room
         ORDER BY username
     ");

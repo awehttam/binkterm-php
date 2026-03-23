@@ -260,6 +260,37 @@ class AdminDaemonServer
                     $this->logger->info("Spawned background binkp_poll for {$upstream}");
                     $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
+                case 'binkp_auth_test':
+                    $domain = $data['domain'] ?? null;
+                    if (!$domain) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_domain']);
+                        break;
+                    }
+                    try {
+                        $binkpConfig = BinkpConfig::getInstance();
+                        $uplink = $binkpConfig->getUplinkByDomain($domain);
+                        if (!$uplink) {
+                            $this->writeResponse($client, ['ok' => false, 'error' => "No uplink configured for domain: {$domain}"]);
+                            break;
+                        }
+                        $address = $uplink['address'] ?? null;
+                        if (!$address) {
+                            $this->writeResponse($client, ['ok' => false, 'error' => 'Uplink has no address configured']);
+                            break;
+                        }
+                        $binkpClient = new \BinktermPHP\Binkp\Protocol\BinkpClient($binkpConfig, $this->logger);
+                        $result = $binkpClient->connect($address);
+                        $this->writeResponse($client, [
+                            'ok'     => true,
+                            'result' => [
+                                'auth_method'      => $result['auth_method'] ?? null,
+                                'remote_address'   => $result['remote_address'] ?? null,
+                            ],
+                        ]);
+                    } catch (\Exception $e) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => $e->getMessage()]);
+                    }
+                    break;
                 case 'get_bbs_config':
                     BbsConfig::reload();
                     $this->writeResponse($client, ['ok' => true, 'result' => BbsConfig::getConfig()]);
@@ -577,6 +608,20 @@ class AdminDaemonServer
                     $ns     = (string)($data['ns'] ?? '');
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getI18nOverlay($locale, $ns)]);
                     break;
+                case 'save_lovlynet_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->saveLovlyNetConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'save_i18n_overlay':
                     $locale    = (string)($data['locale'] ?? '');
                     $ns        = (string)($data['ns'] ?? '');
@@ -678,6 +723,23 @@ class AdminDaemonServer
                 case 'delete_license':
                     $this->deleteLicenseFile();
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'get_weather_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWeatherConfig()]);
+                    break;
+                case 'save_weather_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->saveWeatherConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWeatherConfig()]);
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
@@ -806,7 +868,11 @@ class AdminDaemonServer
 
     private function writeResponse($client, array $payload): void
     {
-        fwrite($client, json_encode($payload) . "\n");
+        // JSON_INVALID_UTF8_SUBSTITUTE prevents json_encode() from returning false when
+        // payload strings contain non-UTF-8 bytes (e.g. CP437/ISO-8859 error messages
+        // from remote BinkP servers).  Without this flag, json_encode returns false,
+        // fwrite sends only "\n", and the client throws "Invalid response from admin daemon".
+        fwrite($client, json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
     }
 
     private function logCommandResult(string $cmd, array $result): void
@@ -1047,6 +1113,23 @@ class AdminDaemonServer
             'config_json' => $configJson,
             'example_json' => $exampleJson
         ];
+    }
+
+    private function saveLovlyNetConfig(array $config): void
+    {
+        $configPath = __DIR__ . '/../../config/lovlynet.json';
+        $backupPath = dirname($configPath) . '/lovlynet_' . date('Ymd_His') . '.json';
+
+        if (file_exists($configPath)) {
+            @copy($configPath, $backupPath);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode LovlyNet config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
     }
 
     private function writeWebdoorsConfig(array $config): void
@@ -1760,6 +1843,36 @@ class AdminDaemonServer
         $json = json_encode($licenseData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($json === false || @file_put_contents($path, $json . "\n", LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write license file');
+        }
+    }
+
+    private function getWeatherConfig(): array
+    {
+        $configPath  = __DIR__ . '/../../config/weather.json';
+        $examplePath = __DIR__ . '/../../config/weather.json.example';
+
+        $active     = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active'      => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson,
+        ];
+    }
+
+    private function saveWeatherConfig(array $config): void
+    {
+        $configPath = __DIR__ . '/../../config/weather.json';
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode weather config');
+        }
+
+        if (file_put_contents($configPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException('Failed to write weather config');
         }
     }
 

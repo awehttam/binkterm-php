@@ -8,7 +8,7 @@
         <h1 class="h2">{{ t('ui.admin.bbs_settings.heading', {}, locale, ['common']) }}</h1>
     </div>
 
-    <div class="row g-4">
+    <div class="row g-4 settings-loading" id="bbsSettingsCards">
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
@@ -103,6 +103,11 @@
                             <input class="form-check-input" type="checkbox" id="bbsQwk">
                             <label class="form-check-label" for="bbsQwk">{{ t('ui.admin.bbs_settings.features.enable_qwk', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsQwkBbsId">{{ t('ui.admin.bbs_settings.features.qwk_bbs_id', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control font-monospace" id="bbsQwkBbsId" maxlength="8" style="max-width:12rem;" placeholder="e.g. MYBBS">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_bbs_id_help', {}, locale, ['common']) }}</small>
                         </div>
 
                         {% if license_valid %}
@@ -274,6 +279,7 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    setSettingsLoading('#bbsSettingsCards', true);
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadBbsSettings();
         loadBbsSystem();
@@ -300,6 +306,7 @@ function loadBbsSettings() {
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
             document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
             document.getElementById('bbsQwk').checked = !!features.qwk;
+            document.getElementById('bbsQwkBbsId').value = data.config?.qwk?.bbs_id || '';
             const bbsPublicFilesIndexEl = document.getElementById('bbsPublicFilesIndex');
             if (bbsPublicFilesIndexEl) bbsPublicFilesIndexEl.checked = !!features.public_files_index;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
@@ -339,6 +346,7 @@ function loadBbsSettings() {
             const referralBonusValue = parseInt(credits.referral_bonus, 10);
             document.getElementById('bbsCreditsReferralEnabled').checked = !!credits.referral_enabled;
             document.getElementById('bbsCreditsReferralBonus').value = Number.isNaN(referralBonusValue) ? 25 : referralBonusValue;
+            setSettingsLoading('#bbsSettingsCards', false);
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings'), 'danger');
@@ -358,11 +366,19 @@ function saveBbsSettings() {
         return;
     }
 
-    // Get current credits settings (don't change them)
+    const qwkBbsIdRaw = document.getElementById('bbsQwkBbsId').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 8);
+    if (qwkBbsIdRaw.length === 0) {
+        showBbsSettingsAlert(uiT('ui.admin.bbs_settings.validation.qwk_bbs_id_invalid', 'QWK BBS ID must be 1–8 letters or digits.'), 'danger');
+        return;
+    }
+    document.getElementById('bbsQwkBbsId').value = qwkBbsIdRaw;
+
+    // Get current credits + qwk settings (don't change them)
     fetch('/admin/api/bbs-settings')
         .then(response => response.json())
         .then(currentData => {
             const credits = currentData.config?.credits || {};
+            const currentQwk = currentData.config?.qwk || {};
 
             const config = {
                 features: {
@@ -378,6 +394,7 @@ function saveBbsSettings() {
                     qwk: document.getElementById('bbsQwk').checked
                 },
                 credits: credits,
+                qwk: Object.assign({}, currentQwk, { bbs_id: qwkBbsIdRaw }),
                 max_cross_post_areas: maxCrossPost,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value

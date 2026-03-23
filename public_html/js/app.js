@@ -112,20 +112,16 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(messageText);
     const hasPipes = /\|[0-9A-Fa-f]{2}/.test(messageText);
     const hasColorCodes = hasAnsi || hasPipes;
+
     const lines = messageText.split(/\r?\n/);
-    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
-    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
 
-    // Check for ASCII art: require at least 5 leading spaces and multiple lines with this pattern
-    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
-    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
-
-    const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30));
-    const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : '';
+    const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || hasColorCodes);
+    const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : ' style="white-space: pre-wrap;"';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
     // If so, use the full terminal renderer instead of line-by-line processing
     if (shouldRenderAnsiArt) {
+        console.debug('[ANSI auto] detected via', hasCursorAnsi ? 'cursor ANSI' : hasColorCodes ? 'color codes' : 'unknown', '— rendering as ANSI art —', messageText.substring(0, 40).replace(/\n/g, '↵'));
         let rendered = renderAnsiTerminal(messageText);
         rendered = linkifyUrls(rendered);
         if (searchTerms && searchTerms.length > 0) {
@@ -273,7 +269,7 @@ function normalizeViewerRenderMode(mode) {
 }
 
 function getNextViewerRenderMode(mode) {
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
     const normalized = normalizeViewerRenderMode(mode);
     const currentIndex = modes.indexOf(normalized);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
@@ -288,8 +284,6 @@ function getViewerRenderModeLabel(mode) {
             return window.t ? window.t('ui.echomail.viewer_mode_ansi', {}, 'ANSI') : 'ANSI';
         case 'amiga_ansi':
             return window.t ? window.t('ui.echomail.viewer_mode_amiga_ansi', {}, 'Amiga ANSI') : 'Amiga ANSI';
-        case 'petscii':
-            return window.t ? window.t('ui.echomail.viewer_mode_petscii', {}, 'PETSCII') : 'PETSCII';
         case 'plain':
             return window.t ? window.t('ui.echomail.viewer_mode_plain', {}, 'Plain Text') : 'Plain Text';
         default:
@@ -358,6 +352,138 @@ function looksLikeRipScript(text) {
     return ripLineCount > 0 && supportedCommandCount > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Shared RIPscrip renderer — used by the ad box and any other non-echomail
+// page that needs to render RIP content from raw text (not a URL).
+// ---------------------------------------------------------------------------
+
+let _sharedRiptermLoaderPromise = null;
+
+/**
+ * Lazily load the RIPterm JavaScript libraries (BGI.js + ripterm.js).
+ * Uses script-tag deduplication so the files are only ever fetched once even
+ * when called from multiple callers on the same page.
+ *
+ * @returns {Promise<void>}
+ */
+function loadRiptermForContent() {
+    if (_sharedRiptermLoaderPromise) return _sharedRiptermLoaderPromise;
+    if (window.RIPterm && window.BGI) {
+        _sharedRiptermLoaderPromise = Promise.resolve();
+        return _sharedRiptermLoaderPromise;
+    }
+
+    function _loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[data-ripterm-src="${src}"]`);
+            if (existing) {
+                if (existing.dataset.loaded === 'true') { resolve(); return; }
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.dataset.riptermSrc = src;
+            script.addEventListener('load', () => { script.dataset.loaded = 'true'; resolve(); }, { once: true });
+            script.addEventListener('error', reject, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    _sharedRiptermLoaderPromise = _loadScript('/vendor/riptermjs/BGI.js')
+        .then(() => _loadScript('/vendor/riptermjs/ripterm.js'));
+    return _sharedRiptermLoaderPromise;
+}
+
+/**
+ * Render a RIPscrip text payload into a DOM container element.
+ * Shows a spinner while loading, then replaces it with the rendered canvas.
+ *
+ * @param {HTMLElement} container
+ * @param {string}      ripText   Raw RIPscrip content
+ */
+function renderRipContent(container, ripText) {
+    const canvasId = `ripCanvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    container.innerHTML = `
+        <div class="text-center py-4 text-muted" data-rip-loading>
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+        </div>
+        <div class="d-none" data-rip-stage style="overflow:auto;max-height:70vh;padding:8px;text-align:center;background:#0a0a0a;border-radius:6px;">
+            <canvas id="${canvasId}" width="640" height="350"
+                style="width:100%;max-width:960px;height:auto;image-rendering:pixelated;background:#000;border:1px solid #193247;border-radius:6px;"></canvas>
+        </div>
+    `;
+    loadRiptermForContent()
+        .then(async () => {
+            const blobUrl = URL.createObjectURL(new Blob([ripText], { type: 'text/plain' }));
+            const ripterm = new window.RIPterm({
+                canvasId,
+                timeInterval: 0,
+                refreshInterval: 25,
+                fontsPath: '/vendor/riptermjs/fonts',
+                iconsPath: '/vendor/riptermjs/icons',
+                logQuiet: true
+            });
+            await ripterm.initFonts();
+            ripterm.reset();
+            try {
+                await ripterm.openURL(blobUrl);
+                await ripterm.play();
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+            const loading = container.querySelector('[data-rip-loading]');
+            const stage   = container.querySelector('[data-rip-stage]');
+            if (loading) loading.remove();
+            if (stage)   stage.classList.remove('d-none');
+        })
+        .catch((err) => {
+            console.error('RIP render failed:', err);
+            container.innerHTML = '<div class="alert alert-danger m-3">Failed to render RIPscrip content.</div>';
+        });
+}
+
+/**
+ * Render ad content using the same multimodal pipeline as the echomail viewer:
+ * RIPscrip → Sixel → ANSI/PCBoard/plain.
+ *
+ * Requires sixel.js and pcboard.js to be loaded on the page before calling.
+ *
+ * @param {HTMLElement} container Target element (will be replaced with rendered output)
+ * @param {string}      content   Raw ad content string
+ */
+function renderAdContent(container, content) {
+    if (!content || content.trim() === '') {
+        container.innerHTML = '';
+        return;
+    }
+
+    // RIPscrip
+    if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(content)) {
+        renderRipContent(container, content);
+        return;
+    }
+
+    // Sixel
+    if (typeof looksLikeSixel === 'function' && looksLikeSixel(content)) {
+        if (typeof renderSixelChunks === 'function') {
+            renderSixelChunks(container, content, function (chunk) {
+                return formatMessageBodyForDisplay({}, chunk, []);
+            });
+            return;
+        }
+    }
+
+    // ANSI / PCBoard / plain
+    const html = formatMessageBodyForDisplay({}, content, []);
+    container.innerHTML = '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    while (tmp.firstChild) container.appendChild(tmp.firstChild);
+}
+
 function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
     const text = bodyText || '';
     let forcePlainText = !!forcePlain;
@@ -407,25 +533,23 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
     const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
     const hasColorCodes = hasAnsi || hasPipes;
-    const lines = text.split(/\r?\n/);
-    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
-    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
-    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
-    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
-    const explicitBinaryArtMode = ['amiga_ansi', 'petscii'].includes(requestedFormat);
+    const explicitBinaryArtMode = ['ansi', 'amiga_ansi'].includes(requestedFormat);
     const shouldRenderAnsiArt = !forcePlainText && (
         explicitBinaryArtMode ||
         hasCursorAnsi ||
-        (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) ||
-        (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30)
+        hasColorCodes
     );
 
     if (shouldRenderAnsiArt) {
         const renderFormat = explicitBinaryArtMode ? requestedFormat : 'ansi';
+        if (!explicitBinaryArtMode) {
+            console.debug('[ANSI auto] detected via', hasAnsi ? 'ESC sequences' : hasPipes ? 'pipe codes' : 'cursor ANSI',
+                '— msg id:', message?.id, '— subject:', message?.subject);
+        }
         let rendered = renderArtMessage(text, {
             format: renderFormat,
             bytesBase64: rawBytesB64,
-            cols: renderFormat === 'petscii' ? 40 : 80,
+            cols: 80,
             rows: 500
         });
         rendered = linkifyUrls(rendered);
@@ -510,7 +634,6 @@ function highlightSearchTerms(htmlText, searchTerms) {
 function escapeRegex(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
 
 // Convert URLs in text to clickable links (XSS-safe)
 // Must be called AFTER escapeHtml since we're inserting HTML anchor tags
@@ -741,6 +864,9 @@ function mergeCatalogs(catalogs) {
     });
 }
 
+// In-flight namespace fetch promises keyed by sorted ns+locale string
+const _i18nInflight = {};
+
 function loadI18nNamespaces(namespaces = []) {
     const normalized = (namespaces || [])
         .map(ns => String(ns || '').trim())
@@ -754,10 +880,21 @@ function loadI18nNamespaces(namespaces = []) {
         return Promise.resolve();
     }
 
-    const nsParam = encodeURIComponent(missing.join(','));
     const localeParam = encodeURIComponent(window.i18n.locale || window.appLocale || 'en');
+    const inflightKey = missing.slice().sort().join(',') + '@' + localeParam;
 
-    return fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
+    // If a fetch for this exact set is already in-flight, reuse it
+    if (_i18nInflight[inflightKey]) {
+        return _i18nInflight[inflightKey];
+    }
+
+    // Mark namespaces as loading now to prevent duplicate fetches from
+    // concurrent callers that haven't awaited the result yet
+    missing.forEach(ns => { window.i18n.loadedNamespaces[ns] = true; });
+
+    const nsParam = encodeURIComponent(missing.join(','));
+
+    const promise = fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
         .then(function(response) {
             if (!response.ok) {
                 throw new Error('i18n catalog load failed');
@@ -777,8 +914,16 @@ function loadI18nNamespaces(namespaces = []) {
             mergeCatalogs(payload.catalogs || {});
         })
         .catch(function() {
-            // Non-fatal in Phase 0: app keeps English literals as fallback.
+            // Non-fatal: app keeps English literals as fallback.
+            // Un-mark so a future call can retry
+            missing.forEach(ns => { delete window.i18n.loadedNamespaces[ns]; });
+        })
+        .finally(function() {
+            delete _i18nInflight[inflightKey];
         });
+
+    _i18nInflight[inflightKey] = promise;
+    return promise;
 }
 
 $(document).ready(function() {
@@ -1083,6 +1228,34 @@ function formatFullDate(dateString) {
     });
 }
 
+/**
+ * Toggle a loading-blur state on settings cards or any container.
+ * While loading=true the target is blurred and non-interactive, and a
+ * centred spinner overlay is shown above the blurred content.
+ *
+ * @param {string|Element|jQuery} target  CSS selector, DOM element, or jQuery object
+ * @param {boolean}               loading true to apply blur, false to remove
+ */
+function setSettingsLoading(target, loading) {
+    $(target).toggleClass('settings-loading', loading);
+
+    const spinnerId = 'settings-loading-spinner';
+    if (loading) {
+        if (!document.getElementById(spinnerId)) {
+            $('body').append(
+                '<div id="' + spinnerId + '" class="settings-loading-spinner" aria-hidden="true">' +
+                '<div class="spinner-border" role="status"></div>' +
+                '</div>'
+            );
+        }
+    } else {
+        // Only remove spinner when no blurred elements remain
+        if ($(target).hasClass('settings-loading') === false && $('.settings-loading').length === 0) {
+            $('#' + spinnerId).remove();
+        }
+    }
+}
+
 function escapeHtml(text) {
     const map = {
         '&': '&amp;',
@@ -1092,6 +1265,207 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// ── Shared FTN sender popover ─────────────────────────────────────────────────
+
+const _ftnSenderPopoverCache = {};
+
+/**
+ * Look up an FTN node for a sender popover.  Point addresses (zone:net/node.point)
+ * are resolved to the boss node.  Results are cached.
+ *
+ * @param  {string} address  FTN address string
+ * @returns {Promise<{node: object|null, isPoint: boolean}>}
+ */
+function _lookupFtnNodeForPopover(address) {
+    if (!address) return Promise.resolve({ node: null, isPoint: false });
+
+    const pointMatch = address.match(/^(\d+:\d+\/\d+)\.(\d+)$/);
+    const isPoint = !!(pointMatch && pointMatch[2] !== '0');
+    const lookupAddr = isPoint ? pointMatch[1] : address;
+
+    if (_ftnSenderPopoverCache[lookupAddr] !== undefined) {
+        return Promise.resolve({ node: _ftnSenderPopoverCache[lookupAddr], isPoint });
+    }
+
+    return fetch(`/api/nodelist/node?address=${encodeURIComponent(lookupAddr)}`)
+        .then(r => r.json())
+        .then(data => {
+            _ftnSenderPopoverCache[lookupAddr] = data.node || null;
+            return { node: _ftnSenderPopoverCache[lookupAddr], isPoint };
+        })
+        .catch(() => {
+            _ftnSenderPopoverCache[lookupAddr] = null;
+            return { node: null, isPoint };
+        });
+}
+
+/**
+ * Build the inner HTML for a sender popover, optionally including BBS name from nodelist.
+ *
+ * @param {string}      fromName
+ * @param {string}      fromAddress
+ * @param {string}      toAddress    - Address for the Send Netmail button
+ * @param {string}      toName
+ * @param {string}      subject      - Optional subject to pre-fill
+ * @param {object|null} node         - Nodelist entry (may be null)
+ * @param {boolean}     isPoint      - Whether fromAddress is a point address
+ * @returns {string}  HTML string
+ */
+function _buildFtnSenderPopoverHtml(fromName, fromAddress, toAddress, toName, subject, node, isPoint) {
+    const parts = [`<div class="fw-semibold">${escapeHtml(fromName)}</div>`];
+
+    if (node && node.system_name) {
+        let bbs = escapeHtml(node.system_name);
+        if (isPoint) bbs += ` <span class="text-muted">(${uiT('ui.nodelist.point', 'Point')})</span>`;
+        parts.push(`<div class="text-muted small">${bbs}</div>`);
+        if (node.location) {
+            parts.push(`<div class="text-muted small">${escapeHtml(node.location)}</div>`);
+        }
+    }
+
+    if (fromAddress) {
+        parts.push(`<div class="text-muted small font-monospace">${escapeHtml(fromAddress)}</div>`);
+    }
+
+    if (toAddress || (node && node.address)) {
+        parts.push('<div class="mt-2 d-grid gap-1">');
+        if (toAddress) {
+            let url = `/compose/netmail?to=${encodeURIComponent(toAddress)}&to_name=${encodeURIComponent(toName)}`;
+            if (subject) url += `&subject=${encodeURIComponent(subject)}`;
+            parts.push(`<a href="${url}" class="btn btn-sm btn-primary">${uiT('ui.nodelist.send_netmail', 'Send Netmail')}</a>`);
+        }
+        if (node && node.address) {
+            parts.push(`<a href="/nodelist/view?address=${encodeURIComponent(node.address)}" class="btn btn-sm btn-outline-secondary">${uiT('ui.nodelist.view_full_details', 'View full node details')}</a>`);
+        }
+        parts.push('</div>');
+    }
+
+    return parts.join('');
+}
+
+/**
+ * Return cached nodelist data for an FTN address synchronously, or null if not
+ * yet fetched.  Applies the same point→boss resolution as _lookupFtnNodeForPopover.
+ *
+ * @param  {string} address
+ * @returns {{ node: object|null, isPoint: boolean, hit: boolean }}
+ */
+function _ftnNodeFromCache(address) {
+    if (!address) return { node: null, isPoint: false, hit: true };
+    const pointMatch = address.match(/^(\d+:\d+\/\d+)\.(\d+)$/);
+    const isPoint = !!(pointMatch && pointMatch[2] !== '0');
+    const lookupAddr = isPoint ? pointMatch[1] : address;
+    const hit = Object.prototype.hasOwnProperty.call(_ftnSenderPopoverCache, lookupAddr);
+    return { node: hit ? _ftnSenderPopoverCache[lookupAddr] : null, isPoint, hit };
+}
+
+/**
+ * Show a sender-name popover on `el`, performing an async nodelist lookup.
+ * The popover is always recreated on open so the content option is always
+ * current — avoids stale-spinner issues from Bootstrap re-rendering the
+ * original content option on subsequent show() calls.
+ *
+ * @param {Element} el
+ * @param {object}  opts
+ * @param {string}  opts.fromName
+ * @param {string}  opts.fromAddress
+ * @param {string}  opts.toAddress
+ * @param {string}  opts.toName
+ * @param {string}  [opts.subject]
+ * @param {string}  [opts.placement]       - Bootstrap placement (default 'bottom')
+ * @param {string}  [opts.siblingSelector] - CSS selector for sibling popovers to close
+ */
+function showFtnSenderPopover(el, opts) {
+    if (opts.siblingSelector) {
+        document.querySelectorAll(opts.siblingSelector).forEach(function(other) {
+            if (other !== el) {
+                const p = bootstrap.Popover.getInstance(other);
+                if (p) p.hide();
+            }
+        });
+    }
+
+    const existing = bootstrap.Popover.getInstance(el);
+    if (existing) {
+        // If currently visible, close it (toggle behaviour)
+        if (el.getAttribute('aria-describedby')) {
+            existing.hide();
+            return;
+        }
+        // Hidden but instance still attached — dispose so we recreate below
+        existing.dispose();
+    }
+
+    // Use cached node data immediately if available so there is no spinner
+    // on repeat opens of the same address.
+    const address = opts.fromAddress || '';
+    const cached = _ftnNodeFromCache(address);
+    const initialContent = cached.hit
+        ? _buildFtnSenderPopoverHtml(opts.fromName || '', address, opts.toAddress || '', opts.toName || '', opts.subject || '', cached.node, cached.isPoint)
+        : '<i class="fas fa-spinner fa-spin"></i>';
+
+    const pop = new bootstrap.Popover(el, {
+        html: true,
+        content: initialContent,
+        trigger: 'manual',
+        placement: opts.placement || 'bottom',
+        sanitize: false,
+    });
+    pop.show();
+
+    if (!cached.hit) {
+        _lookupFtnNodeForPopover(address).then(function(result) {
+            if (!bootstrap.Popover.getInstance(el)) return; // dismissed before lookup finished
+            const html = _buildFtnSenderPopoverHtml(
+                opts.fromName || '', address,
+                opts.toAddress || '', opts.toName || '',
+                opts.subject || '', result.node, result.isPoint
+            );
+            const popId = el.getAttribute('aria-describedby');
+            const popEl = popId ? document.getElementById(popId) : null;
+            if (popEl) popEl.querySelector('.popover-body').innerHTML = html;
+        });
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Initialise a click handler on the sender name element in message views.
+ *
+ * @param {object} message      - Message object with from_name, from_address
+ * @param {string} netmailAddr  - FTN address to pre-fill in the netmail compose link
+ * @param {string} netmailName  - Display name to pre-fill in the netmail compose link
+ */
+function initSenderPopover(message, netmailAddr, netmailName) {
+    const el = document.getElementById('senderNamePopoverTrigger');
+    if (!el) return;
+
+    const existing = bootstrap.Popover.getInstance(el);
+    if (existing) existing.dispose();
+
+    const toAddr = netmailAddr || message.from_address || '';
+    const toName = netmailName || message.from_name || '';
+
+    el.onclick = function(e) {
+        e.stopPropagation();
+        showFtnSenderPopover(el, {
+            fromName: message.from_name || '',
+            fromAddress: message.from_address || '',
+            toAddress: toAddr,
+            toName: toName,
+            placement: 'bottom',
+        });
+    };
+
+    $(document).off('click.senderPopoverDismiss').on('click.senderPopoverDismiss', function(e) {
+        if (!$(e.target).closest('#senderNamePopoverTrigger, .popover').length) {
+            const pop = bootstrap.Popover.getInstance(el);
+            if (pop) pop.hide();
+        }
+    });
 }
 
 // Message handling functions

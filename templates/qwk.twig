@@ -181,6 +181,29 @@
     </div>
 </div>
 
+{# ---- Dev tools (only shown when IS_DEV=true) ---- #}
+<div class="row mt-4 d-none" id="devToolsRow">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-flask me-2"></i>Dev Tools</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted mb-3">
+                    Purge all QWK state for your account (conference pointers, download log,
+                    message index, and import hashes) so the next download starts fresh.
+                </p>
+                <button class="btn btn-warning" id="resetBtn" onclick="doReset()">
+                    <i class="fas fa-trash-alt me-2"></i>Reset QWK Data
+                </button>
+                <div id="resetResult" class="mt-3 d-none">
+                    <div id="resetResultAlert" class="alert mb-0"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -283,12 +306,47 @@ async function loadStatus() {
         html += '</tbody></table>';
         listEl.innerHTML = html;
 
+        // Dev tools.
+        document.getElementById('devToolsRow').classList.toggle('d-none', !data.is_dev);
+
         return data;
 
     } catch (err) {
         listEl.innerHTML = '<div class="p-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load status: ' + escapeHtml(err.message) + '</div>';
         badgeEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
         badgeEl.className = 'badge bg-danger fs-6';
+    }
+}
+
+async function doReset() {
+    const btn       = document.getElementById('resetBtn');
+    const resultDiv = document.getElementById('resetResult');
+    const alertDiv  = document.getElementById('resetResultAlert');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Resetting…';
+    resultDiv.classList.add('d-none');
+
+    try {
+        const resp = await fetch('/api/qwk/reset', { method: 'POST' });
+        const data = await resp.json();
+
+        resultDiv.classList.remove('d-none');
+        if (data.success) {
+            alertDiv.className = 'alert alert-success mb-0';
+            alertDiv.innerHTML = '<i class="fas fa-check me-2"></i>QWK data reset. Next download will start fresh.';
+            loadStatus();
+        } else {
+            alertDiv.className = 'alert alert-danger mb-0';
+            alertDiv.textContent = data.error ?? 'Reset failed.';
+        }
+    } catch (err) {
+        resultDiv.classList.remove('d-none');
+        alertDiv.className = 'alert alert-danger mb-0';
+        alertDiv.textContent = 'Reset failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i>Reset QWK Data';
     }
 }
 

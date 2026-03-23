@@ -1578,6 +1578,22 @@ class BinkdProcessor
         // Convert line breaks to FidoNet format (\r\n) and ensure proper formatting
         // This fixes the issue where outgoing messages have improper line breaks
         $messageText = str_replace(["\r\n", "\r", "\n"], "\r\n", $messageText);
+
+        // Convert body to target charset when the stored kludge lines specify a non-UTF-8
+        // encoding (e.g. CP437). The database always stores message_text as UTF-8; the
+        // CHRS kludge is the authoritative source for what the packet should contain.
+        $packetBodyCharset = 'UTF-8';
+        if (!empty($message['kludge_lines']) &&
+            preg_match('/\x01CHRS:\s*([A-Za-z0-9_\-]+)/i', $message['kludge_lines'], $chrsMatch)) {
+            $packetBodyCharset = strtoupper(trim($chrsMatch[1]));
+        }
+        if ($packetBodyCharset !== 'UTF-8') {
+            $converted = @iconv('UTF-8', $packetBodyCharset . '//IGNORE', $messageText);
+            if ($converted !== false) {
+                $messageText = $converted;
+            }
+            // If iconv fails, leave the body as UTF-8 (graceful degradation)
+        }
         
         // Determine message type based on attributes and content
         $isNetmail = ($message['attributes'] ?? 0) & 0x0001; // Private bit set
@@ -1726,7 +1742,7 @@ class BinkdProcessor
             $messageText .= "\r\n";
         }
         $messageText.="\r\n";
-        $messageText .= Version::getTearline() . "\r\n";
+        $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r\n";
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point

@@ -60,10 +60,19 @@ function daemonize()
     
     chdir('/');
     umask(0);
-    
+
     fclose(STDIN);
     fclose(STDOUT);
     fclose(STDERR);
+
+    // Reopen fd 0/1/2 to /dev/null so they are not reused by subsequent
+    // socket_create() calls.  Without this, the first new socket gets fd 0,
+    // the second gets fd 1, etc., and any code that writes to PHP's output
+    // (e.g. BinkpClient::log() echo fallback) corrupts the socket that
+    // happens to occupy fd 1 — the admin client connection.
+    fopen('/dev/null', 'r');   // fd 0 — STDIN
+    fopen('/dev/null', 'a');   // fd 1 — STDOUT
+    fopen('/dev/null', 'a');   // fd 2 — STDERR
 }
 
 function setConsoleTitle(string $title): void

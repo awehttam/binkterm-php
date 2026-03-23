@@ -333,7 +333,7 @@ function displayMessages(messages, isThreaded = false) {
                         </small>
                     </td>
                     <td>
-                        <small class="text-muted font-monospace">${formatFidonetAddress(isSent ? msg.to_address : msg.from_address)}</small>
+                        <small class="font-monospace node-addr-popover text-primary" style="cursor:pointer; text-decoration:underline;" data-address="${escapeHtml(isSent ? msg.to_address : msg.from_address)}" onclick="event.stopPropagation(); handleNodeAddrClick(this)">${escapeHtml(isSent ? msg.to_address : msg.from_address)}</small>
                         ${(isSent ? msg.to_domain : msg.from_domain) ? `<br><span class="badge bg-secondary" style="font-size: 0.7em;">${isSent ? msg.to_domain : msg.from_domain}</span>` : ''}
                     </td>
                     <td title="${formatFullDate(msg.date_written)}">
@@ -356,6 +356,75 @@ function displayMessages(messages, isThreaded = false) {
 
     container.html(html);
 }
+
+// ── Node address popover ──────────────────────────────────────────────────────
+const _nodePopoverCache = {};
+
+function _renderNodePopoverContent(node, address) {
+    if (!node) {
+        return `<span class="text-muted small">${uiT('ui.nodelist.not_found', 'Not in nodelist')}</span>`;
+    }
+    return `<div class="fw-semibold">${escapeHtml(node.system_name || address)}</div>` +
+        (node.location ? `<div class="text-muted small">${escapeHtml(node.location)}</div>` : '') +
+        `<div class="mt-2"><a href="/nodelist/view?address=${encodeURIComponent(node.address)}" class="btn btn-sm btn-outline-primary w-100">${uiT('ui.nodelist.view_full_details', 'View full node details')}</a></div>`;
+}
+
+function handleNodeAddrClick(el) {
+    const address = el.dataset.address;
+    if (!address) return;
+
+    // Close other open node popovers
+    $('.node-addr-popover').not(el).each(function() {
+        const p = bootstrap.Popover.getInstance(this);
+        if (p) p.hide();
+    });
+
+    let pop = bootstrap.Popover.getInstance(el);
+    if (pop) {
+        pop.toggle();
+        return;
+    }
+
+    pop = new bootstrap.Popover(el, {
+        html: true,
+        trigger: 'manual',
+        placement: 'left',
+        sanitize: false,
+        content: `<i class="fas fa-spinner fa-spin"></i>`,
+    });
+    pop.show();
+
+    function updateBody(html) {
+        const popId = el.getAttribute('aria-describedby');
+        const popEl = popId ? document.getElementById(popId) : null;
+        if (popEl) popEl.querySelector('.popover-body').innerHTML = html;
+    }
+
+    if (_nodePopoverCache[address] !== undefined) {
+        updateBody(_renderNodePopoverContent(_nodePopoverCache[address], address));
+    } else {
+        fetch(`/api/nodelist/node?address=${encodeURIComponent(address)}`)
+            .then(r => r.json())
+            .then(data => {
+                _nodePopoverCache[address] = data.node || null;
+                updateBody(_renderNodePopoverContent(_nodePopoverCache[address], address));
+            })
+            .catch(() => {
+                _nodePopoverCache[address] = null;
+                updateBody(_renderNodePopoverContent(null, address));
+            });
+    }
+}
+
+$(document).on('click', function(e) {
+    if (!$(e.target).closest('.node-addr-popover, .popover').length) {
+        $('.node-addr-popover').each(function() {
+            const p = bootstrap.Popover.getInstance(this);
+            if (p) p.hide();
+        });
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 function updatePagination(pagination) {
     currentPagination = pagination;
@@ -517,7 +586,7 @@ function displayMessageContent(message) {
 }
 
 function getNextRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'plain'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -668,8 +737,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-6">
@@ -746,6 +814,8 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
 
     $('#messageContent').html(html);
 
+    initSenderPopover(message, message.from_address, message.from_name);
+
     // Set up reply button
     if (!isSent) {
         $('#replyButton').show().off('click').on('click', function() {
@@ -784,7 +854,13 @@ function openEditMessage() {
     $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
     $('#editMsgSubject').text(msg.subject || '');
     $('#editArtFormat').val(msg.art_format || '');
-    $('#editCharset').val(msg.message_charset || '');
+    const editCharsetVal = msg.message_charset || 'UTF-8';
+    const $editCharsetSel = $('#editCharset');
+    $editCharsetSel.find('option.unknown-charset').remove();
+    if ($editCharsetSel.find('option[value="' + editCharsetVal + '"]').length === 0) {
+        $editCharsetSel.prepend('<option value="' + editCharsetVal + '" class="unknown-charset">' + editCharsetVal + ' (unknown)</option>');
+    }
+    $editCharsetSel.val(editCharsetVal);
     $('#editMessageError').addClass('d-none');
     $('#editMessageSuccess').addClass('d-none');
     $('#saveEditMessageBtn').prop('disabled', false);

@@ -138,6 +138,8 @@ function syncSubscribedLovlyNetAreas(string $hubAddress): void {
         $fileCreated = 0;
         $fileSkipped = 0;
 
+        $client = new LovlyNetClient();
+
         foreach (($areasResult['echoareas'] ?? []) as $area) {
             if (empty($area['subscribed'])) {
                 continue;
@@ -148,17 +150,28 @@ function syncSubscribedLovlyNetAreas(string $hubAddress): void {
                 continue;
             }
 
+            $metadata = isset($area['metadata']) && is_array($area['metadata']) ? $area['metadata'] : [];
+            $isSysopOnly = false;
+            if (isset($metadata['sysop_only'])) {
+                $v = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $isSysopOnly = $v;
+                }
+            }
+
             $existingId = $echoareaManager->findByTagAndDomains($tag, ['', LOVLYNET_DOMAIN])['id'] ?? null;
-            $echoareaManager->createIfMissing([
-                'tag' => $tag,
-                'description' => trim((string)($area['description'] ?? '')),
-                'domain' => LOVLYNET_DOMAIN,
+            $localId = $echoareaManager->createIfMissing([
+                'tag'            => $tag,
+                'description'    => trim((string)($area['description'] ?? '')),
+                'domain'         => LOVLYNET_DOMAIN,
                 'uplink_address' => $hubAddress,
-                'is_local' => false,
-                'is_active' => true,
-                'is_sysop_only' => false,
-                'gemini_public' => false,
+                'is_local'       => false,
+                'is_active'      => true,
+                'is_sysop_only'  => $isSysopOnly,
+                'gemini_public'  => false,
             ], ['', LOVLYNET_DOMAIN]);
+
+            $client->applyRecommendedSettings('echo', array_merge($area, ['local_echoarea_id' => $localId]));
 
             if ($existingId) {
                 $echoSkipped++;
@@ -177,15 +190,36 @@ function syncSubscribedLovlyNetAreas(string $hubAddress): void {
                 continue;
             }
 
+            $metadata = isset($area['metadata']) && is_array($area['metadata']) ? $area['metadata'] : [];
+            $uploadPermission = FileAreaManager::getDefaultUploadPermissionForArea($tag, LOVLYNET_DOMAIN);
+            if (isset($metadata['readonly'])) {
+                $v = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $uploadPermission = $v
+                        ? FileAreaManager::UPLOAD_READ_ONLY
+                        : FileAreaManager::UPLOAD_USERS_ALLOWED;
+                }
+            }
+            $replaceExisting = true;
+            if (isset($metadata['replace'])) {
+                $v = filter_var($metadata['replace'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($v !== null) {
+                    $replaceExisting = $v;
+                }
+            }
+
             $existingId = $fileAreaManager->getFileAreaByTag(strtoupper($tag), LOVLYNET_DOMAIN)['id'] ?? null;
-            $fileAreaManager->createIfMissing([
-                'tag' => $tag,
-                'description' => trim((string)($area['description'] ?? '')),
-                'domain' => LOVLYNET_DOMAIN,
-                'is_local' => false,
-                'is_active' => true,
-                'replace_existing' => true,
+            $localId = $fileAreaManager->createIfMissing([
+                'tag'               => $tag,
+                'description'       => trim((string)($area['description'] ?? '')),
+                'domain'            => LOVLYNET_DOMAIN,
+                'is_local'          => false,
+                'is_active'         => true,
+                'upload_permission' => $uploadPermission,
+                'replace_existing'  => $replaceExisting,
             ]);
+
+            $client->applyRecommendedSettings('file', array_merge($area, ['local_filearea_id' => $localId]));
 
             if ($existingId) {
                 $fileSkipped++;
@@ -474,6 +508,7 @@ function doRegistration($isUpdate = false) {
         'binkp_password' => $regData['binkp_password'],
         'areafix_password' => $regData['areafix_password'],
         'tic_password' => $ticPassword,
+        'is_passive' => !$isPublic,
         'registered_at' => $existingConfig['registered_at'] ?? date('c'),
         'updated_at' => date('c')
     ];
@@ -506,7 +541,7 @@ function doRegistration($isUpdate = false) {
                 'allow_markup' => true,
                 'enabled' => true,
                 'compression' => false,
-                'crypt' => false,
+                'crypt' => true,
                 'poll_schedule' => '*/15 * * * *'
             ]);
         } else {
@@ -523,7 +558,7 @@ function doRegistration($isUpdate = false) {
                     'tic_password' => $ticPassword,
                     'allow_markup' => true,
                     'compression' => false,
-                    'crypt' => false,
+                    'crypt' => true,
                     'poll_schedule' => '*/15 * * * *'
                 ]
             );

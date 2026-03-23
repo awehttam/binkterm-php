@@ -244,15 +244,48 @@ class TicFileProcessor
             return;
         }
 
-        // Locate FILE_ID.DIZ case-insensitively (may appear as file_id.diz, FILE_ID.DIZ, etc.)
-        $dizContent = null;
+        // Only accept FILE_ID.DIZ from the archive root, or from exactly one
+        // root child directory when that is the only directory at the root.
+        $rootDizIndex = null;
+        $singleDirDizIndex = null;
+        $rootDirectories = [];
+
         for ($i = 0; $i < $zip->numFiles; $i++) {
-            $name = $zip->getNameIndex($i);
-            if (strcasecmp(basename($name), 'FILE_ID.DIZ') === 0) {
-                $dizContent = $zip->getFromIndex($i);
+            $name = str_replace('\\', '/', $zip->getNameIndex($i));
+            $trimmedName = trim($name, '/');
+            if ($trimmedName === '') {
+                continue;
+            }
+
+            $segments = array_values(array_filter(explode('/', $trimmedName), static fn($segment) => $segment !== ''));
+            if (empty($segments)) {
+                continue;
+            }
+
+            if (count($segments) >= 2) {
+                $rootDirectories[strtolower($segments[0])] = $segments[0];
+            }
+
+            if (strcasecmp(end($segments), 'FILE_ID.DIZ') !== 0) {
+                continue;
+            }
+
+            if (count($segments) === 1) {
+                $rootDizIndex = $i;
                 break;
             }
+
+            if (count($segments) === 2 && $singleDirDizIndex === null) {
+                $singleDirDizIndex = $i;
+            }
         }
+
+        $dizIndex = $rootDizIndex;
+        if ($dizIndex === null && count($rootDirectories) === 1) {
+            $dizIndex = $singleDirDizIndex;
+        }
+
+        $dizContent = $dizIndex !== null ? $zip->getFromIndex($dizIndex) : null;
         $zip->close();
 
         if ($dizContent === false || $dizContent === null || trim($dizContent) === '') {

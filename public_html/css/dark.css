@@ -47,6 +47,16 @@ body {
     margin-right: 8px;
 }
 
+/* Theme-aware popovers */
+.popover {
+    --bs-popover-bg: var(--message-bg);
+    --bs-popover-body-color: var(--text-color);
+    --bs-popover-border-color: var(--border-color);
+    --bs-popover-arrow-border: var(--border-color);
+    --bs-popover-header-bg: var(--message-bg);
+    --bs-popover-header-color: var(--text-color);
+}
+
 /* Cards */
 .card {
     border: 1px solid var(--border-color);
@@ -570,7 +580,7 @@ footer.bg-light a {
     word-wrap: break-word;
     color: var(--kludge-text);
     background-color: var(--kludge-bg);
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 .message-headers {
@@ -649,7 +659,7 @@ footer.bg-light a {
 /* Mobile-friendly message formatting */
 .message-formatted {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    line-height: 1.6;
+    line-height: 1.2;
     word-wrap: break-word;
     overflow-wrap: break-word;
     color: var(--text-color);
@@ -723,7 +733,7 @@ footer.bg-light a {
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
     font-size: 0.875rem;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -739,7 +749,7 @@ footer.bg-light a {
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -750,7 +760,7 @@ footer.bg-light a {
 @media (max-width: 768px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.5;
+        line-height: 1.2;
     }
 
     .message-paragraph {
@@ -781,7 +791,7 @@ footer.bg-light a {
 @media (max-width: 576px) {
     .message-formatted {
         font-size: 16px;
-        line-height: 1.4;
+        line-height: 1.2;
     }
 
     .message-preformatted {
@@ -1204,3 +1214,27 @@ a:hover {
 
 /* Disabled dropdown items — grayed out but readable */
 .dropdown-item-locked { color: #888 !important; pointer-events: auto; cursor: not-allowed; }
+
+/* Loading blur — applied via setSettingsLoading() in app.js */
+.settings-loading {
+    filter: blur(4px);
+    pointer-events: none;
+    user-select: none;
+    transition: filter 0.2s ease;
+}
+
+.settings-loading-spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1080;
+    background: rgba(0, 0, 0, 0.75);
+    border-radius: 50%;
+    width: 4rem;
+    height: 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}

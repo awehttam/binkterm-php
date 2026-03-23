@@ -52,7 +52,7 @@ clamdscan --ping 1
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLAMDSCAN` | *(auto-detected)* | Full path to the `clamdscan` binary. Set this if installed in a non-standard location. |
-| `FILES_ALLOW_INFECTED` | `false` | When `true`, infected files are stored rather than deleted. The scan result is still recorded. Useful for archive/nodelist areas. |
+| `FILES_ALLOW_INFECTED` | `false` | When `true`, infected files are stored rather than deleted. The scan result is still recorded. |
 
 ## Global scanning controls
 

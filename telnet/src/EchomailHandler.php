@@ -122,6 +122,7 @@ class EchomailHandler
                         $area = $areas[$choice - 1];
                         $tag = $area['tag'] ?? '';
                         $domain = $area['domain'] ?? '';
+                        $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$tag}@{$domain}");
                         $this->showMessages($conn, $state, $session, $tag, $domain);
                     }
                     break;
@@ -185,6 +186,7 @@ class EchomailHandler
     public function showMessages($conn, array &$state, string $session, string $tag, string $domain): void
     {
         $area          = $tag . '@' . $domain;
+        $this->server->logAction($state['username'] ?? 'unknown', "Echomail: read message list for {$area}");
         $savedState    = $this->loadSavedListState($session);
         $positions     = $savedState['positions'];
         $areaPosition  = $positions[$area] ?? null;
@@ -271,6 +273,8 @@ class EchomailHandler
      */
     public function compose($conn, array &$state, string $session, string $area, ?array $reply = null): void
     {
+        $action = $reply ? "Echomail: composing reply to msg #{$reply['id']} in {$area}" : "Echomail: composing new message in {$area}";
+        $this->server->logAction($state['username'] ?? 'unknown', $action);
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.compose_title', '=== Compose Echomail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.area_label', 'Area: {area}', ['area' => $area], $state['locale']), TelnetUtils::ANSI_MAGENTA));
@@ -402,8 +406,10 @@ class EchomailHandler
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.posting', 'Posting echomail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
+            $this->server->logAction($state['username'] ?? 'unknown', "Echomail: posted message to {$area} subject=\"{$subject}\"");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.post_success', '✓ Echomail posted successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {
+            $this->server->logAction($state['username'] ?? 'unknown', "Echomail: failed to post to {$area}: " . ($result['error'] ?? 'unknown'));
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.post_failed', '✗ Failed to post echomail: {error}', ['error' => $result['error'] ?? 'Unknown error'], $state['locale']), TelnetUtils::ANSI_RED));
         }
         TelnetUtils::writeLine($conn, '');
@@ -437,6 +443,7 @@ class EchomailHandler
                 return [$page, $index];
             }
 
+            $this->server->logAction($state['username'] ?? 'unknown', "Echomail: read message #{$id} in {$area}");
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
             $body         = $detail['data']['message_text'] ?? '';
             $markupFormat = $detail['data']['markup_format'] ?? null;

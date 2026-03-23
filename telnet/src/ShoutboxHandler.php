@@ -55,6 +55,7 @@ class ShoutboxHandler
             return;
         }
 
+        $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: entered");
         while (true) {
             $messages = $this->getMessages($session, $limit);
             $cols = (int)($state['cols'] ?? 80);
@@ -124,8 +125,10 @@ class ShoutboxHandler
 
             TelnetUtils::writeLine($conn, '');
             if (($response['data']['success'] ?? false) === true) {
+                $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: posted message");
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.posted', 'Shout posted.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
             } else {
+                $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: post failed: " . ($response['data']['error'] ?? 'unknown'));
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? $this->server->t('ui.terminalserver.shoutbox.post_failed', 'Failed to post shout.', [], $state['locale'])), TelnetUtils::ANSI_RED));
             }
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));

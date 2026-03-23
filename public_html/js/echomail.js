@@ -609,7 +609,6 @@ function displayMessages(messages, isThreaded = false) {
             const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? `<i class="fas fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>` : `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>`;
-            const petsciiIcon = msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : '';
             const shareIcon = isShared ? `<i class="fas fa-share-alt text-success me-1" title="${uiT('ui.common.shared', 'Shared')}"></i>` : '';
             const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn"
                                  data-message-id="${msg.id}"
@@ -639,7 +638,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
-                        ${threadIcon}${readIcon}${petsciiIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<span class="echo-from-popover" style="cursor:pointer;" onclick="event.stopPropagation(); handleEchoFromClick(this)" data-from-name="${escapeHtml(msg.from_name)}" data-from-address="${escapeHtml(msg.from_address || '')}" data-to-address="${escapeHtml((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : (msg.from_address || ''))}" data-to-name="${escapeHtml((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}" data-subject="${escapeHtml('Re: ' + (msg.subject || ''))}">${escapeHtml(msg.from_name)}</span>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -924,7 +923,7 @@ function getNextRenderMode(mode) {
     if (window.getNextViewerRenderMode) {
         return window.getNextViewerRenderMode(mode);
     }
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -1123,7 +1122,7 @@ function isAnsiAdCandidate(message, bodyText) {
     if (format === 'ansi' || format === 'amiga_ansi') {
         return true;
     }
-    if (format === 'petscii' || format === 'rip' || format === 'plain') {
+    if (format === 'rip' || format === 'plain') {
         return false;
     }
 
@@ -1340,8 +1339,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: message.from_name })}">${escapeHtml(message.from_name)}</a>
-                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address, message.from_system_name)}</small>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">
@@ -1389,6 +1387,10 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     `;
 
     $('#messageContent').html(html);
+
+    const echoNetmailAddr = (message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address;
+    const echoNetmailName = (message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name;
+    initSenderPopover(message, echoNetmailAddr, echoNetmailName);
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);
@@ -2494,7 +2496,13 @@ function openEditMessage() {
     $('#editMsgFrom').text((msg.from_name || '') + (msg.from_address ? ' <' + msg.from_address + '>' : ''));
     $('#editMsgSubject').text(msg.subject || '');
     $('#editArtFormat').val(msg.art_format || '');
-    $('#editCharset').val(msg.message_charset || '');
+    const editCharsetVal = msg.message_charset || 'UTF-8';
+    const $editCharsetSel = $('#editCharset');
+    $editCharsetSel.find('option.unknown-charset').remove();
+    if ($editCharsetSel.find('option[value="' + editCharsetVal + '"]').length === 0) {
+        $editCharsetSel.prepend('<option value="' + editCharsetVal + '" class="unknown-charset">' + editCharsetVal + ' (unknown)</option>');
+    }
+    $editCharsetSel.val(editCharsetVal);
     $('#editMessageError').addClass('d-none');
     $('#editMessageSuccess').addClass('d-none');
     $('#saveEditMessageBtn').prop('disabled', false);
@@ -2787,6 +2795,31 @@ $(document).ready(function() {
 });
 
 // Save sender to address book from message modal
+// ── Echomail list from-name popover ──────────────────────────────────────────
+
+function handleEchoFromClick(el) {
+    showFtnSenderPopover(el, {
+        fromName:        el.dataset.fromName    || '',
+        fromAddress:     el.dataset.fromAddress || '',
+        toAddress:       el.dataset.toAddress   || '',
+        toName:          el.dataset.toName      || '',
+        subject:         el.dataset.subject     || '',
+        placement:       'bottom',
+        siblingSelector: '.echo-from-popover',
+    });
+}
+
+$(document).on('click.echoFromPopoverDismiss', function(e) {
+    if (!$(e.target).closest('.echo-from-popover, .popover').length) {
+        document.querySelectorAll('.echo-from-popover').forEach(function(el) {
+            const p = bootstrap.Popover.getInstance(el);
+            if (p) p.hide();
+        });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function saveToAddressBook(fromName, fromAddress, originalFromName, originalFromAddress) {
     const button = $('#saveAddressBookBtn');
     const originalHtml = button.html();

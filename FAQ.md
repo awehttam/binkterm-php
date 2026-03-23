@@ -97,6 +97,103 @@ php scripts/setup.php
 ```
 This will apply all pending migrations from the `database/migrations/` directory.
 
+### Q: How do I switch from installer/zip file installation to git based installation?
+**A:** The safest method is to do a fresh git clone and then copy your local
+runtime and configuration files into it.
+
+Recommended steps:
+
+1. Back up your current installation, especially `.env`, `data/`, and any local customizations.
+2. Clone the repository into a new directory:
+```bash
+git clone https://github.com/awehttam/binkterm-php.git
+```
+3. Copy these from the old installation into the new clone:
+- `.env`
+- `data/`
+- any intentional custom templates or local files
+4. Install dependencies if needed:
+```bash
+composer install
+```
+5. Run setup:
+```bash
+php scripts/setup.php
+```
+6. Restart the daemons and web services.
+
+This is preferred over converting the existing ZIP-based directory in place,
+because ZIP installs usually do not contain `.git` history and may already
+have local file changes that are hard to reconcile cleanly.
+
+If you must convert the existing directory in place, you can initialize git,
+add the remote, fetch, and check out the branch:
+
+```bash
+git init
+git remote add origin https://github.com/awehttam/binkterm-php.git
+git fetch origin
+git checkout -b main origin/main
+```
+
+That approach is riskier and more likely to leave you with a dirty tree or
+conflicts if the ZIP-installed files differ from the branch you are checking
+out. After converting in place, run:
+
+```bash
+composer install
+php scripts/setup.php
+```
+
+### Q: How do I switch from git install to installer/zip based install?
+**A:** You can do this in place by unzipping the ZIP release over the existing
+git-based installation and then deleting the `.git` directory. That is the
+quickest method and it will usually preserve your existing `vendor/`
+dependencies.
+
+Quick in-place method:
+
+1. Back up `.env`, `data/`, and any local custom files.
+2. Unzip the ZIP release over the existing git-based installation.
+3. Delete the `.git/` directory.
+4. Run:
+```bash
+php scripts/setup.php
+```
+5. Restart the daemons and web services.
+
+If `vendor/` is missing, dependencies changed, or you want to ensure the
+installed packages match `composer.lock`, also run:
+
+```bash
+composer install
+```
+
+The safer method is to unpack the ZIP release into a new directory and then
+copy your local runtime and configuration files into it.
+
+Recommended steps:
+
+1. Back up your current installation, especially `.env`, `data/`, and any local customizations.
+2. Download and extract the BinktermPHP ZIP release into a new directory.
+3. Copy these from the git-based installation into the new ZIP-based install:
+- `.env`
+- `data/`
+- any intentional custom templates or local files
+4. If the resulting install does not already have a working `vendor/` directory, run:
+```bash
+composer install
+```
+5. Run setup:
+```bash
+php scripts/setup.php
+```
+6. Restart the daemons and web services.
+
+Do not copy the old `.git/` directory into the ZIP-based install. If you later
+decide to return to git-based updates, it is better to clone the repository
+fresh and then copy `.env` and `data/` back into that clone.
+
 ---
 
 ## Configuration

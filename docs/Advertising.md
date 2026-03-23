@@ -8,7 +8,7 @@ Campaigns give sysops fine-grained control over timing and reach. Each campaign 
 
 The ad library tracks content hashes so duplicate uploads are flagged before they crowd out your rotation. Existing flat-file ads from the legacy `bbs_ads/` directory are migrated into the database automatically on upgrade, so you don't lose content switching from the old system.
 
-Ads are managed from **Admin -> Ads -> Advertisements**. Campaigns are managed from **Admin -> Ads -> Ad Campaigns**.
+Content is managed from **Admin → Ads and Bulletins → Content Library**. Broadcasts are managed from **Admin → Ads and Bulletins → Broadcast Manager**.
 
 ## Features
 
@@ -75,7 +75,7 @@ If only one eligible ad exists, the dashboard simply shows that ad without carou
 
 ## Quick Setup Wizard
 
-The **Quick Setup** button on the Ad Campaigns page opens a three-step wizard
+The **Quick Setup** button on the Broadcast Manager page opens a three-step wizard
 that pre-configures a new campaign based on a common use case:
 
 | Type | Description | Default schedule |
@@ -147,7 +147,7 @@ system statistics, or anything else a script can generate.
 
 ### Creating a Dynamic Ad
 
-**Via the ad library:** In **Admin → Ads → Advertisements**, enter the command
+**Via the Content Library:** In **Admin → Ads and Bulletins → Content Library**, enter the command
 path in the **Content Command** field and leave the file picker empty. A title
 is still required. Enable **Allow Auto-Post** so campaigns can use it.
 
@@ -305,7 +305,7 @@ php scripts/run_ad_campaigns.php --dry-run
 
 ## Post History
 
-The **Ad Campaigns** page includes a post history table showing:
+The **Broadcast Manager** page includes a post history table showing:
 
 - post time
 - campaign

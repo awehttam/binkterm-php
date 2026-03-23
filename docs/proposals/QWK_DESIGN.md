@@ -3,7 +3,7 @@
 
 **Status:** Design / Pre-implementation  
 **Scope:** QWK download, REP upload, QWKE extensions  
-
+**Submitted by** Agent 57951
 ---
 
 ## 1. Overview

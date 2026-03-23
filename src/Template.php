@@ -191,6 +191,12 @@ class Template
         $this->twig->addGlobal('bbs_directory_enabled', BbsConfig::isFeatureEnabled('bbs_directory'));
         $this->twig->addGlobal('site_url', Config::getSiteUrl());
         $this->twig->addGlobal('freq_experimental_enabled', Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true');
+        $this->twig->addGlobal('debug_ansi_not_perfect', Config::env('DEBUG_ANSI_NOT_PERFECT', 'false') === 'true');
+        $this->twig->addGlobal('debug_ansi_use_consolas', Config::env('DEBUG_ANSI_USE_CONSOLAS', 'false') === 'true');
+        // ANSI_RENDERER_MODE: 'grouped' (default, merges same-styled chars into one span,
+        // enables URL hyperlinking) or 'perchar' (one span per character, original behavior).
+        $ansiRendererMode = Config::env('ANSI_RENDERER_MODE', 'grouped');
+        $this->twig->addGlobal('ansi_renderer_mode', in_array($ansiRendererMode, ['grouped', 'perchar'], true) ? $ansiRendererMode : 'grouped');
 
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
@@ -218,6 +224,7 @@ class Template
         }
         $this->twig->addGlobal('license_valid', (bool)($licenseStatus['valid'] ?? false));
         $this->twig->addGlobal('license_tier', (string)($licenseStatus['tier'] ?? 'community'));
+        $this->twig->addGlobal('supported_charsets', \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets());
         $this->twig->addGlobal('license_licensee', $licenseStatus['licensee'] ?? null);
         $this->twig->addGlobal('license_system_name', $licenseStatus['system_name'] ?? null);
         $this->twig->addGlobal('license_features', (array)($licenseStatus['features'] ?? []));

@@ -1,0 +1,319 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.weather_config.page_title') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="fas fa-cloud-sun me-2"></i>{{ t('ui.admin.weather_config.heading') }}</h1>
+        <div></div>
+    </div>
+
+    <div id="weatherDaemonAlert" class="alert alert-warning d-none">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ t('ui.admin.weather_config.daemon_error') }}
+    </div>
+
+    <div id="weatherAlert"></div>
+
+    <div class="row g-4">
+        <!-- General Settings -->
+        <div class="col-lg-6">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.weather_config.general_settings') }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="weatherTitle">{{ t('ui.admin.weather_config.title') }}</label>
+                        <input type="text" class="form-control" id="weatherTitle" maxlength="200"
+                               placeholder="{{ t('ui.admin.weather_config.title_placeholder') }}">
+                        <div class="form-text">{{ t('ui.admin.weather_config.title_help') }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="weatherCoverageArea">{{ t('ui.admin.weather_config.coverage_area') }}</label>
+                        <input type="text" class="form-control" id="weatherCoverageArea" maxlength="200"
+                               placeholder="{{ t('ui.admin.weather_config.coverage_area_placeholder') }}">
+                        <div class="form-text">{{ t('ui.admin.weather_config.coverage_area_help') }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="weatherApiKey">{{ t('ui.admin.weather_config.api_key') }}</label>
+                        <input type="text" class="form-control font-monospace" id="weatherApiKey" maxlength="200"
+                               placeholder="{{ t('ui.admin.weather_config.api_key_placeholder') }}" autocomplete="off">
+                        <div class="form-text">
+                            {{ t('ui.admin.weather_config.api_key_help') }}
+                            <a href="https://openweathermap.org/api" target="_blank" rel="noopener">OpenWeatherMap</a>.
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="mb-3">{{ t('ui.admin.weather_config.api_settings') }}</h6>
+                    <div class="row g-3">
+                        <div class="col-sm-4">
+                            <label class="form-label" for="weatherApiTimeout">{{ t('ui.admin.weather_config.api_timeout') }}</label>
+                            <input type="number" class="form-control" id="weatherApiTimeout" min="1" max="60" value="10">
+                            <div class="form-text">{{ t('ui.admin.weather_config.api_timeout_help') }}</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label" for="weatherMaxLocations">{{ t('ui.admin.weather_config.max_locations') }}</label>
+                            <input type="number" class="form-control" id="weatherMaxLocations" min="1" max="50" value="10">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label" for="weatherUnits">{{ t('ui.admin.weather_config.units') }}</label>
+                            <select class="form-select" id="weatherUnits">
+                                <option value="metric">{{ t('ui.admin.weather_config.units_metric') }}</option>
+                                <option value="imperial">{{ t('ui.admin.weather_config.units_imperial') }}</option>
+                                <option value="standard">{{ t('ui.admin.weather_config.units_standard') }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Locations -->
+        <div class="col-lg-6">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ t('ui.admin.weather_config.locations') }}</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addLocation()">
+                        <i class="fas fa-plus me-1"></i>{{ t('ui.admin.weather_config.add_location') }}
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="locationsList" class="list-group list-group-flush">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div id="noLocations" class="text-center text-muted py-4 d-none">
+                        {{ t('ui.admin.weather_config.no_locations') }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3 d-flex gap-2 justify-content-between align-items-center">
+                <button type="button" class="btn btn-outline-secondary d-none" id="loadExampleBtn" onclick="loadExample()">
+                    <i class="fas fa-file-import me-1"></i>{{ t('ui.admin.weather_config.load_example') }}
+                </button>
+                <button type="button" class="btn btn-primary ms-auto" id="saveWeatherBtn" onclick="saveWeatherConfig()">
+                    <i class="fas fa-save me-1"></i>{{ t('ui.admin.weather_config.save') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Location Modal -->
+<div class="modal fade" id="locationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="locationModalTitle">{{ t('ui.admin.weather_config.add_location') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="locationEditIndex" value="">
+                <div class="mb-3">
+                    <label class="form-label" for="locationName">{{ t('ui.admin.weather_config.location_name') }}</label>
+                    <input type="text" class="form-control" id="locationName" maxlength="100"
+                           placeholder="{{ t('ui.admin.weather_config.location_name_placeholder') }}">
+                </div>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label" for="locationLat">{{ t('ui.admin.weather_config.location_lat') }}</label>
+                        <input type="number" class="form-control" id="locationLat" step="0.0001" min="-90" max="90"
+                               placeholder="49.2827">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="locationLon">{{ t('ui.admin.weather_config.location_lon') }}</label>
+                        <input type="number" class="form-control" id="locationLon" step="0.0001" min="-180" max="180"
+                               placeholder="-123.1207">
+                    </div>
+                </div>
+                <div class="form-text mt-2">{{ t('ui.admin.weather_config.location_coords_help') }}</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.admin.weather_config.cancel') }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveLocation()">{{ t('ui.admin.weather_config.save_location') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let locations = [];
+let locationModal = null;
+let exampleConfig = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    locationModal = new bootstrap.Modal(document.getElementById('locationModal'));
+    loadWeatherConfig();
+});
+
+function loadWeatherConfig() {
+    fetch('/admin/api/weather-config')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                if (data.daemon_error) {
+                    document.getElementById('weatherDaemonAlert').classList.remove('d-none');
+                }
+                return;
+            }
+            const cfg = data.data;
+
+            if (cfg.example_json) {
+                try { exampleConfig = JSON.parse(cfg.example_json); } catch(e) {}
+            }
+
+            if (cfg.config_json) {
+                let config = null;
+                try { config = JSON.parse(cfg.config_json); } catch(e) {}
+                if (config) {
+                    applyConfig(config);
+                    return;
+                }
+            }
+
+            // No existing config — show the load-example button
+            document.getElementById('loadExampleBtn').classList.remove('d-none');
+            renderLocations();
+        })
+        .catch(() => {
+            document.getElementById('weatherDaemonAlert').classList.remove('d-none');
+        });
+}
+
+function loadExample() {
+    if (!exampleConfig) return;
+    applyConfig(exampleConfig);
+    document.getElementById('loadExampleBtn').classList.add('d-none');
+}
+
+function applyConfig(config) {
+    document.getElementById('weatherTitle').value        = config.title || '';
+    document.getElementById('weatherCoverageArea').value = config.coverage_area || '';
+    document.getElementById('weatherApiKey').value       = config.api_key || '';
+    const s = config.settings || {};
+    document.getElementById('weatherApiTimeout').value   = s.api_timeout ?? 10;
+    document.getElementById('weatherMaxLocations').value = s.max_locations ?? 10;
+    document.getElementById('weatherUnits').value        = s.units || 'metric';
+    locations = Array.isArray(config.locations) ? config.locations : [];
+    renderLocations();
+}
+
+function renderLocations() {
+    const list = document.getElementById('locationsList');
+    const none = document.getElementById('noLocations');
+    if (locations.length === 0) {
+        list.innerHTML = '';
+        none.classList.remove('d-none');
+        return;
+    }
+    none.classList.add('d-none');
+    list.innerHTML = locations.map((loc, i) => `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <div class="fw-semibold">${escapeHtml(loc.name)}</div>
+                <small class="text-muted font-monospace">${loc.lat}, ${loc.lon}</small>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" onclick="editLocation(${i})" title="{{ t('ui.admin.weather_config.edit') }}">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger" onclick="removeLocation(${i})" title="{{ t('ui.admin.weather_config.remove') }}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addLocation() {
+    document.getElementById('locationModalTitle').textContent = window.t('ui.admin.weather_config.add_location', {}, '{{ t('ui.admin.weather_config.add_location') }}');
+    document.getElementById('locationEditIndex').value = '';
+    document.getElementById('locationName').value = '';
+    document.getElementById('locationLat').value  = '';
+    document.getElementById('locationLon').value  = '';
+    locationModal.show();
+}
+
+function editLocation(index) {
+    const loc = locations[index];
+    if (!loc) return;
+    document.getElementById('locationModalTitle').textContent = window.t('ui.admin.weather_config.edit_location', {}, '{{ t('ui.admin.weather_config.edit_location') }}');
+    document.getElementById('locationEditIndex').value = index;
+    document.getElementById('locationName').value = loc.name || '';
+    document.getElementById('locationLat').value  = loc.lat ?? '';
+    document.getElementById('locationLon').value  = loc.lon ?? '';
+    locationModal.show();
+}
+
+function saveLocation() {
+    const name = document.getElementById('locationName').value.trim();
+    const lat  = parseFloat(document.getElementById('locationLat').value);
+    const lon  = parseFloat(document.getElementById('locationLon').value);
+    if (!name || isNaN(lat) || isNaN(lon)) return;
+
+    const index = document.getElementById('locationEditIndex').value;
+    if (index !== '') {
+        locations[parseInt(index)] = { name, lat, lon };
+    } else {
+        locations.push({ name, lat, lon });
+    }
+    renderLocations();
+    locationModal.hide();
+}
+
+function removeLocation(index) {
+    locations.splice(index, 1);
+    renderLocations();
+}
+
+function saveWeatherConfig() {
+    const btn = document.getElementById('saveWeatherBtn');
+    const alertEl = document.getElementById('weatherAlert');
+    alertEl.innerHTML = '';
+
+    const config = {
+        title:         document.getElementById('weatherTitle').value.trim(),
+        coverage_area: document.getElementById('weatherCoverageArea').value.trim(),
+        api_key:       document.getElementById('weatherApiKey').value.trim(),
+        locations:     locations,
+        settings: {
+            api_timeout:   parseInt(document.getElementById('weatherApiTimeout').value) || 10,
+            max_locations: parseInt(document.getElementById('weatherMaxLocations').value) || 10,
+            units:         document.getElementById('weatherUnits').value,
+        },
+    };
+
+    btn.disabled = true;
+    fetch('/admin/api/weather-config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.csrfToken || ''
+        },
+        body: JSON.stringify(config),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alertEl.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>${window.t('ui.admin.weather_config.saved_success', {}, '{{ t('ui.admin.weather_config.saved_success') }}')}</div>`;
+        } else {
+            const msg = data.daemon_error
+                ? window.t('ui.admin.weather_config.daemon_error', {}, '{{ t('ui.admin.weather_config.daemon_error') }}')
+                : window.getApiErrorMessage(data, window.t('ui.admin.weather_config.save_failed', {}, '{{ t('ui.admin.weather_config.save_failed') }}'));
+            alertEl.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>${escapeHtml(msg)}</div>`;
+        }
+    })
+    .catch(() => {
+        alertEl.innerHTML = `<div class="alert alert-danger">${window.t('ui.admin.weather_config.save_error', {}, '{{ t('ui.admin.weather_config.save_error') }}')}</div>`;
+    })
+    .finally(() => { btn.disabled = false; });
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

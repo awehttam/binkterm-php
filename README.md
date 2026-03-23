@@ -12,6 +12,10 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **Credits economy** — reward logins and participation, or charge for door games and premium features
 - **Message webshare** — let users share posts via secure, expiring links with public or private access
 - **Nodelist browser** — search and reference FTN nodes without leaving the interface
+- **Offline mail reading** — QWK packet support lets users download and reply to messages in their favourite offline reader
+- **Echomail digests** — users can receive a periodic email digest summarising new activity in their subscribed areas (daily or weekly)
+- **Advertising manager** — create and rotate ANSI, RIPscrip, Sixel, or plain-text ads on the dashboard, and manage automated postings
+- **System analytics** — activity stats, login source breakdown, and a full activity viewer for monitoring usage
 - **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
 - **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
 - **...and more**
@@ -141,6 +145,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Search Capabilities** - Full-text trigram search across messages and echo areas, plus global cross-area file search
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
+- **Service Worker Caching** - Static assets, scripts, and localisation data are cached by a service worker for fast repeat loads and a responsive experience on slow or intermittent connections
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 - **MRC Chat** - Real-time multi-BBS chat via the MRC (Multi Relay Chat) network; connects users across BBSes in shared rooms with private messaging support (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
@@ -148,18 +153,17 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
-- **Advertising** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and scheduled echomail ad campaigns (see [docs/Advertising.md](docs/Advertising.md))
-- **Outbound FREQ** - Users can request files from other FTN nodes directly from the nodelist browser
+- **Advertising & Broadcasts** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and a Broadcast Manager for scheduled echomail posts including ads, weather reports, and automated bulletins (see [docs/Advertising.md](docs/Advertising.md))
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
+- **Activity Analytics** - Full activity viewer, webshare link access tracking, credits economy viewer, and referral analytics; sysops see a Today's Callers list on the dashboard; user profiles show message counts, file transfer stats, and a download/upload ratio
 - **Nodelist Browsers** - Integrated nodelist updater and browser
 - **BBS Directory** - Public directory of known BBS systems, automatically populated from echomail announcements and supplementable with manual or user-submitted entries reviewed by the sysop
 - **Echomail Robots** - Generic rule-based framework that watches echo areas for matching messages and dispatches them to configurable processors. Ships with a built-in processor for FSXNet `ibbslastcall-data` announcements that auto-populates the BBS Directory. Custom processors can be added in `src/Robots/Processors/`. See [docs/Robots.md](docs/Robots.md).
 - **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
-- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English and Spanish out of the box.
-- **Message Artwork Encoding Editor** - In-browser tool for correcting the character encoding of ANSI and PETSCII art in messages when automatic detection is wrong; available to sysops on any echomail and to senders/receivers on netmail
+- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English, Spanish, and French out of the box.
 - **Email Notifications** - Registered feature: users can opt in to have incoming netmail forwarded to their email address (including FTN file attachments), and/or receive a periodic echomail digest summarising new activity in their subscribed areas (daily or weekly)
 - **QWK/QWKE Offline Mail** - Download QWK or QWKE offline mail packets containing new netmail and echomail for reading in offline readers (MultiMail, OLX, etc.), then upload REP reply packets to post replies
 - **Registration** - Optional registration unlocks premium features including custom login/registration splash pages, netmail email forwarding, echomail digest emails, economy viewer, and referral analytics. See [REGISTER.md](REGISTER.md) for details.
@@ -178,7 +182,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Server Management** - Start/stop binkp server daemon (Linux/UNIX only)
 - **Status Monitoring** - Real-time system and connection status
 - **Scheduling Control** - Manage automated polling schedules
-- **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
+- **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](docs/Weather.md))
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
@@ -585,6 +589,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.8.8](docs/UPGRADING_1.8.8.md)       | Mar 2026    | TIC incoming processor `FILE_ID.DIZ` lookup fix for ZIP archives; root-level and single-top-directory handling only |
 | [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | Registration/premium features; ISO-backed file areas; global file search; outbound FREQ; echomail digest emails; netmail forwarding to email; in-browser artwork encoding editor; enhanced message search; nodelist map; page position memory; file preview improvements; QWK/QWKE offline mail |
 | [1.8.6](docs/UPGRADING_1.8.6.md)       | Mar 2026    | i18n/localization, SSH daemon, file areas terminal, ZMODEM, telnet ANSI auto-detect, echomail/netmail reader keyboard shortcuts |
 | [1.8.5](docs/UPGRADING_1.8.5.md)       | Mar 4 2026  | Native doors (PTY), StyleCodes rendering, LSC-001 Draft 2 MARKUP kludge, markup format composer selector, allow_markup uplink config key |
@@ -677,7 +682,7 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 - Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
 ### BBS Advertising System
-Advertising is now managed through the built-in ad library at **Admin -> Ads**.
+Advertising is now managed through the built-in Content Library at **Admin -> Ads and Bulletins -> Content Library**.
 
 ANSI ads are stored in the database, can be previewed and edited in the browser, and can be used both for dashboard rotation and scheduled echomail posting.
 
@@ -1342,6 +1347,15 @@ tail -f data/logs/binkp_server.log
 
 You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.
 See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
+
+## LovlyNet Standards Council (LSC)
+
+BinktermPHP implements LovlyNet Standards Council (LSC) specifications to enhance FTN communication beyond the base FidoNet protocols. These standards are developed by LovlyNet and proposed to the broader FTN community.
+
+| Standard | Title | Status | Document |
+|----------|-------|--------|----------|
+| LSC-001 | MARKUP Kludge — rich-text formatting in echomail and netmail | Community Draft / Proposed for FTSC | [LSC1 - Markup Kludge.txt](docs/LSC/LSC1%20-%20Markup%20Kludge.txt) |
+| LSC-002 | FILEREF Kludge — file-referenced echomail threads | Draft — LovlyNet Standards Council | [LSC2 - FILEREF Kludge.txt](docs/LSC/LSC2%20-%20FILEREF%20Kludge.txt) |
 
 ## Getting Help
 If you encounter issues not covered here:

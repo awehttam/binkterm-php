@@ -48,13 +48,12 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
     <!-- User's selected BBS theme (provides CSS variable overrides) -->
     <link href="<?php echo htmlspecialchars($stylesheet); ?>" rel="stylesheet">
     <link href="/css/ansisys.css" rel="stylesheet">
-    <link href="mrc.css" rel="stylesheet">
+    <link rel="stylesheet" href="mrc.css?v=<?php echo filemtime(__DIR__ . '/mrc.css'); ?>">
 </head>
 <body>
-    <div class="container-fluid h-100 p-0">
-        <div class="row h-100 g-0">
+    <div id="mrc-app">
             <!-- Left Sidebar: Room List -->
-            <div class="col-md-2 border-end" id="mrc-sidebar-left">
+            <div class="border-end" id="mrc-sidebar-left">
                 <div class="p-3">
                     <h5 class="mb-2">
                         <i class="bi bi-door-open"></i> Rooms
@@ -81,11 +80,14 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
                     <div id="connection-status" class="mrc-text-muted small">
                         <i class="bi bi-circle-fill text-secondary"></i> Checking...
                     </div>
+                    <div class="mt-2">
+                        <button id="poll-mode-btn" class="btn btn-outline-secondary btn-sm w-100" type="button" title="Switch polling mode">Use long poll</button>
+                    </div>
                 </div>
             </div>
 
             <!-- Center: Chat Messages -->
-            <div class="col-md-8 d-flex flex-column">
+            <div id="mrc-main" class="d-flex flex-column">
                 <!-- Chat Header -->
                 <div class="border-bottom p-3" id="mrc-chat-header">
                     <div class="d-flex justify-content-between align-items-center">
@@ -131,7 +133,7 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
                                    placeholder="Type a command (e.g. /identify) or join a room to chat..."
                                    maxlength="140"
                                    autocomplete="off">
-                            <button class="btn btn-primary" type="submit" id="send-btn">
+                            <button class="btn btn-primary" type="submit" id="send-btn" tabindex="-1">
                                 <i class="bi bi-send"></i> Send
                             </button>
                         </div>
@@ -143,7 +145,7 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
             </div>
 
             <!-- Right Sidebar: User List -->
-            <div class="col-md-2 border-start" id="mrc-sidebar-right">
+            <div class="border-start" id="mrc-sidebar-right">
                 <div class="p-3">
                     <h5 class="mb-3">
                         <i class="bi bi-people"></i> Users
@@ -157,7 +159,6 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
                     </div>
                 </div>
             </div>
-        </div>
     </div>
 
     <!-- Bootstrap JS -->
@@ -171,7 +172,7 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
         window.mrcCurrentBbs = <?php echo json_encode(MrcConfig::getInstance()->getBbsName()); ?>;
     </script>
     <!-- MRC Client JS -->
-    <script src="mrc.js"></script>
+    <script src="mrc.js?v=<?php echo filemtime(__DIR__ . '/mrc.js'); ?>"></script>
 
 </body>
 </html>

@@ -51,6 +51,20 @@ class QwkBuilder
     private const BLOCK_SIZE          = 128;
     private const ACTIVE_FLAG         = 0xE1;
 
+    /**
+     * Charset used for QWKE body encoding.
+     *
+     * 'CP437'  — converts UTF-8 body text back to CP437 via iconv before
+     *             packing; emits ^ACHRS: CP437 2.  Best compatibility with
+     *             offline readers whose ANSI renderers expect single-byte
+     *             CP437 characters (the traditional QWK charset).
+     *
+     * 'UTF-8'  — keeps body as UTF-8; emits ^ACHRS: UTF-8 4.  Correct for
+     *             readers that fully support QWKE and Unicode, but breaks
+     *             ANSI art rendering in most current readers.
+     */
+    private const QWKE_EXPORT_CHARSET = 'CP437';
+
     private PDO $db;
     private BinkpConfig $binkpConfig;
 
@@ -105,6 +119,7 @@ class QwkBuilder
         // Build in-memory file contents.
         $controlDat              = $this->buildControlDat($user, $conferences, $conferenceMessages);
         $doorId                  = $this->buildDoorId($qwke);
+        $toReaderExt             = $qwke ? $this->buildToReaderExt() : null;
         [$messagesDat, $messageMap] = $this->buildMessagesDat($conferences, $conferenceMessages, $qwke);
 
         // Write to a temp ZIP.
@@ -118,6 +133,9 @@ class QwkBuilder
 
         $zip->addFromString('CONTROL.DAT',  $controlDat);
         $zip->addFromString('DOOR.ID',      $doorId);
+        if ($toReaderExt !== null) {
+            $zip->addFromString('TOREADER.EXT', $toReaderExt);
+        }
         $zip->addFromString('MESSAGES.DAT', $messagesDat);
         $zip->close();
 
@@ -136,14 +154,20 @@ class QwkBuilder
     }
 
     /**
-     * Derive the 8-character BBSID from the system name.
+     * Return the 8-character BBSID.
      *
-     * Strips everything that is not an ASCII letter or digit, uppercases,
-     * and truncates to 8 characters.  Falls back to "BINKTERM" if the
-     * system name contains no usable characters.
+     * Uses the configured value from bbs.json (qwk.bbs_id) when set.
+     * Falls back to deriving it from the system name: strips everything that
+     * is not an ASCII letter or digit, uppercases, and truncates to 8
+     * characters.  Falls back to "BINKTERM" if no usable characters remain.
      */
     public function getBbsId(): string
     {
+        $configured = trim((string)(\BinktermPHP\BbsConfig::getConfig()['qwk']['bbs_id'] ?? ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
         $name = $this->binkpConfig->getSystemName();
         $id   = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name));
         $id   = substr($id, 0, 8);
@@ -181,9 +205,19 @@ class QwkBuilder
         // Conferences 1–N: subscribed echo areas.
         $subscriptionManager = new EchoareaSubscriptionManager();
         $echoareas           = $subscriptionManager->getUserSubscribedEchoareas($userId);
-        $number              = 1;
+        $conferenceNumbers   = (new QwkConferenceNumberManager())->getOrCreateConferenceNumbers($echoareas);
+
+        usort($echoareas, function(array $a, array $b) use ($conferenceNumbers) {
+            return ($conferenceNumbers[(int)$a['id']] ?? PHP_INT_MAX)
+                <=> ($conferenceNumbers[(int)$b['id']] ?? PHP_INT_MAX);
+        });
 
         foreach ($echoareas as $area) {
+            $number = $conferenceNumbers[(int)$area['id']] ?? null;
+            if ($number === null) {
+                continue;
+            }
+
             $name = strtoupper($area['tag']);
             if (!empty($area['domain'])) {
                 $name .= '@' . strtoupper($area['domain']);
@@ -198,7 +232,6 @@ class QwkBuilder
                 'domain'      => $area['domain'] ?? '',
                 'is_netmail'  => false,
             ];
-            $number++;
         }
 
         return $conferences;
@@ -292,6 +325,27 @@ class QwkBuilder
         if ($qwke) {
             $lines[] = 'CONTROLTYPE = QWKE';
         }
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * Generate TOREADER.EXT content for QWKE exports.
+     *
+     * This advertises the extension keywords we currently emit as QWKE
+     * control lines in message bodies.
+     */
+    private function buildToReaderExt(): string
+    {
+        $lines = [
+            'CHRS',
+            'MSGID',
+            'REPLY',
+            'TZUTC',
+            'INTL',
+            'FMPT',
+            'TOPT',
+        ];
 
         return implode("\r\n", $lines) . "\r\n";
     }
@@ -411,7 +465,11 @@ class QwkBuilder
         $bodyText = $this->stripKludgeLines($bodyText);
 
         if ($qwke) {
-            // Prepend QWKE kludge lines and keep body as UTF-8.
+            if (self::QWKE_EXPORT_CHARSET !== 'UTF-8') {
+                // Convert body from UTF-8 storage encoding to the target export charset.
+                $converted = @iconv('UTF-8', self::QWKE_EXPORT_CHARSET . '//TRANSLIT//IGNORE', $bodyText);
+                $bodyText  = ($converted !== false && $converted !== '') ? $converted : $bodyText;
+            }
             $combined = $this->buildQwkePrefix($message) . $bodyText;
         } else {
             // Plain QWK: convert body to CP437 via iconv (mbstring does not support CP437).
@@ -473,33 +531,37 @@ class QwkBuilder
     {
         $lines = [];
 
-        // Character set — always UTF-8.
-        $lines[] = "\x01CHRS: UTF-8 4";
+        // QWKE plain-text extended headers must come first, with no ^A prefix,
+        // so that readers (e.g. MultiMail) find them at the start of the body.
+        if (!empty($message['subject'])) {
+            $lines[] = "Subject: " . $message['subject'];
+        }
+        if (!empty($message['to_name'])) {
+            $lines[] = "To: " . $message['to_name'];
+        }
+        if (!empty($message['from_name'])) {
+            $lines[] = "From: " . $message['from_name'];
+        }
+
+        // ^A-prefixed FTN kludge lines follow the QWKE headers.
+        // CHRS level: 2 = single-byte (CP437/CP1252/etc.), 4 = UTF-8.
+        $chrsLevel = (self::QWKE_EXPORT_CHARSET === 'UTF-8') ? 4 : 2;
+        $lines[]   = "\x01CHRS: " . self::QWKE_EXPORT_CHARSET . ' ' . $chrsLevel;
 
         // Emit stored kludge lines verbatim (they already contain ^A prefixes
         // and cover MSGID, REPLY, TZUTC, INTL, etc.).
         $storedKludges = trim((string)($message['kludge_lines'] ?? ''));
         if ($storedKludges !== '') {
-            // Normalise line endings and re-emit each kludge line.
             foreach (preg_split('/\r\n|\r|\n/', $storedKludges) as $kludgeLine) {
                 $kludgeLine = rtrim($kludgeLine);
                 if ($kludgeLine === '') {
                     continue;
                 }
-                // Ensure the ^A prefix is present (it should already be, but be defensive).
                 if (ord($kludgeLine[0]) !== 0x01) {
                     $kludgeLine = "\x01" . $kludgeLine;
                 }
                 $lines[] = $kludgeLine;
             }
-        }
-
-        // QWKE extended FROM / TO lines carrying the FidoNet addresses.
-        if (!empty($message['from_address'])) {
-            $lines[] = "\x01FROM: " . ($message['from_name'] ?? '') . ' <' . $message['from_address'] . '>';
-        }
-        if (!empty($message['to_address'])) {
-            $lines[] = "\x01TO: " . ($message['to_name'] ?? '') . ' <' . $message['to_address'] . '>';
         }
 
         return implode("\n", $lines) . "\n";
