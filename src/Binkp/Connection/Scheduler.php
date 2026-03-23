@@ -227,6 +227,12 @@ class Scheduler
                 continue;
             }
 
+            $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
+            if (!$this->parseCronExpression($schedule, time())) {
+                $this->log("Outbound files found for {$address} but poll schedule not due, deferring", 'DEBUG');
+                continue;
+            }
+
             $lastOutboundPoll = $this->lastOutboundPollTimes[$address] ?? 0;
             if ((time() - $lastOutboundPoll) < 60) {
                 $this->log("Recent outbound poll for {$address}, skipping duplicate outbound poll", 'DEBUG');
@@ -256,7 +262,6 @@ class Scheduler
                     $pollSuccess = ($processResult['exit_code'] ?? 1) === 0;
                 }
 
-                $this->lastPollTimes[$address] = time();
                 $this->lastOutboundPollTimes[$address] = time();
                 $results[$address] = [
                     'success' => $pollSuccess,
