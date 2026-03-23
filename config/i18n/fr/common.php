@@ -2458,7 +2458,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echo_onboarding.heading' => 'Bienvenue sur Echomail',
     'ui.echo_onboarding.intro' => 'Echomail est un système de forums publics qui connecte ce BBS à un réseau mondial d\'autres systèmes. Voici une brève introduction avant de commencer.',
     'ui.echo_onboarding.what_is.title' => 'Qu\'est-ce que l\'Echomail ?',
-    'ui.echo_onboarding.what_is.body' => 'L\'Echomail est organisé en zones thématiques — similaires aux groupes de discussion ou aux listes de diffusion — couvrant des sujets comme l\'informatique rétro, la radio amateur, la programmation et la discussion générale. Les messages sont visibles par tous sur le réseau.',
+    'ui.echo_onboarding.what_is.body' => 'L\'Echomail est organisé en zones thématiques — similaires aux groupes de discussion ou aux listes de diffusion — couvrant une grande variété de sujets comme l\'informatique rétro, la radio amateur, la programmation, les loisirs, le sport, l\'écriture créative et la discussion générale. Les messages sont visibles par tous sur le réseau.',
     'ui.echo_onboarding.how_it_works.title' => 'Comment ça fonctionne ?',
     'ui.echo_onboarding.how_it_works.body' => 'Ce BBS fait partie d\'un réseau de style FidoNet. Lorsque vous publiez un message, il est automatiquement échangé avec d\'autres BBS qui portent la même zone. Les messages de ces systèmes arrivent ici aussi — vos conversations atteignent ainsi une communauté mondiale.',
     'ui.echo_onboarding.getting_started.title' => 'Pour commencer',
