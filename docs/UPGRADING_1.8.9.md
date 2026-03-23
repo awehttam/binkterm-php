@@ -16,6 +16,7 @@
 ### Scheduler
 
 - **Outbound poll scheduling**: The scheduler's outbound poll check (`pollIfOutbound`) now respects each uplink's configured `poll_schedule` cron expression. Previously, outbound packets could trigger a poll as frequently as once per minute; they now only poll when the schedule allows it. This prevents flooding uplinks with connections. The outbound and scheduled poll timers are tracked independently so an outbound poll does not delay the next scheduled inbound poll.
+- **No duplicate outbound poll after scheduled poll**: When a scheduled inbound poll runs, its bidirectional binkp session already exchanges any outbound packets. The scheduler now records the uplink's outbound poll time after a scheduled poll, so `pollIfOutbound` no longer opens a redundant second connection in the same loop iteration.
 
 ### Admin — BinkP Config
 

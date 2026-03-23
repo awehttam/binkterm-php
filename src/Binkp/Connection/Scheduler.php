@@ -118,6 +118,11 @@ class Scheduler
                 }
 
                 $this->lastPollTimes[$address] = time();
+                // A scheduled binkp session is bidirectional — outbound files are
+                // transmitted during the same connection.  Mark the outbound poll
+                // time so pollIfOutbound() does not open a duplicate connection in
+                // the same loop iteration.
+                $this->lastOutboundPollTimes[$address] = time();
                 $results[$address] = [
                     'success' => $pollSuccess,
                     'poll_result' => $pollResult,
