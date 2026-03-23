@@ -51,7 +51,8 @@ class InterestGenerator
         ['name' => 'BBS & Fidonet', 'icon' => 'fa-terminal', 'color' => '#2c3e50',
          'keywords' => ['BBS','FIDONET','FIDO','SYSOP','DOOR','ANSI','ASCII','NODELIST','ECHOMAIL','NETMAIL',
                         'BINKP','FTN','MAILER','FOSSIL','TICFILE','FILEECHO','POINTLIST',
-                        'ECHO_ADS','FILEFIND','BOT','ADMIN','OPS','SYNCANNO','SYNCOPS','SYNCJS','ANNOUNCE']],
+                        'ECHO_ADS','FILEFIND','IBBSDOOR','DOORGAMES','ALLFIX','PDNECHO','GOLDBASE','GOLDED',
+                        'FIDOTEST','FIDONEWS','FTSC','FUTURE4FIDO']],
         ['name' => 'Programming & Software Development', 'icon' => 'fa-code', 'color' => '#3498db',
          'keywords' => ['PROG','CODE','CODING','DEVEL','DEV','PYTHON','JAVA','CPLUS','CPLUSPLUS','CSHARP',
                         'DOTNET','PERL','RUBY','JAVASCRIPT','TYPESCRIPT','GOLANG','RUST','SWIFT','PASCAL',
@@ -124,8 +125,8 @@ class InterestGenerator
          'keywords' => ['HISTORY','HISTORIC','COLDWAR','COLD_WAR','MILITARY','WAR','WWII','WW2','WW1',
                         'NUCLEAR','CIVIL_WAR','ANCIENT','MEDIEVAL','LONGLINES','BUNKER']],
         ['name' => 'Synchronet & Other BBS Software', 'icon' => 'fa-server', 'color' => '#2c3e50',
-         'keywords' => ['SYNCHRONET','SYNCDATA','SBBS','ENIGMA','MYSTIC','MAXIMUS','TELEGARD','RENEGADE',
-                        'WILDCAT','PCBOARD','WWIV','TRIBBS']],
+         'keywords' => ['SYNCHRONET','SYNCDATA','SYNCANNO','SYNCOPS','SYNCJS','SBBS','ENIGMA','MYSTIC',
+                        'MAXIMUS','TELEGARD','RENEGADE','WILDCAT','PCBOARD','WWIV','TRIBBS']],
         ['name' => 'Hobbies & Crafts', 'icon' => 'fa-tools', 'color' => '#27ae60',
          'keywords' => ['HOBBY','HOBBIES','CRAFT','CRAFTS','ANTIQUE','BASKETRY','BEADING','CERAMICS',
                         'CROCHET','CROSS_STITCH','DOLLMAKING','ENAMELING','FLOWERS','GLASS','JEWELRY',
@@ -166,7 +167,7 @@ class InterestGenerator
      *
      * @return array{suggestions:array<int,array<string,mixed>>, stats:array<string,int>}
      */
-    public function generate(bool $useAi = true): array
+    public function generate(bool $useAi = true, bool $useKeywords = true): array
     {
         // Fetch active echo areas only
         $stmt = $this->db->query("SELECT id, tag, description, domain FROM echoareas WHERE is_active = TRUE ORDER BY tag");
@@ -178,10 +179,10 @@ class InterestGenerator
 
         $noDescription = count(array_filter($echoareas, fn($e) => trim((string)($e['description'] ?? '')) === ''));
 
-        // Pass 1: keyword heuristics
-        $tagToCategory = $this->classifyByKeyword($echoareas);
+        // Pass 1: keyword heuristics (optional)
+        $tagToCategory = $useKeywords ? $this->classifyByKeyword($echoareas) : [];
 
-        // Pass 2: AI for unmatched areas
+        // Pass 2: AI for unmatched (or all) areas
         $unmatched = array_filter($echoareas, fn($e) => ($tagToCategory[$e['tag']] ?? null) === null);
         if ($useAi && !empty($unmatched)) {
             $apiKey = Config::env('ANTHROPIC_API_KEY', '');

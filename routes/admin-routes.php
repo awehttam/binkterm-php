@@ -6048,9 +6048,10 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
             http_response_code(404);
             return;
         }
-        $data   = json_decode(file_get_contents('php://input'), true) ?? [];
-        $useAi  = (bool)($data['use_ai'] ?? true);
-        $result = (new \BinktermPHP\InterestGenerator())->generate($useAi);
+        $data        = json_decode(file_get_contents('php://input'), true) ?? [];
+        $useAi       = (bool)($data['use_ai'] ?? true);
+        $useKeywords = (bool)($data['use_keywords'] ?? true);
+        $result = (new \BinktermPHP\InterestGenerator())->generate($useAi, $useKeywords);
         echo json_encode($result);
     });
 

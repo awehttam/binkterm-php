@@ -171,7 +171,7 @@
                         <a href="/admin/subscriptions" class="alert-link ms-1">Fill in descriptions on the Echo Areas page</a> for better results.
                     </div>
 
-                    <div class="form-check mb-3" id="aiCheckRow">
+                    <div class="form-check mb-2" id="aiCheckRow">
                         <input class="form-check-input" type="checkbox" id="useAiCheck"
                             {{ ai_available ? 'checked' : 'disabled' }}>
                         <label class="form-check-label{% if not ai_available %} text-muted{% endif %}" for="useAiCheck">
@@ -182,6 +182,12 @@
                             <i class="fas fa-key me-1"></i>Set <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file to enable AI classification.
                         </div>
                         {% endif %}
+                    </div>
+                    <div class="form-check mb-3" id="keywordCheckRow">
+                        <input class="form-check-input" type="checkbox" id="useKeywordsCheck" checked>
+                        <label class="form-check-label" for="useKeywordsCheck">
+                            <strong>Use keyword pre-classification</strong> — uncheck to let AI classify everything
+                        </label>
                     </div>
                 </div>
 
@@ -669,15 +675,20 @@ function showWizardStep(n) {
 
 function runGeneration() {
     showWizardStep(2);
-    const useAi = document.getElementById('useAiCheck').checked;
-    document.getElementById('wizardRunNote').textContent = useAi
-        ? 'Running keyword pass, then sending unmatched areas to Claude Haiku…'
-        : 'Running keyword classification…';
+    const useAi       = document.getElementById('useAiCheck').checked;
+    const useKeywords = document.getElementById('useKeywordsCheck').checked;
+    if (!useKeywords && useAi) {
+        document.getElementById('wizardRunNote').textContent = 'Sending all areas to Claude Haiku for classification…';
+    } else if (useAi) {
+        document.getElementById('wizardRunNote').textContent = 'Running keyword pass, then sending unmatched areas to Claude Haiku…';
+    } else {
+        document.getElementById('wizardRunNote').textContent = 'Running keyword classification…';
+    }
 
     fetch('/api/admin/interests/generate', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({use_ai: useAi})
+        body: JSON.stringify({use_ai: useAi, use_keywords: useKeywords})
     })
     .then(r => r.json())
     .then(result => {
