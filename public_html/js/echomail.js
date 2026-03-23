@@ -29,6 +29,7 @@ let currentInterestId = null;
 let currentInterestName = '';
 let currentInterestSlug = '';
 let areaListInterestFilter = null;
+let loadedInterests = [];
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -337,6 +338,7 @@ function applyEchoareaFilter() {
  * @param {Array} interests
  */
 function populateAreaListInterestDropdowns(interests) {
+    loadedInterests = interests;
     const allOption = `<option value="">${uiT('ui.echomail.all_subscribed_areas', 'All Subscribed Areas')}</option>`;
     let options = allOption;
     interests.forEach(function(interest) {
@@ -346,13 +348,48 @@ function populateAreaListInterestDropdowns(interests) {
 }
 
 /**
- * Set the interest filter on the area list tab and re-render the list.
+ * Set the interest filter on the area list tab, re-render the list,
+ * and snap to "All Messages" scoped to that interest.
  * @param {number|null} id  Interest ID, or null for all subscribed areas.
  */
 function setAreaListInterestFilter(id) {
     areaListInterestFilter = id;
     $('#areaListInterestFilter, #mobileAreaListInterestFilter').val(id === null ? '' : String(id));
     applyEchoareaFilter();
+
+    // Always snap to "All Messages" and reload messages scoped to the new filter
+    currentEchoarea = null;
+    _applyInterestFilterToAllMessages(id);
+
+    // Update active state in sidebar to highlight "All Messages"
+    $('.node-item, .list-group-item-action').removeClass('bg-primary text-white active');
+    $('.node-item .badge, .list-group-item-action .badge').removeClass('bg-light text-dark').addClass('bg-secondary');
+    $(".node-item[onclick*=\"selectEchoarea(null)\"]").addClass('bg-primary text-white');
+    $(".node-item[onclick*=\"selectEchoarea(null)\"] .badge").removeClass('bg-secondary').addClass('bg-light text-dark');
+    $(".list-group-item-action[onclick*=\"selectEchoarea(null)\"]").addClass('active');
+
+    history.pushState({echoarea: null}, '', '/echomail');
+    updateEchoInfoBar();
+    loadMessages();
+}
+
+/**
+ * Apply an interest filter to the "All Messages" view by updating currentInterestId.
+ * @param {number|null} id
+ */
+function _applyInterestFilterToAllMessages(id) {
+    if (id !== null) {
+        const interest = loadedInterests.find(function(i) { return i.id === id; });
+        if (interest) {
+            currentInterestId   = interest.id;
+            currentInterestName = interest.name;
+            currentInterestSlug = interest.slug || '';
+            return;
+        }
+    }
+    currentInterestId   = null;
+    currentInterestName = '';
+    currentInterestSlug = '';
 }
 
 function displayEchoareas(echoareas) {
@@ -533,10 +570,15 @@ function selectInterest(id, name, slug) {
 }
 
 function selectEchoarea(tag) {
-    currentInterestId   = null;
-    currentInterestName = '';
-    currentInterestSlug = '';
-    currentEchoarea     = tag;
+    // When "All Messages" is selected, scope to the active interest filter if one is set
+    if (!tag) {
+        _applyInterestFilterToAllMessages(areaListInterestFilter);
+    } else {
+        currentInterestId   = null;
+        currentInterestName = '';
+        currentInterestSlug = '';
+    }
+    currentEchoarea = tag;
     // Restore subscribe button visibility in case we're coming from interest mode
     $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
