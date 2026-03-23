@@ -47,7 +47,7 @@ The key benefits:
 
 ### The Interest Picker
 
-Visit **Interests** from the user menu (or go to `/interests`) to see the full list of active interests. Each card shows the interest's icon, color, name, description, how many echo areas it covers, and how many subscribers it has.
+Visit **Interests** from the user menu (or go to `/interests`) to see the full list of active interests. Each card shows the interest's icon, color, name, description, and how many echo areas it covers.
 
 If there are no active interests, the menu link is hidden.
 
@@ -66,7 +66,7 @@ On the interest card, click **Subscribe** to join an interest. You'll have two o
 - **Subscribe to all** — subscribes you to every echo area in the interest at once.
 - **Choose areas** — opens a list so you can pick only the areas you want.
 
-Once subscribed, those echo areas appear in your normal area list just like any other subscription. The interest card shows a filled button and a subscriber count that includes you.
+Once subscribed, those echo areas appear in your normal area list just like any other subscription. The interest card button updates to show you are subscribed.
 
 Click **Unsubscribe** to leave. Only echo areas that came from this interest are removed — areas you subscribed to independently, or that are also part of another interest you're still subscribed to, are left alone.
 

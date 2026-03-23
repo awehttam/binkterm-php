@@ -366,7 +366,22 @@ SimpleRouter::get('/echomail', function() {
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
         $im = new \BinktermPHP\InterestManager();
-        $hasInterests = count($im->getInterests(true)) > 0;
+        $activeInterests = $im->getInterests(true);
+        $hasInterests = count($activeInterests) > 0;
+
+        // First-visit onboarding: if the user has never been redirected to the
+        // interests picker and has no interest subscriptions, send them there now.
+        if ($hasInterests && !$echoarea) {
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta = new \BinktermPHP\UserMeta();
+            if (!$meta->getValue($userId, 'interests_onboarded')) {
+                $meta->setValue($userId, 'interests_onboarded', '1');
+                $subscribedIds = $im->getUserSubscribedInterestIds($userId);
+                if (empty($subscribedIds)) {
+                    return SimpleRouter::response()->redirect('/interests');
+                }
+            }
+        }
     }
 
     $template = new Template();

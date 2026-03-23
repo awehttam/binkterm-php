@@ -650,6 +650,7 @@
     </div>
 </div>
 {% endif %}
+
 {% endblock %}
 
 {% block styles %}
@@ -697,9 +698,12 @@ window.currentUserRealName = '{{ current_user.real_name }}';
 window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
 window.echomailDateField = '{{ echomail_date_field|default("received") }}';
 </script>
+{% if interests_enabled %}
 <script src="/js/ansisys.js"></script>
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
+<script src="/js/file-preview.js"></script>
+{% endif %}
 <script src="/js/echomail.js"></script>
 {% if interests_enabled and has_interests %}
 <script>

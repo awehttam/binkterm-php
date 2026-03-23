@@ -649,59 +649,186 @@ class MessageHandler
         }
 
         $sysopClause  = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
-        $placeholders = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $echoPH       = implode(',', array_fill(0, count($echoareaIds), '?'));
         $dateField    = $this->getEchomailDateField();
 
-        $orderBy = match ($sort) {
-            'date_asc' => "em.{$dateField} ASC",
-            'subject'  => 'em.subject ASC',
-            'author'   => 'em.from_name ASC',
-            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
-        };
+        // Only use UNION path when filter === 'all' and there are associated file areas
+        $fileareaIds  = [];
+        $useUnion     = false;
+        if ($filter === 'all') {
+            $fileareaIds = $manager->getInterestFileareaIds($interestId);
+            $useUnion    = !empty($fileareaIds);
+        }
 
-        $stmt = $this->db->prepare("
-            SELECT em.id, em.from_name, em.from_address, em.to_name,
-                   em.subject, em.date_received, em.date_written, em.echoarea_id,
-                   em.message_id, em.reply_to_id,
-                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
-                   COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
-                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
-                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-            FROM echomail em
-            JOIN echoareas ea ON em.echoarea_id = ea.id
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
-            ORDER BY {$orderBy}
-            LIMIT ? OFFSET ?
-        ");
+        if ($useUnion) {
+            $filePH       = implode(',', array_fill(0, count($fileareaIds), '?'));
+            $unionOrderBy = match ($sort) {
+                'date_asc' => 'sort_date ASC',
+                'subject'  => 'subject ASC',
+                'author'   => 'from_name ASC',
+                default    => 'CASE WHEN sort_date > NOW() THEN 0 ELSE 1 END, sort_date DESC',
+            };
 
-        $params = [$userId, $userId, $userId];
-        $params = array_merge($params, $echoareaIds, $filterParams);
-        $params[] = $limit;
-        $params[] = $offset;
-        $stmt->execute($params);
-        $messages = $stmt->fetchAll();
+            $stmt = $this->db->prepare("
+                SELECT item_type, id, from_name, from_address, to_name, subject, sort_date,
+                       date_received, date_written, echoarea_id, file_area_id,
+                       area_tag, area_color, area_domain, art_format,
+                       is_read, is_shared, is_saved, filename, filesize, short_description,
+                       message_id, reply_to_id, uploader_name
+                FROM (
+                    SELECT
+                        'message'::text AS item_type,
+                        em.id,
+                        em.from_name,
+                        em.from_address,
+                        em.to_name,
+                        em.subject,
+                        em.{$dateField} AS sort_date,
+                        em.date_received,
+                        em.date_written,
+                        em.echoarea_id,
+                        NULL::integer AS file_area_id,
+                        ea.tag AS area_tag,
+                        ea.color AS area_color,
+                        ea.domain AS area_domain,
+                        COALESCE(NULLIF(em.art_format,''), NULLIF(ea.art_format_hint,'')) AS art_format,
+                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END AS is_read,
+                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END AS is_shared,
+                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END AS is_saved,
+                        NULL::text AS filename,
+                        NULL::bigint AS filesize,
+                        NULL::text AS short_description,
+                        em.message_id,
+                        em.reply_to_id,
+                        NULL::text AS uploader_name
+                    FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}
 
-        $countStmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM echomail em
-            JOIN echoareas ea ON em.echoarea_id = ea.id
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
-        ");
-        $countParams = [$userId, $userId];
-        $countParams = array_merge($countParams, $echoareaIds, $filterParams);
-        $countStmt->execute($countParams);
-        $total = $countStmt->fetch()['total'];
+                    UNION ALL
+
+                    SELECT
+                        'file'::text AS item_type,
+                        f.id,
+                        fa.tag AS from_name,
+                        NULL::text AS from_address,
+                        NULL::text AS to_name,
+                        f.filename AS subject,
+                        f.created_at AS sort_date,
+                        f.created_at AS date_received,
+                        NULL::timestamptz AS date_written,
+                        NULL::integer AS echoarea_id,
+                        f.file_area_id,
+                        fa.tag AS area_tag,
+                        '#6c757d'::text AS area_color,
+                        fa.domain AS area_domain,
+                        NULL::text AS art_format,
+                        1::integer AS is_read,
+                        0::integer AS is_shared,
+                        0::integer AS is_saved,
+                        f.filename,
+                        f.filesize,
+                        f.short_description,
+                        NULL::text AS message_id,
+                        NULL::integer AS reply_to_id,
+                        COALESCE(u.real_name, f.uploaded_from_address) AS uploader_name
+                    FROM files f
+                    JOIN file_areas fa ON f.file_area_id = fa.id
+                    LEFT JOIN users u ON u.id = f.owner_id
+                    WHERE f.file_area_id IN ({$filePH})
+                      AND f.status = 'approved'
+                      AND fa.is_active = TRUE
+                ) combined
+                ORDER BY {$unionOrderBy}
+                LIMIT ? OFFSET ?
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $echoareaIds, $fileareaIds);
+            $params[] = $limit;
+            $params[] = $offset;
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll();
+
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) AS total FROM (
+                    SELECT em.id
+                    FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}
+                    UNION ALL
+                    SELECT f.id
+                    FROM files f
+                    JOIN file_areas fa ON f.file_area_id = fa.id
+                    WHERE f.file_area_id IN ({$filePH})
+                      AND f.status = 'approved'
+                      AND fa.is_active = TRUE
+                ) combined
+            ");
+            $countParams = [$userId, $userId];
+            $countParams = array_merge($countParams, $echoareaIds, $fileareaIds);
+            $countStmt->execute($countParams);
+            $total = $countStmt->fetch()['total'];
+        } else {
+            // Messages-only path (original behavior)
+            $placeholders = $echoPH;
+
+            $orderBy = match ($sort) {
+                'date_asc' => "em.{$dateField} ASC",
+                'subject'  => 'em.subject ASC',
+                'author'   => 'em.from_name ASC',
+                default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+            };
+
+            $stmt = $this->db->prepare("
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
+                ORDER BY {$orderBy}
+                LIMIT ? OFFSET ?
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $echoareaIds, $filterParams);
+            $params[] = $limit;
+            $params[] = $offset;
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll();
+
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
+            ");
+            $countParams = [$userId, $userId];
+            $countParams = array_merge($countParams, $echoareaIds, $filterParams);
+            $countStmt->execute($countParams);
+            $total = $countStmt->fetch()['total'];
+        }
 
         $unreadStmt = $this->db->prepare("
             SELECT COUNT(*) as count FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
+            WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
         ");
         $unreadParams = [$userId];
         $unreadParams = array_merge($unreadParams, $echoareaIds);
@@ -709,20 +836,44 @@ class MessageHandler
         $unreadCount = $unreadStmt->fetch()['count'];
 
         $cleanMessages = [];
-        foreach ($messages as $message) {
-            $cleanMessage = $this->cleanMessageForJson($message);
-            $replyToData  = null;
-            if (!empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
+        foreach ($rows as $row) {
+            if ($useUnion && ($row['item_type'] ?? 'message') === 'file') {
+                $cleanMessages[] = [
+                    'type'              => 'file',
+                    'id'                => (int)$row['id'],
+                    'filename'          => $row['filename'],
+                    'short_description' => $row['short_description'],
+                    'filesize'          => (int)$row['filesize'],
+                    'date_received'     => $row['date_received'],
+                    'file_area_id'      => (int)$row['file_area_id'],
+                    'file_area_tag'     => $row['area_tag'],
+                    'file_area_domain'  => $row['area_domain'],
+                    'uploader_name'     => $row['uploader_name'] ?? null,
+                ];
+            } else {
+                // The UNION query uses area_tag/area_color/area_domain aliases;
+                // remap them to the echoarea/echoarea_color/echoarea_domain keys
+                // that the JS expects before passing to cleanMessageForJson.
+                if ($useUnion) {
+                    $row['echoarea']        = $row['area_tag']    ?? null;
+                    $row['echoarea_color']  = $row['area_color']  ?? null;
+                    $row['echoarea_domain'] = $row['area_domain'] ?? null;
+                }
+                $cleanMessage = $this->cleanMessageForJson($row);
+                $replyToData  = null;
+                if (!empty($row['kludge_lines'])) {
+                    $replyToData = $this->parseEchomailReplyToKludge($row['kludge_lines']);
+                }
+                if (!$replyToData) {
+                    $replyToData = $this->parseReplyToKludge($row);
+                }
+                if ($replyToData && isset($replyToData['address'])) {
+                    $cleanMessage['replyto_address'] = $replyToData['address'];
+                    $cleanMessage['replyto_name']    = $replyToData['name'] ?? null;
+                }
+                $cleanMessage['type'] = 'message';
+                $cleanMessages[]      = $cleanMessage;
             }
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name']    = $replyToData['name'] ?? null;
-            }
-            $cleanMessages[] = $cleanMessage;
         }
 
         return [

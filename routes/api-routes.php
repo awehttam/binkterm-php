@@ -9734,6 +9734,128 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
     })->where(['id' => '[0-9]+']);
 
     /**
+     * GET /api/interests/{id}/stats
+     * Returns message counts scoped to an interest's echo areas (same shape as echomail stats).
+     */
+    SimpleRouter::get('/{id}/stats', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $isAdmin = !empty($user['is_admin']);
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest || !$interest['is_active']) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $echoareaIds = $manager->getInterestEchoareaIds((int)$id);
+        if (empty($echoareaIds)) {
+            echo json_encode([
+                'total'  => 0, 'recent' => 0, 'unread' => 0,
+                'areas'  => 0,
+                'filter_counts' => ['all' => 0, 'unread' => 0, 'read' => 0, 'tome' => 0, 'saved' => 0, 'drafts' => 0],
+            ]);
+            return;
+        }
+
+        $db          = \BinktermPHP\Database::getInstance()->getPdo();
+        $ph          = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $sysopClause = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
+
+        $totalStmt = $db->prepare("
+            SELECT COUNT(*) AS total,
+                   COUNT(CASE WHEN em.date_received > NOW() - INTERVAL '1 day' THEN 1 END) AS recent
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause}
+        ");
+        $totalStmt->execute($echoareaIds);
+        $totals = $totalStmt->fetch(\PDO::FETCH_ASSOC);
+        $total  = (int)$totals['total'];
+        $recent = (int)$totals['recent'];
+
+        $userInfo    = null;
+        $unreadCount = 0;
+        $readCount   = 0;
+        $toMeCount   = 0;
+        $savedCount  = 0;
+
+        if ($userId) {
+            $uStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+            $uStmt->execute([$userId]);
+            $userInfo = $uStmt->fetch(\PDO::FETCH_ASSOC);
+
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute(array_merge([$userId], $echoareaIds));
+            $unreadCount = (int)$unreadStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+            $readStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NOT NULL
+            ");
+            $readStmt->execute(array_merge([$userId], $echoareaIds));
+            $readCount = (int)$readStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+            if ($userInfo) {
+                $toMeStmt = $db->prepare("
+                    SELECT COUNT(*) AS count FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause}
+                      AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                ");
+                $toMeStmt->execute(array_merge($echoareaIds, [$userInfo['username'], $userInfo['real_name']]));
+                $toMeCount = (int)$toMeStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+            }
+
+            $savedStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND sav.id IS NOT NULL
+            ");
+            $savedStmt->execute(array_merge([$userId], $echoareaIds));
+            $savedCount = (int)$savedStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+        }
+
+        $draftsCount = 0;
+        if ($userId) {
+            $draftsStmt = $db->prepare("SELECT COUNT(*) AS count FROM drafts WHERE user_id = ? AND type = 'echomail'");
+            $draftsStmt->execute([$userId]);
+            $draftsCount = (int)$draftsStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+        }
+
+        echo json_encode([
+            'total'  => $total,
+            'recent' => $recent,
+            'unread' => $unreadCount,
+            'areas'  => count($echoareaIds),
+            'filter_counts' => [
+                'all'    => $total,
+                'unread' => $unreadCount,
+                'read'   => $readCount,
+                'tome'   => $toMeCount,
+                'saved'  => $savedCount,
+                'drafts' => $draftsCount,
+            ],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
      * GET /api/interests/{id}/messages
      * Returns paginated echomail from all echo areas belonging to this interest.
      */

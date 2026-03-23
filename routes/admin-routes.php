@@ -3753,6 +3753,30 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $hourly[] = ['hour' => $h, 'count' => $hourlyByHour[$h] ?? 0];
         }
 
+        // Popular interests by subscriber count
+        $popularInterests = [];
+        $interestsEnabled = \BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true';
+        if ($interestsEnabled) {
+            try {
+                $popularInterestsStmt = $db->query("
+                    SELECT i.name, i.icon, i.color, COUNT(uis.user_id) AS subscribers
+                    FROM interests i
+                    LEFT JOIN user_interest_subscriptions uis ON uis.interest_id = i.id
+                    WHERE i.is_active = TRUE
+                    GROUP BY i.id, i.name, i.icon, i.color
+                    ORDER BY subscribers DESC
+                    LIMIT 15
+                ");
+                $popularInterests = $popularInterestsStmt->fetchAll(\PDO::FETCH_ASSOC);
+                foreach ($popularInterests as &$row) {
+                    $row['subscribers'] = (int)$row['subscribers'];
+                }
+                unset($row);
+            } catch (\Exception $e) {
+                $popularInterests = [];
+            }
+        }
+
         // Daily activity (last 30 days always, regardless of period for the overview chart)
         $dailyAdminFilter = $excludeAdmins
             ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
@@ -3792,6 +3816,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'top_nodelist_searches' => $topNodelistSearches,
             'top_nodes'             => $topNodes,
             'top_users'             => $topUsers,
+            'popular_interests'     => $popularInterests,
             'hourly'                => $hourly,
             'daily'                 => $daily,
         ]);
@@ -5865,6 +5890,30 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
         echo json_encode($manager->getInterests(false));
     });
 
+    /** List echo areas not assigned to any interest. */
+    SimpleRouter::get('/interests/unassigned-echoareas', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->query("
+            SELECT e.id, e.tag, e.description, e.is_active
+            FROM echoareas e
+            WHERE e.id NOT IN (SELECT echoarea_id FROM interest_echoareas)
+            ORDER BY e.tag
+        ");
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['id']        = (int)$row['id'];
+            $row['is_active'] = (bool)$row['is_active'];
+        }
+        unset($row);
+        echo json_encode(['areas' => $rows, 'count' => count($rows)]);
+    });
+
     /** Get a single interest with its area lists. */
     SimpleRouter::get('/interests/{id}', function($id) {
         RouteHelper::requireAdmin();
@@ -5988,6 +6037,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
         echo json_encode(['success' => true]);
     });
 
+    /** Echo areas not assigned to any interest. */
     /**
      * Generate interest suggestions via keyword heuristics and optionally AI.
      * Does NOT create any interests — returns suggestions for admin review only.

@@ -99,6 +99,18 @@ class InterestManager
     }
 
     /**
+     * Return file area IDs for an interest (flat array of ints).
+     *
+     * @return int[]
+     */
+    public function getInterestFileareaIds(int $interestId): array
+    {
+        $stmt = $this->db->prepare("SELECT filearea_id FROM interest_fileareas WHERE interest_id = ?");
+        $stmt->execute([$interestId]);
+        return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+    }
+
+    /**
      * Return echo area rows (id, tag, description) for an interest.
      *
      * @return array<int,array<string,mixed>>

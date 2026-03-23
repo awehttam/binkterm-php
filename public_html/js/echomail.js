@@ -672,6 +672,30 @@ function displayMessages(messages, isThreaded = false) {
         `;
 
         messages.forEach(function(msg) {
+            // File item (from interest file areas)
+            if (msg.type === 'file') {
+                const sizeStr = msg.filesize ? formatFileSize(msg.filesize) : '';
+                const dateStr = formatDate(msg.date_received);
+                html += `
+                    <tr class="message-row interest-file-row" data-file-id="${msg.id}" onclick="viewFile(${msg.id})" style="cursor:pointer;">
+                        <td class="message-checkbox d-none"></td>
+                        <td class="message-from">
+                            <i class="fas fa-file-archive text-secondary me-1"></i>
+                            <span class="badge bg-secondary" style="font-size:0.75em;">${escapeHtml(msg.file_area_tag || '')}</span>
+                            ${msg.uploader_name ? `<br><small class="text-muted">${escapeHtml(msg.uploader_name)}</small>` : ''}
+                        </td>
+                        <td class="message-subject">
+                            <strong>${escapeHtml(msg.filename || '')}</strong>
+                            ${msg.short_description ? `<br><small class="text-muted">${escapeHtml(msg.short_description)}</small>` : ''}
+                            ${sizeStr ? `<small class="text-muted ms-2">(${escapeHtml(sizeStr)})</small>` : ''}
+                        </td>
+                        <td class="message-date" title="${escapeHtml(msg.date_received || '')}">${dateStr}</td>
+                        <td></td>
+                    </tr>
+                `;
+                return; // skip message rendering for file items
+            }
+
             // Check if message is addressed to current user
             const isToCurrentUser = msg.to_name && window.currentUserRealName && msg.to_name === window.currentUserRealName;
             const toInfo = msg.to_name && msg.to_name !== uiT('ui.common.all', 'All') ?
@@ -924,8 +948,8 @@ function applyModalFullscreenPreference() {
 function viewMessage(messageId) {
     currentMessageId = messageId;
 
-    // Find the current message index in the messages array
-    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId);
+    // Find the current message index in the messages array (exclude file items)
+    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId && msg.type !== 'file');
 
     // Update navigation button states
     updateNavigationButtons();
@@ -1949,9 +1973,14 @@ window.addEventListener('popstate', function(event) {
 
 function loadStats() {
     console.log('Loading echomail statistics...');
-    let url = '/api/messages/echomail/stats';
-    if (currentEchoarea) {
-        url += '/' + encodeURIComponent(currentEchoarea);
+    let url;
+    if (currentInterestId) {
+        url = '/api/interests/' + encodeURIComponent(currentInterestId) + '/stats';
+    } else {
+        url = '/api/messages/echomail/stats';
+        if (currentEchoarea) {
+            url += '/' + encodeURIComponent(currentEchoarea);
+        }
     }
 
     $.get(url)
@@ -2518,6 +2547,13 @@ function navigateMessage(direction) {
     const newMessage = currentMessages[newIndex];
     if (!newMessage) return;
 
+    // Skip file items during message navigation
+    if (newMessage.type === 'file') {
+        currentMessageIndex = newIndex;
+        navigateMessage(direction); // continue in the same direction
+        return;
+    }
+
     // Update current message info
     currentMessageId = newMessage.id;
     currentMessageIndex = newIndex;
@@ -2615,6 +2651,30 @@ function saveEditMessage() {
         $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     });
+}
+
+/**
+ * Format a file size in bytes to a human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let v = parseInt(bytes);
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? v : v.toFixed(1)) + ' ' + units[i];
+}
+
+/**
+ * Open the file info modal and load details from the API.
+ *
+ * @param {number} fileId
+ */
+function viewFile(fileId) {
+    openFileInfoModal(fileId);
 }
 
 // Sharing functionality

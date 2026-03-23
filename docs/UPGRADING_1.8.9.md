@@ -9,10 +9,12 @@
   - [Overview](#overview)
   - [Admin Management](#admin-management)
   - [User Interest Picker](#user-interest-picker)
+  - [First-Time Onboarding](#first-time-onboarding)
   - [Echo Area List Integration](#echo-area-list-integration)
   - [Subscription Mechanics](#subscription-mechanics)
   - [Multi-Interest Source Tracking](#multi-interest-source-tracking)
   - [AI-Assisted Interest Generation](#ai-assisted-interest-generation)
+  - [Activity Statistics: Popular Interests Tab](#activity-statistics-popular-interests-tab)
   - [Feature Flag](#feature-flag)
 - [Echomail & Netmail](#echomail--netmail)
   - [Compose Message Size Warning](#compose-message-size-warning)
@@ -34,6 +36,9 @@
 - When an admin adds a new echo area to an existing interest, all current interest subscribers are automatically subscribed to the new area (unless they previously explicitly unsubscribed from it).
 - Multi-interest source tracking: unsubscribing from one interest does not remove echo areas that are also covered by another interest the user remains subscribed to.
 - A **Generate Suggestions** wizard on the admin interests page analyzes the echo area catalog and proposes interest groupings using keyword matching. If `ANTHROPIC_API_KEY` is configured, it additionally offers AI-assisted classification for higher-quality results.
+- First-time users visiting `/echomail` with no interest subscriptions are automatically redirected to `/interests` to complete onboarding. This happens only once per user.
+- The `/interests` page includes a **Go to Echo Areas** button at the bottom to return to the echomail reader after subscribing.
+- The Activity Statistics admin page (`/admin/activity-stats`) includes a new **Popular Interests** tab showing active interests ranked by subscriber count.
 - Controlled by `ENABLE_INTERESTS` in `.env`; defaults to `true`.
 - New documentation: `docs/Interests.md`.
 
@@ -66,9 +71,15 @@ Echo areas and file areas are assigned via a searchable list. Saving a new echo 
 
 ### User Interest Picker
 
-Active interests are shown at `/interests` as a card grid. Each card shows the icon, color accent, name, description, echo area count, and subscriber count. A Subscribe button on each card subscribes the user to all member echo areas at once. A details view lets the user pick individual areas before subscribing.
+Active interests are shown at `/interests` as a card grid. Each card shows the icon, color accent, name, description, and echo area count. A Subscribe button on each card subscribes the user to all member echo areas at once. A details view lets the user pick individual areas before subscribing.
 
 The **Interests** link appears in the user dropdown menu only when the feature is enabled and at least one active interest exists.
+
+### First-Time Onboarding
+
+When a user visits `/echomail` for the first time after Interests is enabled and they have no interest subscriptions, they are automatically redirected to `/interests` to choose their interests before reading mail. The redirect happens only once — subsequent visits go straight to the echomail reader regardless of subscription state.
+
+A **Go to Echo Areas** button at the bottom of the `/interests` page takes users directly back to `/echomail` after they have finished subscribing.
 
 ### Echo Area List Integration
 
@@ -101,6 +112,10 @@ This table is populated automatically and requires no manual configuration.
 The admin interests page includes a **Generate Suggestions** wizard that analyzes the echo area catalog and proposes interest groupings with suggested names, descriptions, and area assignments. Suggestions are presented for review before any changes are saved.
 
 The wizard uses keyword matching by default. If `ANTHROPIC_API_KEY` is set in `.env`, it offers an additional AI-assisted mode that produces higher-quality groupings for areas with ambiguous or abbreviated tags.
+
+### Activity Statistics: Popular Interests Tab
+
+The Activity Statistics admin page (`/admin/activity-stats`) includes a new **Popular Interests** tab (visible when the feature is enabled). It shows all active interests ranked by total subscriber count, with a progress bar for visual comparison. The tab appears next to the Popular Areas tab.
 
 ### Feature Flag
 

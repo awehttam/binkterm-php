@@ -121,9 +121,6 @@ class InterestPicker {
             const echoCount   = window.t
                 ? window.t('ui.interests.area_count', { count: interest.echoarea_count ?? 0 }, '{count} echo area(s)')
                 : `${interest.echoarea_count ?? 0} echo area(s)`;
-            const subCount    = window.t
-                ? window.t('ui.interests.subscriber_count', { count: interest.subscriber_count ?? 0 }, '{count} subscriber(s)')
-                : `${interest.subscriber_count ?? 0} subscriber(s)`;
             const echoCountHtml = (interest.echoarea_count ?? 0) > 0
                 ? `<a href="#" class="text-muted interest-areas-link" data-interest-id="${interest.id}" data-interest-name="${InterestPicker._escAttr(interest.name)}" onclick="InterestPicker._handleAreasClick(this); return false;"><i class="fas fa-comments me-1"></i>${InterestPicker._escHtml(echoCount)}</a>`
                 : `<span><i class="fas fa-comments me-1"></i>${InterestPicker._escHtml(echoCount)}</span>`;
@@ -149,7 +146,6 @@ class InterestPicker {
                                 : '<div class="flex-grow-1"></div>'}
                             <div class="d-flex gap-2 mt-2 small text-muted">
                                 ${echoCountHtml}
-                                <span><i class="fas fa-users me-1"></i>${InterestPicker._escHtml(subCount)}</span>
                             </div>
                         </div>
                     </div>
@@ -178,7 +174,6 @@ class InterestPicker {
                         <div class="d-flex justify-content-between align-items-center mt-2">
                             <div class="small text-muted me-2">
                                 <span class="me-2">${echoCountHtml}</span>
-                                <span><i class="fas fa-users me-1"></i>${InterestPicker._escHtml(subCount)}</span>
                             </div>
                             <button class="btn btn-sm ${btnClass} interest-sub-btn"
                                     data-id="${interest.id}"
