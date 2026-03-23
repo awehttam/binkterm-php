@@ -47,37 +47,25 @@
                         </a>
                     </div>
                     <ul class="nav nav-tabs nav-fill mb-0" id="mobileViewingTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-1 small" id="mobileAreaListTab"
+                                    data-bs-toggle="tab" data-bs-target="#mobileAreaListPane"
+                                    type="button" role="tab">
+                                {{ t('ui.echomail.tab_area_list', {}, locale, ['common']) }}
+                            </button>
+                        </li>
                         {% if interests_enabled and has_interests %}
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active py-1 small" id="mobileInterestsTab"
+                            <button class="nav-link py-1 small" id="mobileInterestsTab"
                                     data-bs-toggle="tab" data-bs-target="#mobileInterestsPane"
                                     type="button" role="tab">
                                 {{ t('ui.echomail.tab_interests', {}, locale, ['common']) }}
                             </button>
                         </li>
                         {% endif %}
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link {% if not (interests_enabled and has_interests) %}active{% endif %} py-1 small" id="mobileAreaListTab"
-                                    data-bs-toggle="tab" data-bs-target="#mobileAreaListPane"
-                                    type="button" role="tab">
-                                {{ t('ui.echomail.tab_area_list', {}, locale, ['common']) }}
-                            </button>
-                        </li>
                     </ul>
                     <div class="tab-content border border-top-0 rounded-bottom">
-                        {% if interests_enabled and has_interests %}
-                        <div class="tab-pane fade show active p-0" id="mobileInterestsPane" role="tabpanel">
-                            <div style="max-height: 300px; overflow-y: auto;">
-                                <div id="mobileInterestsList">
-                                    <div class="text-center text-muted p-3">
-                                        <i class="fas fa-spinner fa-spin me-2"></i>
-                                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
-                        <div class="tab-pane fade {% if not (interests_enabled and has_interests) %}show active{% endif %} p-0" id="mobileAreaListPane" role="tabpanel">
+                        <div class="tab-pane fade show active p-0" id="mobileAreaListPane" role="tabpanel">
                             <div class="px-2 pt-2">
                                 {% if interests_enabled and has_interests %}
                                 <select class="form-select form-select-sm mb-2" id="mobileAreaListInterestFilter"
@@ -97,6 +85,18 @@
                                 </div>
                             </div>
                         </div>
+                        {% if interests_enabled and has_interests %}
+                        <div class="tab-pane fade p-0" id="mobileInterestsPane" role="tabpanel">
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                <div id="mobileInterestsList">
+                                    <div class="text-center text-muted p-3">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>
+                                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -250,17 +250,17 @@
                 {% if interests_enabled and has_interests %}
                 <ul class="nav nav-tabs nav-fill px-2 mb-0" id="desktopViewingTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active py-1 small" id="desktopInterestsTab"
-                                data-bs-toggle="tab" data-bs-target="#desktopInterestsPane"
-                                type="button" role="tab">
-                            {{ t('ui.echomail.tab_interests', {}, locale, ['common']) }}
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link py-1 small" id="desktopAreaListTab"
+                        <button class="nav-link active py-1 small" id="desktopAreaListTab"
                                 data-bs-toggle="tab" data-bs-target="#desktopAreaListPane"
                                 type="button" role="tab">
                             {{ t('ui.echomail.tab_area_list', {}, locale, ['common']) }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 small" id="desktopInterestsTab"
+                                data-bs-toggle="tab" data-bs-target="#desktopInterestsPane"
+                                type="button" role="tab">
+                            {{ t('ui.echomail.tab_interests', {}, locale, ['common']) }}
                         </button>
                     </li>
                 </ul>
@@ -269,17 +269,7 @@
             <div class="card-body p-0">
                 {% if interests_enabled and has_interests %}
                 <div class="tab-content">
-                    <div class="tab-pane fade show active p-0" id="desktopInterestsPane" role="tabpanel">
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            <div id="desktopInterestsList">
-                                <div class="text-center text-muted p-3">
-                                    <i class="fas fa-spinner fa-spin me-2"></i>
-                                    {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="tab-pane fade p-0" id="desktopAreaListPane" role="tabpanel">
+                    <div class="tab-pane fade show active p-0" id="desktopAreaListPane" role="tabpanel">
                         <div class="px-2 pt-2">
                             <select class="form-select form-select-sm mb-2" id="areaListInterestFilter"
                                     onchange="setAreaListInterestFilter(this.value ? parseInt(this.value) : null)">
@@ -291,6 +281,16 @@
                         <div style="max-height: 268px; overflow-y: auto;">
                             <div id="echoareasList">
                                 <div class="loading-spinner">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                    {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade p-0" id="desktopInterestsPane" role="tabpanel">
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <div id="desktopInterestsList">
+                                <div class="text-center text-muted p-3">
                                     <i class="fas fa-spinner fa-spin me-2"></i>
                                     {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
                                 </div>
@@ -778,9 +778,9 @@ $(document).ready(function() {
         }
     }
 
-    // Set initial state (Interests tab is active)
-    updateMobileManageBtn('mobileInterestsTab');
-    updateDesktopManageBtn('desktopInterestsTab');
+    // Set initial state (Area List tab is active)
+    updateMobileManageBtn('mobileAreaListTab');
+    updateDesktopManageBtn('desktopAreaListTab');
 
     // Update on mobile tab switch
     $('#mobileViewingTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
