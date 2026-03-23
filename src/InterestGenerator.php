@@ -114,6 +114,10 @@ class InterestGenerator
         ['name' => 'Weather & Environment', 'icon' => 'fa-cloud-sun', 'color' => '#2980b9',
          'keywords' => ['WEATHER','CLIMATE','FORECAST','STORM','HURRICANE','TORNADO','METEOR','ENVIRON',
                         'ECOLOGY','GREEN','SOLAR','WIND_ENERGY']],
+        ['name' => 'Space & Astronomy', 'icon' => 'fa-meteor', 'color' => '#1a237e',
+         'keywords' => ['SPACE','ASTRONOMY','ASTRONO','ASTRO','NASA','ESA','ROCKET','SATELLITE','ORBIT',
+                        'PLANET','PLANETS','SOLAR','MARS','MOON','LUNAR','TELESCOPE','COSMO','COSMOS',
+                        'UNIVERSE','GALAXY','NEBULA','STARGAZING','HUBBLE','SPACEX','ISS','ASTRONAUT']],
         ['name' => 'Astrology & Horoscopes', 'icon' => 'fa-star', 'color' => '#8e44ad',
          'keywords' => ['HOROSCOPE','ASTROLOGY','ZODIAC','TAROT','PSYCHIC','DIVINATION']],
         ['name' => 'History & Cold War', 'icon' => 'fa-monument', 'color' => '#7f8c8d',
@@ -126,13 +130,16 @@ class InterestGenerator
          'keywords' => ['HOBBY','HOBBIES','CRAFT','CRAFTS','ANTIQUE','BASKETRY','BEADING','CERAMICS',
                         'CROCHET','CROSS_STITCH','DOLLMAKING','ENAMELING','FLOWERS','GLASS','JEWELRY',
                         'LEGO','MODEL','MODELS','HORSE','WOOD','KNITTING','SEWING','QUILTING','EMBROIDERY',
-                        'ORIGAMI','MINIATURE','COLLECTIBLE','COLLECT','BUY_SELL']],
+                        'ORIGAMI','MINIATURE','COLLECTIBLE','COLLECT']],
         ['name' => 'Genealogy & Family History', 'icon' => 'fa-sitemap', 'color' => '#a0522d',
          'keywords' => ['GENEALOGY','GENEALOG','GENEAOLOGY','ANCESTRY','FAMILY_HIST','FAMILY_TREE',
                         'HERITAGE','LINEAGE']],
         ['name' => 'Paranormal & Conspiracy', 'icon' => 'fa-ghost', 'color' => '#6c3483',
          'keywords' => ['UFO','PARANORMAL','CONSPIRACY','CONSPRCY','ALIEN','CRYPTID','BIGFOOT','GHOST',
                         'SUPERNATURAL','PSYCH']],
+        ['name' => 'Classifieds & Buy/Sell', 'icon' => 'fa-tag', 'color' => '#17a2b8',
+         'keywords' => ['CLASSIFIED','CLASSIFIEDS','BUY','SELL','FORSALE','FOR_SALE','TRADE','SWAP','WANTED',
+                        'AUCTION','MARKETPLACE','FLEA','DEALER','VENDOR','ADVERT','LISTING']],
         ['name' => 'General Chat & Social', 'icon' => 'fa-comments', 'color' => '#6c757d',
          'keywords' => ['CHAT','GENERAL','TALK','SOCIAL','DISCUSS','LOUNGE','OFFTOPIC','OFF_TOPIC',
                         'RANDOM','MISC','INTRO','INTRODUCE','HELLO','HI','STATS','OTHER']],
@@ -331,7 +338,8 @@ class InterestGenerator
         $prompt = <<<PROMPT
 You are classifying FTN/Fidonet BBS echo areas (message boards) into interest categories.
 
-Prefer the existing categories listed below. Only use a new category name if none fits.
+Use ONLY the existing categories listed below. Do NOT invent new category names.
+If an area does not clearly and confidently belong to one of the listed categories, return null for that tag — do not guess.
 
 Existing categories:
 {$categoryList}
@@ -339,8 +347,8 @@ Existing categories:
 Echo areas to classify (tag: description):
 {$areaList}
 
-Respond with ONLY a JSON object mapping each tag exactly as given to the best category name.
-Example: {"AREA_TAG": "Category Name", "OTHER_TAG": "Another Category"}
+Respond with ONLY a JSON object mapping each tag exactly as given to its category name, or null if uncertain.
+Example: {"AREA_TAG": "Category Name", "UNCLEAR_TAG": null}
 PROMPT;
 
         $payload = json_encode([
@@ -378,7 +386,12 @@ PROMPT;
             if (is_array($decoded)) {
                 $results = [];
                 foreach ($batch as $area) {
-                    $results[$area['tag']] = $decoded[$area['tag']] ?? null;
+                    $val = $decoded[$area['tag']] ?? null;
+                    // Treat explicit "None"/"none"/empty string as unmatched
+                    if (is_string($val) && (strtolower(trim($val)) === 'none' || trim($val) === '')) {
+                        $val = null;
+                    }
+                    $results[$area['tag']] = $val;
                 }
                 return $results;
             }
