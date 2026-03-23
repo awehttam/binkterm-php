@@ -372,6 +372,8 @@ class InterestPicker {
             const thNet  = window.t ? window.t('ui.interests.areas_modal_col_net',  {}, 'Network')       : 'Network';
             const thDesc = window.t ? window.t('ui.interests.areas_modal_col_desc', {}, 'Description')   : 'Description';
 
+            const subBadge = `<span class="badge bg-success ms-1" title="${InterestPicker._escAttr(window.t ? window.t('ui.interests.already_subscribed', {}, 'Already subscribed') : 'Already subscribed')}"><i class="fas fa-check"></i></span>`;
+
             if (!isSubMode) {
                 // Read-only table for select mode.
                 bodyEl.innerHTML =
@@ -382,7 +384,7 @@ class InterestPicker {
                             <th>${InterestPicker._escHtml(thDesc)}</th>
                         </tr></thead>
                         <tbody>${areas.map(a => `<tr>
-                            <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}</td>
+                            <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}${a.subscribed ? subBadge : ''}</td>
                             <td><span class="badge bg-secondary fw-normal">${InterestPicker._escHtml(a.domain || '')}</span></td>
                             <td>${InterestPicker._escHtml(a.description || '')}</td>
                         </tr>`).join('')}</tbody>
@@ -409,7 +411,7 @@ class InterestPicker {
                     <tbody>${areas.map(a => `<tr>
                         <td><input class="form-check-input interest-area-check" type="checkbox"
                                    value="${InterestPicker._escAttr(String(a.echoarea_id))}" checked></td>
-                        <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}</td>
+                        <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}${a.subscribed ? subBadge : ''}</td>
                         <td><span class="badge bg-secondary fw-normal">${InterestPicker._escHtml(a.domain || '')}</span></td>
                         <td>${InterestPicker._escHtml(a.description || '')}</td>
                     </tr>`).join('')}</tbody>

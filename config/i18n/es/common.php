@@ -3807,6 +3807,7 @@ return [
     'ui.interests.areas_modal_col_desc' => 'Descripción',
     'ui.interests.areas_modal_select_all' => 'Seleccionar todo',
     'ui.interests.areas_modal_deselect_all' => 'Deseleccionar todo',
+    'ui.interests.already_subscribed' => 'Ya suscrito',
     'ui.interests.areas_modal_confirm_subscribe' => 'Suscribirse a {count} área(s)',
     'ui.interests.areas_modal_confirm_unsubscribe' => 'Cancelar suscripción a {count} área(s)',
     'ui.interests.subscriber_count' => '{count} suscriptor(es)',

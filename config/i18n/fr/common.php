@@ -3711,6 +3711,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.interests.areas_modal_col_desc' => 'Description',
     'ui.interests.areas_modal_select_all' => 'Tout sélectionner',
     'ui.interests.areas_modal_deselect_all' => 'Tout désélectionner',
+    'ui.interests.already_subscribed' => 'Déjà abonné',
     'ui.interests.areas_modal_confirm_subscribe' => 'S\'abonner à {count} zone(s)',
     'ui.interests.areas_modal_confirm_unsubscribe' => 'Se désabonner de {count} zone(s)',
     'ui.interests.subscriber_count' => '{count} abonné(s)',

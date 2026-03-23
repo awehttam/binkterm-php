@@ -9780,6 +9780,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
      * GET /api/interests/{id}/echoareas
      * Returns the echo areas belonging to an interest (tag, domain, description).
      * Public (no auth required) — respects feature flag.
+     * If authenticated, each area includes a `subscribed` boolean.
      */
     SimpleRouter::get('/{id}/echoareas', function($id) {
         header('Content-Type: application/json');
@@ -9797,22 +9798,32 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
             return;
         }
 
+        $user   = \BinktermPHP\RouteHelper::getUser();
+        $userId = $user ? (int)$user['user_id'] : null;
+
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         $stmt = $db->prepare("
             SELECT e.id AS echoarea_id, e.tag, e.domain, e.description,
                    COUNT(em.id) AS message_count
+                   " . ($userId ? ", (ues.is_active IS TRUE) AS subscribed" : "") . "
             FROM echoareas e
             INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
             LEFT JOIN echomail em ON em.echoarea_id = e.id
+            " . ($userId ? "LEFT JOIN user_echoarea_subscriptions ues ON ues.echoarea_id = e.id AND ues.user_id = ?" : "") . "
             WHERE ie.interest_id = ?
-            GROUP BY e.id, e.tag, e.domain, e.description
+            GROUP BY e.id, e.tag, e.domain, e.description" .
+            ($userId ? ", ues.is_active" : "") . "
             ORDER BY message_count DESC, e.tag ASC
         ");
-        $stmt->execute([(int)$id]);
+        $params = $userId ? [$userId, (int)$id] : [(int)$id];
+        $stmt->execute($params);
         $echoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         foreach ($echoareas as &$row) {
             $row['echoarea_id']   = (int)$row['echoarea_id'];
             $row['message_count'] = (int)$row['message_count'];
+            if ($userId) {
+                $row['subscribed'] = (bool)$row['subscribed'];
+            }
         }
         unset($row);
 
