@@ -56,6 +56,10 @@ class InterestGenerator
                         'ALLFIX','PDNECHO','FILEECHO','TICFILE','MAILER','BINKP','FOSSIL',
                         'SYNCOPS','SYNCANNO','SYNCJS','SYNCDATA','BOT','AUTOANNO','FILEANN',
                         'GENAN','NETSYS','NETOPS','HUBSYS','Z1C']],
+        ['name' => 'Synchronet & Other BBS Software', 'icon' => 'fa-server', 'color' => '#2c3e50',
+         'keywords' => ['SYNCHRONET','SBBS','ENIGMA','MYSTIC','MYS','MAXIMUS','TELEGARD','RENEGADE',
+                        'WILDCAT','PCBOARD','PB','WWIV','TRIBBS','BINKTERMPHP',
+                        'GOLDED','GOLDBASE','HUSKY','FIDOSOFT']],
         ['name' => 'BBS & Fidonet', 'icon' => 'fa-terminal', 'color' => '#2c3e50',
          'keywords' => ['BBS','FIDONET','FIDO','DOOR','ANSI','ASCII','ECHOMAIL','NETMAIL',
                         'FTN','IBBSDOOR','DOORGAMES','FIDONEWS','FTSC','FUTURE4FIDO','BBSADS']],
@@ -75,6 +79,9 @@ class InterestGenerator
         ['name' => 'Gaming & Video Games', 'icon' => 'fa-gamepad', 'color' => '#e74c3c',
          'keywords' => ['GAME','GAMING','GAMER','CONSOLE','ARCADE','NINTENDO','SEGA','ATARI_GAME',
                         'PLAYSTATION','XBOX','STEAM','PC_GAME','PCGAME','RPG','FPS','MMORPG','EMULAT','ROMS']],
+        ['name' => 'Humour & Entertainment', 'icon' => 'fa-laugh', 'color' => '#f1c40f',
+         'keywords' => ['HUMOR','HUMOUR','FUNNY','JOKE','COMEDY','LAUGH','ENTERTAIN','TRIVIA','RIDDLE',
+                        'PRANK','VIDEO']],
         ['name' => 'Science Fiction & Fantasy', 'icon' => 'fa-rocket', 'color' => '#9b59b6',
          'keywords' => ['SCIFI','SCI_FI','SCIFIX','FANTASY','STARTREK','STAR_TREK','STARWARS','STAR_WARS',
                         'DRWHO','DR_WHO','DOCTORWHO','TOLKIEN','DUNE','BABYLON','BATTLESTAR','ANIME',
@@ -109,9 +116,6 @@ class InterestGenerator
         ['name' => 'Art & Creative', 'icon' => 'fa-palette', 'color' => '#d35400',
          'keywords' => ['ART','ARTIST','CREATIVE','DESIGN','GRAPHIC','PHOTO','PHOTOGRAPHY','PAINT',
                         'DRAWING','ILLUSTRATION','PIXEL','TEXTART','ASCII_ART','EDITING','VIDEO_EDIT']],
-        ['name' => 'Humour & Entertainment', 'icon' => 'fa-laugh', 'color' => '#f1c40f',
-         'keywords' => ['HUMOR','HUMOUR','FUNNY','JOKE','COMEDY','LAUGH','ENTERTAIN','TRIVIA','RIDDLE',
-                        'PRANK','VIDEO']],
         ['name' => 'Books & Literature', 'icon' => 'fa-book', 'color' => '#8d6e63',
          'keywords' => ['BOOK','BOOKS','NOVEL','FICTION','NONFIC','NONFICTION','AUTHOR','WRITING','POETRY',
                         'POEM','READING','LIBRARY','EBOOK']],
@@ -130,10 +134,6 @@ class InterestGenerator
         ['name' => 'History & Cold War', 'icon' => 'fa-monument', 'color' => '#7f8c8d',
          'keywords' => ['HISTORY','HISTORIC','COLDWAR','COLD_WAR','MILITARY','WAR','WWII','WW2','WW1',
                         'NUCLEAR','CIVIL_WAR','ANCIENT','MEDIEVAL','LONGLINES','BUNKER']],
-        ['name' => 'Synchronet & Other BBS Software', 'icon' => 'fa-server', 'color' => '#2c3e50',
-         'keywords' => ['SYNCHRONET','SBBS','ENIGMA','MYSTIC','MYS','MAXIMUS','TELEGARD','RENEGADE',
-                        'WILDCAT','PCBOARD','PB','WWIV','TRIBBS','BINKTERMPHP',
-                        'GOLDED','GOLDBASE','HUSKY','FIDOSOFT']],
         ['name' => 'Hobbies & Crafts', 'icon' => 'fa-tools', 'color' => '#27ae60',
          'keywords' => ['HOBBY','HOBBIES','CRAFT','CRAFTS','ANTIQUE','BASKETRY','BEADING','CERAMICS',
                         'CROCHET','CROSS_STITCH','DOLLMAKING','ENAMELING','FLOWERS','GLASS','JEWELRY',
@@ -291,17 +291,38 @@ class InterestGenerator
         $results = [];
         foreach ($echoareas as $area) {
             $cleanedTag = $this->cleanTag($area['tag']);
-            $searchText = strtoupper($cleanedTag . ' ' . ($area['description'] ?? ''));
 
-            $results[$area['tag']] = null;
+            // Split tag into whole tokens for exact matching (avoids e.g. FIDO matching FIDOSOFT)
+            $tagTokens = preg_split('/[_.\-!\/\s]+/', strtoupper($cleanedTag), -1, PREG_SPLIT_NO_EMPTY);
+            $descText  = strtoupper($area['description'] ?? '');
+
+            $bestCategory = null;
+            $bestScore    = -1;
+
             foreach (self::CATEGORIES as $cat) {
                 foreach ($cat['keywords'] as $kw) {
-                    if (str_contains($searchText, strtoupper($kw))) {
-                        $results[$area['tag']] = ['category' => $cat['name'], 'source' => 'keyword'];
-                        break 2;
+                    $kwUpper = strtoupper($kw);
+
+                    if (in_array($kwUpper, $tagTokens)) {
+                        // Tag token exact match — high priority; longer keyword wins ties
+                        $score = 100 + strlen($kw);
+                    } elseif (str_contains($descText, $kwUpper)) {
+                        // Description substring match — lower priority; longer keyword wins ties
+                        $score = strlen($kw);
+                    } else {
+                        continue;
+                    }
+
+                    if ($score > $bestScore) {
+                        $bestScore    = $score;
+                        $bestCategory = $cat['name'];
                     }
                 }
             }
+
+            $results[$area['tag']] = $bestCategory
+                ? ['category' => $bestCategory, 'source' => 'keyword']
+                : null;
         }
         return $results;
     }
