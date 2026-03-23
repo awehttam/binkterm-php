@@ -1083,6 +1083,37 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
 
+    // Interest context: restrict echo area list and cross-post list to interest areas
+    $interestSlug = $_GET['interest'] ?? null;
+    $interestData = null;
+    $interestEchoareas = [];
+    if ($interestSlug && \BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $interestData = $im->getInterestBySlug($interestSlug);
+        if ($interestData) {
+            // Fetch the interest's echo areas with tag/domain for the compose selects
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT e.tag, e.domain, e.description, e.color,
+                       COUNT(em.id) AS message_count
+                FROM echoareas e
+                INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+                LEFT JOIN echomail em ON em.echoarea_id = e.id
+                WHERE ie.interest_id = ? AND e.is_active = TRUE
+                GROUP BY e.id, e.tag, e.domain, e.description, e.color
+                ORDER BY message_count DESC, e.tag ASC
+            ");
+            $stmt->execute([(int)$interestData['id']]);
+            $interestEchoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($interestEchoareas as &$row) {
+                $row['message_count'] = (int)$row['message_count'];
+            }
+            unset($row);
+        } else {
+            $interestSlug = null; // slug not found — fall back to normal compose
+        }
+    }
+
     // Handle new message parameters (from nodelist or address book)
     $toAddress = $_GET['to'] ?? null;
     $toName = $_GET['to_name'] ?? null;
@@ -1140,6 +1171,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'default_tagline' => $defaultTagline,
         'max_cross_post_areas' => $maxCrossPost,
         'prefill_crashmail' => $prefillCrashmail,
+        'interest_slug' => $interestSlug,
+        'interest_name' => $interestData ? $interestData['name'] : null,
+        'interest_echoareas' => $interestEchoareas,
     ];
 
       if ($replyId) {

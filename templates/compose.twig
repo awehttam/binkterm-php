@@ -9,7 +9,7 @@
         <i class="fas fa-{{ type == 'netmail' ? 'envelope' : 'comments' }}"></i>
         {{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }}
     </h2>
-    <a href="{% if type == 'echomail' and echoarea is defined and echoarea %}/echomail/{{ echoarea }}{% else %}/{{ type }}{% endif %}" class="btn btn-outline-secondary">
+    <a href="{% if type == 'echomail' and interest_slug is defined and interest_slug %}/echomail?interest={{ interest_slug|url_encode }}{% elseif type == 'echomail' and echoarea is defined and echoarea %}/echomail/{{ echoarea }}{% else %}/{{ type }}{% endif %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i>
         {{ t('ui.compose.back_to_prefix', {}, locale, ['common']) }} {{ type|title }}
     </a>
@@ -103,10 +103,17 @@
                 {% else %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="echoarea" class="form-label">{{ t('ui.compose.echo_area_required', {}, locale, ['common']) }}</label>
+                            <label for="echoarea" class="form-label">
+                                {{ t('ui.compose.echo_area_required', {}, locale, ['common']) }}
+                                {% if interest_slug is defined and interest_slug %}
+                                <span class="badge bg-secondary ms-1">
+                                    <i class="fas fa-layer-group me-1"></i>{{ interest_name }}
+                                </span>
+                                {% endif %}
+                            </label>
                             <select class="form-select" id="echoarea" name="echoarea" required>
                                 <option value="">{{ t('ui.compose.select_echo_area', {}, locale, ['common']) }}</option>
-                                <!-- Options will be loaded via AJAX -->
+                                <!-- Options will be loaded via AJAX or from interest context -->
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -360,6 +367,11 @@ function uiT(key, fallback, params = {}) {
 }
 
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
+{% if interest_slug is defined and interest_slug %}
+const interestEchoareas = {{ interest_echoareas|json_encode|raw }};
+{% else %}
+const interestEchoareas = null;
+{% endif %}
 let allEchoareas = [];
 let markdownSupportTimer = null;
 
@@ -1432,64 +1444,58 @@ $(document).ready(function() {
 
 });
 
+function populateEchoareaSelect(areas, preselect) {
+    const select = $('#echoarea');
+    select.empty().append('<option value="">' + uiT('ui.compose.select_echo_area', 'Select echo area...') + '</option>');
+    allEchoareas = areas;
+    areas.forEach(function(area) {
+        const val = area.domain ? area.tag + '@' + area.domain : area.tag;
+        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}">${val}</option>`);
+    });
+    select.on('change', function() {
+        const color = $(this).find('option:selected').data('color');
+        if (color) $(this).css('border-left', `4px solid ${color}`);
+        populateCrossPostAreas();
+        refreshMarkdownSupportForEchomail();
+        updateEchomailGuidelinesPostingName();
+    });
+    if (preselect) {
+        select.val(preselect);
+        select.trigger('change');
+    } else {
+        updateEchomailGuidelinesPostingName();
+    }
+    if (window.draftEchoarea) delete window.draftEchoarea;
+    const replyToId = $('#replyToId').val();
+    if (!replyToId && allEchoareas.length > 1) {
+        $('#crossPostSection').show();
+        populateCrossPostAreas();
+    }
+}
+
 function loadEchoareas() {
+    const urlParams    = new URLSearchParams(window.location.search);
+    const urlEchoarea  = urlParams.get('echoarea');
+    const urlDomain    = urlParams.get('domain');
+    let preselect = '{{ echoarea }}' || window.draftEchoarea;
+    if (urlEchoarea) {
+        preselect = (urlDomain && !urlEchoarea.includes('@'))
+            ? urlEchoarea + '@' + urlDomain
+            : urlEchoarea;
+    }
+
+    if (interestEchoareas && interestEchoareas.length > 0) {
+        // Interest context: use only this interest's areas; pre-select the largest (first)
+        const firstArea = interestEchoareas[0];
+        const firstVal  = firstArea.domain ? firstArea.tag + '@' + firstArea.domain : firstArea.tag;
+        populateEchoareaSelect(interestEchoareas, preselect || firstVal);
+        return;
+    }
+
     $.get('/api/echoareas')
         .done(function(data) {
-            const select = $('#echoarea');
-            select.empty().append('<option value="">Select echo area...</option>');
-
             if (data.echoareas) {
-                allEchoareas = data.echoareas;
-                data.echoareas.forEach(function(area) {
-                    const label = area.domain ? area.tag + '@' + area.domain : area.tag;
-                    const value = area.domain ? area.tag + '@' + area.domain : area.tag;
-                    select.append(`<option value="${value}" data-color="${area.color || '#28a745'}">${label}</option>`);
-                });
-
-                // Add color styling to select options and refresh cross-post list
-                select.on('change', function() {
-                    const selectedOption = $(this).find('option:selected');
-                    const color = selectedOption.data('color');
-                    if (color) {
-                        $(this).css('border-left', `4px solid ${color}`);
-                    }
-                    populateCrossPostAreas();
-                    refreshMarkdownSupportForEchomail();
-                    updateEchomailGuidelinesPostingName();
-                });
-            }
-            // Pre-select if specified in URL or template, or from loaded draft
-            const urlParams = new URLSearchParams(window.location.search);
-            let preselect = '{{ echoarea }}' || window.draftEchoarea;
-
-            // If echoarea is in URL, combine with domain param for proper matching
-            const urlEchoarea = urlParams.get('echoarea');
-            const urlDomain = urlParams.get('domain');
-            if (urlEchoarea) {
-                // Combine echoarea and domain if domain is provided and echoarea doesn't already contain @
-                preselect = (urlDomain && !urlEchoarea.includes('@'))
-                    ? urlEchoarea + '@' + urlDomain
-                    : urlEchoarea;
-            }
-
-            if (preselect) {
-                select.val(preselect);
-                // Trigger change event to apply color styling
-                select.trigger('change');
-            } else {
-                updateEchomailGuidelinesPostingName();
-            }
-
-            // Clear the temporary draft echoarea after using it
-            if (window.draftEchoarea) {
-                delete window.draftEchoarea;
-            }
-
-            // Show cross-post section for new messages (not replies) with multiple areas
-            const replyToId = $('#replyToId').val();
-            if (!replyToId && allEchoareas.length > 1) {
-                $('#crossPostSection').show();
-                populateCrossPostAreas();
+                populateEchoareaSelect(data.echoareas, preselect);
             }
         });
 }

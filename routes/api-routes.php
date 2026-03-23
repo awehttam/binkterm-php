@@ -9721,14 +9721,22 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
 
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         $stmt = $db->prepare("
-            SELECT e.id AS echoarea_id, e.tag, e.domain, e.description
+            SELECT e.id AS echoarea_id, e.tag, e.domain, e.description,
+                   COUNT(em.id) AS message_count
             FROM echoareas e
             INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+            LEFT JOIN echomail em ON em.echoarea_id = e.id
             WHERE ie.interest_id = ?
-            ORDER BY e.tag ASC
+            GROUP BY e.id, e.tag, e.domain, e.description
+            ORDER BY message_count DESC, e.tag ASC
         ");
         $stmt->execute([(int)$id]);
         $echoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($echoareas as &$row) {
+            $row['echoarea_id']   = (int)$row['echoarea_id'];
+            $row['message_count'] = (int)$row['message_count'];
+        }
+        unset($row);
 
         echo json_encode(['echoareas' => $echoareas]);
     })->where(['id' => '[0-9]+']);

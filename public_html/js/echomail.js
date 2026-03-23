@@ -27,6 +27,7 @@ let _messageRiptermLoaderPromise = null;
 let requestedMessageId = null;
 let currentInterestId = null;
 let currentInterestName = '';
+let currentInterestSlug = '';
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -254,6 +255,18 @@ function renderEchoInfoBar(area, subscribed) {
 }
 
 /**
+ * Show the info bar for an interest view.
+ * Hides the subscribe button (not applicable here) and exposes the compose button.
+ * @param {string} name  Interest name
+ */
+function renderInterestInfoBar(name) {
+    $('#echoTitle').text(name);
+    $('#echoDescription').text('');
+    $('#echoSubscribeBtn').addClass('d-none');
+    $('#echoInfoBar').removeClass('d-none');
+}
+
+/**
  * Toggle subscription for the currently viewed echo area.
  */
 function toggleSubscription() {
@@ -428,6 +441,7 @@ function displayMobileInterests(interests) {
                 <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}"
                      data-interest-id="${interest.id}"
                      data-interest-name="${encodedName}"
+                     data-interest-slug="${escapeHtml(interest.slug || '')}"
                      style="border-left: 3px solid ${color}; cursor: pointer;">
                     <div class="d-flex align-items-center gap-2">
                         <i class="fas ${icon} flex-shrink-0"${iconStyle}></i>
@@ -449,19 +463,22 @@ function displayMobileInterests(interests) {
         c.off('click', '.list-group-item-action').on('click', '.list-group-item-action', function() {
             const id   = parseInt($(this).data('interest-id'), 10);
             const name = decodeURIComponent($(this).data('interest-name') || '');
-            selectInterest(id, name);
+            const slug = $(this).data('interest-slug') || '';
+            selectInterest(id, name, slug);
         });
     });
 }
 
-function selectInterest(id, name) {
+function selectInterest(id, name, slug) {
     currentInterestId   = id;
     currentInterestName = name;
+    currentInterestSlug = slug || '';
     currentEchoarea     = null;
     currentPage         = 1;
 
-    // Update URL without reload (stay on /echomail — no per-interest URL for now)
-    history.pushState({ interestId: id }, '', '/echomail');
+    // Encode slug in URL so the interest is restored if the user navigates back
+    const urlSlug = currentInterestSlug || id;
+    history.pushState({ interestId: id }, '', '/echomail?interest=' + encodeURIComponent(urlSlug));
 
     // Update mobile accordion text
     updateMobileAccordionText(null, name);
@@ -474,13 +491,19 @@ function selectInterest(id, name) {
     $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"], #desktopInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
     $('#mobileEchoareasList .list-group-item-action, #echoareasList .list-group-item-action').removeClass('active');
 
+    // Show info bar in interest mode: hide subscribe (not applicable), keep compose visible
+    renderInterestInfoBar(name);
+
     loadMessages();
 }
 
 function selectEchoarea(tag) {
-    currentInterestId = null;
+    currentInterestId   = null;
     currentInterestName = '';
-    currentEchoarea = tag;
+    currentInterestSlug = '';
+    currentEchoarea     = tag;
+    // Restore subscribe button visibility in case we're coming from interest mode
+    $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
     const memKey = tag || '__all__';
     currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
@@ -1520,11 +1543,17 @@ function composeMessage(type, replyToId = null) {
     if (replyToId) {
         params.append('reply', replyToId);
     }
-    if (currentEchoarea) {
-        params.append('echoarea', currentEchoarea);
-    }
-    if(domain){
-        params.append('domain', domain);
+
+    if (currentInterestId && currentInterestSlug) {
+        // Interest mode: let the compose page filter areas to this interest
+        params.append('interest', currentInterestSlug);
+    } else {
+        if (currentEchoarea) {
+            params.append('echoarea', currentEchoarea);
+        }
+        if (typeof domain !== 'undefined' && domain) {
+            params.append('domain', domain);
+        }
     }
 
     if (params.toString()) {

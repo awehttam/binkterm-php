@@ -713,6 +713,17 @@ $(document).ready(function() {
         .done(function(data) {
             if (data && data.interests) {
                 displayMobileInterests(data.interests);
+
+                // Auto-select interest from ?interest=slug URL param (e.g. returning from compose)
+                const urlInterestSlug = new URLSearchParams(window.location.search).get('interest');
+                if (urlInterestSlug) {
+                    const match = data.interests.find(function(i) {
+                        return i.slug === urlInterestSlug || String(i.id) === urlInterestSlug;
+                    });
+                    if (match) {
+                        selectInterest(match.id, match.name, match.slug);
+                    }
+                }
             }
         })
         .fail(function() {
