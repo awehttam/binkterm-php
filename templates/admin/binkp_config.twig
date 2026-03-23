@@ -304,6 +304,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/cron-builder.js"></script>
 <script>
 let binkpConfig = null;
 let uplinkModal;
@@ -321,8 +322,12 @@ document.addEventListener('DOMContentLoaded', function() {
         new bootstrap.Tooltip(element);
     });
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        CronBuilder.init('uplinkSchedule');
         loadBinkpConfig();
         loadAdminUsers('systemSysop');
+    });
+    document.getElementById('uplinkModal').addEventListener('shown.bs.modal', function () {
+        CronBuilder.refresh('uplinkSchedule');
     });
 });
 

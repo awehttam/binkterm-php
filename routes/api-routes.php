@@ -6406,6 +6406,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (!empty($_GET['body'])) {
             $searchParams['body'] = $_GET['body'];
         }
+        if (!empty($_GET['message_id'])) {
+            $searchParams['message_id'] = $_GET['message_id'];
+        }
         // Date range params — validate YYYY-MM-DD format
         foreach (['date_from', 'date_to'] as $dateKey) {
             if (!empty($_GET[$dateKey])) {
@@ -6416,13 +6419,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']) || !empty($searchParams['message_id']);
         $hasDateParams = !empty($searchParams['date_from']) || !empty($searchParams['date_to']);
         $hasAdvancedParams = $hasTextParams || $hasDateParams;
 
         // Validate: need a general query of 2+ chars, or at least one valid text/date field
         if ($hasTextParams) {
-            foreach (['from_name', 'subject', 'body'] as $textKey) {
+            foreach (['from_name', 'subject', 'body', 'message_id'] as $textKey) {
                 if (isset($searchParams[$textKey]) && strlen($searchParams[$textKey]) < 2) {
                     http_response_code(400);
                     apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
@@ -7579,6 +7582,64 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filepath = $controller->getKeptPacketDownloadPath($type, $date, $filename);
         if ($filepath === null) {
             apiError('errors.binkp.kept_packets.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
+    SimpleRouter::get('/binkp/queue/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectQueuePacket($type, $filename));
+    });
+
+    SimpleRouter::get('/binkp/queue/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->resolveQueuePacketPath($type, $filename);
+        if ($filepath === null) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.queue.inspect_failed', 'File not found', 404);
             return;
         }
 

@@ -1729,7 +1729,7 @@ class MessageHandler
         $conditions = [];
         $params = [];
 
-        $hasFieldSearch = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasFieldSearch = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']) || !empty($searchParams['message_id']);
 
         if ($hasFieldSearch) {
             if (!empty($searchParams['from_name'])) {
@@ -1743,6 +1743,10 @@ class MessageHandler
             if (!empty($searchParams['body'])) {
                 $conditions[] = $tableAlias . 'message_text ILIKE ?';
                 $params[] = '%' . $searchParams['body'] . '%';
+            }
+            if (!empty($searchParams['message_id'])) {
+                $conditions[] = $tableAlias . 'message_id ILIKE ?';
+                $params[] = '%' . $searchParams['message_id'] . '%';
             }
             return ['(' . implode(' AND ', $conditions) . ')', $params];
         }

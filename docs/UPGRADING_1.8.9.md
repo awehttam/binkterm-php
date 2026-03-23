@@ -19,6 +19,10 @@
 - [Echomail & Netmail](#echomail--netmail)
   - [Compose Message Size Warning](#compose-message-size-warning)
   - [Sender Name Popover Style](#sender-name-popover-style)
+  - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
+- [BinkP Configuration](#binkp-configuration)
+  - [Poll Schedule Builder](#poll-schedule-builder)
+  - [Queue Packet Viewer](#queue-packet-viewer)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -45,6 +49,11 @@
 **Echomail & Netmail**
 - The compose form now shows a warning when the message body approaches the 32 KB FTN packet limit, and an error if it exceeds it.
 - Sender name popovers in the echomail list now display in plain text style (no underline) for a cleaner appearance.
+- The echomail Advanced Search modal now includes a **Message ID** field that searches the `message_id` column using a partial (case-insensitive) match.
+
+**BinkP Configuration**
+- The poll schedule input on the uplink configuration screen (both the admin page and the user BinkP page) now has a **schedule builder** toggle button. Clicking it opens an inline panel that parses the current cron expression into its five individual fields (Minute, Hour, Day, Month, Weekday). Editing any field immediately rebuilds the expression in the input and shows a human-readable description of the resulting schedule.
+- Packet filenames in the Inbound and Outbound queue lists on the Queues tab are now clickable. Clicking a `.pkt` filename opens the existing packet inspector modal showing packet header details and a message list. A download button is also available. Requires a valid license.
 
 ---
 
@@ -136,6 +145,39 @@ The echomail and netmail compose forms now show a warning indicator when the mes
 ### Sender Name Popover Style
 
 The sender name in the echomail message list is no longer underlined. The popover (showing BBS name, FTN address, and quick-action buttons) is still triggered by clicking the name; only the visual style has changed.
+
+### Advanced Search: Message ID Field
+
+The echomail **Advanced Search** modal now includes a **Message ID** field. Entering a value performs a case-insensitive partial match (`ILIKE`) against the `message_id` column of the `echomail` table, allowing you to search by a fragment of a FidoNet message ID without knowing the full value. The field follows the same two-character minimum rule as the other Advanced Search text fields and is combined with them using AND logic.
+
+---
+
+## BinkP Configuration
+
+### Poll Schedule Builder
+
+The poll schedule input on the uplink configuration screen has a new **schedule builder** toggle button (sliders icon) appended to the right of the field. It is available on both the admin BinkP configuration page (`/admin/binkp-config`) and the user BinkP page (`/binkp`).
+
+Clicking the button opens an inline panel that:
+
+- Parses the current cron expression into its five labelled fields: **Minute**, **Hour**, **Day**, **Month**, and **Weekday**, each with a range hint.
+- Rebuilds the cron expression in the main input live as you edit any field.
+- Shows a human-readable description of the resulting schedule (e.g. "Runs every 4 hours at minute 0", "Runs daily at 06:00").
+- Re-parses and repopulates the fields if you edit the main input directly while the panel is open.
+
+Clicking the button again collapses the panel. No changes to the data model or API are involved.
+
+### Queue Packet Viewer
+
+Packet filenames in the **Inbound Queue** and **Outbound Queue** lists on the BinkP Queues tab are now clickable. Clicking any `.pkt` filename opens the packet inspector modal — the same modal used on the Kept Packets tab — showing:
+
+- Packet header: originating address, destination address, creation date, size, packet version, product code, and password status.
+- Message list: message number, from, to, subject, date, and attribute flags for every message in the packet.
+- A **Download** button to save a copy of the raw `.pkt` file.
+
+Non-`.pkt` files in the queue (e.g. file attachments) remain plain text.
+
+This feature requires a valid registered license, consistent with the existing kept-packets inspector.
 
 ---
 

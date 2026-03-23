@@ -435,6 +435,7 @@ return [
     // BinkP - Kept Packets
     'errors.binkp.kept_packets.failed' => 'Échec du chargement des paquets conservés',
     'errors.binkp.kept_packets.inspect_failed' => 'Échec de l\'inspection du paquet',
+    'errors.binkp.queue.inspect_failed' => 'Échec de l\'inspection du paquet en file d\'attente',
     'errors.binkp.kept_packets.invalid_type' => 'Le type doit être inbound ou outbound',
     'errors.binkp.kept_packets.license_required' => 'La consultation des paquets conservés nécessite une licence enregistrée',
 

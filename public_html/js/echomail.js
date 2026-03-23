@@ -1646,10 +1646,11 @@ function runAdvancedSearch() {
     const fromName = $('#advSearchFromName').val().trim();
     const subject = $('#advSearchSubject').val().trim();
     const body = $('#advSearchBody').val().trim();
+    const messageId = $('#advSearchMessageId').val().trim();
     const dateFrom = $('#advSearchDateFrom').val();
     const dateTo = $('#advSearchDateTo').val();
 
-    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const textFields = [fromName, subject, body, messageId].filter(v => v.length > 0);
     const hasDate = dateFrom || dateTo;
 
     // Validate: at least one field filled, and text fields must be 2+ chars each
@@ -1671,7 +1672,7 @@ function runAdvancedSearch() {
     showLoading('#messagesContainer');
 
     // Collect text search terms for highlighting
-    currentSearchTerms = [fromName, subject, body]
+    currentSearchTerms = [fromName, subject, body, messageId]
         .filter(v => v.length > 0)
         .join(' ')
         .toLowerCase()
@@ -1682,6 +1683,7 @@ function runAdvancedSearch() {
     if (fromName) params.set('from_name', fromName);
     if (subject) params.set('subject', subject);
     if (body) params.set('body', body);
+    if (messageId) params.set('message_id', messageId);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
     if (currentEchoarea) params.set('echoarea', currentEchoarea);
