@@ -240,6 +240,9 @@
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/admin/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.admin.bbs_directory', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> {{ t('ui.base.admin.chat_rooms', {}, 'common') }}</a></li>
+                                        {% if interests_enabled %}
+                                        <li><a class="dropdown-item" href="/admin/interests"><i class="fas fa-layer-group"></i> {{ t('ui.base.admin.interests', {}, 'common') }}</a></li>
+                                        {% endif %}
                                         <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/weather-config"><i class="fas fa-cloud-sun"></i> {{ t('ui.base.admin.weather_config', {}, 'common') }}</a></li>

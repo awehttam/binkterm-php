@@ -1,0 +1,975 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.interests.admin.page_title', {}, 'common') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="fas fa-layer-group me-2"></i>{{ t('ui.interests.admin.page_title', {}, 'common') }}</h1>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" onclick="showWizard()">
+                <i class="fas fa-wand-magic-sparkles me-1"></i>Generate Suggestions
+            </button>
+            <button type="button" class="btn btn-primary" onclick="showCreateModal()">
+                <i class="fas fa-plus me-1"></i>{{ t('ui.interests.admin.create', {}, 'common') }}
+            </button>
+        </div>
+    </div>
+
+    <div id="alertArea"></div>
+
+    <div class="card shadow">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="interestsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width:40px"></th>
+                        <th>{{ t('ui.interests.admin.name_label', {}, 'common') }}</th>
+                        <th>{{ t('ui.interests.admin.slug_label', {}, 'common') }}</th>
+                        <th>{{ t('ui.interests.admin.echo_areas', {}, 'common') }}</th>
+                        <th>{{ t('ui.interests.admin.file_areas', {}, 'common') }}</th>
+                        <th>Subscribers</th>
+                        <th>{{ t('ui.interests.admin.is_active_label', {}, 'common') }}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="interestsTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     Create / Edit Modal
+     ========================================================= -->
+<div class="modal fade" id="interestModal" tabindex="-1" aria-labelledby="interestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="interestModalLabel">{{ t('ui.interests.admin.create', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="interestForm">
+                    <input type="hidden" id="interestId">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="interestName" class="form-label">{{ t('ui.interests.admin.name_label', {}, 'common') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="interestName" required maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="interestSlug" class="form-label">{{ t('ui.interests.admin.slug_label', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="interestSlug" placeholder="auto-generated" maxlength="100">
+                            <div class="form-text">Leave blank to auto-generate from name.</div>
+                        </div>
+                        <div class="col-12">
+                            <label for="interestDescription" class="form-label">{{ t('ui.interests.admin.description_label', {}, 'common') }}</label>
+                            <textarea class="form-control" id="interestDescription" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-5">
+                            <label for="interestIcon" class="form-label">{{ t('ui.interests.admin.icon_label', {}, 'common') }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i id="iconPreview" class="fas fa-layer-group"></i></span>
+                                <input type="text" class="form-control" id="interestIcon" value="fa-layer-group" maxlength="50">
+                                <button type="button" class="btn btn-outline-secondary" onclick="openIconPicker('interestIcon','iconPreview')" title="Browse icons">
+                                    <i class="fas fa-th"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">{{ t('ui.interests.admin.color_label', {}, 'common') }}</label>
+                            <div id="colorPalette" class="d-flex flex-wrap gap-1">
+                                {# rendered by JS #}
+                            </div>
+                            <input type="hidden" id="interestColor" value="#6c757d">
+                        </div>
+                        <div class="col-md-1">
+                            <label for="interestSortOrder" class="form-label">Order</label>
+                            <input type="number" class="form-control" id="interestSortOrder" value="0" min="0">
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end pb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="interestActive" checked>
+                                <label class="form-check-label" for="interestActive">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Echo Areas -->
+                    <hr>
+                    <h6>{{ t('ui.interests.admin.echo_areas', {}, 'common') }}</h6>
+                    <input type="text" class="form-control mb-2" id="echoAreaSearch" placeholder="Search by tag or description…">
+                    <div id="echoAreaList" style="max-height:220px;overflow-y:auto;border:1px solid var(--bs-border-color);border-radius:0.375rem;padding:0.5rem;">
+                        <div class="text-muted small">Loading…</div>
+                    </div>
+
+                    <!-- File Areas -->
+                    <hr>
+                    <h6>{{ t('ui.interests.admin.file_areas', {}, 'common') }}</h6>
+                    <input type="text" class="form-control mb-2" id="fileAreaSearch" placeholder="Search by tag or description…">
+                    <div id="fileAreaList" style="max-height:180px;overflow-y:auto;border:1px solid var(--bs-border-color);border-radius:0.375rem;padding:0.5rem;">
+                        <div class="text-muted small">Loading…</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveInterest()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     Generation Wizard Modal
+     ========================================================= -->
+<div class="modal fade" id="wizardModal" tabindex="-1" aria-labelledby="wizardModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="wizardModalLabel"><i class="fas fa-wand-magic-sparkles me-2"></i>Generate Interest Suggestions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" id="wizardCloseBtn"></button>
+            </div>
+            <div class="modal-body" id="wizardBody">
+
+                <!-- Step 1: Options -->
+                <div id="wizardStep1">
+                    <p class="text-muted">Analyse your echo areas and suggest Interest categories automatically. You can review, edit, and discard suggestions before saving.</p>
+
+                    <div id="wizardWarning" class="alert alert-warning d-none">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <span id="wizardWarningText"></span>
+                        <a href="/admin/subscriptions" class="alert-link ms-1">Fill in descriptions on the Echo Areas page</a> for better results.
+                    </div>
+
+                    <div class="form-check mb-3" id="aiCheckRow">
+                        <input class="form-check-input" type="checkbox" id="useAiCheck"
+                            {{ ai_available ? 'checked' : 'disabled' }}>
+                        <label class="form-check-label{% if not ai_available %} text-muted{% endif %}" for="useAiCheck">
+                            <strong>Use AI classification</strong> (Claude Haiku) for areas not matched by keywords
+                        </label>
+                        {% if not ai_available %}
+                        <div class="form-text text-warning">
+                            <i class="fas fa-key me-1"></i>Set <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file to enable AI classification.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Step 2: Running -->
+                <div id="wizardStep2" class="d-none text-center py-5">
+                    <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem;" role="status"></div>
+                    <div class="h5">Running classification…</div>
+                    <div class="text-muted small" id="wizardRunNote"></div>
+                </div>
+
+                <!-- Step 3: Preview -->
+                <div id="wizardStep3" class="d-none">
+                    <div id="wizardStats" class="mb-3 text-muted small"></div>
+                    <div id="suggestionCards"></div>
+                </div>
+
+                <!-- Step 4: Done -->
+                <div id="wizardStep4" class="d-none text-center py-4">
+                    <i class="fas fa-check-circle text-success" style="font-size:3rem;"></i>
+                    <div class="h5 mt-3" id="wizardDoneMsg"></div>
+                </div>
+
+            </div>
+            <div class="modal-footer" id="wizardFooter">
+                <!-- Step 1 footer -->
+                <div id="wizardFooter1" class="w-100 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="runGeneration()">
+                        <i class="fas fa-play me-1"></i>Generate
+                    </button>
+                </div>
+                <!-- Step 3 footer -->
+                <div id="wizardFooter3" class="w-100 d-flex justify-content-between align-items-center d-none">
+                    <span class="text-muted small" id="wizardSaveCount"></span>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary" onclick="resetWizard()">Back</button>
+                        <button type="button" class="btn btn-success" onclick="saveAllSuggestions()" id="wizardSaveBtn">
+                            <i class="fas fa-save me-1"></i>Save Interests
+                        </button>
+                    </div>
+                </div>
+                <!-- Step 4 footer -->
+                <div id="wizardFooter4" class="w-100 d-flex justify-content-end d-none">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.color-swatch {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform .1s, border-color .1s;
+    flex-shrink: 0;
+}
+.color-swatch:hover { transform: scale(1.15); }
+.color-swatch.selected { border-color: var(--bs-body-color); transform: scale(1.15); }
+
+.suggestion-card { transition: opacity .2s; }
+.suggestion-card.discarded { opacity: .35; pointer-events: none; }
+
+.echo-pill { display:inline-flex; align-items:center; gap:4px; margin:2px; }
+.echo-pill .remove-pill {
+    background:none; border:none; padding:0; line-height:1;
+    cursor:pointer; font-size:.7rem; opacity:.7;
+}
+.echo-pill .remove-pill:hover { opacity:1; }
+
+#iconPickerGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(38px,1fr)); gap:4px; }
+.icon-pick-btn {
+    width:38px; height:38px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.1rem;
+}
+</style>
+
+<!-- =========================================================
+     Icon Picker Modal
+     ========================================================= -->
+<div class="modal fade" id="iconPickerModal" tabindex="-1" aria-labelledby="iconPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="iconPickerModalLabel"><i class="fas fa-icons me-2"></i>Choose an Icon</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pb-2">
+                <input type="text" class="form-control form-control-sm mb-2" id="iconSearch"
+                       placeholder="Search icons…" oninput="filterIcons(this.value)">
+                <div id="iconPickerGrid" style="max-height:340px;overflow-y:auto;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const PALETTE = [
+    '#e74c3c','#c0392b','#e67e22','#f39c12','#f1c40f',
+    '#2ecc71','#27ae60','#1abc9c','#16a085',
+    '#3498db','#2980b9','#0078d4',
+    '#9b59b6','#8e44ad','#6c3483',
+    '#e91e63','#d35400','#a0522d',
+    '#795548','#8d6e63','#607d8b','#7f8c8d','#6c757d','#95a5a6',
+    '#2c3e50',
+];
+
+let allEchoareas = [];
+let allFileareas = [];
+let wizardSuggestions = [];  // current preview suggestions (may be edited/discarded)
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadInterests();
+    loadEchoareas();
+    loadFileareas();
+    buildColorPalette('colorPalette', 'interestColor', '#6c757d');
+
+    document.getElementById('interestIcon').addEventListener('input', function() {
+        document.getElementById('iconPreview').className = 'fas ' + this.value.trim();
+    });
+    document.getElementById('echoAreaSearch').addEventListener('input', function() {
+        renderEchoareaList(this.value.toLowerCase());
+    });
+    document.getElementById('fileAreaSearch').addEventListener('input', function() {
+        renderFileareaList(this.value.toLowerCase());
+    });
+});
+
+// ---- Color palette -------------------------------------------------------
+
+function buildColorPalette(containerId, hiddenId, initialColor) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    PALETTE.forEach(hex => {
+        const sw = document.createElement('div');
+        sw.className = 'color-swatch' + (hex === initialColor ? ' selected' : '');
+        sw.style.background = hex;
+        sw.title = hex;
+        sw.addEventListener('click', () => selectColor(containerId, hiddenId, hex));
+        container.appendChild(sw);
+    });
+}
+
+function selectColor(containerId, hiddenId, hex) {
+    document.getElementById(hiddenId).value = hex;
+    document.querySelectorAll(`#${containerId} .color-swatch`).forEach(sw => {
+        sw.classList.toggle('selected', sw.title === hex);
+    });
+}
+
+function setSelectedColor(containerId, hiddenId, hex) {
+    document.getElementById(hiddenId).value = hex;
+    document.querySelectorAll(`#${containerId} .color-swatch`).forEach(sw => {
+        sw.classList.toggle('selected', sw.title === hex);
+    });
+}
+
+// ---- Interests table -----------------------------------------------------
+
+function loadInterests() {
+    fetch('/api/admin/interests')
+        .then(r => r.json())
+        .then(data => renderInterestsTable(data))
+        .catch(() => showAlert('Failed to load interests.', 'danger'));
+}
+
+function loadEchoareas() {
+    fetch('/api/echoareas/simple-list')
+        .then(r => r.json())
+        .then(data => { allEchoareas = Array.isArray(data) ? data : (data.echoareas || []); });
+}
+
+function loadFileareas() {
+    fetch('/api/fileareas')
+        .then(r => r.json())
+        .then(data => { allFileareas = Array.isArray(data) ? data : (data.fileareas || []); });
+}
+
+function renderInterestsTable(interests) {
+    const tbody = document.getElementById('interestsTableBody');
+    if (!interests.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No interests defined. Use "Generate Suggestions" to get started.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = interests.map(i => `
+        <tr>
+            <td>
+                <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${escHtml(i.color)};vertical-align:middle;"></span>
+            </td>
+            <td><i class="fas ${escHtml(i.icon)} me-1" style="color:${escHtml(i.color)}"></i>${escHtml(i.name)}</td>
+            <td><code>${escHtml(i.slug)}</code></td>
+            <td>${i.echoarea_count ?? 0}</td>
+            <td>${i.filearea_count ?? 0}</td>
+            <td>${i.subscriber_count ?? 0}</td>
+            <td>${i.is_active ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick="editInterest(${i.id})"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteInterest(${i.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ---- Create / Edit modal -------------------------------------------------
+
+/** Group an array of echo area objects by domain, return ordered Map(networkLabel → areas[]) */
+function groupEchoareasByNetwork(areas) {
+    const groups = new Map();
+    for (const e of areas) {
+        const net = (e.domain && e.domain.trim()) ? e.domain.trim().toUpperCase() : 'Local';
+        if (!groups.has(net)) groups.set(net, []);
+        groups.get(net).push(e);
+    }
+    // Sort network names alphabetically, but keep "Local" last
+    const sorted = new Map([...groups.entries()].sort((a, b) => {
+        if (a[0] === 'Local') return 1;
+        if (b[0] === 'Local') return -1;
+        return a[0].localeCompare(b[0]);
+    }));
+    return sorted;
+}
+
+/** Render a grouped echo area checklist into container; checkedIds is an array of ints. */
+function renderEchoareasByNetwork(container, areas, checkedIds, idPrefix, cssClass) {
+    if (!areas.length) { container.innerHTML = '<div class="text-muted small">No matching echo areas.</div>'; return; }
+    const groups = groupEchoareasByNetwork(areas);
+    let html = '';
+    for (const [net, netAreas] of groups) {
+        html += `<p class="mb-1 mt-2 fw-semibold small text-uppercase text-muted" style="letter-spacing:.05em">${escHtml(net)}</p>`;
+        html += netAreas.map(e => {
+            const checked = checkedIds.includes(e.id) ? 'checked' : '';
+            return `<div class="form-check">
+                <input class="form-check-input ${cssClass}" type="checkbox" value="${e.id}" id="${idPrefix}${e.id}" ${checked}>
+                <label class="form-check-label small" for="${idPrefix}${e.id}">
+                    <strong>${escHtml(e.tag)}</strong>${e.description ? ' — ' + escHtml(e.description) : ''}
+                </label>
+            </div>`;
+        }).join('');
+    }
+    container.innerHTML = html;
+}
+
+function renderEchoareaList(filter = '') {
+    const container = document.getElementById('echoAreaList');
+    const checkedIds = getCheckedIds('echoArea');
+    const filtered = allEchoareas.filter(e =>
+        !filter || (e.tag||'').toLowerCase().includes(filter) || (e.description||'').toLowerCase().includes(filter)
+    );
+    renderEchoareasByNetwork(container, filtered, checkedIds, 'ea_', 'echoArea-check');
+}
+
+function renderFileareaList(filter = '') {
+    const container = document.getElementById('fileAreaList');
+    const checkedIds = getCheckedIds('fileArea');
+    const filtered = allFileareas.filter(f =>
+        !filter || (f.tag||'').toLowerCase().includes(filter) || (f.description||'').toLowerCase().includes(filter)
+    );
+    if (!filtered.length) { container.innerHTML = '<div class="text-muted small">No matching file areas.</div>'; return; }
+    container.innerHTML = filtered.map(f => {
+        const checked = checkedIds.includes(f.id) ? 'checked' : '';
+        return `<div class="form-check">
+            <input class="form-check-input fileArea-check" type="checkbox" value="${f.id}" id="fa_${f.id}" ${checked}>
+            <label class="form-check-label small" for="fa_${f.id}">
+                <strong>${escHtml(f.tag)}</strong>${f.description ? ' — ' + escHtml(f.description) : ''}
+            </label>
+        </div>`;
+    }).join('');
+}
+
+function renderEchoareaListWithSelected(selectedIds) {
+    const container = document.getElementById('echoAreaList');
+    renderEchoareasByNetwork(container, allEchoareas, selectedIds, 'ea_', 'echoArea-check');
+}
+
+function renderFileareaListWithSelected(selectedIds) {
+    const container = document.getElementById('fileAreaList');
+    container.innerHTML = allFileareas.map(f => {
+        const checked = selectedIds.includes(f.id) ? 'checked' : '';
+        return `<div class="form-check">
+            <input class="form-check-input fileArea-check" type="checkbox" value="${f.id}" id="fa_${f.id}" ${checked}>
+            <label class="form-check-label small" for="fa_${f.id}">
+                <strong>${escHtml(f.tag)}</strong>${f.description ? ' — ' + escHtml(f.description) : ''}
+            </label>
+        </div>`;
+    }).join('');
+}
+
+function getCheckedIds(prefix) {
+    return Array.from(document.querySelectorAll(`.${prefix}-check:checked`)).map(el => parseInt(el.value));
+}
+
+function showCreateModal() {
+    document.getElementById('interestId').value = '';
+    document.getElementById('interestModalLabel').textContent = '{{ t('ui.interests.admin.create', {}, 'common') }}';
+    document.getElementById('interestForm').reset();
+    document.getElementById('interestIcon').value = 'fa-layer-group';
+    document.getElementById('iconPreview').className = 'fas fa-layer-group';
+    document.getElementById('echoAreaSearch').value = '';
+    document.getElementById('fileAreaSearch').value = '';
+    buildColorPalette('colorPalette', 'interestColor', '#6c757d');
+    renderEchoareaList();
+    renderFileareaList();
+    new bootstrap.Modal(document.getElementById('interestModal')).show();
+}
+
+function editInterest(id) {
+    new bootstrap.Modal(document.getElementById('interestModal')).show();
+    fetch(`/api/admin/interests/${id}`)
+        .then(r => r.json())
+        .then(interest => {
+            document.getElementById('interestId').value = interest.id;
+            document.getElementById('interestModalLabel').textContent = '{{ t('ui.interests.admin.edit', {}, 'common') }}';
+            document.getElementById('interestName').value = interest.name;
+            document.getElementById('interestSlug').value = interest.slug;
+            document.getElementById('interestDescription').value = interest.description || '';
+            document.getElementById('interestIcon').value = interest.icon || 'fa-layer-group';
+            document.getElementById('iconPreview').className = 'fas ' + (interest.icon || 'fa-layer-group');
+            document.getElementById('interestSortOrder').value = interest.sort_order || 0;
+            document.getElementById('interestActive').checked = !!interest.is_active;
+            document.getElementById('echoAreaSearch').value = '';
+            document.getElementById('fileAreaSearch').value = '';
+            buildColorPalette('colorPalette', 'interestColor', interest.color || '#6c757d');
+
+            const echoIds = (interest.echoareas || []).map(e => e.id);
+            const fileIds = (interest.fileareas || []).map(f => f.id);
+            renderEchoareaListWithSelected(echoIds);
+            renderFileareaListWithSelected(fileIds);
+        })
+        .catch(() => { renderEchoareaList(); renderFileareaList(); });
+}
+
+function saveInterest() {
+    const id   = document.getElementById('interestId').value;
+    const name = document.getElementById('interestName').value.trim();
+    if (!name) { showAlert('Name is required.', 'warning'); return; }
+
+    const payload = {
+        name,
+        slug:        document.getElementById('interestSlug').value.trim() || null,
+        description: document.getElementById('interestDescription').value.trim(),
+        icon:        document.getElementById('interestIcon').value.trim() || 'fa-layer-group',
+        color:       document.getElementById('interestColor').value,
+        sort_order:  parseInt(document.getElementById('interestSortOrder').value) || 0,
+        is_active:   document.getElementById('interestActive').checked,
+    };
+    const echoIds = getCheckedIds('echoArea');
+    const fileIds = getCheckedIds('fileArea');
+    const isEdit  = !!id;
+    const url     = isEdit ? `/api/admin/interests/${id}` : '/api/admin/interests';
+    const method  = isEdit ? 'PUT' : 'POST';
+
+    fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { showAlert(data.error || 'Failed to save.', 'danger'); return; }
+            const interestId = isEdit ? parseInt(id) : data.id;
+            return Promise.all([
+                fetch(`/api/admin/interests/${interestId}/echoareas`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ids: echoIds})
+                }),
+                fetch(`/api/admin/interests/${interestId}/fileareas`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ids: fileIds})
+                }),
+            ]);
+        })
+        .then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('interestModal')).hide();
+            showAlert('{{ t('ui.interests.admin.saved_success', {}, 'common') }}', 'success');
+            loadInterests();
+        })
+        .catch(() => showAlert('An error occurred.', 'danger'));
+}
+
+function deleteInterest(id) {
+    if (!confirm('{{ t('ui.interests.admin.delete_confirm', {}, 'common') }}')) return;
+    fetch(`/api/admin/interests/${id}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('{{ t('ui.interests.admin.deleted_success', {}, 'common') }}', 'success');
+                loadInterests();
+            } else {
+                showAlert(data.error || 'Delete failed.', 'danger');
+            }
+        })
+        .catch(() => showAlert('An error occurred.', 'danger'));
+}
+
+// ---- Generation wizard ---------------------------------------------------
+
+function showWizard() {
+    resetWizard();
+    new bootstrap.Modal(document.getElementById('wizardModal')).show();
+}
+
+function resetWizard() {
+    showWizardStep(1);
+}
+
+function showWizardStep(n) {
+    [1,2,3,4].forEach(i => {
+        document.getElementById(`wizardStep${i}`).classList.toggle('d-none', i !== n);
+    });
+    document.getElementById('wizardFooter1').classList.toggle('d-none', n !== 1);
+    document.getElementById('wizardFooter3').classList.toggle('d-none', n !== 3);
+    document.getElementById('wizardFooter4').classList.toggle('d-none', n !== 4);
+    document.getElementById('wizardCloseBtn').disabled = (n === 2);
+}
+
+function runGeneration() {
+    showWizardStep(2);
+    const useAi = document.getElementById('useAiCheck').checked;
+    document.getElementById('wizardRunNote').textContent = useAi
+        ? 'Running keyword pass, then sending unmatched areas to Claude Haiku…'
+        : 'Running keyword classification…';
+
+    fetch('/api/admin/interests/generate', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({use_ai: useAi})
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.error) { throw new Error(result.error); }
+        showPreview(result);
+    })
+    .catch(err => {
+        showWizardStep(1);
+        showAlert('Generation failed: ' + err.message, 'danger');
+    });
+}
+
+function showPreview(result) {
+    const { suggestions, stats } = result;
+    wizardSuggestions = suggestions.map((s, idx) => ({...s, _idx: idx, _discarded: false}));
+
+    // Warning for no-description areas
+    const warn = document.getElementById('wizardWarning');
+    if (stats.no_description > 0) {
+        document.getElementById('wizardWarningText').textContent =
+            `${stats.no_description} echo area(s) have no description — classification accuracy is lower for these.`;
+        warn.classList.remove('d-none');
+    } else {
+        warn.classList.add('d-none');
+    }
+
+    // Stats bar
+    const aiNote = stats.ai_available ? '' : ' (AI unavailable — keyword only)';
+    document.getElementById('wizardStats').innerHTML =
+        `<strong>${stats.categorised}</strong> of <strong>${stats.total}</strong> echo areas categorised into ` +
+        `<strong>${suggestions.length}</strong> suggested interests${aiNote}. ` +
+        `<span class="text-muted">${stats.uncategorised} uncategorised.</span>`;
+
+    renderSuggestionCards();
+    showWizardStep(3);
+    updateSaveCount();
+}
+
+/** Build grouped pills HTML for a suggestion's echo area list. */
+function buildPillsHtml(echoareas, idx) {
+    if (!echoareas.length) return '<span class="text-muted small">None</span>';
+    const groups = groupEchoareasByNetwork(echoareas);
+    let html = '';
+    for (const [net, netAreas] of groups) {
+        html += `<span class="d-block fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.05em">${escHtml(net)}</span>`;
+        html += netAreas.map(ea =>
+            `<span class="echo-pill badge bg-secondary fw-normal">
+                ${escHtml(ea.tag)}
+                <button type="button" class="remove-pill" onclick="removeAreaFromSuggestion(${idx},${ea.id})" title="Remove">✕</button>
+            </span>`
+        ).join('');
+        html += '<br>';
+    }
+    return html;
+}
+
+function renderSuggestionCards() {
+    const container = document.getElementById('suggestionCards');
+    if (!wizardSuggestions.length) {
+        container.innerHTML = '<div class="alert alert-info">No new interest suggestions found. All categories may already exist.</div>';
+        return;
+    }
+
+    container.innerHTML = wizardSuggestions.map((s, idx) => {
+        const palId   = `pal_${idx}`;
+        const hidId   = `hidColor_${idx}`;
+        const icnId   = `icnInput_${idx}`;
+        const icnPrev = `icnPrev_${idx}`;
+        const sourceClass = s.source === 'ai' ? 'bg-info-subtle text-info' : 'bg-secondary-subtle text-secondary';
+        const pillsHtml = buildPillsHtml(s.echoareas, idx);
+
+        return `<div class="card mb-3 suggestion-card" id="sugCard_${idx}">
+            <div class="card-header d-flex align-items-center gap-2 py-2">
+                <i class="fas ${escHtml(s.icon)}" id="${icnPrev}" style="color:${escHtml(s.color)};font-size:1.1rem;"></i>
+                <input type="text" class="form-control form-control-sm fw-bold"
+                       id="sugName_${idx}" value="${escHtml(s.name)}"
+                       style="max-width:280px;font-size:1rem;" oninput="updateSuggestionName(${idx},this.value)">
+                <span class="badge ${sourceClass} ms-1">${escHtml(s.source)}</span>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="discardSuggestion(${idx})">
+                        <i class="fas fa-times me-1"></i>Discard
+                    </button>
+                </div>
+            </div>
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">Icon</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="fas ${escHtml(s.icon)}" id="icnPrevBig_${idx}"></i></span>
+                            <input type="text" class="form-control" id="${icnId}" value="${escHtml(s.icon)}" maxlength="50"
+                                   oninput="updateSuggestionIcon(${idx},this.value)" style="max-width:130px;">
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    onclick="openIconPicker('${icnId}','icnPrevBig_${idx}')" title="Browse icons">
+                                <i class="fas fa-th"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">Color</label>
+                        <div id="${palId}" class="d-flex flex-wrap gap-1" style="max-width:320px;">
+                        </div>
+                        <input type="hidden" id="${hidId}" value="${escHtml(s.color)}">
+                    </div>
+                </div>
+                <div class="mb-1">
+                    <strong class="small">Echo Areas (${s.echoareas.length}):</strong>
+                    <div id="pills_${idx}" class="mt-1">${pillsHtml}</div>
+                </div>
+                <div class="mt-2" id="addAreaRow_${idx}">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAddArea(${idx})">
+                        <i class="fas fa-plus me-1"></i>Add echo areas
+                    </button>
+                    <div id="addAreaPanel_${idx}" class="d-none mt-2">
+                        <input type="text" class="form-control form-control-sm mb-1"
+                               id="addAreaSearch_${idx}" placeholder="Search…"
+                               oninput="renderAddAreaList(${idx},this.value)">
+                        <div id="addAreaList_${idx}" style="max-height:130px;overflow-y:auto;border:1px solid var(--bs-border-color);border-radius:.375rem;padding:.4rem;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Build colour palettes inside each card after rendering
+    wizardSuggestions.forEach((s, idx) => {
+        buildColorPalette(`pal_${idx}`, `hidColor_${idx}`, s.color);
+        // Wire color changes
+        document.getElementById(`pal_${idx}`).addEventListener('click', () => {
+            const hex = document.getElementById(`hidColor_${idx}`).value;
+            wizardSuggestions[idx].color = hex;
+            document.getElementById(`icnPrev_${idx}`) && (document.getElementById(`icnPrev_${idx}`).style.color = hex);
+            const bigPrev = document.getElementById(`icnPrevBig_${idx}`);
+            if (bigPrev) bigPrev.style.color = hex;
+        });
+    });
+}
+
+function updateSuggestionName(idx, val) {
+    wizardSuggestions[idx].name = val;
+}
+
+function updateSuggestionIcon(idx, val) {
+    wizardSuggestions[idx].icon = val;
+    const el = document.getElementById(`icnPrevBig_${idx}`);
+    if (el) el.className = 'fas ' + val.trim();
+}
+
+function discardSuggestion(idx) {
+    wizardSuggestions[idx]._discarded = true;
+    document.getElementById(`sugCard_${idx}`).classList.add('discarded');
+    updateSaveCount();
+}
+
+function removeAreaFromSuggestion(idx, areaId) {
+    wizardSuggestions[idx].echoareas = wizardSuggestions[idx].echoareas.filter(ea => ea.id !== areaId);
+    // Re-render just this card's pills
+    const pillsDiv = document.getElementById(`pills_${idx}`);
+    if (pillsDiv) {
+        pillsDiv.innerHTML = buildPillsHtml(wizardSuggestions[idx].echoareas, idx);
+    }
+    // Update header count
+    const countEl = document.querySelector(`#sugCard_${idx} .card-body .small strong`);
+    if (countEl) countEl.textContent = `Echo Areas (${wizardSuggestions[idx].echoareas.length}):`;
+}
+
+function toggleAddArea(idx) {
+    const panel = document.getElementById(`addAreaPanel_${idx}`);
+    panel.classList.toggle('d-none');
+    if (!panel.classList.contains('d-none')) {
+        renderAddAreaList(idx, '');
+    }
+}
+
+function renderAddAreaList(idx, filter) {
+    const container = document.getElementById(`addAreaList_${idx}`);
+    const existing  = new Set(wizardSuggestions[idx].echoareas.map(ea => ea.id));
+    const filtered  = allEchoareas.filter(e =>
+        !existing.has(e.id) && (
+            !filter || (e.tag||'').toLowerCase().includes(filter.toLowerCase()) ||
+            (e.description||'').toLowerCase().includes(filter.toLowerCase())
+        )
+    );
+    if (!filtered.length) { container.innerHTML = '<div class="text-muted small p-1">No matching areas.</div>'; return; }
+    const groups = groupEchoareasByNetwork(filtered);
+    let html = '';
+    for (const [net, netAreas] of groups) {
+        html += `<p class="mb-1 mt-2 fw-semibold small text-uppercase text-muted" style="letter-spacing:.05em">${escHtml(net)}</p>`;
+        html += netAreas.map(e =>
+            `<div class="form-check py-0">
+                <input class="form-check-input" type="checkbox" id="addEa_${idx}_${e.id}" value="${e.id}"
+                       onchange="toggleAddAreaCheck(${idx}, ${e.id}, '${escAttr(e.tag)}', '${escAttr(e.description||'')}', this.checked)">
+                <label class="form-check-label small" for="addEa_${idx}_${e.id}">
+                    <strong>${escHtml(e.tag)}</strong>${e.description ? ' — ' + escHtml(e.description) : ''}
+                </label>
+            </div>`
+        ).join('');
+    }
+    container.innerHTML = html;
+}
+
+function toggleAddAreaCheck(idx, areaId, tag, description, checked) {
+    if (checked) {
+        wizardSuggestions[idx].echoareas.push({id: areaId, tag, description});
+    } else {
+        wizardSuggestions[idx].echoareas = wizardSuggestions[idx].echoareas.filter(ea => ea.id !== areaId);
+    }
+    // Re-render pills
+    const pillsDiv = document.getElementById(`pills_${idx}`);
+    if (pillsDiv) {
+        pillsDiv.innerHTML = buildPillsHtml(wizardSuggestions[idx].echoareas, idx);
+    }
+}
+
+function updateSaveCount() {
+    const active = wizardSuggestions.filter(s => !s._discarded);
+    document.getElementById('wizardSaveCount').textContent = `${active.length} interest(s) will be saved`;
+    document.getElementById('wizardSaveBtn').disabled = active.length === 0;
+}
+
+async function saveAllSuggestions() {
+    const toSave = wizardSuggestions.filter(s => !s._discarded && s.name.trim());
+    if (!toSave.length) return;
+
+    document.getElementById('wizardSaveBtn').disabled = true;
+    document.getElementById('wizardSaveBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+    let saved = 0;
+    let failed = 0;
+
+    for (const s of toSave) {
+        try {
+            const createRes = await fetch('/api/admin/interests', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    name:  s.name.trim(),
+                    icon:  s.icon || 'fa-layer-group',
+                    color: document.getElementById(`hidColor_${s._idx}`)?.value || s.color,
+                })
+            });
+            const createData = await createRes.json();
+            if (!createData.success) { failed++; continue; }
+
+            const interestId = createData.id;
+            await fetch(`/api/admin/interests/${interestId}/echoareas`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ids: s.echoareas.map(ea => ea.id)})
+            });
+            saved++;
+        } catch(e) {
+            failed++;
+        }
+    }
+
+    const msg = saved > 0
+        ? `${saved} interest(s) created successfully.` + (failed > 0 ? ` ${failed} failed.` : '')
+        : `All ${failed} saves failed.`;
+    document.getElementById('wizardDoneMsg').textContent = msg;
+    showWizardStep(4);
+    loadInterests();
+}
+
+// ---- Utility -------------------------------------------------------------
+
+function showAlert(msg, type) {
+    const area = document.getElementById('alertArea');
+    area.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${escHtml(msg)}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+    area.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function escHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function escAttr(str) {
+    if (str == null) return '';
+    return String(str).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+// ---- Icon picker ---------------------------------------------------------
+
+const ICON_LIST = [
+    // Communication & messaging
+    'fa-comments','fa-comment','fa-envelope','fa-paper-plane','fa-broadcast-tower',
+    'fa-satellite-dish','fa-phone','fa-terminal','fa-server','fa-network-wired',
+    // Computing & tech
+    'fa-desktop','fa-laptop','fa-microchip','fa-cpu','fa-code','fa-bug',
+    'fa-database','fa-hdd','fa-keyboard','fa-mouse','fa-memory','fa-plug',
+    'fa-robot','fa-cogs','fa-tools','fa-wrench','fa-screwdriver','fa-hammer',
+    'fa-linux','fa-windows','fa-apple','fa-android',
+    // Science & space
+    'fa-rocket','fa-satellite','fa-globe','fa-flask','fa-atom','fa-dna',
+    'fa-microscope','fa-star','fa-moon','fa-sun','fa-cloud','fa-cloud-sun',
+    'fa-meteor','fa-temperature-high','fa-wind',
+    // Arts & entertainment
+    'fa-music','fa-headphones','fa-guitar','fa-film','fa-tv','fa-book',
+    'fa-book-open','fa-palette','fa-paint-brush','fa-pen','fa-pencil-alt',
+    'fa-camera','fa-photo-video','fa-images','fa-theater-masks',
+    'fa-gamepad','fa-dice','fa-chess','fa-puzzle-piece',
+    // People & community
+    'fa-users','fa-user-friends','fa-handshake','fa-hands-helping',
+    'fa-comments-dollar','fa-bullhorn','fa-megaphone','fa-vote-yea',
+    'fa-landmark','fa-flag','fa-globe-americas','fa-map-marker-alt',
+    // Nature & outdoors
+    'fa-tree','fa-leaf','fa-seedling','fa-mountain','fa-hiking',
+    'fa-campground','fa-fish','fa-paw','fa-dog','fa-cat','fa-crow',
+    // Food & drink
+    'fa-utensils','fa-coffee','fa-beer','fa-wine-glass','fa-pizza-slice',
+    'fa-hamburger','fa-apple-alt','fa-carrot',
+    // Health & body
+    'fa-heartbeat','fa-heart','fa-medkit','fa-hospital','fa-dumbbell',
+    'fa-running','fa-bicycle','fa-swimmer','fa-spa',
+    // Religion & philosophy
+    'fa-place-of-worship','fa-cross','fa-om','fa-star-of-david','fa-yin-yang',
+    'fa-praying-hands',
+    // Misc & admin
+    'fa-layer-group','fa-th-large','fa-th','fa-sitemap','fa-project-diagram',
+    'fa-shield-alt','fa-lock','fa-key','fa-eye','fa-search',
+    'fa-map','fa-compass','fa-clock','fa-calendar','fa-bell',
+    'fa-tag','fa-tags','fa-bookmark','fa-thumbtack','fa-paperclip',
+    'fa-archive','fa-box','fa-gift','fa-shopping-cart',
+    'fa-dollar-sign','fa-coins','fa-chart-bar','fa-chart-line',
+    'fa-ghost','fa-skull','fa-hat-wizard','fa-magic',
+    'fa-laugh','fa-smile','fa-meh','fa-frown',
+    'fa-question','fa-info-circle','fa-exclamation-circle',
+    'fa-home','fa-building','fa-city','fa-monument',
+    'fa-car','fa-train','fa-plane','fa-ship','fa-motorcycle',
+    'fa-broadcast-tower','fa-podcast','fa-rss',
+    'fa-ham','fa-sitemap','fa-broadcast-tower',
+];
+
+// deduplicate
+const ICONS = [...new Set(ICON_LIST)];
+
+let _iconTargetInput = null;
+let _iconTargetPreview = null;
+
+function openIconPicker(inputId, previewId) {
+    _iconTargetInput   = inputId;
+    _iconTargetPreview = previewId;
+    document.getElementById('iconSearch').value = '';
+    renderIconGrid('');
+    // Mark current selection
+    const current = document.getElementById(inputId)?.value?.trim();
+    document.querySelectorAll('.icon-pick-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.icon === current);
+    });
+    new bootstrap.Modal(document.getElementById('iconPickerModal')).show();
+}
+
+function filterIcons(query) {
+    renderIconGrid(query.toLowerCase().trim());
+}
+
+function renderIconGrid(filter) {
+    const current = _iconTargetInput ? (document.getElementById(_iconTargetInput)?.value?.trim() ?? '') : '';
+    const filtered = filter ? ICONS.filter(ic => ic.replace('fa-','').includes(filter)) : ICONS;
+    const grid = document.getElementById('iconPickerGrid');
+    grid.innerHTML = filtered.map(ic =>
+        `<button type="button" class="icon-pick-btn btn btn-sm ${ic===current?'btn-primary':'btn-outline-secondary'}"
+                 data-icon="${ic}" onclick="pickIcon('${ic}')" title="${ic.replace('fa-','')}">
+            <i class="fas ${ic}"></i>
+        </button>`
+    ).join('');
+}
+
+function pickIcon(icon) {
+    if (_iconTargetInput) {
+        document.getElementById(_iconTargetInput).value = icon;
+    }
+    if (_iconTargetPreview) {
+        document.getElementById(_iconTargetPreview).className = 'fas ' + icon;
+    }
+    // Update selection highlight
+    document.querySelectorAll('.icon-pick-btn').forEach(btn => {
+        const active = btn.dataset.icon === icon;
+        btn.classList.toggle('btn-primary', active);
+        btn.classList.toggle('btn-outline-secondary', !active);
+    });
+    // Auto-close after a short delay so the user sees the selection
+    setTimeout(() => {
+        bootstrap.Modal.getInstance(document.getElementById('iconPickerModal'))?.hide();
+    }, 200);
+}
+</script>
+{% endblock %}

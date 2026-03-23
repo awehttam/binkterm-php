@@ -505,4 +505,12 @@ return [
     'errors.virustotal.file_too_large' => 'Fichier trop volumineux pour le téléversement VirusTotal (max 32 Mo)',
     'errors.virustotal.not_configured' => 'Clé API VirusTotal non configurée',
     'errors.virustotal.upload_failed' => 'Échec du téléversement du fichier vers VirusTotal',
+
+    // Interests
+    'errors.interests.not_found' => 'Intérêt introuvable.',
+    'errors.interests.name_required' => 'Le nom de l\'intérêt est obligatoire.',
+    'errors.interests.name_taken' => 'Un intérêt avec ce nom existe déjà.',
+    'errors.interests.slug_taken' => 'Un intérêt avec ce slug existe déjà.',
+    'errors.interests.feature_disabled' => 'La fonctionnalité des intérêts n\'est pas activée.',
+    'errors.interests.crosspost_cooldown' => 'Vous devez attendre encore {minutes} minute(s) avant de faire un cross-post.',
 ];

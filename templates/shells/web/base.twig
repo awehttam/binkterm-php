@@ -286,6 +286,9 @@
                                                 <li><a class="dropdown-item" href="/admin/mrc-settings"><i class="fas fa-satellite-dish"></i> {{ t('ui.base.admin.mrc_settings', {}, 'common') }}</a></li>
                                             </ul>
                                         </li>
+                                        {% if interests_enabled %}
+                                        <li><a class="dropdown-item" href="/admin/interests"><i class="fas fa-layer-group"></i> {{ t('ui.base.admin.interests', {}, 'common') }}</a></li>
+                                        {% endif %}
                                         <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/weather-config"><i class="fas fa-cloud-sun"></i> {{ t('ui.base.admin.weather_config', {}, 'common') }}</a></li>

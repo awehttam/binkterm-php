@@ -548,4 +548,12 @@ return [
     'errors.qwk.processing_failed' => 'Failed to process REP packet',
     'errors.qwk.status_failed' => 'Failed to retrieve QWK status',
     'errors.qwk.invalid_format' => 'Format must be "qwk" or "qwke"',
+
+    // Interests
+    'errors.interests.not_found' => 'Interest not found.',
+    'errors.interests.name_required' => 'Interest name is required.',
+    'errors.interests.name_taken' => 'An interest with that name already exists.',
+    'errors.interests.slug_taken' => 'An interest with that slug already exists.',
+    'errors.interests.feature_disabled' => 'The interests feature is not enabled.',
+    'errors.interests.crosspost_cooldown' => 'You must wait {minutes} more minute(s) before cross-posting again.',
 ];

@@ -548,4 +548,12 @@ return [
     'errors.qwk.processing_failed' => 'No se pudo procesar el paquete REP',
     'errors.qwk.status_failed' => 'No se pudo obtener el estado QWK',
     'errors.qwk.invalid_format' => 'El formato debe ser "qwk" o "qwke"',
+
+    // Interests
+    'errors.interests.not_found' => 'Interés no encontrado.',
+    'errors.interests.name_required' => 'El nombre del interés es obligatorio.',
+    'errors.interests.name_taken' => 'Ya existe un interés con ese nombre.',
+    'errors.interests.slug_taken' => 'Ya existe un interés con ese slug.',
+    'errors.interests.feature_disabled' => 'La función de intereses no está habilitada.',
+    'errors.interests.crosspost_cooldown' => 'Debe esperar {minutes} minuto(s) más antes de volver a hacer cross-post.',
 ];
