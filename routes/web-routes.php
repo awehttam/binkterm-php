@@ -1434,6 +1434,21 @@ SimpleRouter::get('/about', function() {
     $template->renderResponse('about.twig');
 });
 
+// Interests page
+SimpleRouter::get('/interests', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('interests.twig');
+});
+
 // QWK Offline Mail page
 SimpleRouter::get('/qwk', function() {
     $user = RouteHelper::requireAuth();

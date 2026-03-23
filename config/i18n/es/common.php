@@ -3335,6 +3335,7 @@ return [
     'ui.user_subscriptions.unsubscribed_success' => 'Desuscripcion realizada correctamente',
     'ui.user_subscriptions.update_failed' => 'No se pudo actualizar la suscripcion. Intente de nuevo.',
     'ui.user_subscriptions.network_error' => 'Error de red. Intente de nuevo.',
+    'ui.user_subscriptions.filter_by_interest' => 'Filtrar por interés:',
 
     // Echoareas import
     'ui.echoareas_import.page_title' => 'Importar echoareas',
@@ -3735,6 +3736,9 @@ return [
     'ui.interests.nav_label' => 'Intereses',
     'ui.interests.page_title' => 'Intereses',
     'ui.interests.heading' => 'Explorar Intereses',
+    'ui.interests.page_intro' => 'Los intereses te ayudan a descubrir áreas de eco y áreas de archivos que coinciden con tus temas. Al suscribirte a un interés, sigues automáticamente todas sus áreas asociadas.',
+    'ui.interests.page_intro_unsub' => 'Puedes cancelar la suscripción a un interés y sus áreas en cualquier momento, o gestionar suscripciones individuales a través del {link}.',
+    'ui.interests.page_intro_unsub_link' => 'administrador de suscripciones',
     'ui.interests.subscribe' => 'Suscribirse',
     'ui.interests.unsubscribe' => 'Cancelar suscripción',
     'ui.interests.subscribed' => 'Suscrito',

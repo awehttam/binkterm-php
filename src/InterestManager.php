@@ -135,6 +135,26 @@ class InterestManager
     }
 
     /**
+     * Return a map of echoarea_id => [interest_id, ...] for all active interests.
+     * Used to annotate echo area lists with their interest memberships.
+     *
+     * @return array<int,int[]>
+     */
+    public function getEchoareaInterestMap(): array
+    {
+        $stmt = $this->db->query("
+            SELECT ie.echoarea_id, ie.interest_id
+            FROM interest_echoareas ie
+            INNER JOIN interests i ON i.id = ie.interest_id AND i.is_active = TRUE
+        ");
+        $map = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $map[(int)$row['echoarea_id']][] = (int)$row['interest_id'];
+        }
+        return $map;
+    }
+
+    /**
      * Return IDs of interests the user is subscribed to.
      *
      * @return int[]
@@ -175,20 +195,35 @@ class InterestManager
 
     /**
      * Unsubscribe a user from an interest.
-     * Also removes echo area subscriptions that were created via this interest.
+     *
+     * Removes the source tracking rows for this interest, then removes each
+     * echo area subscription that has no remaining interest sources — i.e.
+     * only if no other interest the user is still subscribed to also covers
+     * that echo area.
      */
     public function unsubscribeUser(int $userId, int $interestId): bool
     {
-        // Remove the interest-level subscription
+        // Remove the interest-level subscription.
         $stmt = $this->db->prepare("DELETE FROM user_interest_subscriptions WHERE user_id = ? AND interest_id = ?");
         $stmt->execute([$userId, $interestId]);
 
-        // Remove only echo area subscriptions that were created via this interest
+        // Remove source-tracking rows for this interest.
+        $stmt = $this->db->prepare("DELETE FROM user_echoarea_interest_sources WHERE user_id = ? AND interest_id = ?");
+        $stmt->execute([$userId, $interestId]);
+
+        // Delete echo area subscriptions that are no longer covered by any
+        // remaining interest source for this user.
         $stmt = $this->db->prepare("
             DELETE FROM user_echoarea_subscriptions
-            WHERE user_id = ? AND interest_id = ?
+            WHERE user_id = ?
+              AND interest_id = ?
+              AND echoarea_id NOT IN (
+                  SELECT echoarea_id
+                  FROM user_echoarea_interest_sources
+                  WHERE user_id = ?
+              )
         ");
-        $stmt->execute([$userId, $interestId]);
+        $stmt->execute([$userId, $interestId, $userId]);
 
         return true;
     }
@@ -420,21 +455,34 @@ class InterestManager
         $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($existing !== false) {
-            // Row exists: only subscribe if it was previously interest-managed (not manually unsubscribed)
             if ($existing['is_active'] == false) {
                 // User explicitly unsubscribed — respect that, do not re-subscribe
                 return;
             }
-            // Already active — nothing to do
+            // Already active — record the source so unsubscribe from this interest
+            // doesn't remove the area if another interest also covers it.
+            $stmt = $this->db->prepare("
+                INSERT INTO user_echoarea_interest_sources (user_id, echoarea_id, interest_id)
+                VALUES (?, ?, ?)
+                ON CONFLICT DO NOTHING
+            ");
+            $stmt->execute([$userId, $echoareaId, $interestId]);
             return;
         }
 
-        // No existing row: create a new interest-sourced subscription
+        // No existing row: create a new interest-sourced subscription and record the source.
         $stmt = $this->db->prepare("
             INSERT INTO user_echoarea_subscriptions
                 (user_id, echoarea_id, is_active, subscription_type, interest_id)
             VALUES (?, ?, 'true', 'interest', ?)
             ON CONFLICT (user_id, echoarea_id) DO NOTHING
+        ");
+        $stmt->execute([$userId, $echoareaId, $interestId]);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO user_echoarea_interest_sources (user_id, echoarea_id, interest_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT DO NOTHING
         ");
         $stmt->execute([$userId, $echoareaId, $interestId]);
     }

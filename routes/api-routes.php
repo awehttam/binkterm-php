@@ -9579,3 +9579,94 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
 
 
 });
+
+// ---------------------------------------------------------------------------
+// Interests — user-facing
+// GET  /api/interests                 — active interests with subscription status
+// POST /api/interests/{id}/subscribe
+// POST /api/interests/{id}/unsubscribe
+// ---------------------------------------------------------------------------
+SimpleRouter::group(['prefix' => '/api/interests'], function() {
+
+    /**
+     * GET /api/interests
+     * Returns all active interests. When authenticated, each interest includes
+     * a `subscribed` boolean for the current user.
+     */
+    SimpleRouter::get('/', function() {
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $user   = RouteHelper::getUser();
+        $userId = $user ? (int)($user['user_id'] ?? $user['id']) : null;
+
+        $manager  = new \BinktermPHP\InterestManager();
+        $interests = $manager->getInterests(true);
+
+        $subscribedIds = $userId ? array_flip($manager->getUserSubscribedInterestIds($userId)) : [];
+
+        foreach ($interests as &$i) {
+            $i['subscribed'] = isset($subscribedIds[$i['id']]);
+        }
+        unset($i);
+
+        echo json_encode(['interests' => $interests]);
+    });
+
+    /**
+     * POST /api/interests/{id}/subscribe
+     */
+    SimpleRouter::post('/{id}/subscribe', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $manager->subscribeUser($userId, (int)$id);
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/interests/{id}/unsubscribe
+     */
+    SimpleRouter::post('/{id}/unsubscribe', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $manager->unsubscribeUser($userId, (int)$id);
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+});

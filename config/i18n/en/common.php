@@ -3327,6 +3327,7 @@ return [
     'ui.user_subscriptions.unsubscribed_success' => 'Unsubscribed successfully!',
     'ui.user_subscriptions.update_failed' => 'Failed to update subscription. Please try again.',
     'ui.user_subscriptions.network_error' => 'Network error. Please try again.',
+    'ui.user_subscriptions.filter_by_interest' => 'Filter by interest:',
 
     // Echoareas import
     'ui.echoareas_import.page_title' => 'Import Echo Areas',
@@ -3727,6 +3728,9 @@ return [
     'ui.interests.nav_label' => 'Interests',
     'ui.interests.page_title' => 'Interests',
     'ui.interests.heading' => 'Browse Interests',
+    'ui.interests.page_intro' => 'Interests help you discover echo areas and file areas that match your topics. Subscribing to an interest automatically follows all of its associated areas.',
+    'ui.interests.page_intro_unsub' => 'You can unsubscribe from an interest and its areas at any time, or manage individual area subscriptions through the {link}.',
+    'ui.interests.page_intro_unsub_link' => 'subscription manager',
     'ui.interests.subscribe' => 'Subscribe',
     'ui.interests.unsubscribe' => 'Unsubscribe',
     'ui.interests.subscribed' => 'Subscribed',

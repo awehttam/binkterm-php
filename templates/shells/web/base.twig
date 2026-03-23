@@ -269,6 +269,9 @@
                                         <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
+                                        {% if interests_enabled %}
+                                        <li><a class="dropdown-item" href="/admin/interests"><i class="fas fa-layer-group"></i> {{ t('ui.base.admin.interests', {}, 'common') }}</a></li>
+                                        {% endif %}
                                         <li><a class="dropdown-item" href="/admin/echomail-robots"><i class="fas fa-robot"></i> {{ t('ui.base.admin.echomail_robots', {}, 'common') }}</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
@@ -286,9 +289,6 @@
                                                 <li><a class="dropdown-item" href="/admin/mrc-settings"><i class="fas fa-satellite-dish"></i> {{ t('ui.base.admin.mrc_settings', {}, 'common') }}</a></li>
                                             </ul>
                                         </li>
-                                        {% if interests_enabled %}
-                                        <li><a class="dropdown-item" href="/admin/interests"><i class="fas fa-layer-group"></i> {{ t('ui.base.admin.interests', {}, 'common') }}</a></li>
-                                        {% endif %}
                                         <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/weather-config"><i class="fas fa-cloud-sun"></i> {{ t('ui.base.admin.weather_config', {}, 'common') }}</a></li>
@@ -399,6 +399,9 @@
                                 <li><a class="dropdown-item" href="/profile">{{ t('ui.base.profile', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/settings">{{ t('ui.base.settings', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.subscriptions', {}, 'common') }}</a></li>
+                                {% if interests_enabled %}
+                                <li><a class="dropdown-item" href="/interests"><i class="fas fa-layer-group"></i> {{ t('ui.interests.nav_label', {}, 'common') }}</a></li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="logout()">{{ t('ui.base.logout', {}, 'common') }}</a></li>
                             </ul>
