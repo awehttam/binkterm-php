@@ -12,7 +12,6 @@
                         <i class="bi bi-bookmark-star me-2"></i>
                         {{ t('ui.user_subscriptions.heading', {}, locale, ['common']) }}
                     </h5>
-                    <small class="text-muted">{{ t('ui.user_subscriptions.heading_help', {}, locale, ['common']) }}</small>
                 </div>
                 <div class="card-body">
                     {% set subscribed_count = echoareas|filter(e => e.subscribed)|length %}
@@ -29,10 +28,25 @@
                             </div>
                         </div>
                     </div>
+                    {% if interests is defined and interests|length > 0 %}
+                    <div class="mb-3" id="interest-filters">
+                        <small class="text-muted me-2">{{ t('ui.user_subscriptions.filter_by_interest', {}, locale, ['common']) }}</small>
+                        {% for interest in interests %}
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary me-1 mb-1 interest-filter-btn"
+                                data-interest-id="{{ interest.id }}"
+                                style="--interest-color: {{ interest.color }}">
+                            <i class="fas {{ interest.icon }} me-1"></i>{{ interest.name }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
 
                     <div id="echoareas-list">
                         {% for echoarea in echoareas %}
-                        <div class="card mb-3 echoarea-card" data-tag="{{ echoarea.tag|lower }}">
+                        <div class="card mb-3 echoarea-card"
+                             data-tag="{{ echoarea.tag|lower }}"
+                             data-interest-ids="{{ (echoarea_interest_map is defined and echoarea_interest_map[echoarea.id] is defined) ? echoarea_interest_map[echoarea.id]|join(',') : '' }}">
                             <div class="card-body">
                                 <div class="row align-items-center">
                                     <div class="col-md-1">
@@ -114,14 +128,49 @@ document.addEventListener('DOMContentLoaded', function() {
     const toastBody = document.getElementById('subscriptionToastBody');
     const toast = new bootstrap.Toast(toastEl);
 
-    // Search functionality
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
+    const activeInterestIds = new Set();
+
+    function applyFilters() {
+        const searchTerm = searchInput.value.toLowerCase();
         echoareaCards.forEach(card => {
             const tag = card.dataset.tag;
             const description = card.querySelector('p').textContent.toLowerCase();
-            const matches = tag.includes(searchTerm) || description.includes(searchTerm);
-            card.style.display = matches ? 'block' : 'none';
+            const matchesSearch = !searchTerm || tag.includes(searchTerm) || description.includes(searchTerm);
+
+            let matchesInterest = true;
+            if (activeInterestIds.size > 0) {
+                const ids = card.dataset.interestIds ? card.dataset.interestIds.split(',') : [];
+                matchesInterest = ids.some(id => activeInterestIds.has(id));
+            }
+
+            card.style.display = (matchesSearch && matchesInterest) ? 'block' : 'none';
+        });
+    }
+
+    // Search functionality
+    searchInput.addEventListener('input', applyFilters);
+
+    // Interest filter buttons (cumulative toggle)
+    document.querySelectorAll('.interest-filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const interestId = this.dataset.interestId;
+            if (activeInterestIds.has(interestId)) {
+                activeInterestIds.delete(interestId);
+                this.classList.remove('active');
+                this.style.backgroundColor = '';
+                this.style.borderColor = '';
+                this.style.color = '';
+            } else {
+                activeInterestIds.add(interestId);
+                this.classList.add('active');
+                const color = getComputedStyle(this).getPropertyValue('--interest-color').trim();
+                if (color) {
+                    this.style.backgroundColor = color;
+                    this.style.borderColor = color;
+                    this.style.color = '#fff';
+                }
+            }
+            applyFilters();
         });
     });
 

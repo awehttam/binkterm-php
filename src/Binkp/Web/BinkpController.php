@@ -447,6 +447,68 @@ class BinkpController
         return $this->resolveKeptPacketPath($type, $date, $filename);
     }
 
+    /**
+     * Parse a live queue packet (inbound or outbound root directory) and return
+     * full header info plus per-message headers.  Requires a valid license.
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $filename Packet filename (e.g. "69ba4f19.pkt")
+     * @return array
+     */
+    public function inspectQueuePacket(string $type, string $filename): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing packets requires a registered license',
+            ];
+        }
+
+        $filepath = $this->resolveQueuePacketPath($type, $filename);
+        if ($filepath === null) {
+            return ['success' => false, 'error' => 'File not found'];
+        }
+
+        try {
+            return $this->parsePacketFull($filepath);
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.queue.inspect_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve and validate a path to a file in the live inbound or outbound queue directory.
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $filename Packet filename
+     * @return string|null Absolute path on success, null if invalid or not found
+     */
+    public function resolveQueuePacketPath(string $type, string $filename): ?string
+    {
+        $filename = basename($filename);
+        if (!preg_match('/^[A-Za-z0-9_\-]+\.pkt$/i', $filename)) {
+            return null;
+        }
+
+        $basePath = $type === 'inbound'
+            ? $this->config->getInboundPath()
+            : $this->config->getOutboundPath();
+
+        $filepath = $basePath . DIRECTORY_SEPARATOR . $filename;
+
+        $realBase = realpath($basePath);
+        $realFile = realpath($filepath);
+        if (!$realFile || !$realBase) {
+            return null;
+        }
+        if ($realFile !== $realBase && !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return $realFile;
+    }
+
     private function resolveKeptPacketPath(string $type, string $date, string $filename): ?string
     {
         $date     = basename($date);

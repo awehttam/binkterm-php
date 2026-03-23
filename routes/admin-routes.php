@@ -3753,6 +3753,30 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $hourly[] = ['hour' => $h, 'count' => $hourlyByHour[$h] ?? 0];
         }
 
+        // Popular interests by subscriber count
+        $popularInterests = [];
+        $interestsEnabled = \BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true';
+        if ($interestsEnabled) {
+            try {
+                $popularInterestsStmt = $db->query("
+                    SELECT i.name, i.icon, i.color, COUNT(uis.user_id) AS subscribers
+                    FROM interests i
+                    LEFT JOIN user_interest_subscriptions uis ON uis.interest_id = i.id
+                    WHERE i.is_active = TRUE
+                    GROUP BY i.id, i.name, i.icon, i.color
+                    ORDER BY subscribers DESC
+                    LIMIT 15
+                ");
+                $popularInterests = $popularInterestsStmt->fetchAll(\PDO::FETCH_ASSOC);
+                foreach ($popularInterests as &$row) {
+                    $row['subscribers'] = (int)$row['subscribers'];
+                }
+                unset($row);
+            } catch (\Exception $e) {
+                $popularInterests = [];
+            }
+        }
+
         // Daily activity (last 30 days always, regardless of period for the overview chart)
         $dailyAdminFilter = $excludeAdmins
             ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
@@ -3792,6 +3816,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'top_nodelist_searches' => $topNodelistSearches,
             'top_nodes'             => $topNodes,
             'top_users'             => $topUsers,
+            'popular_interests'     => $popularInterests,
             'hourly'                => $hourly,
             'daily'                 => $daily,
         ]);
@@ -5826,6 +5851,209 @@ SimpleRouter::get('/admin/api/zip-diag', function() {
     }
 
     echo json_encode($result, JSON_PRETTY_PRINT);
+});
+
+// ---------------------------------------------------------------------------
+// Interests admin page
+// ---------------------------------------------------------------------------
+
+SimpleRouter::group(['prefix' => '/admin'], function() {
+
+    SimpleRouter::get('/interests', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $template = new Template();
+        $template->renderResponse('admin/interests.twig', [
+            'ai_available' => \BinktermPHP\Config::env('ANTHROPIC_API_KEY', '') !== '',
+        ]);
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Interests admin API
+// ---------------------------------------------------------------------------
+
+SimpleRouter::group(['prefix' => '/api/admin'], function() {
+
+    /** List all interests (including inactive). */
+    SimpleRouter::get('/interests', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $manager = new \BinktermPHP\InterestManager();
+        echo json_encode($manager->getInterests(false));
+    });
+
+    /** List echo areas not assigned to any interest. */
+    SimpleRouter::get('/interests/unassigned-echoareas', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->query("
+            SELECT e.id, e.tag, e.description, e.is_active
+            FROM echoareas e
+            WHERE e.id NOT IN (SELECT echoarea_id FROM interest_echoareas)
+            ORDER BY e.tag
+        ");
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['id']        = (int)$row['id'];
+            $row['is_active'] = (bool)$row['is_active'];
+        }
+        unset($row);
+        echo json_encode(['areas' => $rows, 'count' => count($rows)]);
+    });
+
+    /** Get a single interest with its area lists. */
+    SimpleRouter::get('/interests/{id}', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        echo json_encode($interest);
+    });
+
+    /** Create a new interest. */
+    SimpleRouter::post('/interests', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        if (empty(trim((string)($data['name'] ?? '')))) {
+            apiError('errors.interests.name_required', apiLocalizedText('errors.interests.name_required', 'Interest name is required.'), 400);
+            return;
+        }
+        try {
+            $manager = new \BinktermPHP\InterestManager();
+            $id = $manager->createInterest($data);
+            http_response_code(201);
+            echo json_encode(['success' => true, 'id' => $id]);
+        } catch (\PDOException $e) {
+            if (str_contains($e->getMessage(), 'interests_name_key') || str_contains($e->getMessage(), 'unique constraint')) {
+                apiError('errors.interests.name_taken', apiLocalizedText('errors.interests.name_taken', 'An interest with that name already exists.'), 409);
+            } elseif (str_contains($e->getMessage(), 'interests_slug_key')) {
+                apiError('errors.interests.slug_taken', apiLocalizedText('errors.interests.slug_taken', 'An interest with that slug already exists.'), 409);
+            } else {
+                throw $e;
+            }
+        }
+    });
+
+    /** Update an interest's metadata. */
+    SimpleRouter::put('/interests/{id}', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        try {
+            $manager->updateInterest((int)$id, $data);
+            echo json_encode(['success' => true]);
+        } catch (\PDOException $e) {
+            if (str_contains($e->getMessage(), 'interests_name_key')) {
+                apiError('errors.interests.name_taken', apiLocalizedText('errors.interests.name_taken', 'An interest with that name already exists.'), 409);
+            } elseif (str_contains($e->getMessage(), 'interests_slug_key')) {
+                apiError('errors.interests.slug_taken', apiLocalizedText('errors.interests.slug_taken', 'An interest with that slug already exists.'), 409);
+            } else {
+                throw $e;
+            }
+        }
+    });
+
+    /** Delete an interest. */
+    SimpleRouter::delete('/interests/{id}', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $manager = new \BinktermPHP\InterestManager();
+        if (!$manager->deleteInterest((int)$id)) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        echo json_encode(['success' => true]);
+    });
+
+    /** Set echo areas for an interest (replaces current list). */
+    SimpleRouter::post('/interests/{id}/echoareas', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $ids = array_map('intval', (array)($data['ids'] ?? []));
+        $manager = new \BinktermPHP\InterestManager();
+        if (!$manager->getInterest((int)$id)) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        $manager->setEchoareas((int)$id, $ids);
+        echo json_encode(['success' => true]);
+    });
+
+    /** Set file areas for an interest (replaces current list). */
+    SimpleRouter::post('/interests/{id}/fileareas', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $ids = array_map('intval', (array)($data['ids'] ?? []));
+        $manager = new \BinktermPHP\InterestManager();
+        if (!$manager->getInterest((int)$id)) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        $manager->setFileareas((int)$id, $ids);
+        echo json_encode(['success' => true]);
+    });
+
+    /** Echo areas not assigned to any interest. */
+    /**
+     * Generate interest suggestions via keyword heuristics and optionally AI.
+     * Does NOT create any interests — returns suggestions for admin review only.
+     */
+    SimpleRouter::post('/interests/generate', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data   = json_decode(file_get_contents('php://input'), true) ?? [];
+        $useAi  = (bool)($data['use_ai'] ?? true);
+        $result = (new \BinktermPHP\InterestGenerator())->generate($useAi);
+        echo json_encode($result);
+    });
+
 });
 
 

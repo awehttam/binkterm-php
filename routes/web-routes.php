@@ -363,11 +363,30 @@ SimpleRouter::get('/echomail', function() {
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
 
+    $hasInterests = false;
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $activeInterests = $im->getInterests(true);
+        $hasInterests = count($activeInterests) > 0;
+
+        // First-visit onboarding: redirect to the guide the first time a user
+        // visits echomail, regardless of their subscription state.
+        if ($hasInterests && !$echoarea) {
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta = new \BinktermPHP\UserMeta();
+            if (!$meta->getValue($userId, 'interests_onboarded')) {
+                $meta->setValue($userId, 'interests_onboarded', '1');
+                return SimpleRouter::response()->redirect('/echo-onboarding?from=echomail');
+            }
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
         'domain' => $domainParam,
         'echomail_date_field' => $echoDateOrder,
+        'has_interests' => $hasInterests,
     ]);
 });
 
@@ -383,10 +402,18 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $echoarea = urldecode($echoarea);
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+
+    $hasInterests = false;
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $hasInterests = count($im->getInterests(true)) > 0;
+    }
+
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
         'echomail_date_field' => $echoDateOrder,
+        'has_interests' => $hasInterests,
     ]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
@@ -924,6 +951,19 @@ SimpleRouter::post('/echoareas/import', function() {
 SimpleRouter::get('/echolist', function() {
     $user = RouteHelper::requireAuth();
 
+    // First-visit onboarding: same guard as /echomail
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        if (count($im->getInterests(true)) > 0) {
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta = new \BinktermPHP\UserMeta();
+            if (!$meta->getValue($userId, 'interests_onboarded')) {
+                $meta->setValue($userId, 'interests_onboarded', '1');
+                return SimpleRouter::response()->redirect('/echo-onboarding?from=echolist');
+            }
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('echolist.twig');
 });
@@ -1053,6 +1093,37 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
 
+    // Interest context: restrict echo area list and cross-post list to interest areas
+    $interestSlug = $_GET['interest'] ?? null;
+    $interestData = null;
+    $interestEchoareas = [];
+    if ($interestSlug && \BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $interestData = $im->getInterestBySlug($interestSlug);
+        if ($interestData) {
+            // Fetch the interest's echo areas with tag/domain for the compose selects
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT e.tag, e.domain, e.description, e.color,
+                       COUNT(em.id) AS message_count
+                FROM echoareas e
+                INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+                LEFT JOIN echomail em ON em.echoarea_id = e.id
+                WHERE ie.interest_id = ? AND e.is_active = TRUE
+                GROUP BY e.id, e.tag, e.domain, e.description, e.color
+                ORDER BY message_count DESC, e.tag ASC
+            ");
+            $stmt->execute([(int)$interestData['id']]);
+            $interestEchoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($interestEchoareas as &$row) {
+                $row['message_count'] = (int)$row['message_count'];
+            }
+            unset($row);
+        } else {
+            $interestSlug = null; // slug not found — fall back to normal compose
+        }
+    }
+
     // Handle new message parameters (from nodelist or address book)
     $toAddress = $_GET['to'] ?? null;
     $toName = $_GET['to_name'] ?? null;
@@ -1110,6 +1181,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'default_tagline' => $defaultTagline,
         'max_cross_post_areas' => $maxCrossPost,
         'prefill_crashmail' => $prefillCrashmail,
+        'interest_slug' => $interestSlug,
+        'interest_name' => $interestData ? $interestData['name'] : null,
+        'interest_echoareas' => $interestEchoareas,
     ];
 
       if ($replyId) {
@@ -1432,6 +1506,52 @@ SimpleRouter::get('/about', function() {
 
     $template = new Template();
     $template->renderResponse('about.twig');
+});
+
+// Echomail onboarding guide
+SimpleRouter::get('/echo-onboarding', function() {
+    RouteHelper::requireAuth();
+    $from = $_GET['from'] ?? 'echomail';
+    // Only allow known destinations
+    $skipUrl = $from === 'echolist' ? '/echolist' : '/echomail';
+
+    // Count distinct domains across enabled uplinks so the template can
+    // provide multi-network context when more than one network is connected.
+    $networkCount = 0;
+    try {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $domains = [];
+        foreach ($binkpConfig->getEnabledUplinks() as $uplink) {
+            $domain = trim((string)($uplink['domain'] ?? ''));
+            if ($domain !== '') {
+                $domains[$domain] = true;
+            }
+        }
+        $networkCount = count($domains);
+    } catch (\Throwable $e) {
+        // Config unavailable — leave count at 0; template falls back gracefully
+    }
+
+    $template = new Template();
+    $template->renderResponse('echo-onboarding.twig', [
+        'skip_url'      => $skipUrl,
+        'network_count' => $networkCount,
+    ]);
+});
+
+// Interests page
+SimpleRouter::get('/interests', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('interests.twig');
 });
 
 // QWK Offline Mail page

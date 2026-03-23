@@ -25,6 +25,10 @@ let isSearchActive = false;
 let currentPagination = null;
 let _messageRiptermLoaderPromise = null;
 let requestedMessageId = null;
+let currentInterestId = null;
+let currentInterestName = '';
+let currentInterestSlug = '';
+let areaListInterestFilter = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -252,6 +256,18 @@ function renderEchoInfoBar(area, subscribed) {
 }
 
 /**
+ * Show the info bar for an interest view.
+ * Hides the subscribe button (not applicable here) and exposes the compose button.
+ * @param {string} name  Interest name
+ */
+function renderInterestInfoBar(name) {
+    $('#echoTitle').text(name);
+    $('#echoDescription').text('');
+    $('#echoSubscribeBtn').addClass('d-none');
+    $('#echoInfoBar').removeClass('d-none');
+}
+
+/**
  * Toggle subscription for the currently viewed echo area.
  */
 function toggleSubscription() {
@@ -294,8 +310,14 @@ function searchEchoareas(query) {
 function applyEchoareaFilter() {
     let filtered = allEchoareas;
 
+    if (areaListInterestFilter !== null) {
+        filtered = filtered.filter(area =>
+            (area.interest_ids || []).includes(areaListInterestFilter)
+        );
+    }
+
     if (echoareaSearchQuery.length > 0) {
-        filtered = allEchoareas.filter(area =>
+        filtered = filtered.filter(area =>
             area.tag.toLowerCase().includes(echoareaSearchQuery) ||
             (area.description && area.description.toLowerCase().includes(echoareaSearchQuery))
         );
@@ -303,6 +325,30 @@ function applyEchoareaFilter() {
 
     displayEchoareas(filtered);
     displayMobileEchoareas(filtered);
+}
+
+/**
+ * Populate the interest filter dropdowns in the area list tab.
+ * Called once after interests are loaded from the API.
+ * @param {Array} interests
+ */
+function populateAreaListInterestDropdowns(interests) {
+    const allOption = `<option value="">${uiT('ui.echomail.all_subscribed_areas', 'All Subscribed Areas')}</option>`;
+    let options = allOption;
+    interests.forEach(function(interest) {
+        options += `<option value="${interest.id}">${escapeHtml(interest.name)}</option>`;
+    });
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').html(options);
+}
+
+/**
+ * Set the interest filter on the area list tab and re-render the list.
+ * @param {number|null} id  Interest ID, or null for all subscribed areas.
+ */
+function setAreaListInterestFilter(id) {
+    areaListInterestFilter = id;
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').val(id === null ? '' : String(id));
+    applyEchoareaFilter();
 }
 
 function displayEchoareas(echoareas) {
@@ -412,8 +458,83 @@ function displayMobileEchoareas(echoareas) {
     container.html(html);
 }
 
+function displayMobileInterests(interests) {
+    let html = '';
+
+    if (interests && interests.length > 0) {
+        interests.forEach(function(interest) {
+            const isActive = currentInterestId === interest.id;
+            const icon  = escapeHtml(interest.icon || 'fa-layer-group');
+            const color = escapeHtml(interest.color || '#6c757d');
+            const encodedName = encodeURIComponent(interest.name);
+            const iconStyle = isActive ? '' : ` style="color:${color}"`;
+            html += `
+                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}"
+                     data-interest-id="${interest.id}"
+                     data-interest-name="${encodedName}"
+                     data-interest-slug="${escapeHtml(interest.slug || '')}"
+                     style="border-left: 3px solid ${color}; cursor: pointer;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas ${icon} flex-shrink-0"${iconStyle}></i>
+                        <span class="fw-bold">${escapeHtml(interest.name)}</span>
+                    </div>
+                </div>
+            `;
+        });
+        html = '<div class="list-group list-group-flush">' + html + '</div>';
+    } else {
+        html = `<div class="text-center text-muted p-3">${uiT('ui.interests.no_interests', 'No interests available')}</div>`;
+    }
+
+    // Populate both mobile and desktop containers
+    ['#mobileInterestsList', '#desktopInterestsList'].forEach(function(selector) {
+        const c = $(selector);
+        if (c.length === 0) return;
+        c.html(html);
+        c.off('click', '.list-group-item-action').on('click', '.list-group-item-action', function() {
+            const id   = parseInt($(this).data('interest-id'), 10);
+            const name = decodeURIComponent($(this).data('interest-name') || '');
+            const slug = $(this).data('interest-slug') || '';
+            selectInterest(id, name, slug);
+        });
+    });
+}
+
+function selectInterest(id, name, slug) {
+    currentInterestId   = id;
+    currentInterestName = name;
+    currentInterestSlug = slug || '';
+    currentEchoarea     = null;
+    currentPage         = 1;
+
+    // Encode slug in URL so the interest is restored if the user navigates back
+    const urlSlug = currentInterestSlug || id;
+    history.pushState({ interestId: id }, '', '/echomail?interest=' + encodeURIComponent(urlSlug));
+
+    // Update mobile accordion text
+    updateMobileAccordionText(null, name);
+
+    // Collapse mobile accordion after selection
+    $('#echoAreasCollapse').collapse('hide');
+
+    // Update active state in interest lists (mobile + desktop) and clear area list selection
+    $('#mobileInterestsList .list-group-item-action, #desktopInterestsList .list-group-item-action').removeClass('active');
+    $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"], #desktopInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
+    $('#mobileEchoareasList .list-group-item-action, #echoareasList .list-group-item-action').removeClass('active');
+
+    // Show info bar in interest mode: hide subscribe (not applicable), keep compose visible
+    renderInterestInfoBar(name);
+
+    loadMessages();
+}
+
 function selectEchoarea(tag) {
-    currentEchoarea = tag;
+    currentInterestId   = null;
+    currentInterestName = '';
+    currentInterestSlug = '';
+    currentEchoarea     = tag;
+    // Restore subscribe button visibility in case we're coming from interest mode
+    $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
     const memKey = tag || '__all__';
     currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
@@ -462,9 +583,14 @@ function loadMessages(callback) {
         return;
     }
 
-    let url = '/api/messages/echomail';
-    if (currentEchoarea) {
-        url += `/${encodeURIComponent(currentEchoarea)}`;
+    let url;
+    if (currentInterestId) {
+        url = `/api/interests/${currentInterestId}/messages`;
+    } else {
+        url = '/api/messages/echomail';
+        if (currentEchoarea) {
+            url += `/${encodeURIComponent(currentEchoarea)}`;
+        }
     }
     url += `?page=${currentPage}&sort=${currentSort}&filter=${currentFilter}`;
     if (threadedView) {
@@ -600,6 +726,30 @@ function displayMessages(messages, isThreaded = false) {
         `;
 
         messages.forEach(function(msg) {
+            // File item (from interest file areas)
+            if (msg.type === 'file') {
+                const sizeStr = msg.filesize ? formatFileSize(msg.filesize) : '';
+                const dateStr = formatDate(msg.date_received);
+                html += `
+                    <tr class="message-row interest-file-row" data-file-id="${msg.id}" onclick="viewFile(${msg.id})" style="cursor:pointer;">
+                        <td class="message-checkbox d-none"></td>
+                        <td class="message-from">
+                            <i class="fas fa-file-archive text-secondary me-1"></i>
+                            <span class="badge bg-secondary" style="font-size:0.75em;">${escapeHtml(msg.file_area_tag || '')}</span>
+                            ${msg.uploader_name ? `<br><small class="text-muted">${escapeHtml(msg.uploader_name)}</small>` : ''}
+                        </td>
+                        <td class="message-subject">
+                            <strong>${escapeHtml(msg.filename || '')}</strong>
+                            ${msg.short_description ? `<br><small class="text-muted">${escapeHtml(msg.short_description)}</small>` : ''}
+                            ${sizeStr ? `<small class="text-muted ms-2">(${escapeHtml(sizeStr)})</small>` : ''}
+                        </td>
+                        <td class="message-date" title="${escapeHtml(msg.date_received || '')}">${dateStr}</td>
+                        <td></td>
+                    </tr>
+                `;
+                return; // skip message rendering for file items
+            }
+
             // Check if message is addressed to current user
             const isToCurrentUser = msg.to_name && window.currentUserRealName && msg.to_name === window.currentUserRealName;
             const toInfo = msg.to_name && msg.to_name !== uiT('ui.common.all', 'All') ?
@@ -852,8 +1002,8 @@ function applyModalFullscreenPreference() {
 function viewMessage(messageId) {
     currentMessageId = messageId;
 
-    // Find the current message index in the messages array
-    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId);
+    // Find the current message index in the messages array (exclude file items)
+    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId && msg.type !== 'file');
 
     // Update navigation button states
     updateNavigationButtons();
@@ -1424,11 +1574,17 @@ function composeMessage(type, replyToId = null) {
     if (replyToId) {
         params.append('reply', replyToId);
     }
-    if (currentEchoarea) {
-        params.append('echoarea', currentEchoarea);
-    }
-    if(domain){
-        params.append('domain', domain);
+
+    if (currentInterestId && currentInterestSlug) {
+        // Interest mode: let the compose page filter areas to this interest
+        params.append('interest', currentInterestSlug);
+    } else {
+        if (currentEchoarea) {
+            params.append('echoarea', currentEchoarea);
+        }
+        if (typeof domain !== 'undefined' && domain) {
+            params.append('domain', domain);
+        }
     }
 
     if (params.toString()) {
@@ -1521,10 +1677,11 @@ function runAdvancedSearch() {
     const fromName = $('#advSearchFromName').val().trim();
     const subject = $('#advSearchSubject').val().trim();
     const body = $('#advSearchBody').val().trim();
+    const messageId = $('#advSearchMessageId').val().trim();
     const dateFrom = $('#advSearchDateFrom').val();
     const dateTo = $('#advSearchDateTo').val();
 
-    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const textFields = [fromName, subject, body, messageId].filter(v => v.length > 0);
     const hasDate = dateFrom || dateTo;
 
     // Validate: at least one field filled, and text fields must be 2+ chars each
@@ -1546,7 +1703,7 @@ function runAdvancedSearch() {
     showLoading('#messagesContainer');
 
     // Collect text search terms for highlighting
-    currentSearchTerms = [fromName, subject, body]
+    currentSearchTerms = [fromName, subject, body, messageId]
         .filter(v => v.length > 0)
         .join(' ')
         .toLowerCase()
@@ -1557,6 +1714,7 @@ function runAdvancedSearch() {
     if (fromName) params.set('from_name', fromName);
     if (subject) params.set('subject', subject);
     if (body) params.set('body', body);
+    if (messageId) params.set('message_id', messageId);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
     if (currentEchoarea) params.set('echoarea', currentEchoarea);
@@ -1877,9 +2035,14 @@ window.addEventListener('popstate', function(event) {
 
 function loadStats() {
     console.log('Loading echomail statistics...');
-    let url = '/api/messages/echomail/stats';
-    if (currentEchoarea) {
-        url += '/' + encodeURIComponent(currentEchoarea);
+    let url;
+    if (currentInterestId) {
+        url = '/api/interests/' + encodeURIComponent(currentInterestId) + '/stats';
+    } else {
+        url = '/api/messages/echomail/stats';
+        if (currentEchoarea) {
+            url += '/' + encodeURIComponent(currentEchoarea);
+        }
     }
 
     $.get(url)
@@ -2130,16 +2293,17 @@ function markMessageAsRead(messageId) {
         });
 }
 
-function updateMobileAccordionText(selectedArea) {
+function updateMobileAccordionText(selectedArea, interestName) {
     const textSpan = $('#mobileAccordionText');
-    if (textSpan.length) {
-        if (selectedArea) {
-            // Strip domain from display (show just the tag)
-            const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
-            textSpan.text(`Viewing: ${displayTag}`);
-        } else {
-            textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
-        }
+    if (!textSpan.length) return;
+    if (interestName) {
+        textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${interestName}`);
+    } else if (selectedArea) {
+        // Strip domain from display (show just the tag)
+        const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
+        textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${displayTag}`);
+    } else {
+        textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
     }
 }
 
@@ -2445,6 +2609,13 @@ function navigateMessage(direction) {
     const newMessage = currentMessages[newIndex];
     if (!newMessage) return;
 
+    // Skip file items during message navigation
+    if (newMessage.type === 'file') {
+        currentMessageIndex = newIndex;
+        navigateMessage(direction); // continue in the same direction
+        return;
+    }
+
     // Update current message info
     currentMessageId = newMessage.id;
     currentMessageIndex = newIndex;
@@ -2542,6 +2713,30 @@ function saveEditMessage() {
         $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     });
+}
+
+/**
+ * Format a file size in bytes to a human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let v = parseInt(bytes);
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? v : v.toFixed(1)) + ' ' + units[i];
+}
+
+/**
+ * Open the file info modal and load details from the API.
+ *
+ * @param {number} fileId
+ */
+function viewFile(fileId) {
+    openFileInfoModal(fileId);
 }
 
 // Sharing functionality

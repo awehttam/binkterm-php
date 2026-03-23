@@ -153,9 +153,19 @@ class SubscriptionController
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         
         $echoareas = $this->subscriptionManager->getAllEchoareasWithSubscriptionStatus($userId);
-        
+
+        $interests = [];
+        $echoareaInterestMap = [];
+        if (Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+            $im = new InterestManager();
+            $interests = $im->getInterests(true);
+            $echoareaInterestMap = $im->getEchoareaInterestMap();
+        }
+
         return [
             'echoareas' => $echoareas,
+            'interests' => $interests,
+            'echoarea_interest_map' => $echoareaInterestMap,
             'page_title_code' => 'ui.user_subscriptions.page_title'
         ];
     }

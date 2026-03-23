@@ -312,6 +312,22 @@
             </div>
         </div>
         #}
+        {% if interests_enabled %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.settings.onboarding.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">{{ t('ui.settings.onboarding.help', {}, locale, ['common']) }}</p>
+                <button type="button" class="btn btn-outline-secondary" onclick="resetOnboarding()">
+                    <i class="fas fa-redo me-1"></i>
+                    {{ t('ui.settings.onboarding.reset_button', {}, locale, ['common']) }}
+                </button>
+                <div id="onboardingResetStatus" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card mt-4">
             <div class="card-header">
                 <h5 class="mb-0">{{ t('ui.settings.session_security', {}, locale, ['common']) }}</h5>
@@ -606,6 +622,20 @@ function revokeSession(sessionId) {
             showError(uiT('errors.user.sessions.revoke_failed', 'Failed to revoke session'));
         }
     });
+}
+
+function resetOnboarding() {
+    $.post('/api/user/reset-onboarding')
+        .done(function() {
+            const status = $('#onboardingResetStatus');
+            status.html('<div class="alert alert-success py-1 mb-0">' + uiT('ui.settings.onboarding.reset_success', 'Onboarding reset. You will be taken through the guide next time you visit Echomail.') + '</div>');
+            status.show();
+        })
+        .fail(function() {
+            const status = $('#onboardingResetStatus');
+            status.html('<div class="alert alert-danger py-1 mb-0">' + uiT('ui.settings.onboarding.reset_error', 'Failed to reset onboarding.') + '</div>');
+            status.show();
+        });
 }
 
 function logoutAllSessions() {

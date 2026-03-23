@@ -1163,3 +1163,144 @@ function renderArchiveEntry(container, fileId, entryPath, entryName, shareQs, on
             });
     }
 }
+
+// ---------------------------------------------------------------------------
+// Shared file info + preview modal
+// ---------------------------------------------------------------------------
+
+/**
+ * Escape a string for safe HTML insertion.
+ * @param {string} str
+ * @returns {string}
+ */
+function _fpEsc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Open a self-contained file info + preview modal for any file.
+ * Creates the modal DOM lazily on first call — no template changes required.
+ *
+ * @param {number} fileId
+ * @param {Object} [shareParams]  Optional {share_area, share_filename} for shared file access
+ */
+function openFileInfoModal(fileId, shareParams) {
+    const MODAL_ID = 'fpSharedFileModal';
+
+    // Create modal DOM once
+    if (!document.getElementById(MODAL_ID)) {
+        const el = document.createElement('div');
+        el.innerHTML = `
+<div class="modal fade" id="${MODAL_ID}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content" style="max-height:90vh;">
+      <div class="modal-header py-2">
+        <h5 class="modal-title text-truncate" id="fpSharedModalTitle" style="max-width:70%;"></h5>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <a href="#" class="btn btn-sm btn-outline-primary d-none" id="fpSharedDownloadBtn" target="_blank">
+            <i class="fas fa-download me-1"></i>${_fpT('ui.files.download', 'Download')}
+          </a>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body p-0 text-center" id="fpSharedPreviewBody"
+           style="min-height:200px;max-height:60vh;flex:0 1 auto;background:#1a1a1a;overflow:auto;"></div>
+      <div class="modal-footer d-block p-3" id="fpSharedMetaBody" style="max-height:28vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>`;
+        document.body.appendChild(el.firstElementChild);
+
+        // Clean up preview content when modal closes
+        document.getElementById(MODAL_ID).addEventListener('hidden.bs.modal', function() {
+            const previewBody = document.getElementById('fpSharedPreviewBody');
+            // Stop any playing media
+            previewBody.querySelectorAll('video, audio').forEach(function(mediaEl) {
+                mediaEl.pause();
+                mediaEl.src = '';
+            });
+            previewBody.innerHTML = '';
+            document.getElementById('fpSharedMetaBody').innerHTML = '';
+            document.getElementById('fpSharedModalTitle').textContent = '';
+            const dlBtn = document.getElementById('fpSharedDownloadBtn');
+            dlBtn.href = '#';
+            dlBtn.classList.add('d-none');
+        });
+    }
+
+    const titleEl   = document.getElementById('fpSharedModalTitle');
+    const previewEl = document.getElementById('fpSharedPreviewBody');
+    const metaEl    = document.getElementById('fpSharedMetaBody');
+    const dlBtn     = document.getElementById('fpSharedDownloadBtn');
+
+    // Reset to loading state
+    titleEl.textContent = _fpT('ui.common.loading', 'Loading\u2026');
+    previewEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+    metaEl.innerHTML    = '';
+    dlBtn.classList.add('d-none');
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById(MODAL_ID));
+    modal.show();
+
+    // Fetch file metadata
+    const metaUrl = shareParams
+        ? '/api/files/' + fileId + '?share_area=' + encodeURIComponent(shareParams.share_area || '') +
+          '&share_filename=' + encodeURIComponent(shareParams.share_filename || '')
+        : '/api/files/' + fileId;
+
+    fetch(metaUrl, {credentials: 'same-origin'})
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function(data) {
+            const f = data.file || data;
+            const filename = f.filename || '';
+
+            titleEl.textContent = filename;
+
+            // Download button
+            const dlUrl = shareParams
+                ? '/api/files/' + fileId + '/download?share_area=' + encodeURIComponent(shareParams.share_area || '') +
+                  '&share_filename=' + encodeURIComponent(shareParams.share_filename || '')
+                : '/api/files/' + fileId + '/download';
+            dlBtn.href = dlUrl;
+            dlBtn.setAttribute('download', filename);
+            dlBtn.classList.remove('d-none');
+
+            // Metadata footer
+            let meta = '<dl class="row mb-0 small">';
+            if (f.file_area_tag || f.area_tag) {
+                const tag = f.file_area_tag || f.area_tag || '';
+                meta += '<dt class="col-sm-3">' + _fpT('ui.files.area', 'Area') + '</dt>' +
+                        '<dd class="col-sm-9"><span class="badge bg-secondary">' + _fpEsc(tag) + '</span></dd>';
+            }
+            if (f.filesize) {
+                meta += '<dt class="col-sm-3">' + _fpT('ui.files.size', 'Size') + '</dt>' +
+                        '<dd class="col-sm-9">' + _fpBytes(f.filesize) + '</dd>';
+            }
+            if (f.created_at) {
+                const d = new Date(f.created_at);
+                meta += '<dt class="col-sm-3">' + _fpT('ui.files.uploaded', 'Uploaded') + '</dt>' +
+                        '<dd class="col-sm-9">' + _fpEsc(d.toLocaleString()) + '</dd>';
+            }
+            if (f.uploaded_from_address) {
+                meta += '<dt class="col-sm-3">' + _fpT('ui.files.from', 'From') + '</dt>' +
+                        '<dd class="col-sm-9">' + _fpEsc(f.uploaded_from_address) + '</dd>';
+            }
+            meta += '</dl>';
+            if (f.short_description) {
+                meta += '<p class="mb-1 mt-2 small">' + _fpEsc(f.short_description) + '</p>';
+            }
+            if (f.long_description) {
+                meta += '<pre class="mb-0 mt-2" style="white-space:pre-wrap;font-size:0.8rem;">' + _fpEsc(f.long_description) + '</pre>';
+            }
+            metaEl.innerHTML = meta;
+
+            // Render preview
+            renderPreviewContent(fileId, filename, $(previewEl), shareParams);
+        })
+        .catch(function() {
+            titleEl.textContent = _fpT('errors.files.not_found', 'File not found');
+            previewEl.innerHTML = '<div class="alert alert-danger m-3">' +
+                _fpT('errors.files.not_found', 'File not found or access denied.') + '</div>';
+        });
+}

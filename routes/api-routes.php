@@ -1918,6 +1918,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         unset($echoarea);
 
+        // Annotate each echoarea with the interest IDs it belongs to (when feature is enabled).
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+            $im  = new \BinktermPHP\InterestManager();
+            $map = $im->getEchoareaInterestMap();
+            foreach ($echoareas as &$echoarea) {
+                $echoarea['interest_ids'] = $map[(int)$echoarea['id']] ?? [];
+            }
+            unset($echoarea);
+        }
+
         echo json_encode(['echoareas' => $echoareas]);
     });
 
@@ -6396,6 +6406,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (!empty($_GET['body'])) {
             $searchParams['body'] = $_GET['body'];
         }
+        if (!empty($_GET['message_id'])) {
+            $searchParams['message_id'] = $_GET['message_id'];
+        }
         // Date range params — validate YYYY-MM-DD format
         foreach (['date_from', 'date_to'] as $dateKey) {
             if (!empty($_GET[$dateKey])) {
@@ -6406,13 +6419,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']) || !empty($searchParams['message_id']);
         $hasDateParams = !empty($searchParams['date_from']) || !empty($searchParams['date_to']);
         $hasAdvancedParams = $hasTextParams || $hasDateParams;
 
         // Validate: need a general query of 2+ chars, or at least one valid text/date field
         if ($hasTextParams) {
-            foreach (['from_name', 'subject', 'body'] as $textKey) {
+            foreach (['from_name', 'subject', 'body', 'message_id'] as $textKey) {
                 if (isset($searchParams[$textKey]) && strlen($searchParams[$textKey]) < 2) {
                     http_response_code(400);
                     apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
@@ -7579,6 +7592,64 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         readfile($filepath);
     });
 
+    SimpleRouter::get('/binkp/queue/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectQueuePacket($type, $filename));
+    });
+
+    SimpleRouter::get('/binkp/queue/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->resolveQueuePacketPath($type, $filename);
+        if ($filepath === null) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.queue.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
     SimpleRouter::get('/binkp/kept-packets', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
@@ -8014,6 +8085,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (Exception $e) {
             http_response_code(500);
             apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to update settings'), 500);
+        }
+    });
+
+    // Reset echomail onboarding flag so the user is sent through the guide again
+    SimpleRouter::post('/user/reset-onboarding', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'interests_onboarded', null);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to reset onboarding'), 500);
         }
     });
 
@@ -9577,5 +9665,313 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         }
     });
 
+
+});
+
+// ---------------------------------------------------------------------------
+// Interests — user-facing
+// GET  /api/interests                 — active interests with subscription status
+// POST /api/interests/{id}/subscribe
+// POST /api/interests/{id}/unsubscribe
+// ---------------------------------------------------------------------------
+SimpleRouter::group(['prefix' => '/api/interests'], function() {
+
+    /**
+     * GET /api/interests
+     * Returns all active interests. When authenticated, each interest includes
+     * a `subscribed` boolean for the current user.
+     */
+    SimpleRouter::get('/', function() {
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $user   = RouteHelper::getUser();
+        $userId = $user ? (int)($user['user_id'] ?? $user['id']) : null;
+
+        $manager  = new \BinktermPHP\InterestManager();
+        $interests = $manager->getInterests(true);
+
+        $subscribedIds = $userId ? array_flip($manager->getUserSubscribedInterestIds($userId)) : [];
+
+        foreach ($interests as &$i) {
+            $i['subscribed'] = isset($subscribedIds[$i['id']]);
+        }
+        unset($i);
+
+        echo json_encode(['interests' => $interests]);
+    });
+
+    /**
+     * POST /api/interests/{id}/subscribe
+     */
+    SimpleRouter::post('/{id}/subscribe', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+        $echoareaIds = isset($body['echoarea_ids']) && is_array($body['echoarea_ids'])
+            ? array_map('intval', $body['echoarea_ids'])
+            : null;
+
+        if ($echoareaIds !== null) {
+            $manager->subscribeUserToSelectedEchoareas($userId, (int)$id, $echoareaIds);
+        } else {
+            $manager->subscribeUser($userId, (int)$id);
+        }
+        echo json_encode(['success' => true, 'subscribed' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/interests/{id}/unsubscribe
+     */
+    SimpleRouter::post('/{id}/unsubscribe', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+        $echoareaIds = isset($body['echoarea_ids']) && is_array($body['echoarea_ids'])
+            ? array_map('intval', $body['echoarea_ids'])
+            : null;
+
+        if ($echoareaIds !== null) {
+            $manager->unsubscribeUserFromSelectedEchoareas($userId, (int)$id, $echoareaIds);
+        } else {
+            $manager->unsubscribeUser($userId, (int)$id);
+        }
+        $stillSubscribed = $manager->isUserSubscribed($userId, (int)$id);
+        echo json_encode(['success' => true, 'subscribed' => $stillSubscribed]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/echoareas
+     * Returns the echo areas belonging to an interest (tag, domain, description).
+     * Public (no auth required) — respects feature flag.
+     */
+    SimpleRouter::get('/{id}/echoareas', function($id) {
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT e.id AS echoarea_id, e.tag, e.domain, e.description,
+                   COUNT(em.id) AS message_count
+            FROM echoareas e
+            INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+            LEFT JOIN echomail em ON em.echoarea_id = e.id
+            WHERE ie.interest_id = ?
+            GROUP BY e.id, e.tag, e.domain, e.description
+            ORDER BY message_count DESC, e.tag ASC
+        ");
+        $stmt->execute([(int)$id]);
+        $echoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($echoareas as &$row) {
+            $row['echoarea_id']   = (int)$row['echoarea_id'];
+            $row['message_count'] = (int)$row['message_count'];
+        }
+        unset($row);
+
+        echo json_encode(['echoareas' => $echoareas]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/stats
+     * Returns message counts scoped to an interest's echo areas (same shape as echomail stats).
+     */
+    SimpleRouter::get('/{id}/stats', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $isAdmin = !empty($user['is_admin']);
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest || !$interest['is_active']) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $echoareaIds = $manager->getInterestEchoareaIds((int)$id);
+        if (empty($echoareaIds)) {
+            echo json_encode([
+                'total'  => 0, 'recent' => 0, 'unread' => 0,
+                'areas'  => 0,
+                'filter_counts' => ['all' => 0, 'unread' => 0, 'read' => 0, 'tome' => 0, 'saved' => 0, 'drafts' => 0],
+            ]);
+            return;
+        }
+
+        $db          = \BinktermPHP\Database::getInstance()->getPdo();
+        $ph          = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $sysopClause = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
+
+        $totalStmt = $db->prepare("
+            SELECT COUNT(*) AS total,
+                   COUNT(CASE WHEN em.date_received > NOW() - INTERVAL '1 day' THEN 1 END) AS recent
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause}
+        ");
+        $totalStmt->execute($echoareaIds);
+        $totals = $totalStmt->fetch(\PDO::FETCH_ASSOC);
+        $total  = (int)$totals['total'];
+        $recent = (int)$totals['recent'];
+
+        $userInfo    = null;
+        $unreadCount = 0;
+        $readCount   = 0;
+        $toMeCount   = 0;
+        $savedCount  = 0;
+
+        if ($userId) {
+            $uStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+            $uStmt->execute([$userId]);
+            $userInfo = $uStmt->fetch(\PDO::FETCH_ASSOC);
+
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute(array_merge([$userId], $echoareaIds));
+            $unreadCount = (int)$unreadStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+            $readStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NOT NULL
+            ");
+            $readStmt->execute(array_merge([$userId], $echoareaIds));
+            $readCount = (int)$readStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+            if ($userInfo) {
+                $toMeStmt = $db->prepare("
+                    SELECT COUNT(*) AS count FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause}
+                      AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                ");
+                $toMeStmt->execute(array_merge($echoareaIds, [$userInfo['username'], $userInfo['real_name']]));
+                $toMeCount = (int)$toMeStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+            }
+
+            $savedStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND sav.id IS NOT NULL
+            ");
+            $savedStmt->execute(array_merge([$userId], $echoareaIds));
+            $savedCount = (int)$savedStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+        }
+
+        $draftsCount = 0;
+        if ($userId) {
+            $draftsStmt = $db->prepare("SELECT COUNT(*) AS count FROM drafts WHERE user_id = ? AND type = 'echomail'");
+            $draftsStmt->execute([$userId]);
+            $draftsCount = (int)$draftsStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+        }
+
+        echo json_encode([
+            'total'  => $total,
+            'recent' => $recent,
+            'unread' => $unreadCount,
+            'areas'  => count($echoareaIds),
+            'filter_counts' => [
+                'all'    => $total,
+                'unread' => $unreadCount,
+                'read'   => $readCount,
+                'tome'   => $toMeCount,
+                'saved'  => $savedCount,
+                'drafts' => $draftsCount,
+            ],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/messages
+     * Returns paginated echomail from all echo areas belonging to this interest.
+     */
+    SimpleRouter::get('/{id}/messages', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+            http_response_code(404);
+            apiError('errors.interests.feature_disabled', 'Interests feature is not enabled.');
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest || !$interest['is_active']) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $handler      = new \BinktermPHP\MessageHandler();
+        $page         = max(1, (int)($_GET['page'] ?? 1));
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort         = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
+        $filter       = $_GET['filter'] ?? 'all';
+
+        $result = $handler->getEchomailFromInterest($userId, (int)$id, $page, null, $filter, $sort);
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
 
 });

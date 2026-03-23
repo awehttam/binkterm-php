@@ -260,6 +260,7 @@ return [
     'errors.binkp.kept_packets.invalid_type' => 'type must be inbound or outbound',
     'errors.binkp.kept_packets.license_required' => 'Viewing kept packets requires a registered license',
     'errors.binkp.kept_packets.inspect_failed' => 'Failed to inspect packet',
+    'errors.binkp.queue.inspect_failed' => 'Failed to inspect queue packet',
     'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',
     'errors.binkp.uplink.poll_failed' => 'Failed to poll BinkP uplink',
     'errors.binkp.uplink.poll_all_failed' => 'Failed to poll all BinkP uplinks',
@@ -548,4 +549,12 @@ return [
     'errors.qwk.processing_failed' => 'Failed to process REP packet',
     'errors.qwk.status_failed' => 'Failed to retrieve QWK status',
     'errors.qwk.invalid_format' => 'Format must be "qwk" or "qwke"',
+
+    // Interests
+    'errors.interests.not_found' => 'Interest not found.',
+    'errors.interests.name_required' => 'Interest name is required.',
+    'errors.interests.name_taken' => 'An interest with that name already exists.',
+    'errors.interests.slug_taken' => 'An interest with that slug already exists.',
+    'errors.interests.feature_disabled' => 'The interests feature is not enabled.',
+    'errors.interests.crosspost_cooldown' => 'You must wait {minutes} more minute(s) before cross-posting again.',
 ];
