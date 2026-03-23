@@ -306,18 +306,27 @@ class BinkpSession
 
             $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
 
-            // Send any FREQ files queued for this node (runs for both originator and answerer)
-            $this->sendFreqFiles();
+            // In insecure receive-only mode, suppress all outbound file sending.
+            if ($this->isInsecureSession && $this->insecureReceiveOnly) {
+                $this->log("Insecure receive-only session — skipping all outbound file delivery", 'INFO');
+            } else {
+                // Send any FREQ files queued for this node (runs for both originator and answerer)
+                $this->sendFreqFiles();
 
-            // Deliver any hold-directory files queued for the connecting node (runs for both roles)
-            $this->sendHoldFiles();
+                // Deliver any hold-directory files queued for the connecting node (runs for both roles)
+                $this->sendHoldFiles();
+            }
 
             if ($this->isOriginator) {
                 // Send any in-memory FREQ requests as M_GET before outbound files
-                $this->sendFreqRequests();
+                if (!($this->isInsecureSession && $this->insecureReceiveOnly)) {
+                    $this->sendFreqRequests();
+                }
 
                 $this->log("As originator, checking for outbound files", 'DEBUG');
-                $this->sendFiles();
+                if (!($this->isInsecureSession && $this->insecureReceiveOnly)) {
+                    $this->sendFiles();
+                }
 
                 // Wait for M_GOT responses before sending EOB
                 if (!empty($this->filesSent)) {
@@ -1425,8 +1434,9 @@ class BinkpSession
                     $metadataFile = $inboundPath . '/' . $this->currentFile['name'] . '.meta';
                     $metadata = [
                         'insecure_session' => true,
-                        'remote_address' => $this->remoteAddress ?? 'unknown',
-                        'received_at' => time()
+                        'remote_address'   => $this->remoteAddress ?? 'unknown',
+                        'node_address'     => $this->remoteAddress ?? 'unknown',
+                        'received_at'      => time()
                     ];
 
                     $jsonData = json_encode($metadata, JSON_PRETTY_PRINT);
@@ -1590,6 +1600,11 @@ class BinkpSession
     private function handleGetCommand($data)
     {
         $this->log("Remote FREQ request: {$data}", 'DEBUG');
+
+        if ($this->isInsecureSession && $this->insecureReceiveOnly) {
+            $this->log("FREQ request ignored — insecure receive-only session", 'INFO');
+            return;
+        }
 
         // Parse M_GET format per FSP-1011 / binkd:
         //   <filename> <size> <time> <offset> [<password>]

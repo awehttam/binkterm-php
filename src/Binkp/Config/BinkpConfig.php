@@ -698,6 +698,19 @@ class BinkpConfig
     }
 
     /**
+     * Check whether a specific uplink is permitted to deliver echomail via an
+     * insecure (unauthenticated) session.  The node's claimed FTN address is
+     * taken from the .meta file written by BinkpSession at receive time.
+     *
+     * @param string $nodeAddress FTN address as recorded in the .meta file
+     */
+    public function uplinkAllowsInsecureEchomail(string $nodeAddress): bool
+    {
+        $uplink = $this->getUplinkByAddress($nodeAddress);
+        return (bool)($uplink['allow_insecure_echomail'] ?? false);
+    }
+
+    /**
      * Check if insecure sessions are receive-only (cannot pick up mail)
      */
     public function getInsecureReceiveOnly(): bool

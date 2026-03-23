@@ -201,11 +201,16 @@ class BinkdProcessor
                     $message = $this->readMessage($handle, $packetInfo);
 
                     if ($message) {
-                        // Security check: reject echomail from insecure sessions
+                        // Security check: reject echomail from insecure sessions unless the
+                        // sending node is a configured uplink with allow_insecure_echomail enabled.
                         if ($isInsecureSession && !$this->isNetmailMessage($message, true)) {
-                            $echomailRejected = true;
-                            $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName");
-                            break; // Stop processing this packet
+                            $nodeAddress = $metadata['node_address'] ?? ($metadata['remote_address'] ?? '');
+                            if (!$nodeAddress || !$this->config->uplinkAllowsInsecureEchomail($nodeAddress)) {
+                                $echomailRejected = true;
+                                $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName (node: $nodeAddress)");
+                                break; // Stop processing this packet
+                            }
+                            $this->log("[BINKD] Allowing echomail from insecure session for trusted uplink $nodeAddress - packet $packetName");
                         }
 
                         $msgUndeliverable = false;
