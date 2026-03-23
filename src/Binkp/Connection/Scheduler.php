@@ -34,6 +34,15 @@ class Scheduler
     private $db;
     /** @var int Unix timestamp of last crashmail poll run */
     private $lastCrashmailPoll = 0;
+    /**
+     * Uplink addresses that received a scheduled poll in the current daemon loop
+     * iteration.  Reset at the top of each iteration so pollIfOutbound() skips
+     * same-iteration duplicates (binkp sessions are bidirectional) without
+     * permanently blocking outbound delivery between iterations.
+     *
+     * @var array<string,bool>
+     */
+    private $iterationPolledAddresses = [];
     /** Minimum seconds between scheduled crashmail polls */
     const CRASHMAIL_POLL_INTERVAL = 300;
 
@@ -44,6 +53,7 @@ class Scheduler
         $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
         $this->lastOutboundPollTimes = [];
+        $this->iterationPolledAddresses = [];
         $this->crashmailService = new CrashmailService();
         $this->db = Database::getInstance()->getPdo();
     }
@@ -118,11 +128,10 @@ class Scheduler
                 }
 
                 $this->lastPollTimes[$address] = time();
-                // A scheduled binkp session is bidirectional — outbound files are
-                // transmitted during the same connection.  Mark the outbound poll
-                // time so pollIfOutbound() does not open a duplicate connection in
-                // the same loop iteration.
-                $this->lastOutboundPollTimes[$address] = time();
+                // Record that this uplink was polled in the current iteration so
+                // pollIfOutbound() can skip it and avoid a duplicate connection.
+                // The flag is reset at the top of each runDaemon() iteration.
+                $this->iterationPolledAddresses[$address] = true;
                 $results[$address] = [
                     'success' => $pollSuccess,
                     'poll_result' => $pollResult,
@@ -229,6 +238,14 @@ class Scheduler
 
             if (!$this->hasOutboundFilesForUplink($uplink, $files)) {
                 $this->log("No outbound files for uplink {$address}, skipping outbound poll", 'DEBUG');
+                continue;
+            }
+
+            // A scheduled poll already ran for this uplink in the current iteration.
+            // Binkp sessions are bidirectional, so the outbound files should have
+            // been transmitted during that connection — no second connection needed.
+            if (!empty($this->iterationPolledAddresses[$address])) {
+                $this->log("Uplink {$address} already polled this iteration, skipping outbound poll", 'DEBUG');
                 continue;
             }
 
@@ -477,6 +494,7 @@ class Scheduler
         
         while (true) {
             try {
+                $this->iterationPolledAddresses = [];
                 $this->refreshConfig();
                 $this->keepDbAlive();
 
