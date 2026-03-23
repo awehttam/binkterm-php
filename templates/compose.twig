@@ -1485,10 +1485,8 @@ function loadEchoareas() {
     }
 
     if (interestEchoareas && interestEchoareas.length > 0) {
-        // Interest context: use only this interest's areas; pre-select the largest (first)
-        const firstArea = interestEchoareas[0];
-        const firstVal  = firstArea.domain ? firstArea.tag + '@' + firstArea.domain : firstArea.tag;
-        populateEchoareaSelect(interestEchoareas, preselect || firstVal);
+        // Interest context: populate with only this interest's areas but don't auto-select one
+        populateEchoareaSelect(interestEchoareas, preselect);
         return;
     }
 

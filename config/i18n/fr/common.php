@@ -1865,6 +1865,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echomail.viewing_prefix' => 'Affichage :',
     'ui.echomail.viewing_all' => 'Affichage : Tous les messages',
     'ui.echomail.echo_list' => 'Liste des echos',
+    'ui.echomail.all_subscribed_areas' => 'Toutes les zones abonnées',
     'ui.echomail.search_areas_placeholder' => 'Rechercher des zones...',
     'ui.echomail.tab_area_list' => 'Liste des zones',
     'ui.echomail.tab_interests' => 'Centres d\'intérêt',

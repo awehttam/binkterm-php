@@ -28,6 +28,7 @@ let requestedMessageId = null;
 let currentInterestId = null;
 let currentInterestName = '';
 let currentInterestSlug = '';
+let areaListInterestFilter = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -309,8 +310,14 @@ function searchEchoareas(query) {
 function applyEchoareaFilter() {
     let filtered = allEchoareas;
 
+    if (areaListInterestFilter !== null) {
+        filtered = filtered.filter(area =>
+            (area.interest_ids || []).includes(areaListInterestFilter)
+        );
+    }
+
     if (echoareaSearchQuery.length > 0) {
-        filtered = allEchoareas.filter(area =>
+        filtered = filtered.filter(area =>
             area.tag.toLowerCase().includes(echoareaSearchQuery) ||
             (area.description && area.description.toLowerCase().includes(echoareaSearchQuery))
         );
@@ -318,6 +325,30 @@ function applyEchoareaFilter() {
 
     displayEchoareas(filtered);
     displayMobileEchoareas(filtered);
+}
+
+/**
+ * Populate the interest filter dropdowns in the area list tab.
+ * Called once after interests are loaded from the API.
+ * @param {Array} interests
+ */
+function populateAreaListInterestDropdowns(interests) {
+    const allOption = `<option value="">${uiT('ui.echomail.all_subscribed_areas', 'All Subscribed Areas')}</option>`;
+    let options = allOption;
+    interests.forEach(function(interest) {
+        options += `<option value="${interest.id}">${escapeHtml(interest.name)}</option>`;
+    });
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').html(options);
+}
+
+/**
+ * Set the interest filter on the area list tab and re-render the list.
+ * @param {number|null} id  Interest ID, or null for all subscribed areas.
+ */
+function setAreaListInterestFilter(id) {
+    areaListInterestFilter = id;
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').val(id === null ? '' : String(id));
+    applyEchoareaFilter();
 }
 
 function displayEchoareas(echoareas) {

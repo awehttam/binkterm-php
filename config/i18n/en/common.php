@@ -2263,6 +2263,7 @@ return [
     'ui.echomail.save_to_ad_library_saved' => 'Message saved to ad library.',
     'ui.echomail.save_to_ad_library_failed' => 'Failed to save message to ad library',
     'ui.echomail.save_to_ad_library_not_ansi' => 'This message is not eligible to save as an ANSI ad.',
+    'ui.echomail.all_subscribed_areas' => 'All Subscribed Areas',
     'ui.echomail.search_areas_placeholder' => 'Search areas...',
     'ui.echomail.tab_area_list' => 'Area list',
     'ui.echomail.tab_interests' => 'Interests',

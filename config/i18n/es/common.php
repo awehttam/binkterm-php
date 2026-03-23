@@ -2271,6 +2271,7 @@ return [
     'ui.echomail.save_to_ad_library_saved' => 'Mensaje guardado en la biblioteca de anuncios.',
     'ui.echomail.save_to_ad_library_failed' => 'No se pudo guardar el mensaje en la biblioteca de anuncios',
     'ui.echomail.save_to_ad_library_not_ansi' => 'Este mensaje no se puede guardar como anuncio ANSI.',
+    'ui.echomail.all_subscribed_areas' => 'Todas las áreas suscritas',
     'ui.echomail.search_areas_placeholder' => 'Buscar areas...',
     'ui.echomail.tab_area_list' => 'Lista de áreas',
     'ui.echomail.tab_interests' => 'Intereses',

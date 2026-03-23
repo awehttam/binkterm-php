@@ -9,6 +9,7 @@ Interests are topic groups — think "Retro Gaming", "Amateur Radio", or "Arts &
   - [Why Use Interests?](#why-use-interests)
   - [The Interest Picker](#the-interest-picker)
   - [Reading Messages from an Interest](#reading-messages-from-an-interest)
+  - [Filtering the Area List by Interest](#filtering-the-area-list-by-interest)
   - [Subscribing and Unsubscribing](#subscribing-and-unsubscribing)
   - [How Unsubscription Works](#how-unsubscription-works)
 - [For Sysops: Setting Up Interests](#for-sysops-setting-up-interests)
@@ -58,6 +59,14 @@ On the echomail reader, the sidebar (desktop) and the **Viewing** accordion (mob
 You can filter by unread, read, messages to you, or saved messages; change the sort order; and page through results exactly as you would in a single area.
 
 While the Interests tab is active, the **Manage Interests** button links to `/interests` so you can adjust your subscriptions without leaving the reader.
+
+### Filtering the Area List by Interest
+
+The **Area List** tab (the tab that shows your subscribed echo areas one by one) includes an interest filter dropdown above the search box. Use it to narrow the list to only the echo areas that belong to a particular interest — useful when you're subscribed to many areas and want to find one quickly within a specific topic.
+
+The first option, **All Subscribed Areas**, is selected by default and shows your full area list. Choosing an interest from the dropdown filters the list to only the areas that belong to it. The search box still works on top of the filter, so you can combine both. Selecting an area from the filtered list works exactly as normal.
+
+The dropdown is only shown when interests are enabled and at least one active interest exists. It is kept in sync between the desktop sidebar and the mobile accordion — changing it in one updates the other.
 
 ### Subscribing and Unsubscribing
 

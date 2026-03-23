@@ -45,6 +45,7 @@
 - The Activity Statistics admin page (`/admin/activity-stats`) includes a new **Popular Interests** tab showing active interests ranked by subscriber count.
 - Controlled by `ENABLE_INTERESTS` in `.env`; defaults to `true`.
 - New documentation: `docs/Interests.md`.
+- The Area List tab in the echomail reader sidebar (desktop) and mobile accordion now includes an interest filter dropdown above the search box. Selecting an interest narrows the area list to only the echo areas belonging to that interest. The first option, "All Subscribed Areas", restores the full unfiltered list. The dropdown is only shown when interests are enabled and at least one active interest exists.
 
 **Echomail & Netmail**
 - The compose form now shows a warning when the message body approaches the 32 KB FTN packet limit, and an error if it exceeds it.

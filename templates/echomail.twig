@@ -79,6 +79,12 @@
                         {% endif %}
                         <div class="tab-pane fade {% if not (interests_enabled and has_interests) %}show active{% endif %} p-0" id="mobileAreaListPane" role="tabpanel">
                             <div class="px-2 pt-2">
+                                {% if interests_enabled and has_interests %}
+                                <select class="form-select form-select-sm mb-2" id="mobileAreaListInterestFilter"
+                                        onchange="setAreaListInterestFilter(this.value ? parseInt(this.value) : null)">
+                                    <option value="">{{ t('ui.echomail.all_subscribed_areas', {}, locale, ['common']) }}</option>
+                                </select>
+                                {% endif %}
                                 <input type="text" class="form-control form-control-sm" id="mobileEchoareaSearchInput"
                                        placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
                             </div>
@@ -275,6 +281,10 @@
                     </div>
                     <div class="tab-pane fade p-0" id="desktopAreaListPane" role="tabpanel">
                         <div class="px-2 pt-2">
+                            <select class="form-select form-select-sm mb-2" id="areaListInterestFilter"
+                                    onchange="setAreaListInterestFilter(this.value ? parseInt(this.value) : null)">
+                                <option value="">{{ t('ui.echomail.all_subscribed_areas', {}, locale, ['common']) }}</option>
+                            </select>
                             <input type="text" class="form-control form-control-sm" id="echoareaSearchInput"
                                    placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
                         </div>
@@ -717,6 +727,7 @@ $(document).ready(function() {
         .done(function(data) {
             if (data && data.interests) {
                 displayMobileInterests(data.interests);
+                populateAreaListInterestDropdowns(data.interests);
 
                 // Auto-select interest from ?interest=slug URL param (e.g. returning from compose)
                 const urlInterestSlug = new URLSearchParams(window.location.search).get('interest');
