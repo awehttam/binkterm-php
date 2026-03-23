@@ -309,7 +309,10 @@ class InterestGenerator
     private function classifyByAi(string $apiKey, array $echoareas): array
     {
         $categoryNames = array_column(self::CATEGORIES, 'name');
-        $categoryList  = implode("\n", array_map(fn($n) => "  - {$n}", $categoryNames));
+        $categoryList  = implode("\n", array_map(function($n) {
+            $hint = self::CATEGORY_HINTS[$n] ?? '';
+            return $hint ? "  - {$n}: {$hint}" : "  - {$n}";
+        }, $categoryNames));
         $batchSize     = 50;
         $batches       = array_chunk($echoareas, $batchSize);
         $results       = [];
@@ -329,6 +332,44 @@ class InterestGenerator
      * @param array<int,array<string,mixed>> $batch
      * @return array<string,string|null>
      */
+    /**
+     * Short descriptions sent to the AI alongside each category name to prevent
+     * misclassification of ambiguous areas (e.g. "internet discussion" ≠ security).
+     *
+     * @var array<string,string>
+     */
+    private const CATEGORY_HINTS = [
+        'Retro Computing & Vintage Hardware'    => 'old computers, vintage hardware, C64, Amiga, Atari, CP/M, classic systems',
+        'BBS & Fidonet'                         => 'BBS operations, FidoNet, sysop topics, mailers, nodelist, echomail/netmail mechanics',
+        'Programming & Software Development'    => 'coding, programming languages, software development, algorithms',
+        'Linux & Open Source'                   => 'Linux, Unix, BSD, open source software, system administration',
+        'Windows & Microsoft'                   => 'Windows OS, Microsoft products, DOS',
+        'Gaming & Video Games'                  => 'video games, consoles, arcade, PC gaming, RPGs, emulation',
+        'Science Fiction & Fantasy'             => 'sci-fi, fantasy, Star Trek, Star Wars, Doctor Who, comics, anime',
+        'Music'                                 => 'music genres, instruments, bands, audio production',
+        'Ham Radio & Electronics'               => 'amateur radio, electronics, circuits, Arduino, hardware tinkering',
+        'Networking & Security'                 => 'cybersecurity, hacking, infosec, encryption, firewalls, VPNs, penetration testing — NOT general internet or mobile discussion',
+        'Politics & Current Events'             => 'politics, news, government, elections, current events, debate',
+        'Religion & Philosophy'                 => 'religion, philosophy, spirituality, ethics',
+        'Food & Cooking'                        => 'cooking, recipes, food, baking, beverages, homebrewing',
+        'Sports, Fitness & Outdoors'            => 'sports, fitness, outdoor activities, camping, hiking, hunting, fishing',
+        'Humour & Entertainment'                => 'jokes, comedy, trivia, entertainment',
+        'Books & Literature'                    => 'books, novels, reading, poetry, writing',
+        'Art & Creative'                        => 'art, design, photography, drawing, pixel art, ASCII art',
+        'Health & Medicine'                     => 'health, medicine, wellness, mental health, nutrition',
+        'Weather & Environment'                 => 'weather, climate, environment, ecology',
+        'Astrology & Horoscopes'                => 'astrology, horoscopes, zodiac, tarot, divination',
+        'Space & Astronomy'                     => 'space exploration, astronomy, planets, NASA, telescopes, stargazing',
+        'History & Cold War'                    => 'history, military history, cold war, ancient/medieval history',
+        'Synchronet & Other BBS Software'       => 'Synchronet BBS software, Mystic, Enigma, other specific BBS software packages',
+        'Hobbies & Crafts'                      => 'hobbies, crafts, models, collectibles, knitting, woodworking, sewing',
+        'Genealogy & Family History'            => 'genealogy, family history, ancestry research',
+        'Paranormal & Conspiracy'               => 'UFOs, paranormal, conspiracy theories, cryptids, ghosts',
+        'Classifieds & Buy/Sell'                => 'buying and selling, classifieds, trade, swap, wanted ads, marketplace',
+        'General Chat & Social'                 => 'general chat, off-topic, introductions, social discussion, announcements',
+        'Test & Development Areas'              => 'test areas, sandboxes, debug/dummy areas',
+    ];
+
     private function classifyBatch(string $apiKey, array $batch, string $categoryList): array
     {
         $areaList = implode("\n", array_map(
@@ -342,7 +383,7 @@ You are classifying FTN/Fidonet BBS echo areas (message boards) into interest ca
 Use ONLY the existing categories listed below. Do NOT invent new category names.
 If an area does not clearly and confidently belong to one of the listed categories, return null for that tag — do not guess.
 
-Existing categories:
+Existing categories (name: what belongs here):
 {$categoryList}
 
 Echo areas to classify (tag: description):
