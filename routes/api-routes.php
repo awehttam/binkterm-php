@@ -1918,6 +1918,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         unset($echoarea);
 
+        // Annotate each echoarea with the interest IDs it belongs to (when feature is enabled).
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+            $im  = new \BinktermPHP\InterestManager();
+            $map = $im->getEchoareaInterestMap();
+            foreach ($echoareas as &$echoarea) {
+                $echoarea['interest_ids'] = $map[(int)$echoarea['id']] ?? [];
+            }
+            unset($echoarea);
+        }
+
         echo json_encode(['echoareas' => $echoareas]);
     });
 
@@ -9639,8 +9649,17 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
             return;
         }
 
-        $manager->subscribeUser($userId, (int)$id);
-        echo json_encode(['success' => true]);
+        $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+        $echoareaIds = isset($body['echoarea_ids']) && is_array($body['echoarea_ids'])
+            ? array_map('intval', $body['echoarea_ids'])
+            : null;
+
+        if ($echoareaIds !== null) {
+            $manager->subscribeUserToSelectedEchoareas($userId, (int)$id, $echoareaIds);
+        } else {
+            $manager->subscribeUser($userId, (int)$id);
+        }
+        echo json_encode(['success' => true, 'subscribed' => true]);
     })->where(['id' => '[0-9]+']);
 
     /**
@@ -9665,8 +9684,53 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
             return;
         }
 
-        $manager->unsubscribeUser($userId, (int)$id);
-        echo json_encode(['success' => true]);
+        $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+        $echoareaIds = isset($body['echoarea_ids']) && is_array($body['echoarea_ids'])
+            ? array_map('intval', $body['echoarea_ids'])
+            : null;
+
+        if ($echoareaIds !== null) {
+            $manager->unsubscribeUserFromSelectedEchoareas($userId, (int)$id, $echoareaIds);
+        } else {
+            $manager->unsubscribeUser($userId, (int)$id);
+        }
+        $stillSubscribed = $manager->isUserSubscribed($userId, (int)$id);
+        echo json_encode(['success' => true, 'subscribed' => $stillSubscribed]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/echoareas
+     * Returns the echo areas belonging to an interest (tag, domain, description).
+     * Public (no auth required) — respects feature flag.
+     */
+    SimpleRouter::get('/{id}/echoareas', function($id) {
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT e.id AS echoarea_id, e.tag, e.domain, e.description
+            FROM echoareas e
+            INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+            WHERE ie.interest_id = ?
+            ORDER BY e.tag ASC
+        ");
+        $stmt->execute([(int)$id]);
+        $echoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        echo json_encode(['echoareas' => $echoareas]);
     })->where(['id' => '[0-9]+']);
 
 });

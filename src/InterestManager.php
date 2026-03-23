@@ -228,6 +228,86 @@ class InterestManager
         return true;
     }
 
+    /**
+     * Subscribe a user to a specific subset of echo areas within an interest.
+     * Records the interest-level subscription (idempotent) then subscribes only
+     * the provided echo areas.
+     *
+     * @param int[] $echoareaIds
+     */
+    public function subscribeUserToSelectedEchoareas(int $userId, int $interestId, array $echoareaIds): bool
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO user_interest_subscriptions (user_id, interest_id)
+            VALUES (?, ?)
+            ON CONFLICT (user_id, interest_id) DO NOTHING
+        ");
+        $stmt->execute([$userId, $interestId]);
+
+        foreach ($echoareaIds as $echoareaId) {
+            $this->subscribeUserToEchoarea($userId, $interestId, (int)$echoareaId);
+        }
+        return true;
+    }
+
+    /**
+     * Unsubscribe a user from a specific subset of echo areas within an interest.
+     * Removes the interest-level subscription if no sourced areas remain.
+     *
+     * @param int[] $echoareaIds
+     */
+    public function unsubscribeUserFromSelectedEchoareas(int $userId, int $interestId, array $echoareaIds): bool
+    {
+        foreach ($echoareaIds as $echoareaId) {
+            // Remove source tracking for this (user, area, interest) tuple.
+            $stmt = $this->db->prepare("
+                DELETE FROM user_echoarea_interest_sources
+                WHERE user_id = ? AND echoarea_id = ? AND interest_id = ?
+            ");
+            $stmt->execute([$userId, (int)$echoareaId, $interestId]);
+
+            // Remove the subscription only if no other interest still sources it.
+            $stmt = $this->db->prepare("
+                DELETE FROM user_echoarea_subscriptions
+                WHERE user_id = ? AND echoarea_id = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_echoarea_interest_sources
+                      WHERE user_id = ? AND echoarea_id = ?
+                  )
+            ");
+            $stmt->execute([$userId, (int)$echoareaId, $userId, (int)$echoareaId]);
+        }
+
+        // Remove the interest-level subscription if no sourced areas remain.
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM user_echoarea_interest_sources
+            WHERE user_id = ? AND interest_id = ?
+        ");
+        $stmt->execute([$userId, $interestId]);
+        $remaining = (int)$stmt->fetchColumn();
+
+        if ($remaining === 0) {
+            $stmt = $this->db->prepare("
+                DELETE FROM user_interest_subscriptions WHERE user_id = ? AND interest_id = ?
+            ");
+            $stmt->execute([$userId, $interestId]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Check whether a user is subscribed to an interest.
+     */
+    public function isUserSubscribed(int $userId, int $interestId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM user_interest_subscriptions WHERE user_id = ? AND interest_id = ?
+        ");
+        $stmt->execute([$userId, $interestId]);
+        return (bool)$stmt->fetch();
+    }
+
     // -------------------------------------------------------------------------
     // Admin CRUD methods
     // -------------------------------------------------------------------------

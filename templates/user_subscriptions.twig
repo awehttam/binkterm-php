@@ -12,7 +12,6 @@
                         <i class="bi bi-bookmark-star me-2"></i>
                         {{ t('ui.user_subscriptions.heading', {}, locale, ['common']) }}
                     </h5>
-                    <small class="text-muted">{{ t('ui.user_subscriptions.heading_help', {}, locale, ['common']) }}</small>
                 </div>
                 <div class="card-body">
                     {% set subscribed_count = echoareas|filter(e => e.subscribed)|length %}

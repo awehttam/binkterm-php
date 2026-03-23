@@ -3408,6 +3408,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
 
     // Echo List
     'ui.echolist.all_networks' => 'Tous les réseaux',
+    'ui.echolist.all_interests' => 'Tous les centres d\'intérêt',
 
     // Echomail
     'ui.echomail.end_of_echo_go' => 'Aller à {echo}',
@@ -3648,6 +3649,17 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.interests.subscribed' => 'Abonné',
     'ui.interests.no_interests' => 'Aucun centre d\'intérêt n\'a encore été défini.',
     'ui.interests.area_count' => '{count} zone(s) d\'écho',
+    'ui.interests.areas_modal_title' => 'Zones d\'écho — {name}',
+    'ui.interests.areas_modal_subscribe_title' => 'S\'abonner à {name}',
+    'ui.interests.areas_modal_unsubscribe_title' => 'Se désabonner de {name}',
+    'ui.interests.areas_modal_empty' => 'Aucune zone d\'écho assignée.',
+    'ui.interests.areas_modal_col_tag' => 'Zone d\'écho',
+    'ui.interests.areas_modal_col_net' => 'Réseau',
+    'ui.interests.areas_modal_col_desc' => 'Description',
+    'ui.interests.areas_modal_select_all' => 'Tout sélectionner',
+    'ui.interests.areas_modal_deselect_all' => 'Tout désélectionner',
+    'ui.interests.areas_modal_confirm_subscribe' => 'S\'abonner à {count} zone(s)',
+    'ui.interests.areas_modal_confirm_unsubscribe' => 'Se désabonner de {count} zone(s)',
     'ui.interests.subscriber_count' => '{count} abonné(s)',
     'ui.interests.browse_areas' => 'Parcourir les zones',
     'ui.interests.browse_page_title' => 'Trouver des zones d\'écho',

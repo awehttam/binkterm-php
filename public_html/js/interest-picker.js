@@ -124,6 +124,9 @@ class InterestPicker {
             const subCount    = window.t
                 ? window.t('ui.interests.subscriber_count', { count: interest.subscriber_count ?? 0 }, '{count} subscriber(s)')
                 : `${interest.subscriber_count ?? 0} subscriber(s)`;
+            const echoCountHtml = (interest.echoarea_count ?? 0) > 0
+                ? `<a href="#" class="text-muted interest-areas-link" data-interest-id="${interest.id}" data-interest-name="${InterestPicker._escAttr(interest.name)}" onclick="InterestPicker._handleAreasClick(this); return false;"><i class="fas fa-comments me-1"></i>${InterestPicker._escHtml(echoCount)}</a>`
+                : `<span><i class="fas fa-comments me-1"></i>${InterestPicker._escHtml(echoCount)}</span>`;
 
             if (isSelect) {
                 const checked = subscribed ? 'checked' : '';
@@ -145,7 +148,7 @@ class InterestPicker {
                                 ? `<p class="card-text small text-muted flex-grow-1">${InterestPicker._escHtml(interest.description)}</p>`
                                 : '<div class="flex-grow-1"></div>'}
                             <div class="d-flex gap-2 mt-2 small text-muted">
-                                <span><i class="fas fa-comments me-1"></i>${InterestPicker._escHtml(echoCount)}</span>
+                                ${echoCountHtml}
                                 <span><i class="fas fa-users me-1"></i>${InterestPicker._escHtml(subCount)}</span>
                             </div>
                         </div>
@@ -173,8 +176,8 @@ class InterestPicker {
                             ? `<p class="card-text small text-muted flex-grow-1">${InterestPicker._escHtml(interest.description)}</p>`
                             : '<div class="flex-grow-1"></div>'}
                         <div class="d-flex justify-content-between align-items-center mt-2">
-                            <div class="small text-muted">
-                                <span class="me-2"><i class="fas fa-comments me-1"></i>${InterestPicker._escHtml(echoCount)}</span>
+                            <div class="small text-muted me-2">
+                                <span class="me-2">${echoCountHtml}</span>
                                 <span><i class="fas fa-users me-1"></i>${InterestPicker._escHtml(subCount)}</span>
                             </div>
                             <button class="btn btn-sm ${btnClass} interest-sub-btn"
@@ -288,7 +291,7 @@ class InterestPicker {
         if (!container) return;
         const instance = InterestPicker._instances[container.dataset.ipickerInstance];
         if (!instance) return;
-        instance._toggleSubscription(parseInt(btn.dataset.id), btn.dataset.subscribed === '1');
+        instance._showAreasModal(parseInt(btn.dataset.id));
     }
 
     static _handleSelectChange(checkbox) {
@@ -297,6 +300,189 @@ class InterestPicker {
         const instance = InterestPicker._instances[container.dataset.ipickerInstance];
         if (!instance) return;
         instance._handleSelect(checkbox);
+    }
+
+    static _handleAreasClick(link) {
+        const container = link.closest('[data-ipicker-instance]');
+        if (!container) return;
+        const instance = InterestPicker._instances[container.dataset.ipickerInstance];
+        if (!instance) return;
+        instance._showAreasModal(parseInt(link.dataset.interestId), link.dataset.interestName);
+    }
+
+    async _showAreasModal(interestId) {
+        const interest     = this._interests.find(i => i.id === interestId);
+        const name         = interest ? interest.name : '';
+        const isSubscribed = interest ? this._selectedIds.has(interestId) : false;
+        const isSubMode    = this._mode === 'subscribe';
+        const operation    = isSubscribed ? 'unsubscribe' : 'subscribe';
+
+        // Create modal shell once, reuse it.
+        let modalEl = document.getElementById('interestAreasModal');
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = 'interestAreasModal';
+            modalEl.className = 'modal fade';
+            modalEl.tabIndex = -1;
+            modalEl.innerHTML = `
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="interestAreasModalTitle"></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="interestAreasModalBody"></div>
+                        <div class="modal-footer d-none" id="interestAreasModalFooter"></div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modalEl);
+        }
+
+        const titleEl  = document.getElementById('interestAreasModalTitle');
+        const bodyEl   = document.getElementById('interestAreasModalBody');
+        const footerEl = document.getElementById('interestAreasModalFooter');
+
+        // Set title based on mode and operation.
+        if (isSubMode) {
+            const key      = operation === 'subscribe' ? 'ui.interests.areas_modal_subscribe_title' : 'ui.interests.areas_modal_unsubscribe_title';
+            const fallback = operation === 'subscribe' ? `Subscribe to ${name}` : `Unsubscribe from ${name}`;
+            titleEl.textContent = window.t ? window.t(key, { name }, fallback) : fallback;
+        } else {
+            const fallback = `Echo Areas — ${name}`;
+            titleEl.textContent = window.t ? window.t('ui.interests.areas_modal_title', { name }, fallback) : fallback;
+        }
+
+        bodyEl.innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+        footerEl.innerHTML = '';
+        footerEl.classList.add('d-none');
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        try {
+            const resp = await fetch(`/api/interests/${interestId}/echoareas`);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data  = await resp.json();
+            const areas = data.echoareas || [];
+
+            if (!areas.length) {
+                bodyEl.innerHTML = '<p class="text-muted mb-0">' +
+                    InterestPicker._escHtml(
+                        window.t ? window.t('ui.interests.areas_modal_empty', {}, 'No echo areas assigned.') : 'No echo areas assigned.'
+                    ) + '</p>';
+                return;
+            }
+
+            const thTag  = window.t ? window.t('ui.interests.areas_modal_col_tag',  {}, 'Echo Area')    : 'Echo Area';
+            const thNet  = window.t ? window.t('ui.interests.areas_modal_col_net',  {}, 'Network')       : 'Network';
+            const thDesc = window.t ? window.t('ui.interests.areas_modal_col_desc', {}, 'Description')   : 'Description';
+
+            if (!isSubMode) {
+                // Read-only table for select mode.
+                bodyEl.innerHTML =
+                    `<table class="table table-sm table-hover mb-0">
+                        <thead><tr>
+                            <th>${InterestPicker._escHtml(thTag)}</th>
+                            <th>${InterestPicker._escHtml(thNet)}</th>
+                            <th>${InterestPicker._escHtml(thDesc)}</th>
+                        </tr></thead>
+                        <tbody>${areas.map(a => `<tr>
+                            <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}</td>
+                            <td><span class="badge bg-secondary fw-normal">${InterestPicker._escHtml(a.domain || '')}</span></td>
+                            <td>${InterestPicker._escHtml(a.description || '')}</td>
+                        </tr>`).join('')}</tbody>
+                    </table>`;
+                return;
+            }
+
+            // Subscribe/unsubscribe mode — render checkboxes.
+            const selectAllLabel   = window.t ? window.t('ui.interests.areas_modal_select_all',   {}, 'Select all')   : 'Select all';
+            const deselectAllLabel = window.t ? window.t('ui.interests.areas_modal_deselect_all', {}, 'Deselect all') : 'Deselect all';
+
+            bodyEl.innerHTML =
+                `<div class="d-flex gap-3 mb-2 small">
+                    <a href="#" id="ipickSelectAll">${InterestPicker._escHtml(selectAllLabel)}</a>
+                    <a href="#" id="ipickDeselectAll">${InterestPicker._escHtml(deselectAllLabel)}</a>
+                </div>
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th style="width:2.5rem"></th>
+                        <th>${InterestPicker._escHtml(thTag)}</th>
+                        <th>${InterestPicker._escHtml(thNet)}</th>
+                        <th>${InterestPicker._escHtml(thDesc)}</th>
+                    </tr></thead>
+                    <tbody>${areas.map(a => `<tr>
+                        <td><input class="form-check-input interest-area-check" type="checkbox"
+                                   value="${InterestPicker._escAttr(String(a.echoarea_id))}" checked></td>
+                        <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}</td>
+                        <td><span class="badge bg-secondary fw-normal">${InterestPicker._escHtml(a.domain || '')}</span></td>
+                        <td>${InterestPicker._escHtml(a.description || '')}</td>
+                    </tr>`).join('')}</tbody>
+                </table>`;
+
+            const cancelLabel = window.t ? window.t('ui.cancel', {}, 'Cancel') : 'Cancel';
+            footerEl.innerHTML =
+                `<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${InterestPicker._escHtml(cancelLabel)}</button>
+                 <button type="button" class="btn ${operation === 'subscribe' ? 'btn-primary' : 'btn-danger'}" id="interestAreasConfirmBtn" disabled></button>`;
+            footerEl.classList.remove('d-none');
+
+            const confirmBtn = document.getElementById('interestAreasConfirmBtn');
+
+            const updateBtn = () => {
+                const count    = bodyEl.querySelectorAll('.interest-area-check:checked').length;
+                const key      = operation === 'subscribe' ? 'ui.interests.areas_modal_confirm_subscribe' : 'ui.interests.areas_modal_confirm_unsubscribe';
+                const fallback = operation === 'subscribe' ? `Subscribe to ${count} area(s)` : `Unsubscribe from ${count} area(s)`;
+                confirmBtn.textContent = window.t ? window.t(key, { count }, fallback) : fallback;
+                confirmBtn.disabled    = count === 0;
+            };
+
+            bodyEl.querySelectorAll('.interest-area-check').forEach(cb => cb.addEventListener('change', updateBtn));
+            document.getElementById('ipickSelectAll').addEventListener('click', e => {
+                e.preventDefault();
+                bodyEl.querySelectorAll('.interest-area-check').forEach(cb => cb.checked = true);
+                updateBtn();
+            });
+            document.getElementById('ipickDeselectAll').addEventListener('click', e => {
+                e.preventDefault();
+                bodyEl.querySelectorAll('.interest-area-check').forEach(cb => cb.checked = false);
+                updateBtn();
+            });
+            updateBtn();
+
+            confirmBtn.addEventListener('click', async () => {
+                const ids = [...bodyEl.querySelectorAll('.interest-area-check:checked')].map(cb => parseInt(cb.value));
+                if (!ids.length) return;
+
+                confirmBtn.disabled   = true;
+                confirmBtn.innerHTML  = '<i class="fas fa-spinner fa-spin"></i>';
+
+                try {
+                    const apiPath = operation === 'subscribe' ? 'subscribe' : 'unsubscribe';
+                    const resp    = await fetch(`/api/interests/${interestId}/${apiPath}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ echoarea_ids: ids }),
+                    });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const result = await resp.json();
+
+                    if (result.subscribed) {
+                        this._selectedIds.add(interestId);
+                    } else {
+                        this._selectedIds.delete(interestId);
+                    }
+                    this._refreshCard(interestId);
+                    modal.hide();
+                } catch (err) {
+                    console.error('[InterestPicker] confirm failed:', err);
+                    confirmBtn.disabled = false;
+                    updateBtn();
+                }
+            });
+
+        } catch (err) {
+            bodyEl.innerHTML = '<div class="alert alert-danger mb-0">' + InterestPicker._escHtml(err.message) + '</div>';
+        }
     }
 
     static _escHtml(str) {
