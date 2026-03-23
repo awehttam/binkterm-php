@@ -598,6 +598,145 @@ class MessageHandler
         ];
     }
 
+    /**
+     * Get paginated echomail from all echo areas belonging to an interest.
+     *
+     * @param int      $userId     Authenticated user ID
+     * @param int      $interestId Interest to load messages for
+     * @param int      $page       Page number (1-based)
+     * @param int|null $limit      Messages per page (null = use user setting)
+     * @param string   $filter     'all'|'unread'|'read'|'tome'|'saved'
+     * @param string   $sort       'date_desc'|'date_asc'|'subject'|'author'
+     * @return array{messages: array, unreadCount: int, pagination: array}
+     */
+    public function getEchomailFromInterest(int $userId, int $interestId, int $page = 1, ?int $limit = null, string $filter = 'all', string $sort = 'date_desc'): array
+    {
+        $manager     = new \BinktermPHP\InterestManager();
+        $echoareaIds = $manager->getInterestEchoareaIds($interestId);
+
+        if (empty($echoareaIds)) {
+            return [
+                'messages'    => [],
+                'unreadCount' => 0,
+                'pagination'  => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
+            ];
+        }
+
+        $user    = $this->getUserById($userId);
+        $isAdmin = $user && !empty($user['is_admin']);
+
+        if ($limit === null) {
+            $settings = $this->getUserSettings($userId);
+            $limit    = $settings['messages_per_page'] ?? 25;
+        }
+
+        $offset       = ($page - 1) * $limit;
+        $filterClause = '';
+        $filterParams = [];
+
+        if ($filter === 'unread') {
+            $filterClause = ' AND mrs.read_at IS NULL';
+        } elseif ($filter === 'read') {
+            $filterClause = ' AND mrs.read_at IS NOT NULL';
+        } elseif ($filter === 'tome') {
+            if ($user) {
+                $filterClause   = ' AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))';
+                $filterParams[] = $user['username'];
+                $filterParams[] = $user['real_name'];
+            }
+        } elseif ($filter === 'saved') {
+            $filterClause = ' AND sav.id IS NOT NULL';
+        }
+
+        $sysopClause  = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
+        $placeholders = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $dateField    = $this->getEchomailDateField();
+
+        $orderBy = match ($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => 'em.subject ASC',
+            'author'   => 'em.from_name ASC',
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
+        $stmt = $this->db->prepare("
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                   COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
+            ORDER BY {$orderBy}
+            LIMIT ? OFFSET ?
+        ");
+
+        $params = [$userId, $userId, $userId];
+        $params = array_merge($params, $echoareaIds, $filterParams);
+        $params[] = $limit;
+        $params[] = $offset;
+        $stmt->execute($params);
+        $messages = $stmt->fetchAll();
+
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
+        ");
+        $countParams = [$userId, $userId];
+        $countParams = array_merge($countParams, $echoareaIds, $filterParams);
+        $countStmt->execute($countParams);
+        $total = $countStmt->fetch()['total'];
+
+        $unreadStmt = $this->db->prepare("
+            SELECT COUNT(*) as count FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
+        ");
+        $unreadParams = [$userId];
+        $unreadParams = array_merge($unreadParams, $echoareaIds);
+        $unreadStmt->execute($unreadParams);
+        $unreadCount = $unreadStmt->fetch()['count'];
+
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessage = $this->cleanMessageForJson($message);
+            $replyToData  = null;
+            if (!empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
+            }
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name']    = $replyToData['name'] ?? null;
+            }
+            $cleanMessages[] = $cleanMessage;
+        }
+
+        return [
+            'messages'    => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'pagination'  => [
+                'page'  => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'pages' => (int) ceil($total / $limit),
+            ],
+        ];
+    }
+
     public function getMessage($messageId, $type, $userId = null)
     {
         $user = null;

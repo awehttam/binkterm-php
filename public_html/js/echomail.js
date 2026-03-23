@@ -25,6 +25,8 @@ let isSearchActive = false;
 let currentPagination = null;
 let _messageRiptermLoaderPromise = null;
 let requestedMessageId = null;
+let currentInterestId = null;
+let currentInterestName = '';
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -412,7 +414,70 @@ function displayMobileEchoareas(echoareas) {
     container.html(html);
 }
 
+function displayMobileInterests(interests) {
+    const container = $('#mobileInterestsList');
+    let html = '';
+
+    if (interests && interests.length > 0) {
+        interests.forEach(function(interest) {
+            const isActive = currentInterestId === interest.id;
+            const icon  = escapeHtml(interest.icon || 'fa-layer-group');
+            const color = escapeHtml(interest.color || '#6c757d');
+            const encodedName = encodeURIComponent(interest.name);
+            const iconStyle = isActive ? '' : ` style="color:${color}"`;
+            html += `
+                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}"
+                     data-interest-id="${interest.id}"
+                     data-interest-name="${encodedName}"
+                     style="border-left: 3px solid ${color}; cursor: pointer;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas ${icon} flex-shrink-0"${iconStyle}></i>
+                        <span class="fw-bold">${escapeHtml(interest.name)}</span>
+                    </div>
+                </div>
+            `;
+        });
+        html = '<div class="list-group list-group-flush">' + html + '</div>';
+    } else {
+        html = `<div class="text-center text-muted p-3">${uiT('ui.interests.no_interests', 'No interests available')}</div>`;
+    }
+
+    container.html(html);
+
+    // Attach click handlers via event delegation (avoids inline onclick with encoded data)
+    container.off('click', '.list-group-item-action').on('click', '.list-group-item-action', function() {
+        const id   = parseInt($(this).data('interest-id'), 10);
+        const name = decodeURIComponent($(this).data('interest-name') || '');
+        selectInterest(id, name);
+    });
+}
+
+function selectInterest(id, name) {
+    currentInterestId   = id;
+    currentInterestName = name;
+    currentEchoarea     = null;
+    currentPage         = 1;
+
+    // Update URL without reload (stay on /echomail — no per-interest URL for now)
+    history.pushState({ interestId: id }, '', '/echomail');
+
+    // Update mobile accordion text
+    updateMobileAccordionText(null, name);
+
+    // Collapse mobile accordion after selection
+    $('#echoAreasCollapse').collapse('hide');
+
+    // Update active state in interest list and clear area list selection
+    $('#mobileInterestsList .list-group-item-action').removeClass('active');
+    $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
+    $('#mobileEchoareasList .list-group-item-action').removeClass('active');
+
+    loadMessages();
+}
+
 function selectEchoarea(tag) {
+    currentInterestId = null;
+    currentInterestName = '';
     currentEchoarea = tag;
     updateEchoInfoBar();
     const memKey = tag || '__all__';
@@ -462,9 +527,14 @@ function loadMessages(callback) {
         return;
     }
 
-    let url = '/api/messages/echomail';
-    if (currentEchoarea) {
-        url += `/${encodeURIComponent(currentEchoarea)}`;
+    let url;
+    if (currentInterestId) {
+        url = `/api/interests/${currentInterestId}/messages`;
+    } else {
+        url = '/api/messages/echomail';
+        if (currentEchoarea) {
+            url += `/${encodeURIComponent(currentEchoarea)}`;
+        }
     }
     url += `?page=${currentPage}&sort=${currentSort}&filter=${currentFilter}`;
     if (threadedView) {
@@ -2130,16 +2200,17 @@ function markMessageAsRead(messageId) {
         });
 }
 
-function updateMobileAccordionText(selectedArea) {
+function updateMobileAccordionText(selectedArea, interestName) {
     const textSpan = $('#mobileAccordionText');
-    if (textSpan.length) {
-        if (selectedArea) {
-            // Strip domain from display (show just the tag)
-            const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
-            textSpan.text(`Viewing: ${displayTag}`);
-        } else {
-            textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
-        }
+    if (!textSpan.length) return;
+    if (interestName) {
+        textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${interestName}`);
+    } else if (selectedArea) {
+        // Strip domain from display (show just the tag)
+        const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
+        textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${displayTag}`);
+    } else {
+        textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
     }
 }
 

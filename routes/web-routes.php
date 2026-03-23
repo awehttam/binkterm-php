@@ -363,11 +363,18 @@ SimpleRouter::get('/echomail', function() {
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
 
+    $hasInterests = false;
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $hasInterests = count($im->getInterests(true)) > 0;
+    }
+
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
         'domain' => $domainParam,
         'echomail_date_field' => $echoDateOrder,
+        'has_interests' => $hasInterests,
     ]);
 });
 
@@ -383,10 +390,18 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $echoarea = urldecode($echoarea);
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+
+    $hasInterests = false;
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $hasInterests = count($im->getInterests(true)) > 0;
+    }
+
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
         'echomail_date_field' => $echoDateOrder,
+        'has_interests' => $hasInterests,
     ]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 

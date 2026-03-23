@@ -9733,4 +9733,37 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
         echo json_encode(['echoareas' => $echoareas]);
     })->where(['id' => '[0-9]+']);
 
+    /**
+     * GET /api/interests/{id}/messages
+     * Returns paginated echomail from all echo areas belonging to this interest.
+     */
+    SimpleRouter::get('/{id}/messages', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('ENABLE_INTERESTS', 'false') === 'true') {
+            http_response_code(404);
+            apiError('errors.interests.feature_disabled', 'Interests feature is not enabled.');
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest || !$interest['is_active']) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $handler      = new \BinktermPHP\MessageHandler();
+        $page         = max(1, (int)($_GET['page'] ?? 1));
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort         = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
+        $filter       = $_GET['filter'] ?? 'all';
+
+        $result = $handler->getEchomailFromInterest($userId, (int)$id, $page, null, $filter, $sort);
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
+
 });
