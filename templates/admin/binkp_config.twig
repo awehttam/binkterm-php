@@ -165,17 +165,12 @@
                 <table class="table table-striped" id="uplinksTable">
                     <thead>
                         <tr>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.me', {}, locale, ['common']) }}</th>
+                            <th class="d-none d-sm-table-cell">{{ t('ui.admin.binkp_config.uplinks.table.me', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_config.uplinks.table.uplink', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.domain', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.common.hostname', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.common.port', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.schedule', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.markdown', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.posting_name', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.adr_domain', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.default', {}, locale, ['common']) }}</th>
+                            <th class="d-none d-sm-table-cell">{{ t('ui.admin.binkp_config.uplinks.table.domain', {}, locale, ['common']) }}</th>
+                            <th class="d-none d-md-table-cell">{{ t('ui.admin.binkp_config.uplinks.table.host', {}, locale, ['common']) }}</th>
+                            <th class="d-none d-lg-table-cell">{{ t('ui.admin.binkp_config.uplinks.table.schedule', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.status', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_config.uplinks.table.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
@@ -502,23 +497,25 @@ function renderUplinks() {
     tbody.innerHTML = '';
     const uplinks = binkpConfig.uplinks || [];
     if (uplinks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-muted">' + escapeHtml(uiT('ui.admin.binkp_config.uplinks.none_configured', 'No uplinks configured.')) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-muted">' + escapeHtml(uiT('ui.admin.binkp_config.uplinks.none_configured', 'No uplinks configured.')) + '</td></tr>';
         return;
     }
     uplinks.forEach((uplink, index) => {
         const row = document.createElement('tr');
+        const host = uplink.hostname ? escapeHtml(uplink.hostname) + (uplink.port ? ':' + uplink.port : '') : '';
+        const enabledBadge = uplink.enabled
+            ? `<span class="badge bg-success">${uiT('ui.admin.binkp_config.uplinks.table.enabled', 'Enabled')}</span>`
+            : `<span class="badge bg-secondary">${uiT('ui.admin.binkp_config.uplinks.table.disabled', 'Disabled')}</span>`;
+        const defaultBadge = uplink.default
+            ? ` <span class="badge bg-primary">${uiT('ui.admin.binkp_config.uplinks.table.default', 'Default')}</span>`
+            : '';
         row.innerHTML = `
-            <td>${escapeHtml(uplink.me || '')}</td>
+            <td class="d-none d-sm-table-cell">${escapeHtml(uplink.me || '')}</td>
             <td>${escapeHtml(uplink.address || '')}</td>
-            <td>${escapeHtml(uplink.domain || '')}</td>
-            <td>${escapeHtml(uplink.hostname || '')}</td>
-            <td>${uplink.port ?? ''}</td>
-            <td><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
-            <td>${uplink.allow_markup ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
-            <td>${(uplink.posting_name_policy || 'real_name') === 'username' ? uiT('ui.admin.binkp_config.uplinks.username', 'Username') : uiT('ui.admin.binkp_config.uplinks.real_name', 'Real Name')}</td>
-            <td>${uplink.send_domain_in_addr ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
-            <td>${uplink.enabled ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
-            <td>${uplink.default ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
+            <td class="d-none d-sm-table-cell">${escapeHtml(uplink.domain || '')}</td>
+            <td class="d-none d-md-table-cell">${host}</td>
+            <td class="d-none d-lg-table-cell"><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
+            <td>${enabledBadge}${defaultBadge}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal(${index})">${uiT('ui.common.edit', 'Edit')}</button>
                 <button class="btn btn-sm btn-outline-danger ms-1" type="button" onclick="deleteUplink(${index})">${uiT('ui.common.delete', 'Delete')}</button>

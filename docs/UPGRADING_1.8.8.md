@@ -15,6 +15,7 @@
   - [QWKE From/To Headers No Longer Include FTN Address](#qwke-fromto-headers-no-longer-include-ftn-address)
   - [FTN Address in To Field for New Netmail](#ftn-address-in-to-field-for-new-netmail)
   - [Configurable QWK BBS ID](#configurable-qwk-bbs-id)
+  - [QWKE Bodies Now Encoded as CP437](#qwke-bodies-now-encoded-as-cp437)
 - [Web Interface](#web-interface)
   - [Dashboard: Today's Callers](#dashboard-todays-callers)
   - [Profile: Your Network Information](#profile-your-network-information)
@@ -151,6 +152,7 @@
 - QWKE outgoing `From:` and `To:` extended headers now contain only the name; the FTN address is no longer appended, preventing it from appearing as part of the reply-to name in offline readers.
 - New netmail sent via QWK can now specify the FTN destination by writing `Name@zone:net/node[.point]` in the To field.
 - The QWK BBS ID (packet filename and CONTROL.DAT identifier) is now a configurable setting so it remains stable if the sysop renames the board.
+- QWKE packets now encode message bodies in CP437, the same as plain QWK. A `^ACHRS: CP437 2` kludge is prepended to each body so capable readers know the encoding. Previously QWKE bodies were sent as UTF-8.
 
 ## File Areas & TIC Processing
 
@@ -261,6 +263,19 @@ current system name and writes it to `bbs.json`, so existing installations
 receive a stable value without any manual action. After upgrading, the ID
 can be changed in the admin panel, but note that changing it will require
 users to reconfigure their offline readers.
+
+### QWKE Bodies Now Encoded as CP437
+
+QWKE packets previously encoded message bodies as UTF-8, which broke ANSI art
+rendering in offline readers whose terminal emulators expect single-byte CP437
+characters. QWKE bodies are now encoded in CP437, identical to plain QWK.
+
+A `^ACHRS: CP437 2` kludge is prepended to the body of each QWKE message so
+capable readers can confirm the encoding. Characters in stored UTF-8 message
+text that have no CP437 equivalent are transliterated to the nearest ASCII
+equivalent; characters with no reasonable substitute are dropped.
+
+No action is required. Existing packets already downloaded are unaffected.
 
 ## Web Interface
 

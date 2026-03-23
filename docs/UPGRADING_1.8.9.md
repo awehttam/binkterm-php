@@ -181,6 +181,15 @@ Packet filenames in the **Inbound Queue** and **Outbound Queue** lists on the Bi
 Non-`.pkt` files in the queue (e.g. file attachments) remain plain text.
 
 This feature requires a valid registered license, consistent with the existing kept-packets inspector.
+### Scheduler
+
+- **Outbound poll scheduling**: The scheduler's outbound poll check (`pollIfOutbound`) now respects each uplink's configured `poll_schedule` cron expression. Previously, outbound packets could trigger a poll as frequently as once per minute; they now only poll when the schedule allows it. This prevents flooding uplinks with connections. The outbound and scheduled poll timers are tracked independently so an outbound poll does not delay the next scheduled inbound poll.
+- **No duplicate outbound poll after scheduled poll**: When a scheduled inbound poll runs, its bidirectional binkp session already exchanges any outbound packets. The scheduler now tracks which uplinks were polled in the current loop iteration and skips same-iteration outbound polls for those uplinks, while still allowing independent outbound polls in subsequent iterations.
+
+### Admin — BinkP Config
+
+- **Uplinks table cleanup**: The uplinks table columns have been consolidated — Hostname and Port are now shown as a single Host column, and Enabled/Default are combined into a Status badge column. Markdown, Posting Name, and ADR @Domain are no longer shown in the table (they remain editable in the uplink modal).
+- **Uplinks table responsive**: The uplinks table is now responsive. On smaller screens, less critical columns are hidden progressively: Me and Domain are hidden below `sm`, Host below `md`, and Schedule below `lg`. Uplink, Status, and Actions are always visible.
 
 ---
 
@@ -205,3 +214,10 @@ ENABLE_INTERESTS=false
 ### Using the Installer
 
 Run the installer as normal. When prompted to run `php scripts/setup.php`, allow it to complete — this applies the two new database migrations.
+php scripts/setup.php
+```
+
+### Using the Installer
+
+Re-run the BinktermPHP installer to upgrade the application files, then restart
+the daemons if your deployment manages them separately.
