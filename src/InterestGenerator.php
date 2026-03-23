@@ -30,12 +30,13 @@ class InterestGenerator
         'LVLY_', 'MIN_', 'DOVE-', 'DOVE_', 'FSX_', 'AGL_', 'AGN_',
         'HACK_', 'HNET_', 'HBN_', 'CFN_', 'TQN_', 'WIN_', 'SFN_',
         'VAX_', 'SCI_', 'FRL_', 'FTN_', 'NET_', 'FIDONET_', 'FIDO_',
-        'NIX_', 'RTN_', 'ESS_', 'PIN_',
+        'RTN_', 'ESS_', 'PIN_', 'PIN-',
+        // NIX_ intentionally omitted: keeping NIX as a token provides a Linux classification signal
     ];
 
     /** Common tag suffixes to strip. */
     private const SUFFIXES = [
-        '_ECHO', '_AREA', '_NET', '_BASE', '_CHAT', '_FORUM',
+        '_ECHO', '_AREA', '_NET', '_BASE', '_CHAT', '_FORUM', '_AMY',
     ];
 
     /**
@@ -45,32 +46,37 @@ class InterestGenerator
      */
     private const CATEGORIES = [
         ['name' => 'Computer Support', 'icon' => 'fa-laptop', 'color' => '#546e7a',
-         'keywords' => ['AMY','COMP','PCHELP','TECHHELP','TECH_HELP','COMPHELP','COMP_HELP',
-                        'HELPDESK','HARDWARE','UPGRADE','TROUBLESHOOT']],
+         'keywords' => ['COMP','PCHELP','TECHHELP','TECH_HELP','COMPHELP','COMP_HELP',
+                        'HELPDESK','HARDWARE','UPGRADE','TROUBLESHOOT',
+                        'COMPUTING','TECH','TECHTALK','AMIPI','VIRUS']],
         ['name' => 'Retro Computing & Vintage Hardware', 'icon' => 'fa-desktop', 'color' => '#8e44ad',
          'keywords' => ['RETRO','VINTAGE','CLASSIC','C64','COMMODORE','AMIGA','ATARI','APPLE2','APPLE_2','APPLE',
                         'TRS80','TRS-80','CP/M','CPM','ZX','SPECTRUM','MSX','TANDY','KAYPRO','OSBORNE','ALTAIR',
-                        'S100','OLDCOMP','OLD_COMP','MUSEUM','MAINFRAME','COL_ADAM','TI99','TI-99','RTN_TI']],
+                        'S100','OLDCOMP','OLD_COMP','MUSEUM','MAINFRAME','COL_ADAM','TI99','TI-99','RTN_TI',
+                        'CNET','COMMS','HARD','DBBSOFT','TDRS']],
         ['name' => 'Sysop & Network Operations', 'icon' => 'fa-server', 'color' => '#37474f',
          'keywords' => ['SYSOP','ADMIN','OPS','ANNOUNCE','NODELIST','POINTLIST','ELIST','FILEFIND',
                         'ALLFIX','PDNECHO','FILEECHO','TICFILE','MAILER','BINKP','FOSSIL',
                         'SYNCOPS','SYNCANNO','SYNCJS','SYNCDATA','BOT','AUTOANNO','FILEANN',
-                        'GENAN','NETSYS','NETOPS','HUBSYS','Z1C']],
+                        'GENAN','NETSYS','NETOPS','HUBSYS','Z1C',
+                        'Z39','NEWS','STATS']],
         ['name' => 'Synchronet & Other BBS Software', 'icon' => 'fa-server', 'color' => '#2c3e50',
          'keywords' => ['SYNCHRONET','SBBS','ENIGMA','MYSTIC','MYS','MAXIMUS','TELEGARD','RENEGADE',
                         'WILDCAT','PCBOARD','PB','WWIV','TRIBBS','BINKTERMPHP',
-                        'GOLDED','GOLDBASE','HUSKY','FIDOSOFT']],
+                        'GOLDED','GOLDBASE','HUSKY','FIDOSOFT',
+                        'BINKD','JAMNNTPD','ZEUS','BBSSOFT','MAIL']],
         ['name' => 'BBS & Fidonet', 'icon' => 'fa-terminal', 'color' => '#2c3e50',
          'keywords' => ['BBS','FIDONET','FIDO','DOOR','ANSI','ASCII','ECHOMAIL','NETMAIL',
-                        'FTN','IBBSDOOR','DOORGAMES','FIDONEWS','FTSC','FUTURE4FIDO','BBSADS']],
+                        'FTN','IBBSDOOR','DOORGAMES','FIDONEWS','FTSC','FUTURE4FIDO','BBSADS',
+                        'IPV6','ADS','OTHERNETS','BBSNEWS']],
         ['name' => 'Programming & Software Development', 'icon' => 'fa-code', 'color' => '#3498db',
-         'keywords' => ['PROG','CODE','CODING','DEVEL','DEV','PYTHON','JAVA','CPLUS','CPLUSPLUS','CSHARP',
+         'keywords' => ['PROG','PRGS','CODE','CODING','DEVEL','DEV','PYTHON','JAVA','CPLUS','CPLUSPLUS','CSHARP',
                         'DOTNET','PERL','RUBY','JAVASCRIPT','TYPESCRIPT','GOLANG','RUST','SWIFT','PASCAL',
                         'BASIC','ASSEMBL','ASM','FORTRAN','COBOL','PHP','HTML','CSS','SQL','DATABASE',
                         'OPENSOURCE','GITHUB','GIT','LINUX_DEV','KERNEL','COMPILER','ALGORITHM',
                         'DATASTRUC','SOFTWARE']],
         ['name' => 'Linux & Open Source', 'icon' => 'fa-linux', 'color' => '#e67e22',
-         'keywords' => ['LINUX','UNIX','GNU','UBUNTU','DEBIAN','FEDORA','CENTOS','ARCH','GENTOO','SLACKWARE',
+         'keywords' => ['LINUX','UNIX','NIX','GNU','UBUNTU','DEBIAN','FEDORA','CENTOS','ARCH','GENTOO','SLACKWARE',
                         'FREEBSD','OPENBSD','BSD','OPENSRC','OPENSOURCE','FOSS','KERNEL','BASH','SHELL',
                         'SYSADMIN','SYS_ADMIN']],
         ['name' => 'Windows & Microsoft', 'icon' => 'fa-windows', 'color' => '#0078d4',
@@ -80,8 +86,8 @@ class InterestGenerator
          'keywords' => ['GAME','GAMING','GAMER','CONSOLE','ARCADE','NINTENDO','SEGA','ATARI_GAME',
                         'PLAYSTATION','XBOX','STEAM','PC_GAME','PCGAME','RPG','FPS','MMORPG','EMULAT','ROMS']],
         ['name' => 'Humour & Entertainment', 'icon' => 'fa-laugh', 'color' => '#f1c40f',
-         'keywords' => ['HUMOR','HUMOUR','FUNNY','JOKE','COMEDY','LAUGH','ENTERTAIN','TRIVIA','RIDDLE',
-                        'PRANK','VIDEO']],
+         'keywords' => ['HUMOR','HUMOUR','FUNNY','JOKE','JOKES','COMEDY','LAUGH','ENTERTAIN','TRIVIA','RIDDLE',
+                        'PRANK','VIDEO','MOVIES','MOVIE','COMIC']],
         ['name' => 'Science Fiction & Fantasy', 'icon' => 'fa-rocket', 'color' => '#9b59b6',
          'keywords' => ['SCIFI','SCI_FI','SCIFIX','FANTASY','STARTREK','STAR_TREK','STARWARS','STAR_WARS',
                         'DRWHO','DR_WHO','DOCTORWHO','TOLKIEN','DUNE','BABYLON','BATTLESTAR','ANIME',
@@ -121,7 +127,7 @@ class InterestGenerator
                         'POEM','READING','LIBRARY','EBOOK']],
         ['name' => 'Health & Medicine', 'icon' => 'fa-heartbeat', 'color' => '#e74c3c',
          'keywords' => ['HEALTH','MEDICAL','MEDICINE','DOCTOR','NURSE','MENTAL','WELLNESS','DIET',
-                        'NUTRITION','DISABILITY','COVID','VIRUS']],
+                        'NUTRITION','DISABILITY','COVID']],
         ['name' => 'Weather & Environment', 'icon' => 'fa-cloud-sun', 'color' => '#2980b9',
          'keywords' => ['WEATHER','CLIMATE','FORECAST','STORM','HURRICANE','TORNADO','METEOR','ENVIRON',
                         'ECOLOGY','GREEN','SOLAR','WIND_ENERGY']],
@@ -150,9 +156,9 @@ class InterestGenerator
                         'AUCTION','MARKETPLACE','FLEA','DEALER','VENDOR','ADVERT','LISTING']],
         ['name' => 'General Chat & Social', 'icon' => 'fa-comments', 'color' => '#6c757d',
          'keywords' => ['CHAT','GENERAL','TALK','SOCIAL','DISCUSS','LOUNGE','OFFTOPIC','OFF_TOPIC',
-                        'RANDOM','MISC','INTRO','INTRODUCE','HELLO','HI','STATS','OTHER']],
+                        'RANDOM','MISC','INTRO','INTRODUCE','HELLO','HI','OTHER']],
         ['name' => 'Test & Development Areas', 'icon' => 'fa-flask', 'color' => '#95a5a6',
-         'keywords' => ['TEST','TESTING','SANDBOX','DEBUG','JUNK','TRASH','DUMMY','SAMPLE','FIDOTEST']],
+         'keywords' => ['TEST','TESTING','SANDBOX','DEBUG','JUNK','TRASH','DUMMY','SAMPLE','FIDOTEST','TESTNET']],
     ];
 
     public function __construct()
