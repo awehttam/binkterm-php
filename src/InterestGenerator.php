@@ -161,8 +161,8 @@ class InterestGenerator
      */
     public function generate(bool $useAi = true): array
     {
-        // Fetch all echo areas
-        $stmt = $this->db->query("SELECT id, tag, description, domain FROM echoareas ORDER BY tag");
+        // Fetch active echo areas only
+        $stmt = $this->db->query("SELECT id, tag, description, domain FROM echoareas WHERE is_active = TRUE ORDER BY tag");
         $echoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         // Get names of existing interests to avoid duplicates

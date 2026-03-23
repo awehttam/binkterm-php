@@ -716,6 +716,13 @@ function showPreview(result) {
     updateSaveCount();
 }
 
+/** Initialise Bootstrap tooltips on all pill elements inside a container. */
+function initPillTooltips(container) {
+    container.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el, {placement: 'top', trigger: 'hover'});
+    });
+}
+
 /** Build grouped pills HTML for a suggestion's echo area list. */
 function buildPillsHtml(echoareas, idx) {
     if (!echoareas.length) return '<span class="text-muted small">None</span>';
@@ -723,12 +730,13 @@ function buildPillsHtml(echoareas, idx) {
     let html = '';
     for (const [net, netAreas] of groups) {
         html += `<span class="d-block fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.05em">${escHtml(net)}</span>`;
-        html += netAreas.map(ea =>
-            `<span class="echo-pill badge bg-secondary fw-normal">
+        html += netAreas.map(ea => {
+            const tip = ea.description ? ` data-bs-toggle="tooltip" data-bs-title="${escAttr(ea.description)}"` : '';
+            return `<span class="echo-pill badge bg-secondary fw-normal"${tip}>
                 ${escHtml(ea.tag)}
                 <button type="button" class="remove-pill" onclick="removeAreaFromSuggestion(${idx},${ea.id})" title="Remove">✕</button>
-            </span>`
-        ).join('');
+            </span>`;
+        }).join('');
         html += '<br>';
     }
     return html;
@@ -815,6 +823,9 @@ function renderSuggestionCards() {
             if (bigPrev) bigPrev.style.color = hex;
         });
     });
+
+    // Initialise tooltips on all pill badges
+    initPillTooltips(container);
 }
 
 function updateSuggestionName(idx, val) {
@@ -839,6 +850,7 @@ function removeAreaFromSuggestion(idx, areaId) {
     const pillsDiv = document.getElementById(`pills_${idx}`);
     if (pillsDiv) {
         pillsDiv.innerHTML = buildPillsHtml(wizardSuggestions[idx].echoareas, idx);
+        initPillTooltips(pillsDiv);
     }
     // Update header count
     const countEl = document.querySelector(`#sugCard_${idx} .card-body .small strong`);
@@ -890,6 +902,7 @@ function toggleAddAreaCheck(idx, areaId, tag, description, checked) {
     const pillsDiv = document.getElementById(`pills_${idx}`);
     if (pillsDiv) {
         pillsDiv.innerHTML = buildPillsHtml(wizardSuggestions[idx].echoareas, idx);
+        initPillTooltips(pillsDiv);
     }
 }
 
