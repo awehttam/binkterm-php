@@ -181,7 +181,11 @@ function loadEchoareas() {
  */
 function updateEchoInfoBar() {
     if (!currentEchoarea) {
-        $('#echoInfoBar').addClass('d-none');
+        // No specific area selected — show a generic "All Messages" bar with compose button
+        $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
+        $('#echoDescription').text('');
+        $('#echoSubscribeBtn').addClass('d-none');
+        $('#echoInfoBar').removeClass('d-none');
         currentEchoareaData = null;
         return;
     }

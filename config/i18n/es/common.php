@@ -3024,7 +3024,7 @@ return [
     'ui.echo_onboarding.heading' => 'Bienvenido al Echomail',
     'ui.echo_onboarding.intro' => 'Echomail es un sistema de foros publicos que conecta este BBS con una red mundial de otros sistemas. Aqui tienes una introduccion rapida antes de empezar.',
     'ui.echo_onboarding.what_is.title' => '¿Que es el Echomail?',
-    'ui.echo_onboarding.what_is.body' => 'El Echomail esta organizado en areas tematicas — similares a grupos de noticias o listas de correo — que cubren temas como computacion retro, radio amateur, programacion y chat general. Los mensajes son visibles para todos en la red.',
+    'ui.echo_onboarding.what_is.body' => 'El Echomail esta organizado en areas tematicas — similares a grupos de noticias o listas de correo — que cubren una amplia variedad de temas como computacion retro, radio amateur, programacion, pasatiempos, deportes, escritura creativa y chat general. Los mensajes son visibles para todos en la red.',
     'ui.echo_onboarding.how_it_works.title' => '¿Como funciona?',
     'ui.echo_onboarding.how_it_works.body' => 'Este BBS forma parte de una red estilo FidoNet. Cuando publicas un mensaje, se intercambia automaticamente con otros BBS que tienen la misma area. Los mensajes de esos sistemas tambien llegan aqui, conectandote con una comunidad mundial.',
     'ui.echo_onboarding.getting_started.title' => 'Como empezar',
