@@ -33,6 +33,10 @@ tests/.env.test
 bbs_ads/*
 !bbs_ads/claudes1.ans
 
+# Release announcement drafts
+*.post.txt
+*post.txt
+
 # Windows utility scripts
 delnul.cmd
 node_modules/
