@@ -59,7 +59,7 @@ class InterestGenerator
                         'ALLFIX','PDNECHO','FILEECHO','TICFILE','MAILER','BINKP','FOSSIL',
                         'SYNCOPS','SYNCANNO','SYNCJS','SYNCDATA','BOT','AUTOANNO','FILEANN',
                         'GENAN','NETSYS','NETOPS','HUBSYS','Z1C',
-                        'Z39','NEWS','STATS']],
+                        'Z39','NEWS','STATS','FILECHAT']],
         ['name' => 'Synchronet & Other BBS Software', 'icon' => 'fa-server', 'color' => '#2c3e50',
          'keywords' => ['SYNCHRONET','SBBS','ENIGMA','MYSTIC','MYS','MAXIMUS','TELEGARD','RENEGADE',
                         'WILDCAT','PCBOARD','PB','WWIV','TRIBBS','BINKTERMPHP',
