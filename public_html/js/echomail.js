@@ -367,6 +367,10 @@ function setAreaListInterestFilter(id) {
     $(".node-item[onclick*=\"selectEchoarea(null)\"]").addClass('bg-primary text-white');
     $(".node-item[onclick*=\"selectEchoarea(null)\"] .badge").removeClass('bg-secondary').addClass('bg-light text-dark');
     $(".list-group-item-action[onclick*=\"selectEchoarea(null)\"]").addClass('active');
+    $('#mobileInterestsList .list-group-item-action, #desktopInterestsList .list-group-item-action').removeClass('active');
+    if (id !== null) {
+        $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"], #desktopInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
+    }
 
     history.pushState({echoarea: null}, '', '/echomail');
     updateEchoInfoBar();
@@ -547,6 +551,12 @@ function selectInterest(id, name, slug) {
     currentInterestSlug = slug || '';
     currentEchoarea     = null;
     currentPage         = 1;
+    areaListInterestFilter = id;
+
+    // Keep the Area List tab's dropdown in sync with the currently selected interest
+    // without invoking the Area List tab's own message-loading flow.
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').val(String(id));
+    applyEchoareaFilter();
 
     // Encode slug in URL so the interest is restored if the user navigates back
     const urlSlug = currentInterestSlug || id;

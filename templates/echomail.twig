@@ -722,6 +722,39 @@ window.echomailDateField = '{{ echomail_date_field|default("received") }}';
 {% if interests_enabled and has_interests %}
 <script>
 $(document).ready(function() {
+    function setListOrInterestPreference(value) {
+        document.cookie = `p_listorinterest=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+
+    function getListOrInterestPreference() {
+        const match = document.cookie.match(/(?:^|;\s*)p_listorinterest=([^;]+)/);
+        if (!match) {
+            return null;
+        }
+
+        const value = decodeURIComponent(match[1] || '');
+        return (value === 'area' || value === 'interests') ? value : null;
+    }
+
+    function getListOrInterestPreferenceForTab(tabId) {
+        return tabId === 'mobileInterestsTab' || tabId === 'desktopInterestsTab' ? 'interests' : 'area';
+    }
+
+    function activatePreferredTab(preference) {
+        const mobileTabId = preference === 'interests' ? 'mobileInterestsTab' : 'mobileAreaListTab';
+        const desktopTabId = preference === 'interests' ? 'desktopInterestsTab' : 'desktopAreaListTab';
+        const mobileTab = document.getElementById(mobileTabId);
+        const desktopTab = document.getElementById(desktopTabId);
+
+        if (mobileTab) {
+            bootstrap.Tab.getOrCreateInstance(mobileTab).show();
+        }
+
+        if (desktopTab) {
+            bootstrap.Tab.getOrCreateInstance(desktopTab).show();
+        }
+    }
+
     // Load interests list immediately (Interests tab is active by default)
     $.get('/api/interests')
         .done(function(data) {
@@ -778,18 +811,27 @@ $(document).ready(function() {
         }
     }
 
-    // Set initial state (Area List tab is active)
-    updateMobileManageBtn('mobileAreaListTab');
-    updateDesktopManageBtn('desktopAreaListTab');
+    // Restore preferred tab, defaulting to area list unless the URL explicitly opens an interest.
+    const initialPreference = new URLSearchParams(window.location.search).get('interest')
+        ? 'interests'
+        : (getListOrInterestPreference() || 'area');
+    activatePreferredTab(initialPreference);
+    updateMobileManageBtn(initialPreference === 'interests' ? 'mobileInterestsTab' : 'mobileAreaListTab');
+    updateDesktopManageBtn(initialPreference === 'interests' ? 'desktopInterestsTab' : 'desktopAreaListTab');
+    setListOrInterestPreference(initialPreference);
 
     // Update on mobile tab switch
     $('#mobileViewingTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
-        updateMobileManageBtn($(this).attr('id'));
+        const tabId = $(this).attr('id');
+        updateMobileManageBtn(tabId);
+        setListOrInterestPreference(getListOrInterestPreferenceForTab(tabId));
     });
 
     // Update on desktop tab switch
     $('#desktopViewingTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
-        updateDesktopManageBtn($(this).attr('id'));
+        const tabId = $(this).attr('id');
+        updateDesktopManageBtn(tabId);
+        setListOrInterestPreference(getListOrInterestPreferenceForTab(tabId));
     });
 });
 </script>

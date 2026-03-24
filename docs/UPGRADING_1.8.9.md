@@ -59,6 +59,7 @@
 - First-time users visiting `/echomail` with no interest subscriptions are now redirected to `/echo-onboarding` (a new onboarding guide page) instead of directly to `/interests`. The guide explains what echomail is, how the network works, and how to get started, then offers a "Next: Select Interests" button and a skip link.
 - Users can reset the onboarding flag from the Settings page to revisit the guide.
 - The Area List tab in the echomail reader sidebar (desktop) and mobile accordion now includes an interest filter dropdown above the search box. Selecting an interest narrows the area list to only the echo areas belonging to that interest. The first option, "All Subscribed Areas", restores the full unfiltered list. The dropdown is only shown when interests are enabled and at least one active interest exists.
+- The echomail reader now remembers whether the user last viewed the **Area List** tab or **Interests** tab using the `p_listorinterest` cookie, and selecting an interest now also syncs the Area List tab's interest dropdown to the same interest without forcing a tab switch.
 
 **Echomail & Netmail**
 - The compose form now shows a warning when the message body approaches the 32 KB FTN packet limit, and an error if it exceeds it.
@@ -130,6 +131,8 @@ The echomail reader (`/echomail`) now shows an **Interests** tab in both the des
 Selecting an interest from the tab loads a unified, paginated message feed from all its echo areas — the same view used for individual echo areas, with the same filter and sort controls.
 
 The **Manage Subscriptions** button (mobile) and the wrench icon link (desktop) swap to **Manage Interests** and link to `/interests` while the Interests tab is active, and revert to **Manage Subscriptions** → `/subscriptions` when the Area List tab is active.
+
+The reader remembers the user's last selected **Area List** or **Interests** tab using the `p_listorinterest` cookie. When an interest is selected from the Interests tab, the Area List tab's interest dropdown is also updated to match so switching back to the Area List view preserves the same interest context.
 
 ### Subscription Mechanics
 
