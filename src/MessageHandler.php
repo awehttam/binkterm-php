@@ -625,7 +625,7 @@ class MessageHandler
     public function getEchomailFromInterest(int $userId, int $interestId, int $page = 1, ?int $limit = null, string $filter = 'all', string $sort = 'date_desc'): array
     {
         $manager     = new \BinktermPHP\InterestManager();
-        $echoareaIds = $manager->getInterestEchoareaIds($interestId);
+        $echoareaIds = $manager->getUserSubscribedInterestEchoareaIds($interestId, $userId);
 
         if (empty($echoareaIds)) {
             return [

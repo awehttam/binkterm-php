@@ -111,6 +111,28 @@ class InterestManager
     }
 
     /**
+     * Return only the interest echo areas the given user is actively subscribed to.
+     *
+     * @return int[]
+     */
+    public function getUserSubscribedInterestEchoareaIds(int $interestId, int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT ie.echoarea_id
+            FROM interest_echoareas ie
+            INNER JOIN echoareas e ON e.id = ie.echoarea_id
+            INNER JOIN user_echoarea_subscriptions ues
+                ON ues.echoarea_id = ie.echoarea_id
+               AND ues.user_id = ?
+               AND ues.is_active = TRUE
+            WHERE ie.interest_id = ?
+              AND e.is_active = TRUE
+        ");
+        $stmt->execute([$userId, $interestId]);
+        return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+    }
+
+    /**
      * Return echo area rows (id, tag, description) for an interest.
      *
      * @return array<int,array<string,mixed>>

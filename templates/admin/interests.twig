@@ -184,11 +184,11 @@
                         <input class="form-check-input" type="checkbox" id="useAiCheck"
                             {{ ai_available ? 'checked' : 'disabled' }}>
                         <label class="form-check-label{% if not ai_available %} text-muted{% endif %}" for="useAiCheck">
-                            <strong>Use AI classification</strong> (Claude Haiku) for areas not matched by keywords
+                            <strong>Use AI classification</strong> for areas not matched by keywords
                         </label>
                         {% if not ai_available %}
                         <div class="form-text text-warning">
-                            <i class="fas fa-key me-1"></i>Set <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file to enable AI classification.
+                            <i class="fas fa-key me-1"></i>Set <code>OPENAI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file to enable AI classification.
                         </div>
                         {% endif %}
                     </div>

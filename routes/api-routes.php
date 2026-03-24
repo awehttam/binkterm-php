@@ -9946,7 +9946,7 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
             return;
         }
 
-        $echoareaIds = $manager->getInterestEchoareaIds((int)$id);
+        $echoareaIds = $manager->getUserSubscribedInterestEchoareaIds((int)$id, $userId);
         if (empty($echoareaIds)) {
             echo json_encode([
                 'total'  => 0, 'recent' => 0, 'unread' => 0,

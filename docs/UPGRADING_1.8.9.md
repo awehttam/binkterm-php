@@ -157,7 +157,7 @@ This table is populated automatically and requires no manual configuration.
 
 The admin interests page includes a **Generate Suggestions** wizard that analyzes the echo area catalog and proposes interest groupings with suggested names, descriptions, and area assignments. Suggestions are presented for review before any changes are saved.
 
-The wizard uses keyword matching by default. If `ANTHROPIC_API_KEY` is set in `.env`, it offers an additional AI-assisted mode that produces higher-quality groupings for areas with ambiguous or abbreviated tags.
+The wizard uses keyword matching by default. If an AI provider is configured in `.env` (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), it offers an additional AI-assisted mode that produces higher-quality groupings for areas with ambiguous or abbreviated tags.
 
 ### Activity Statistics: Popular Interests Tab
 

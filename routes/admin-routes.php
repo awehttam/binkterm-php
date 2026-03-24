@@ -506,6 +506,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
+    SimpleRouter::get('/ai-usage', function() {
+        $user = RouteHelper::requireAdmin();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $timezone = 'UTC';
+        if ($userId) {
+            $handler = new \BinktermPHP\MessageHandler();
+            $settings = $handler->getUserSettings((int)$userId);
+            $timezone = $settings['timezone'] ?? 'UTC';
+        }
+
+        $period = (string)($_GET['period'] ?? '7d');
+        $report = (new \BinktermPHP\AI\AiUsageReport())->getReport($period, $timezone);
+
+        $template = new Template();
+        $template->renderResponse('admin/ai_usage.twig', [
+            'report' => $report,
+            'user_timezone' => $timezone,
+        ]);
+    });
+
     SimpleRouter::get('/sharing', function() {
         RouteHelper::requireAdmin();
 
@@ -5867,7 +5888,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         }
         $template = new Template();
         $template->renderResponse('admin/interests.twig', [
-            'ai_available' => \BinktermPHP\Config::env('ANTHROPIC_API_KEY', '') !== '',
+            'ai_available' => !empty(\BinktermPHP\AI\AiService::create()->getConfiguredProviders()),
         ]);
     });
 

@@ -136,7 +136,7 @@ Deleting an interest removes it and all interest-sourced echo area subscriptions
 
 The admin interests page includes a **Generate Suggestions** wizard. It analyzes your echo area catalog and proposes interest groupings with suggested names, descriptions, icons, and area assignments. Suggestions are presented for review before anything is saved — nothing is created automatically.
 
-The wizard uses keyword matching to classify areas into topics. If `ANTHROPIC_API_KEY` is set in `.env`, it offers an additional AI-assisted mode that produces higher-quality groupings for areas with ambiguous or abbreviated tags.
+The wizard uses keyword matching to classify areas into topics. If an AI provider is configured in `.env` (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), it offers an additional AI-assisted mode that produces higher-quality groupings for areas with ambiguous or abbreviated tags.
 
 ### Enabling and Disabling the Feature
 
@@ -284,4 +284,4 @@ All require admin privileges. All return 404 if `ENABLE_INTERESTS` is false.
 | `DELETE` | `/api/admin/interests/{id}` | Delete interest (cascades) |
 | `POST` | `/api/admin/interests/{id}/echoareas` | Replace echo area list `{"ids":[...]}` |
 | `POST` | `/api/admin/interests/{id}/fileareas` | Replace file area list `{"ids":[...]}` |
-| `POST` | `/api/admin/interests/generate` | Generate interest suggestions from the echo area catalog (requires `ANTHROPIC_API_KEY`) |
+| `POST` | `/api/admin/interests/generate` | Generate interest suggestions from the echo area catalog (requires a configured AI provider) |

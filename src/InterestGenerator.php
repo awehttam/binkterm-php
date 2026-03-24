@@ -14,9 +14,12 @@
 
 namespace BinktermPHP;
 
+use BinktermPHP\AI\AiRequest;
+use BinktermPHP\AI\AiService;
+
 /**
  * Classifies echo areas into interest categories using keyword heuristics
- * and optionally the Anthropic API.
+ * and optionally an external AI provider.
  *
  * Derived from tests/generate_interests_report.php — keep prefix/suffix lists
  * and keyword table in sync with that script.
@@ -24,6 +27,7 @@ namespace BinktermPHP;
 class InterestGenerator
 {
     private \PDO $db;
+    private AiService $aiService;
 
     /** Network prefixes to strip from echo area tags before keyword matching. */
     private const PREFIXES = [
@@ -161,9 +165,10 @@ class InterestGenerator
          'keywords' => ['TEST','TESTING','SANDBOX','DEBUG','JUNK','TRASH','DUMMY','SAMPLE','FIDOTEST','TESTNET']],
     ];
 
-    public function __construct()
+    public function __construct(?AiService $aiService = null)
     {
         $this->db = Database::getInstance()->getPdo();
+        $this->aiService = $aiService ?? AiService::create();
     }
 
     /**
@@ -197,14 +202,11 @@ class InterestGenerator
 
         // Pass 2: AI for unmatched (or all) areas
         $unmatched = array_filter($echoareas, fn($e) => ($tagToCategory[$e['tag']] ?? null) === null);
-        if ($useAi && !empty($unmatched)) {
-            $apiKey = Config::env('ANTHROPIC_API_KEY', '');
-            if ($apiKey !== '') {
-                $aiResults = $this->classifyByAi($apiKey, array_values($unmatched));
-                foreach ($aiResults as $tag => $category) {
-                    if ($category !== null) {
-                        $tagToCategory[$tag] = ['category' => $category, 'source' => 'ai'];
-                    }
+        if ($useAi && !empty($unmatched) && $this->isAiAvailable()) {
+            $aiResults = $this->classifyByAi(array_values($unmatched));
+            foreach ($aiResults as $tag => $category) {
+                if ($category !== null) {
+                    $tagToCategory[$tag] = ['category' => $category, 'source' => 'ai'];
                 }
             }
         }
@@ -276,7 +278,7 @@ class InterestGenerator
                 'categorised'    => $categorised,
                 'uncategorised'  => count($echoareas) - $categorised,
                 'no_description' => $noDescription,
-                'ai_available'   => Config::env('ANTHROPIC_API_KEY', '') !== '',
+                'ai_available'   => $this->isAiAvailable(),
             ],
         ];
     }
@@ -340,7 +342,7 @@ class InterestGenerator
      * @param array<int,array<string,mixed>> $echoareas Unmatched areas only
      * @return array<string,string|null>
      */
-    private function classifyByAi(string $apiKey, array $echoareas): array
+    private function classifyByAi(array $echoareas): array
     {
         $categoryNames = array_column(self::CATEGORIES, 'name');
         $categoryList  = implode("\n", array_map(function($n) {
@@ -352,7 +354,7 @@ class InterestGenerator
         $results       = [];
 
         foreach ($batches as $batch) {
-            $batchResults = $this->classifyBatch($apiKey, $batch, $categoryList);
+            $batchResults = $this->classifyBatch($batch, $categoryList);
             $results      = array_merge($results, $batchResults);
         }
 
@@ -360,7 +362,7 @@ class InterestGenerator
     }
 
     /**
-     * Classify one batch via the Anthropic API.
+     * Classify one batch via the configured AI provider.
      * Returns array<tag, string|null>
      *
      * @param array<int,array<string,mixed>> $batch
@@ -406,7 +408,7 @@ class InterestGenerator
         'Test & Development Areas'              => 'test areas, sandboxes, debug/dummy areas, FIDOTEST',
     ];
 
-    private function classifyBatch(string $apiKey, array $batch, string $categoryList): array
+    private function classifyBatch(array $batch, string $categoryList): array
     {
         $areaList = implode("\n", array_map(
             fn($a) => '  ' . $a['tag'] . (!empty($a['description']) ? ': ' . $a['description'] : ''),
@@ -429,53 +431,41 @@ Respond with ONLY a JSON object mapping each tag exactly as given to its categor
 Example: {"AREA_TAG": "Category Name", "UNCLEAR_TAG": null}
 PROMPT;
 
-        $payload = json_encode([
-            'model'      => 'claude-haiku-4-5-20251001',
-            'max_tokens' => 8192,
-            'messages'   => [['role' => 'user', 'content' => $prompt]],
-        ]);
+        try {
+            $response = $this->aiService->generateJson(new AiRequest(
+                'interest_generation',
+                'You classify FTN/Fidonet BBS echo areas into one of the provided categories. Return only JSON.',
+                $prompt,
+                null,
+                null,
+                0.2,
+                8192,
+                60,
+                null,
+                ['batch_size' => count($batch)]
+            ));
+            $decoded = $response->getParsedJson();
+            if (!is_array($decoded)) {
+                return array_fill_keys(array_column($batch, 'tag'), null);
+            }
 
-        $ch = curl_init('https://api.anthropic.com/v1/messages');
-        curl_setopt_array($ch, [
-            \CURLOPT_RETURNTRANSFER => true,
-            \CURLOPT_POST           => true,
-            \CURLOPT_POSTFIELDS     => $payload,
-            \CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'x-api-key: ' . $apiKey,
-                'anthropic-version: 2023-06-01',
-            ],
-            \CURLOPT_TIMEOUT => 60,
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, \CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($response === false || $httpCode !== 200) {
+            $results = [];
+            foreach ($batch as $area) {
+                $val = $decoded[$area['tag']] ?? null;
+                if (is_string($val) && (strtolower(trim($val)) === 'none' || trim($val) === '')) {
+                    $val = null;
+                }
+                $results[$area['tag']] = is_string($val) ? trim($val) : null;
+            }
+            return $results;
+        } catch (\Throwable $e) {
             return array_fill_keys(array_column($batch, 'tag'), null);
         }
+    }
 
-        $data = json_decode((string)$response, true);
-        $text = $data['content'][0]['text'] ?? null;
-
-        if ($text !== null && preg_match('/\{[\s\S]*\}/u', $text, $m)) {
-            $decoded = json_decode($m[0], true);
-            if (is_array($decoded)) {
-                $results = [];
-                foreach ($batch as $area) {
-                    $val = $decoded[$area['tag']] ?? null;
-                    // Treat explicit "None"/"none"/empty string as unmatched
-                    if (is_string($val) && (strtolower(trim($val)) === 'none' || trim($val) === '')) {
-                        $val = null;
-                    }
-                    $results[$area['tag']] = $val;
-                }
-                return $results;
-            }
-        }
-
-        return array_fill_keys(array_column($batch, 'tag'), null);
+    private function isAiAvailable(): bool
+    {
+        return !empty($this->aiService->getConfiguredProviders());
     }
 
     /**
