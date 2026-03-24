@@ -87,7 +87,9 @@ The server writes a PID file to `data/run/mcp-server.pid` and logs to `data/logs
 
 ## User Keys
 
-Each user generates their own bearer key from **Settings → AI → MCP Server Bearer Key**. Keys are stored in the `users_meta` table under keyname `mcp_serverkey`.
+The key management UI in **Settings → AI** is only shown when `MCP_SERVER_URL` is set in `.env`. Without it, users see a "not currently enabled" message and cannot generate keys.
+
+Each user generates their own bearer key from **Settings → AI**. Keys are stored in the `users_meta` table under keyname `mcp_serverkey`.
 
 - A key can be regenerated at any time; the old key is immediately invalidated.
 - Revoking a key removes it entirely. Any AI client using it will receive `401 Unauthorized`.
@@ -218,6 +220,7 @@ All configuration is read from the main BinktermPHP `.env` file. No separate con
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `MCP_SERVER_URL` | (unset) | **Required to enable user key management.** The public-facing base URL of the MCP server, e.g. `https://mcp.yourbbs.example` or `http://yourbbs.example:3740`. Shown to users in **Settings → AI** so they can configure their MCP client. When unset, the AI settings tab shows a "not enabled" message and key generation is disabled. |
 | `MCP_SERVER_PORT` | `3740` | Port the MCP server listens on (`MCP_PORT` also accepted) |
 | `MCP_BIND_HOST` | (all interfaces) | IP address to bind to. Set to `127.0.0.1` when using a reverse proxy. Overridden by `--bind` CLI flag. |
 | `DB_HOST` | `localhost` | PostgreSQL host |

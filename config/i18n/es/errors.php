@@ -557,6 +557,7 @@ return [
     'errors.interests.slug_taken' => 'Ya existe un interés con ese slug.',
     'errors.interests.feature_disabled' => 'La función de intereses no está habilitada.',
     'errors.interests.crosspost_cooldown' => 'Debe esperar {minutes} minuto(s) más antes de volver a hacer cross-post.',
+    'errors.mcp.not_enabled' => 'Los servicios MCP no están habilitados en este sistema.',
     'errors.mcp.license_required' => 'Se requiere una licencia registrada para la función del servidor MCP.',
     'errors.mcp.generate_failed' => 'Error al generar la clave MCP.',
     'errors.mcp.revoke_failed' => 'Error al revocar la clave MCP.',

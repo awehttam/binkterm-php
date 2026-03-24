@@ -8105,11 +8105,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
-    // MCP Server key management (registered license required)
+    // MCP Server key management (requires MCP_SERVER_URL env + registered license)
     SimpleRouter::get('/user/mcp-key', function() {
         $user   = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
         header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('MCP_SERVER_URL', '')) {
+            apiError('errors.mcp.not_enabled', apiLocalizedText('errors.mcp.not_enabled', 'MCP services are not enabled on this system'), 403);
+            return;
+        }
 
         if (!\BinktermPHP\License::isValid()) {
             apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
@@ -8133,6 +8138,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
         header('Content-Type: application/json');
 
+        if (!\BinktermPHP\Config::env('MCP_SERVER_URL', '')) {
+            apiError('errors.mcp.not_enabled', apiLocalizedText('errors.mcp.not_enabled', 'MCP services are not enabled on this system'), 403);
+            return;
+        }
+
         if (!\BinktermPHP\License::isValid()) {
             apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
             return;
@@ -8153,6 +8163,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user   = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
         header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('MCP_SERVER_URL', '')) {
+            apiError('errors.mcp.not_enabled', apiLocalizedText('errors.mcp.not_enabled', 'MCP services are not enabled on this system'), 403);
+            return;
+        }
 
         if (!\BinktermPHP\License::isValid()) {
             apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
