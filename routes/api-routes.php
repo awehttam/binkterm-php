@@ -740,10 +740,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 FROM chat_messages m
                 LEFT JOIN chat_rooms r ON m.room_id = r.id
                 WHERE m.id > ?
+                  AND m.from_user_id != ?
                   AND (
                       (m.room_id IS NOT NULL AND r.is_active = TRUE)
                       OR m.to_user_id = ?
-                      OR m.from_user_id = ?
                   )
             ");
             $chatStmt->execute([$lastChatMaxId, $lastChatMaxId, $userId, $userId]);
@@ -1676,10 +1676,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             LEFT JOIN chat_rooms r ON m.room_id = r.id
             JOIN users u ON m.from_user_id = u.id
             WHERE m.id > ?
+              AND m.from_user_id != ?
               AND (
                 (m.room_id IS NOT NULL AND r.is_active = TRUE)
                 OR m.to_user_id = ?
-                OR m.from_user_id = ?
               )
             ORDER BY m.id ASC
             LIMIT 200
