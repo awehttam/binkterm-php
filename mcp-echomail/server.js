@@ -246,7 +246,7 @@ server.tool(
             SELECT em.id, em.from_address, em.from_name, em.to_name,
                    em.subject, em.date_written, em.date_received,
                    em.message_id, em.reply_to_id, em.origin_line,
-                   em.tearline_component, em.message_text,
+                   em.tearline_component, em.message_text, em.kludge_lines,
                    ea.tag AS echoarea_tag, ea.domain AS echoarea_domain
             FROM echomail em
             JOIN echoareas ea ON ea.id = em.echoarea_id
