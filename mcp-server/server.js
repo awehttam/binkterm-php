@@ -841,13 +841,37 @@ if (pidFilePath) {
     }
 }
 
+// Track open sockets so we can destroy them during shutdown. MCP clients
+// hold persistent SSE/keep-alive connections which would otherwise prevent
+// httpServer.close() from completing.
+const openSockets = new Set();
+httpServer.on('connection', socket => {
+    openSockets.add(socket);
+    socket.once('close', () => openSockets.delete(socket));
+});
+
+let shuttingDown = false;
 function shutdown() {
+    if (shuttingDown) return;
+    shuttingDown = true;
     logger.info('Shutting down...');
+
+    // Force exit after 5 s if graceful close stalls
+    const forceExit = setTimeout(() => {
+        logger.warn('Graceful shutdown timed out — forcing exit');
+        process.exit(1);
+    }, 5000);
+    forceExit.unref();
+
+    // Destroy all open sockets so httpServer.close() can complete
+    for (const socket of openSockets) socket.destroy();
+
     httpServer.close(() => {
         pool.end(() => {
             if (pidFilePath) {
                 try { fs.unlinkSync(pidFilePath); } catch (_) {}
             }
+            clearTimeout(forceExit);
             process.exit(0);
         });
     });
