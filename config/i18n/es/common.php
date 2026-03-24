@@ -735,6 +735,12 @@ return [
     'ui.admin.ads.load_one_failed' => 'No se pudo cargar el anuncio',
     'ui.admin.ads.duplicate_warning' => 'Ya existe contenido ANSI coincidente: {items}',
     'ui.admin.ads.not_found' => 'Anuncio no encontrado',
+    'ui.admin.ads.click_url' => 'URL de destino',
+    'ui.admin.ads.click_url_help' => 'URL opcional que se abre cuando un usuario hace clic en el anuncio.',
+    'ui.admin.ads.impressions' => 'imp',
+    'ui.admin.ads.clicks' => 'clics',
+    'ui.admin.ads.stats' => 'Estadísticas',
+    'ui.dashboard.advertisement_visit' => 'Visitar',
 
     // Admin Broadcast Manager
     'ui.admin.ad_campaigns.page_title' => 'Gestor de Difusión',

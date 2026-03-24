@@ -10301,3 +10301,46 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
     })->where(['id' => '[0-9]+']);
 
 });
+
+// Advertisement tracking
+SimpleRouter::group(['prefix' => '/api'], function() {
+
+    SimpleRouter::post('/ads/{id}/impression', function(string $id) {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        try {
+            $ads = new \BinktermPHP\Advertising();
+            $ads->recordImpression((int)$id, $userId);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to record impression']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/ads/{id}/click', function(string $id) {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        try {
+            $ads = new \BinktermPHP\Advertising();
+            $ad  = $ads->getAdById((int)$id);
+            if (!$ad) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Advertisement not found']);
+                return;
+            }
+            $ads->recordClick((int)$id, $userId);
+            echo json_encode(['success' => true, 'click_url' => $ad['click_url']]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to record click']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+});

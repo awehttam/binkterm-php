@@ -735,6 +735,12 @@ return [
     'ui.admin.ads.load_one_failed' => 'Failed to load advertisement',
     'ui.admin.ads.duplicate_warning' => 'Matching ANSI content already exists: {items}',
     'ui.admin.ads.not_found' => 'Advertisement not found',
+    'ui.admin.ads.click_url' => 'Click-Through URL',
+    'ui.admin.ads.click_url_help' => 'Optional URL to open when a user clicks the ad.',
+    'ui.admin.ads.impressions' => 'imp',
+    'ui.admin.ads.clicks' => 'clicks',
+    'ui.admin.ads.stats' => 'Stats',
+    'ui.dashboard.advertisement_visit' => 'Visit',
 
     // Admin Broadcast Manager
     'ui.admin.ad_campaigns.page_title' => 'Broadcast Manager',

@@ -126,7 +126,16 @@
                 {% endif %}
             </div>
             <div class="card-body d-flex flex-column align-items-center">
-                <div class="fw-semibold mb-2 text-center" id="dashboardAdTitle">{{ dashboard_ad.title }}</div>
+                <div class="fw-semibold mb-2 text-center w-100 d-flex justify-content-center align-items-center gap-2">
+                    <span id="dashboardAdTitle">{{ dashboard_ad.title }}</span>
+                    <a id="dashboardAdLink" href="#" target="_blank" rel="noopener noreferrer"
+                       class="badge bg-primary text-decoration-none d-none"
+                       title="{{ t('ui.dashboard.advertisement_visit', {}, locale, ['common']) }}"
+                       onclick="return handleAdClick(event)">
+                        <i class="fas fa-external-link-alt"></i>
+                        {{ t('ui.dashboard.advertisement_visit', {}, locale, ['common']) }}
+                    </a>
+                </div>
                 <div id="dashboardAdContainer" class="w-100" style="overflow: hidden;"></div>
                 {% if dashboard_ads|length > 1 %}
                 <div class="small text-muted mt-2" id="dashboardAdPosition"></div>
@@ -159,10 +168,10 @@
                     {% endif %}
 
                     {% if current_user.is_admin and todays_callers is not null %}
-                    <dt class="col-sm-5">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-sm-7">
+                    <dt class="col-12 mb-1">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-12">
                         {% if todays_callers|length > 0 %}
-                            <table class="table table-sm table-borderless mb-0 small callers-table">
+                            <table class="table table-sm table-borderless mb-0 small callers-table w-100">
                                 <thead>
                                     <tr>
                                         <th class="ps-0">{{ t('ui.dashboard.callers_col_user', {}, locale, ['common']) }}</th>
@@ -304,6 +313,7 @@ function uiT(key, fallback, params = {}) {
 const dashboardAds = {{ (dashboard_ads|default([]))|json_encode|raw }};
 const DASHBOARD_AD_ROTATE_INTERVAL_MS = {{ (dashboard_ad_rotate_interval_seconds|default(20) * 1000)|json_encode|raw }};
 let dashboardAdIndex = 0;
+const dashboardAdImpressionsSent = new Set();
 
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
@@ -734,6 +744,39 @@ function renderDashboardAd() {
 
     renderAdContent(container, current.content || '');
     requestAnimationFrame(scaleDashboardAd);
+
+    // Update click-through link visibility
+    const link = document.getElementById('dashboardAdLink');
+    if (link) {
+        if (current.click_url) {
+            link.href = '#';
+            link.dataset.adId = String(current.id);
+            link.dataset.clickUrl = current.click_url;
+            link.classList.remove('d-none');
+        } else {
+            link.classList.add('d-none');
+        }
+    }
+
+    // Record impression once per ad per page load
+    if (current.id && !dashboardAdImpressionsSent.has(current.id)) {
+        dashboardAdImpressionsSent.add(current.id);
+        fetch(`/api/ads/${current.id}/impression`, { method: 'POST' }).catch(() => {});
+    }
+}
+
+function handleAdClick(event) {
+    event.preventDefault();
+    const link = event.currentTarget;
+    const adId = link.dataset.adId;
+    const url  = link.dataset.clickUrl;
+    if (!adId || !url) {
+        return false;
+    }
+
+    fetch(`/api/ads/${adId}/click`, { method: 'POST' }).catch(() => {});
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return false;
 }
 
 function updateDashboardAdPosition() {
@@ -764,6 +807,7 @@ function showDashboardAd(delta) {
         title.textContent = current.title || '';
     }
     renderDashboardAd();
+
     updateDashboardAdPosition();
 }
 

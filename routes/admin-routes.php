@@ -2544,7 +2544,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'show_on_dashboard' => !empty($_POST['show_on_dashboard']),
                     'allow_auto_post' => !empty($_POST['allow_auto_post']),
                     'dashboard_weight' => max(1, (int)($_POST['dashboard_weight'] ?? 1)),
-                    'dashboard_priority' => (int)($_POST['dashboard_priority'] ?? 0)
+                    'dashboard_priority' => (int)($_POST['dashboard_priority'] ?? 0),
+                    'click_url' => trim((string)($_POST['click_url'] ?? '')),
                 ], $userId > 0 ? $userId : null);
                 echo json_encode([
                     'success' => true,

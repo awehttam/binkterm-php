@@ -192,12 +192,15 @@ class Advertising
                    a.allow_auto_post,
                    a.dashboard_weight,
                    a.dashboard_priority,
+                   a.click_url,
                    a.start_at,
                    a.end_at,
                    a.created_at,
                    a.updated_at,
                    COALESCE(STRING_AGG(t.name, ', ' ORDER BY LOWER(t.name)), '') AS tags_csv,
-                   OCTET_LENGTH(COALESCE(a.content, '')) AS size_bytes
+                   OCTET_LENGTH(COALESCE(a.content, '')) AS size_bytes,
+                   (SELECT COUNT(*) FROM advertisement_impressions ai WHERE ai.advertisement_id = a.id) AS impression_count,
+                   (SELECT COUNT(*) FROM advertisement_clicks ac WHERE ac.advertisement_id = a.id) AS click_count
             FROM advertisements a
             LEFT JOIN advertisement_tag_map atm ON atm.advertisement_id = a.id
             LEFT JOIN advertisement_tags t ON t.id = atm.tag_id
@@ -324,6 +327,8 @@ class Advertising
         $dashboardPriority = (int)($data['dashboard_priority'] ?? 0);
         $sourceType = trim((string)($data['source_type'] ?? 'upload')) ?: 'upload';
 
+        $clickUrl = trim((string)($data['click_url'] ?? ''));
+
         $stmt = $this->db->prepare("
             INSERT INTO advertisements (
                 slug,
@@ -341,9 +346,10 @@ class Advertising
                 allow_auto_post,
                 dashboard_weight,
                 dashboard_priority,
+                click_url,
                 start_at,
                 end_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
 
@@ -363,6 +369,7 @@ class Advertising
             $this->asPgBool(!empty($data['allow_auto_post'])),
             $dashboardWeight,
             $dashboardPriority,
+            $clickUrl !== '' ? $clickUrl : null,
             $this->normalizeTimestamp($data['start_at'] ?? null),
             $this->normalizeTimestamp($data['end_at'] ?? null)
         ]);
@@ -394,6 +401,10 @@ class Advertising
             throw new \InvalidArgumentException('Advertisement content or a content command is required');
         }
 
+        $clickUrl = array_key_exists('click_url', $data)
+            ? trim((string)$data['click_url'])
+            : trim((string)($existing['click_url'] ?? ''));
+
         $stmt = $this->db->prepare("
             UPDATE advertisements
             SET slug = ?,
@@ -409,6 +420,7 @@ class Advertising
                 allow_auto_post = ?,
                 dashboard_weight = ?,
                 dashboard_priority = ?,
+                click_url = ?,
                 start_at = ?,
                 end_at = ?,
                 updated_at = NOW()
@@ -429,6 +441,7 @@ class Advertising
             $this->asPgBool(!empty($data['allow_auto_post'] ?? $existing['allow_auto_post'])),
             max(1, (int)($data['dashboard_weight'] ?? $existing['dashboard_weight'] ?? 1)),
             (int)($data['dashboard_priority'] ?? $existing['dashboard_priority'] ?? 0),
+            $clickUrl !== '' ? $clickUrl : null,
             $this->normalizeTimestamp($data['start_at'] ?? ($existing['start_at'] ?? null)),
             $this->normalizeTimestamp($data['end_at'] ?? ($existing['end_at'] ?? null)),
             $id
@@ -1770,6 +1783,34 @@ class Advertising
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
+    /**
+     * Record a dashboard impression for an advertisement.
+     *
+     * @param int $adId  Advertisement ID
+     * @param int $userId User who saw the ad
+     */
+    public function recordImpression(int $adId, int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO advertisement_impressions (advertisement_id, user_id) VALUES (?, ?)"
+        );
+        $stmt->execute([$adId, $userId]);
+    }
+
+    /**
+     * Record a click-through for an advertisement.
+     *
+     * @param int $adId  Advertisement ID
+     * @param int $userId User who clicked
+     */
+    public function recordClick(int $adId, int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO advertisement_clicks (advertisement_id, user_id) VALUES (?, ?)"
+        );
+        $stmt->execute([$adId, $userId]);
+    }
+
     private function hydrateAd(array $row): array
     {
         $row['id'] = (int)$row['id'];
@@ -1782,6 +1823,9 @@ class Advertising
         $row['tags'] = self::normalizeTags((string)($row['tags_csv'] ?? ''));
         $row['name'] = (string)($row['legacy_filename'] ?? $row['slug']);
         $row['content_command'] = isset($row['content_command']) && $row['content_command'] !== '' ? $row['content_command'] : null;
+        $row['click_url'] = isset($row['click_url']) && $row['click_url'] !== '' ? $row['click_url'] : null;
+        $row['impression_count'] = isset($row['impression_count']) ? (int)$row['impression_count'] : null;
+        $row['click_count'] = isset($row['click_count']) ? (int)$row['click_count'] : null;
         return $row;
     }
 
