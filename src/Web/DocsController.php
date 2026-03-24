@@ -68,7 +68,10 @@ class DocsController
 
         $raw  = file_get_contents($realPath);
         $raw  = $this->rewriteLinks($raw);
-        $html = MarkdownRenderer::toHtml($raw);
+        // HTML pass-through is enabled only for README.md, which is trusted
+        // sysop-maintained content. All other docs are rendered with HTML escaped.
+        $allowHtml = ($name === 'README');
+        $html = MarkdownRenderer::toHtml($raw, allowHtml: $allowHtml);
 
         $template = new Template();
         $template->renderResponse('admin/docs.twig', [
@@ -76,6 +79,40 @@ class DocsController
             'doc_name'  => $name,
             'is_index'  => $name === 'index',
         ]);
+    }
+
+    /**
+     * Serve a static asset (images only) from the docs/ directory.
+     *
+     * Only image file types are permitted. Path traversal is blocked via realpath().
+     *
+     * @param string $path Relative path within docs/, e.g. "screenshots/echomail.png"
+     */
+    public function asset(string $path): void
+    {
+        // Restrict to safe characters; reject anything with ..
+        if (!preg_match('/^[A-Za-z0-9_.\-\/]+$/', $path) || str_contains($path, '..')) {
+            http_response_code(404);
+            return;
+        }
+
+        $allowed = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (!isset($allowed[$ext])) {
+            http_response_code(404);
+            return;
+        }
+
+        $filePath = $this->docsDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        $realPath = realpath($filePath);
+        if ($realPath === false || !str_starts_with($realPath, $this->docsDir . DIRECTORY_SEPARATOR)) {
+            http_response_code(404);
+            return;
+        }
+
+        header('Content-Type: ' . $allowed[$ext]);
+        header('Cache-Control: max-age=3600');
+        readfile($realPath);
     }
 
     /**
@@ -89,7 +126,8 @@ class DocsController
      */
     private function rewriteLinks(string $markdown): string
     {
-        return preg_replace_callback(
+        // Rewrite relative .md links to /admin/docs/view/{name}
+        $markdown = preg_replace_callback(
             '/\[([^\]]+)\]\((?!https:\/\/|#)(?:\.\/)?([A-Za-z0-9_.\-\/]+)\.md(#[^\)]*)?\)/',
             function (array $m): string {
                 $label  = $m[1];
@@ -112,6 +150,19 @@ class DocsController
             },
             $markdown
         );
+
+        // Rewrite relative image src attributes (e.g. src="docs/screenshots/foo.png")
+        // to the docs asset route so browsers can fetch them.
+        $markdown = preg_replace_callback(
+            '/\bsrc="(docs\/[A-Za-z0-9_.\-\/]+\.(png|jpg|jpeg|gif|webp))"/',
+            function (array $m): string {
+                $assetPath = substr($m[1], strlen('docs/'));
+                return 'src="/admin/docs/asset/' . $assetPath . '"';
+            },
+            $markdown
+        );
+
+        return $markdown;
     }
 
     /**

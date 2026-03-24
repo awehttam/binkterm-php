@@ -500,6 +500,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $controller->view($name);
     })->where(['name' => '[A-Za-z0-9_.\-]+']);
 
+    SimpleRouter::get('/docs/asset/{path}', function(string $path) {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->asset($path);
+    })->where(['path' => '[A-Za-z0-9_.\-\/]+']);
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
