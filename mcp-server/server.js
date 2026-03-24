@@ -269,40 +269,31 @@ pool.on('error', (err) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a query that might touch text columns with invalid UTF-8 byte sequences.
+ * Run a query with client_encoding forced to SQL_ASCII before execution.
  *
- * PostgreSQL validates UTF-8 encoding when performing string operations such as
- * ILIKE. If a stored message contains a corrupted byte sequence the query will
- * fail with "invalid byte sequence for encoding UTF8".  On that specific error
- * we retry the query on a dedicated client with `client_encoding = 'SQL_ASCII'`,
- * which instructs PostgreSQL to skip encoding validation and treat the bytes as
- * opaque data.  The dedicated client is destroyed after use so it is never
- * returned to the pool with altered session settings.
+ * node-postgres hardcodes `client_encoding=UTF8` in every startup message
+ * (pg-protocol/dist/serializer.js — not overridable via Pool config).
+ * PostgreSQL then strictly validates stored text during ALL string operations
+ * (ILIKE, LEFT, etc.), which throws on messages with corrupted byte sequences.
+ *
+ * Fix: acquire a dedicated client, synchronously AWAIT SET client_encoding to
+ * SQL_ASCII (PostgreSQL skips encoding validation), run the query, then destroy
+ * the client so the altered session setting never returns to the pool.
  *
  * @param {string}  sql
  * @param {Array}   [params]
  * @returns {Promise<import('pg').QueryResult>}
  */
-async function queryWithEncodingFallback(sql, params = []) {
+async function queryTextSafe(sql, params = []) {
+    const client = await pool.connect();
     try {
-        return await pool.query(sql, params);
+        await client.query("SET client_encoding TO 'SQL_ASCII'");
+        return await client.query(sql, params);
     } catch (e) {
-        if (!e.message?.includes('invalid byte sequence')) {
-            logger.error('DB query error:', e.message);
-            throw e;
-        }
-        logger.warn('Encoding error — retrying query with SQL_ASCII client encoding');
-        const client = await pool.connect();
-        try {
-            await client.query("SET client_encoding TO 'SQL_ASCII'");
-            return await client.query(sql, params);
-        } catch (e2) {
-            logger.error('DB query error (SQL_ASCII fallback):', e2.message);
-            throw e2;
-        } finally {
-            // Destroy this connection; do not return it to the pool with altered encoding.
-            client.release(true);
-        }
+        logger.error('DB query error:', e.message);
+        throw e;
+    } finally {
+        client.release(true); // destroy — never return altered encoding to pool
     }
 }
 
@@ -409,7 +400,7 @@ function createServer(userCtx) {
                 WHERE ${conditions.join(' AND ')}
                 ORDER BY ea.tag ASC
             `;
-            const result = await queryWithEncodingFallback(sql, params);
+            const result = await queryTextSafe(sql, params);
             return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };
         }
     );
@@ -440,7 +431,7 @@ function createServer(userCtx) {
             }
             sql += ' LIMIT 1';
 
-            const result = await queryWithEncodingFallback(sql, params);
+            const result = await queryTextSafe(sql, params);
             if (result.rows.length === 0) {
                 return { content: [{ type: 'text', text: `Echo area "${tag}" not found or access denied.` }] };
             }
@@ -499,7 +490,7 @@ function createServer(userCtx) {
                 LIMIT $${params.length - 1}
                 OFFSET $${params.length}
             `;
-            const result = await queryWithEncodingFallback(sql, params);
+            const result = await queryTextSafe(sql, params);
             return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };
         }
     );
@@ -526,7 +517,7 @@ function createServer(userCtx) {
                   AND ea.is_active = TRUE
                   ${sysopClause}
             `;
-            const result = await queryWithEncodingFallback(sql, [id]);
+            const result = await queryTextSafe(sql, [id]);
             if (result.rows.length === 0) {
                 return { content: [{ type: 'text', text: `Message ID ${id} not found or access denied.` }] };
             }
@@ -580,7 +571,7 @@ function createServer(userCtx) {
                 ORDER BY em.date_received DESC
                 LIMIT $${params.length}
             `;
-            const result = await queryWithEncodingFallback(sql, params);
+            const result = await queryTextSafe(sql, params);
             return {
                 content: [{
                     type: 'text',
@@ -625,7 +616,7 @@ function createServer(userCtx) {
             const rootId = rootResult.rows[0]?.id ?? id;
 
             // Fetch the full thread downward, enforcing echoarea access at every level
-            const result = await queryWithEncodingFallback(`
+            const result = await queryTextSafe(`
                 WITH RECURSIVE thread AS (
                     SELECT em.id, em.reply_to_id, em.from_name, em.to_name, em.subject,
                            to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
