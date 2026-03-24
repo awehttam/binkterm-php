@@ -236,6 +236,12 @@ class AnsiTerminal {
                 // CSI sequence
                 i += 2;
                 let params = '';
+                let privatePrefix = '';
+
+                if (i < text.length && text[i] === '?') {
+                    privatePrefix = '?';
+                    i++;
+                }
 
                 // Collect parameters
                 while (i < text.length && /[0-9;]/.test(text[i])) {
@@ -318,6 +324,13 @@ class AnsiTerminal {
                             this.buffer.pop();
                             this.buffer.unshift(this.createEmptyRow());
                         }
+                        break;
+                    case 'h': // Set mode
+                    case 'l': // Reset mode
+                        // DEC private modes such as ESC[?7h (autowrap) are common in
+                        // ANSI ads. We do not emulate those modes yet, but we must
+                        // consume the sequence cleanly instead of leaking trailing
+                        // characters into the rendered output.
                         break;
                     // Ignore other sequences
                 }
@@ -821,6 +834,13 @@ class ArtAnsiDecoder {
             if (char === '\x1b' && text[i + 1] === '[') {
                 i += 2;
                 let params = '';
+                let privatePrefix = '';
+
+                if (i < text.length && text[i] === '?') {
+                    privatePrefix = '?';
+                    i++;
+                }
+
                 while (i < text.length && /[0-9;]/.test(text[i])) {
                     params += text[i];
                     i++;
@@ -891,6 +911,11 @@ class ArtAnsiDecoder {
                         break;
                     case 'T':
                         this.buffer.scrollDown(n);
+                        break;
+                    case 'h':
+                    case 'l':
+                        // Ignore mode set/reset sequences, including DEC private modes
+                        // like ESC[?7h, after consuming them fully.
                         break;
                 }
             } else if (char === '\x1b') {
@@ -1292,10 +1317,11 @@ function findScreenRamOffset(bytes) {
     return -1;
 }
 
-function renderAnsiBuffer(text, cols = 80, rows = 500) {
+function renderAnsiBuffer(text, cols = 80, rows = 500, rendererMode = null) {
     const buffer = new ArtScreenBuffer(cols, rows);
     const decoder = new ArtAnsiDecoder(buffer);
-    const renderer = (window.siteConfig?.ansiRendererMode === 'perchar')
+    const effectiveRendererMode = rendererMode || window.siteConfig?.ansiRendererMode || 'grouped';
+    const renderer = (effectiveRendererMode === 'perchar')
         ? new ArtHtmlRendererPerChar()
         : new ArtHtmlRenderer();
     decoder.decode(text);
@@ -1376,6 +1402,7 @@ function getArtProfileClass(format) {
 function renderArtMessage(text, options = {}) {
     const format = normalizeArtFormat(options.format || 'auto');
     let sourceText = options.byteString || text || '';
+    const rendererMode = options.rendererMode || null;
 
     if (format !== 'petscii' && hasPipeCodes(sourceText)) {
         sourceText = convertPipeCodesToAnsi(sourceText);
@@ -1391,10 +1418,10 @@ function renderArtMessage(text, options = {}) {
     }
 
     if (format === 'ansi' || format === 'auto' || !format) {
-        return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+        return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500, rendererMode);
     }
 
-    return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+    return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500, rendererMode);
 }
 
 function stripNonSgrAnsi(text) {

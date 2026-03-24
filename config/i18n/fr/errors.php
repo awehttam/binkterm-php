@@ -183,6 +183,7 @@ return [
     'errors.binkp.connection_test_failed' => 'Échec du test de connexion BinkP',
     'errors.binkp.logs.failed' => 'Échec du chargement des journaux BinkP',
     'errors.binkp.uplink.address_hostname_required' => 'L\'adresse et le nom d\'hôte sont requis',
+    'errors.binkp.uplink.address_required' => 'L\'adresse du lien montant est requise',
     'errors.binkp.uplink.poll_failed' => 'Échec de l\'interrogation du lien montant BinkP',
     'errors.binkp.uplink.poll_all_failed' => 'Échec de l\'interrogation de tous les liens montants BinkP',
     'errors.binkp.uplink.add_failed' => 'Échec de l\'ajout du lien montant BinkP',

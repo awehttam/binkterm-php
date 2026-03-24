@@ -2605,6 +2605,7 @@ return [
     'ui.binkp.poll' => 'Consultar',
     'ui.binkp.enabled' => 'Habilitado',
     'ui.binkp.disabled' => 'Deshabilitado',
+    'ui.binkp.checking' => 'Comprobando...',
     'ui.binkp.online' => 'En linea',
     'ui.binkp.offline' => 'Fuera de linea',
     'ui.binkp.no_uplinks_configured' => 'No hay uplinks configurados',

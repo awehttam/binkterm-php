@@ -56,6 +56,11 @@ class AdminDaemonClient
         return $this->sendCommand('binkp_auth_test', ['domain' => $domain]);
     }
 
+    public function binkpAuthTestAddress(string $address): array
+    {
+        return $this->sendCommand('binkp_auth_test', ['address' => $address]);
+    }
+
     public function getBbsConfig(): array
     {
         return $this->sendCommand('get_bbs_config');

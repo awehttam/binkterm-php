@@ -262,6 +262,7 @@ return [
     'errors.binkp.kept_packets.inspect_failed' => 'No se pudo inspeccionar el paquete',
     'errors.binkp.queue.inspect_failed' => 'No se pudo inspeccionar el paquete de la cola',
     'errors.binkp.uplink.address_hostname_required' => 'Se requieren direccion y hostname',
+    'errors.binkp.uplink.address_required' => 'Se requiere la direccion del uplink',
     'errors.binkp.uplink.poll_failed' => 'No se pudo consultar el uplink BinkP',
     'errors.binkp.uplink.poll_all_failed' => 'No se pudieron consultar todos los uplinks BinkP',
     'errors.binkp.uplink.add_failed' => 'No se pudo agregar el uplink BinkP',

@@ -183,6 +183,93 @@ class BinkpClient
             throw $e;
         }
     }
+
+    /**
+     * Authenticate with a remote node without entering the file transfer phase.
+     *
+     * @param string      $address  FTN address of the remote node
+     * @param string|null $hostname Optional hostname override
+     * @param int|null    $port     Optional port override
+     * @param string|null $password Optional password override
+     *
+     * @return array{success:bool,remote_address:mixed,auth_method:string}
+     */
+    public function authTest($address, $hostname = null, $port = null, $password = null)
+    {
+        $uplink = $this->config->getUplinkByAddress($address);
+
+        if (!$uplink && !$hostname) {
+            $resolved = $this->resolveNodeHostname($address);
+            if ($resolved === null) {
+                throw new \Exception(
+                    "Cannot resolve hostname for {$address}: not a configured uplink and not found in nodelist or binkp_zone DNS"
+                );
+            }
+            $hostname = $resolved['hostname'];
+            $port = $resolved['port'];
+            $password = '';
+        }
+
+        $hostname = $hostname ?: $uplink['hostname'];
+        $port = $port ?: ($uplink['port'] ?? 24554);
+        $password = $password !== null ? $password : ($uplink['password'] ?? '');
+
+        $this->log("Running auth-only test against {$hostname}:{$port} ({$address})");
+
+        $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+        if ($socket === false) {
+            throw new \Exception('Failed to create client socket: ' . socket_strerror(socket_last_error()));
+        }
+
+        socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
+        socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
+        $this->configureTcpNoDelay($socket);
+
+        $result = socket_connect($socket, $hostname, $port);
+        if ($result === false) {
+            $error = socket_strerror(socket_last_error($socket));
+            if (is_resource($socket)) {
+                socket_close($socket);
+            }
+            throw new \Exception("Failed to connect to {$hostname}:{$port}: {$error}");
+        }
+
+        $session = null;
+
+        try {
+            $stream = $this->socketToStream($socket);
+            $session = new BinkpSession($stream, true, $this->config);
+            $session->setLogger($this->logger);
+            $session->setUplinkPassword($password);
+
+            if ($uplink) {
+                $session->setCurrentUplink($uplink);
+            } else {
+                $routedUplink = $this->config->getUplinkForDestination($address);
+                if ($routedUplink) {
+                    $routedUplink['crypt'] = false;
+                    $session->setCurrentUplink($routedUplink);
+                }
+            }
+
+            $session->handshake();
+
+            return [
+                'success' => true,
+                'remote_address' => $session->getRemoteAddress(),
+                'auth_method' => $session->getAuthMethod(),
+            ];
+        } catch (\Exception $e) {
+            $this->log("Auth-only test failed with {$address}: " . $e->getMessage(), 'ERROR');
+            throw $e;
+        } finally {
+            if ($session) {
+                $session->close();
+            } elseif (is_resource($socket)) {
+                socket_close($socket);
+            }
+        }
+    }
     
     public function pollUplink($address)
     {

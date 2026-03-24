@@ -5413,7 +5413,25 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
-        $body = \BinktermPHP\Advertising::stripSauce((string)($message['message_text'] ?? ''));
+        $body = '';
+
+        $rawBytesB64 = (string)($message['message_bytes_b64'] ?? '');
+        if ($rawBytesB64 !== '') {
+            $decodedBytes = base64_decode($rawBytesB64, true);
+            if ($decodedBytes !== false && $decodedBytes !== '') {
+                $charset = \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset((string)($message['message_charset'] ?? 'UTF-8'));
+                $converted = @iconv($charset, 'UTF-8//IGNORE', $decodedBytes);
+                if ($converted !== false && $converted !== '') {
+                    $body = $converted;
+                }
+            }
+        }
+
+        if ($body === '') {
+            $body = (string)($message['message_text'] ?? '');
+        }
+
+        $body = \BinktermPHP\Advertising::stripSauce($body);
         $bodyLines = preg_split('/\r\n|\r|\n/', $body) ?: [];
         $trimmedBodyLines = [];
         foreach ($bodyLines as $line) {
@@ -7412,6 +7430,32 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             header('Content-Type: application/json');
             apiError('', apiLocalizedText('', ''));
+        }
+    });
+
+    SimpleRouter::get('/binkp/uplink-status', function() {
+        ob_start();
+
+        requireBinkpAdmin();
+        header('Content-Type: application/json');
+
+        $address = trim((string)($_GET['address'] ?? ''));
+        if ($address === '') {
+            ob_clean();
+            apiError('errors.binkp.uplink.address_required', apiLocalizedText('errors.binkp.uplink.address_required', 'Uplink address is required'), 400);
+            return;
+        }
+
+        try {
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+            $result = $controller->testUplinkAuthentication($address);
+
+            ob_clean();
+            echo json_encode($result);
+        } catch (\Exception $e) {
+            ob_clean();
+            http_response_code(500);
+            apiError('errors.binkp.status_failed', apiLocalizedText('errors.binkp.status_failed', 'Failed to load BinkP status'), 500);
         }
     });
 

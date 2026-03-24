@@ -76,7 +76,7 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5>{{ t('ui.binkp.system_information') }}</h5>
-                            <button class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshBinkpOverview()">
                                 <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
                             </button>
                         </div>
@@ -365,6 +365,7 @@
 
 <script>
 let binkpData = {};
+let binkpUplinks = [];
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -390,8 +391,7 @@ function apiMessage(payload, fallback) {
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
-        refreshStatus();
-        refreshUplinks();
+        refreshBinkpOverview();
         refreshQueues();
         refreshLogs();
         CronBuilder.init('pollScheduleInput');
@@ -401,8 +401,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Auto-refresh every 30 seconds
-setInterval(refreshStatus, 30000);
+function refreshBinkpOverview() {
+    refreshStatus();
+    refreshUplinks();
+}
 
 function refreshStatus() {
     console.log('Calling /api/binkp/status...');
@@ -431,7 +433,7 @@ function updateStatusDisplay(data) {
     document.getElementById('system-status').textContent = data.system.address;
     document.getElementById('inbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.inbound.pending_files });
     document.getElementById('outbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.outbound.pending_files });
-    document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: Object.keys(data.uplinks).length });
+    document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: binkpUplinks.length });
 
     // Update system info
     const systemInfo = document.getElementById('system-info');
@@ -449,22 +451,6 @@ function updateStatusDisplay(data) {
             <dd class="col-sm-8">${data.system.hostname}</dd>
         </dl>
     `;
-
-    // Update uplink status
-    const uplinkStatus = document.getElementById('uplink-status');
-    let uplinkHtml = '';
-    for (const [address, uplink] of Object.entries(data.uplinks)) {
-        const status = uplink.success ? 
-            `<span class="badge bg-success">${uiT('ui.binkp.online', 'Online')}</span>` : 
-            `<span class="badge bg-danger">${uiT('ui.binkp.offline', 'Offline')}</span>`;
-        uplinkHtml += `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span>${address}</span>
-                ${status}
-            </div>
-        `;
-    }
-    uplinkStatus.innerHTML = uplinkHtml || `<p class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</p>`;
 }
 
 function refreshUplinks() {
@@ -479,10 +465,15 @@ function refreshUplinks() {
         })
         .then(data => {
             console.log('Uplinks data received:', data);
+            binkpUplinks = Array.isArray(data.uplinks) ? data.uplinks : [];
+            document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: binkpUplinks.length });
+            renderUplinkStatusList(binkpUplinks);
             updateUplinksTable(data.uplinks);
+            startUplinkConnectivityChecks(binkpUplinks);
         })
         .catch(error => {
             console.error('Error fetching uplinks:', error);
+            document.getElementById('uplink-status').innerHTML = `<div class="alert alert-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</div>`;
             const tbody = document.querySelector('#uplinksTable tbody');
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</td></tr>`;
@@ -490,28 +481,153 @@ function refreshUplinks() {
         });
 }
 
+function renderUplinkStatusList(uplinks) {
+    const uplinkStatus = document.getElementById('uplink-status');
+    if (!Array.isArray(uplinks) || uplinks.length === 0) {
+        uplinkStatus.innerHTML = `<p class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</p>`;
+        return;
+    }
+
+    let html = '';
+    uplinks.forEach(uplink => {
+        const address = String(uplink.address || '');
+        const escapedAddress = escapeHtml(address);
+        const enabledBadge = uplink.enabled
+            ? `<span class="badge bg-success ms-2">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
+            : `<span class="badge bg-secondary ms-2">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
+        const initialStatus = getInitialUplinkConnectivityResult(uplink);
+
+        html += `
+            <div class="d-flex justify-content-between align-items-center mb-2" data-uplink-list-row="${escapeHtmlAttr(address)}">
+                <div>
+                    <span>${escapedAddress}</span>${enabledBadge}
+                </div>
+                <div data-uplink-list-status="${escapeHtmlAttr(address)}">
+                    ${renderUplinkConnectivityHtml(initialStatus)}
+                </div>
+            </div>
+        `;
+    });
+
+    uplinkStatus.innerHTML = html;
+}
+
 function updateUplinksTable(uplinks) {
     const tbody = document.querySelector('#uplinksTable tbody');
     tbody.innerHTML = '';
 
     uplinks.forEach(uplink => {
-        const status = uplink.enabled ? 
-            `<span class="badge bg-success">${uiT('ui.binkp.enabled', 'Enabled')}</span>` : 
-            `<span class="badge bg-secondary">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
+        const enabledBadge = uplink.enabled
+            ? `<span class="badge bg-success">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
+            : `<span class="badge bg-secondary">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
+        const address = String(uplink.address || '');
+        const initialStatus = getInitialUplinkConnectivityResult(uplink);
+        const canPoll = Boolean(address) && Boolean(uplink.enabled);
         
         const row = tbody.insertRow();
         row.innerHTML = `
-            <td>${uplink.address}</td>
-            <td>${uplink.hostname}</td>
-            <td>${uplink.port}</td>
-            <td>${status}</td>
-            <td><code>${uplink.poll_schedule}</code></td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">${uiT('ui.binkp.poll', 'Poll')}</button>
+                <div>${escapeHtml(address)}</div>
+                <div class="small mt-1">${enabledBadge}</div>
+            </td>
+            <td>${escapeHtml(String(uplink.hostname || ''))}</td>
+            <td>${uplink.port}</td>
+            <td data-uplink-table-status="${escapeHtmlAttr(address)}">${renderUplinkConnectivityHtml(initialStatus)}</td>
+            <td><code>${escapeHtml(String(uplink.poll_schedule || ''))}</code></td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="pollUplink('${escapeJsString(address)}')"${canPoll ? '' : ' disabled'}>${uiT('ui.binkp.poll', 'Poll')}</button>
                 <!-- <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button> -->
             </td>
         `;
     });
+}
+
+function startUplinkConnectivityChecks(uplinks) {
+    uplinks.forEach(uplink => {
+        const address = String(uplink.address || '');
+        if (!address || !uplink.enabled) {
+            return;
+        }
+
+        fetch(`/api/binkp/uplink-status?address=${encodeURIComponent(address)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', {
+                        code: response.status,
+                        text: response.statusText
+                    }));
+                }
+                return response.json();
+            })
+            .then(result => {
+                updateUplinkConnectivityDisplay(address, result);
+            })
+            .catch(error => {
+                updateUplinkConnectivityDisplay(address, {
+                    success: false,
+                    error: error.message
+                });
+            });
+    });
+}
+
+function getInitialUplinkConnectivityResult(uplink) {
+    const address = String(uplink && uplink.address ? uplink.address : '');
+    if (!address) {
+        return {
+            success: false,
+            skipped: true,
+            not_configured: true
+        };
+    }
+
+    if (!uplink.enabled) {
+        return {
+            success: false,
+            skipped: true,
+            disabled: true
+        };
+    }
+
+    return null;
+}
+
+function updateUplinkConnectivityDisplay(address, result) {
+    const html = renderUplinkConnectivityHtml(result);
+    const listNode = document.querySelector(`[data-uplink-list-status="${cssEscape(address)}"]`);
+    if (listNode) {
+        listNode.innerHTML = html;
+    }
+
+    const tableNode = document.querySelector(`[data-uplink-table-status="${cssEscape(address)}"]`);
+    if (tableNode) {
+        tableNode.innerHTML = html;
+    }
+}
+
+function renderPendingConnectivityBadge() {
+    return `<span class="text-muted"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>${uiT('ui.binkp.checking', 'Checking...')}</span>`;
+}
+
+function renderUplinkConnectivityHtml(result) {
+    if (!result) {
+        return renderPendingConnectivityBadge();
+    }
+
+    if (result && result.disabled) {
+        return `<span class="badge bg-secondary">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
+    }
+
+    if (result && result.not_configured) {
+        return `<span class="badge bg-secondary">${uiT('ui.common.not_configured', 'Not configured')}</span>`;
+    }
+
+    if (result && result.success) {
+        return `<span class="badge bg-success">${uiT('ui.binkp.online', 'Online')}</span>`;
+    }
+
+    const errorText = result && result.error ? escapeHtml(String(result.error)) : uiT('ui.binkp.offline', 'Offline');
+    return `<div><span class="badge bg-danger">${uiT('ui.binkp.offline', 'Offline')}</span><div class="small text-muted mt-1">${errorText}</div></div>`;
 }
 
 function refreshQueues() {
@@ -965,7 +1081,7 @@ function pollUplink(address) {
             } else {
                 showAlert(uiT('ui.binkp.poll_failed_prefix', 'Poll failed: ') + apiError(data, uiT('ui.binkp.poll_failed', 'Poll failed')), 'danger', { persistent: true });
             }
-            refreshStatus();
+            refreshBinkpOverview();
         })
         .catch(error => {
             console.error('Poll error:', error);
@@ -991,7 +1107,7 @@ function pollAllUplinks() {
             } else {
                 showAlert(uiT('ui.binkp.polling_failed_prefix', 'Polling failed: ') + apiError(data, uiT('ui.binkp.polling_failed', 'Polling failed')), 'danger', { persistent: true });
             }
-            refreshStatus();
+            refreshBinkpOverview();
         })
         .catch(error => {
             showAlert(uiT('ui.binkp.error_polling_uplinks_prefix', 'Error polling uplinks: ') + error.message, 'danger', { persistent: true });
@@ -1005,7 +1121,7 @@ function processInbound() {
             if (data.success) {
                 showAlert(apiMessage(data, uiT('ui.binkp.inbound_processing_completed', 'Inbound processing completed')), 'success');
                 refreshQueues();
-                refreshStatus();
+                refreshBinkpOverview();
             } else {
                 showAlert(uiT('ui.binkp.processing_failed_prefix', 'Processing failed: ') + apiError(data, uiT('ui.binkp.processing_failed', 'Processing failed')), 'danger');
             }
@@ -1022,7 +1138,7 @@ function processOutbound() {
             if (data.success) {
                 showAlert(apiMessage(data, uiT('ui.binkp.outbound_processing_completed', 'Outbound processing completed')), 'success');
                 refreshQueues();
-                refreshStatus();
+                refreshBinkpOverview();
             } else {
                 showAlert(uiT('ui.binkp.processing_failed_prefix', 'Processing failed: ') + apiError(data, uiT('ui.binkp.processing_failed', 'Processing failed')), 'danger');
             }
@@ -1049,8 +1165,7 @@ function addUplink() {
             showAlert(apiMessage(result, uiT('ui.binkp.uplink_added_success', 'Uplink added successfully')), 'success');
             document.getElementById('addUplinkModal').querySelector('.btn-close').click();
             form.reset();
-            refreshUplinks();
-            refreshStatus();
+            refreshBinkpOverview();
         } else {
             showAlert(uiT('ui.binkp.add_uplink_failed_prefix', 'Failed to add uplink: ') + apiError(result, uiT('ui.binkp.add_uplink_failed', 'Failed to add uplink')), 'danger');
         }
@@ -1068,8 +1183,7 @@ function removeUplink(address) {
         .then(data => {
             if (data.success) {
                 showAlert(apiMessage(data, uiT('ui.binkp.uplink_removed_success', 'Uplink removed successfully')), 'success');
-                refreshUplinks();
-                refreshStatus();
+                refreshBinkpOverview();
             } else {
                 showAlert(uiT('ui.binkp.remove_uplink_failed_prefix', 'Failed to remove uplink: ') + apiError(data, uiT('ui.binkp.remove_uplink_failed', 'Failed to remove uplink')), 'danger');
             }
@@ -1152,12 +1266,31 @@ function triggerPacketProcessing() {
 }
 
 function escapeHtml(value) {
-    return value
+    return String(value)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value);
+}
+
+function escapeJsString(value) {
+    return String(value)
+        .replaceAll('\\', '\\\\')
+        .replaceAll("'", "\\'");
+}
+
+function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+        return window.CSS.escape(String(value));
+    }
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, function(char) {
+        return '\\' + char;
+    });
 }
 
 

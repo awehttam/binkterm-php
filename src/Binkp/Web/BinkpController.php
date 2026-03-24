@@ -37,15 +37,14 @@ class BinkpController
     
     public function getStatus()
     {
-        $client = new BinkpClient($this->config, $this->logger);
         $scheduler = new Scheduler($this->config, $this->logger);
         $inboundQueue = new InboundQueue($this->config, $this->logger);
         $outboundQueue = new OutboundQueue($this->config, $this->logger);
         
-        $uplinkStatus = $client->getUplinkStatus();
         $scheduleStatus = $scheduler->getScheduleStatus();
         $inboundStats = $inboundQueue->getStats();
         $outboundStats = $outboundQueue->getStats();
+        unset($inboundStats['inbound_path'], $outboundStats['outbound_path']);
         
         return [
             'system' => [
@@ -55,7 +54,6 @@ class BinkpController
                 'hostname' => $this->config->getSystemHostname(),
                 'port' => $this->config->getBinkpPort()
             ],
-            'uplinks' => $uplinkStatus,
             'schedule' => $scheduleStatus,
             'queues' => [
                 'inbound' => $inboundStats,
@@ -63,6 +61,51 @@ class BinkpController
             ],
             'timestamp' => date('Y-m-d H:i:s')
         ];
+    }
+
+    public function testUplinkAuthentication(string $address): array
+    {
+        $uplink = $this->config->getUplinkByAddress($address);
+        if (!$uplink) {
+            return [
+                'success' => false,
+                'error_code' => 'errors.binkp.uplink.not_found',
+                'error' => 'Uplink not found',
+            ];
+        }
+
+        if (!($uplink['enabled'] ?? true)) {
+            return [
+                'success' => false,
+                'error_code' => 'errors.binkp.uplink.disabled',
+                'error' => 'Uplink is disabled',
+                'disabled' => true,
+            ];
+        }
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->binkpAuthTestAddress($address);
+
+            return [
+                'success' => true,
+                'auth_method' => $result['auth_method'] ?? null,
+                'remote_address' => $result['remote_address'] ?? null,
+            ];
+        } catch (\RuntimeException $e) {
+            $message = $e->getMessage();
+            $daemonError = str_starts_with($message, 'Failed to connect to admin daemon');
+            if (!$daemonError) {
+                $message = (string)preg_replace('/^Admin daemon error:\s*/', '', $message);
+            }
+
+            return [
+                'success' => false,
+                'error_code' => 'errors.binkp.connection_test_failed',
+                'error' => $message,
+                'daemon_error' => $daemonError,
+            ];
+        }
     }
     
     public function pollUplink($address)

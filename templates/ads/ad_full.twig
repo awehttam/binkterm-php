@@ -6,7 +6,7 @@
 <div class="row justify-content-center">
     <div class="col-12 d-flex justify-content-center">
         {% if ad %}
-            <div id="fullAdContainer" class="w-100" style="overflow: hidden;" data-ad-content="{{ ad.content|e('html_attr') }}"></div>
+            <div id="fullAdContainer" class="w-100" data-ad-content="{{ ad.content|e('html_attr') }}"></div>
         {% else %}
             <p class="text-muted">{{ t('ui.ads.none_available', {}, locale, ['common']) }}</p>
         {% endif %}

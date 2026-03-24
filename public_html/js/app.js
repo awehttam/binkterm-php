@@ -460,6 +460,12 @@ function renderAdContent(container, content) {
         return;
     }
 
+    const looksLikeAnsiArt = typeof looksLikeAnsiArtText === 'function' && looksLikeAnsiArtText(content);
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(content);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(content);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(content);
+    const hasColorCodes = hasAnsi || hasPipes;
+
     // RIPscrip
     if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(content)) {
         renderRipContent(container, content);
@@ -477,7 +483,12 @@ function renderAdContent(container, content) {
     }
 
     // ANSI / PCBoard / plain
-    const html = formatMessageBodyForDisplay({}, content, []);
+    const adMessage = {};
+    if (looksLikeAnsiArt) {
+        adMessage.art_format = 'ansi';
+    }
+
+    const html = formatMessageBodyForDisplay(adMessage, content, []);
     container.innerHTML = '';
     const tmp = document.createElement('div');
     tmp.innerHTML = html;

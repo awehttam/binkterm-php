@@ -2088,6 +2088,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.poll' => 'Interroger',
     'ui.binkp.enabled' => 'Activé',
     'ui.binkp.disabled' => 'Désactivé',
+    'ui.binkp.checking' => 'Vérification...',
     'ui.binkp.online' => 'En ligne',
     'ui.binkp.offline' => 'Hors ligne',
     'ui.binkp.no_uplinks_configured' => 'Aucun uplink configuré',

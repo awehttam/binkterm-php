@@ -7,7 +7,7 @@
             </div>
             <div class="modal-body">
                 {% if ad %}
-                    <div id="{{ modal_id }}AdContainer" class="w-100" style="overflow: hidden;" data-ad-content="{{ ad.content|e('html_attr') }}"></div>
+                    <div id="{{ modal_id }}AdContainer" class="w-100" data-ad-content="{{ ad.content|e('html_attr') }}"></div>
                 {% else %}
                     <p class="text-muted mb-0">{{ t('ui.ads.none_available', {}, locale, ['common']) }}</p>
                 {% endif %}

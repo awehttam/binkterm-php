@@ -262,6 +262,7 @@ return [
     'errors.binkp.kept_packets.inspect_failed' => 'Failed to inspect packet',
     'errors.binkp.queue.inspect_failed' => 'Failed to inspect queue packet',
     'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',
+    'errors.binkp.uplink.address_required' => 'Uplink address is required',
     'errors.binkp.uplink.poll_failed' => 'Failed to poll BinkP uplink',
     'errors.binkp.uplink.poll_all_failed' => 'Failed to poll all BinkP uplinks',
     'errors.binkp.uplink.add_failed' => 'Failed to add BinkP uplink',

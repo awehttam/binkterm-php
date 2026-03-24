@@ -2597,6 +2597,7 @@ return [
     'ui.binkp.poll' => 'Poll',
     'ui.binkp.enabled' => 'Enabled',
     'ui.binkp.disabled' => 'Disabled',
+    'ui.binkp.checking' => 'Checking...',
     'ui.binkp.online' => 'Online',
     'ui.binkp.offline' => 'Offline',
     'ui.binkp.no_uplinks_configured' => 'No uplinks configured',

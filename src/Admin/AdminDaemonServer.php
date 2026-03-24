@@ -262,24 +262,29 @@ class AdminDaemonServer
                     break;
                 case 'binkp_auth_test':
                     $domain = $data['domain'] ?? null;
-                    if (!$domain) {
+                    $address = $data['address'] ?? null;
+                    if (!$domain && !$address) {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_domain']);
                         break;
                     }
                     try {
                         $binkpConfig = BinkpConfig::getInstance();
-                        $uplink = $binkpConfig->getUplinkByDomain($domain);
+                        $uplink = $address
+                            ? $binkpConfig->getUplinkByAddress((string)$address)
+                            : $binkpConfig->getUplinkByDomain((string)$domain);
                         if (!$uplink) {
-                            $this->writeResponse($client, ['ok' => false, 'error' => "No uplink configured for domain: {$domain}"]);
+                            $lookup = $address !== null ? (string)$address : (string)$domain;
+                            $kind = $address !== null ? 'address' : 'domain';
+                            $this->writeResponse($client, ['ok' => false, 'error' => "No uplink configured for {$kind}: {$lookup}"]);
                             break;
                         }
-                        $address = $uplink['address'] ?? null;
-                        if (!$address) {
+                        $uplinkAddress = $uplink['address'] ?? null;
+                        if (!$uplinkAddress) {
                             $this->writeResponse($client, ['ok' => false, 'error' => 'Uplink has no address configured']);
                             break;
                         }
                         $binkpClient = new \BinktermPHP\Binkp\Protocol\BinkpClient($binkpConfig, $this->logger);
-                        $result = $binkpClient->connect($address);
+                        $result = $binkpClient->authTest($uplinkAddress);
                         $this->writeResponse($client, [
                             'ok'     => true,
                             'result' => [

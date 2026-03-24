@@ -22,6 +22,7 @@
   - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
 - [BinkP Configuration](#binkp-configuration)
   - [Poll Schedule Builder](#poll-schedule-builder)
+  - [Status Page Uplink Checks](#status-page-uplink-checks)
   - [Queue Packet Viewer](#queue-packet-viewer)
   - [Insecure Session Enhancements](#insecure-session-enhancements)
 - [Echomail MCP Server](#echomail-mcp-server)
@@ -62,7 +63,7 @@
 - The echomail reader now remembers whether the user last viewed the **Area List** tab or **Interests** tab using the `p_listorinterest` cookie, and selecting an interest now also syncs the Area List tab's interest dropdown to the same interest without forcing a tab switch.
 
 **Echomail & Netmail**
-- The compose form now shows a warning when the message body approaches the 32 KB FTN packet limit, and an error if it exceeds it.
+- The compose form now shows a warning when the message body approaches the 16 KB FidoNet message body limit, and an error if it exceeds it.
 - Sender name popovers in the echomail list now display in plain text style (no underline) for a cleaner appearance.
 - The echomail Advanced Search modal now includes a **Message ID** field that searches the `message_id` column using a partial (case-insensitive) match.
 
@@ -84,6 +85,7 @@
 
 **BinkP Configuration**
 - The poll schedule input on the uplink configuration screen (both the admin page and the user BinkP page) now has a **schedule builder** toggle button. Clicking it opens an inline panel that parses the current cron expression into its five individual fields (Minute, Hour, Day, Month, Weekday). Editing any field immediately rebuilds the expression in the input and shows a human-readable description of the resulting schedule. The builder now handles a wider range of patterns including `*/N` steps in any field, comma lists and ranges in the Weekday field (e.g. `1,2` → Monday, Tuesday; `1-5` → weekdays; `0,6` → weekends), combined step expressions (e.g. `*/5 */4 * * *`), and a compositional fallback for complex combinations.
+- The BinkP status page now loads the uplink list immediately and performs one authentication-only status check per enabled uplink after the page renders. Disabled uplinks and entries without an address are skipped, the UI shows a spinner with **Checking...** while a probe is in flight, and the page no longer runs the checks on a timer.
 - Packet filenames in the Inbound and Outbound queue lists on the Queues tab are now clickable. Clicking a `.pkt` filename opens the existing packet inspector modal showing packet header details and a message list. A download button is also available. Requires a valid license.
 - Uplinks now have an **Allow insecure echomail delivery** checkbox. When ticked, echomail is accepted from this node even when it connects without authentication, provided the node address claimed during the session matches the uplink's configured address. The **Insecure Receive Only** security setting is now enforced: when enabled, unauthenticated sessions cannot receive outbound files, hold-directory files, or serve FREQ requests.
 - Answerer-side BinkP CRAM-MD5 negotiation now advertises `OPT CRAM-MD5-...` as the first `M_NUL` frame in the handshake, improving interoperability with mailers that expect the CRAM challenge before the rest of the informational `M_NUL` burst.
@@ -177,7 +179,7 @@ The feature is enabled by default. Set to `false` in `.env` to disable all Inter
 
 ### Compose Message Size Warning
 
-The echomail and netmail compose forms now show a warning indicator when the message body exceeds 24 KB (75% of the 32 KB FTN packet limit) and an error if it exceeds 32 KB. FTN packets cannot carry messages larger than 32 KB; this warning helps users avoid silent truncation at the network level.
+The echomail and netmail compose forms now show a warning indicator when the message body exceeds 12 KB (75% of the 16 KB FidoNet message body limit) and an error if it exceeds 16 KB. This matches the enforced compose limit in the application and helps users avoid silent truncation or rejected posts at the network level.
 
 ### Sender Name Popover Style
 
@@ -203,6 +205,20 @@ Clicking the button opens an inline panel that:
 - Re-parses and repopulates the fields if you edit the main input directly while the panel is open.
 
 Clicking the button again collapses the panel. No changes to the data model or API are involved.
+
+### Status Page Uplink Checks
+
+The BinkP status page (`/binkp`) now renders its uplink list immediately and then performs one status probe per uplink in the background instead of blocking page load on a single aggregate status request.
+
+These probes are now authentication-only checks. They stop after the BinkP handshake succeeds and do not proceed into file transfer or packet download processing.
+
+Additional behavior changes:
+
+- Only enabled uplinks with a configured FTN address are queried.
+- Disabled uplinks show **Disabled** immediately and are not probed.
+- Uplink entries without an address show **Not configured** and are not probed.
+- While an auth probe is running, the UI now shows **Checking...** with a spinner.
+- The page does not re-run these checks on a timer; they run once when the page is loaded or when the user manually refreshes the BinkP overview.
 
 ### Queue Packet Viewer
 

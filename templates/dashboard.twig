@@ -2,6 +2,26 @@
 
 {% block title %}{{ t('ui.dashboard.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+{{ parent() }}
+<style>
+    #dashboardAdContainer,
+    #dashboardAdContainer .ansi-art-container,
+    #dashboardAdContainer pre.ansi-art {
+        overflow: hidden !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    #dashboardAdContainer::-webkit-scrollbar,
+    #dashboardAdContainer .ansi-art-container::-webkit-scrollbar,
+    #dashboardAdContainer pre.ansi-art::-webkit-scrollbar,
+    #dashboardAdContainer .dashboard-ad-scaled::-webkit-scrollbar {
+        display: none;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-lg-8">
@@ -301,6 +321,7 @@ $(document).ready(function() {
     renderDashboardAd();
     updateDashboardAdPosition();
 
+    window.addEventListener('resize', scaleDashboardAd);
     });
 
     // Refresh dashboard data every 30 seconds (but not system news)
@@ -658,6 +679,48 @@ function copyReferralLink(button, evt) {
     }
 }
 
+function scaleDashboardAd() {
+    const outer = document.getElementById('dashboardAdContainer');
+    if (!outer) {
+        return;
+    }
+    const inner = outer.querySelector('.ansi-art-container');
+    if (!inner) {
+        return;
+    }
+    const pre = inner.querySelector('pre.ansi-art');
+    if (!pre) {
+        return;
+    }
+
+    pre.style.removeProperty('font-size');
+    pre.style.removeProperty('line-height');
+    inner.style.removeProperty('transform');
+    inner.style.removeProperty('transform-origin');
+    inner.style.removeProperty('width');
+    inner.style.removeProperty('overflow');
+    inner.style.removeProperty('scrollbar-width');
+    inner.style.removeProperty('-ms-overflow-style');
+    inner.classList.remove('dashboard-ad-scaled');
+    outer.style.removeProperty('height');
+
+    const availableWidth = outer.clientWidth;
+    const contentWidth = pre.scrollWidth;
+    if (!availableWidth || !contentWidth || contentWidth <= availableWidth) {
+        return;
+    }
+
+    const scale = availableWidth / contentWidth;
+    inner.style.transform = `scale(${scale})`;
+    inner.style.transformOrigin = 'top left';
+    inner.style.width = `${contentWidth}px`;
+    inner.style.overflow = 'hidden';
+    inner.style.scrollbarWidth = 'none';
+    inner.style.msOverflowStyle = 'none';
+    inner.classList.add('dashboard-ad-scaled');
+    outer.style.height = `${Math.ceil(inner.getBoundingClientRect().height * scale || pre.scrollHeight * scale)}px`;
+}
+
 function renderDashboardAd() {
     const container = document.getElementById('dashboardAdContainer');
     if (!container) {
@@ -670,6 +733,7 @@ function renderDashboardAd() {
     }
 
     renderAdContent(container, current.content || '');
+    requestAnimationFrame(scaleDashboardAd);
 }
 
 function updateDashboardAdPosition() {
