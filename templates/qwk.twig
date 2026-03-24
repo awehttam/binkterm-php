@@ -118,6 +118,72 @@
             </div>
         </div>
 
+        <div class="accordion mt-4" id="qwkHelp">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="helpHeading">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#helpBody"
+                            aria-expanded="false" aria-controls="helpBody">
+                        <i class="fas fa-question-circle me-2"></i>What is QWK offline mail?
+                    </button>
+                </h2>
+                <div id="helpBody" class="accordion-collapse collapse" aria-labelledby="helpHeading" data-bs-parent="#qwkHelp">
+                    <div class="accordion-body text-muted">
+                        <p>
+                            <strong>QWK</strong> is an offline mail format from the BBS era (1987â€“).
+                            Instead of reading messages online, you download a packet, disconnect,
+                            read everything in a local reader application, write replies, then
+                            reconnect and upload the reply packet.  It is efficient, pleasant on
+                            slow connections, and supported by a wide range of readers.
+                        </p>
+                        <p>
+                            <strong>QWKE</strong> (QWK Extended) is a backward-compatible extension
+                            that carries full FidoNet metadata (MSGID, REPLY, address information)
+                            inside the packet so your reader can properly thread replies and address
+                            netmail.
+                        </p>
+                        <p class="mb-0">
+                            Recommended readers:
+                            <a href="https://github.com/enckse/neoqwk" target="_blank" rel="noopener">NeoQWK</a>
+                            (cross-platform, full QWKE support).
+                            OLX and Yarn also work well.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="automationHeading">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#automationBody"
+                            aria-expanded="false" aria-controls="automationBody">
+                        <i class="fas fa-terminal me-2"></i>{{ t('ui.qwk.basic_auth.title', {}, 'common') }}
+                    </button>
+                </h2>
+                <div id="automationBody" class="accordion-collapse collapse" aria-labelledby="automationHeading" data-bs-parent="#qwkHelp">
+                    <div class="accordion-body text-muted">
+                        <p>
+                            {{ t('ui.qwk.basic_auth.description', {}, 'common') }}
+                        </p>
+                        <p>
+                            {{ t('ui.qwk.basic_auth.auth', {}, 'common') }}
+                        </p>
+                        <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.download_label', {}, 'common') }}</p>
+                        <pre><code>curl -u username:password -o mail.qwk "{{ site_url }}/qwk/download?format=qwk&amp;limit=2500"</code></pre>
+                        <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.upload_label', {}, 'common') }}</p>
+                        <pre><code>curl -u username:password -F "rep=@BBSID.REP" "{{ site_url }}/qwk/upload"</code></pre>
+                        <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.response_label', {}, 'common') }}</p>
+                        <p>{{ t('ui.qwk.basic_auth.response_description', {}, 'common') }}</p>
+                        <pre><code>{
+  "success": true,
+  "imported": 3,
+  "skipped": 1,
+  "errors": []
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     {# ---- Right column: Conference status ---- #}
@@ -140,11 +206,9 @@
     </div>
 
 </div>{# /row #}
+{#
 
-{# ---- What is QWK? accordion ---- #}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="accordion" id="qwkHelp">
+        
             <div class="accordion-item">
                 <h2 class="accordion-header" id="helpHeading">
                     <button class="accordion-button collapsed" type="button"
@@ -212,6 +276,7 @@
     </div>
 </div>
 
+#}
 {# ---- Dev tools (only shown when IS_DEV=true) ---- #}
 <div class="row mt-4 d-none" id="devToolsRow">
     <div class="col-12">
