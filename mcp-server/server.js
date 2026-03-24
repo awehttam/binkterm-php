@@ -690,6 +690,86 @@ function createServer(userCtx) {
         }
     );
 
+    // --- get_echomail_stats ---------------------------------------------------
+
+    server.tool(
+        'get_echomail_stats',
+        'Return aggregated echomail statistics. Supported stat types: ' +
+        '"top_posters_by_replies" (who gets the most replies), ' +
+        '"top_posters_by_messages" (who posts the most messages), ' +
+        '"most_active_areas" (areas with the most messages).',
+        {
+            stat:   z.enum(['top_posters_by_replies', 'top_posters_by_messages', 'most_active_areas'])
+                     .describe('The statistic to compute'),
+            limit:  z.number().int().min(1).max(50).optional()
+                     .describe('Number of results to return (default: 10, max: 50)'),
+            domain: z.string().optional().describe('Limit to a specific network domain'),
+            tag:    z.string().optional().describe('Limit to a specific echo area tag'),
+            since:  z.string().optional().describe('Only count messages received after this ISO-8601 datetime'),
+        },
+        async ({ stat, limit = 10, domain, tag, since }) => {
+            const params = [];
+
+            const areaConditions = [`ea.is_active = TRUE`];
+            if (!userCtx.isAdmin) areaConditions.push('ea.is_sysop_only = FALSE');
+            if (domain) { params.push(domain); areaConditions.push(`ea.domain = $${params.length}`); }
+            if (tag)    { params.push(tag);    areaConditions.push(`ea.tag = $${params.length}`); }
+
+            const msgConditions = [...areaConditions];
+            if (since) { params.push(since); msgConditions.push(`em.date_received > $${params.length}`); }
+
+            params.push(limit);
+            const limitParam = `$${params.length}`;
+
+            let sql;
+
+            if (stat === 'top_posters_by_replies') {
+                const posterConditions = areaConditions.map(c => c.replace(/\bem\b/g, 'p').replace(/\bea\b/g, 'pea'));
+                const replyConditions  = msgConditions.map(c => c.replace(/\bem\b/g, 'r').replace(/\bea\b/g, 'rea'));
+                sql = `
+                    SELECT convert_from(pg_catalog.textsend(p.from_name), 'LATIN1') AS from_name,
+                           COUNT(*) AS reply_count
+                    FROM echomail r
+                    JOIN echoareas rea ON rea.id = r.echoarea_id
+                    JOIN echomail p    ON p.id = r.reply_to_id
+                    JOIN echoareas pea ON pea.id = p.echoarea_id
+                    WHERE ${replyConditions.join(' AND ')}
+                      AND ${posterConditions.join(' AND ')}
+                      AND r.reply_to_id IS NOT NULL
+                    GROUP BY p.from_name
+                    ORDER BY reply_count DESC
+                    LIMIT ${limitParam}
+                `;
+            } else if (stat === 'top_posters_by_messages') {
+                sql = `
+                    SELECT convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') AS from_name,
+                           COUNT(*) AS message_count
+                    FROM echomail em
+                    JOIN echoareas ea ON ea.id = em.echoarea_id
+                    WHERE ${msgConditions.join(' AND ')}
+                    GROUP BY em.from_name
+                    ORDER BY message_count DESC
+                    LIMIT ${limitParam}
+                `;
+            } else if (stat === 'most_active_areas') {
+                sql = `
+                    SELECT ea.tag, ea.domain,
+                           convert_from(pg_catalog.textsend(ea.description), 'LATIN1') AS description,
+                           COUNT(*) AS message_count
+                    FROM echomail em
+                    JOIN echoareas ea ON ea.id = em.echoarea_id
+                    WHERE ${msgConditions.join(' AND ')}
+                    GROUP BY ea.tag, ea.domain, ea.description
+                    ORDER BY message_count DESC
+                    LIMIT ${limitParam}
+                `;
+            }
+
+            const result = await queryTextSafe(sql, params);
+            return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };
+        }
+    );
+
     return server;
 }
 
