@@ -24,6 +24,7 @@
   - [Poll Schedule Builder](#poll-schedule-builder)
   - [Queue Packet Viewer](#queue-packet-viewer)
   - [Insecure Session Enhancements](#insecure-session-enhancements)
+- [Echomail MCP Server](#echomail-mcp-server)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -54,6 +55,12 @@
 - The compose form now shows a warning when the message body approaches the 32 KB FTN packet limit, and an error if it exceeds it.
 - Sender name popovers in the echomail list now display in plain text style (no underline) for a cleaner appearance.
 - The echomail Advanced Search modal now includes a **Message ID** field that searches the `message_id` column using a partial (case-insensitive) match.
+
+**Echomail MCP Server**
+- A new optional Model Context Protocol (MCP) server is included in `mcp-echomail/`. It provides AI assistants (Claude Code, etc.) with read-only access to the echomail and echoareas tables via six tools: `list_echoareas`, `get_echoarea`, `get_messages`, `get_message`, `search_echomail`, and `get_thread`.
+- Authentication uses a Bearer token or `X-API-Key` header. One or more keys are configured via `MCP_API_KEYS` in `mcp-echomail/.env`.
+- The server connects directly to PostgreSQL using the same `DB_*` variables as BinktermPHP.
+- This component is entirely optional and is not started by the main application or daemon scripts.
 
 **BinkP Configuration**
 - The poll schedule input on the uplink configuration screen (both the admin page and the user BinkP page) now has a **schedule builder** toggle button. Clicking it opens an inline panel that parses the current cron expression into its five individual fields (Minute, Hour, Day, Month, Weekday). Editing any field immediately rebuilds the expression in the input and shows a human-readable description of the resulting schedule. The builder now handles a wider range of patterns including `*/N` steps in any field, comma lists and ranges in the Weekday field (e.g. `1,2` → Monday, Tuesday; `1-5` → weekdays; `0,6` → weekends), combined step expressions (e.g. `*/5 */4 * * *`), and a compositional fallback for complex combinations.
@@ -206,6 +213,74 @@ The **Insecure Receive Only** checkbox in the Security settings panel is now enf
 
 - **Uplinks table cleanup**: The uplinks table columns have been consolidated — Hostname and Port are now shown as a single Host column, and Enabled/Default are combined into a Status badge column. Markdown, Posting Name, and ADR @Domain are no longer shown in the table (they remain editable in the uplink modal).
 - **Uplinks table responsive**: The uplinks table is now responsive. On smaller screens, less critical columns are hidden progressively: Me and Domain are hidden below `sm`, Host below `md`, and Schedule below `lg`. Uplink, Status, and Actions are always visible.
+
+---
+
+## Echomail MCP Server
+
+An optional Model Context Protocol server lives in `mcp-echomail/`. It allows AI assistants that support MCP (such as Claude Code) to query the echomail and echoareas tables in read-only mode over HTTP.
+
+### Setup
+
+```bash
+cd mcp-echomail
+cp .env.example .env   # fill in keys and DB credentials
+npm install
+node server.js
+```
+
+### Configuration
+
+`mcp-echomail/.env`:
+
+```
+MCP_PORT=3740
+MCP_API_KEYS=your-secret-key-here
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=binktest
+DB_USER=binkterm
+DB_PASSWORD=yourpassword
+```
+
+Generate a key with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Multiple keys can be listed comma-separated in `MCP_API_KEYS` (useful for rotating keys or multiple clients).
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_echoareas` | List active echo areas, optionally filtered by domain |
+| `get_echoarea` | Details for a specific area by tag |
+| `get_messages` | Paginated messages from an area with sender/subject/date filters |
+| `get_message` | Full text of a single message by ID |
+| `search_echomail` | Cross-area search against subject and message body |
+| `get_thread` | Complete conversation thread from any message in it |
+
+### Wiring into Claude Code
+
+Add to `.claude/settings.json` (or the global Claude Code settings):
+
+```json
+{
+  "mcpServers": {
+    "echomail": {
+      "type": "http",
+      "url": "http://your-server:3740/mcp",
+      "headers": {
+        "Authorization": "Bearer your-secret-key-here"
+      }
+    }
+  }
+}
+```
+
+The server is entirely optional and is not started by BinktermPHP or its daemon scripts.
 
 ---
 
