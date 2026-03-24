@@ -312,7 +312,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 ### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
-sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql composer
+sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom postgresql composer 
 sudo apt-get install -y unzip p7zip-full
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
