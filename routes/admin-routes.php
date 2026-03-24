@@ -2552,14 +2552,31 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if ($legacyFilename === '') {
                     $legacyFilename = (string)($file['name'] ?? '');
                 }
-                $defaultTitle = pathinfo((string)($file['name'] ?? 'Advertisement'), PATHINFO_FILENAME);
+                $filename = (string)($file['name'] ?? 'Advertisement');
+                $defaultTitle = pathinfo($filename, PATHINFO_FILENAME);
+            }
+
+            $adFilePrefixes = ['ans' => '[ANSI]', 'rip' => '[RIP]', 'six' => '[SIXEL]', 'sixel' => '[SIXEL]'];
+            $getAdFilePrefix = static function(string $fname) use ($adFilePrefixes): string {
+                return $adFilePrefixes[strtolower(pathinfo($fname, PATHINFO_EXTENSION))] ?? '';
+            };
+
+            if ($hasFile && ($prefix = $getAdFilePrefix($filename)) !== '') {
+                $defaultTitle = $prefix . ' ' . $defaultTitle;
             }
 
             try {
                 $ads = new \BinktermPHP\Advertising();
                 $duplicates = $content !== '' ? $ads->findDuplicatesByContent($content) : [];
+                $resolvedTitle = trim((string)($_POST['title'] ?? $defaultTitle));
+                if ($hasFile) {
+                    $prefix = $getAdFilePrefix((string)($_FILES['ad_file']['name'] ?? ''));
+                    if ($prefix !== '' && !str_starts_with($resolvedTitle, $prefix)) {
+                        $resolvedTitle = $prefix . ' ' . $resolvedTitle;
+                    }
+                }
                 $created = $ads->createAd([
-                    'title' => trim((string)($_POST['title'] ?? $defaultTitle)),
+                    'title' => $resolvedTitle,
                     'slug' => trim((string)($_POST['slug'] ?? '')),
                     'description' => trim((string)($_POST['description'] ?? '')),
                     'tags' => trim((string)($_POST['tags'] ?? '')),
