@@ -21,6 +21,23 @@ import { z } from 'zod';
 const { Pool } = pg;
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// date_written comes from the FTN packet (local time converted to UTC by PHP).
+// node-postgres returns TIMESTAMP WITHOUT TIME ZONE as a plain string with no
+// timezone context, so we append 'Z' — the same approach used by the
+// BinktermPHP web client in formatDate()/formatFullDate() — to produce a
+// correct ISO 8601 UTC timestamp.  date_received is always set by the server
+// via now() AT TIME ZONE 'UTC' and does not need adjustment here.
+function fixDateWritten(row) {
+    if (row.date_written && typeof row.date_written === 'string') {
+        row.date_written = row.date_written.replace(' ', 'T') + 'Z';
+    }
+    return row;
+}
+
+// ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
@@ -227,7 +244,7 @@ server.tool(
         return {
             content: [{
                 type: 'text',
-                text: JSON.stringify(result.rows, null, 2),
+                text: JSON.stringify(result.rows.map(fixDateWritten), null, 2),
             }],
         };
     }
@@ -257,7 +274,7 @@ server.tool(
             return { content: [{ type: 'text', text: `Message ID ${id} not found.` }] };
         }
         return {
-            content: [{ type: 'text', text: JSON.stringify(result.rows[0], null, 2) }],
+            content: [{ type: 'text', text: JSON.stringify(fixDateWritten(result.rows[0]), null, 2) }],
         };
     }
 );
@@ -323,7 +340,7 @@ server.tool(
                 type: 'text',
                 text: result.rows.length === 0
                     ? `No messages found matching "${query}".`
-                    : JSON.stringify(result.rows, null, 2),
+                    : JSON.stringify(result.rows.map(fixDateWritten), null, 2),
             }],
         };
     }
@@ -373,7 +390,7 @@ server.tool(
         return {
             content: [{
                 type: 'text',
-                text: JSON.stringify(result.rows, null, 2),
+                text: JSON.stringify(result.rows.map(fixDateWritten), null, 2),
             }],
         };
     }
