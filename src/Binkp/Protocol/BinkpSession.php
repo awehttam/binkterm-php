@@ -150,23 +150,15 @@ class BinkpSession
 
     private function formatReceivedFrameForLog(BinkpFrame $frame): string
     {
-        $data = $frame->getData();
-        $hex = bin2hex($data);
-
         if ($frame->isCommand()) {
             return sprintf(
-                'command=%d length=%d data_hex=%s',
+                'command=%d length=%d',
                 $frame->getCommand(),
-                $frame->getLength(),
-                $hex
+                $frame->getLength()
             );
         }
 
-        return sprintf(
-            'data length=%d data_hex=%s',
-            $frame->getLength(),
-            $hex
-        );
+        return sprintf('data length=%d', $frame->getLength());
     }
     
     public function handshake()
