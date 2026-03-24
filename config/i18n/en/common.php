@@ -2963,7 +2963,7 @@ return [
     'ui.settings.tab.ai' => 'AI',
     'ui.settings.ai.mcp_key_title' => 'AI Assistant Access',
     'ui.settings.ai.mcp_not_enabled' => 'AI assistant access is not currently enabled on this BBS. Please contact the sysop if you are interested in this feature.',
-    'ui.settings.ai.mcp_what_is' => 'The MCP (Model Context Protocol) server allows AI assistants such as Claude Code to connect to this BBS and read echomail on your behalf. Your personal bearer key authenticates the connection — the AI sees only what you can see.',
+    'ui.settings.ai.mcp_what_is' => 'The MCP (Model Context Protocol) server allows AI assistants such as Claude to connect to this BBS and read echomail on your behalf. Your personal bearer key authenticates the connection — the AI sees only what you can see.',
     'ui.settings.ai.mcp_server_url_label' => 'MCP Server URL',
     'ui.settings.ai.mcp_key_help' => 'Keep your bearer key private. You can revoke and regenerate it at any time — revoking immediately disconnects any AI client using the old key.',
     'ui.settings.ai.mcp_current_key' => 'Current Key',
