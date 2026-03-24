@@ -260,6 +260,16 @@ const pool = new Pool({
     max:      5,
 });
 
+// node-postgres negotiates client_encoding=UTF8 by default, which causes PostgreSQL to
+// strictly validate stored text during string operations (e.g. ILIKE). The PHP side
+// does not set client_encoding, so the server uses its default (typically SQL_ASCII),
+// which skips encoding validation. Match that behaviour here so messages with legacy
+// or corrupted byte sequences are handled the same way as in the web interface.
+pool.on('connect', (client) => {
+    client.query("SET client_encoding TO 'SQL_ASCII'")
+        .catch((e) => logger.warn('Could not set client_encoding:', e.message));
+});
+
 pool.on('error', (err) => {
     logger.error('[DB] Unexpected pool error:', err.message);
 });
