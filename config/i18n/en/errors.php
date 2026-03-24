@@ -572,4 +572,8 @@ return [
     'errors.mcp.generate_failed' => 'Failed to generate MCP key.',
     'errors.mcp.revoke_failed' => 'Failed to revoke MCP key.',
     'errors.mcp.load_failed' => 'Failed to load MCP key status.',
+
+    // Ad Analytics
+    'errors.admin.ad_analytics.license_required' => 'A valid license is required to view ad analytics.',
+    'errors.admin.ad_analytics.load_failed' => 'Failed to load ad analytics.',
 ];

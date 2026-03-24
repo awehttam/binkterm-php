@@ -46,6 +46,7 @@ These features are live and gated behind `License::isValid()`.
 | Netmail forwarding to email | Forward incoming netmail (including FTN attachments) to the user's email address; opt-in per-user setting | `License::isValid()` |
 | Echomail digest | Periodic email digest (daily or weekly) summarising new messages across subscribed echo areas; per-user opt-in | `License::isValid()` |
 | Public file areas | Per-area `is_public` flag allowing unauthenticated visitors to browse and download files; optional `/public-files` index page controlled by `features.public_files_index` BBS setting | `License::isValid()` |
+| Ad analytics | Admin page showing advertisement impression/click performance, daily activity chart, per-ad CTR breakdown, and period filtering | `License::isValid()` |
 
 ---
 

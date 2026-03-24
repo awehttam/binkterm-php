@@ -572,4 +572,8 @@ return [
     'errors.mcp.generate_failed' => 'Error al generar la clave MCP.',
     'errors.mcp.revoke_failed' => 'Error al revocar la clave MCP.',
     'errors.mcp.load_failed' => 'Error al cargar el estado de la clave MCP.',
+
+    // Ad Analytics
+    'errors.admin.ad_analytics.license_required' => 'Se requiere una licencia válida para ver el análisis de anuncios.',
+    'errors.admin.ad_analytics.load_failed' => 'Error al cargar el análisis de anuncios.',
 ];

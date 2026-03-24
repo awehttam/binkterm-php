@@ -529,4 +529,8 @@ return [
     'errors.mcp.generate_failed' => 'Échec de la génération de la clé MCP.',
     'errors.mcp.revoke_failed' => 'Échec de la révocation de la clé MCP.',
     'errors.mcp.load_failed' => 'Échec du chargement du statut de la clé MCP.',
+
+    // Ad Analytics
+    'errors.admin.ad_analytics.license_required' => 'Une licence valide est requise pour consulter les analyses d\'annonces.',
+    'errors.admin.ad_analytics.load_failed' => 'Échec du chargement des analyses d\'annonces.',
 ];

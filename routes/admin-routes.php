@@ -506,6 +506,21 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $controller->asset($path);
     })->where(['path' => '[A-Za-z0-9_.\-\/]+']);
 
+    // Ad analytics page (license required)
+    SimpleRouter::get('/ad-analytics', function() {
+        RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('errors/403.twig');
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('admin/ad_analytics.twig');
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
@@ -3686,6 +3701,123 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
         echo json_encode($stats);
+    });
+
+    // Ad analytics API (license required)
+    SimpleRouter::get('/api/ad-analytics', function() {
+        RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.admin.ad_analytics.license_required', apiLocalizedText('errors.admin.ad_analytics.license_required', 'License required'));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $period = $_GET['period'] ?? '30d';
+
+        switch ($period) {
+            case '7d':  $interval = "7 days";  break;
+            case '90d': $interval = "90 days"; break;
+            case 'all': $interval = null;       break;
+            default:    $interval = "30 days";  break;
+        }
+
+        $dateFilterImp = $interval ? "AND ai.shown_at    >= NOW() - INTERVAL '{$interval}'" : '';
+        $dateFilterClk = $interval ? "AND ac.clicked_at  >= NOW() - INTERVAL '{$interval}'" : '';
+        $dateFilterDay = $interval ? "WHERE ts >= NOW() - INTERVAL '{$interval}'" : '';
+
+        try {
+            // Summary totals
+            $totals = $db->query("
+                SELECT
+                    (SELECT COUNT(*) FROM advertisement_impressions " . ($interval ? "WHERE shown_at   >= NOW() - INTERVAL '{$interval}'" : '') . ") AS total_impressions,
+                    (SELECT COUNT(*) FROM advertisement_clicks       " . ($interval ? "WHERE clicked_at >= NOW() - INTERVAL '{$interval}'" : '') . ") AS total_clicks,
+                    (SELECT COUNT(*) FROM advertisements WHERE is_active = TRUE) AS active_ads,
+                    (SELECT COUNT(*) FROM advertisements) AS total_ads
+            ")->fetch(\PDO::FETCH_ASSOC);
+
+            // Per-ad stats
+            $perAdStmt = $db->prepare("
+                SELECT a.id,
+                       a.title,
+                       a.slug,
+                       a.click_url,
+                       a.is_active,
+                       COUNT(DISTINCT ai.id) AS impressions,
+                       COUNT(DISTINCT ac.id) AS clicks,
+                       MAX(ai.shown_at)      AS last_impression,
+                       MAX(ac.clicked_at)    AS last_click
+                FROM advertisements a
+                LEFT JOIN advertisement_impressions ai ON ai.advertisement_id = a.id {$dateFilterImp}
+                LEFT JOIN advertisement_clicks       ac ON ac.advertisement_id = a.id {$dateFilterClk}
+                GROUP BY a.id
+                ORDER BY impressions DESC, clicks DESC, LOWER(a.title)
+            ");
+            $perAdStmt->execute();
+            $perAd = $perAdStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            foreach ($perAd as &$row) {
+                $row['id']          = (int)$row['id'];
+                $row['impressions'] = (int)$row['impressions'];
+                $row['clicks']      = (int)$row['clicks'];
+                $row['is_active']   = $row['is_active'] === 't' || $row['is_active'] === true || $row['is_active'] === '1';
+                $row['ctr']         = $row['impressions'] > 0
+                    ? round(($row['clicks'] / $row['impressions']) * 100, 1)
+                    : 0.0;
+            }
+            unset($row);
+
+            // Daily time-series (impressions + clicks per day)
+            $dailyImpStmt = $db->query("
+                SELECT DATE(shown_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
+                FROM advertisement_impressions
+                " . ($interval ? "WHERE shown_at >= NOW() - INTERVAL '{$interval}'" : '') . "
+                GROUP BY day ORDER BY day
+            ");
+            $dailyClkStmt = $db->query("
+                SELECT DATE(clicked_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
+                FROM advertisement_clicks
+                " . ($interval ? "WHERE clicked_at >= NOW() - INTERVAL '{$interval}'" : '') . "
+                GROUP BY day ORDER BY day
+            ");
+
+            $impByDay = [];
+            foreach ($dailyImpStmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
+                $impByDay[$r['day']] = (int)$r['cnt'];
+            }
+            $clkByDay = [];
+            foreach ($dailyClkStmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
+                $clkByDay[$r['day']] = (int)$r['cnt'];
+            }
+
+            $allDays = array_unique(array_merge(array_keys($impByDay), array_keys($clkByDay)));
+            sort($allDays);
+            $daily = array_map(fn($d) => [
+                'day'         => $d,
+                'impressions' => $impByDay[$d] ?? 0,
+                'clicks'      => $clkByDay[$d] ?? 0,
+            ], $allDays);
+
+            echo json_encode([
+                'summary' => [
+                    'total_impressions' => (int)$totals['total_impressions'],
+                    'total_clicks'      => (int)$totals['total_clicks'],
+                    'active_ads'        => (int)$totals['active_ads'],
+                    'total_ads'         => (int)$totals['total_ads'],
+                    'overall_ctr'       => (int)$totals['total_impressions'] > 0
+                        ? round(((int)$totals['total_clicks'] / (int)$totals['total_impressions']) * 100, 1)
+                        : 0.0,
+                ],
+                'per_ad' => $perAd,
+                'daily'  => $daily,
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.admin.ad_analytics.load_failed', apiLocalizedText('errors.admin.ad_analytics.load_failed', 'Failed to load analytics'));
+        }
     });
 
     // Activity statistics API
