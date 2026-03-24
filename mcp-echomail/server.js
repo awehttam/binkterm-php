@@ -79,6 +79,7 @@ function authenticate(req, res, next) {
 // MCP server + tools
 // ---------------------------------------------------------------------------
 
+function createServer() {
 const server = new McpServer({
     name:    'mcp-echomail',
     version: '1.0.0',
@@ -378,6 +379,9 @@ server.tool(
     }
 );
 
+    return server;
+}
+
 // ---------------------------------------------------------------------------
 // Express app + MCP transport
 // ---------------------------------------------------------------------------
@@ -395,6 +399,7 @@ app.post('/mcp', authenticate, async (req, res) => {
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // stateless
     });
+    const server = createServer();
     res.on('close', () => transport.close());
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
@@ -405,6 +410,7 @@ app.get('/mcp', authenticate, async (req, res) => {
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
     });
+    const server = createServer();
     res.on('close', () => transport.close());
     await server.connect(transport);
     await transport.handleRequest(req, res);
