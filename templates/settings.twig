@@ -463,6 +463,11 @@
                             </div>
                         </div>
                         <div id="mcpKeyStatus" class="mt-2" style="display:none;"></div>
+                        <hr class="mt-4">
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                onclick="openMcpHelpModal()">
+                            <i class="fas fa-question-circle me-1"></i>{{ t('ui.settings.ai.mcp_help_button', {}, locale, ['common']) }}
+                        </button>
                         {% endif %}
                     </div>
                 </div>
@@ -484,6 +489,22 @@
 </div>
 
 <!-- Active Sessions Modal -->
+<div class="modal fade" id="mcpHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-question-circle me-2"></i>{{ t('ui.settings.ai.mcp_help_button', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="mcpHelpBody">
+                <div class="text-center py-3">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="sessionsModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -864,6 +885,21 @@ function copyMcpKey() {
         $('#mcpKeyStatus').show().html('<div class="alert alert-success py-1">' + uiT('ui.settings.ai.mcp_copied', 'Key copied to clipboard.') + '</div>');
         setTimeout(function() { $('#mcpKeyStatus').fadeOut(); }, 2000);
     });
+}
+
+let mcpHelpLoaded = false;
+function openMcpHelpModal() {
+    const modal = new bootstrap.Modal(document.getElementById('mcpHelpModal'));
+    modal.show();
+    if (mcpHelpLoaded) return;
+    $.get('/api/docs/mcp-client-help/claude')
+        .done(function(data) {
+            mcpHelpLoaded = true;
+            $('#mcpHelpBody').html(data.html);
+        })
+        .fail(function() {
+            $('#mcpHelpBody').html('<div class="alert alert-danger">Failed to load help content.</div>');
+        });
 }
 
 function pollUplinks() {

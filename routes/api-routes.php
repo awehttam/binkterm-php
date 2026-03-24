@@ -8105,6 +8105,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // MCP client help docs (rendered markdown, auth required)
+    SimpleRouter::get('/docs/mcp-client-help/claude', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        $mdPath = __DIR__ . '/../docs/MCPClientHelp_Claude.md';
+        if (!file_exists($mdPath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Help file not found']);
+            return;
+        }
+        $markdown = file_get_contents($mdPath);
+        $html     = \BinktermPHP\MarkdownRenderer::toHtml($markdown);
+        echo json_encode(['success' => true, 'html' => $html]);
+    });
+
     // MCP Server key management (requires MCP_SERVER_URL env + registered license)
     SimpleRouter::get('/user/mcp-key', function() {
         $user   = RouteHelper::requireAuth();

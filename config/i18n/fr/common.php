@@ -2424,6 +2424,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.settings.ai.mcp_not_enabled' => 'L\'accès aux assistants IA n\'est pas actuellement activé sur ce BBS. Contactez le sysop si vous êtes intéressé par cette fonctionnalité.',
     'ui.settings.ai.mcp_what_is' => 'Le serveur MCP (Model Context Protocol) permet aux assistants IA comme Claude de se connecter à ce BBS et de lire l\'echomail en votre nom. Votre clé de porteur personnelle authentifie la connexion — l\'IA ne voit que ce que vous pouvez voir.',
     'ui.settings.ai.mcp_server_url_label' => 'URL du serveur MCP',
+    'ui.settings.ai.mcp_help_button' => 'Afficher l\'aide de configuration pour Claude Desktop',
     'ui.settings.ai.mcp_key_help' => 'Gardez votre clé de porteur privée. Vous pouvez la révoquer et la régénérer à tout moment — la révoquer déconnecte immédiatement tout client IA utilisant l\'ancienne clé.',
     'ui.settings.ai.mcp_current_key' => 'Clé actuelle',
     'ui.settings.ai.mcp_no_key' => 'Aucune clé générée pour l\'instant.',

@@ -2973,6 +2973,7 @@ return [
     'ui.settings.ai.mcp_not_enabled' => 'El acceso de asistente de IA no está habilitado actualmente en este BBS. Contacta al sysop si estás interesado en esta función.',
     'ui.settings.ai.mcp_what_is' => 'El servidor MCP (Model Context Protocol) permite que los asistentes de IA como Claude se conecten a este BBS y lean el echomail en tu nombre. Tu clave personal de portador autentica la conexión — la IA solo ve lo que tú puedes ver.',
     'ui.settings.ai.mcp_server_url_label' => 'URL del servidor MCP',
+    'ui.settings.ai.mcp_help_button' => 'Mostrar ayuda de configuración para Claude Desktop',
     'ui.settings.ai.mcp_key_help' => 'Mantén tu clave de portador privada. Puedes revocarla y regenerarla en cualquier momento — revocarla desconecta inmediatamente cualquier cliente de IA que use la clave anterior.',
     'ui.settings.ai.mcp_current_key' => 'Clave actual',
     'ui.settings.ai.mcp_no_key' => 'Aún no se ha generado ninguna clave.',
