@@ -8105,6 +8105,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // MCP Server key management (registered license required)
+    SimpleRouter::get('/user/mcp-key', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
+            return;
+        }
+
+        $meta = new \BinktermPHP\UserMeta();
+        $key  = $meta->getValue($userId, 'mcp_serverkey');
+
+        if ($key === null) {
+            echo json_encode(['success' => true, 'has_key' => false]);
+        } else {
+            // Return only a preview — first 8 chars + asterisks
+            $preview = substr($key, 0, 8) . str_repeat('*', 24);
+            echo json_encode(['success' => true, 'has_key' => true, 'key_preview' => $preview]);
+        }
+    });
+
+    SimpleRouter::post('/user/mcp-key/generate', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
+            return;
+        }
+
+        try {
+            $key  = bin2hex(random_bytes(32));
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'mcp_serverkey', $key);
+            // Return the full key only at generation time
+            echo json_encode(['success' => true, 'key' => $key]);
+        } catch (Exception $e) {
+            apiError('errors.mcp.generate_failed', apiLocalizedText('errors.mcp.generate_failed', 'Failed to generate MCP key'), 500);
+        }
+    });
+
+    SimpleRouter::delete('/user/mcp-key', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
+            return;
+        }
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'mcp_serverkey', null);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            apiError('errors.mcp.revoke_failed', apiLocalizedText('errors.mcp.revoke_failed', 'Failed to revoke MCP key'), 500);
+        }
+    });
+
     // Terminal settings API endpoints
     SimpleRouter::get('/user/terminal-settings', function() {
         $user = RouteHelper::requireAuth();

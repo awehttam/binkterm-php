@@ -557,4 +557,8 @@ return [
     'errors.interests.slug_taken' => 'An interest with that slug already exists.',
     'errors.interests.feature_disabled' => 'The interests feature is not enabled.',
     'errors.interests.crosspost_cooldown' => 'You must wait {minutes} more minute(s) before cross-posting again.',
+    'errors.mcp.license_required' => 'A registered license is required for the MCP server feature.',
+    'errors.mcp.generate_failed' => 'Failed to generate MCP key.',
+    'errors.mcp.revoke_failed' => 'Failed to revoke MCP key.',
+    'errors.mcp.load_failed' => 'Failed to load MCP key status.',
 ];

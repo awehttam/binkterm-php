@@ -83,6 +83,12 @@ This index lists documents in operational priority order — essentials first, a
 
 ---
 
+## AI & Integrations
+
+- [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail
+
+---
+
 ## Developer Reference
 
 - [Developer Guide](DEVELOPER_GUIDE.md) — Architecture overview, coding conventions, contribution guide

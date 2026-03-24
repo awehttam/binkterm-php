@@ -514,4 +514,8 @@ return [
     'errors.interests.slug_taken' => 'Un intérêt avec ce slug existe déjà.',
     'errors.interests.feature_disabled' => 'La fonctionnalité des intérêts n\'est pas activée.',
     'errors.interests.crosspost_cooldown' => 'Vous devez attendre encore {minutes} minute(s) avant de faire un cross-post.',
+    'errors.mcp.license_required' => 'Une licence enregistrée est requise pour la fonctionnalité du serveur MCP.',
+    'errors.mcp.generate_failed' => 'Échec de la génération de la clé MCP.',
+    'errors.mcp.revoke_failed' => 'Échec de la révocation de la clé MCP.',
+    'errors.mcp.load_failed' => 'Échec du chargement du statut de la clé MCP.',
 ];

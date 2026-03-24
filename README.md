@@ -18,6 +18,7 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **System analytics** — activity stats, login source breakdown, and a full activity viewer for monitoring usage
 - **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
 - **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
+- **MCP server** — lets AI assistants (Claude Code, etc.) read echomail and echo areas directly via the Model Context Protocol; each user generates their own personal bearer key
 - **...and more**
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
@@ -1186,6 +1187,14 @@ A directory page at `gemini://yourdomain.com/` lists all users with published ca
 The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) that operators start only if they want to expose Gemini. It generates a self-signed TLS certificate automatically (Gemini uses a Trust On First Use model), or can be configured to use a CA-signed certificate such as one from Let's Encrypt.
 
 See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
+
+## MCP Server
+
+BinktermPHP includes an optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server (`mcp-server/`) that gives AI assistants read-only access to your echomail database. Each user generates a personal bearer key from **Settings → AI**; the server enforces the same access rules as the web interface. Requires a registered license.
+
+See **[docs/MCPServer.md](docs/MCPServer.md)** for setup, configuration, available tools, and instructions for wiring it into Claude Code.
+
+---
 
 # Developer Guide
 
