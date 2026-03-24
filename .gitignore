@@ -29,6 +29,7 @@ backups/*
 *~
 .env
 .env.local
+.mcp.json
 tests/.env.test
 bbs_ads/*
 !bbs_ads/claudes1.ans

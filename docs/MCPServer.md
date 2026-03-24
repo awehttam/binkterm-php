@@ -16,6 +16,8 @@ BinktermPHP includes an optional [Model Context Protocol](https://modelcontextpr
 - [Available Tools](#available-tools)
 - [Access Control](#access-control)
 - [Configuration Reference](#configuration-reference)
+- [Reverse Proxy Setup](#reverse-proxy-setup)
+- [Boot Startup](#boot-startup)
 - [Logging](#logging)
 
 ---
@@ -50,10 +52,25 @@ MCP_SERVER_PORT=3740
 
 ## Starting and Stopping
 
-**Manually:**
+**Manually (foreground):**
 
 ```bash
-node mcp-server/server.js
+node mcp-server/server.js [--bind=<host>] [--pid-file=<path>]
+node mcp-server/server.js --help
+```
+
+**Manually (background / daemon):**
+
+```bash
+node mcp-server/server.js --daemon --bind=127.0.0.1 --pid-file=data/run/mcp-server.pid
+```
+
+`--daemon` forks the process to the background, redirects stdout/stderr to the log file, and exits the parent. The PID of the background process is written to the pid file. `restart_daemons.sh` already handles detaching internally so `--daemon` is not needed there.
+
+Pass `--bind=127.0.0.1` when running behind a reverse proxy so the server only accepts connections from localhost:
+
+```bash
+node mcp-server/server.js --bind=127.0.0.1
 ```
 
 **Via the daemon script** (restart only if already running):
@@ -202,6 +219,7 @@ All configuration is read from the main BinktermPHP `.env` file. No separate con
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MCP_SERVER_PORT` | `3740` | Port the MCP server listens on (`MCP_PORT` also accepted) |
+| `MCP_BIND_HOST` | (all interfaces) | IP address to bind to. Set to `127.0.0.1` when using a reverse proxy. Overridden by `--bind` CLI flag. |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
 | `DB_NAME` | | Database name |
@@ -212,14 +230,173 @@ All configuration is read from the main BinktermPHP `.env` file. No separate con
 
 ---
 
+## Reverse Proxy Setup
+
+Running the MCP server behind a reverse proxy (nginx, Caddy, Apache) is the recommended way to expose it over HTTPS. The Node.js process binds to localhost only; the proxy handles TLS termination.
+
+### Why use a proxy?
+
+- Terminates TLS so clients see a valid (or self-signed) certificate.
+- Keeps the Node process off a public port.
+- Lets you share port 443 with your existing web server via path or subdomain routing.
+
+### Binding to localhost
+
+Start the server with `--bind=127.0.0.1`, or set `MCP_BIND_HOST=127.0.0.1` in `.env`:
+
+```bash
+node mcp-server/server.js --bind=127.0.0.1 --pid-file=data/run/mcp-server.pid
+```
+
+The daemon script respects `MCP_BIND_HOST` automatically when it is set in `.env`.
+
+### nginx example (subdomain)
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name mcp.yourbbs.example;
+
+    ssl_certificate     /etc/letsencrypt/live/yourbbs.example/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourbbs.example/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:3740;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+
+        # SSE / streaming support
+        proxy_buffering    off;
+        proxy_read_timeout 300s;
+    }
+}
+```
+
+### nginx example (sub-path on existing server)
+
+```nginx
+location /mcp-server/ {
+    proxy_pass         http://127.0.0.1:3740/;
+    proxy_http_version 1.1;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_buffering    off;
+    proxy_read_timeout 300s;
+}
+```
+
+When using a sub-path, clients must point their MCP URL at the sub-path, e.g. `https://yourbbs.example/mcp-server/mcp`.
+
+### Caddy example
+
+```caddyfile
+mcp.yourbbs.example {
+    reverse_proxy 127.0.0.1:3740 {
+        flush_interval -1
+    }
+}
+```
+
+Caddy obtains and renews TLS certificates automatically via ACME/Let's Encrypt.
+
+### Connecting the AI client over HTTPS
+
+Update your `.mcp.json` to use the HTTPS URL provided by the proxy:
+
+```json
+{
+  "mcpServers": {
+    "binkterm": {
+      "type": "http",
+      "url": "https://mcp.yourbbs.example/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-key>"
+      }
+    }
+  }
+}
+```
+
+### Self-signed certificates
+
+If your proxy uses a self-signed certificate, Claude Code (which is Node.js-based) will reject it by default. Add the certificate to Claude Code's trust chain via `NODE_EXTRA_CA_CERTS`:
+
+```json
+{
+  "env": {
+    "NODE_EXTRA_CA_CERTS": "/path/to/your-cert.pem"
+  }
+}
+```
+
+Place this in `.claude/settings.json` (project-scoped) or `~/.claude/settings.json` (global). To extract the certificate from a running server:
+
+```bash
+openssl s_client -connect mcp.yourbbs.example:443 -showcerts </dev/null 2>/dev/null \
+  | openssl x509 -outform PEM > mcp-cert.pem
+```
+
+---
+
+## Boot Startup
+
+### systemd (recommended)
+
+Create `/etc/systemd/system/binkterm-mcp.service`:
+
+```ini
+[Unit]
+Description=BinktermPHP MCP Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/binkterm
+ExecStart=/usr/bin/node mcp-server/server.js --bind=127.0.0.1 --pid-file=data/run/mcp-server.pid
+Restart=on-failure
+RestartSec=5s
+StandardOutput=append:/path/to/binkterm/data/logs/mcp-server.log
+StandardError=append:/path/to/binkterm/data/logs/mcp-server.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+systemctl daemon-reload
+systemctl enable binkterm-mcp
+systemctl start binkterm-mcp
+```
+
+Use `Type=simple` (not `forking`) — do **not** pass `--daemon` when running under systemd, as systemd manages the process lifecycle itself.
+
+### cron @reboot
+
+```cron
+@reboot /usr/bin/node /path/to/binkterm/mcp-server/server.js --daemon --bind=127.0.0.1 --pid-file=/path/to/binkterm/data/run/mcp-server.pid
+```
+
+Use `--daemon` here so the process detaches from the cron environment and survives the cron session ending.
+
+---
+
 ## Logging
 
-The server logs to `data/logs/mcp-server.log`. Each line is timestamped:
+The server logs to `data/logs/mcp-server.log`. Each line is timestamped and tagged with a level (`INFO`, `WARN`, `ERROR`):
 
 ```
-[2026-03-24T03:00:00.000Z] [INFO] License OK — licensee: Your Name, tier: registered
-[2026-03-24T03:00:00.012Z] [INFO] Listening on port 3740
-[2026-03-24T03:00:00.013Z] [INFO] PID 12345 written to data/run/mcp-server.pid
+[2026-03-24T03:00:00.000Z] [INFO]  License OK — licensee: Your Name, tier: registered
+[2026-03-24T03:00:00.012Z] [INFO]  Listening on 127.0.0.1:3740
+[2026-03-24T03:00:00.013Z] [INFO]  PID 12345 written to data/run/mcp-server.pid
+[2026-03-24T03:00:01.500Z] [INFO]  POST /mcp 200 (42ms) [127.0.0.1]
+[2026-03-24T03:00:01.501Z] [WARN]  Encoding error — retrying query with SQL_ASCII client encoding
+[2026-03-24T03:00:02.000Z] [ERROR] DB query error: ...
 ```
 
-Log output is also written to stdout, so it appears in the terminal when running manually.
+Every HTTP request is logged with method, path, status code, response time, and client IP. Database errors are logged at `ERROR` level with the PostgreSQL error message. Log output is also written to stdout when running in the foreground.

@@ -17,18 +17,58 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR  = path.resolve(__dirname, '..');
 
 // ---------------------------------------------------------------------------
-// CLI args  --pid-file=<path>
+// CLI args  --pid-file=<path>  --bind=<host>  --help
 // ---------------------------------------------------------------------------
 
+const USAGE = `
+BinktermPHP MCP Server
+
+Usage: node mcp-server/server.js [options]
+
+Options:
+  --bind=<host>       IP address or hostname to listen on (default: all interfaces)
+                      Use 127.0.0.1 when running behind a reverse proxy.
+  --pid-file=<path>   Write the server PID to this file on startup.
+  --daemon            Fork to the background, redirect output to the log file,
+                      and exit the parent process. Useful for boot scripts and
+                      cron @reboot entries. Not needed when started via
+                      restart_daemons.sh (which already handles detaching).
+  --help              Show this help message and exit.
+
+Configuration is read from the main BinktermPHP .env file (one level up).
+The server requires a valid registered license in data/license.json.
+
+Environment variables (from .env):
+  MCP_SERVER_PORT     Port to listen on (default: 3740; MCP_PORT also accepted)
+  MCP_BIND_HOST       Default bind host (overridden by --bind)
+  DB_HOST             PostgreSQL host (default: localhost)
+  DB_PORT             PostgreSQL port (default: 5432)
+  DB_NAME             PostgreSQL database name
+  DB_USER             PostgreSQL username
+  DB_PASS             PostgreSQL password
+  DB_SSLMODE          Set to any value to enable SSL for the DB connection
+  LICENSE_FILE        Path to license.json (default: data/license.json)
+`.trim();
+
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(USAGE);
+    process.exit(0);
+}
+
 let pidFilePath = null;
+let bindHost    = null;
+let daemonMode  = false;
 for (const arg of process.argv.slice(2)) {
-    const m = arg.match(/^--pid-file=(.+)$/);
-    if (m) pidFilePath = m[1];
+    let m;
+    if ((m = arg.match(/^--pid-file=(.+)$/)))  pidFilePath = m[1];
+    if ((m = arg.match(/^--bind=(.+)$/)))       bindHost    = m[1];
+    if (arg === '--daemon')                      daemonMode  = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +99,26 @@ function loadDotEnv(filePath) {
 }
 
 loadDotEnv(path.join(ROOT_DIR, '.env'));
+
+// ---------------------------------------------------------------------------
+// Daemon mode — fork to background before anything else starts
+// ---------------------------------------------------------------------------
+
+if (daemonMode) {
+    const logPath = path.join(ROOT_DIR, 'data', 'logs', 'mcp-server.log');
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    const logFd     = fs.openSync(logPath, 'a');
+    const childArgs = process.argv.slice(1).filter(a => a !== '--daemon');
+    const child     = spawn(process.execPath, childArgs, {
+        detached: true,
+        stdio:    ['ignore', logFd, logFd],
+        cwd:      ROOT_DIR,
+    });
+    child.unref();
+    fs.closeSync(logFd);
+    console.log(`[mcp-server] Daemon started (PID ${child.pid})`);
+    process.exit(0);
+}
 
 // ---------------------------------------------------------------------------
 // Logging
@@ -184,6 +244,7 @@ const { Pool } = pg;
 // ---------------------------------------------------------------------------
 
 const PORT = parseInt(process.env.MCP_SERVER_PORT ?? process.env.MCP_PORT ?? '3740', 10);
+const BIND = bindHost ?? process.env.MCP_BIND_HOST ?? undefined;  // undefined = listen on all interfaces
 
 // ---------------------------------------------------------------------------
 // PostgreSQL pool — reads DB_* from main .env; uses DB_PASS (not DB_PASSWORD)
@@ -202,6 +263,48 @@ const pool = new Pool({
 pool.on('error', (err) => {
     logger.error('[DB] Unexpected pool error:', err.message);
 });
+
+// ---------------------------------------------------------------------------
+// Encoding-safe query helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Run a query that might touch text columns with invalid UTF-8 byte sequences.
+ *
+ * PostgreSQL validates UTF-8 encoding when performing string operations such as
+ * ILIKE. If a stored message contains a corrupted byte sequence the query will
+ * fail with "invalid byte sequence for encoding UTF8".  On that specific error
+ * we retry the query on a dedicated client with `client_encoding = 'SQL_ASCII'`,
+ * which instructs PostgreSQL to skip encoding validation and treat the bytes as
+ * opaque data.  The dedicated client is destroyed after use so it is never
+ * returned to the pool with altered session settings.
+ *
+ * @param {string}  sql
+ * @param {Array}   [params]
+ * @returns {Promise<import('pg').QueryResult>}
+ */
+async function queryWithEncodingFallback(sql, params = []) {
+    try {
+        return await pool.query(sql, params);
+    } catch (e) {
+        if (!e.message?.includes('invalid byte sequence')) {
+            logger.error('DB query error:', e.message);
+            throw e;
+        }
+        logger.warn('Encoding error — retrying query with SQL_ASCII client encoding');
+        const client = await pool.connect();
+        try {
+            await client.query("SET client_encoding TO 'SQL_ASCII'");
+            return await client.query(sql, params);
+        } catch (e2) {
+            logger.error('DB query error (SQL_ASCII fallback):', e2.message);
+            throw e2;
+        } finally {
+            // Destroy this connection; do not return it to the pool with altered encoding.
+            client.release(true);
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Auth middleware — resolves bearer key against users_meta table
@@ -247,7 +350,7 @@ async function resolveUser(req, res) {
             [token]
         );
     } catch (e) {
-        logger.error('Auth DB query failed:', e.message);
+        logger.error('Auth DB query error:', e.message);
         res.status(500).json({ error: 'Internal error' });
         return null;
     }
@@ -306,7 +409,7 @@ function createServer(userCtx) {
                 WHERE ${conditions.join(' AND ')}
                 ORDER BY ea.tag ASC
             `;
-            const result = await pool.query(sql, params);
+            const result = await queryWithEncodingFallback(sql, params);
             return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };
         }
     );
@@ -337,7 +440,7 @@ function createServer(userCtx) {
             }
             sql += ' LIMIT 1';
 
-            const result = await pool.query(sql, params);
+            const result = await queryWithEncodingFallback(sql, params);
             if (result.rows.length === 0) {
                 return { content: [{ type: 'text', text: `Echo area "${tag}" not found or access denied.` }] };
             }
@@ -396,7 +499,7 @@ function createServer(userCtx) {
                 LIMIT $${params.length - 1}
                 OFFSET $${params.length}
             `;
-            const result = await pool.query(sql, params);
+            const result = await queryWithEncodingFallback(sql, params);
             return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };
         }
     );
@@ -423,7 +526,7 @@ function createServer(userCtx) {
                   AND ea.is_active = TRUE
                   ${sysopClause}
             `;
-            const result = await pool.query(sql, [id]);
+            const result = await queryWithEncodingFallback(sql, [id]);
             if (result.rows.length === 0) {
                 return { content: [{ type: 'text', text: `Message ID ${id} not found or access denied.` }] };
             }
@@ -472,7 +575,7 @@ function createServer(userCtx) {
                 ORDER BY em.date_received DESC
                 LIMIT $${params.length}
             `;
-            const result = await pool.query(sql, params);
+            const result = await queryWithEncodingFallback(sql, params);
             return {
                 content: [{
                     type: 'text',
@@ -517,7 +620,7 @@ function createServer(userCtx) {
             const rootId = rootResult.rows[0]?.id ?? id;
 
             // Fetch the full thread downward, enforcing echoarea access at every level
-            const result = await pool.query(`
+            const result = await queryWithEncodingFallback(`
                 WITH RECURSIVE thread AS (
                     SELECT em.id, em.reply_to_id, em.from_name, em.to_name, em.subject,
                            to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
@@ -553,6 +656,15 @@ function createServer(userCtx) {
 const app = express();
 app.use(express.json());
 
+// Request logging
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        logger.info(`${req.method} ${req.path} ${res.statusCode} (${Date.now() - start}ms) [${req.ip}]`);
+    });
+    next();
+});
+
 // Health check (no auth required)
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', server: 'mcp-server' });
@@ -580,13 +692,20 @@ app.get('/mcp', async (req, res) => {
     await transport.handleRequest(req, res);
 });
 
+// Express error handler (catches synchronous throws from route handlers)
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+    logger.error(`Unhandled error on ${req.method} ${req.path}:`, err.message);
+    res.status(500).json({ error: 'Internal server error' });
+});
+
 // ---------------------------------------------------------------------------
 // Startup + graceful shutdown
 // ---------------------------------------------------------------------------
 
-const httpServer = app.listen(PORT, () => {
-    logger.info(`Listening on port ${PORT}`);
-});
+const httpServer = BIND
+    ? app.listen(PORT, BIND, () => { logger.info(`Listening on ${BIND}:${PORT}`); })
+    : app.listen(PORT,       () => { logger.info(`Listening on port ${PORT}`); });
 
 if (pidFilePath) {
     try {
