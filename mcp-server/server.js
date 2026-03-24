@@ -269,31 +269,29 @@ pool.on('error', (err) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a query with client_encoding forced to SQL_ASCII before execution.
+ * Run a query, logging any errors before re-throwing.
  *
- * node-postgres hardcodes `client_encoding=UTF8` in every startup message
- * (pg-protocol/dist/serializer.js — not overridable via Pool config).
- * PostgreSQL then strictly validates stored text during ALL string operations
- * (ILIKE, LEFT, etc.), which throws on messages with corrupted byte sequences.
+ * Text columns from echomail that may contain corrupted byte sequences are
+ * handled at the SQL level using:
+ *   convert_from(pg_catalog.textsend(col), 'LATIN1')
  *
- * Fix: acquire a dedicated client, synchronously AWAIT SET client_encoding to
- * SQL_ASCII (PostgreSQL skips encoding validation), run the query, then destroy
- * the client so the altered session setting never returns to the pool.
+ * textsend() extracts raw bytes without encoding validation; converting through
+ * LATIN1 (every byte 0x00–0xFF has a code point) always produces valid UTF-8
+ * that PostgreSQL can process with ILIKE, LEFT(), etc. without error.
+ *
+ * Note: SET client_encoding TO SQL_ASCII does NOT help — PostgreSQL validates
+ * string operations against server_encoding (UTF8), not client_encoding.
  *
  * @param {string}  sql
  * @param {Array}   [params]
  * @returns {Promise<import('pg').QueryResult>}
  */
 async function queryTextSafe(sql, params = []) {
-    const client = await pool.connect();
     try {
-        await client.query("SET client_encoding TO 'SQL_ASCII'");
-        return await client.query(sql, params);
+        return await pool.query(sql, params);
     } catch (e) {
         logger.error('DB query error:', e.message);
         throw e;
-    } finally {
-        client.release(true); // destroy — never return altered encoding to pool
     }
 }
 
@@ -471,19 +469,23 @@ function createServer(userCtx) {
             const conditions = ['em.echoarea_id = $1'];
             const params     = [areaId];
 
-            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(pg_catalog.textsend(em.from_name), 'escape') ILIKE $${params.length}`); }
-            if (to_name)   { params.push(`%${to_name}%`);   conditions.push(`encode(pg_catalog.textsend(em.to_name),   'escape') ILIKE $${params.length}`); }
-            if (subject)   { params.push(`%${subject}%`);   conditions.push(`encode(pg_catalog.textsend(em.subject),   'escape') ILIKE $${params.length}`); }
+            if (from_name) { params.push(`%${from_name}%`); conditions.push(`convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') ILIKE $${params.length}`); }
+            if (to_name)   { params.push(`%${to_name}%`);   conditions.push(`convert_from(pg_catalog.textsend(em.to_name),   'LATIN1') ILIKE $${params.length}`); }
+            if (subject)   { params.push(`%${subject}%`);   conditions.push(`convert_from(pg_catalog.textsend(em.subject),   'LATIN1') ILIKE $${params.length}`); }
             if (since)     { params.push(since);             conditions.push(`em.date_received >= $${params.length}`); }
 
             params.push(limit, offset);
 
             const sql = `
-                SELECT em.id, em.from_address, em.from_name, em.to_name, em.subject,
+                SELECT em.id, em.from_address,
+                       convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') AS from_name,
+                       convert_from(pg_catalog.textsend(em.to_name),   'LATIN1') AS to_name,
+                       convert_from(pg_catalog.textsend(em.subject),   'LATIN1') AS subject,
                        to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
                        to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
-                       em.message_id, em.origin_line,
-                       LEFT(em.message_text, 500) AS message_preview
+                       em.message_id,
+                       convert_from(pg_catalog.textsend(em.origin_line), 'LATIN1') AS origin_line,
+                       LEFT(convert_from(pg_catalog.textsend(em.message_text), 'LATIN1'), 500) AS message_preview
                 FROM echomail em
                 WHERE ${conditions.join(' AND ')}
                 ORDER BY em.date_received DESC
@@ -505,11 +507,17 @@ function createServer(userCtx) {
         },
         async ({ id }) => {
             const sql = `
-                SELECT em.id, em.from_address, em.from_name, em.to_name, em.subject,
+                SELECT em.id, em.from_address,
+                       convert_from(pg_catalog.textsend(em.from_name),         'LATIN1') AS from_name,
+                       convert_from(pg_catalog.textsend(em.to_name),           'LATIN1') AS to_name,
+                       convert_from(pg_catalog.textsend(em.subject),           'LATIN1') AS subject,
                        to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
                        to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
-                       em.message_id, em.reply_to_id, em.origin_line,
-                       em.tearline_component, em.message_text, em.kludge_lines,
+                       em.message_id, em.reply_to_id,
+                       convert_from(pg_catalog.textsend(em.origin_line),       'LATIN1') AS origin_line,
+                       convert_from(pg_catalog.textsend(em.tearline_component),'LATIN1') AS tearline_component,
+                       convert_from(pg_catalog.textsend(em.message_text),      'LATIN1') AS message_text,
+                       convert_from(pg_catalog.textsend(em.kludge_lines),      'LATIN1') AS kludge_lines,
                        ea.tag AS echoarea_tag, ea.domain AS echoarea_domain
                 FROM echomail em
                 JOIN echoareas ea ON ea.id = em.echoarea_id
@@ -544,27 +552,31 @@ function createServer(userCtx) {
 
             if (!userCtx.isAdmin) conditions.push('ea.is_sysop_only = FALSE');
 
-            // Use pg_catalog.textsend() to get raw bytes without encoding validation or
-            // escape interpretation, then encode as ASCII for safe ILIKE comparison.
+            // convert_from(pg_catalog.textsend(col), 'LATIN1'):
+            //   textsend() extracts raw bytes without encoding validation;
+            //   LATIN1 maps every byte 0x00-0xFF to a valid code point so the
+            //   result is always valid UTF-8 that ILIKE and LEFT() can handle.
             params.push(`%${query}%`);
             conditions.push(
-                `(encode(pg_catalog.textsend(em.subject),      'escape') ILIKE $${params.length}` +
-                ` OR encode(pg_catalog.textsend(em.message_text), 'escape') ILIKE $${params.length})`
+                `(convert_from(pg_catalog.textsend(em.subject),      'LATIN1') ILIKE $${params.length}` +
+                ` OR convert_from(pg_catalog.textsend(em.message_text), 'LATIN1') ILIKE $${params.length})`
             );
 
             if (tag)       { params.push(tag.toUpperCase()); conditions.push(`ea.tag       = $${params.length}`); }
             if (domain)    { params.push(domain);            conditions.push(`ea.domain    = $${params.length}`); }
-            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(pg_catalog.textsend(em.from_name), 'escape') ILIKE $${params.length}`); }
+            if (from_name) { params.push(`%${from_name}%`); conditions.push(`convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') ILIKE $${params.length}`); }
             if (since)     { params.push(since);             conditions.push(`em.date_received >= $${params.length}`); }
 
             params.push(limit);
 
             const sql = `
                 SELECT em.id, ea.tag AS echoarea_tag, ea.domain AS echoarea_domain,
-                       em.from_name, em.to_name, em.subject,
+                       convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') AS from_name,
+                       convert_from(pg_catalog.textsend(em.to_name),   'LATIN1') AS to_name,
+                       convert_from(pg_catalog.textsend(em.subject),   'LATIN1') AS subject,
                        to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
                        to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
-                       LEFT(em.message_text, 300) AS message_preview
+                       LEFT(convert_from(pg_catalog.textsend(em.message_text), 'LATIN1'), 300) AS message_preview
                 FROM echomail em
                 JOIN echoareas ea ON ea.id = em.echoarea_id
                 WHERE ${conditions.join(' AND ')}
@@ -618,18 +630,28 @@ function createServer(userCtx) {
             // Fetch the full thread downward, enforcing echoarea access at every level
             const result = await queryTextSafe(`
                 WITH RECURSIVE thread AS (
-                    SELECT em.id, em.reply_to_id, em.from_name, em.to_name, em.subject,
+                    SELECT em.id, em.reply_to_id,
+                           convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') AS from_name,
+                           convert_from(pg_catalog.textsend(em.to_name),   'LATIN1') AS to_name,
+                           convert_from(pg_catalog.textsend(em.subject),   'LATIN1') AS subject,
                            to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
                            to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
-                           em.message_text, em.origin_line, 0 AS depth
+                           convert_from(pg_catalog.textsend(em.message_text), 'LATIN1') AS message_text,
+                           convert_from(pg_catalog.textsend(em.origin_line),  'LATIN1') AS origin_line,
+                           0 AS depth
                     FROM echomail em
                     JOIN echoareas ea ON ea.id = em.echoarea_id
                     WHERE em.id = $1 AND ea.is_active = TRUE ${sysopClause}
                     UNION ALL
-                    SELECT em.id, em.reply_to_id, em.from_name, em.to_name, em.subject,
+                    SELECT em.id, em.reply_to_id,
+                           convert_from(pg_catalog.textsend(em.from_name), 'LATIN1') AS from_name,
+                           convert_from(pg_catalog.textsend(em.to_name),   'LATIN1') AS to_name,
+                           convert_from(pg_catalog.textsend(em.subject),   'LATIN1') AS subject,
                            to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
                            to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
-                           em.message_text, em.origin_line, t.depth + 1
+                           convert_from(pg_catalog.textsend(em.message_text), 'LATIN1') AS message_text,
+                           convert_from(pg_catalog.textsend(em.origin_line),  'LATIN1') AS origin_line,
+                           t.depth + 1
                     FROM echomail em
                     JOIN echoareas ea ON ea.id = em.echoarea_id
                     JOIN thread t ON em.reply_to_id = t.id
