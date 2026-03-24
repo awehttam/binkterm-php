@@ -34,6 +34,11 @@ class MessageHandler
     {
         $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
         if ($raw === 'written' || $raw === 'date_written') {
+            // date_written ordering is only available to admins; non-admins always use date_received
+            $currentUser = (new Auth())->getCurrentUser();
+            if (!$currentUser || empty($currentUser['is_admin'])) {
+                return 'date_received';
+            }
             return 'date_written';
         }
         if ($raw === 'received' || $raw === 'date_received') {
