@@ -21,23 +21,6 @@ import { z } from 'zod';
 const { Pool } = pg;
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// date_written comes from the FTN packet (local time converted to UTC by PHP).
-// node-postgres returns TIMESTAMP WITHOUT TIME ZONE as a plain string with no
-// timezone context, so we append 'Z' — the same approach used by the
-// BinktermPHP web client in formatDate()/formatFullDate() — to produce a
-// correct ISO 8601 UTC timestamp.  date_received is always set by the server
-// via now() AT TIME ZONE 'UTC' and does not need adjustment here.
-function fixDateWritten(row) {
-    if (row.date_written && typeof row.date_written === 'string') {
-        row.date_written = row.date_written.replace(' ', 'T') + 'Z';
-    }
-    return row;
-}
-
-// ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
@@ -230,7 +213,9 @@ server.tool(
 
         const sql = `
             SELECT em.id, em.from_address, em.from_name, em.to_name,
-                   em.subject, em.date_written, em.date_received,
+                   em.subject,
+                   to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
+                   to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
                    em.message_id, em.origin_line,
                    LEFT(em.message_text, 500) AS message_preview
             FROM echomail em
@@ -244,7 +229,7 @@ server.tool(
         return {
             content: [{
                 type: 'text',
-                text: JSON.stringify(result.rows.map(fixDateWritten), null, 2),
+                text: JSON.stringify(result.rows, null, 2),
             }],
         };
     }
@@ -261,7 +246,9 @@ server.tool(
     async ({ id }) => {
         const sql = `
             SELECT em.id, em.from_address, em.from_name, em.to_name,
-                   em.subject, em.date_written, em.date_received,
+                   em.subject,
+                   to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
+                   to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
                    em.message_id, em.reply_to_id, em.origin_line,
                    em.tearline_component, em.message_text, em.kludge_lines,
                    ea.tag AS echoarea_tag, ea.domain AS echoarea_domain
@@ -274,7 +261,7 @@ server.tool(
             return { content: [{ type: 'text', text: `Message ID ${id} not found.` }] };
         }
         return {
-            content: [{ type: 'text', text: JSON.stringify(fixDateWritten(result.rows[0]), null, 2) }],
+            content: [{ type: 'text', text: JSON.stringify(result.rows[0], null, 2) }],
         };
     }
 );
@@ -325,7 +312,8 @@ server.tool(
         const sql = `
             SELECT em.id, ea.tag AS echoarea_tag, ea.domain AS echoarea_domain,
                    em.from_name, em.to_name, em.subject,
-                   em.date_received, em.date_written,
+                   to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
+                   to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
                    LEFT(em.message_text, 300) AS message_preview
             FROM echomail em
             JOIN echoareas ea ON ea.id = em.echoarea_id
@@ -340,7 +328,7 @@ server.tool(
                 type: 'text',
                 text: result.rows.length === 0
                     ? `No messages found matching "${query}".`
-                    : JSON.stringify(result.rows.map(fixDateWritten), null, 2),
+                    : JSON.stringify(result.rows, null, 2),
             }],
         };
     }
@@ -374,12 +362,16 @@ server.tool(
         const threadSql = `
             WITH RECURSIVE thread AS (
                 SELECT em.id, em.reply_to_id, em.from_name, em.to_name,
-                       em.subject, em.date_received, em.date_written,
+                       em.subject,
+                       to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
+                       to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
                        em.message_text, em.origin_line, 0 AS depth
                 FROM echomail em WHERE em.id = $1
                 UNION ALL
                 SELECT em.id, em.reply_to_id, em.from_name, em.to_name,
-                       em.subject, em.date_received, em.date_written,
+                       em.subject,
+                       to_char(em.date_written,  'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_written,
+                       to_char(em.date_received, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_received,
                        em.message_text, em.origin_line, t.depth + 1
                 FROM echomail em
                 JOIN thread t ON em.reply_to_id = t.id
@@ -390,7 +382,7 @@ server.tool(
         return {
             content: [{
                 type: 'text',
-                text: JSON.stringify(result.rows.map(fixDateWritten), null, 2),
+                text: JSON.stringify(result.rows, null, 2),
             }],
         };
     }
