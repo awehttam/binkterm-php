@@ -1,5 +1,22 @@
 # BinktermPHP Frequently Asked Questions
 
+## Table of Contents
+
+- [Troubleshooting](#troubleshooting)
+- [Support](#support)
+- [Installation & Setup](#installation--setup)
+- [Configuration](#configuration)
+- [Echo Areas](#echo-areas)
+- [Netmail](#netmail)
+- [Binkp Server & Polling](#binkp-server--polling)
+- [Users & Authentication](#users--authentication)
+- [Maintenance](#maintenance)
+- [File Areas](#file-areas)
+- [Multi-Network Support](#multi-network-support)
+- [LovlyNet Network](#lovlynet-network)
+- [Database](#database)
+- [WebDoors](#webdoors)
+
 ## Troubleshooting
 
 ### Q: The page looks broken after an upgrade — missing features, broken menus, or "loadI18nNamespaces is not defined" errors

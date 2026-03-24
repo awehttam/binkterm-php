@@ -27,13 +27,10 @@ class Auth
 
     public function login($username, $password, string $service = 'web')
     {
-        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE');
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
+        $user = $this->authenticateCredentials($username, $password);
 
-        if ($user && password_verify($password, $user['password_hash'])) {
+        if ($user) {
             $sessionId = $this->createSession($user['id'], $service);
-            $this->updateLastLogin($user['id']);
 
             // Generate a fresh CSRF token and store it per-user in UserMeta so it
             // is accessible to both web sessions and the telnet daemon (which has
@@ -43,6 +40,32 @@ class Auth
             $meta->setValue((int)$user['id'], 'csrf_token', $csrfToken);
 
             return $sessionId;
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate username/password credentials without creating a session.
+     *
+     * @param string $username
+     * @param string $password
+     * @return array|false
+     */
+    public function authenticateCredentials(string $username, string $password): array|false
+    {
+        $stmt = $this->db->prepare('
+            SELECT id, username, real_name, email, is_admin, password_hash, created_at, last_login, location, fidonet_address
+            FROM users
+            WHERE LOWER(username) = LOWER(?) AND is_active = TRUE
+            LIMIT 1
+        ');
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
+
+        if ($user && password_verify($password, $user['password_hash'])) {
+            $this->updateLastLogin($user['id']);
+            return $user;
         }
 
         return false;

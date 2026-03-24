@@ -42,6 +42,71 @@ if (!function_exists('webLocalizedText')) {
     }
 }
 
+if (!function_exists('getHttpBasicCredentials')) {
+    /**
+     * Return HTTP Basic credentials from the current request when present.
+     *
+     * @return array{username:string,password:string}|null
+     */
+    function getHttpBasicCredentials(): ?array
+    {
+        $username = $_SERVER['PHP_AUTH_USER'] ?? null;
+        $password = $_SERVER['PHP_AUTH_PW'] ?? null;
+
+        if ($username !== null) {
+            return [
+                'username' => (string)$username,
+                'password' => (string)($password ?? ''),
+            ];
+        }
+
+        $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
+        if (!is_string($header) || stripos($header, 'Basic ') !== 0) {
+            return null;
+        }
+
+        $decoded = base64_decode(substr($header, 6), true);
+        if ($decoded === false || !str_contains($decoded, ':')) {
+            return null;
+        }
+
+        [$basicUser, $basicPass] = explode(':', $decoded, 2);
+        return [
+            'username' => $basicUser,
+            'password' => $basicPass,
+        ];
+    }
+}
+
+if (!function_exists('requireBasicAuthUser')) {
+    /**
+     * Require HTTP Basic auth and return the authenticated user.
+     *
+     * @return array
+     */
+    function requireBasicAuthUser(string $realm = 'BinktermPHP QWK'): array
+    {
+        $credentials = getHttpBasicCredentials();
+        if ($credentials === null) {
+            header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
+            http_response_code(401);
+            echo 'HTTP Basic authentication required.';
+            exit;
+        }
+
+        $auth = new Auth();
+        $user = $auth->authenticateCredentials($credentials['username'], $credentials['password']);
+        if ($user === false) {
+            header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
+            http_response_code(401);
+            echo 'Invalid username or password.';
+            exit;
+        }
+
+        return $user;
+    }
+}
+
 SimpleRouter::get('/', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -1570,6 +1635,64 @@ SimpleRouter::get('/qwk', function() {
 
     $template = new Template();
     $template->renderResponse('qwk.twig');
+});
+
+SimpleRouter::get('/qwk/download', function() {
+    $user   = requireBasicAuthUser();
+    $userId = (int)($user['user_id'] ?? $user['id']);
+
+    try {
+        $controller = new \BinktermPHP\Qwk\QwkHttpController();
+        $download = $controller->buildDownloadPacket($userId);
+
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $download['filename'] . '"');
+        header('Content-Length: ' . $download['filesize']);
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+
+        readfile($download['path']);
+        @unlink($download['path']);
+        exit;
+    } catch (\DomainException $e) {
+        http_response_code(403);
+        echo htmlspecialchars($e->getMessage());
+    } catch (\Throwable $e) {
+        error_log('[QWK] basic-auth download failed for user ' . $userId . ': ' . $e->getMessage());
+        http_response_code(500);
+        echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
+    }
+});
+
+SimpleRouter::post('/qwk/upload', function() {
+    $user   = requireBasicAuthUser();
+    $userId = (int)($user['user_id'] ?? $user['id']);
+
+    header('Content-Type: application/json');
+
+    try {
+        $controller = new \BinktermPHP\Qwk\QwkHttpController();
+        echo json_encode($controller->processUploadedRep($_FILES['rep'] ?? [], $userId));
+    } catch (\InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    } catch (\DomainException $e) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[QWK] basic-auth upload failed for user ' . $userId . ': ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Failed to process REP packet: ' . $e->getMessage(),
+        ]);
+    }
 });
 
 // Include local/custom routes if they exist

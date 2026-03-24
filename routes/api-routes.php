@@ -752,13 +752,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $chatMaxId = (int)$chatRow['max_id'];
         }
 
-        // New files visible to this user since last seen max file ID
-        $fileAreaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL";
-        if ((int)$userId > 0) {
-            $privateTag = 'PRIVATE_USER_' . (int)$userId;
-            $fileAreaConditions .= " OR fa.tag = " . $db->quote($privateTag);
-        }
-        $fileAreaConditions .= ")";
+        // New file notifications only apply to shared/public file areas.
+        // A user's own private area should not trigger the general files badge.
+        $fileAreaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL)";
 
         if ($lastFilesMaxId === null) {
             $filesMaxStmt = $db->query("
@@ -2337,11 +2333,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         unset($filearea);
 
         $privateArea = $userId ? $manager->getPrivateFileArea((int)$userId) : null;
+        $myUploadsSummary = $userId ? $manager->getUserUploadsSummary((int)$userId) : null;
         if ($privateArea) {
             $privateArea['_username'] = $user['username'] ?? '';
         }
 
-        echo json_encode(['fileareas' => $fileareas, 'private_area' => $privateArea]);
+        echo json_encode([
+            'fileareas' => $fileareas,
+            'private_area' => $privateArea,
+            'my_uploads_summary' => $myUploadsSummary,
+        ]);
     });
 
     SimpleRouter::get('/fileareas/{id}', function($id) {
@@ -2609,6 +2610,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['files' => $files]);
     });
 
+    SimpleRouter::get('/files/my-uploads', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $manager = new \BinktermPHP\FileAreaManager();
+        $files = $manager->listUserUploads($userId);
+        $summary = $manager->getUserUploadsSummary($userId);
+
+        echo json_encode([
+            'files' => $files,
+            'summary' => $summary,
+        ]);
+    });
+
     /**
      * GET /api/files/search?q=QUERY
      * Search filenames and short descriptions across all accessible file areas.
@@ -2689,11 +2712,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->getCurrentUser();
 
         $manager = new \BinktermPHP\FileAreaManager();
+        $viaPublicArea = false;
 
         // Allow guests on public areas
         if (!$user) {
             $checkFile = $manager->getFileById((int)$id);
-            $viaPublicArea = false;
             if ($checkFile) {
                 $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
                 if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
@@ -2716,12 +2739,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $file = $manager->getFileById((int)$id);
 
-        if ($file) {
-            echo json_encode(['file' => $file]);
-        } else {
+        if (!$file) {
             http_response_code(404);
             apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
         }
+
+        $userId = $user ? (int)($user['user_id'] ?? $user['id'] ?? 0) : null;
+        $isAdmin = !empty($user['is_admin']);
+        $isOwnPendingUpload = $userId
+            && ($file['source_type'] ?? '') === 'user_upload'
+            && in_array(($file['status'] ?? ''), ['pending', 'rejected'], true)
+            && (int)($file['owner_id'] ?? 0) === (int)$userId;
+
+        if (($file['status'] ?? '') !== 'approved' && !$isOwnPendingUpload && !$isAdmin) {
+            http_response_code(404);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
+        }
+
+        if (($file['status'] ?? '') === 'approved' && !$viaPublicArea) {
+            if (!$manager->canAccessFileArea((int)$file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user));
+                return;
+            }
+        }
+
+        echo json_encode(['file' => $file]);
     })->where(['id' => '[0-9]+']);
 
     /**
@@ -2782,7 +2827,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $manager = new \BinktermPHP\FileAreaManager();
         $file    = $manager->getFileById((int)$id);
 
-        if (!$file || $file['status'] !== 'approved') {
+        if (!$file) {
             http_response_code(404);
             echo 'File not found';
             return;
@@ -2800,11 +2845,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if (!$user) return; // requireAuth already responded
         }
 
-        // Check if user has access to this file's area
         $userId  = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
         $isAdmin = !empty($user['is_admin']);
 
-        $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+        $isOwnUnapprovedUpload = $userId
+            && ($file['source_type'] ?? '') === 'user_upload'
+            && ($file['status'] ?? '') !== 'approved'
+            && ((int)($file['owner_id'] ?? 0) === (int)$userId || $isAdmin);
+
+        if (($file['status'] ?? '') !== 'approved' && !$isOwnUnapprovedUpload) {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        // Check if user has access to this file's area
+        $hasAccess = $isOwnUnapprovedUpload
+            ? true
+            : $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
 
         // Senders of netmail attachments can always download what they sent, even though
         // the file lives in the recipient's private area.
@@ -2843,7 +2901,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $encodedFilename = rawurlencode($filename);
 
         // Credits only apply to authenticated users
-        if ($userId) {
+        if ($userId && ($file['status'] ?? '') === 'approved') {
             $downloadCost   = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
             $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
 
@@ -3994,6 +4052,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
             $isAdmin = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
 
+            if (!$manager->canAccessFileArea($fileAreaId, $ownerId, $isAdmin)) {
+                throw new \Exception('Access denied to this file area');
+            }
+
             // Check upload permission
             if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
                 throw new \Exception('This file area is read-only. Uploads are not permitted.');
@@ -4006,6 +4068,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
             $uploadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
             $uploadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+            $isOwnPrivateArea = !empty($fileArea['is_private']) && (string)($fileArea['tag'] ?? '') === ('PRIVATE_USER_' . $ownerId);
+            $initialStatus = ($isAdmin || $isOwnPrivateArea) ? 'approved' : 'pending';
 
             if ($uploadCost > 0) {
                 $uploadCostCharged = UserCredit::debit(
@@ -4026,10 +4090,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $shortDescription,
                 $longDescription,
                 $uploadedBy,
-                $ownerId
+                $ownerId,
+                $initialStatus
             );
 
-            if ($uploadReward > 0) {
+            if ($uploadReward > 0 && $initialStatus === 'approved') {
                 $creditSuccess = UserCredit::credit(
                     $ownerId,
                     $uploadReward,
@@ -4047,7 +4112,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'file_id' => $fileId,
-                'message_code' => 'ui.api.files.uploaded'
+                'status' => $initialStatus,
+                'approval_required' => $initialStatus === 'pending',
+                'message_code' => $initialStatus === 'pending'
+                    ? 'ui.files.upload_pending_approval'
+                    : 'ui.api.files.uploaded'
             ]);
 
         } catch (\Exception $e) {
@@ -4075,6 +4144,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
             } elseif ($message === 'Only administrators can upload files to this area.') {
                 apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Access denied to this file area') {
+                apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user), 403);
             } elseif ($message === 'Insufficient credits for file upload') {
                 apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
             } elseif ($message === 'File rejected: virus detected.') {
@@ -9629,40 +9700,22 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         $user   = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
 
-        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
-            http_response_code(403);
-            echo 'QWK offline mail is not enabled on this system.';
-            return;
-        }
-
         try {
-            $meta   = new \BinktermPHP\UserMeta();
-            $format = $_GET['format'] ?? $meta->getValue($userId, 'qwk_format') ?? 'qwk';
-            $qwke   = ($format === 'qwke');
-            $meta->setValue($userId, 'qwk_format', $qwke ? 'qwke' : 'qwk');
-
-            $hardCap     = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
-            $savedLimit  = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
-            $requestedLimit = isset($_GET['limit']) ? (int)$_GET['limit'] : $savedLimit;
-            $limit = max(1, min($hardCap, $requestedLimit));
-            $meta->setValue($userId, 'qwk_limit', $limit);
-
-            $builder  = new \BinktermPHP\Qwk\QwkBuilder();
-            $zipPath  = $builder->buildPacket($userId, $qwke, $limit);
-            $bbsId    = $builder->getBbsId();
-            $filename = $bbsId . '.QWK';
-
-            $filesize = filesize($zipPath);
+            $controller = new \BinktermPHP\Qwk\QwkHttpController();
+            $download = $controller->buildDownloadPacket($userId);
 
             header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Content-Length: ' . $filesize);
+            header('Content-Disposition: attachment; filename="' . $download['filename'] . '"');
+            header('Content-Length: ' . $download['filesize']);
             header('Cache-Control: no-store, no-cache, must-revalidate');
             header('Pragma: no-cache');
 
-            readfile($zipPath);
-            @unlink($zipPath);
+            readfile($download['path']);
+            @unlink($download['path']);
             exit;
+        } catch (\DomainException $e) {
+            http_response_code(403);
+            echo htmlspecialchars($e->getMessage());
         } catch (\Exception $e) {
             error_log('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
@@ -9711,15 +9764,23 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         }
 
         try {
-            $processor = new \BinktermPHP\Qwk\RepProcessor();
-            $result    = $processor->processRepPacket($file['tmp_name'], $userId);
-
-            echo json_encode([
-                'success'  => $result['imported'] > 0 || count($result['errors']) === 0,
-                'imported' => $result['imported'],
-                'skipped'  => $result['skipped'],
-                'errors'   => $result['errors'],
-            ]);
+            $controller = new \BinktermPHP\Qwk\QwkHttpController();
+            echo json_encode($controller->processUploadedRep($file, $userId));
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            $message = $e->getMessage();
+            if (str_starts_with($message, 'No REP file received')) {
+                apiError('errors.qwk.no_file', $message);
+            } elseif (str_starts_with($message, 'File upload error code')) {
+                apiError('errors.qwk.upload_error', $message);
+            } elseif (str_starts_with($message, 'Please upload')) {
+                apiError('errors.qwk.invalid_extension', $message);
+            } else {
+                apiError('errors.qwk.upload_error', $message);
+            }
+        } catch (\DomainException $e) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', $e->getMessage());
         } catch (\Exception $e) {
             error_log('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);

@@ -376,6 +376,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/filearea_rules.twig');
     });
 
+    // File upload approval queue
+    SimpleRouter::get('/file-approvals', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/file_approvals.twig', [
+            'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        ]);
+    });
+
     // Advertisements management page
     SimpleRouter::get('/ads', function() {
         $user = RouteHelper::requireAdmin();
@@ -2301,6 +2311,138 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 apiError('errors.admin.filearea_rules.load_failed', 'Failed to load filenames');
             }
         });
+
+        SimpleRouter::get('/files/pending', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                echo json_encode([
+                    'success' => true,
+                    'files' => $manager->listPendingUploads(),
+                    'count' => $manager->countPendingUploads(),
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.file_approvals.load_failed', apiLocalizedText('errors.admin.file_approvals.load_failed', 'Failed to load pending file approvals'));
+            }
+        });
+
+        SimpleRouter::post('/files/{id}/approve', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                $manager->approveFileUpload((int)$id, (int)($user['user_id'] ?? $user['id'] ?? 0));
+                AdminActionLogger::logAction(
+                    (int)($user['user_id'] ?? $user['id'] ?? 0),
+                    'file_upload_approved',
+                    ['file_id' => (int)$id]
+                );
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.file_approvals.approved'
+                ]);
+            } catch (Exception $e) {
+                $message = $e->getMessage();
+                if ($message === 'File not found') {
+                    http_response_code(404);
+                    apiError('errors.admin.file_approvals.not_found', apiLocalizedText('errors.admin.file_approvals.not_found', 'Pending file not found'), 404);
+                    return;
+                }
+                if ($message === 'File is not awaiting approval') {
+                    http_response_code(400);
+                    apiError('errors.admin.file_approvals.not_pending', apiLocalizedText('errors.admin.file_approvals.not_pending', 'File is not awaiting approval'));
+                    return;
+                }
+
+                error_log('File approval failed: ' . $message);
+                http_response_code(500);
+                apiError('errors.admin.file_approvals.approve_failed', apiLocalizedText('errors.admin.file_approvals.approve_failed', 'Failed to approve file upload'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/files/{id}/reject', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+                $reason = trim((string)($payload['reason'] ?? ''));
+                $manager = new \BinktermPHP\FileAreaManager();
+                $manager->rejectFileUpload(
+                    (int)$id,
+                    (int)($user['user_id'] ?? $user['id'] ?? 0),
+                    $reason !== '' ? $reason : null
+                );
+
+                AdminActionLogger::logAction(
+                    (int)($user['user_id'] ?? $user['id'] ?? 0),
+                    'file_upload_rejected',
+                    ['file_id' => (int)$id, 'reason' => $reason !== '' ? $reason : null]
+                );
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.file_approvals.rejected'
+                ]);
+            } catch (Exception $e) {
+                $message = $e->getMessage();
+                if ($message === 'File not found') {
+                    http_response_code(404);
+                    apiError('errors.admin.file_approvals.not_found', apiLocalizedText('errors.admin.file_approvals.not_found', 'Pending file not found'), 404);
+                    return;
+                }
+                if ($message === 'File is not awaiting approval') {
+                    http_response_code(400);
+                    apiError('errors.admin.file_approvals.not_pending', apiLocalizedText('errors.admin.file_approvals.not_pending', 'File is not awaiting approval'));
+                    return;
+                }
+
+                error_log('File rejection failed: ' . $message);
+                http_response_code(500);
+                apiError('errors.admin.file_approvals.reject_failed', apiLocalizedText('errors.admin.file_approvals.reject_failed', 'Failed to reject file upload'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::get('/files/{id}/download', function($id) {
+            RouteHelper::requireAdmin();
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                $file = $manager->getFileById((int)$id);
+                if (!$file || ($file['source_type'] ?? '') !== 'user_upload' || !in_array(($file['status'] ?? ''), ['pending', 'rejected', 'approved'], true)) {
+                    http_response_code(404);
+                    echo 'File not found';
+                    return;
+                }
+
+                $storagePath = $manager->resolveFilePath($file);
+                if (!file_exists($storagePath)) {
+                    http_response_code(404);
+                    echo 'File not found on disk';
+                    return;
+                }
+
+                $filename = basename((string)$file['filename']);
+                $encodedFilename = rawurlencode($filename);
+
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
+                header('Content-Length: ' . filesize($storagePath));
+                header('Cache-Control: no-cache, must-revalidate');
+                header('Pragma: public');
+
+                readfile($storagePath);
+                exit;
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo 'Failed to download file';
+            }
+        })->where(['id' => '[0-9]+']);
 
         // Advertisements
         SimpleRouter::get('/ads', function() {

@@ -414,6 +414,7 @@ function renderCampaignTable(campaigns) {
                 <div class="d-flex flex-wrap justify-content-end gap-2 campaign-actions">
                 <button class="btn btn-sm btn-outline-primary" type="button" onclick="runCampaign(${Number(campaign.id)})">${uiT('ui.admin.ad_campaigns.run_now', 'Run Now')}</button>
                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="editCampaign(${Number(campaign.id)})">${uiT('ui.common.edit', 'Edit')}</button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="cloneCampaign(${Number(campaign.id)})">${uiT('ui.common.clone', 'Clone')}</button>
                 <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCampaign(${Number(campaign.id)}, '${escapeJs(campaign.name || '')}')">${uiT('ui.common.delete', 'Delete')}</button>
                 </div>
             </td>
@@ -645,26 +646,46 @@ function showCampaignModal() {
 function editCampaign(id) {
     fetch(`/admin/api/ad-campaigns/${id}`).then(readJsonResponse).then(({ response, data }) => {
         if (!response.ok || data.error_code) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign')));
-        const campaign = data.campaign;
-        document.getElementById('campaignModalAlert').innerHTML = '';
-        document.getElementById('campaignModalTitle').textContent = uiT('ui.admin.ad_campaigns.edit_campaign', 'Edit Campaign');
-        document.getElementById('campaignId').value = String(campaign.id || '');
-        document.getElementById('campaignName').value = campaign.name || '';
-        document.getElementById('campaignDescription').value = campaign.description || '';
-        document.getElementById('campaignEndAt').value = campaign.end_at ? campaign.end_at.slice(0, 10) : '';
-        document.getElementById('campaignToName').value = campaign.to_name || 'All';
-        document.getElementById('campaignSelectionMode').value = campaign.selection_mode || 'weighted_random';
-        document.getElementById('campaignIsActive').checked = !!campaign.is_active;
-        document.getElementById('campaignNextRunDisplay').textContent = formatNextRun(campaign.next_run || null);
-        populateCampaignMeta(campaign.from_user_id || '');
-        renderScheduleRows(Array.isArray(campaign.schedules) ? campaign.schedules : []);
-        renderTargetRows(Array.isArray(campaign.targets) ? campaign.targets : []);
-        renderCampaignTagFilters(campaign.tag_filters || { include: [], exclude: [] });
-        renderCampaignAds(Array.isArray(campaign.ads) ? campaign.ads : []);
+        populateCampaignForm(data.campaign, false);
         adCampaignModal.show();
     }).catch(error => {
         showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'), 'danger');
     });
+}
+
+function cloneCampaign(id) {
+    fetch(`/admin/api/ad-campaigns/${id}`).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || data.error_code) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign')));
+        populateCampaignForm(data.campaign, true);
+        adCampaignModal.show();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'), 'danger');
+    });
+}
+
+function populateCampaignForm(campaign, cloneMode = false) {
+    const sourceCampaign = campaign || {};
+    document.getElementById('campaignModalAlert').innerHTML = '';
+    document.getElementById('campaignModalTitle').textContent = cloneMode
+        ? uiT('ui.admin.ad_campaigns.clone_campaign', 'Clone Campaign')
+        : uiT('ui.admin.ad_campaigns.edit_campaign', 'Edit Campaign');
+    document.getElementById('campaignId').value = cloneMode ? '' : String(sourceCampaign.id || '');
+    document.getElementById('campaignName').value = cloneMode
+        ? `${sourceCampaign.name || ''}${uiT('ui.admin.ad_campaigns.copy_suffix', ' (Copy)')}`
+        : (sourceCampaign.name || '');
+    document.getElementById('campaignDescription').value = sourceCampaign.description || '';
+    document.getElementById('campaignEndAt').value = sourceCampaign.end_at ? sourceCampaign.end_at.slice(0, 10) : '';
+    document.getElementById('campaignToName').value = sourceCampaign.to_name || 'All';
+    document.getElementById('campaignSelectionMode').value = sourceCampaign.selection_mode || 'weighted_random';
+    document.getElementById('campaignIsActive').checked = cloneMode ? false : !!sourceCampaign.is_active;
+    document.getElementById('campaignNextRunDisplay').textContent = cloneMode
+        ? uiT('ui.admin.ad_campaigns.not_scheduled', 'Not scheduled')
+        : formatNextRun(sourceCampaign.next_run || null);
+    populateCampaignMeta(sourceCampaign.from_user_id || '');
+    renderScheduleRows(Array.isArray(sourceCampaign.schedules) ? sourceCampaign.schedules : []);
+    renderTargetRows(Array.isArray(sourceCampaign.targets) ? sourceCampaign.targets : []);
+    renderCampaignTagFilters(sourceCampaign.tag_filters || { include: [], exclude: [] });
+    renderCampaignAds(Array.isArray(sourceCampaign.ads) ? sourceCampaign.ads : []);
 }
 
 function populateCampaignMeta(selectedUserId = '') {

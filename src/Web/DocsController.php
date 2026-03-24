@@ -15,10 +15,12 @@ use BinktermPHP\Template;
 class DocsController
 {
     private string $docsDir;
+    private string $repoRoot;
 
     public function __construct()
     {
         $this->docsDir = realpath(__DIR__ . '/../../docs');
+        $this->repoRoot = realpath(__DIR__ . '/../..');
     }
 
     /**
@@ -58,18 +60,8 @@ class DocsController
             return;
         }
 
-        $filePath = $this->docsDir . DIRECTORY_SEPARATOR . $name . '.md';
-
-        // Resolve and confirm the file is inside docsDir (no traversal).
-        $realPath = realpath($filePath);
-        if ($realPath === false || strpos($realPath, $this->docsDir) !== 0) {
-            $this->render404();
-            return;
-        }
-
-        // Must not be inside the proposals subdirectory.
-        $proposalsDir = $this->docsDir . DIRECTORY_SEPARATOR . 'proposals';
-        if (strpos($realPath, $proposalsDir) === 0) {
+        $realPath = $this->resolveDocPath($name);
+        if ($realPath === null) {
             $this->render404();
             return;
         }
@@ -98,19 +90,60 @@ class DocsController
     private function rewriteLinks(string $markdown): string
     {
         return preg_replace_callback(
-            '/\[([^\]]+)\]\(\.?\/?([A-Za-z0-9_.\-]+)\.md(#[^\)]*)?\)/',
+            '/\[([^\]]+)\]\((?!https:\/\/|#)(?:\.\/)?([A-Za-z0-9_.\-\/]+)\.md(#[^\)]*)?\)/',
             function (array $m): string {
                 $label  = $m[1];
-                $target = $m[2];
+                $target = str_replace('\\', '/', $m[2]);
                 $anchor = $m[3] ?? '';
-                // Extra safety: reject any embedded path separators
-                if (str_contains($target, '/') || str_contains($target, '\\')) {
+
+                if (str_contains($target, '../')) {
                     return $m[0];
                 }
+
+                if (str_starts_with($target, 'docs/')) {
+                    $target = substr($target, 5);
+                }
+
+                if (str_contains($target, '/')) {
+                    return $m[0];
+                }
+
                 return '[' . $label . '](/admin/docs/view/' . $target . $anchor . ')';
             },
             $markdown
         );
+    }
+
+    /**
+     * Resolve a documentation name to an allowed markdown file path.
+     */
+    private function resolveDocPath(string $name): ?string
+    {
+        $specialDocs = [
+            'FAQ' => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ.md',
+            'README' => $this->repoRoot . DIRECTORY_SEPARATOR . 'README.md',
+        ];
+
+        if (isset($specialDocs[$name])) {
+            $realPath = realpath($specialDocs[$name]);
+            if ($realPath !== false && str_starts_with($realPath, $this->repoRoot . DIRECTORY_SEPARATOR)) {
+                return $realPath;
+            }
+            return null;
+        }
+
+        $filePath = $this->docsDir . DIRECTORY_SEPARATOR . $name . '.md';
+        $realPath = realpath($filePath);
+        if ($realPath === false || !str_starts_with($realPath, $this->docsDir . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        $proposalsDir = $this->docsDir . DIRECTORY_SEPARATOR . 'proposals' . DIRECTORY_SEPARATOR;
+        if (str_starts_with($realPath, $proposalsDir)) {
+            return null;
+        }
+
+        return $realPath;
     }
 
     /**

@@ -125,7 +125,7 @@ class MarkdownRenderer
             }
 
             // --- Unordered list (supports nested indented sub-lists) ---
-            if (preg_match('/^(\s*)[-*]\s+(.+)$/', $line, $m)) {
+            if (preg_match('/^(\s*)[-*]\s*(.*)$/', $line, $m)) {
                 $output[] = self::parseUnorderedList($lines, $i, $total, strlen($m[1]));
                 continue;
             }
@@ -150,7 +150,13 @@ class MarkdownRenderer
                 // Join lines first so inline links that span a soft wrap are
                 // processed as a single string rather than split across calls.
                 $output[] = '<p>' . self::inlineHtml(implode(' ', $para)) . '</p>';
+                continue;
             }
+
+            // Fallback: consume any otherwise-unhandled line so malformed
+            // markdown cannot trap the parser in a non-advancing loop.
+            $output[] = '<p>' . self::inlineHtml($line) . '</p>';
+            $i++;
         }
 
         return implode("\n", $output);
@@ -305,7 +311,7 @@ class MarkdownRenderer
         $items = [];
 
         while ($i < $total) {
-            if (!preg_match('/^(\s*)[-*]\s+(.+)$/', $lines[$i], $itemMatch)) {
+            if (!preg_match('/^(\s*)[-*]\s*(.*)$/', $lines[$i], $itemMatch)) {
                 break;
             }
 
@@ -328,7 +334,7 @@ class MarkdownRenderer
                     break;
                 }
 
-                if (preg_match('/^(\s*)[-*]\s+(.+)$/', $current, $nestedMatch)) {
+                if (preg_match('/^(\s*)[-*]\s*(.*)$/', $current, $nestedMatch)) {
                     $nestedIndent = strlen($nestedMatch[1]);
                     if ($nestedIndent > $baseIndent) {
                         $itemInner .= self::parseUnorderedList($lines, $i, $total, $nestedIndent);

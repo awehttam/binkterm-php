@@ -1628,7 +1628,7 @@ class FileAreaManager
      * @return int File ID
      * @throws \Exception If upload fails
      */
-    public function uploadFile(int $fileAreaId, array $fileData, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null): int
+    public function uploadFile(int $fileAreaId, array $fileData, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null, string $initialStatus = 'approved'): int
     {
         // Get file area
         $fileArea = $this->getFileAreaById($fileAreaId);
@@ -1688,37 +1688,11 @@ class FileAreaManager
             }
         }
 
-        // Create area directory if needed
-        $areaDir = $this->getAreaStorageDir($fileArea);
-        self::ensureDirectoryExists($areaDir);
-
-        // Determine storage path
-        $storagePath = $areaDir . '/' . $filename;
-
-        // Handle filename conflicts based on replace_existing setting
-        if (file_exists($storagePath)) {
-            if ($fileArea['replace_existing']) {
-                // Replace mode: delete old file and database record
-                $oldFile = $this->getFileByPath($storagePath);
-                if ($oldFile) {
-                    $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
-                    $stmt->execute([$oldFile['id']]);
-                }
-                unlink($storagePath);
-            } else {
-                // Version mode: add suffix
-                $counter = 1;
-                while (file_exists($storagePath)) {
-                    $pathInfo = pathinfo($filename);
-                    $newFilename = $pathInfo['filename'] . '_' . $counter;
-                    if (isset($pathInfo['extension'])) {
-                        $newFilename .= '.' . $pathInfo['extension'];
-                    }
-                    $storagePath = $areaDir . '/' . $newFilename;
-                    $filename = $newFilename;
-                    $counter++;
-                }
-            }
+        $status = strtolower(trim($initialStatus)) === 'pending' ? 'pending' : 'approved';
+        if ($status === 'pending') {
+            $storagePath = $this->allocatePendingStoragePath($fileArea, $filename);
+        } else {
+            [$filename, $storagePath] = $this->allocateApprovedStoragePath($fileArea, $filename);
         }
 
         // Move uploaded file
@@ -1740,7 +1714,7 @@ class FileAreaManager
                 ?, ?, ?, ?, ?,
                 ?, 'user_upload',
                 ?, ?,
-                ?, 'approved', NOW()
+                ?, ?, NOW()
             ) RETURNING id
         ");
 
@@ -1753,56 +1727,206 @@ class FileAreaManager
             $uploadedBy,
             $shortDescription,
             $longDescription,
-            $ownerId
+            $ownerId,
+            $status
         ]);
 
         $result = $stmt->fetch();
         $fileId = $result['id'];
 
-        // Update file area statistics
-        $this->updateFileAreaStats($fileAreaId);
-
         // Scan for viruses if enabled for this file area
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
             if (($scanResult['result'] ?? '') === 'infected' && Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
+                $this->purgeFileRecord((int)$fileId, false);
                 throw new \Exception('File rejected: virus detected.');
             }
         }
 
-        // Run file area automation rules
-        try {
-            $ruleProcessor = new FileAreaRuleProcessor();
-            $ruleResult = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
-            if (!empty($ruleResult['output'])) {
-                error_log("File area rules output for {$filename}: " . $ruleResult['output']);
-            }
-        } catch (\Exception $e) {
-            error_log("File area rules error for {$filename}: " . $e->getMessage());
-        }
-
-        // If rules deleted the file, skip TIC generation
-        $fileRecord = $this->getFileById($fileId);
-        if (!$fileRecord) {
-            return $fileId;
-        }
-
-        // Generate TIC files for distribution to uplinks (if not a local area)
-        if (empty($fileArea['is_local']) && empty($fileArea['is_private'])) {
-            try {
-                $ticGenerator = new TicFileGenerator();
-                $createdTics = $ticGenerator->createTicFilesForUplinks($fileRecord, $fileArea);
-
-                if (count($createdTics) > 0) {
-                    error_log("Generated " . count($createdTics) . " TIC file(s) for file: {$filename}");
-                }
-            } catch (\Throwable $e) {
-                // Log error but don't fail the upload
-                error_log("Failed to generate TIC files for uploaded file: " . $e->getMessage());
-            }
+        if ($status === 'approved') {
+            $this->finalizeApprovedUserUpload((int)$fileId);
         }
 
         return $fileId;
+    }
+
+    /**
+     * List files awaiting sysop approval.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listPendingUploads(): array
+    {
+        $stmt = $this->db->query("
+            SELECT f.*,
+                   fa.tag AS area_tag,
+                   fa.domain,
+                   fa.description AS area_description,
+                   u.username AS owner_username
+            FROM files f
+            JOIN file_areas fa ON fa.id = f.file_area_id
+            LEFT JOIN users u ON u.id = f.owner_id
+            WHERE f.status = 'pending'
+              AND f.source_type = 'user_upload'
+            ORDER BY f.created_at ASC
+        ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function countPendingUploads(): int
+    {
+        $stmt = $this->db->query("
+            SELECT COUNT(*)
+            FROM files
+            WHERE status = 'pending'
+              AND source_type = 'user_upload'
+        ");
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * List all uploads owned by a user, including pending/rejected ones.
+     *
+     * @param int $userId
+     * @return array<int, array<string, mixed>>
+     */
+    public function listUserUploads(int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.*,
+                   fa.tag AS area_tag,
+                   fa.domain,
+                   fa.description AS area_description
+            FROM files f
+            JOIN file_areas fa ON fa.id = f.file_area_id
+            WHERE f.owner_id = ?
+              AND f.source_type = 'user_upload'
+            ORDER BY f.created_at DESC, f.id DESC
+        ");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Summarize a user's uploads for sidebar display.
+     *
+     * @param int $userId
+     * @return array<string, int>
+     */
+    public function getUserUploadsSummary(int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) AS total_count,
+                   COALESCE(SUM(filesize), 0) AS total_size,
+                   COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
+                   COUNT(*) FILTER (WHERE status = 'approved') AS approved_count,
+                   COUNT(*) FILTER (WHERE status = 'rejected') AS rejected_count
+            FROM files
+            WHERE owner_id = ?
+              AND source_type = 'user_upload'
+        ");
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'total_count' => (int)($row['total_count'] ?? 0),
+            'total_size' => (int)($row['total_size'] ?? 0),
+            'pending_count' => (int)($row['pending_count'] ?? 0),
+            'approved_count' => (int)($row['approved_count'] ?? 0),
+            'rejected_count' => (int)($row['rejected_count'] ?? 0),
+        ];
+    }
+
+    public function approveFileUpload(int $fileId, int $adminUserId): bool
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+        if (($file['status'] ?? '') !== 'pending' || ($file['source_type'] ?? '') !== 'user_upload') {
+            throw new \Exception('File is not awaiting approval');
+        }
+
+        [$filename, $storagePath] = $this->movePendingUploadToApprovedStorage($file);
+
+        $stmt = $this->db->prepare("
+            UPDATE files
+            SET status = 'approved',
+                filename = ?,
+                storage_path = ?,
+                approved_by_user_id = ?,
+                approved_at = NOW(),
+                rejected_by_user_id = NULL,
+                rejected_at = NULL,
+                rejection_reason = NULL
+            WHERE id = ?
+        ");
+        $stmt->execute([$filename, $storagePath, $adminUserId, $fileId]);
+
+        $this->finalizeApprovedUserUpload($fileId);
+
+        $approvedFile = $this->getFileById($fileId);
+        if ($approvedFile && UserCredit::isEnabled()) {
+            $reward = UserCredit::getRewardAmount('file_upload', 0);
+            $ownerId = (int)($approvedFile['owner_id'] ?? 0);
+            if ($reward > 0 && $ownerId > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $reward,
+                    "Upload approved: " . ($approvedFile['filename'] ?? 'file'),
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+            }
+        }
+
+        return true;
+    }
+
+    public function rejectFileUpload(int $fileId, int $adminUserId, ?string $reason = null, bool $deletePhysicalFile = true): bool
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+        if (($file['status'] ?? '') !== 'pending' || ($file['source_type'] ?? '') !== 'user_upload') {
+            throw new \Exception('File is not awaiting approval');
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE files
+            SET status = 'rejected',
+                rejected_by_user_id = ?,
+                rejected_at = NOW(),
+                rejection_reason = ?,
+                approved_by_user_id = NULL,
+                approved_at = NULL
+            WHERE id = ?
+        ");
+        $stmt->execute([$adminUserId, $reason, $fileId]);
+
+        if ($deletePhysicalFile) {
+            $storagePath = (string)($file['storage_path'] ?? '');
+            if ($storagePath !== '' && file_exists($storagePath)) {
+                @unlink($storagePath);
+            }
+        }
+
+        if (UserCredit::isEnabled()) {
+            $cost = UserCredit::getCreditCost('file_upload', 0);
+            $ownerId = (int)($file['owner_id'] ?? 0);
+            if ($cost > 0 && $ownerId > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $cost,
+                    'Refund: File upload rejected',
+                    null,
+                    UserCredit::TYPE_REFUND
+                );
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -1894,9 +2018,12 @@ class FileAreaManager
             throw new \Exception('File not found');
         }
 
-        // Check permissions: admin or file owner
-        if (!$isAdmin && ($file['owner_id'] === null || $file['owner_id'] != $userId)) {
-            throw new \Exception('You do not have permission to delete this file');
+        if (!$isAdmin) {
+            $isOwner = $file['owner_id'] !== null && (int)$file['owner_id'] === $userId;
+            $isOwnPrivateArea = !empty($file['is_private']) && (string)($file['area_tag'] ?? '') === ('PRIVATE_USER_' . $userId);
+            if (!$isOwner || !$isOwnPrivateArea) {
+                throw new \Exception('You do not have permission to delete this file');
+            }
         }
 
         // Delete file from disk
@@ -2635,6 +2762,145 @@ class FileAreaManager
             WHERE id = ?
         ");
         $stmt->execute([$fileAreaId, $fileAreaId, $fileAreaId]);
+    }
+
+    private function allocatePendingStoragePath(array $fileArea, string $filename): string
+    {
+        $pendingDir = $this->getAreaStorageDir($fileArea) . '/.pending';
+        self::ensureDirectoryExists($pendingDir);
+
+        $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename) ?: 'upload.bin';
+        do {
+            $candidate = $pendingDir . '/' . uniqid('pending_', true) . '_' . $safeFilename;
+        } while (file_exists($candidate));
+
+        return $candidate;
+    }
+
+    private function allocateApprovedStoragePath(array $fileArea, string $filename): array
+    {
+        $areaDir = $this->getAreaStorageDir($fileArea);
+        self::ensureDirectoryExists($areaDir);
+
+        $storagePath = $areaDir . '/' . $filename;
+
+        if (file_exists($storagePath)) {
+            if (!empty($fileArea['replace_existing'])) {
+                $oldFile = $this->getFileByPath($storagePath);
+                if ($oldFile) {
+                    $this->purgeFileRecord((int)$oldFile['id'], true);
+                } elseif (file_exists($storagePath)) {
+                    @unlink($storagePath);
+                }
+            } else {
+                $counter = 1;
+                while (file_exists($storagePath)) {
+                    $pathInfo = pathinfo($filename);
+                    $newFilename = $pathInfo['filename'] . '_' . $counter;
+                    if (isset($pathInfo['extension'])) {
+                        $newFilename .= '.' . $pathInfo['extension'];
+                    }
+                    $storagePath = $areaDir . '/' . $newFilename;
+                    $filename = $newFilename;
+                    $counter++;
+                }
+            }
+        }
+
+        return [$filename, $storagePath];
+    }
+
+    private function movePendingUploadToApprovedStorage(array $file): array
+    {
+        $fileArea = $this->getFileAreaById((int)$file['file_area_id']);
+        if (!$fileArea) {
+            throw new \Exception('File area not found');
+        }
+
+        $pendingPath = (string)($file['storage_path'] ?? '');
+        if ($pendingPath === '' || !file_exists($pendingPath)) {
+            throw new \Exception('Pending upload file is missing from storage');
+        }
+
+        $desiredFilename = (string)($file['filename'] ?? basename($pendingPath));
+        [$finalFilename, $finalPath] = $this->allocateApprovedStoragePath($fileArea, $desiredFilename);
+
+        if (!rename($pendingPath, $finalPath)) {
+            throw new \Exception('Failed to move pending upload into approved storage');
+        }
+
+        chmod($finalPath, 0664);
+        $realPath = realpath($finalPath);
+        if ($realPath === false) {
+            throw new \Exception('Failed to resolve approved file path');
+        }
+
+        return [$finalFilename, $realPath];
+    }
+
+    private function finalizeApprovedUserUpload(int $fileId): void
+    {
+        $fileRecord = $this->getFileById($fileId);
+        if (!$fileRecord) {
+            return;
+        }
+
+        $fileArea = $this->getFileAreaById((int)$fileRecord['file_area_id']);
+        if (!$fileArea) {
+            return;
+        }
+
+        $storagePath = (string)($fileRecord['storage_path'] ?? '');
+
+        try {
+            $ruleProcessor = new FileAreaRuleProcessor();
+            $ruleResult = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
+            if (!empty($ruleResult['output'])) {
+                error_log("File area rules output for {$fileRecord['filename']}: " . $ruleResult['output']);
+            }
+        } catch (\Exception $e) {
+            error_log("File area rules error for {$fileRecord['filename']}: " . $e->getMessage());
+        }
+
+        $fileRecord = $this->getFileById($fileId);
+        if (!$fileRecord) {
+            $this->updateFileAreaStats((int)$fileArea['id']);
+            return;
+        }
+
+        $this->updateFileAreaStats((int)$fileArea['id']);
+
+        if (empty($fileArea['is_local']) && empty($fileArea['is_private'])) {
+            try {
+                $ticGenerator = new TicFileGenerator();
+                $createdTics = $ticGenerator->createTicFilesForUplinks($fileRecord, $fileArea);
+                if (count($createdTics) > 0) {
+                    error_log("Generated " . count($createdTics) . " TIC file(s) for file: {$fileRecord['filename']}");
+                }
+            } catch (\Throwable $e) {
+                error_log("Failed to generate TIC files for uploaded file: " . $e->getMessage());
+            }
+        }
+    }
+
+    private function purgeFileRecord(int $fileId, bool $updateStats = true): void
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            return;
+        }
+
+        $storagePath = (string)($file['storage_path'] ?? '');
+        if ($storagePath !== '' && file_exists($storagePath)) {
+            @unlink($storagePath);
+        }
+
+        $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
+        $stmt->execute([$fileId]);
+
+        if ($updateStats) {
+            $this->updateFileAreaStats((int)$file['file_area_id']);
+        }
     }
 
     /**

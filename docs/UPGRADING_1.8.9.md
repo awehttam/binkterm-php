@@ -22,6 +22,8 @@
   - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
   - [Show Entire Conversation](#show-entire-conversation)
   - [Message List Context Menu](#message-list-context-menu)
+- [QWK Offline Mail](#qwk-offline-mail)
+  - [HTTP Basic Auth Endpoints](#http-basic-auth-endpoints)
 - [BinkP Configuration](#binkp-configuration)
   - [Poll Schedule Builder](#poll-schedule-builder)
   - [Status Page Uplink Checks](#status-page-uplink-checks)
@@ -34,6 +36,12 @@
 - [Dashboard](#dashboard)
   - [Dynamic Advertisement Content](#dynamic-advertisement-content)
   - [Today's Callers Table](#todays-callers-table)
+- [Admin Help](#admin-help)
+  - [In-App FAQ and README Viewer](#in-app-faq-and-readme-viewer)
+- [File Areas](#file-areas)
+  - [Upload Approval Queue](#upload-approval-queue)
+- [Broadcast Manager](#broadcast-manager)
+  - [Clone Campaign](#clone-campaign)
 - [Registration Page](#registration-page)
 - [User Settings](#user-settings)
   - [Tabbed Layout](#tabbed-layout)
@@ -65,6 +73,12 @@
 - Echomail list rows now expose **View Conversation**, **Save for later**, **Download Message**, **Forward to me by EMail**, and **Share** from that menu.
 - Netmail list rows now expose **View Conversation**, **Download Message**, and **Forward to me by EMail** from that menu.
 
+**QWK Offline Mail**
+- QWK packet download and REP upload are now also available through `/qwk/download` and `/qwk/upload` using HTTP Basic Authentication with the user's normal username and password.
+- These endpoints reuse the same packet builder and REP import logic as the web UI/API and are intended for external offline-mail tooling.
+- The `/qwk` page now documents this scripted-access workflow directly in the help accordion, including example `curl` commands for both download and upload.
+- The `/qwk` page also documents the JSON response returned by `/qwk/upload`, including the `success`, `imported`, `skipped`, and `errors` fields.
+
 **User Settings**
 - The settings page has been reorganized from a single long card into a tabbed layout with a left-side navigation panel. Tabs: **Display**, **Messaging**, **Notifications**, and **Account**. The active tab is remembered across page visits via `localStorage`.
 - Notification sound select boxes now have a play button (▶) to preview the selected sound without leaving the settings page.
@@ -78,6 +92,20 @@
 **Dashboard**
 - Dynamic advertisements configured with a **Content Command** now render their generated output correctly in all web views that display ads, including the dashboard widget, full ad page, and admin preview modal. Previously these views only used the stored `content` field, so command-backed ads could appear blank unless they also had static fallback content.
 - The **Today's Callers** list in the System Information box is now a table with User, Time, and Online columns. Users who have been active within the last 15 minutes are marked with a green indicator.
+
+**Admin Help**
+- The Admin **Help** menu now opens `FAQ.md` and `README.md` inside the built-in docs viewer instead of linking out to GitHub.
+- The in-app docs viewer now supports these project-root special docs directly and rewrites their markdown links to stay inside the local admin documentation browser.
+
+**File Areas**
+- Non-admin file uploads are now placed into a pending approval queue instead of becoming visible immediately.
+- Sysops can review pending uploads from **Admin -> Area Management -> File Approvals**, download them for inspection, and then approve or reject each upload.
+- When virus scanning is enabled, sysops can also trigger an on-demand scan directly from the approval queue before approving a file.
+- Users now get a **My Uploads** view in `/files`, where they can see their own pending, approved, and rejected uploads with status badges.
+- Approved uploads become visible in file listings and can generate TIC distribution at approval time; rejected uploads remain hidden and refund the upload cost when credits are enabled.
+
+**Broadcast Manager**
+- The Broadcast Manager campaign editor now includes a **Clone** action. Cloned campaigns open as new disabled copies, with ` (Copy)` appended to the title so they can be adjusted and enabled later without affecting the original.
 
 **Registration**
 - The registration page now includes a note below the approval notice informing applicants that they will receive an email when their account is approved, that reminder emails may also be sent, and to check their junk/spam folder.
@@ -122,7 +150,7 @@ The **Interests** link appears in the user dropdown menu only when the feature i
 
 ### First-Time Onboarding
 
-When a user visits `/echomail` for the first time after Interests is enabled and they have no interest subscriptions, they are automatically redirected to `/interests` to choose their interests before reading mail. The redirect happens only once — subsequent visits go straight to the echomail reader regardless of subscription state.
+When a user visits `/echomail` for the first time after Interests is enabled and they have no interest subscriptions, they are redirected to `/echo-onboarding` first. That guide introduces echomail, explains how the network works, and then sends the user on to `/interests`. The onboarding redirect happens only once unless the user later resets the onboarding flag from Settings.
 
 A **Go to Echo Areas** button at the bottom of the `/interests` page takes users directly back to `/echomail` after they have finished subscribing.
 
@@ -219,6 +247,25 @@ Additional echomail-only actions:
 
 - **Save for later** / **Remove from saved**
 - **Share** - opens the existing message-sharing dialog from the list view
+
+---
+
+## QWK Offline Mail
+
+### HTTP Basic Auth Endpoints
+
+QWK packet download and REP upload are now available through two HTTP Basic Auth endpoints:
+
+- `GET /qwk/download`
+- `POST /qwk/upload`
+
+These endpoints authenticate with the user's regular BinktermPHP username and password and are intended for external offline-mail clients, scripts, or automation that cannot use the browser session-based `/api/qwk/*` routes.
+
+They reuse the same QWK packet builder and REP processor as the in-app QWK page, so packet contents and import behavior remain consistent across both access methods.
+
+The `/qwk` page now includes a help section for this automation workflow, including example `curl` commands for both endpoints.
+
+It also now documents the JSON response returned by `/qwk/upload`, including the `success`, `imported`, `skipped`, and `errors` fields.
 
 ---
 
@@ -346,6 +393,51 @@ If the command succeeds, its stdout becomes the rendered ad body. If it fails, t
 ### Today's Callers Table
 
 The **Today's Callers** list in the System Information box (visible to admins on the dashboard) is now rendered as a table with three columns: **User**, **Time**, and **Online**. Users who have been active within the last 15 minutes are marked with a green badge in the Online column.
+
+---
+
+## Admin Help
+
+### In-App FAQ and README Viewer
+
+The Admin **Help** menu entries for **FAQ** and **README** now open inside the built-in admin docs viewer instead of linking out to GitHub.
+
+The docs controller now treats `FAQ.md` and `README.md` in the project root as special in-app documents. Their markdown links are rewritten so related documentation continues to open inside `/admin/docs/view/...`.
+
+This keeps admins inside the application while browsing operational documentation and avoids broken links when those files are not stored under `docs/`.
+
+---
+
+## File Areas
+
+### Upload Approval Queue
+
+User-uploaded files now support a moderation workflow.
+
+- Uploads from administrators continue to publish immediately.
+- Uploads from non-admin users are stored with `status = pending` and do not appear in public file listings, searches, recent uploads, downloads, or TIC distribution until approved.
+- Sysops can review the queue at `/admin/file-approvals`, inspect the uploaded file, optionally trigger an on-demand virus scan when scanning is enabled, and then choose **Approve** or **Reject**.
+- Approval promotes the file into the normal area storage path, updates file area statistics, and performs post-approval processing such as TIC generation.
+- Rejection keeps the upload hidden and records rejection metadata. When credits are enabled, the upload charge is refunded on rejection.
+- Uploaders can review the status of their own submissions from the new **My Uploads** entry on the `/files` page.
+
+This change adds the migration `v1.11.0.52_file_upload_approval.sql`, which records approval and rejection metadata on the `files` table and adds an index for the pending queue.
+
+---
+
+## Broadcast Manager
+
+### Clone Campaign
+
+The Broadcast Manager campaign list now includes a **Clone** action in the row actions menu.
+
+Cloning opens the campaign editor pre-filled from the selected campaign, but as a new record:
+
+- the campaign ID is cleared
+- the campaign name is suffixed with ` (Copy)`
+- the cloned campaign is disabled by default
+
+This makes it easier to reuse an existing campaign as a starting point without modifying the original or accidentally activating the copy immediately.
 
 ---
 

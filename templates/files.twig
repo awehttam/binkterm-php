@@ -514,6 +514,9 @@ let fileAreaSearchQuery = '';
 let currentFileId = null;
 let currentFile = null;
 let currentShareId = null;
+let currentViewMode = 'recent';
+let myUploadsSummary = null;
+const MY_UPLOADS_VIEW = '__my_uploads__';
 const currentUserId = window.currentUserId ?? null;
 const isAdmin = !!(window.currentUserIsAdmin);
 
@@ -536,6 +539,16 @@ function apiMessage(payload, fallback) {
         return window.getApiMessage(payload, fallback);
     }
     return payload && payload.message ? payload.message : fallback;
+}
+
+function canDeleteFileRecord(file) {
+    if (isAdmin) {
+        return true;
+    }
+    if (currentUserId === null || file.owner_id === null || Number(file.owner_id) !== Number(currentUserId)) {
+        return false;
+    }
+    return file.area_tag === `PRIVATE_USER_${currentUserId}`;
 }
 
 const isPublicAreaGuest = {{ (is_public_area is defined and is_public_area and not current_user) ? 'true' : 'false' }};
@@ -646,6 +659,8 @@ function applyPreviewFullscreenPreference() {
 }
 
 function loadRecentFiles() {
+    currentViewMode = 'recent';
+    currentAreaId = null;
     $.get('/api/files/recent?limit=25')
         .done(function(data) {
             if (currentAreaId === null) {
@@ -699,7 +714,7 @@ function displayRecentFiles(files) {
         const shortDesc = escapeHtml(file.short_description || '');
         const fileSize = formatBytes(file.filesize);
         const uploadDate = formatDate(file.created_at);
-        const canDelete = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
+        const canDelete = canDeleteFileRecord(file);
 
         const isIsoDir = file.source_type === 'iso_import' && !!file.subfolder;
 
@@ -783,10 +798,109 @@ function displayRecentFiles(files) {
     $('#filesContainer').html(html);
 }
 
+function uploadStatusBadge(status, reason) {
+    if (status === 'approved') {
+        return `<span class="badge bg-success">${uiT('ui.files.status_approved', 'Approved')}</span>`;
+    }
+    if (status === 'pending') {
+        return `<span class="badge bg-warning text-dark">${uiT('ui.files.status_pending', 'Pending Approval')}</span>`;
+    }
+    if (status === 'rejected') {
+        const reasonHtml = reason ? `<div class="small text-muted mt-1">${escapeHtml(reason)}</div>` : '';
+        return `<span class="badge bg-danger">${uiT('ui.files.status_rejected', 'Rejected')}</span>${reasonHtml}`;
+    }
+    return `<span class="badge bg-secondary">${escapeHtml(status || uiT('ui.common.unknown', 'Unknown'))}</span>`;
+}
+
+function loadMyUploads() {
+    currentViewMode = 'my_uploads';
+    currentAreaId = null;
+    currentSubfolder = null;
+    $('#filesContainer').html(`<div class="loading-spinner p-4"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}</div>`);
+
+    $.get('/api/files/my-uploads')
+        .done(function(data) {
+            myUploadsSummary = data.summary || myUploadsSummary;
+            displayMyUploads(data.files || []);
+        })
+        .fail(function() {
+            $('#filesContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.files.my_uploads_load_failed', 'Failed to load your uploads')}</div>`);
+        });
+}
+
+function displayMyUploads(files) {
+    displayedFiles = files;
+    setPreviewNavigationFiles(files);
+    $('#currentAreaTitle').html(`<i class="fas fa-upload"></i> ${uiT('ui.files.my_uploads', 'My Uploads')}`);
+    const summaryText = uiT('ui.files.my_uploads_summary', 'Pending: {pending} Approved: {approved} Rejected: {rejected}', {
+        pending: myUploadsSummary ? (myUploadsSummary.pending_count || 0) : 0,
+        approved: myUploadsSummary ? (myUploadsSummary.approved_count || 0) : 0,
+        rejected: myUploadsSummary ? (myUploadsSummary.rejected_count || 0) : 0
+    });
+    $('#currentAreaMeta').html(`<small class="text-muted">${summaryText}</small>`).show();
+    $('#uploadFileBtn').hide();
+    history.replaceState(null, '', '/files?view=my-uploads');
+
+    if (files.length === 0) {
+        $('#filesContainer').html(`<div class="p-4 text-center text-muted">${uiT('ui.files.no_my_uploads', 'You have not uploaded any files yet')}</div>`);
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="24%">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th width="24%">${uiT('ui.files.area', 'Area')}</th>
+                        <th width="18%">${uiT('ui.files.status', 'Status')}</th>
+                        <th width="19%">${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th width="15%">${uiT('ui.files.actions', 'Actions')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    files.forEach(function(file) {
+        const uploadDate = formatDate(file.created_at);
+        const canDelete = canDeleteFileRecord(file);
+        const areaTag = file.area_tag
+            ? escapeHtml(file.area_tag) + (file.domain ? `<span class="text-muted">@${escapeHtml(file.domain)}</span>` : '')
+            : '&mdash;';
+        html += `
+            <tr>
+                <td style="word-break: break-all;">
+                    <a href="#" class="file-preview-link fw-bold" onclick="showFileDetails(${file.id}); return false;">${escapeHtml(file.filename)}</a>
+                    <div class="small text-muted">${escapeHtml(file.short_description || '')}</div>
+                </td>
+                <td>${areaTag}</td>
+                <td>${uploadStatusBadge(file.status, file.rejection_reason || '')}</td>
+                <td><small>${uploadDate}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                        <i class="fas fa-download"></i>
+                    </a>
+                    ${canDelete ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    $('#filesContainer').html(html);
+}
+
 function loadFileAreas() {
     $.get('/api/fileareas?filter=active')
         .done(function(data) {
-            displayFileAreas(data.fileareas, data.private_area || null);
+            displayFileAreas(data.fileareas, data.private_area || null, data.my_uploads_summary || null);
         })
         .fail(function() {
             $('#fileAreasList').html(`<div class="alert alert-danger m-3">${uiT('ui.files.file_areas_load_failed', 'Failed to load file areas')}</div>`);
@@ -811,9 +925,10 @@ function applyFileAreaFilter() {
 
 let privateFileArea = null;
 
-function displayFileAreas(areas, privateArea) {
+function displayFileAreas(areas, privateArea, uploadsSummary) {
     allFileAreas = areas;
     privateFileArea = privateArea || null;
+    myUploadsSummary = uploadsSummary || null;
 
     // Inject private area into allFileAreas so selectFileArea/canAccessFileArea can find it
     if (privateFileArea && !allFileAreas.find(a => a.id === privateFileArea.id)) {
@@ -827,7 +942,7 @@ function renderFileAreaList(areas) {
     // Exclude private area from the main sorted list — it gets its own pinned entry
     const publicAreas = areas.filter(a => !privateFileArea || a.id !== privateFileArea.id);
 
-    if (publicAreas.length === 0 && !privateFileArea) {
+    if (publicAreas.length === 0 && !privateFileArea && currentUserId === null) {
         $('#fileAreasList').html(`<div class="p-3 text-muted">${uiT('ui.files.no_file_areas', 'No file areas available')}</div>`);
         return;
     }
@@ -852,6 +967,31 @@ function renderFileAreaList(areas) {
 
     loadedAreas = allFileAreas;
     let html = '';
+    if (currentUserId !== null) {
+        const uploadCount = myUploadsSummary ? (myUploadsSummary.total_count || 0) : 0;
+        const uploadSize = formatBytes(myUploadsSummary ? (myUploadsSummary.total_size || 0) : 0);
+        const pendingCount = myUploadsSummary ? (myUploadsSummary.pending_count || 0) : 0;
+        const pendingBadge = pendingCount > 0
+            ? `<span class="badge bg-warning text-dark ms-1">${pendingCount}</span>`
+            : '';
+        html += `
+            <a href="#" class="list-group-item list-group-item-action" data-area-id="${MY_UPLOADS_VIEW}" onclick="selectMyUploads(); return false;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <i class="fas fa-upload me-1 text-info"></i>
+                        <strong>${uiT('ui.files.my_uploads', 'My Uploads')}</strong>${pendingBadge}
+                    </div>
+                    <div class="text-end ms-2">
+                        <small class="d-block">${uploadCount} ${uiT('ui.files.files_count_label', 'files')}</small>
+                        <small class="text-muted">${uploadSize}</small>
+                    </div>
+                </div>
+            </a>
+        `;
+        if (privateFileArea || sortedAreas.length > 0) {
+            html += `<div class="list-group-item p-0"><hr class="m-0"></div>`;
+        }
+    }
 
     // "My Files" pinned entry — only shown when user has a private area
     if (privateFileArea) {
@@ -910,6 +1050,10 @@ function renderFileAreaList(areas) {
     // or legacy ?area= query param for backwards compatibility
     const initialTag = {{ initial_area_tag is defined ? initial_area_tag|json_encode|raw : 'null' }};
     const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'my-uploads' && currentUserId !== null) {
+        selectMyUploads();
+        return;
+    }
     const areaParam = initialTag || params.get('area');
     const searchParam = params.get('search');
     if (areaParam) {
@@ -931,7 +1075,15 @@ function renderFileAreaList(areas) {
     loadRecentFiles();
 }
 
+function selectMyUploads() {
+    $('#searchFiles').val('');
+    $('#fileAreasList .list-group-item').removeClass('active');
+    $(`#fileAreasList .list-group-item[data-area-id="${MY_UPLOADS_VIEW}"]`).addClass('active');
+    loadMyUploads();
+}
+
 function selectFileArea(areaId, subfolder) {
+    currentViewMode = 'area';
     currentAreaId = areaId;
     currentSubfolder = subfolder !== undefined ? subfolder : null;
     const area = allFileAreas.find(a => a.id === areaId);
@@ -1125,7 +1277,7 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
         const shortDesc = escapeHtml(file.short_description || '');
         const fileSize = formatBytes(file.filesize);
         const uploadDate = formatDate(file.created_at);
-        const canDelete = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
+        const canDelete = canDeleteFileRecord(file);
 
         // Virus scan status icon
         let scanIcon = '<i class="fas fa-file me-2"></i>';
@@ -1310,6 +1462,7 @@ function showFileDetails(fileId) {
             const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
             $('#renameFileBtn').toggle(canEdit);
             $('#virusScanBtn').toggle(isAdmin).data('file-id', fileId);
+            $('#shareFileBtn').toggle((file.status || 'approved') === 'approved');
             const canRehatch = isAdmin && !file.is_local && !file.is_private;
             $('#rehatchFileBtn').toggle(canRehatch);
 
@@ -1321,7 +1474,7 @@ function showFileDetails(fileId) {
             $('#leaveCommentBtn').show();
             cancelCommentReply();
             $('#commentBodyInput').val('');
-            if (!isPublicAreaGuest) { loadFileComments(fileId); }
+            if (!isPublicAreaGuest && (file.status || 'approved') === 'approved') { loadFileComments(fileId); }
 
             if (!$('#fileDetailsModal').hasClass('show')) {
                 new bootstrap.Modal('#fileDetailsModal').show();
@@ -1629,6 +1782,7 @@ async function uploadFile() {
 
     const sharedLongDescription = $('#uploadLongDescription').val();
     let uploadedCount = 0;
+    let pendingApprovalCount = 0;
 
     try {
         for (let i = 0; i < entries.length; i++) {
@@ -1639,20 +1793,34 @@ async function uploadFile() {
             formData.append('short_description', entry.shortDescription);
             formData.append('long_description', sharedLongDescription);
 
-            await uploadSingleFile(formData, entries.length, i);
+            const response = await uploadSingleFile(formData, entries.length, i);
             uploadedCount++;
+            if (response && response.approval_required) {
+                pendingApprovalCount++;
+            }
             $('#uploadProgress .progress-bar').css('width', ((uploadedCount / entries.length) * 100) + '%');
         }
 
         bootstrap.Modal.getInstance('#uploadFileModal').hide();
         $('#uploadErrorBox').addClass('d-none').text('');
-        if (uploadedCount === 1) {
+        if (uploadedCount === 1 && pendingApprovalCount === 1) {
+            showSuccess(uiT('ui.files.upload_pending_approval', 'File uploaded and queued for approval'));
+        } else if (uploadedCount === pendingApprovalCount && uploadedCount > 1) {
+            showSuccess(uiT('ui.files.upload_pending_approval_multiple', '{count} files uploaded and queued for approval').replace('{count}', uploadedCount));
+        } else if (pendingApprovalCount > 0) {
+            showSuccess(
+                uiT('ui.files.upload_mixed_results', '{approved} file(s) uploaded and {pending} queued for approval')
+                    .replace('{approved}', uploadedCount - pendingApprovalCount)
+                    .replace('{pending}', pendingApprovalCount)
+            );
+        } else if (uploadedCount === 1) {
             showSuccess(uiT('ui.files.upload_success', 'File uploaded successfully'));
         } else {
             showSuccess(uiT('ui.files.upload_success_multiple', '{count} files uploaded successfully').replace('{count}', uploadedCount));
         }
         loadFiles(currentAreaId);
         loadStats();
+        loadFileAreas();
     } catch (xhr) {
         const error = apiError(xhr.responseJSON, uiT('errors.files.upload.failed', 'Failed to upload file'));
         const message = uploadedCount > 0
@@ -1665,6 +1833,7 @@ async function uploadFile() {
         if (uploadedCount > 0) {
             loadFiles(currentAreaId);
             loadStats();
+            loadFileAreas();
         }
     }
 }
@@ -2058,8 +2227,13 @@ function deleteFile(fileId) {
         method: 'DELETE',
         success: function(response) {
             showSuccess(apiMessage(response, uiT('ui.api.files.deleted', 'File deleted successfully')));
-            loadFiles(currentAreaId);
+            if (currentViewMode === 'my_uploads') {
+                loadMyUploads();
+            } else {
+                loadFiles(currentAreaId);
+            }
             loadStats();
+            loadFileAreas();
         },
         error: function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('errors.files.delete_failed', 'Failed to delete file'));
