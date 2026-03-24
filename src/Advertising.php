@@ -172,7 +172,7 @@ class Advertising
             $_SESSION['dashboard_ad_last_id'] = (int)$selected[0]['id'];
         }
 
-        return $selected;
+        return array_map([$this, 'resolveAdContent'], $selected);
     }
 
     public function listAds(bool $includeInactive = true): array
@@ -214,7 +214,9 @@ class Advertising
 
         $stmt = $this->db->query($sql);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return array_map([$this, 'hydrateAd'], $rows);
+        return array_map(function (array $row): array {
+            return $this->resolveAdContent($this->hydrateAd($row));
+        }, $rows);
     }
 
     public function listTags(): array
@@ -247,7 +249,7 @@ class Advertising
         ");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->hydrateAd($row) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
     }
 
     public function getAdBySlug(string $slug): ?array
@@ -264,7 +266,7 @@ class Advertising
         ");
         $stmt->execute([$slug]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->hydrateAd($row) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
     }
 
     public function getAdByName(string $name): ?array
@@ -298,7 +300,7 @@ class Advertising
         ");
         $stmt->execute([$name, $normalized, $name]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->hydrateAd($row) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
     }
 
     public function createAd(array $data, ?int $userId = null): array
@@ -868,6 +870,26 @@ class Advertising
         }
 
         return $deduped;
+    }
+
+    private function resolveAdContent(array $ad): array
+    {
+        $contentCommand = trim((string)($ad['content_command'] ?? ''));
+        if ($contentCommand === '') {
+            return $ad;
+        }
+
+        [$dynamicBody, $commandError] = $this->runContentCommand($contentCommand);
+        if ($commandError !== null) {
+            $fallback = trim((string)($ad['content'] ?? ''));
+            $ad['content'] = $fallback !== '' ? $fallback : $commandError;
+            $ad['content_command_error'] = $commandError;
+            return $ad;
+        }
+
+        $ad['content'] = $dynamicBody;
+        $ad['content_command_error'] = null;
+        return $ad;
     }
 
     private function pickWeightedIndex(array $ads): int

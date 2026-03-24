@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v549';
+const CACHE_NAME = 'binkcache-v560';
 
 // Static assets to precache
 const staticAssets = [
@@ -7,6 +7,7 @@ const staticAssets = [
     '/js/interest-picker.js',
     '/js/netmail.js',
     '/js/echomail.js',
+    '/js/message-list-context-menu.js',
     '/js/chat-page.js',
     '/js/chat-notify.js',
     '/js/ansisys.js',

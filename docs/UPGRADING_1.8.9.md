@@ -20,6 +20,8 @@
   - [Compose Message Size Warning](#compose-message-size-warning)
   - [Sender Name Popover Style](#sender-name-popover-style)
   - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
+  - [Show Entire Conversation](#show-entire-conversation)
+  - [Message List Context Menu](#message-list-context-menu)
 - [BinkP Configuration](#binkp-configuration)
   - [Poll Schedule Builder](#poll-schedule-builder)
   - [Status Page Uplink Checks](#status-page-uplink-checks)
@@ -30,6 +32,7 @@
   - [Daemon Mode and Reverse Proxy Support](#daemon-mode-and-reverse-proxy-support)
   - [Encoding Fix](#encoding-fix)
 - [Dashboard](#dashboard)
+  - [Dynamic Advertisement Content](#dynamic-advertisement-content)
   - [Today's Callers Table](#todays-callers-table)
 - [Registration Page](#registration-page)
 - [User Settings](#user-settings)
@@ -44,40 +47,36 @@
 ## Summary of Changes
 
 **Interests**
-- New Interests system: admins define named topic groups (e.g. "Retro Gaming", "Amateur Radio") by bundling echo areas and file areas together. Users subscribe to an interest and are automatically subscribed to all its member echo areas.
-- Admin management page at `/admin/interests`: create, edit, and delete interests; assign echo areas and file areas; configure icon, color, and display order; toggle active/inactive.
-- User interest picker at `/interests`: card grid showing all active interests with subscribe/unsubscribe toggle. Users can subscribe to all echo areas at once or pick individual areas from a list.
-- Interests tab added to the echomail reader sidebar (desktop) and mobile accordion alongside the Area List tab. Selecting an interest loads a unified message feed from all its echo areas.
-- Selecting individual areas to subscribe/unsubscribe is supported from both the interest picker and the echo area list.
-- When an admin adds a new echo area to an existing interest, all current interest subscribers are automatically subscribed to the new area (unless they previously explicitly unsubscribed from it).
-- Multi-interest source tracking: unsubscribing from one interest does not remove echo areas that are also covered by another interest the user remains subscribed to.
-- A **Generate Suggestions** wizard on the admin interests page analyzes the echo area catalog and proposes interest groupings using keyword matching. If `ANTHROPIC_API_KEY` is configured, it additionally offers AI-assisted classification for higher-quality results.
-- First-time users visiting `/echomail` with no interest subscriptions are automatically redirected to `/interests` to complete onboarding. This happens only once per user.
-- The `/interests` page includes a **Go to Echo Areas** button at the bottom to return to the echomail reader after subscribing.
-- The Activity Statistics admin page (`/admin/activity-stats`) includes a new **Popular Interests** tab showing active interests ranked by subscriber count.
-- Controlled by `ENABLE_INTERESTS` in `.env`; defaults to `true`.
-- New documentation: `docs/Interests.md`.
-- First-time users visiting `/echomail` with no interest subscriptions are now redirected to `/echo-onboarding` (a new onboarding guide page) instead of directly to `/interests`. The guide explains what echomail is, how the network works, and how to get started, then offers a "Next: Select Interests" button and a skip link.
-- Users can reset the onboarding flag from the Settings page to revisit the guide.
-- The Area List tab in the echomail reader sidebar (desktop) and mobile accordion now includes an interest filter dropdown above the search box. Selecting an interest narrows the area list to only the echo areas belonging to that interest. The first option, "All Subscribed Areas", restores the full unfiltered list. The dropdown is only shown when interests are enabled and at least one active interest exists.
-- The echomail reader now remembers whether the user last viewed the **Area List** tab or **Interests** tab using the `p_listorinterest` cookie, and selecting an interest now also syncs the Area List tab's interest dropdown to the same interest without forcing a tab switch.
+- New Interests system: admins define named topic groups by bundling echo areas and file areas together, and users can subscribe to an interest to receive all of its echo areas automatically.
+- Admin management page at `/admin/interests`: create, edit, delete, reorder, and activate/deactivate interests; assign echo areas and file areas; configure icon and color; and use the **Generate Suggestions** wizard for keyword-based or optional AI-assisted grouping.
+- User interest picker at `/interests`: card-based subscribe flow with optional per-area selection, plus a **Go to Echo Areas** shortcut back to the reader.
+- Echomail integration: the reader now includes an **Interests** tab and an Area List interest filter, letting users load a unified message feed for an interest or narrow the area list to one interest's areas.
+- Subscription tracking is now interest-aware: newly added areas propagate to existing subscribers, explicit per-area unsubscriptions are respected, and overlapping interests do not remove shared areas when only one interest is unsubscribed.
+- First-time onboarding now routes new users with no interests to `/echo-onboarding` before interest selection, and users can reset that onboarding flag from Settings.
+- Activity Statistics now includes a **Popular Interests** tab showing active interests by subscriber count.
+- Controlled by `ENABLE_INTERESTS` in `.env` and documented in `docs/Interests.md`.
 
 **Echomail & Netmail**
 - The compose form now shows a warning when the message body approaches the 16 KB FidoNet message body limit, and an error if it exceeds it.
 - Sender name popovers in the echomail list now display in plain text style (no underline) for a cleaner appearance.
 - The echomail Advanced Search modal now includes a **Message ID** field that searches the `message_id` column using a partial (case-insensitive) match.
+- Threaded echomail and netmail views now let users click the reply icon to switch the message list into a dedicated **Show Entire Conversation** mode that loads the full visible conversation instead of only the messages present on the current page.
+- Echomail and netmail message lists now support a right-click context menu, with mobile long-press support for the same menu on touch devices.
+- Echomail list rows now expose **View Conversation**, **Save for later**, **Download Message**, **Forward to me by EMail**, and **Share** from that menu.
+- Netmail list rows now expose **View Conversation**, **Download Message**, and **Forward to me by EMail** from that menu.
 
 **User Settings**
 - The settings page has been reorganized from a single long card into a tabbed layout with a left-side navigation panel. Tabs: **Display**, **Messaging**, **Notifications**, and **Account**. The active tab is remembered across page visits via `localStorage`.
 - Notification sound select boxes now have a play button (▶) to preview the selected sound without leaving the settings page.
 
 **Echomail MCP Server**
-- A new optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server is included in `mcp-server/`. It gives AI assistants (Claude Code, etc.) read-only access to your echomail database via six tools: `list_echoareas`, `get_echoarea`, `get_echomail_messages`, `get_echomail_message`, `search_echomail`, and `get_echomail_thread`.
+- A new optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server is included in `mcp-server/`. It gives AI assistants (Claude, etc.) read-only access to your echomail database via six tools: `list_echoareas`, `get_echoarea`, `get_echomail_messages`, `get_echomail_message`, `search_echomail`, and `get_echomail_thread`.
 - Authentication is per-user: each user generates a personal bearer key from **Settings → AI → MCP Server Bearer Key**. Keys are stored in `users_meta` and enforce the same echoarea access rules as the web interface — sysop-only areas are hidden for non-admin users.
 - The server reads the main BinktermPHP `.env` file directly and requires a valid registered license to start.
 - Supports `--bind=<host>` for reverse proxy deployments and `--daemon` for boot startup. See `docs/MCPServer.md` for full setup, reverse proxy (nginx, Caddy), systemd, and cron instructions.
 
 **Dashboard**
+- Dynamic advertisements configured with a **Content Command** now render their generated output correctly in all web views that display ads, including the dashboard widget, full ad page, and admin preview modal. Previously these views only used the stored `content` field, so command-backed ads could appear blank unless they also had static fallback content.
 - The **Today's Callers** list in the System Information box is now a table with User, Time, and Online columns. Users who have been active within the last 15 minutes are marked with a green indicator.
 
 **Registration**
@@ -189,6 +188,38 @@ The sender name in the echomail message list is no longer underlined. The popove
 
 The echomail **Advanced Search** modal now includes a **Message ID** field. Entering a value performs a case-insensitive partial match (`ILIKE`) against the `message_id` column of the `echomail` table, allowing you to search by a fragment of a FidoNet message ID without knowing the full value. The field follows the same two-character minimum rule as the other Advanced Search text fields and is combined with them using AND logic.
 
+### Show Entire Conversation
+
+In threaded message lists, the reply icon can now be used as a dedicated conversation-view action.
+
+Clicking it switches the list into **Show Entire Conversation** mode, which loads the full visible conversation for the selected message and displays it as one threaded list without page-based thread splitting.
+
+This applies to both:
+
+- echomail
+- netmail
+
+While conversation mode is active, pagination is hidden and a **Back to Message List** button restores the normal paged view.
+
+### Message List Context Menu
+
+The echomail and netmail message lists now support a custom message action menu on each message row.
+
+On desktop, it opens with right-click. On touch devices, the same menu opens with a long press on the row.
+
+This menu gives users quick access to common actions without opening the message first.
+
+Common actions include:
+
+- **View Conversation** - loads the full visible conversation for the selected message
+- **Download Message** - uses the existing message download endpoint
+- **Forward to me by EMail** - shown only for users who have an email address configured
+
+Additional echomail-only actions:
+
+- **Save for later** / **Remove from saved**
+- **Share** - opens the existing message-sharing dialog from the list view
+
 ---
 
 ## BinkP Configuration
@@ -263,7 +294,7 @@ This change does not alter password timing (`M_PWD` is still sent after `ADR`) o
 
 ## Echomail MCP Server
 
-An optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server is included in `mcp-server/`. It allows AI assistants that support MCP — such as Claude Code — to query your echomail database in read-only mode over HTTP. The server requires a valid registered license.
+An optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server is included in `mcp-server/`. It allows AI assistants that support MCP — such as Claude — to query your echomail database in read-only mode over HTTP. The server requires a valid registered license.
 
 ### Per-User Bearer Keys
 
@@ -272,7 +303,7 @@ Authentication is per-user. Each user generates a personal bearer key from **Set
 - A key can be regenerated at any time; the old key is immediately invalidated.
 - The full key is shown only once at generation time.
 
-To connect Claude Code, add to `.mcp.json` in your project root:
+To connect Claude, add to `.mcp.json` in your project root:
 
 ```json
 {
@@ -299,6 +330,18 @@ For reverse proxy configuration (nginx, Caddy), systemd unit file, and cron `@re
 ---
 
 ## Dashboard
+
+### Dynamic Advertisement Content
+
+Advertisements that use **Content Command** now have their command output resolved when the ad is fetched for display.
+
+This affects:
+
+- the dashboard advertisement widget on `/`
+- the full ad page at `/ads/{name}` and `/ads/random`
+- the admin advertisement preview modal
+
+If the command succeeds, its stdout becomes the rendered ad body. If it fails, the system now falls back to any stored static `content` and also exposes the command error in the ad payload for troubleshooting.
 
 ### Today's Callers Table
 

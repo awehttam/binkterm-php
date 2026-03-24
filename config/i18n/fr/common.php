@@ -3813,4 +3813,11 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.interests.admin.saved_success' => 'Intérêt enregistré.',
     'ui.interests.admin.deleted_success' => 'Intérêt supprimé.',
     'ui.interests.admin.areas_saved_success' => 'Zones mises à jour.',
+    'ui.common.show_entire_conversation' => 'Afficher toute la conversation',
+    'ui.common.showing_entire_conversation' => 'Affichage de toute la conversation',
+    'ui.common.back_to_message_list' => 'Retour a la liste',
+    'ui.common.view_conversation' => 'Voir la conversation',
+    'ui.common.download_message' => 'Telecharger le message',
+    'ui.common.forward_to_me_by_email' => 'Me le transferer par email',
+    'ui.common.forwarded_to_email' => 'Message transfere a votre email',
 ];

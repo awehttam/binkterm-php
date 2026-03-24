@@ -30,6 +30,10 @@ let currentInterestName = '';
 let currentInterestSlug = '';
 let areaListInterestFilter = null;
 let loadedInterests = [];
+let currentConversationMessageId = null;
+let currentConversationSubject = '';
+let currentContextMenuMessageId = null;
+let currentContextMenuMessageSaved = false;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -161,6 +165,11 @@ $(document).ready(function() {
         loadMessages();
         loadStats();
     }, 300000);
+
+    document.addEventListener('click', hideMessageContextMenu);
+    document.addEventListener('scroll', hideMessageContextMenu, true);
+    window.addEventListener('resize', hideMessageContextMenu);
+    bindMessageListTouchContextMenu();
 });
 
 function loadEchoareas() {
@@ -546,6 +555,8 @@ function displayMobileInterests(interests) {
 }
 
 function selectInterest(id, name, slug) {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
     currentInterestId   = id;
     currentInterestName = name;
     currentInterestSlug = slug || '';
@@ -580,6 +591,8 @@ function selectInterest(id, name, slug) {
 }
 
 function selectEchoarea(tag) {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
     // When "All Messages" is selected, scope to the active interest filter if one is set
     if (!tag) {
         _applyInterestFilterToAllMessages(areaListInterestFilter);
@@ -636,6 +649,22 @@ function loadMessages(callback) {
     if (currentFilter === 'drafts') {
         // Load drafts instead of regular messages
         loadDrafts();
+        return;
+    }
+
+    if (currentConversationMessageId) {
+        $.get(`/api/messages/echomail/message/${currentConversationMessageId}/conversation`)
+            .done(function(data) {
+                displayMessages(data.messages, true);
+                updatePagination(data.pagination);
+                updateUnreadCount(data.unreadCount || 0);
+                if (typeof callback === 'function') {
+                    callback(data);
+                }
+            })
+            .fail(function() {
+                $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
+            });
         return;
     }
 
@@ -761,8 +790,20 @@ function displayMessages(messages, isThreaded = false) {
     if (messages.length === 0) {
         html = `<div class="text-center text-muted py-4">${uiT('messages.none_found', 'No messages found')}</div>`;
     } else {
+        if (currentConversationMessageId) {
+            html += `
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <strong>${uiT('ui.common.showing_entire_conversation', 'Showing Entire Conversation')}</strong>
+                        ${currentConversationSubject ? `<div class="small mt-1">${escapeHtml(currentConversationSubject)}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="clearConversationView()">${uiT('ui.common.back_to_message_list', 'Back to Message List')}</button>
+                </div>
+            `;
+        }
+
         // Create table structure
-        html = `
+        html += `
             <div class="table-responsive">
                 <table class="table table-hover message-table mb-0">
                     <thead>
@@ -828,7 +869,9 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
+            const threadIcon = (threadLevel > 0 || replyCount > 0)
+                ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.show_entire_conversation', 'Show Entire Conversation')}" style="cursor: pointer;" onclick="event.stopPropagation(); showConversation(${msg.id})"></i>`
+                : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
 
             // Add thread-specific CSS classes; indent up to 2 levels (0.5rem each)
@@ -837,7 +880,7 @@ function displayMessages(messages, isThreaded = false) {
             const threadIndent = indentRem > 0 ? `padding-left: ${indentRem}rem;` : '';
 
             html += `
-                <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}">
+                <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}" oncontextmenu="openMessageContextMenu(event, ${msg.id})">
                     <td class="message-checkbox d-none">
                         <div class="form-check">
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
@@ -874,6 +917,11 @@ function updatePagination(pagination) {
     currentPagination = pagination;
     const container = $('#pagination');
     let html = '';
+
+    if (currentConversationMessageId) {
+        container.empty();
+        return;
+    }
 
     if (pagination.pages > 1) {
         html = '<ul class="pagination pagination-sm mb-0">';
@@ -915,6 +963,151 @@ function updatePagination(pagination) {
 function changePage(page) {
     currentPage = page;
     loadMessages();
+}
+
+function showConversation(messageId) {
+    currentConversationMessageId = messageId;
+    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    currentConversationSubject = selected && selected.subject ? selected.subject : '';
+    loadMessages();
+}
+
+function clearConversationView() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
+    loadMessages();
+}
+
+function openMessageContextMenu(event, messageId) {
+    event.preventDefault();
+    event.stopPropagation();
+    openMessageContextMenuAtPosition(event.pageX, event.pageY, messageId);
+}
+
+function openMessageContextMenuAtPosition(pageX, pageY, messageId) {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+
+    currentContextMenuMessageId = messageId;
+    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    currentContextMenuMessageSaved = !!(selected && Number(selected.is_saved) === 1);
+    const saveLabel = document.getElementById('messageContextMenuSaveLabel');
+    if (saveLabel) {
+        saveLabel.textContent = currentContextMenuMessageSaved
+            ? uiT('ui.common.remove_from_saved', 'Remove from saved')
+            : uiT('ui.common.save_for_later', 'Save for later');
+    }
+    menu.style.left = `${pageX}px`;
+    menu.style.top = `${pageY}px`;
+    menu.style.display = 'block';
+}
+
+function hideMessageContextMenu() {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+    menu.style.display = 'none';
+    currentContextMenuMessageId = null;
+    currentContextMenuMessageSaved = false;
+}
+
+function bindMessageListTouchContextMenu() {
+    if (!window.MessageListContextMenu) {
+        return;
+    }
+    window.MessageListContextMenu.bindLongPress({
+        containerId: 'messagesContainer',
+        rowSelector: '.message-row[data-message-id]',
+        isInteractiveTarget: isMessageRowInteractiveTarget,
+        onLongPress: function(details) {
+            openMessageContextMenuAtPosition(details.pageX, details.pageY, details.messageId);
+        }
+    });
+}
+
+function isMessageRowInteractiveTarget(target) {
+    return !!target.closest(
+        'button, a, input, select, textarea, label, .save-btn, .echo-from-popover, .node-addr-popover, .message-select'
+    );
+}
+
+function viewConversationFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    showConversation(messageId);
+}
+
+function toggleSaveFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    const isSaved = currentContextMenuMessageSaved;
+    hideMessageContextMenu();
+    toggleSaveMessage(messageId, 'echomail', isSaved);
+}
+
+function downloadMessageFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    window.location.href = `/api/messages/echomail/${messageId}/download`;
+}
+
+function shareMessageFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    showShareDialog(messageId);
+}
+
+function forwardMessageToEmailFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+
+    $.post(`/api/messages/echomail/${messageId}/forward-email`)
+        .done(function(response) {
+            if (response && response.success) {
+                showForwardEmailFeedback(
+                    true,
+                    (window.getApiMessage
+                        ? window.getApiMessage(response, uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                        : uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                );
+            } else {
+                showForwardEmailFeedback(
+                    false,
+                    apiError(response, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+                );
+            }
+        })
+        .fail(function(xhr) {
+            showForwardEmailFeedback(
+                false,
+                apiError(xhr.responseJSON || {}, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+            );
+        });
+}
+
+function showForwardEmailFeedback(success, message) {
+    if (window.MessageListContextMenu) {
+        window.MessageListContextMenu.showActionNotice(success, message);
+        return;
+    }
+    window.alert(message);
 }
 
 function sortMessages(sortBy) {
@@ -1651,6 +1844,8 @@ function composeMessage(type, replyToId = null) {
 }
 
 function searchMessages() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
     // Get query from both desktop and mobile search inputs
     let query = $('#searchInput').val().trim();
     if (!query) {
@@ -1888,7 +2083,9 @@ function clearSearch() {
 
 // Toggle save status of a message
 function toggleSaveMessage(messageId, messageType, isSaved) {
-    event.stopPropagation(); // Prevent triggering the row click
+    if (typeof event !== 'undefined' && event && typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+    }
 
     const method = isSaved ? 'DELETE' : 'POST';
     const url = `/api/messages/${messageType}/${messageId}/save`;

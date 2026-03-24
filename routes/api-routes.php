@@ -4900,6 +4900,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/messages/netmail/{id}/conversation', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $handler = new MessageHandler();
+        $result = $handler->getNetmailConversation((int)$id, (int)($user['user_id'] ?? $user['id']));
+
+        if (empty($result['messages'])) {
+            http_response_code(404);
+            apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::delete('/messages/netmail/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 
@@ -5538,6 +5555,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             apiError('', apiLocalizedText('', ''));
         }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/messages/echomail/message/{id}/conversation', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $result = $handler->getEchomailConversation((int)$id, $userId ? (int)$userId : null);
+
+        if (empty($result['messages'])) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode($result);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/echomail/{id}/save-ad', function($id) use ($prepareEchomailAdBodyForSave, $isEchomailAnsiAdCapable, $buildEchomailAdSaveMetadata) {
@@ -7430,6 +7465,88 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             header('Content-Type: application/json');
             apiError('', apiLocalizedText('', ''));
+        }
+    });
+
+    SimpleRouter::post('/messages/{type}/{id}/forward-email', function($type, $id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $toEmail = trim((string)($user['email'] ?? ''));
+        if (!$userId || $toEmail === '') {
+            http_response_code(400);
+            apiError('errors.messages.forward_email.email_required', apiLocalizedText('errors.messages.forward_email.email_required', 'An email address is required', $user), 400);
+            return;
+        }
+
+        if (!in_array($type, ['echomail', 'netmail'], true)) {
+            http_response_code(400);
+            apiError('errors.messages.forward_email.invalid_type', apiLocalizedText('errors.messages.forward_email.invalid_type', 'Invalid message type', $user), 400);
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $message = $handler->getMessage((int)$id, $type, $userId);
+        if (!$message) {
+            http_response_code(404);
+            $errorKey = $type === 'echomail' ? 'errors.messages.echomail.not_found' : 'errors.messages.netmail.not_found';
+            apiError($errorKey, apiLocalizedText($errorKey, 'Message not found', $user), 404);
+            return;
+        }
+
+        try {
+            $systemName = 'BinktermPHP System';
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $systemName = $binkpConfig->getSystemName();
+            } catch (\Throwable $e) {
+            }
+
+            $area = '';
+            if ($type === 'echomail') {
+                $echoarea = trim((string)($message['echoarea'] ?? ''));
+                $domain = trim((string)($message['domain'] ?? ''));
+                $area = $echoarea !== '' ? $echoarea . ($domain !== '' ? '@' . $domain : '') : '';
+            }
+
+            $mail = new \BinktermPHP\Mail();
+            if (!$mail->isEnabled()) {
+                http_response_code(503);
+                apiError('errors.messages.forward_email.mail_disabled', apiLocalizedText('errors.messages.forward_email.mail_disabled', 'Email sending is not configured', $user), 503);
+                return;
+            }
+
+            $sent = $mail->sendMessageForward(
+                $toEmail,
+                $type,
+                [
+                    'subject' => (string)($message['subject'] ?? ''),
+                    'from_name' => (string)($message['from_name'] ?? ''),
+                    'from_address' => (string)($message['from_address'] ?? ''),
+                    'to_name' => (string)($message['to_name'] ?? ''),
+                    'to_address' => (string)($message['to_address'] ?? ''),
+                    'area' => $area,
+                    'date' => (string)($message['date_written'] ?? $message['date_received'] ?? ''),
+                ],
+                (string)($message['message_text'] ?? ''),
+                $systemName
+            );
+
+            if (!$sent) {
+                http_response_code(500);
+                apiError('errors.messages.forward_email.failed', apiLocalizedText('errors.messages.forward_email.failed', 'Failed to forward message by email', $user), 500);
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.common.forwarded_to_email'
+            ]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            apiError('errors.messages.forward_email.failed', apiLocalizedText('errors.messages.forward_email.failed', 'Failed to forward message by email', $user), 500);
         }
     });
 

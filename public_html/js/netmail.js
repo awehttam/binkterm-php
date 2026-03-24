@@ -16,6 +16,9 @@ let currentMessageData = null;
 let currentParsedMessage = null;
 let currentRenderMode = 'auto';
 let requestedMessageId = null;
+let currentConversationMessageId = null;
+let currentConversationSubject = '';
+let currentContextMenuMessageId = null;
 
 /**
  * Render a FREQ status badge appropriate to the given status value.
@@ -128,6 +131,8 @@ $(document).ready(function() {
 
     // Filter change handler
     $('input[name="filter"]').change(function() {
+        currentConversationMessageId = null;
+        currentConversationSubject = '';
         currentFilter = $(this).val();
         currentPage = 1;
         loadMessages();
@@ -139,6 +144,11 @@ $(document).ready(function() {
             searchMessages();
         }
     });
+
+    document.addEventListener('click', hideMessageContextMenu);
+    document.addEventListener('scroll', hideMessageContextMenu, true);
+    window.addEventListener('resize', hideMessageContextMenu);
+    bindMessageListTouchContextMenu();
 
     // Address book search
     $('#addressBookSearch').on('keyup', debounce(function() {
@@ -161,6 +171,19 @@ function loadMessages(callback) {
     if (currentFilter === 'drafts') {
         // Load drafts instead of regular messages
         loadDrafts();
+        return;
+    }
+
+    if (currentConversationMessageId) {
+        $.get(`/api/messages/netmail/${currentConversationMessageId}/conversation`)
+            .done(function(data) {
+                displayMessages(data.messages, true);
+                updatePagination(data.pagination);
+                if (typeof callback === 'function') callback(data);
+            })
+            .fail(function() {
+                $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
+            });
         return;
     }
 
@@ -274,7 +297,19 @@ function displayMessages(messages, isThreaded = false) {
     if (messages.length === 0) {
         html = `<div class="text-center text-muted py-4">${uiT('messages.none_found', 'No messages found')}</div>`;
     } else {
-        html = `
+        if (currentConversationMessageId) {
+            html += `
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <strong>${uiT('ui.common.showing_entire_conversation', 'Showing Entire Conversation')}</strong>
+                        ${currentConversationSubject ? `<div class="small mt-1">${escapeHtml(currentConversationSubject)}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="clearConversationView()">${uiT('ui.common.back_to_message_list', 'Back to Message List')}</button>
+                </div>
+            `;
+        }
+
+        html += `
             <table class="table table-hover message-table mb-0">
                 <thead>
                     <tr>
@@ -306,12 +341,14 @@ function displayMessages(messages, isThreaded = false) {
             // Indent up to 2 levels (0.75rem each); deeper nesting shown via border-left color
             const indentRem = Math.min(threadLevel, 2) * 0.75;
             const threadIndent = threadLevel > 0 ? `style="padding-left: ${indentRem}rem;"` : '';
-            const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
+            const threadIcon = (threadLevel > 0 || replyCount > 0)
+                ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.show_entire_conversation', 'Show Entire Conversation')}" style="cursor: pointer;" onclick="event.stopPropagation(); showConversation(${msg.id})"></i>`
+                : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
             const threadLevelClass = threadLevel > 0 ? ` thread-reply thread-level-${Math.min(threadLevel, 9)}` : '';
 
             html += `
-                <tr class="${rowClass} message-row${threadLevelClass}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                <tr class="${rowClass} message-row${threadLevelClass}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" oncontextmenu="openMessageContextMenu(event, ${msg.id})" style="cursor: pointer;">
                     <td class="message-checkbox d-none" onclick="event.stopPropagation()">
                         <div class="form-check">
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
@@ -431,6 +468,11 @@ function updatePagination(pagination) {
     const container = $('#pagination');
     let html = '';
 
+    if (currentConversationMessageId) {
+        container.empty();
+        return;
+    }
+
     if (pagination.pages > 1) {
         html = '<ul class="pagination pagination-sm mb-0">';
 
@@ -466,6 +508,123 @@ function updatePagination(pagination) {
     }
 
     container.html(html);
+}
+
+function showConversation(messageId) {
+    currentConversationMessageId = messageId;
+    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    currentConversationSubject = selected && selected.subject ? selected.subject : '';
+    loadMessages();
+}
+
+function clearConversationView() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
+    loadMessages();
+}
+
+function openMessageContextMenu(event, messageId) {
+    event.preventDefault();
+    event.stopPropagation();
+    openMessageContextMenuAtPosition(event.pageX, event.pageY, messageId);
+}
+
+function openMessageContextMenuAtPosition(pageX, pageY, messageId) {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+
+    currentContextMenuMessageId = messageId;
+    menu.style.left = `${pageX}px`;
+    menu.style.top = `${pageY}px`;
+    menu.style.display = 'block';
+}
+
+function hideMessageContextMenu() {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+    menu.style.display = 'none';
+    currentContextMenuMessageId = null;
+}
+
+function bindMessageListTouchContextMenu() {
+    if (!window.MessageListContextMenu) {
+        return;
+    }
+    window.MessageListContextMenu.bindLongPress({
+        containerId: 'messagesContainer',
+        rowSelector: '.message-row[data-message-id]',
+        isInteractiveTarget: isMessageRowInteractiveTarget,
+        onLongPress: function(details) {
+            openMessageContextMenuAtPosition(details.pageX, details.pageY, details.messageId);
+        }
+    });
+}
+
+function isMessageRowInteractiveTarget(target) {
+    return !!target.closest(
+        'button, a, input, select, textarea, label, .save-btn, .echo-from-popover, .node-addr-popover, .message-select'
+    );
+}
+
+function viewConversationFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    showConversation(messageId);
+}
+
+function downloadMessageFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    window.location.href = `/api/messages/netmail/${messageId}/download`;
+}
+
+function forwardMessageToEmailFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+
+    $.post(`/api/messages/netmail/${messageId}/forward-email`)
+        .done(function(response) {
+            if (response && response.success) {
+                showForwardEmailFeedback(
+                    true,
+                    (window.getApiMessage
+                        ? window.getApiMessage(response, uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                        : uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                );
+            } else {
+                showForwardEmailFeedback(
+                    false,
+                    apiError(response, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+                );
+            }
+        })
+        .fail(function(xhr) {
+            showForwardEmailFeedback(
+                false,
+                apiError(xhr.responseJSON || {}, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+            );
+        });
+}
+
+function showForwardEmailFeedback(success, message) {
+    if (window.MessageListContextMenu) {
+        window.MessageListContextMenu.showActionNotice(success, message);
+        return;
+    }
+    window.alert(message);
 }
 
 function changePage(page) {
@@ -921,6 +1080,8 @@ function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {
 }
 
 function searchMessages() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
     const query = $('#searchInput').val().trim();
     if (query.length < 2) {
         showError(uiT('errors.messages.search.query_too_short', 'Please enter at least 2 characters to search'));

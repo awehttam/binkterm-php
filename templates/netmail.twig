@@ -146,6 +146,20 @@
     </div>
 </div>
 
+<div id="messageContextMenu" class="dropdown-menu" style="display:none; position:absolute; z-index:1080;">
+    <button type="button" class="dropdown-item" onclick="viewConversationFromContextMenu()">
+        <i class="fas fa-comments me-2"></i>{{ t('ui.common.view_conversation', {}, locale, ['common']) }}
+    </button>
+    <button type="button" class="dropdown-item" onclick="downloadMessageFromContextMenu()">
+        <i class="fas fa-download me-2"></i>{{ t('ui.common.download_message', {}, locale, ['common']) }}
+    </button>
+    {% if current_user.email %}
+    <button type="button" class="dropdown-item" onclick="forwardMessageToEmailFromContextMenu()">
+        <i class="fas fa-envelope me-2"></i>{{ t('ui.common.forward_to_me_by_email', {}, locale, ['common']) }}
+    </button>
+    {% endif %}
+</div>
+
 <!-- Message View Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-message-reader{% if appearance.message_reader.scrollable_body %} modal-dialog-scrollable message-reader-scrollable{% endif %}">
@@ -422,6 +436,7 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
 <script src="/js/ansisys.js"></script>
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
+<script src="/js/message-list-context-menu.js"></script>
 <script src="/js/netmail.js"></script>
 
 <style>

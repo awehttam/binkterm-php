@@ -5042,6 +5042,130 @@ class MessageHandler
         return $allMessages;
     }
 
+    public function getEchomailConversation(int $messageId, ?int $userId = null): array
+    {
+        $selected = $this->getMessage($messageId, 'echomail', $userId);
+        if (!$selected) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $rootStmt = $this->db->prepare("
+            WITH RECURSIVE ancestors AS (
+                SELECT id, reply_to_id
+                FROM echomail
+                WHERE id = ?
+                UNION ALL
+                SELECT em.id, em.reply_to_id
+                FROM echomail em
+                INNER JOIN ancestors a ON a.reply_to_id = em.id
+            )
+            SELECT id
+            FROM ancestors
+            WHERE reply_to_id IS NULL
+            ORDER BY id ASC
+            LIMIT 1
+        ");
+        $rootStmt->execute([$messageId]);
+        $rootId = (int)($rootStmt->fetchColumn() ?: $messageId);
+
+        $stmt = $this->db->prepare("
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                   COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE em.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId, $userId, $userId, $rootId]);
+        $rootMessages = $stmt->fetchAll();
+        if ($rootMessages === []) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $allMessages = $this->loadThreadChildren($rootMessages, $userId);
+        $threads = $this->buildMessageThreads($allMessages);
+        $messages = $this->flattenThreadsForDisplay($threads);
+
+        $cleanMessages = [];
+        $unreadCount = 0;
+        foreach ($messages as $message) {
+            if (empty($message['is_read'])) {
+                $unreadCount++;
+            }
+            $cleanMessages[] = $this->cleanMessageForJson($message);
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => 1,
+                'limit' => count($cleanMessages),
+                'total' => count($cleanMessages),
+                'pages' => 1
+            ]
+        ];
+    }
+
+    private function loadNetmailThreadChildren($rootMessages, $userId)
+    {
+        if (empty($rootMessages)) {
+            return [];
+        }
+
+        $allMessages = $rootMessages;
+        $currentLevelIds = array_column($rootMessages, 'id');
+        $maxDepth = 50;
+        $depth = 0;
+
+        while (!empty($currentLevelIds) && $depth < $maxDepth) {
+            $placeholders = implode(',', array_fill(0, count($currentLevelIds), '?'));
+
+            $stmt = $this->db->prepare("
+                SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                       n.subject, n.date_received, n.user_id, n.date_written,
+                       n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE n.reply_to_id IN ({$placeholders})
+            ");
+
+            $params = [$userId];
+            $params = array_merge($params, $currentLevelIds);
+            $stmt->execute($params);
+
+            $children = $stmt->fetchAll();
+            if (empty($children)) {
+                break;
+            }
+
+            $children = array_values(array_filter($children, function ($child) use ($userId) {
+                return $this->getMessage((int)$child['id'], 'netmail', $userId) !== null;
+            }));
+            if (empty($children)) {
+                break;
+            }
+
+            $allMessages = array_merge($allMessages, $children);
+            $currentLevelIds = array_column($children, 'id');
+            $depth++;
+        }
+
+        return $allMessages;
+    }
+
     /**
      * Build message threads using reply_to_id relationships
      */
@@ -5400,6 +5524,87 @@ class MessageHandler
                 'limit' => $limit,
                 'total' => $totalThreads,
                 'pages' => ceil($totalThreads / $limit)
+            ]
+        ];
+    }
+
+    public function getNetmailConversation(int $messageId, int $userId): array
+    {
+        $selected = $this->getMessage($messageId, 'netmail', $userId);
+        if (!$selected) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $rootStmt = $this->db->prepare("
+            WITH RECURSIVE ancestors AS (
+                SELECT id, reply_to_id
+                FROM netmail
+                WHERE id = ?
+                UNION ALL
+                SELECT n.id, n.reply_to_id
+                FROM netmail n
+                INNER JOIN ancestors a ON a.reply_to_id = n.id
+            )
+            SELECT id
+            FROM ancestors
+            WHERE reply_to_id IS NULL
+            ORDER BY id ASC
+            LIMIT 1
+        ");
+        $rootStmt->execute([$messageId]);
+        $rootId = (int)($rootStmt->fetchColumn() ?: $messageId);
+
+        $stmt = $this->db->prepare("
+            SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.date_received, n.user_id, n.date_written,
+                   n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+            FROM netmail n
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            WHERE n.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId, $rootId]);
+        $rootMessages = $stmt->fetchAll();
+        if ($rootMessages === []) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $allMessages = $this->loadNetmailThreadChildren($rootMessages, $userId);
+        $threads = $this->buildMessageThreads($allMessages);
+        $messages = $this->flattenThreadsForDisplay($threads);
+
+        $cleanMessages = [];
+        $unreadCount = 0;
+        foreach ($messages as $message) {
+            if (empty($message['is_read'])) {
+                $unreadCount++;
+            }
+
+            $cleanMessage = $this->cleanMessageForJson($message);
+            try {
+                $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                if (!empty($cleanMessage['from_address'])) {
+                    $cleanMessage['from_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['from_address']) ?: null;
+                }
+                if (!empty($cleanMessage['to_address'])) {
+                    $cleanMessage['to_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['to_address']) ?: null;
+                }
+            } catch (\Exception $e) {
+            }
+            $cleanMessages[] = $cleanMessage;
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => 1,
+                'limit' => count($cleanMessages),
+                'total' => count($cleanMessages),
+                'pages' => 1
             ]
         ];
     }
