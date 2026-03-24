@@ -97,6 +97,126 @@ php scripts/setup.php
 ```
 This will apply all pending migrations from the `database/migrations/` directory.
 
+### Q: How do I move my BinktermPHP installation from one system to another?
+
+**A:** The simplest approach is to copy the entire BinktermPHP directory to the new server along with a database dump.
+
+**Step 1 — Dump the database on the old system**
+
+```bash
+pg_dump -U your_db_user your_db_name > binkterm_backup.sql
+```
+
+**Step 2 — Stop the daemons on the old system**
+
+Stop the BinkP server, admin daemon, and any other BinktermPHP processes before copying to avoid transferring files mid-write.
+
+**Step 3 — Copy the directory to the new system**
+
+```bash
+rsync -av /path/to/binkterm-php/ newserver:/path/to/binkterm-php/
+```
+
+Or use `scp`, a tarball, or whatever transfer method suits your setup.
+
+**Step 4 — Restore the database on the new system**
+
+```bash
+createdb -U postgres your_db_name
+psql -U postgres your_db_name < binkterm_backup.sql
+```
+
+**Step 5 — Update `.env` for the new environment**
+
+Edit `.env` on the new system and update anything that is host-specific:
+
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` — if the database details differ on the new server
+- `SITE_URL` — update to the new hostname or URL
+
+**Step 6 — Run setup**
+
+```bash
+php scripts/setup.php
+```
+
+This ensures file permissions are correct and applies any pending migrations.
+
+**Step 7 — Start the daemons**
+
+Start the BinkP server, admin daemon, and any other services on the new system.
+
+**Notes:**
+- `vendor/` does not need to be reinstalled — Composer's autoloader uses relative paths and works correctly regardless of where the installation directory lives on the filesystem.
+- If the new system has a different public hostname or IP address, update your LovlyNet registration (`php scripts/lovlynet_setup.php --update`) and notify any downlinks of the change.
+- Verify the web server on the new system points to `public_html/` as its document root.
+
+### Q: How do I move my BinktermPHP installation from one system to another?
+
+**A:** The simplest approach is to copy the entire BinktermPHP directory to the new server along with a database dump.
+
+**Step 1 — Dump the database on the old system**
+
+```bash
+pg_dump -U your_db_user your_db_name > binkterm_backup.sql
+```
+
+**Step 2 — Stop the daemons on the old system**
+
+Stop the BinkP server, admin daemon, and any other BinktermPHP processes before copying to avoid transferring files mid-write.
+
+**Step 3 — Copy the directory to the new system**
+
+Copy the entire BinktermPHP directory including the dump file:
+
+```bash
+rsync -av /path/to/binkterm-php/ newserver:/path/to/binkterm-php/
+```
+
+Or use `scp`, a tarball, or whatever transfer method suits your setup.
+
+**Step 4 — Create the database and user on the new system**
+
+```bash
+sudo -u postgres psql
+```
+
+```sql
+CREATE USER your_db_user WITH PASSWORD 'your_password';
+CREATE DATABASE your_db_name OWNER your_db_user;
+GRANT ALL PRIVILEGES ON DATABASE your_db_name TO your_db_user;
+\q
+```
+
+**Step 5 — Restore the database**
+
+```bash
+psql -U your_db_user your_db_name < binkterm_backup.sql
+```
+
+**Step 6 — Update `.env` for the new environment**
+
+Edit `.env` on the new system and update anything that is host-specific:
+
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` — if the database details differ on the new server
+- `SITE_URL` — update to the new hostname or URL
+
+**Step 7 — Run setup**
+
+```bash
+php scripts/setup.php
+```
+
+This ensures file permissions are correct and applies any pending migrations.
+
+**Step 8 — Start the daemons**
+
+Start the BinkP server, admin daemon, and any other services on the new system.
+
+**Notes:**
+- `vendor/` does not need to be reinstalled — Composer's autoloader uses relative paths and works correctly regardless of where the installation directory lives on the filesystem.
+- If the new system has a different public hostname or IP address, update your LovlyNet registration (`php scripts/lovlynet_setup.php --update`) and notify any downlinks of the change.
+- Verify the web server on the new system points to `public_html/` as its document root.
+
 ### Q: How do I switch from installer/zip file installation to git based installation?
 **A:** The safest method is to do a fresh git clone and then copy your local
 runtime and configuration files into it.
