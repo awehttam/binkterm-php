@@ -260,16 +260,6 @@ const pool = new Pool({
     max:      5,
 });
 
-// node-postgres negotiates client_encoding=UTF8 by default, which causes PostgreSQL to
-// strictly validate stored text during string operations (e.g. ILIKE). The PHP side
-// does not set client_encoding, so the server uses its default (typically SQL_ASCII),
-// which skips encoding validation. Match that behaviour here so messages with legacy
-// or corrupted byte sequences are handled the same way as in the web interface.
-pool.on('connect', (client) => {
-    client.query("SET client_encoding TO 'SQL_ASCII'")
-        .catch((e) => logger.warn('Could not set client_encoding:', e.message));
-});
-
 pool.on('error', (err) => {
     logger.error('[DB] Unexpected pool error:', err.message);
 });
@@ -490,9 +480,9 @@ function createServer(userCtx) {
             const conditions = ['em.echoarea_id = $1'];
             const params     = [areaId];
 
-            if (from_name) { params.push(`%${from_name}%`); conditions.push(`em.from_name ILIKE $${params.length}`); }
-            if (to_name)   { params.push(`%${to_name}%`);   conditions.push(`em.to_name   ILIKE $${params.length}`); }
-            if (subject)   { params.push(`%${subject}%`);   conditions.push(`em.subject   ILIKE $${params.length}`); }
+            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(em.from_name::bytea, 'escape') ILIKE $${params.length}`); }
+            if (to_name)   { params.push(`%${to_name}%`);   conditions.push(`encode(em.to_name::bytea,   'escape') ILIKE $${params.length}`); }
+            if (subject)   { params.push(`%${subject}%`);   conditions.push(`encode(em.subject::bytea,   'escape') ILIKE $${params.length}`); }
             if (since)     { params.push(since);             conditions.push(`em.date_received >= $${params.length}`); }
 
             params.push(limit, offset);
@@ -563,12 +553,18 @@ function createServer(userCtx) {
 
             if (!userCtx.isAdmin) conditions.push('ea.is_sysop_only = FALSE');
 
+            // Cast through bytea before ILIKE to avoid "invalid byte sequence" errors on
+            // messages stored with corrupted encoding. encode(col::bytea, 'escape') produces
+            // valid ASCII and matches ASCII search terms identically to plain ILIKE.
             params.push(`%${query}%`);
-            conditions.push(`(em.subject ILIKE $${params.length} OR em.message_text ILIKE $${params.length})`);
+            conditions.push(
+                `(encode(em.subject::bytea,      'escape') ILIKE $${params.length}` +
+                ` OR encode(em.message_text::bytea, 'escape') ILIKE $${params.length})`
+            );
 
             if (tag)       { params.push(tag.toUpperCase()); conditions.push(`ea.tag       = $${params.length}`); }
             if (domain)    { params.push(domain);            conditions.push(`ea.domain    = $${params.length}`); }
-            if (from_name) { params.push(`%${from_name}%`); conditions.push(`em.from_name ILIKE $${params.length}`); }
+            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(em.from_name::bytea, 'escape') ILIKE $${params.length}`); }
             if (since)     { params.push(since);             conditions.push(`em.date_received >= $${params.length}`); }
 
             params.push(limit);
