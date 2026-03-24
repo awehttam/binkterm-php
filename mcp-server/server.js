@@ -480,9 +480,9 @@ function createServer(userCtx) {
             const conditions = ['em.echoarea_id = $1'];
             const params     = [areaId];
 
-            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(em.from_name::bytea, 'escape') ILIKE $${params.length}`); }
-            if (to_name)   { params.push(`%${to_name}%`);   conditions.push(`encode(em.to_name::bytea,   'escape') ILIKE $${params.length}`); }
-            if (subject)   { params.push(`%${subject}%`);   conditions.push(`encode(em.subject::bytea,   'escape') ILIKE $${params.length}`); }
+            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(pg_catalog.textsend(em.from_name), 'escape') ILIKE $${params.length}`); }
+            if (to_name)   { params.push(`%${to_name}%`);   conditions.push(`encode(pg_catalog.textsend(em.to_name),   'escape') ILIKE $${params.length}`); }
+            if (subject)   { params.push(`%${subject}%`);   conditions.push(`encode(pg_catalog.textsend(em.subject),   'escape') ILIKE $${params.length}`); }
             if (since)     { params.push(since);             conditions.push(`em.date_received >= $${params.length}`); }
 
             params.push(limit, offset);
@@ -553,18 +553,17 @@ function createServer(userCtx) {
 
             if (!userCtx.isAdmin) conditions.push('ea.is_sysop_only = FALSE');
 
-            // Cast through bytea before ILIKE to avoid "invalid byte sequence" errors on
-            // messages stored with corrupted encoding. encode(col::bytea, 'escape') produces
-            // valid ASCII and matches ASCII search terms identically to plain ILIKE.
+            // Use pg_catalog.textsend() to get raw bytes without encoding validation or
+            // escape interpretation, then encode as ASCII for safe ILIKE comparison.
             params.push(`%${query}%`);
             conditions.push(
-                `(encode(em.subject::bytea,      'escape') ILIKE $${params.length}` +
-                ` OR encode(em.message_text::bytea, 'escape') ILIKE $${params.length})`
+                `(encode(pg_catalog.textsend(em.subject),      'escape') ILIKE $${params.length}` +
+                ` OR encode(pg_catalog.textsend(em.message_text), 'escape') ILIKE $${params.length})`
             );
 
             if (tag)       { params.push(tag.toUpperCase()); conditions.push(`ea.tag       = $${params.length}`); }
             if (domain)    { params.push(domain);            conditions.push(`ea.domain    = $${params.length}`); }
-            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(em.from_name::bytea, 'escape') ILIKE $${params.length}`); }
+            if (from_name) { params.push(`%${from_name}%`); conditions.push(`encode(pg_catalog.textsend(em.from_name), 'escape') ILIKE $${params.length}`); }
             if (since)     { params.push(since);             conditions.push(`em.date_received >= $${params.length}`); }
 
             params.push(limit);
