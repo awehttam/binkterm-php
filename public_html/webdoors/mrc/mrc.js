@@ -778,6 +778,13 @@ class MrcClient {
         const args = parts;
 
         switch (command) {
+            case 'join':
+                if (args.length === 0) {
+                    this.showError('Usage: /join &lt;room&gt;');
+                    break;
+                }
+                this.joinRoom(args[0]);
+                break;
             case 'motd':
                 this.sendCommand(command, args);
                 break;
@@ -827,7 +834,7 @@ class MrcClient {
      * Commands that can be sent without being in a room.
      */
     static get NO_ROOM_COMMANDS() {
-        return ['rooms', 'motd', 'register', 'identify', 'update', 'help'];
+        return ['join', 'rooms', 'motd', 'register', 'identify', 'update', 'help'];
     }
 
     async sendCommand(command, args) {
@@ -921,7 +928,7 @@ class MrcClient {
             if (spaceIdx === -1 || pos <= spaceIdx) {
                 const partial = before.slice(1); // strip leading /
                 const prefix = partial.toLowerCase();
-                const commands = ['help', 'identify', 'motd', 'msg', 'register', 'rooms', 'topic', 'update'];
+                const commands = ['help', 'identify', 'join', 'motd', 'msg', 'register', 'rooms', 'topic', 'update'];
                 const matches = commands.filter(c => c.startsWith(prefix));
                 if (matches.length === 0) return;
 
