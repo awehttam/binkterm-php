@@ -2481,6 +2481,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/ads/content-commands', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            echo json_encode(['commands' => \BinktermPHP\Advertising::getAvailableContentCommands()]);
+        });
+
         SimpleRouter::get('/ads/{id}', function($id) {
             $user = RouteHelper::requireAdmin();
 
@@ -2514,6 +2520,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             if (!$hasFile && $contentCommand === '') {
                 http_response_code(400);
                 apiError('errors.admin.ads.upload.no_file', apiLocalizedText('errors.admin.ads.upload.no_file', 'No advertisement file uploaded'));
+                return;
+            }
+
+            if ($contentCommand !== '' && !\BinktermPHP\Advertising::validateContentCommand($contentCommand)) {
+                http_response_code(400);
+                apiError('errors.admin.ads.invalid_content_command', apiLocalizedText('errors.admin.ads.invalid_content_command', 'The selected content command is not allowed'));
                 return;
             }
 
@@ -2595,6 +2607,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     http_response_code(404);
                     apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
                     return;
+                }
+
+                if (array_key_exists('content_command', $payload)) {
+                    $cmd = trim((string)($payload['content_command'] ?? ''));
+                    if ($cmd !== '' && !\BinktermPHP\Advertising::validateContentCommand($cmd)) {
+                        http_response_code(400);
+                        apiError('errors.admin.ads.invalid_content_command', apiLocalizedText('errors.admin.ads.invalid_content_command', 'The selected content command is not allowed'), 400);
+                        return;
+                    }
                 }
 
                 $duplicates = [];

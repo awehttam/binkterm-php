@@ -3128,6 +3128,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.ads.content_command' => 'Commande de contenu',
     'ui.admin.ads.content_command_help' => 'Optionnel : chemin vers un exécutable qui écrit le corps du message sur stdout. Si défini, le contenu statique est ignoré. La publication est ignorée si la commande se termine avec un code non nul ou ne produit aucun résultat.',
     'ui.admin.ads.content_command_upload_help' => 'À utiliser à la place d\'un fichier pour générer du contenu dynamiquement au moment de la publication.',
+    'ui.admin.ads.content_command_none' => 'Aucune (contenu statique uniquement)',
+    'ui.admin.ads.content_command_invalid_stored' => 'Cette annonce a une commande de contenu qui n\'est plus autorisée. Veuillez sélectionner une commande valide ou la supprimer.',
 
     // Ad Analytics
     'ui.admin.ad_analytics.page_title' => 'Analyse des annonces',

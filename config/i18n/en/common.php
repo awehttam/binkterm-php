@@ -700,6 +700,8 @@ return [
     'ui.admin.ads.content_command' => 'Content Command',
     'ui.admin.ads.content_command_help' => 'Optional: path to an executable that writes the post body to stdout. If set, static content is ignored. Post is skipped if the command exits non-zero or produces no output.',
     'ui.admin.ads.content_command_upload_help' => 'Use instead of a file to generate content dynamically at post time.',
+    'ui.admin.ads.content_command_none' => 'None (static content only)',
+    'ui.admin.ads.content_command_invalid_stored' => 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.',
     'ui.admin.ads.insert_escape_prefix' => 'Insert ESC[',
     'ui.admin.ads.insert_sequence' => 'Insert Sequence',
     'ui.admin.ads.select_sequence' => 'Select ANSI sequence',

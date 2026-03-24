@@ -29,7 +29,9 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="adContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
-                        <input class="form-control font-monospace" type="text" id="adContentCommand" name="content_command" maxlength="1024" placeholder="/usr/local/bin/file-echo-report.php">
+                        <select class="form-select font-monospace" id="adContentCommand" name="content_command">
+                            <option value="">{{ t('ui.admin.ads.content_command_none') }}</option>
+                        </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_upload_help') }}</div>
                     </div>
                     <div class="col-md-3">
@@ -162,7 +164,9 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="editAdContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
-                        <input class="form-control font-monospace" type="text" id="editAdContentCommand" maxlength="1024" placeholder="/usr/local/bin/file-echo-report.php">
+                        <select class="form-select font-monospace" id="editAdContentCommand">
+                            <option value="">{{ t('ui.admin.ads.content_command_none') }}</option>
+                        </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_help') }}</div>
                     </div>
                     <div class="col-12">
@@ -258,6 +262,7 @@ function uiT(key, fallback, params = {}) {
 document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadAds();
+        loadContentCommands();
     });
 
     document.getElementById('adsUploadForm').addEventListener('submit', function(event) {
@@ -285,6 +290,28 @@ document.addEventListener('DOMContentLoaded', function() {
         adPreviewModal = new bootstrap.Modal(previewElement);
     }
 });
+
+function loadContentCommands() {
+    fetch('/admin/api/ads/content-commands')
+        .then(r => r.json())
+        .then(data => {
+            const cmds = Array.isArray(data.commands) ? data.commands : [];
+            [document.getElementById('adContentCommand'),
+             document.getElementById('editAdContentCommand')].forEach(sel => {
+                if (!sel) return;
+                const current = sel.value;
+                while (sel.options.length > 1) sel.remove(1);
+                cmds.forEach(cmd => {
+                    const opt = document.createElement('option');
+                    opt.value = cmd.value;
+                    opt.textContent = cmd.label;
+                    sel.appendChild(opt);
+                });
+                if (current) sel.value = current;
+            });
+        })
+        .catch(() => {});
+}
 
 function loadAds() {
     fetch('/admin/api/ads')
@@ -509,7 +536,12 @@ function openEditor(id) {
             document.getElementById('editAdPriority').value = String(ad.dashboard_priority || 0);
             document.getElementById('editAdDescription').value = ad.description || '';
             document.getElementById('editAdClickUrl').value = ad.click_url || '';
-            document.getElementById('editAdContentCommand').value = ad.content_command || '';
+            const editCmdSel = document.getElementById('editAdContentCommand');
+            editCmdSel.value = ad.content_command || '';
+            // If the stored value isn't in the list (e.g. legacy entry), show a warning
+            if (ad.content_command && editCmdSel.value !== ad.content_command) {
+                showAdsAlert(uiT('ui.admin.ads.content_command_invalid_stored', 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.'), 'warning');
+            }
             document.getElementById('editAdContent').value = ad.content || '';
             document.getElementById('editAdIsActive').checked = !!ad.is_active;
             document.getElementById('editAdShowOnDashboard').checked = !!ad.show_on_dashboard;

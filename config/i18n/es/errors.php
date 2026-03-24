@@ -576,4 +576,7 @@ return [
     // Ad Analytics
     'errors.admin.ad_analytics.license_required' => 'Se requiere una licencia válida para ver el análisis de anuncios.',
     'errors.admin.ad_analytics.load_failed' => 'Error al cargar el análisis de anuncios.',
+
+    // Ads - content command validation
+    'errors.admin.ads.invalid_content_command' => 'El comando de contenido seleccionado no está permitido.',
 ];

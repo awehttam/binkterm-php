@@ -1137,7 +1137,7 @@ const WIZARD_PRESETS = {
         min_repeat_gap_minutes: 10080,
         subject_template: 'FILES: {title}',
         has_end_date: false,
-        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/report_newfiles.php')|json_encode|raw }},
+        default_content_command: 'scripts/report_newfiles.php',
     },
     league_recruit: {
         label: 'Inter-BBS League Recruitment',
@@ -1174,7 +1174,7 @@ const WIZARD_PRESETS = {
         min_repeat_gap_minutes: 1440,
         subject_template: 'Daily Weather Report',
         has_end_date: false,
-        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/weather_report.php')|json_encode|raw }},
+        default_content_command: 'scripts/weather_report.php',
         disabled: {{ weather_configured ? 'false' : 'true' }},
         disabled_reason: {{ weather_configured ? 'null' : '"Weather report must be configured first"'|raw }},
     },
@@ -1254,9 +1254,34 @@ function wizardGoTo(step) {
         body.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
     } else if (step === 2) {
         body.innerHTML = renderWizardStep2();
+        populateWizardContentCommandSelect();
     } else {
         body.innerHTML = renderWizardStep3();
     }
+}
+
+/**
+ * Populate the wizard content command select (step 2) from the allowed commands API.
+ * Uses the select's data-default attribute to pre-select the preset's default command.
+ */
+function populateWizardContentCommandSelect() {
+    const sel = document.getElementById('wizardContentCommand');
+    if (!sel) return;
+    const defaultVal = sel.dataset.default || '';
+    fetch('/admin/api/ads/content-commands')
+        .then(r => r.json())
+        .then(data => {
+            const cmds = Array.isArray(data.commands) ? data.commands : [];
+            while (sel.options.length > 1) sel.remove(1);
+            cmds.forEach(cmd => {
+                const opt = document.createElement('option');
+                opt.value = cmd.value;
+                opt.textContent = cmd.label;
+                sel.appendChild(opt);
+            });
+            if (defaultVal) sel.value = defaultVal;
+        })
+        .catch(() => {});
 }
 
 /**
@@ -1439,7 +1464,9 @@ function renderWizardStep2() {
             ${preset.default_content_command != null ? `
             <div class="col-12">
                 <label class="form-label" for="wizardContentCommand">${uiT('ui.admin.ads.content_command', 'Content Command')}</label>
-                <input class="form-control font-monospace" type="text" id="wizardContentCommand" maxlength="1024" value="${escapeHtml(preset.default_content_command)}">
+                <select class="form-select font-monospace" id="wizardContentCommand" data-default="${escapeHtml(preset.default_content_command)}">
+                    <option value="">${uiT('ui.admin.ads.content_command_none', 'None (static content only)')}</option>
+                </select>
                 <div class="form-text">${uiT('ui.admin.ads.content_command_help', 'An executable that writes the post body to stdout. A dynamic ad will be created automatically.')}</div>
             </div>
             ` : `

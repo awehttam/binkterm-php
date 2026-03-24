@@ -576,4 +576,7 @@ return [
     // Ad Analytics
     'errors.admin.ad_analytics.license_required' => 'A valid license is required to view ad analytics.',
     'errors.admin.ad_analytics.load_failed' => 'Failed to load ad analytics.',
+
+    // Ads - content command validation
+    'errors.admin.ads.invalid_content_command' => 'The selected content command is not allowed.',
 ];

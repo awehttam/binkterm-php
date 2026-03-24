@@ -33,6 +33,110 @@ class Advertising
     }
 
     /**
+     * Return the project base directory.
+     */
+    public static function getBaseDir(): string
+    {
+        return dirname(__DIR__);
+    }
+
+    /**
+     * Return the list of allowed content commands as [{label, value}] pairs.
+     *
+     * Allowed commands are:
+     *  - Any file inside the project's content_commands/ directory
+     *  - scripts/weather_report.php and scripts/report_newfiles.php (whitelisted scripts)
+     *
+     * Values are repo-relative paths (e.g. "content_commands/my_script.php").
+     *
+     * @return array<int, array{label: string, value: string}>
+     */
+    public static function getAvailableContentCommands(): array
+    {
+        $base = self::getBaseDir();
+        $commands = [];
+
+        // Scan content_commands/ directory for any files
+        $contentCommandsDir = $base . '/content_commands';
+        if (is_dir($contentCommandsDir)) {
+            $files = glob($contentCommandsDir . '/*') ?: [];
+            sort($files);
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    $commands[] = [
+                        'label' => basename($file),
+                        'value' => 'content_commands/' . basename($file),
+                    ];
+                }
+            }
+        }
+
+        // Whitelisted scripts in scripts/
+        $whitelisted = [
+            'scripts/weather_report.php',
+            'scripts/report_newfiles.php',
+        ];
+        foreach ($whitelisted as $rel) {
+            if (file_exists($base . '/' . $rel)) {
+                $commands[] = ['label' => basename($rel), 'value' => $rel];
+            }
+        }
+
+        return $commands;
+    }
+
+    /**
+     * Return true if the given content command value is allowed.
+     *
+     * A command is allowed if:
+     *  - It is empty (no command)
+     *  - It is one of the two whitelisted scripts (exact relative path)
+     *  - It is a relative path within the content_commands/ directory
+     *
+     * Absolute paths and paths containing ".." are always rejected.
+     *
+     * @param string $cmd Repo-relative path (e.g. "content_commands/my_script.php")
+     */
+    public static function validateContentCommand(string $cmd): bool
+    {
+        if ($cmd === '') {
+            return true;
+        }
+
+        // Reject absolute paths and directory traversal attempts
+        if (str_starts_with($cmd, '/') || str_contains($cmd, '..') || str_contains($cmd, "\0")) {
+            return false;
+        }
+
+        // Whitelisted exact relative paths
+        $whitelist = [
+            'scripts/weather_report.php',
+            'scripts/report_newfiles.php',
+        ];
+        if (in_array($cmd, $whitelist, true)) {
+            return true;
+        }
+
+        // Must be within content_commands/
+        if (!str_starts_with($cmd, 'content_commands/')) {
+            return false;
+        }
+
+        $base = self::getBaseDir();
+        $contentCommandsDir = realpath($base . '/content_commands');
+        if ($contentCommandsDir === false) {
+            return false; // directory does not exist
+        }
+
+        $resolved = realpath($base . '/' . $cmd);
+        if ($resolved === false) {
+            return false; // file does not exist
+        }
+
+        return str_starts_with($resolved, $contentCommandsDir . DIRECTORY_SEPARATOR);
+    }
+
+    /**
      * Convert legacy ANSI payloads to valid UTF-8 before storing or rendering.
      */
     public static function ensureUtf8(string $text): string
@@ -1832,9 +1936,27 @@ class Advertising
     /**
      * Execute a content_command and return [string $output, ?string $errorReason].
      * Returns a non-null error reason if the command should cause the post to be skipped.
+     *
+     * The command must be a repo-relative path validated by validateContentCommand().
+     * Relative paths are resolved to absolute paths before execution; PHP scripts are
+     * run through PHP_BINARY automatically.
      */
     private function runContentCommand(string $command): array
     {
+        if (!self::validateContentCommand($command)) {
+            return ['', 'content_command is not in the allowed list'];
+        }
+
+        // Resolve relative paths to absolute and build the exec string
+        if (!str_starts_with($command, '/')) {
+            $absPath = self::getBaseDir() . '/' . $command;
+            if (str_ends_with($command, '.php')) {
+                $command = PHP_BINARY . ' ' . escapeshellarg($absPath);
+            } else {
+                $command = escapeshellarg($absPath);
+            }
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],

@@ -533,4 +533,7 @@ return [
     // Ad Analytics
     'errors.admin.ad_analytics.license_required' => 'Une licence valide est requise pour consulter les analyses d\'annonces.',
     'errors.admin.ad_analytics.load_failed' => 'Échec du chargement des analyses d\'annonces.',
+
+    // Ads - content command validation
+    'errors.admin.ads.invalid_content_command' => 'La commande de contenu sélectionnée n\'est pas autorisée.',
 ];

@@ -700,6 +700,8 @@ return [
     'ui.admin.ads.content_command' => 'Comando de contenido',
     'ui.admin.ads.content_command_help' => 'Opcional: ruta a un ejecutable que escribe el cuerpo del mensaje en stdout. Si se establece, el contenido estatico se ignora. La publicacion se omite si el comando termina con codigo distinto de cero o no produce salida.',
     'ui.admin.ads.content_command_upload_help' => 'Usar en lugar de un archivo para generar contenido dinamicamente al momento de publicar.',
+    'ui.admin.ads.content_command_none' => 'Ninguno (solo contenido estático)',
+    'ui.admin.ads.content_command_invalid_stored' => 'Este anuncio tiene un comando de contenido que ya no está permitido. Seleccione un comando válido o elimínelo.',
     'ui.admin.ads.insert_escape_prefix' => 'Insertar ESC[',
     'ui.admin.ads.insert_sequence' => 'Insertar secuencia',
     'ui.admin.ads.select_sequence' => 'Seleccione una secuencia ANSI',
