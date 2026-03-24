@@ -2302,6 +2302,7 @@ return [
     'ui.echomail.get_friendly_url' => 'Obtener URL amigable',
     'ui.echomail.revoke_share' => 'Revocar enlace',
     'ui.echomail.messages_refreshed' => 'Mensajes actualizados',
+    'ui.echomail.written' => 'Escrito',
     'ui.echomail.saved_items.removed' => 'Mensaje eliminado de guardados',
     'ui.echomail.saved_items.saved' => 'Mensaje guardado para despues',
     'ui.echomail.shares.using_existing' => 'Usando enlace compartido existente',

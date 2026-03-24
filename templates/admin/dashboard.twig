@@ -177,7 +177,7 @@
                         </div>
                         <div class="col-sm-6">
                             {% if license_valid %}
-                                <span class="badge bg-success">{{ t('ui.admin.dashboard.registration_registered', {}, locale, ['common']) }}</span>
+                                <span class="badge bg-success">{{ t('ui.admin.dashboard.registration_registered', {}, locale, ['common']) }}</span><BR/>
                                 <span class="text-muted ms-1">{{ t('ui.admin.dashboard.registration_to', {'system': license_system_name, 'licensee': license_licensee}, locale, ['common']) }}</span>
                             {% else %}
                                 <span class="badge bg-secondary">{{ t('ui.admin.dashboard.registration_unregistered', {}, locale, ['common']) }}</span>

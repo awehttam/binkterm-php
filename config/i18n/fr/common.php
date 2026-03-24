@@ -1897,6 +1897,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echomail.get_friendly_url' => 'Obtenir une URL conviviale',
     'ui.echomail.revoke_share' => 'Révoquer le partage',
     'ui.echomail.messages_refreshed' => 'Messages actualisés',
+    'ui.echomail.written' => 'Écrit',
     'ui.echomail.saved_items.removed' => 'Message retiré des éléments sauvegardés',
     'ui.echomail.saved_items.saved' => 'Message sauvegardé pour plus tard',
     'ui.echomail.shares.using_existing' => 'Utilisation du lien de partage existant',

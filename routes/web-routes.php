@@ -361,7 +361,8 @@ SimpleRouter::get('/echomail', function() {
     }
 
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+    $isAdmin = !empty($user['is_admin']);
+    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -401,7 +402,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     // URL decode the echoarea parameter to handle dots and special characters
     $echoarea = urldecode($echoarea);
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+    $isAdmin = !empty($user['is_admin']);
+    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {

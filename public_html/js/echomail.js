@@ -764,7 +764,7 @@ function displayMessages(messages, isThreaded = false) {
                             </th>
                             <th style="width: 25%">${uiT('ui.common.from', 'From')}</th>
                             <th style="width: 60%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
-                            <th colspan="2" style="width: 15%">${uiT('ui.netmail.received', 'Received')}</th>
+                            <th colspan="2" style="width: 15%">${USE_DATE_FIELD === 'written' ? uiT('ui.echomail.written', 'Written') : uiT('ui.netmail.received', 'Received')}</th>
 
                         </tr>
                     </thead>

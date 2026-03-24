@@ -2294,6 +2294,7 @@ return [
     'ui.echomail.get_friendly_url' => 'Get Friendly URL',
     'ui.echomail.revoke_share' => 'Revoke Share',
     'ui.echomail.messages_refreshed' => 'Messages refreshed',
+    'ui.echomail.written' => 'Written',
     'ui.echomail.saved_items.removed' => 'Message removed from saved items',
     'ui.echomail.saved_items.saved' => 'Message saved for later',
     'ui.echomail.shares.using_existing' => 'Using existing share link',
