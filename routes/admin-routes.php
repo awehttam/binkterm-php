@@ -521,6 +521,68 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/ad_analytics.twig');
     });
 
+    // SSE diagnostics page
+    SimpleRouter::get('/sse-test', function() {
+        RouteHelper::requireAdmin();
+        $template = new Template();
+        $template->renderResponse('admin/sse_test.twig');
+    });
+
+    // SSE diagnostics stream — emits events at a configurable interval
+    SimpleRouter::get('/sse-test/stream', function() {
+        RouteHelper::requireAdmin();
+
+        $intervalMs  = max(50,  min(5000, (int)($_GET['interval']  ?? 500)));
+        $durationSec = max(5,   min(120,  (int)($_GET['duration']  ?? 30)));
+        $payloadSize = max(0,   min(65536, (int)($_GET['payload']  ?? 0)));
+
+        // Disable all output buffering
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_implicit_flush(true);
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');  // tell nginx not to buffer
+        header('Connection: keep-alive');
+
+        set_time_limit(0);
+        ignore_user_abort(true);
+
+        $padding  = $payloadSize > 0 ? str_repeat('x', $payloadSize) : '';
+        $seq      = 0;
+        $start    = microtime(true);
+        $intervalSec = $intervalMs / 1000.0;
+
+        // Send an initial event so the client knows the stream is open
+        $initTs = round(microtime(true) * 1000);
+        echo "event: open\n";
+        echo "data: " . json_encode(['server_ts' => $initTs, 'interval_ms' => $intervalMs, 'duration_sec' => $durationSec, 'payload_size' => $payloadSize]) . "\n\n";
+        flush();
+
+        while (!connection_aborted() && (microtime(true) - $start) < $durationSec) {
+            $serverTs = round(microtime(true) * 1000);
+            $data = json_encode(['seq' => $seq, 'server_ts' => $serverTs, 'padding' => $padding]);
+            echo "id: {$seq}\n";
+            echo "data: {$data}\n\n";
+            flush();
+            $seq++;
+
+            // Sleep until the next scheduled event time, accounting for drift
+            $nextEvent = $start + ($seq * $intervalSec);
+            $sleepSec  = $nextEvent - microtime(true);
+            if ($sleepSec > 0) {
+                usleep((int)($sleepSec * 1_000_000));
+            }
+        }
+
+        $finalTs = round(microtime(true) * 1000);
+        echo "event: done\n";
+        echo "data: " . json_encode(['seq' => $seq, 'total' => $seq, 'server_ts' => $finalTs]) . "\n\n";
+        flush();
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
