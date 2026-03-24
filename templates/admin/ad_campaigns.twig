@@ -1462,11 +1462,15 @@ function renderWizardStep2() {
                 <div class="form-text"><strong>{title}</strong> = ad title &middot; <strong>{campaign}</strong> = this campaign&rsquo;s name &middot; <strong>{echoarea}</strong> / <strong>{domain}</strong> = posting destination</div>
             </div>
             ${preset.default_content_command != null ? `
-            <div class="col-12">
+            <div class="col-md-6">
                 <label class="form-label" for="wizardContentCommand">${uiT('ui.admin.ads.content_command', 'Content Command')}</label>
                 <select class="form-select font-monospace" id="wizardContentCommand" data-default="${escapeHtml(preset.default_content_command)}">
                     <option value="">${uiT('ui.admin.ads.content_command_none', 'None (static content only)')}</option>
                 </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="wizardContentCommandArgs">${uiT('ui.admin.ads.content_command_args', 'Arguments')}</label>
+                <input class="form-control font-monospace" type="text" id="wizardContentCommandArgs" placeholder="--flag=value">
                 <div class="form-text">${uiT('ui.admin.ads.content_command_help', 'An executable that writes the post body to stdout. A dynamic ad will be created automatically.')}</div>
             </div>
             ` : `
@@ -1613,7 +1617,11 @@ function wizardBuildPayload() {
         weight: 1,
     }));
 
-    const contentCommand = document.getElementById('wizardContentCommand')?.value?.trim() || null;
+    const wizCmdScript = document.getElementById('wizardContentCommand')?.value?.trim() || '';
+    const wizCmdArgs   = document.getElementById('wizardContentCommandArgs')?.value?.trim() || '';
+    const contentCommand = wizCmdScript
+        ? (wizCmdArgs ? wizCmdScript + ' ' + wizCmdArgs : wizCmdScript)
+        : null;
     const endDate = document.getElementById('wizardEndDate')?.value || null;
     const campaignName = document.getElementById('wizardCampaignName')?.value?.trim() || preset.label;
 

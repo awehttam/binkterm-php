@@ -45,7 +45,7 @@ class Advertising
      *
      * Allowed commands are:
      *  - Any file inside the project's content_commands/ directory
-     *  - scripts/weather_report.php and scripts/report_newfiles.php (whitelisted scripts)
+     *  - scripts/weather_report.php, scripts/report_newfiles.php, and scripts/generate_ad.php (whitelisted scripts)
      *
      * Values are repo-relative paths (e.g. "content_commands/my_script.php").
      *
@@ -75,6 +75,7 @@ class Advertising
         $whitelisted = [
             'scripts/weather_report.php',
             'scripts/report_newfiles.php',
+            'scripts/generate_ad.php',
         ];
         foreach ($whitelisted as $rel) {
             if (file_exists($base . '/' . $rel)) {
@@ -88,14 +89,20 @@ class Advertising
     /**
      * Return true if the given content command value is allowed.
      *
-     * A command is allowed if:
-     *  - It is empty (no command)
-     *  - It is one of the two whitelisted scripts (exact relative path)
-     *  - It is a relative path within the content_commands/ directory
+     * The value may include arguments after the script path, e.g.:
+     *   "scripts/weather_report.php --city=Seattle"
+     *   "content_commands/my_script.php --format=ansi"
      *
-     * Absolute paths and paths containing ".." are always rejected.
+     * Validation checks only the script path (first whitespace-delimited token).
+     * A script is allowed if it is one of the whitelisted scripts or a file
+     * within the content_commands/ directory.
      *
-     * @param string $cmd Repo-relative path (e.g. "content_commands/my_script.php")
+     * Absolute paths, directory traversal, and null bytes are always rejected.
+     * Shell metacharacters (;|!&><`$\(){}*?"'~#) are rejected at storage time
+     * in addition to being neutralised at execution time via escapeshellarg().
+     *
+     * @param string $cmd Repo-relative path with optional args
+     *                    (e.g. "content_commands/my_script.php --flag=value")
      */
     public static function validateContentCommand(string $cmd): bool
     {
@@ -103,8 +110,21 @@ class Advertising
             return true;
         }
 
-        // Reject absolute paths and directory traversal attempts
-        if (str_starts_with($cmd, '/') || str_contains($cmd, '..') || str_contains($cmd, "\0")) {
+        // Reject null bytes and ASCII control characters anywhere in the value
+        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $cmd)) {
+            return false;
+        }
+
+        // Reject shell metacharacters anywhere in the value (script path or args)
+        if (preg_match('/[;|!&><`$\\\\(){}\*\?"\'~#]/', $cmd)) {
+            return false;
+        }
+
+        // Extract the script path — the first whitespace-delimited token
+        $script = preg_split('/\s+/', trim($cmd), 2)[0];
+
+        // Reject absolute paths and directory traversal in the script portion
+        if (str_starts_with($script, '/') || str_contains($script, '..')) {
             return false;
         }
 
@@ -112,13 +132,14 @@ class Advertising
         $whitelist = [
             'scripts/weather_report.php',
             'scripts/report_newfiles.php',
+            'scripts/generate_ad.php',
         ];
-        if (in_array($cmd, $whitelist, true)) {
+        if (in_array($script, $whitelist, true)) {
             return true;
         }
 
         // Must be within content_commands/
-        if (!str_starts_with($cmd, 'content_commands/')) {
+        if (!str_starts_with($script, 'content_commands/')) {
             return false;
         }
 
@@ -128,7 +149,7 @@ class Advertising
             return false; // directory does not exist
         }
 
-        $resolved = realpath($base . '/' . $cmd);
+        $resolved = realpath($base . '/' . $script);
         if ($resolved === false) {
             return false; // file does not exist
         }
@@ -1947,15 +1968,31 @@ class Advertising
             return ['', 'content_command is not in the allowed list'];
         }
 
-        // Resolve relative paths to absolute and build the exec string
-        if (!str_starts_with($command, '/')) {
-            $absPath = self::getBaseDir() . '/' . $command;
-            if (str_ends_with($command, '.php')) {
-                $command = PHP_BINARY . ' ' . escapeshellarg($absPath);
-            } else {
-                $command = escapeshellarg($absPath);
+        // Split into script path and optional arguments
+        $parts = preg_split('/\s+/', trim($command), 2);
+        $script  = $parts[0];
+        $rawArgs = isset($parts[1]) ? trim($parts[1]) : '';
+
+        // Resolve the script to an absolute path
+        $absPath = self::getBaseDir() . '/' . $script;
+
+        // Build the escaped command: PHP_BINARY for .php scripts, otherwise direct exec
+        if (str_ends_with($script, '.php')) {
+            $escaped = PHP_BINARY . ' ' . escapeshellarg($absPath);
+        } else {
+            $escaped = escapeshellarg($absPath);
+        }
+
+        // Append each argument individually through escapeshellarg
+        if ($rawArgs !== '') {
+            foreach (preg_split('/\s+/', $rawArgs) as $arg) {
+                if ($arg !== '') {
+                    $escaped .= ' ' . escapeshellarg($arg);
+                }
             }
         }
+
+        $command = $escaped;
 
         $descriptors = [
             0 => ['pipe', 'r'],

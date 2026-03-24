@@ -27,12 +27,16 @@
                         <label class="form-label" for="adFile">{{ t('ui.admin.ads.ansi_file') }}</label>
                         <input class="form-control" type="file" id="adFile" name="ad_file" accept=".ans,.rip,.six,.txt">
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label" for="adContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
                         <select class="form-select font-monospace" id="adContentCommand" name="content_command">
                             <option value="">{{ t('ui.admin.ads.content_command_none') }}</option>
                         </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_upload_help') }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="adContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
+                        <input class="form-control font-monospace" type="text" id="adContentCommandArgs" placeholder="--flag=value">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label" for="adTitle">{{ t('ui.common.title') }}</label>
@@ -162,12 +166,16 @@
                         <input class="form-control" type="url" id="editAdClickUrl" placeholder="https://example.com">
                         <div class="form-text">{{ t('ui.admin.ads.click_url_help') }}</div>
                     </div>
-                    <div class="col-12">
+                    <div class="col-md-6">
                         <label class="form-label" for="editAdContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
                         <select class="form-select font-monospace" id="editAdContentCommand">
                             <option value="">{{ t('ui.admin.ads.content_command_none') }}</option>
                         </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_help') }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="editAdContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
+                        <input class="form-control font-monospace" type="text" id="editAdContentCommandArgs" placeholder="--flag=value">
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="editAdContent">{{ t('ui.admin.ads.ansi_content') }}</label>
@@ -462,7 +470,9 @@ function insertIntoAdEditor(text) {
 
 function uploadAd() {
     const fileInput = document.getElementById('adFile');
-    const contentCommand = document.getElementById('adContentCommand').value.trim();
+    const cmdScript = document.getElementById('adContentCommand').value.trim();
+    const cmdArgs   = document.getElementById('adContentCommandArgs').value.trim();
+    const contentCommand = cmdScript ? (cmdArgs ? cmdScript + ' ' + cmdArgs : cmdScript) : '';
     const hasFile = fileInput.files && fileInput.files.length > 0;
 
     if (!hasFile && contentCommand === '') {
@@ -536,10 +546,15 @@ function openEditor(id) {
             document.getElementById('editAdPriority').value = String(ad.dashboard_priority || 0);
             document.getElementById('editAdDescription').value = ad.description || '';
             document.getElementById('editAdClickUrl').value = ad.click_url || '';
-            const editCmdSel = document.getElementById('editAdContentCommand');
-            editCmdSel.value = ad.content_command || '';
-            // If the stored value isn't in the list (e.g. legacy entry), show a warning
-            if (ad.content_command && editCmdSel.value !== ad.content_command) {
+            const editCmdSel  = document.getElementById('editAdContentCommand');
+            const editCmdArgs = document.getElementById('editAdContentCommandArgs');
+            const storedCmd = (ad.content_command || '').trim();
+            const cmdParts  = storedCmd.split(/\s+/);
+            const storedScript = cmdParts[0] || '';
+            editCmdSel.value  = storedScript;
+            editCmdArgs.value = cmdParts.slice(1).join(' ');
+            // If the stored script isn't in the list (e.g. legacy entry), show a warning
+            if (storedScript && editCmdSel.value !== storedScript) {
                 showAdsAlert(uiT('ui.admin.ads.content_command_invalid_stored', 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.'), 'warning');
             }
             document.getElementById('editAdContent').value = ad.content || '';
@@ -575,7 +590,11 @@ function saveAd() {
         tags: document.getElementById('editAdTags').value.trim(),
         description: document.getElementById('editAdDescription').value.trim(),
         click_url: document.getElementById('editAdClickUrl').value.trim(),
-        content_command: document.getElementById('editAdContentCommand').value.trim(),
+        content_command: (() => {
+            const s = document.getElementById('editAdContentCommand').value.trim();
+            const a = document.getElementById('editAdContentCommandArgs').value.trim();
+            return s ? (a ? s + ' ' + a : s) : '';
+        })(),
         content: document.getElementById('editAdContent').value,
         is_active: document.getElementById('editAdIsActive').checked,
         show_on_dashboard: document.getElementById('editAdShowOnDashboard').checked,
