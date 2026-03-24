@@ -246,6 +246,32 @@ const { Pool } = pg;
 const PORT = parseInt(process.env.MCP_SERVER_PORT ?? process.env.MCP_PORT ?? '3740', 10);
 const BIND = bindHost ?? process.env.MCP_BIND_HOST ?? undefined;  // undefined = listen on all interfaces
 
+// Trusted proxy IPs — X-Forwarded-For is only trusted when the direct
+// connection comes from one of these addresses. Defaults to localhost.
+const TRUSTED_PROXIES = new Set(
+    (process.env.MCP_TRUSTED_PROXIES ?? '127.0.0.1,::1,::ffff:127.0.0.1')
+        .split(',').map(s => s.trim()).filter(Boolean)
+);
+
+/**
+ * Resolve the real client IP for a request.
+ * If the direct connection is from a trusted proxy and X-Forwarded-For
+ * is present, return the leftmost (originating) address from that header.
+ * Otherwise return the direct socket address.
+ *
+ * @param {import('express').Request} req
+ * @returns {string}
+ */
+function clientIp(req) {
+    const remoteAddr = req.socket?.remoteAddress ?? req.ip ?? '';
+    const xff = req.headers['x-forwarded-for'];
+    if (xff && TRUSTED_PROXIES.has(remoteAddr)) {
+        // X-Forwarded-For may be a comma-separated list; leftmost is the client
+        return xff.split(',')[0].trim();
+    }
+    return remoteAddr;
+}
+
 // ---------------------------------------------------------------------------
 // PostgreSQL pool — reads DB_* from main .env; uses DB_PASS (not DB_PASSWORD)
 // ---------------------------------------------------------------------------
@@ -678,7 +704,7 @@ app.use(express.json());
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
-        logger.info(`${req.method} ${req.path} ${res.statusCode} (${Date.now() - start}ms) [${req.ip}]`);
+        logger.info(`${req.method} ${req.path} ${res.statusCode} (${Date.now() - start}ms) [${clientIp(req)}]`);
     });
     next();
 });

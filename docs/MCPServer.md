@@ -223,6 +223,7 @@ All configuration is read from the main BinktermPHP `.env` file. No separate con
 | `MCP_SERVER_URL` | (unset) | **Required to enable user key management.** The public-facing base URL of the MCP server, e.g. `https://mcp.yourbbs.example` or `http://yourbbs.example:3740`. Shown to users in **Settings → AI** so they can configure their MCP client. When unset, the AI settings tab shows a "not enabled" message and key generation is disabled. |
 | `MCP_SERVER_PORT` | `3740` | Port the MCP server listens on (`MCP_PORT` also accepted) |
 | `MCP_BIND_HOST` | (all interfaces) | IP address to bind to. Set to `127.0.0.1` when using a reverse proxy. Overridden by `--bind` CLI flag. |
+| `MCP_TRUSTED_PROXIES` | `127.0.0.1,::1,::ffff:127.0.0.1` | Comma-separated list of proxy IP addresses whose `X-Forwarded-For` header is trusted for real-IP logging. |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
 | `DB_NAME` | | Database name |
