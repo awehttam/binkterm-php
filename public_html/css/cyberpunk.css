@@ -1668,3 +1668,9 @@ tbody, td, tfoot, th, thead, tr {
     justify-content: center;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
+
+
+/* Today's Callers table */
+.callers-table th {
+    border-bottom-color: var(--theme-border, var(--bs-border-color));
+}

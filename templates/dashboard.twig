@@ -142,11 +142,28 @@
                     <dt class="col-sm-5">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">
                         {% if todays_callers|length > 0 %}
-                            <ul class="list-unstyled mb-0 small">
+                            <table class="table table-sm table-borderless mb-0 small callers-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-0">{{ t('ui.dashboard.callers_col_user', {}, locale, ['common']) }}</th>
+                                        <th>{{ t('ui.dashboard.callers_col_time', {}, locale, ['common']) }}</th>
+                                        <th class="text-center">{{ t('ui.dashboard.callers_col_online', {}, locale, ['common']) }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                 {% for caller in todays_callers %}
-                                <li>{{ caller.username }} <span class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</span></li>
+                                <tr>
+                                    <td class="ps-0">{{ caller.username }}</td>
+                                    <td class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</td>
+                                    <td class="text-center">
+                                        {% if caller.is_online %}
+                                            <span class="badge bg-success" title="{{ t('ui.dashboard.callers_online_now', {}, locale, ['common']) }}">●</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
                                 {% endfor %}
-                            </ul>
+                                </tbody>
+                            </table>
                         {% else %}
                             <span class="text-muted small">{{ t('ui.dashboard.no_callers_today', {}, locale, ['common']) }}</span>
                         {% endif %}

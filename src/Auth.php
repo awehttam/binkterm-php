@@ -303,7 +303,9 @@ class Auth
 
         $stmt = $this->db->prepare("
             SELECT u.username,
-                   MAX(s.last_activity) AT TIME ZONE :tz AS last_activity
+                   MAX(s.last_activity) AT TIME ZONE :tz AS last_activity,
+                   BOOL_OR(s.last_activity > NOW() - INTERVAL '15 minutes'
+                           AND s.expires_at > NOW()) AS is_online
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.last_activity >= date_trunc('day', NOW() AT TIME ZONE :tz2) AT TIME ZONE :tz3
