@@ -212,19 +212,20 @@ class BinkpSession
         $sysopName = $this->config->getSystemSysop();
         $location = $this->config->getSystemLocation();
 
+        // CRAM extension requires the answerer to advertise the challenge as
+        // the first M_NUL when CRAM-MD5 is available.
+        if (!$this->isOriginator && $this->hasAnyCramEnabledUplink()) {
+            $this->cramChallenge = $this->generateCramChallenge();
+            $this->sendNul("OPT CRAM-MD5-{$this->cramChallenge}");
+            $this->log("Sent CRAM-MD5 challenge", 'DEBUG');
+        }
+
         // Send M_NUL frames with system information
         $this->sendNul("SYS {$systemName}");
         $this->sendNul("ZYZ {$sysopName}");
         $this->sendNul("LOC {$location}");
         $this->sendNul("VER BinktermPHP/".Version::getVersion()." binkp/1.0");
         $this->sendNul("TIME " . gmdate('D, d M Y H:i:s') . " UTC");
-
-        // As answerer, send CRAM-MD5 challenge if any uplink has crypt enabled
-        if (!$this->isOriginator && $this->hasAnyCramEnabledUplink()) {
-            $this->cramChallenge = $this->generateCramChallenge();
-            $this->sendNul("OPT CRAM-MD5-{$this->cramChallenge}");
-            $this->log("Sent CRAM-MD5 challenge", 'DEBUG');
-        }
     }
 
     private function sendNul($data)

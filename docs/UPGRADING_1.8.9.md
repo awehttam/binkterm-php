@@ -86,6 +86,7 @@
 - The poll schedule input on the uplink configuration screen (both the admin page and the user BinkP page) now has a **schedule builder** toggle button. Clicking it opens an inline panel that parses the current cron expression into its five individual fields (Minute, Hour, Day, Month, Weekday). Editing any field immediately rebuilds the expression in the input and shows a human-readable description of the resulting schedule. The builder now handles a wider range of patterns including `*/N` steps in any field, comma lists and ranges in the Weekday field (e.g. `1,2` → Monday, Tuesday; `1-5` → weekdays; `0,6` → weekends), combined step expressions (e.g. `*/5 */4 * * *`), and a compositional fallback for complex combinations.
 - Packet filenames in the Inbound and Outbound queue lists on the Queues tab are now clickable. Clicking a `.pkt` filename opens the existing packet inspector modal showing packet header details and a message list. A download button is also available. Requires a valid license.
 - Uplinks now have an **Allow insecure echomail delivery** checkbox. When ticked, echomail is accepted from this node even when it connects without authentication, provided the node address claimed during the session matches the uplink's configured address. The **Insecure Receive Only** security setting is now enforced: when enabled, unauthenticated sessions cannot receive outbound files, hold-directory files, or serve FREQ requests.
+- Answerer-side BinkP CRAM-MD5 negotiation now advertises `OPT CRAM-MD5-...` as the first `M_NUL` frame in the handshake, improving interoperability with mailers that expect the CRAM challenge before the rest of the informational `M_NUL` burst.
 
   > ⚠️ **Insecure echomail delivery is not recommended.** Because unauthenticated sessions cannot verify the caller's identity, a malicious node could claim any FTN address. This option exists only as a last resort for legacy systems that cannot support BinkP passwords. The strongly preferred approach is to configure a shared session password on both ends.
 
@@ -230,6 +231,12 @@ Each uplink now has an **Allow insecure echomail delivery** checkbox in the upli
 #### Insecure Receive Only (enforced)
 
 The **Insecure Receive Only** checkbox in the Security settings panel is now enforced. When enabled, unauthenticated inbound sessions will not receive any outbound files, hold-directory files, FREQ file serves, or have FREQ requests honoured. Previously the setting was read from configuration but had no effect.
+
+#### CRAM-MD5 Handshake Ordering
+
+When acting as the answering side of a BinkP session, BinktermPHP now sends `OPT CRAM-MD5-<challenge>` as the first `M_NUL` frame whenever CRAM-MD5 is available. Previously the challenge was sent later in the initial `M_NUL` sequence after `SYS`, `ZYZ`, `LOC`, `VER`, and `TIME`.
+
+This change does not alter password timing (`M_PWD` is still sent after `ADR`) or plaintext password fallback behavior. It is an interoperability fix for peers that expect the CRAM challenge to be advertised first.
 
 ### Admin — BinkP Config
 
