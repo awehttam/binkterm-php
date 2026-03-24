@@ -844,7 +844,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${USE_DATE_FIELD === 'written' ? uiT('ui.common.received_prefix', 'Received:') + ' ' + formatFullDate(msg.date_received) : uiT('ui.common.written_prefix', 'Written:') + ' ' + formatFullDate(msg.date_written)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${uiT('ui.common.written_prefix', 'Written:')} ${formatFullDate(msg.date_written)}&#10;${uiT('ui.common.received_prefix', 'Received:')} ${formatFullDate(msg.date_received)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
                 </tr>
             `;
         });
@@ -1547,7 +1547,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
             <div class="row mt-2">
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> ${formatFullDate(message.date_written)}
+                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.received_prefix', 'Received:')} ${formatFullDate(message.date_received)}">${formatFullDate(message.date_written)}</span>
                 </div>
                 <div class="col-md-8">
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}

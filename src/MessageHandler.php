@@ -287,6 +287,9 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+
         $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
@@ -400,6 +403,7 @@ class MessageHandler
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE ea.tag = ? AND mrs.read_at IS NULL AND {$domainCondition}
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
                 ");
                 $unreadParams = [$userId, $echoareaTag];
                 if (!empty($domain)) {
@@ -411,6 +415,7 @@ class MessageHandler
                     SELECT COUNT(*) as count FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE mrs.read_at IS NULL
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
                 ");
                 $unreadCountStmt->execute([$userId]);
             }
@@ -487,6 +492,8 @@ class MessageHandler
         } elseif ($filter === 'saved') {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -558,6 +565,7 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE AND mrs.read_at IS NULL
+                  AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
             ");
             $unreadParams = [$userId];
             $unreadParams = array_merge($unreadParams, $echoareaIds);
@@ -569,7 +577,7 @@ class MessageHandler
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
+
             // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
             $replyToData = null;
             
@@ -4652,6 +4660,8 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -4810,6 +4820,8 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
 
         // First, get the total count of root messages (threads) for pagination
         $totalThreads = 0;
