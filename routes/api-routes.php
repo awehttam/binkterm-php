@@ -1559,9 +1559,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ActivityTracker::track((int)$userId, ActivityTracker::TYPE_CHAT_SEND, $roomId);
 
         echo json_encode([
-            'success' => true,
-            'message_id' => (int)$result['id'],
-            'created_at' => $result['created_at']
+            'success'       => true,
+            'message_id'    => (int)$result['id'],
+            'created_at'    => $result['created_at'],
+            'local_message' => [
+                'id'            => (int)$result['id'],
+                'type'          => $roomId ? 'room' : 'dm',
+                'room_id'       => $roomId,
+                'from_user_id'  => (int)$userId,
+                'from_username' => $user['username'],
+                'to_user_id'    => $toUserId,
+                'body'          => $body,
+                'created_at'    => $result['created_at'],
+            ],
         ]);
     });
 
