@@ -236,12 +236,15 @@ function populateInterestFilter() {
 
     ul.empty();
 
-    if (!allInterests.length) {
+    const subscribedOnly = $('#subscribedOnlyCheck').is(':checked');
+    const interests = subscribedOnly ? allInterests.filter(i => i.subscribed) : allInterests;
+
+    if (!interests.length) {
         ul.append('<li><span class="dropdown-item-text text-muted small">' + uiT('ui.interests.no_interests', 'No interests defined') + '</span></li>');
         return;
     }
 
-    allInterests.forEach(interest => {
+    interests.forEach(interest => {
         const checked = prevChecked.has(String(interest.id)) ? ' checked' : '';
         const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(interest.color || '#6c757d')};flex-shrink:0"></span>`;
         ul.append($(`<li><label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">

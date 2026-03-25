@@ -780,8 +780,9 @@ $(document).ready(function() {
     $.get('/api/interests')
         .done(function(data) {
             if (data && data.interests) {
-                displayMobileInterests(data.interests);
-                populateAreaListInterestDropdowns(data.interests);
+                const subscribedInterests = data.interests.filter(function(i) { return i.subscribed; });
+                displayMobileInterests(subscribedInterests);
+                populateAreaListInterestDropdowns(subscribedInterests);
 
                 // Auto-select interest from ?interest=slug URL param (e.g. returning from compose)
                 const urlInterestSlug = new URLSearchParams(window.location.search).get('interest');
