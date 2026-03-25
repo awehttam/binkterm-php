@@ -402,6 +402,7 @@
             if (data.success) {
                 showToast(window.t('ui.admin.areafix.command_sent', {}, 'Command sent — check history for a reply'), false);
                 if (typeof onSuccess === 'function') onSuccess();
+                loadHistory(robot);
             } else {
                 var msg = (data.error) ? data.error : window.t('ui.admin.areafix.send_failed', {}, 'Failed to send command');
                 showToast(msg, true);
@@ -671,6 +672,18 @@
 
         // Load AreaFix history on initial page load
         loadHistory('areafix');
+
+        // Periodic poll: refresh the active robot tab's history every 30 s
+        function getActiveRobot() {
+            var active = document.querySelector('#robotTabs a.active');
+            if (!active) return 'areafix';
+            return active.getAttribute('href') === '#filefixTab' ? 'filefix' : 'areafix';
+        }
+
+        setInterval(function () {
+            if (document.visibilityState === 'hidden') return;
+            loadHistory(getActiveRobot());
+        }, 30000);
     });
 
 }());

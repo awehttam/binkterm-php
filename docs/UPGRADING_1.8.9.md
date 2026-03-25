@@ -46,6 +46,33 @@
 - [User Settings](#user-settings)
   - [Tabbed Layout](#tabbed-layout)
   - [Notification Sound Preview](#notification-sound-preview)
+- [Real-time Events (SSE)](#real-time-events-sse)
+  - [SharedWorker Architecture](#sharedworker-architecture)
+  - [Chat Integration](#chat-integration)
+  - [Long-lived Connections](#long-lived-connections)
+  - [SSE Test Tools](#sse-test-tools)
+- [AreaFix / FileFix Manager](#areafix--filefix-manager)
+  - [Overview](#areafix-overview)
+  - [Quick Actions](#quick-actions)
+  - [Subscribe and Unsubscribe](#subscribe-and-unsubscribe)
+  - [Area List Parsing and Sync](#area-list-parsing-and-sync)
+  - [Message History](#message-history)
+  - [Subject Masking](#subject-masking)
+  - [Uplink Password Fields](#uplink-password-fields)
+- [Advertising Improvements](#advertising-improvements)
+  - [Content Command Whitelist and Dropdown](#content-command-whitelist-and-dropdown)
+  - [Content Command Parameters](#content-command-parameters)
+  - [Click-through URLs and Impression Tracking](#click-through-urls-and-impression-tracking)
+  - [Ad Analytics Admin Page](#ad-analytics-admin-page)
+  - [Ad Title File-type Prefix](#ad-title-file-type-prefix)
+- [Interests Updates](#interests-updates)
+  - [Filter to Subscribed Interests Only](#filter-to-subscribed-interests-only)
+  - [Classify Unassigned Echo Areas](#classify-unassigned-echo-areas)
+  - [Unassigned Areas Panel Improvements](#unassigned-areas-panel-improvements)
+- [AI Provider Layer](#ai-provider-layer)
+- [MRC Chat](#mrc-chat)
+  - [Join Command](#join-command)
+- [Docs Viewer: HTML Pass-through](#docs-viewer-html-pass-through)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -109,6 +136,44 @@
 
 **Registration**
 - The registration page now includes a note below the approval notice informing applicants that they will receive an email when their account is approved, that reminder emails may also be sent, and to check their junk/spam folder.
+
+**Real-time Events (SSE)**
+- A SharedWorker-based Server-Sent Events channel replaces the previous daemon-based event delivery. Each logged-in user holds one long-lived SSE connection shared across all browser tabs. Events are written to an `sse_events` UNLOGGED table; a Postgres trigger on `chat_messages` fires the inserts automatically. The SSE endpoint polls that table directly and delivers events without involving the admin daemon.
+- Connections default to a 60-second window with 15-second keepalive comments to prevent proxy timeouts. The window duration is configurable via `SSE_WINDOW_SECONDS` in `.env`.
+- An SSE diagnostics page is available in the Admin **Help → Developer** submenu. A companion proxy buffer-flush test tool is also in that submenu.
+- Two database migrations are included: `v1.11.0.54_chat_notify_trigger.php` and `v1.11.0.55_sse_events_table.php`.
+
+**AreaFix / FileFix Manager**
+- New admin tool at `/admin/areafix` for managing echomail and file-area subscriptions with the upstream hub's AreaFix and FileFix robots.
+- Quick-action buttons send common commands (`%QUERY`, `%LIST`, `%UNLINKED`, `%HELP`, `%PAUSE`, `%RESUME`) with one click. A freeform textarea accepts multi-line command sets.
+- Incoming reply messages are parsed to extract a structured area list with subscribe/unsubscribe buttons per area. A **Sync to Echo Areas** button imports the list into the local database.
+- The message history table refreshes automatically after every sent command and polls for new replies every 30 seconds.
+- Messages addressed to or from `areafix` or `filefix` now have their subject line masked to `••••••••` in all UI views, because AreaFix uses the subject as a password.
+- `areafix_password` and `filefix_password` fields have been added to the BinkP uplink editor modal.
+
+**Advertising**
+- Content commands are now restricted to a whitelist (`scripts/weather_report.php`, `scripts/report_newfiles.php`, and any script in `content_commands/`). The admin editor UI switches from a free-text input to a dropdown populated from that whitelist.
+- Content commands now support arguments. The command string may include space-separated tokens after the script path; each is validated against the whitelist before execution.
+- Advertisements now support a **Click-through URL** field. Clicks on ads that have a URL are tracked in a new `advertisement_clicks` table. Ad views are tracked as impressions in `advertisement_impressions`.
+- A new **Ad Analytics** page at `/admin/ad-analytics` displays impression and click counts, click-through rates, and trends per campaign.
+- Uploaded ad files are automatically prefixed with `[ANSI]`, `[RIP]`, or `[SIXEL]` in the title based on file extension.
+- Two database migrations are included: `v1.11.0.53_ad_tracking.sql`.
+
+**Interests**
+- The echomail reader and echolist area picker now filter the interest dropdown and tab list to interests the user is actually subscribed to. Previously all active interests were shown regardless of subscription.
+- A **Classify** button on the unassigned echo areas table opens a modal that runs keyword-based (and optionally AI-assisted) classification for a single area and lets the admin assign it to a matching interest immediately.
+- The unassigned echo areas panel is now expanded by default. Area tags in the table now link directly to the echo reader in a new tab.
+
+**AI Provider Layer**
+- A new abstracted AI provider layer (`src/AI/`) supports both OpenAI and Anthropic as backends. Features that use AI (Interests suggestion wizard, area classification) now route through this layer.
+- AI request accounting is tracked in the `ai_request_accounting` table (migration `v1.11.0.51_ai_request_accounting.sql`). An admin usage report is available at `/admin/ai-usage`.
+- See `docs/AIProviders.md` for configuration and supported models.
+
+**MRC Chat**
+- The `/join <room>` slash command is now recognized in the MRC chat input and switches the user to the named room without typing the room name into the normal input flow. The command works before the user has joined any room and is included in tab-completion.
+
+**Docs Viewer**
+- The admin docs viewer now passes raw HTML blocks through unescaped when rendering `README.md`, so embedded HTML tables and badges in the README render correctly inside the app.
 
 **BinkP Configuration**
 - The poll schedule input on the uplink configuration screen (both the admin page and the user BinkP page) now has a **schedule builder** toggle button. Clicking it opens an inline panel that parses the current cron expression into its five individual fields (Minute, Hour, Day, Month, Weekday). Editing any field immediately rebuilds the expression in the input and shows a human-readable description of the resulting schedule. The builder now handles a wider range of patterns including `*/N` steps in any field, comma lists and ranges in the Weekday field (e.g. `1,2` → Monday, Tuesday; `1-5` → weekdays; `0,6` → weekends), combined step expressions (e.g. `*/5 */4 * * *`), and a compositional fallback for complex combinations.
@@ -470,6 +535,182 @@ Each notification sound select box on the Notifications tab now has an adjacent 
 
 ---
 
+## Real-time Events (SSE)
+
+### SharedWorker Architecture
+
+BinktermPHP now delivers real-time events to the browser via a SharedWorker that holds one `EventSource` connection per logged-in user, shared across all browser tabs. This replaces the previous approach where events were pushed through the admin daemon.
+
+Events are written to an UNLOGGED table `sse_events` with a `BIGSERIAL` id used as the SSE cursor. The SSE endpoint (`GET /api/sse`) polls that table directly on a tight interval, emitting any events whose id is greater than the client's `Last-Event-ID`. Because the table is UNLOGGED, writes are fast and there is no WAL overhead for transient notification data.
+
+Two database migrations run automatically via `php scripts/setup.php`:
+- `v1.11.0.54_chat_notify_trigger.php` — installs a Postgres trigger on `chat_messages` that inserts into `sse_events`
+- `v1.11.0.55_sse_events_table.php` — creates the `sse_events` UNLOGGED table and its index
+
+### Chat Integration
+
+The first event type delivered over SSE is incoming chat messages. When a chat message is saved, the trigger fires immediately and the sender's own message is returned directly in the API send response for instant rendering without waiting for the poll cycle.
+
+### Long-lived Connections
+
+SSE connections are now long-lived. Each connection holds open for `SSE_WINDOW_SECONDS` (default `60`) and sends a `: keepalive` comment every 15 seconds to prevent proxy and load-balancer timeouts. At the end of the window the server sends a `reconnect` event and the SharedWorker re-connects automatically.
+
+```
+SSE_WINDOW_SECONDS=60
+```
+
+On the built-in PHP development server the window is forced to `0` (immediate reconnect) because that server is single-threaded and cannot handle concurrent requests.
+
+### SSE Test Tools
+
+Two diagnostic tools are in the Admin **Help → Developer** submenu:
+
+- **SSE Test** — sends a test event through the database trigger and displays it in real time, confirming the full SSE pipeline is working.
+- **Proxy Buffer Test** — flushes progressively larger chunks of data and reports whether each chunk arrives immediately or is held by an intervening proxy or web server buffer.
+
+---
+
+## AreaFix / FileFix Manager
+
+### AreaFix Overview
+
+AreaFix and FileFix are Fidonet robots that manage echomail and file-area subscriptions by exchanging netmail with the upstream hub. The new admin tool at `/admin/areafix` provides a UI for sending commands to those robots and managing the results without using a separate mail client.
+
+The tool is accessible from the Admin **BinkP** menu when at least one uplink has a configured `areafix_password` or `filefix_password`.
+
+### Quick Actions
+
+Buttons for the most common AreaFix/FileFix commands are shown at the top of each robot tab: `%QUERY` (list subscribed areas), `%LIST` (list all available areas), `%UNLINKED` (list areas available but not subscribed), `%HELP`, `%PAUSE`, and `%RESUME`. Clicking any button sends the command immediately to the selected uplink.
+
+### Subscribe and Unsubscribe
+
+A text field accepts a single area tag. The **Subscribe** and **Unsubscribe** buttons send `+TAG` and `-TAG` commands respectively. A freeform textarea below accepts multi-line command sets for bulk operations.
+
+After every sent command the history table and latest reply panel refresh automatically. The latest reply panel also polls for new replies from the hub every 30 seconds.
+
+### Area List Parsing and Sync
+
+When the hub replies with a list of available areas, the incoming message body is parsed client-side to extract area tags and descriptions. If at least two valid entries are found, they are rendered as a table with per-row **Subscribe** and **Unsubscribe** buttons.
+
+A **Sync to Echo Areas** button at the top of that table calls `/api/admin/areafix/sync`, which creates or activates the areas in the local `echoareas` (or `file_areas`) table and links them to the uplink. Existing areas are not overwritten; only missing ones are created.
+
+### Message History
+
+The message history table shows the last 50 netmail messages to or from AreaFix/FileFix for the selected uplink. Each row is expandable to show the full message body. The table is filtered client-side to the active robot tab (AreaFix or FileFix).
+
+### Subject Masking
+
+AreaFix uses the netmail subject line as the robot password. To prevent that password from appearing on screen, any netmail message whose `to_name` or `from_name` contains `areafix` or `filefix` (case-insensitive) has its subject replaced with `••••••••` in all display contexts, including message lists, message detail views, and the history table on this page.
+
+### Uplink Password Fields
+
+The BinkP uplink editor modal now includes **AreaFix Password** and **FileFix Password** fields. These are saved as `areafix_password` and `filefix_password` in `config/binkp.json` via the admin daemon and are used when sending commands to the respective robot. Both fields use a masked password input with a show/hide toggle.
+
+---
+
+## Advertising Improvements
+
+### Content Command Whitelist and Dropdown
+
+Ad content commands are now restricted to a server-side whitelist. Only the following are permitted:
+- `scripts/weather_report.php`
+- `scripts/report_newfiles.php`
+- Any file inside the `content_commands/` directory in the project root
+
+The admin ad editor's Content Command field is now a dropdown populated by scanning those locations, replacing the previous free-text input. This prevents arbitrary command injection through the ad configuration UI.
+
+Custom ad scripts should be placed in `content_commands/` with execute permissions.
+
+### Content Command Parameters
+
+Content commands may now include space-separated arguments after the script path (e.g. `scripts/report_newfiles.php 7` to report the last 7 days of new files). Arguments are passed to the script as `$argv` entries. The entire command string including arguments is validated against the whitelist before execution.
+
+### Click-through URLs and Impression Tracking
+
+Each advertisement can now have an optional **Click-through URL**. When set, clicking the ad in the web interface records a click and redirects the user to the target URL.
+
+Every ad display now records an impression. The migration `v1.11.0.53_ad_tracking.sql` adds:
+- `click_url` column on the `advertisements` table
+- `advertisement_impressions` table (ad id, user id, displayed_at)
+- `advertisement_clicks` table (ad id, user id, clicked_at)
+
+### Ad Analytics Admin Page
+
+A new admin page at `/admin/ad-analytics` shows per-campaign analytics:
+- Total impressions and clicks
+- Click-through rate
+- A breakdown of performance by campaign
+
+### Ad Title File-type Prefix
+
+When an ad file is uploaded, the title is now automatically prefixed based on the file extension:
+- `.ans` → `[ANSI]`
+- `.rip` → `[RIP]`
+- `.six` / `.sixel` → `[SIXEL]`
+
+The prefix is applied to both auto-generated titles and any title provided by the uploader, making it easier to identify the ad format at a glance in the admin list.
+
+---
+
+## Interests Updates
+
+### Filter to Subscribed Interests Only
+
+The echomail reader (`/echomail`) interest tabs and the echolist area picker now show only the interests that the viewing user is subscribed to. Previously all active interests were shown to all users regardless of subscription status.
+
+On the echolist page, when the **Subscribed only** checkbox is checked, the interest filter also limits to the user's own subscribed interests. Unchecking the box shows all interests.
+
+### Classify Unassigned Echo Areas
+
+The unassigned echo areas table on the admin Interests page now has a **Classify** button for each row. Clicking it opens a modal that:
+
+1. Immediately runs a keyword-based classification pass for that area against all existing interests.
+2. Shows the top matching interest with a confidence indicator.
+3. Offers an **AI Classify** button (when an AI provider is configured) for a higher-quality classification pass.
+4. Lets the admin confirm and add the area to the chosen interest with a single click.
+
+Adding an area this way propagates the subscription to all existing interest subscribers automatically.
+
+### Unassigned Areas Panel Improvements
+
+- The unassigned echo areas panel is now expanded by default.
+- Area tags in the table are now links that open the echo reader for that area in a new tab, making it easier to inspect an area's content before assigning it.
+
+---
+
+## AI Provider Layer
+
+A new abstracted AI provider layer (`src/AI/`) is used by all AI-assisted features in BinktermPHP. Supported backends:
+
+| Provider | `.env` key |
+|---|---|
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+
+The active provider is selected automatically based on which key is set. If both are set, Anthropic is preferred.
+
+AI request usage is tracked in the `ai_request_accounting` table (migration `v1.11.0.51_ai_request_accounting.sql`). An admin usage summary is available at `/admin/ai-usage`.
+
+See `docs/AIProviders.md` for supported models, configuration, and cost management guidance.
+
+---
+
+## MRC Chat
+
+### Join Command
+
+The MRC chat input now accepts `/join <room>` as a slash command. Typing `/join myroom` in the message input is equivalent to clicking the room in the room list — it calls `joinRoom()` directly. The command is recognized before the user has joined any room and is included in the tab-completion command list.
+
+---
+
+## Docs Viewer: HTML Pass-through
+
+The admin docs viewer (`/admin/docs/view/README`) now renders raw HTML blocks and inline tags in `README.md` unescaped. This allows embedded HTML tables, badges, and image tags in the README to display correctly inside the application rather than appearing as escaped markup.
+
+HTML pass-through is enabled only for `README.md`. All other documents continue to escape HTML for safety.
+
+---
+
 ## Upgrade Instructions
 
 ### From Git
@@ -480,21 +721,28 @@ composer install
 php scripts/setup.php
 ```
 
-`setup.php` runs migrations `v1.11.0.49_interests.sql` and `v1.11.0.50_interest_echo_sources.sql` automatically.
+`setup.php` runs all pending migrations automatically, including:
 
-No `.env` changes are required. To opt out of the Interests feature, add:
+| Migration | Purpose |
+|---|---|
+| `v1.11.0.49_interests.sql` | Interests core schema |
+| `v1.11.0.50_interest_echo_sources.sql` | Interest subscription source tracking |
+| `v1.11.0.51_ai_request_accounting.sql` | AI request usage accounting |
+| `v1.11.0.52_file_upload_approval.sql` | File upload approval queue |
+| `v1.11.0.53_ad_tracking.sql` | Ad impression and click tracking |
+| `v1.11.0.54_chat_notify_trigger.php` | Postgres trigger for SSE chat events |
+| `v1.11.0.55_sse_events_table.php` | SSE events UNLOGGED table |
 
-```
+**Optional `.env` additions:**
+
+```env
+# Opt out of Interests feature
 ENABLE_INTERESTS=false
+
+# SSE connection window duration in seconds (default 60)
+SSE_WINDOW_SECONDS=60
 ```
 
 ### Using the Installer
 
-Run the installer as normal. When prompted to run `php scripts/setup.php`, allow it to complete — this applies the two new database migrations.
-php scripts/setup.php
-```
-
-### Using the Installer
-
-Re-run the BinktermPHP installer to upgrade the application files, then restart
-the daemons if your deployment manages them separately.
+Re-run the BinktermPHP installer to upgrade the application files. When prompted to run `php scripts/setup.php`, allow it to complete — this applies all pending database migrations.
