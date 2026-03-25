@@ -1849,25 +1849,37 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $deliverEvents($lastEventId);
         }
 
-        // ── Short window loop ─────────────────────────────────────────────────
+        // ── Long-lived window loop ────────────────────────────────────────────
         //
-        // Hold the PHP-FPM worker for at most SSE_WINDOW_SECONDS, polling
-        // sse_events every 200 ms for new rows. As soon as an event arrives
-        // (or the window expires) we send event:reconnect and release the worker.
+        // Hold the PHP-FPM worker for SSE_WINDOW_SECONDS (default 60), polling
+        // sse_events every 200 ms. Events are delivered as they arrive; the
+        // connection stays open for the full window rather than closing after
+        // the first batch. A keepalive comment is sent every 15 seconds so that
+        // reverse proxies do not timeout the idle connection and so that client
+        // disconnects are detected within ~15 seconds via connection_aborted().
         //
-        // The SharedWorker reconnects immediately, giving ~100 ms average latency.
-        // On the PHP built-in dev server (single-threaded) the window is 0.
+        // On the PHP built-in dev server (single-threaded) the window is 0 so
+        // the loop body never runs and the worker is released immediately.
 
-        $windowSeconds = $isDevServer ? 0 : (int)Config::env('SSE_WINDOW_SECONDS', 2);
-        $pollSleep     = 200000; // 200 ms
-        $deadline      = microtime(true) + $windowSeconds;
+        $windowSeconds     = $isDevServer ? 0 : (int)Config::env('SSE_WINDOW_SECONDS', 60);
+        $pollSleep         = 200000; // 200 ms
+        $deadline          = microtime(true) + $windowSeconds;
+        $lastHeartbeat     = microtime(true);
+        $heartbeatInterval = 15; // seconds between keepalive comments
 
         while (microtime(true) < $deadline && !connection_aborted()) {
             $maxId = $getMaxSseId();
             if ($maxId > $lastEventId) {
                 $deliverEvents($lastEventId);
-                break; // delivered — reconnect immediately so worker is freed
+                flush();
             }
+
+            if (microtime(true) - $lastHeartbeat >= $heartbeatInterval) {
+                echo ": keepalive\n\n";
+                flush();
+                $lastHeartbeat = microtime(true);
+            }
+
             usleep($pollSleep);
         }
 

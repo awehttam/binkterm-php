@@ -137,6 +137,12 @@ class MarkdownRenderer
                 continue;
             }
 
+            // --- Ordered list ---
+            if (preg_match('/^(\s*)\d+[.)]\s+(.*)$/', $line, $m)) {
+                $output[] = self::parseOrderedList($lines, $i, $total, strlen($m[1]), $allowHtml);
+                continue;
+            }
+
             // --- Unordered list (supports nested indented sub-lists) ---
             if (preg_match('/^(\s*)[-*]\s*(.*)$/', $line, $m)) {
                 $output[] = self::parseUnorderedList($lines, $i, $total, strlen($m[1]), $allowHtml);
@@ -154,7 +160,7 @@ class MarkdownRenderer
             while (
                 $i < $total &&
                 trim($lines[$i]) !== '' &&
-                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\||>)/', $lines[$i])
+                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\d+[.)]\s|\||>)/', $lines[$i])
             ) {
                 $para[] = $lines[$i];
                 $i++;
@@ -235,8 +241,10 @@ class MarkdownRenderer
         $links = [];
         $text = preg_replace_callback(
             '/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
-            function ($m) use (&$links) {
-                $label = $m[1]; // already htmlspecialchars-encoded
+            function ($m) use (&$links, &$codeSpans) {
+                // Restore any inline-code tokens that appear inside the link label
+                // (e.g. [The `foo` Table](#anchor)) so they render as <code> not %%CODE0%%.
+                $label = !empty($codeSpans) ? strtr($m[1], $codeSpans) : $m[1];
                 $url   = $m[2];
                 $isExternal = str_starts_with($url, 'http');
                 $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
@@ -327,6 +335,64 @@ class MarkdownRenderer
         }
 
         return false;
+    }
+
+    /**
+     * Parse an ordered list block at the given indentation level.
+     *
+     * @param string[] $lines
+     * @param int      $i Current line index (advanced by reference)
+     * @param int      $total Total line count
+     * @param int      $baseIndent Indentation level for this list
+     * @param bool     $allowHtml Passed through to inlineHtml()
+     * @return string
+     */
+    private static function parseOrderedList(array $lines, int &$i, int $total, int $baseIndent, bool $allowHtml = false): string
+    {
+        $items = [];
+
+        while ($i < $total) {
+            if (!preg_match('/^(\s*)\d+[.)]\s+(.*)$/', $lines[$i], $itemMatch)) {
+                break;
+            }
+
+            $itemIndent = strlen($itemMatch[1]);
+            if ($itemIndent < $baseIndent) {
+                break;
+            }
+            if ($itemIndent > $baseIndent) {
+                break;
+            }
+
+            $itemText = [$itemMatch[2]];
+            $i++;
+
+            // Collect continuation lines
+            while ($i < $total) {
+                $current = $lines[$i];
+                if (trim($current) === '') {
+                    break;
+                }
+                if (preg_match('/^(\s*)\d+[.)]\s/', $current, $nextMatch)) {
+                    if (strlen($nextMatch[1]) === $baseIndent) {
+                        break;
+                    }
+                }
+                if (preg_match('/^(\s*)[-*]\s/', $current) || preg_match('/^#{1,6}\s/', $current)) {
+                    break;
+                }
+                if (preg_match('/^\s+(.+)$/', $current, $cont)) {
+                    $itemText[] = trim($cont[1]);
+                    $i++;
+                    continue;
+                }
+                break;
+            }
+
+            $items[] = '<li>' . self::inlineHtml(implode(' ', $itemText), $allowHtml) . '</li>';
+        }
+
+        return '<ol>' . implode('', $items) . '</ol>';
     }
 
     /**

@@ -26,6 +26,7 @@ bash scripts/restart_daemons.sh
 - [config/bbs.json — BBS Feature Settings](#configbbsjson--bbs-feature-settings)
 - [Other Config Files](#other-config-files)
 - [Network Ports Reference](#network-ports-reference)
+- [Server Sizing & Tuning](#server-sizing--tuning)
 - [Welcome & Text Files](#welcome--text-files)
 
 ---
@@ -544,6 +545,174 @@ Enable the module if not already active:
 a2enmod deflate
 systemctl reload apache2
 ```
+
+---
+
+## Server Sizing & Tuning
+
+This section helps you right-size your server and tune Apache, PHP-FPM, and PostgreSQL for the number of concurrent users you expect.
+
+### How SSE Affects php-fpm Worker Count
+
+BinktermPHP uses a short-lived SSE polling model: each open browser tab calls `/api/stream`, which holds a php-fpm worker for up to `SSE_WINDOW_SECONDS` (default: **2 seconds**), delivers any pending events, then closes. The tab's SharedWorker reconnects immediately. The practical effect is that **every active browser tab occupies one php-fpm worker continuously**.
+
+This makes `pm.max_children` the most important tuning knob on the system. If all workers are occupied by SSE connections, regular page loads and API calls will queue — or fail entirely.
+
+**Rule of thumb:** `pm.max_children` ≥ (concurrent users × 1.1) + 5
+
+The dominant cost is one worker per online user held for the SSE window. The 10% overhead covers concurrent HTTP requests (page loads, API calls) — at typical usage patterns only a small fraction of users are mid-request at any given instant.
+
+The extra 0.5× headroom covers simultaneous HTTP requests (page loads, API calls) that arrive while SSE workers are held.
+
+---
+
+### Real-World Baseline (3 concurrent users)
+
+Measured RSS with 3 active users, all optional services running (Gemini, MRC, SSH, telnet, multiplexer):
+
+| Service | Processes | RSS (MB) |
+|---|---:|---:|
+| Apache (apache2) | 13 | 201.4 |
+| Caddy (reverse proxy) | 1 | 49.6 |
+| php-fpm | 5 | 164.5 |
+| PostgreSQL | 12 | 451.0 |
+| admin_daemon | 1 | 19.1 |
+| binkp_server | 1 | 30.0 |
+| binkp_scheduler | 1 | 19.9 |
+| mrc_daemon | 1 | 19.6 |
+| gemini_daemon | 1 | 13.6 |
+| telnetd | 1 | 15.0 |
+| ssh_daemon | 3 | 51.7 |
+| multiplexing-server | 1 | 63.4 |
+| **Total** | | **1,099 MB** |
+
+Key per-unit costs derived from the above:
+- **php-fpm worker:** ~33 MB each
+- **Apache worker:** ~15 MB each
+- **PostgreSQL backend:** ~12–15 MB per connection
+- **System service baseline** (daemons + proxy, no users): ~350–400 MB
+
+---
+
+### Capacity Planning by User Count
+
+These figures assume all optional services are running. Deduct ~130 MB if you omit MRC, Gemini, and the multiplexer.
+
+| Concurrent users | php-fpm workers | RAM (minimum) | RAM (recommended) | vCPU |
+|---:|---:|---:|---:|---:|
+| 1–5 | 11 | 1 GB | 1.5 GB | 1 |
+| 5–20 | 27 | 2 GB | 3 GB | 2 |
+| 20–50 | 60 | 4 GB | 5 GB | 2–4 |
+| 50–150 | 170 | 10 GB | 13 GB | 4–8 |
+| 150–300 | 335 | 20 GB | 26 GB | 8–16 |
+
+"Concurrent users" means distinct logged-in users with the BBS open in their browser. Because SSE runs through a SharedWorker, all tabs belonging to the same user on the same browser share one EventSource connection — multiple tabs do not multiply worker usage.
+
+---
+
+### php-fpm Tuning
+
+Edit your php-fpm pool file (typically `/etc/php/8.x/fpm/pool.d/www.conf`):
+
+```ini
+; Use dynamic process management
+pm = dynamic
+
+; Maximum workers — size this first (see table above)
+pm.max_children = 25
+
+; Workers kept alive when idle
+pm.min_spare_servers = 3
+pm.max_spare_servers = 8
+
+; Workers started on boot
+pm.start_servers = 5
+
+; Recycle workers to prevent slow memory growth
+pm.max_requests = 500
+```
+
+After changing, reload php-fpm:
+
+```bash
+systemctl reload php8.x-fpm
+```
+
+**`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect (default: **60**). A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. Each active browser tab occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly. Lower this value only if you are severely constrained on workers.
+
+```bash
+# .env
+SSE_WINDOW_SECONDS=60
+```
+
+---
+
+### Apache MPM Tuning
+
+For Apache + php-fpm (via `mod_proxy_fcgi`), use **mpm_event** — it handles idle keepalive connections with threads rather than processes, which is far more efficient than mpm_prefork.
+
+```bash
+a2dismod mpm_prefork
+a2enmod mpm_event proxy_fcgi
+systemctl restart apache2
+```
+
+```apache
+# /etc/apache2/mods-enabled/mpm_event.conf
+<IfModule mpm_event_module>
+    StartServers          2
+    MinSpareThreads      10
+    MaxSpareThreads      30
+    ThreadsPerChild      25
+    MaxRequestWorkers   150   # should be ≥ pm.max_children
+    MaxConnectionsPerChild 1000
+</IfModule>
+```
+
+`MaxRequestWorkers` controls how many simultaneous connections Apache will accept. It should be at least as large as `pm.max_children` so Apache never queues requests that php-fpm has capacity to handle.
+
+---
+
+### PostgreSQL Tuning
+
+PostgreSQL spawns one backend process per connection. Each php-fpm worker can hold an open connection, so `max_connections` must exceed `pm.max_children`.
+
+```ini
+# postgresql.conf
+
+# Must exceed pm.max_children + room for admin/scripts
+max_connections = 100        # adjust up for larger deployments
+
+# 25% of total RAM is a standard starting point
+shared_buffers = 512MB       # for a 2 GB server
+
+# Effective cache size hint for the query planner (~50–75% of RAM)
+effective_cache_size = 1GB
+
+# Background writer — tune for write-heavy loads
+wal_buffers = 16MB
+checkpoint_completion_target = 0.9
+```
+
+After editing `postgresql.conf`, reload:
+
+```bash
+systemctl reload postgresql
+```
+
+**PgBouncer** is worth considering at 50+ concurrent users. It pools application connections so that 100 php-fpm workers can share 20 actual PostgreSQL backends, reducing per-connection memory significantly.
+
+---
+
+### Quick Sizing Reference
+
+| Knob | Formula | Notes |
+|---|---|---|
+| `pm.max_children` | concurrent users × 1.1 + 5 | 1 SSE worker per user (SharedWorker) |
+| `MaxRequestWorkers` | ≥ `pm.max_children` | Keep in sync |
+| `max_connections` (PG) | `pm.max_children` + 10 | Add more for scripts |
+| `shared_buffers` (PG) | 25% of total RAM | Standard rule of thumb |
+| `SSE_WINDOW_SECONDS` | 60 | Lower only if workers are scarce |
 
 ---
 

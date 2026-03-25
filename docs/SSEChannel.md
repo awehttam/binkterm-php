@@ -38,16 +38,6 @@ SharedWorker (binkstream-worker.js)  ──► fan-out to all tabs
 binkstream.js  ──► window.BinkStream.on('chat_message', handler)
 ```
 
-**Why this design?**
-
-- PHP's built-in dev server is single-threaded. A long-lived SSE connection would block all other requests. The endpoint is intentionally short-lived (held open for at most `SSE_WINDOW_SECONDS`) — it delivers any pending events and immediately tells the client to reconnect.
-- The SSE endpoint detects new events by polling `SELECT MAX(id) FROM sse_events` directly. This is a trivial index scan on the BIGSERIAL primary key — no separate daemon or persistent LISTEN connection is required.
-- The SharedWorker means all browser tabs share one EventSource connection rather than each opening their own.
-
-**Why not use `pg_notify` / LISTEN in the daemon?**
-
-The admin daemon forks a child process per client connection. A `pg_connect` + `LISTEN` established in the parent process is not reliably inherited by forked children — the file descriptor is shared but PostgreSQL's LISTEN state is per-connection and the notify dispatch can break after a fork. Direct DB polling avoids this entirely at negligible cost (`SELECT MAX(id)` on a PK index is sub-millisecond).
-
 ---
 
 ## Key Files
@@ -93,8 +83,6 @@ The admin daemon's only SSE-related responsibility is periodic cleanup:
 DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'
 ```
 
-The daemon no longer participates in event detection or delivery. The SSE endpoint polls the DB directly.
-
 ---
 
 ## The `/api/stream` Endpoint
@@ -123,7 +111,7 @@ The `id: 42` line advances the browser's `Last-Event-ID` to 42. On the next reco
 
 ### Reconnect with known cursor (`Last-Event-ID: 42`)
 
-The endpoint runs the catch-up query immediately. If new events exist, they are emitted and the connection closes. If nothing is new, the endpoint polls every 200 ms for up to `SSE_WINDOW_SECONDS` before sending `event: reconnect`.
+The endpoint runs the catch-up query immediately and emits any pending events. It then stays open for the full `SSE_WINDOW_SECONDS` window, polling every 200 ms and delivering further events as they arrive. A keepalive comment (`: keepalive`) is sent every 15 seconds to prevent proxy timeouts. When the window expires the endpoint sends `event: reconnect` and the SharedWorker reconnects immediately.
 
 ```
 event: connected
@@ -141,15 +129,15 @@ event: reconnect
 data: {}
 ```
 
-If there are no new events, only `event: connected` and `event: reconnect` are sent.
+If there are no new events during the window, only `event: connected` and `event: reconnect` are sent.
 
 ### Polling window
 
 ```
-SSE_WINDOW_SECONDS=2   (default; set in .env)
+SSE_WINDOW_SECONDS=60   (default; set in .env)
 ```
 
-The endpoint holds the PHP-FPM worker for at most this many seconds, polling `SELECT MAX(id) FROM sse_events` every 200 ms. As soon as a new event is detected it delivers and reconnects immediately. On the PHP built-in dev server (`cli-server`) the window is always 0 — the worker is released immediately after any catch-up delivery.
+The endpoint holds the PHP-FPM worker open for this many seconds, polling `SELECT MAX(id) FROM sse_events` every 200 ms. Multiple event batches can be delivered within a single window. A keepalive comment is emitted every 15 seconds to prevent reverse proxies from closing the idle connection. On the PHP built-in dev server (`cli-server`) the window is always 0 — the worker is released immediately after serving the initial cursor.
 
 ### SSE filter: own messages
 
@@ -365,14 +353,15 @@ Page load
   ├─ /api/stream (Last-Event-ID: 0)
   │     └─ anchor cursor at MAX(sse_events.id), send reconnect
   │
-  ├─ /api/stream (Last-Event-ID: N)  ← fast reconnect loop
-  │     ├─ run catch-up query immediately
-  │     ├─ if events found: deliver, send reconnect
-  │     └─ if nothing new: poll every 200 ms up to SSE_WINDOW_SECONDS, then reconnect
+  ├─ /api/stream (Last-Event-ID: N)  ← long-lived window
+  │     ├─ run catch-up query immediately, deliver any pending events
+  │     ├─ poll every 200 ms for SSE_WINDOW_SECONDS, delivering as events arrive
+  │     ├─ send ": keepalive" comment every 15 s to prevent proxy timeout
+  │     └─ when window expires: send reconnect, worker released
   │
   └─ message arrives in DB
         ├─ trigger → sse_events INSERT
-        └─ next /api/stream poll iteration: MAX(id) > N → deliver → reconnect
+        └─ next poll iteration: MAX(id) > N → deliver (no reconnect needed)
 ```
 
 **End-to-end latency** is one SSE poll interval — typically under 50 ms on localhost, under 300 ms on a production server (200 ms poll sleep + query time).
