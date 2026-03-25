@@ -5,6 +5,13 @@
  * tabs from the same origin. Incoming events are fanned out to every
  * connected tab port. If the connection drops, it reconnects automatically
  * with exponential back-off.
+ *
+ * Event type subscriptions are dynamic: when a tab calls
+ * BinkStream.on('some_type', fn), binkstream.js sends a
+ * {action:'subscribe', type:'some_type'} message to this worker. The
+ * worker adds an EventSource listener for that type (if not already present)
+ * so it is automatically fanned out. This means no changes to this file are
+ * needed when new SSE event types are added.
  */
 
 'use strict';
@@ -17,6 +24,10 @@ let es        = null;
 let backoff   = MIN_BACKOFF;
 const ports   = new Set();
 
+// Event types we have registered listeners for on the current EventSource.
+// Pre-populated with the core type always needed.
+const subscribedTypes = new Set(['chat_message']);
+
 // ── Port management ──────────────────────────────────────────────────────────
 
 self.onconnect = function (e) {
@@ -24,7 +35,9 @@ self.onconnect = function (e) {
     ports.add(port);
 
     port.onmessage = function (msg) {
-        // Reserved for future client→worker messages (e.g. subscriptions).
+        if (msg.data && msg.data.action === 'subscribe') {
+            subscribeType(msg.data.type);
+        }
     };
 
     port.addEventListener('close', function () {
@@ -60,11 +73,6 @@ function connect() {
         broadcast('connected', tryParse(e.data));
     });
 
-    thisEs.addEventListener('chat_message', function (e) {
-        if (thisEs !== es) return;
-        broadcast('chat_message', tryParse(e.data));
-    });
-
     thisEs.addEventListener('reconnect', function () {
         if (thisEs !== es) return;
         // Server closed intentionally — reconnect immediately, no backoff.
@@ -85,6 +93,35 @@ function connect() {
             scheduleReconnect();
         }
     });
+
+    // Register listeners for all currently subscribed event types.
+    subscribedTypes.forEach(function (type) {
+        addListenerForType(thisEs, type);
+    });
+}
+
+/**
+ * Add a broadcast listener for a specific event type on a given EventSource.
+ * Uses a closure to capture the EventSource instance for the stale-listener guard.
+ */
+function addListenerForType(targetEs, type) {
+    targetEs.addEventListener(type, function (e) {
+        if (targetEs !== es) return;
+        broadcast(type, tryParse(e.data));
+    });
+}
+
+/**
+ * Register interest in an event type. If the current EventSource is active,
+ * adds the listener immediately. The type is also stored so connect() picks
+ * it up on any future reconnection.
+ */
+function subscribeType(type) {
+    if (subscribedTypes.has(type)) return;
+    subscribedTypes.add(type);
+    if (es && es.readyState !== EventSource.CLOSED) {
+        addListenerForType(es, type);
+    }
 }
 
 function scheduleReconnect() {

@@ -300,6 +300,9 @@
         setStatus('{{ t('ui.admin.sse_test.status_connecting') }}', 'bg-warning text-dark');
 
         es.addEventListener('open', function(e) {
+            // The native EventSource connection event also fires here with e.data === undefined.
+            // Guard against it — only process the server-sent 'open' event that carries JSON.
+            if (!e.data) return;
             const data = JSON.parse(e.data);
             setStatus('{{ t('ui.admin.sse_test.status_connected') }}', 'bg-success');
             addRow({ seq: -1, server_ts: data.server_ts }, Date.now(), 'open');

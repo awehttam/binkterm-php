@@ -12,6 +12,7 @@
     'use strict';
 
     const listeners = {};   // type → Set of callbacks
+    let workerPort = null;  // MessagePort to the SharedWorker, once connected
 
     function dispatch(type, data) {
         if (listeners[type]) {
@@ -24,6 +25,11 @@
     function on(type, fn) {
         if (!listeners[type]) listeners[type] = new Set();
         listeners[type].add(fn);
+        // Tell the worker to subscribe to this event type so it registers an
+        // EventSource listener and fans it out to all tabs.
+        if (workerPort) {
+            workerPort.postMessage({ action: 'subscribe', type: type });
+        }
     }
 
     function off(type, fn) {
@@ -40,13 +46,18 @@
 
     try {
         const worker = new SharedWorker('/js/binkstream-worker.js', { name: 'binkstream' });
-        worker.port.onmessage = function (e) {
+        workerPort = worker.port;
+        workerPort.onmessage = function (e) {
             const msg = e.data;
             if (msg && msg.type) {
                 dispatch(msg.type, msg.data);
             }
         };
-        worker.port.start();
+        workerPort.start();
+        // Replay any subscriptions that were registered before the worker connected.
+        Object.keys(listeners).forEach(function (type) {
+            workerPort.postMessage({ action: 'subscribe', type: type });
+        });
     } catch (_) {
         // Construction failed (e.g. network error loading worker script).
         // Polling fallback continues unaffected.
