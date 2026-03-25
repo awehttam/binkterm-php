@@ -1754,8 +1754,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
-        header('X-Accel-Buffering: no');
-        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no'); // nginx: disable proxy buffering
 
         if (ob_get_level()) {
             ob_end_clean();
