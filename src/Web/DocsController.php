@@ -171,8 +171,9 @@ class DocsController
     private function resolveDocPath(string $name): ?string
     {
         $specialDocs = [
-            'FAQ' => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ.md',
-            'README' => $this->repoRoot . DIRECTORY_SEPARATOR . 'README.md',
+            'FAQ'      => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ.md',
+            'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README.md',
+            'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER.md',
         ];
 
         if (isset($specialDocs[$name])) {

@@ -606,6 +606,8 @@ These figures assume all optional services are running. Deduct ~130 MB if you om
 | 50–150 | 170 | 10 GB | 13 GB | 4–8 |
 | 150–300 | 335 | 20 GB | 26 GB | 8–16 |
 
+**DOSBox-X doors add ~60–100 MB RAM per active session** (see [DOSDoors.md](DOSDoors.md)). At a typical 1% concurrency rate, the additional footprint is modest — roughly one instance per 100 online users — but plan for it if your BBS is games-heavy. A deployment with 100 concurrent users running a popular door at 5% concurrency would need an extra ~400 MB on top of the figures above.
+
 "Concurrent users" means distinct logged-in users with the BBS open in their browser. Because SSE runs through a SharedWorker, all tabs belonging to the same user on the same browser share one EventSource connection — multiple tabs do not multiply worker usage.
 
 ---
