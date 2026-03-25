@@ -611,6 +611,47 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         echo json_encode(['ok' => true, 'seq' => $seq, 'server_ts' => $serverTs, 'sse_id' => (int)$row['id']]);
     });
 
+    // Buffering diagnostics page
+    SimpleRouter::get('/buffer-test', function() {
+        RouteHelper::requireAdmin();
+        $template = new Template();
+        $template->renderResponse('admin/buffer_test.twig');
+    });
+
+    // Buffering diagnostics stream — sends one event per second for N seconds.
+    // No SharedWorker, no sse_events — raw EventSource to the browser.
+    // If events arrive one-by-one the chain is not buffering; if they all arrive
+    // at the end something upstream is holding the response body.
+    SimpleRouter::get('/buffer-test/stream', function() {
+        RouteHelper::requireAdmin();
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_implicit_flush(true);
+        ignore_user_abort(true);
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');
+        header('Connection: keep-alive');
+
+        $count = max(3, min(20, (int)($_GET['count'] ?? 8)));
+
+        for ($i = 0; $i < $count; $i++) {
+            $ts = (int)round(microtime(true) * 1000);
+            echo "event: tick\n";
+            echo "data: " . json_encode(['seq' => $i, 'total' => $count, 'server_ts' => $ts]) . "\n\n";
+            flush();
+            if ($i < $count - 1) {
+                sleep(1);
+            }
+        }
+
+        echo "event: done\ndata: {}\n\n";
+        flush();
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
