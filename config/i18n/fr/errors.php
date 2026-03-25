@@ -54,6 +54,8 @@ return [
     'errors.notify.user_id_missing' => 'Impossible de résoudre la session utilisateur',
     'errors.notify.invalid_state' => 'Charge utile d\'état de notification invalide',
     'errors.notify.invalid_target' => 'Cible de notification invalide',
+    'errors.realtime.invalid_payload' => 'Charge utile de commande temps reel invalide',
+    'errors.realtime.unknown_command' => 'Commande temps reel inconnue',
     'errors.polls.option_required' => 'Une option de sondage est requise',
     'errors.polls.not_found' => 'Sondage introuvable',
     'errors.polls.invalid_option' => 'Option de sondage invalide',

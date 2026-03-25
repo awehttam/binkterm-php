@@ -94,7 +94,7 @@ This index lists documents in operational priority order — essentials first, a
 ## Developer Reference
 
 - [Developer Guide](DEVELOPER_GUIDE.md) — Architecture overview, coding conventions, contribution guide
-- [SSE Back-Channel](SSEChannel.md) — Real-time push architecture: sse_events table, admin daemon, SharedWorker, and how to add new event types
+- [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, admin daemon, SharedWorker, and how to add new event types
 
 ---
 

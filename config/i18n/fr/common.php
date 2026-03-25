@@ -3167,9 +3167,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.ad_analytics.no_data' => 'Aucune activité sur cette période.',
     'ui.admin.ad_analytics.no_ads' => 'Aucune annonce trouvée.',
 
-    // SSE Test
-    'ui.admin.sse_test.page_title' => 'Diagnostics SSE',
-    'ui.admin.sse_test.heading' => 'Diagnostics SSE',
+    // BinkStream Test
+    'ui.admin.sse_test.page_title' => 'Diagnostics BinkStream',
+    'ui.admin.sse_test.heading' => 'Diagnostics BinkStream',
     'ui.admin.sse_test.interval' => 'Intervalle d\'événement',
     'ui.admin.sse_test.duration' => 'Durée',
     'ui.admin.sse_test.payload' => 'Taille du payload',

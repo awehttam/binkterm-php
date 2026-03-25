@@ -49,13 +49,13 @@
 - [User Settings](#user-settings)
   - [Tabbed Layout](#tabbed-layout)
   - [Notification Sound Preview](#notification-sound-preview)
-- [Real-time Events (SSE)](#real-time-events-sse)
+- [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [SharedWorker Architecture](#sharedworker-architecture)
   - [Chat Integration](#chat-integration)
   - [Long-lived Connections](#long-lived-connections)
   - [User and Admin Targeting](#user-and-admin-targeting)
   - [php-fpm Worker Capacity](#php-fpm-worker-capacity)
-  - [SSE Test Tools](#sse-test-tools)
+  - [BinkStream Test Tools](#binkstream-test-tools)
 - [AreaFix / FileFix Manager](#areafix--filefix-manager)
   - [Overview](#areafix-overview)
   - [Quick Actions](#quick-actions)
@@ -152,10 +152,10 @@
 **Registration**
 - The registration page now includes a note below the approval notice informing applicants that they will receive an email when their account is approved, that reminder emails may also be sent, and to check their junk/spam folder.
 
-**Real-time Events (SSE)**
-- A SharedWorker-based Server-Sent Events channel replaces the previous daemon-based event delivery. Each logged-in user holds one long-lived SSE connection shared across all browser tabs. Events are written to an `sse_events` UNLOGGED table; a Postgres trigger on `chat_messages` fires the inserts automatically. The SSE endpoint polls that table directly and delivers events without involving the admin daemon.
-- Connections default to a 60-second window with 15-second keepalive comments to prevent proxy timeouts. The window duration is configurable via `SSE_WINDOW_SECONDS` in `.env`.
-- An SSE diagnostics page is available in the Admin **Help → Developer** submenu. A companion proxy buffer-flush test tool is also in that submenu.
+**Real-time Events (BinkStream)**
+- A SharedWorker-based BinkStream channel replaces the previous daemon-based event delivery. BinkStream now supports shared realtime command/event handling over SSE and a standalone PHP WebSocket server. Events are written to an `sse_events` UNLOGGED table; `GET /api/stream`, `POST /api/stream`, and the WebSocket daemon all share the same core command and event logic.
+- In `BINKSTREAM_TRANSPORT_MODE=auto`, the browser prefers WebSocket when the daemon is available and falls back to SSE otherwise. SSE connections default to a 60-second window with 15-second keepalive comments to prevent proxy timeouts. The window duration is configurable via `SSE_WINDOW_SECONDS` in `.env`.
+- A BinkStream diagnostics page is available in the Admin **Help → Developer** submenu. A companion proxy buffer-flush test tool is also in that submenu.
 - Three database migrations are included: `v1.11.0.54_chat_notify_trigger.php`, `v1.11.0.55_sse_events_table.php`, and `v1.11.0.57_sse_events_user_targeting.php`. The third adds per-user and admin-only targeting to `sse_events` and updates the chat trigger to a fat-payload pattern (no JOINs at delivery time).
 - **Because every online user holds an open php-fpm worker for the SSE window duration, `pm.max_children` must be sized for your expected concurrent user count.** See [docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning) for a capacity table and low-RAM options.
 
@@ -607,13 +607,13 @@ Each notification sound select box on the Notifications tab now has an adjacent 
 
 ---
 
-## Real-time Events (SSE)
+## Real-time Events (BinkStream)
 
 ### SharedWorker Architecture
 
-BinktermPHP now delivers real-time events to the browser via a SharedWorker that holds one `EventSource` connection per logged-in user, shared across all browser tabs. This replaces the previous approach where events were pushed through the admin daemon.
+BinktermPHP now delivers real-time browser events through a SharedWorker that owns one active BinkStream transport per logged-in user, shared across all browser tabs. Depending on configuration and runtime availability, that transport is either WebSocket or SSE.
 
-Events are written to an UNLOGGED table `sse_events` with a `BIGSERIAL` id used as the SSE cursor. The SSE endpoint (`GET /api/sse`) polls that table directly on a tight interval, emitting any events whose id is greater than the client's `Last-Event-ID`. Because the table is UNLOGGED, writes are fast and there is no WAL overhead for transient notification data.
+Events are written to an UNLOGGED table `sse_events` with a `BIGSERIAL` id used as the stream cursor. `GET /api/stream` delivers outbound events over SSE. `POST /api/stream` accepts inbound commands when SSE is the active transport. The standalone PHP WebSocket daemon uses the same command and event services for bidirectional realtime delivery.
 
 Two database migrations run automatically via `php scripts/setup.php`:
 - `v1.11.0.54_chat_notify_trigger.php` — installs a Postgres trigger on `chat_messages` that inserts into `sse_events`
@@ -621,11 +621,11 @@ Two database migrations run automatically via `php scripts/setup.php`:
 
 ### Chat Integration
 
-The first event type delivered over SSE is incoming chat messages. When a chat message is saved, the trigger fires immediately and the sender's own message is returned directly in the API send response for instant rendering without waiting for the poll cycle.
+The first event type delivered over BinkStream is incoming chat messages. When a chat message is saved, the trigger fires immediately and the sender's own message is returned directly in the API send response for instant rendering without waiting for the transport cycle.
 
 ### Long-lived Connections
 
-SSE connections are now long-lived. Each connection holds open for `SSE_WINDOW_SECONDS` (default `60`) and sends a `: keepalive` comment every 15 seconds to prevent proxy and load-balancer timeouts. At the end of the window the server sends a `reconnect` event and the SharedWorker re-connects automatically.
+When SSE is the active transport, each connection holds open for `SSE_WINDOW_SECONDS` (default `60`) and sends a `: keepalive` comment every 15 seconds to prevent proxy and load-balancer timeouts. At the end of the window the server sends a `reconnect` event and the SharedWorker reconnects automatically.
 
 ```
 SSE_WINDOW_SECONDS=60
@@ -633,11 +633,17 @@ SSE_WINDOW_SECONDS=60
 
 On the built-in PHP development server the window is forced to `0` (immediate reconnect) because that server is single-threaded and cannot handle concurrent requests.
 
-Testing has shown that some Apache + PHP-FPM (`mod_proxy_fcgi`) deployments buffer SSE responses instead of flushing events in real time. In those environments, sysops will need to use a lower `SSE_WINDOW_SECONDS` value to reduce how much data Apache can hold before releasing the response. As an interim mitigation, when `REALTIME_TRANSPORT_MODE=auto` and Apache is detected, BinktermPHP automatically uses a default `SSE_WINDOW_SECONDS` of `2` unless the sysop explicitly sets `SSE_WINDOW_SECONDS` in `.env`.
+Testing has shown that some Apache + PHP-FPM (`mod_proxy_fcgi`) deployments buffer SSE responses instead of flushing events in real time. In those environments, sysops will need to use a lower `SSE_WINDOW_SECONDS` value to reduce how much data Apache can hold before releasing the response. As an interim mitigation, when `BINKSTREAM_TRANSPORT_MODE=auto` and Apache is detected, BinktermPHP automatically uses a default `SSE_WINDOW_SECONDS` of `2` unless the sysop explicitly sets `SSE_WINDOW_SECONDS` in `.env`.
+
+`BINKSTREAM_TRANSPORT_MODE` currently supports:
+
+- `auto` — prefer WebSocket when the daemon is available; otherwise use SSE
+- `sse` — force SSE
+- `ws` — force the standalone PHP WebSocket daemon
 
 ### php-fpm Worker Capacity
 
-SSE holds one php-fpm worker open per online user for the full `SSE_WINDOW_SECONDS` duration (default: 60 s). This enables low-latency real-time event delivery, but worker count must be planned for your expected concurrent user load.
+When SSE is in use, each active browser session holds one php-fpm worker open for the full `SSE_WINDOW_SECONDS` duration (default: 60 s). This enables low-latency real-time event delivery, but worker count must be planned for your expected concurrent user load.
 
 **Rule of thumb:** `pm.max_children` ≥ (concurrent users × 1.1) + 5
 
@@ -649,11 +655,11 @@ If all workers are occupied by SSE connections, regular page loads and API calls
 - **Set `SSE_WINDOW_SECONDS=0`** to disable long-polling entirely. The SharedWorker reconnects immediately on close, giving ~1 s polling cadence at the cost of one extra HTTP round-trip per second per user.
 - Because all tabs for the same user on the same browser share one SharedWorker and therefore one SSE connection, multiple open tabs do not multiply worker usage.
 
-### SSE Test Tools
+### BinkStream Test Tools
 
 Two diagnostic tools are in the Admin **Help → Developer** submenu:
 
-- **SSE Test** — sends a test event through the database trigger and displays it in real time, confirming the full SSE pipeline is working.
+- **BinkStream Test** — sends a test event through the database trigger and displays it in real time, confirming the full BinkStream pipeline is working.
 - **Proxy Buffer Test** — flushes progressively larger chunks of data and reports whether each chunk arrives immediately or is held by an intervening proxy or web server buffer.
 
 ---
@@ -912,8 +918,13 @@ php scripts/setup.php
 # Opt out of Interests feature
 ENABLE_INTERESTS=false
 
-# Realtime transport strategy (currently supported: auto, sse)
-REALTIME_TRANSPORT_MODE=auto
+# BinkStream transport strategy (currently supported: auto, sse, ws)
+BINKSTREAM_TRANSPORT_MODE=auto
+
+# Standalone BinkStream WebSocket daemon
+BINKSTREAM_WS_BIND_HOST=127.0.0.1
+BINKSTREAM_WS_PORT=6010
+BINKSTREAM_WS_PUBLIC_URL=/ws
 
 # SSE connection window duration in seconds (default 60)
 SSE_WINDOW_SECONDS=60

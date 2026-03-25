@@ -515,6 +515,7 @@ A documented example is provided in `config/bbs.json.example`.
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| Realtime WebSocket daemon | `6010` | WebSocket/TCP | Inbound or proxied | `.env` `BINKSTREAM_WS_PORT` |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |
 | Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
@@ -554,7 +555,7 @@ This section helps you right-size your server and tune Apache, PHP-FPM, and Post
 
 ### How SSE Affects php-fpm Worker Count
 
-BinktermPHP uses an SSE back-channel: the SharedWorker calls `/api/stream`, which holds a php-fpm worker open for `SSE_WINDOW_SECONDS`, delivering events as they arrive. A keepalive comment is sent every 15 seconds to prevent proxy timeouts. When the window expires the connection is cleanly closed and the SharedWorker reconnects immediately. The practical effect is that **every online user occupies one php-fpm worker continuously** while the connection is open.
+BinktermPHP uses BinkStream for browser realtime delivery. In SSE mode, the SharedWorker calls `/api/stream`, which holds a php-fpm worker open for `SSE_WINDOW_SECONDS`, delivering events as they arrive. A keepalive comment is sent every 15 seconds to prevent proxy timeouts. When the window expires the connection is cleanly closed and the SharedWorker reconnects immediately. The practical effect is that **every online user occupies one php-fpm worker continuously** while SSE is the active transport. In WebSocket mode, the standalone PHP BinkStream daemon handles the realtime connection instead.
 
 This makes `pm.max_children` the most important tuning knob on the system. If all workers are occupied by SSE connections, regular page loads and API calls will queue — or fail entirely.
 
@@ -640,30 +641,48 @@ After changing, reload php-fpm:
 systemctl reload php8.x-fpm
 ```
 
-**`REALTIME_TRANSPORT_MODE`** — currently supported values are `auto` and `sse`.
+**`BINKSTREAM_TRANSPORT_MODE`** — currently supported values are `auto`, `sse`, and `ws`.
 
-- `auto` (default): use the normal SSE transport, but if Apache is detected and `SSE_WINDOW_SECONDS` is not explicitly set, BinktermPHP defaults the window to **2 seconds** as an interim mitigation for Apache + php-fpm buffering behavior.
+- `auto` (default): prefer the standalone WebSocket daemon when it appears to be running, otherwise use SSE. If Apache is detected and `SSE_WINDOW_SECONDS` is not explicitly set, BinktermPHP defaults the SSE window to **2 seconds** as an interim mitigation for Apache + php-fpm buffering behavior.
 - `sse`: force the standard SSE behavior and default `SSE_WINDOW_SECONDS` to **60** unless explicitly overridden.
+- `ws`: force the standalone PHP WebSocket realtime daemon for inbound events and commands.
 
 ```bash
 # .env
-REALTIME_TRANSPORT_MODE=auto
+BINKSTREAM_TRANSPORT_MODE=auto
 ```
 
-**`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect. A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. Each active browser tab occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly.
+**`BINKSTREAM_WS_BIND_HOST`**, **`BINKSTREAM_WS_PORT`**, **`BINKSTREAM_WS_PUBLIC_URL`**, and **`BINKSTREAM_WS_PID_FILE`** — settings for the standalone realtime WebSocket daemon (`scripts/realtime_server.php`).
+
+- `BINKSTREAM_WS_BIND_HOST`: daemon bind host, typically `127.0.0.1` behind a reverse proxy
+- `BINKSTREAM_WS_PORT`: daemon listen port, default `6010`
+- `BINKSTREAM_WS_PUBLIC_URL`: browser-facing WebSocket URL, typically a proxied path such as `/ws`
+- `BINKSTREAM_WS_PID_FILE`: optional PID file path used by `auto` mode as a server-side hint that the daemon is running; if omitted, BinktermPHP uses its built-in default PID path
+
+```bash
+# .env
+BINKSTREAM_WS_BIND_HOST=127.0.0.1
+BINKSTREAM_WS_PORT=6010
+BINKSTREAM_WS_PUBLIC_URL=/ws
+BINKSTREAM_WS_PID_FILE=data/run/realtime_server.pid
+```
+
+**`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect. A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. When SSE is the active transport, each active browser session occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly.
 
 Defaults:
 
 - **60** seconds normally
-- **2** seconds when `REALTIME_TRANSPORT_MODE=auto`, Apache is detected, and `SSE_WINDOW_SECONDS` is not explicitly set
+- **2** seconds when `BINKSTREAM_TRANSPORT_MODE=auto`, Apache is detected, and `SSE_WINDOW_SECONDS` is not explicitly set
 
 Testing has shown that some Apache + php-fpm (`mod_proxy_fcgi`) deployments buffer SSE responses instead of flushing events in real time. In those environments, sysops should lower `SSE_WINDOW_SECONDS` explicitly if the automatic 2-second default is still too sluggish.
 
 ```bash
 # .env
-REALTIME_TRANSPORT_MODE=auto
+BINKSTREAM_TRANSPORT_MODE=auto
 SSE_WINDOW_SECONDS=60
 ```
+
+Older `REALTIME_*` environment variable names are still accepted as compatibility aliases, and `SSE_TRANSPORT_MODE` is still accepted as the oldest transport-mode alias, but `BINKSTREAM_*` is the preferred prefix going forward.
 
 ---
 
@@ -732,8 +751,11 @@ systemctl reload postgresql
 | `MaxRequestWorkers` | ≥ `pm.max_children` | Keep in sync |
 | `max_connections` (PG) | `pm.max_children` + 10 | Add more for scripts |
 | `shared_buffers` (PG) | 25% of total RAM | Standard rule of thumb |
-| `REALTIME_TRANSPORT_MODE` | auto | `auto` uses SSE; on Apache it defaults the window to 2 s unless overridden |
-| `SSE_WINDOW_SECONDS` | 60 | Default window unless Apache + `auto` applies the 2 s implicit fallback |
+| `BINKSTREAM_TRANSPORT_MODE` | auto | `auto` prefers WS if the daemon appears to be running, otherwise uses SSE; Apache + SSE falls back to a 2 s window unless overridden |
+| `BINKSTREAM_WS_PORT` | 6010 | Port used by the standalone PHP realtime WebSocket daemon |
+| `BINKSTREAM_WS_PUBLIC_URL` | /ws | Browser-facing WebSocket URL or path |
+| `BINKSTREAM_WS_PID_FILE` | `data/run/realtime_server.pid` | PID file hint used by `auto` transport selection |
+| `SSE_WINDOW_SECONDS` | 60 | Default SSE window unless Apache + `auto` applies the 2 s implicit fallback |
 
 ---
 

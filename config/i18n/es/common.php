@@ -775,9 +775,9 @@ return [
     'ui.admin.ad_analytics.no_data' => 'Sin actividad en este período.',
     'ui.admin.ad_analytics.no_ads' => 'No se encontraron anuncios.',
 
-    // SSE Test
-    'ui.admin.sse_test.page_title' => 'Diagnósticos SSE',
-    'ui.admin.sse_test.heading' => 'Diagnósticos SSE',
+    // BinkStream Test
+    'ui.admin.sse_test.page_title' => 'Diagnosticos de BinkStream',
+    'ui.admin.sse_test.heading' => 'Diagnosticos de BinkStream',
     'ui.admin.sse_test.interval' => 'Intervalo de evento',
     'ui.admin.sse_test.duration' => 'Duración',
     'ui.admin.sse_test.payload' => 'Tamaño del payload',

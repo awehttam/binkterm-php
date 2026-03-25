@@ -76,6 +76,8 @@ return [
     'errors.notify.user_id_missing' => 'No se pudo resolver la sesion del usuario',
     'errors.notify.invalid_state' => 'Carga de estado de notificacion invalida',
     'errors.notify.invalid_target' => 'Destino de notificacion invalido',
+    'errors.realtime.invalid_payload' => 'Carga de comando en tiempo real invalida',
+    'errors.realtime.unknown_command' => 'Comando en tiempo real desconocido',
 
     // Polls
     'errors.polls.option_required' => 'Se requiere una opcion de encuesta',

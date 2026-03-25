@@ -76,6 +76,8 @@ return [
     'errors.notify.user_id_missing' => 'Unable to resolve user session',
     'errors.notify.invalid_state' => 'Invalid notification state payload',
     'errors.notify.invalid_target' => 'Invalid notification target',
+    'errors.realtime.invalid_payload' => 'Invalid realtime command payload',
+    'errors.realtime.unknown_command' => 'Unknown realtime command',
 
     // Polls
     'errors.polls.option_required' => 'A poll option is required',

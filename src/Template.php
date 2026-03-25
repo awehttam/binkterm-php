@@ -33,6 +33,25 @@ class Template
     private LocaleResolver $localeResolver;
     private string $activeShell = 'web';
 
+    private function isRealtimeDaemonAvailable(): bool
+    {
+        $pidFile = (string)(Config::env('BINKSTREAM_WS_PID_FILE', Config::env('REALTIME_WS_PID_FILE')) ?: (__DIR__ . '/../data/run/realtime_server.pid'));
+        if ($pidFile === '' || !is_file($pidFile)) {
+            return false;
+        }
+
+        $pid = (int)trim((string)@file_get_contents($pidFile));
+        if ($pid <= 0) {
+            return false;
+        }
+
+        if (function_exists('posix_kill')) {
+            return @posix_kill($pid, 0);
+        }
+
+        return true;
+    }
+
     public function __construct()
     {
         $this->auth = new Auth();
@@ -202,12 +221,24 @@ class Template
         $this->twig->addGlobal('is_dev', Config::env('IS_DEV', 'false') === 'true');
         $this->twig->addGlobal('debug_ansi_not_perfect', Config::env('DEBUG_ANSI_NOT_PERFECT', 'false') === 'true');
         $this->twig->addGlobal('debug_ansi_use_consolas', Config::env('DEBUG_ANSI_USE_CONSOLAS', 'false') === 'true');
-        $configuredSseTransportMode = strtolower(trim((string)Config::env('SSE_TRANSPORT_MODE', 'auto')));
-        if (!in_array($configuredSseTransportMode, ['auto', 'sse'], true)) {
-            $configuredSseTransportMode = 'auto';
+        $configuredRealtimeTransportMode = strtolower(trim((string)Config::env('BINKSTREAM_TRANSPORT_MODE', Config::env('REALTIME_TRANSPORT_MODE', Config::env('SSE_TRANSPORT_MODE', 'auto')))));
+        if (!in_array($configuredRealtimeTransportMode, ['auto', 'sse', 'ws'], true)) {
+            $configuredRealtimeTransportMode = 'auto';
         }
-        $this->twig->addGlobal('configured_sse_transport_mode', $configuredSseTransportMode);
-        $this->twig->addGlobal('effective_sse_transport_mode', $configuredSseTransportMode);
+        $realtimeWsUrl = trim((string)Config::env('BINKSTREAM_WS_PUBLIC_URL', Config::env('REALTIME_WS_PUBLIC_URL', '/ws')));
+        if ($realtimeWsUrl === '') {
+            $realtimeWsUrl = '/ws';
+        }
+        $effectiveRealtimeTransportMode = $configuredRealtimeTransportMode;
+        if ($configuredRealtimeTransportMode === 'auto') {
+            $effectiveRealtimeTransportMode = $this->isRealtimeDaemonAvailable() ? 'ws' : 'sse';
+        }
+        $this->twig->addGlobal('configured_realtime_transport_mode', $configuredRealtimeTransportMode);
+        $this->twig->addGlobal('effective_realtime_transport_mode', $effectiveRealtimeTransportMode);
+        $this->twig->addGlobal('realtime_ws_url', $realtimeWsUrl);
+        // Backward-compatible aliases for the earlier SSE-only transport wiring.
+        $this->twig->addGlobal('configured_sse_transport_mode', $configuredRealtimeTransportMode);
+        $this->twig->addGlobal('effective_sse_transport_mode', $effectiveRealtimeTransportMode);
         // ANSI_RENDERER_MODE: 'grouped' (default, merges same-styled chars into one span,
         // enables URL hyperlinking) or 'perchar' (one span per character, original behavior).
         $ansiRendererMode = Config::env('ANSI_RENDERER_MODE', 'grouped');

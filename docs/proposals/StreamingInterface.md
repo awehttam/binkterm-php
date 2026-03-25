@@ -110,7 +110,7 @@ The page should not need to care which transport is active.
 
 Proposed runtime transport selection:
 
-- `REALTIME_TRANSPORT_MODE=auto|ws|sse`
+- `BINKSTREAM_TRANSPORT_MODE=auto|ws|sse`
 
 Meaning:
 
@@ -133,7 +133,7 @@ Important caveat: short-window SSE does not guarantee acceptable behavior on Apa
 
 ## Client Transport Selection
 
-`REALTIME_TRANSPORT_MODE` is a server-side setting, but `BinkStream` still needs to know the effective mode at runtime.
+`BINKSTREAM_TRANSPORT_MODE` is a server-side setting, but `BinkStream` still needs to know the effective mode at runtime.
 
 The proposed mechanism is:
 
@@ -311,7 +311,7 @@ This is a real operational burden and should be treated as part of the design, n
 - Which commands should return only direct JSON versus also emitting follow-up events?
 - Should `subscribe` and `unsubscribe` be explicit commands, or remain client-local in SSE mode?
 - Should command responses be normalized to a single envelope immediately, or support route-specific payloads during migration?
-- Should `REALTIME_TRANSPORT_MODE=auto` permit WS -> SSE fallback automatically, or should failed WS setup force an explicit config change?
+- Should `BINKSTREAM_TRANSPORT_MODE=auto` permit WS -> SSE fallback automatically, or should failed WS setup force an explicit config change?
 - What public WebSocket URL, listener port, and reverse-proxy rules should be standardized for sysops?
 - Should Apache be documented as notification-safe but chat-degraded even in short-window SSE mode?
 

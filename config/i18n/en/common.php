@@ -301,7 +301,7 @@ return [
     'ui.base.admin.registered_feature' => 'Registered Feature',
     'ui.base.admin.activity_stats' => 'Activity Statistics',
     'ui.base.admin.ad_analytics' => 'Ad Analytics',
-    'ui.base.admin.sse_test' => 'SSE Test',
+    'ui.base.admin.sse_test' => 'BinkStream Test',
     'ui.base.admin.ai_usage' => 'AI Usage',
     'ui.base.admin.sharing' => 'Sharing',
     'ui.base.admin.economy_viewer' => 'Economy Viewer',
@@ -1719,9 +1719,9 @@ return [
     'ui.admin.ad_analytics.no_data' => 'No activity in this period.',
     'ui.admin.ad_analytics.no_ads' => 'No ads found.',
 
-    // SSE Test
-    'ui.admin.sse_test.page_title' => 'SSE Diagnostics',
-    'ui.admin.sse_test.heading' => 'SSE Diagnostics',
+    // BinkStream Test
+    'ui.admin.sse_test.page_title' => 'BinkStream Diagnostics',
+    'ui.admin.sse_test.heading' => 'BinkStream Diagnostics',
     'ui.admin.sse_test.interval' => 'Event interval',
     'ui.admin.sse_test.duration' => 'Duration',
     'ui.admin.sse_test.payload' => 'Payload size',

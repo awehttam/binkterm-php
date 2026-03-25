@@ -3,8 +3,8 @@
     const CHAT_DB_STORE = 'settings';
     const CHAT_STORAGE_KEY = `state:${window.currentUserId || 'unknown'}`;
     const CHAT_MAX_MESSAGES = 500;
-    // When BinkStream SSE is active we fall back to a slow safety-net poll;
-    // when SSE is unavailable we use a faster interval.
+    // When BinkStream realtime is active we fall back to a slow safety-net poll;
+    // when realtime is unavailable we use a faster interval.
     const CHAT_POLL_INTERVAL_SSE_MS  = 30000;
     const CHAT_POLL_INTERVAL_POLL_MS = 1000;
 
@@ -444,7 +444,7 @@
 
     function handleIncoming(payload) {
         if (!payload || !payload.id) return;
-        // Guard against duplicate delivery (SSE catch-up + poll overlap).
+        // Guard against duplicate delivery (BinkStream catch-up + poll overlap).
         if (state.displayedMessageIds.has(payload.id)) return;
 
         const thread = payload.type === 'room'
@@ -640,17 +640,19 @@
         }
         setInterval(refreshUsers, 15000);
 
-        // Wire BinkStream SSE if available; fall back to fast polling otherwise.
+        // Wire BinkStream if available; fall back to fast polling otherwise.
         let sseActive = false;
         if (window.BinkStream) {
             window.BinkStream.on('chat_message', function (payload) {
                 if (!payload || !payload.id) return;
-                // Full message payload arrives via SSE — render directly with no
+                // Full message payload arrives via BinkStream — render directly with no
                 // extra HTTP round-trip. Advance the poll fallback cursor so the
                 // safety-net poll won't re-deliver the same message.
-                // Note: the SSE Last-Event-ID cursor (sse_events.id) is managed
-                // automatically by the browser/SharedWorker EventSource.
-                payload._source = 'sse';
+                // Note: the stream cursor is managed automatically by the
+                // browser/SharedWorker transport layer.
+                payload._source = (typeof window.BinkStream.getMode === 'function')
+                    ? window.BinkStream.getMode()
+                    : 'binkstream';
                 handleIncoming(payload);
                 if (payload.id > state.lastChatId) {
                     state.lastChatId = payload.id;

@@ -92,12 +92,15 @@
         window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
         window.siteConfig = {
             ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }},
-            sseTransportMode: {{ effective_sse_transport_mode|json_encode|raw }}
+            sseTransportMode: {{ effective_sse_transport_mode|json_encode|raw }},
+            configuredRealtimeTransportMode: {{ configured_realtime_transport_mode|json_encode|raw }},
+            realtimeTransportMode: {{ effective_realtime_transport_mode|json_encode|raw }},
+            realtimeWsUrl: {{ realtime_ws_url|json_encode|raw }}
         };
     </script>
     <script src="/js/app.js"></script>
     {% if current_user %}
-    <script src="/js/binkstream.js"></script>
+    <script src="/js/binkstream-client.js"></script>
     {% endif %}
     {% if current_user and bbs_feature_enabled('chat') %}
     <script src="/js/chat-notify.js"></script>
@@ -358,7 +361,7 @@
                                         <li class="dropdown-submenu">
                                             <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-code"></i> Developer</a>
                                             <ul class="dropdown-menu">
-                                                <li><a class="dropdown-item" href="/admin/sse-test"><i class="fas fa-satellite-dish"></i> SSE Test</a></li>
+                                                <li><a class="dropdown-item" href="/admin/sse-test"><i class="fas fa-satellite-dish"></i> BinkStream Test</a></li>
                                                 <li><a class="dropdown-item" href="/admin/buffer-test"><i class="fas fa-filter"></i> Buffer Test</a></li>
                                             </ul>
                                         </li>

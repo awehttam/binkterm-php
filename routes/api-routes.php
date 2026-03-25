@@ -665,163 +665,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
-
         $db = Database::getInstance()->getPdo();
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $isAdmin = !empty($user['is_admin']);
-        $meta = new UserMeta();
-
-        // Get last seen counts (not timestamps - we compare counts, not dates)
-        $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
-        $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
-        $lastChatMaxId = $meta->getValue((int)$userId, 'last_chat_max_id');
-        $lastFilesMaxId = $meta->getValue((int)$userId, 'last_files_max_id');
-
-        // Get address list for netmail queries
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $myAddresses = $binkpConfig->getMyAddresses();
-            $myAddresses[] = $binkpConfig->getSystemAddress();
-        } catch (\Exception $e) {
-            $myAddresses = [];
-        }
-
-        // Total unread netmail
-        if (!empty($myAddresses)) {
-            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count
-                FROM netmail n
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE mrs.read_at IS NULL
-                  AND (
-                    n.user_id = ?
-                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                  )
-            ");
-            $params = [$userId, $userId, $user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses);
-            $unreadStmt->execute($params);
-        } else {
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count
-                FROM netmail n
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL
-            ");
-            $unreadStmt->execute([$userId, $userId]);
-        }
-        $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
-
-        // Total unread echomail
-        $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
-        $unreadEchomailStmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM echomail em
-            INNER JOIN echoareas e ON em.echoarea_id = e.id
-            INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND ues.is_active = TRUE{$sysopUnreadFilter}
-        ");
-        $unreadEchomailStmt->execute([$userId, $userId]);
-        $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
-
-        // New chat messages since last seen max ID (avoids full table scan)
-        if ($lastChatMaxId === null) {
-            // Not yet initialized — baseline to current max so no false badge on first load
-            $maxStmt = $db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM chat_messages");
-            $chatMaxId = (int)($maxStmt->fetch()['max_id'] ?? 0);
-            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$chatMaxId);
-            $chatBadge = 0;
-        } else {
-            $lastChatMaxId = (int)$lastChatMaxId;
-            $chatStmt = $db->prepare("
-                SELECT COUNT(*) as new_count, COALESCE(MAX(m.id), ?) as max_id
-                FROM chat_messages m
-                LEFT JOIN chat_rooms r ON m.room_id = r.id
-                WHERE m.id > ?
-                  AND m.from_user_id != ?
-                  AND (
-                      (m.room_id IS NOT NULL AND r.is_active = TRUE)
-                      OR m.to_user_id = ?
-                  )
-            ");
-            $chatStmt->execute([$lastChatMaxId, $lastChatMaxId, $userId, $userId]);
-            $chatRow = $chatStmt->fetch();
-            $chatBadge = (int)$chatRow['new_count'];
-            $chatMaxId = (int)$chatRow['max_id'];
-        }
-
-        // New file notifications only apply to shared/public file areas.
-        // A user's own private area should not trigger the general files badge.
-        $fileAreaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL)";
-
-        if ($lastFilesMaxId === null) {
-            $filesMaxStmt = $db->query("
-                SELECT COALESCE(MAX(f.id), 0) AS max_id
-                FROM files f
-                JOIN file_areas fa ON fa.id = f.file_area_id
-                WHERE {$fileAreaConditions}
-                  AND f.status = 'approved'
-                  AND f.source_type <> 'iso_subdir'
-            ");
-            $filesMaxId = (int)($filesMaxStmt->fetch()['max_id'] ?? 0);
-            $meta->setValue((int)$userId, 'last_files_max_id', (string)$filesMaxId);
-            $filesBadge = 0;
-            $totalFiles = 0;
-        } else {
-            $lastFilesMaxId = (int)$lastFilesMaxId;
-            $filesStmt = $db->prepare("
-                SELECT COUNT(*) AS new_count, COALESCE(MAX(f.id), ?) AS max_id
-                FROM files f
-                JOIN file_areas fa ON fa.id = f.file_area_id
-                WHERE {$fileAreaConditions}
-                  AND f.status = 'approved'
-                  AND f.source_type <> 'iso_subdir'
-                  AND f.id > ?
-            ");
-            $filesStmt->execute([$lastFilesMaxId, $lastFilesMaxId]);
-            $filesRow = $filesStmt->fetch();
-            $filesBadge = (int)($filesRow['new_count'] ?? 0);
-            $filesMaxId = (int)($filesRow['max_id'] ?? $lastFilesMaxId);
-
-            $totalFilesStmt = $db->query("
-                SELECT COUNT(*) AS count
-                FROM files f
-                JOIN file_areas fa ON fa.id = f.file_area_id
-                WHERE {$fileAreaConditions}
-                  AND f.status = 'approved'
-                  AND f.source_type <> 'iso_subdir'
-            ");
-            $totalFiles = (int)($totalFilesStmt->fetch()['count'] ?? 0);
-        }
-
-        // Notification badge shows ONLY if count increased
-        $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
-        $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
-
-        // Get user's credit balance
-        $creditBalance = 0;
-        if (\BinktermPHP\UserCredit::isEnabled()) {
-            try {
-                $creditBalance = \BinktermPHP\UserCredit::getBalance($userId);
-            } catch (\Exception $e) {
-                $creditBalance = 0;
-            }
-        }
-
-        echo json_encode([
-            'unread_netmail' => $netmailBadge,
-            'new_echomail' => $echomailBadge,
-            'chat_total' => $chatBadge,
-            'new_files' => $filesBadge,
-            'total_netmail' => $unreadNetmail,
-            'total_echomail' => $unreadEchomail,
-            'chat_max_id' => $chatMaxId,
-            'files_max_id' => $filesMaxId,
-            'total_files' => $totalFiles,
-            'credit_balance' => $creditBalance
-        ]);
+        echo json_encode((new \BinktermPHP\DashboardStatsService($db))->getStats($user));
     });
 
     SimpleRouter::get('/polls/active', function() {
@@ -1771,15 +1616,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $isAdmin     = !empty($user['is_admin']);
 
         $db = \BinktermPHP\Database::getInstance()->getPdo();
-
-        /**
-         * Returns the highest sse_events.id currently in the table.
-         * Cheap index-only scan on the BIGSERIAL PK.
-         */
-        $getMaxSseId = function() use ($db): int {
-            $row = $db->query("SELECT COALESCE(MAX(id), 0) AS max_id FROM sse_events")->fetch(\PDO::FETCH_ASSOC);
-            return (int)($row['max_id'] ?? 0);
-        };
+        $streamService = new \BinktermPHP\Realtime\StreamService($db);
 
         // Prime proxy/filter buffers so the first real SSE event is not held
         // waiting for Apache to accumulate a larger brigade.
@@ -1796,10 +1633,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Only first-connect (cursor=0) should anchor to the current max id.
         // On reconnect, advancing lastEventId before catch-up delivery risks
         // skipping backlog if the connection dies mid-batch.
-        $anchorId = ($lastEventId > 0) ? $lastEventId : $getMaxSseId();
+        $anchorId = $streamService->getAnchorCursor($lastEventId);
         echo "id: {$anchorId}\n";
         echo "event: connected\n";
-        echo "data: " . json_encode(['user_id' => $userId, 'cursor' => $anchorId]) . "\n\n";
+        echo "data: " . json_encode($streamService->getConnectedPayload($user, $anchorId)) . "\n\n";
 
         /**
          * Fetch and emit sse_events with id > $fromId for this user.
@@ -1814,26 +1651,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
          * so new event types are delivered automatically without modifying this
          * query — just insert a row with the correct user_id/admin_only flags.
          */
-        $deliverEvents = function(int $fromId) use ($db, $userId, $isAdmin, &$lastEventId): void {
-            // $isAdmin is from the session (trusted), safe to inline as a SQL literal
-            // to avoid PostgreSQL type errors when binding PHP booleans via PDO.
-            $adminLiteral = $isAdmin ? 'TRUE' : 'FALSE';
-            $stmt = $db->prepare("
-                SELECT id AS sse_id, event_type, payload::text AS event_data
-                FROM sse_events
-                WHERE id > ?
-                  AND (user_id IS NULL OR user_id = ?)
-                  AND (admin_only = FALSE OR admin_only = $adminLiteral)
-                ORDER BY id ASC
-                LIMIT 200
-            ");
-            $stmt->execute([$fromId, $userId]);
+        $deliverEvents = function(int $fromId) use ($streamService, $user, &$lastEventId): void {
             $emitted = 0;
-            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-                echo "id: " . (int)$row['sse_id'] . "\n";
-                echo "event: " . $row['event_type'] . "\n";
-                echo "data: " . $row['event_data'] . "\n\n";
-                $lastEventId = (int)$row['sse_id'];
+            foreach ($streamService->fetchEventsSince($user, $fromId) as $event) {
+                echo "id: " . $event['id'] . "\n";
+                echo "event: " . $event['event'] . "\n";
+                echo "data: " . $event['data'] . "\n\n";
+                $lastEventId = (int)$event['id'];
                 $emitted++;
 
                 // Large catch-up bursts are where Apache most often coalesces
@@ -1871,25 +1695,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         //
         // Interim Apache mitigation: unless the sysop explicitly sets
         // SSE_WINDOW_SECONDS, default to a short 2-second window only when
-        // the app is running behind Apache and SSE_TRANSPORT_MODE=auto.
+        // the app is running behind Apache and BINKSTREAM_TRANSPORT_MODE=auto.
         // This preserves the SSE interface while reducing how long Apache can
         // buffer a single response before the connection closes.
-        $configuredTransportMode = strtolower(trim((string)Config::env('SSE_TRANSPORT_MODE', 'auto')));
-        if (!in_array($configuredTransportMode, ['auto', 'sse'], true)) {
-            $configuredTransportMode = 'auto';
-        }
-        $serverSoftware = strtolower((string)($_SERVER['SERVER_SOFTWARE'] ?? ''));
-        $isApacheServer = str_contains($serverSoftware, 'apache');
-        $configuredWindow = Config::env('SSE_WINDOW_SECONDS', null);
-        $defaultWindowSeconds = ($isApacheServer && $configuredTransportMode === 'auto') ? 2 : 60;
-        $windowSeconds     = $isDevServer ? 0 : (int)($configuredWindow ?? $defaultWindowSeconds);
+        $windowSeconds     = $streamService->resolveWindowSeconds($isDevServer);
         $pollSleep         = 200000; // 200 ms
         $deadline          = microtime(true) + $windowSeconds;
         $lastHeartbeat     = microtime(true);
         $heartbeatInterval = 15; // seconds between keepalive comments
 
         while (microtime(true) < $deadline && !connection_aborted()) {
-            $maxId = $getMaxSseId();
+            $maxId = $streamService->getMaxSseId();
             if ($maxId > $lastEventId) {
                 $deliverEvents($lastEventId);
                 flush();
@@ -1910,6 +1726,45 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // reconnect here would trigger an immediate no-delay reconnect loop.
         if (!$isDevServer) {
             echo "event: reconnect\ndata: {}\n\n";
+        }
+    });
+
+    SimpleRouter::post('/stream', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            apiError(
+                'errors.realtime.invalid_payload',
+                apiLocalizedText('errors.realtime.invalid_payload', 'Invalid realtime command payload', $user),
+                400
+            );
+            return;
+        }
+
+        $command = strtolower(trim((string)($input['command'] ?? '')));
+        $payload = $input['payload'] ?? [];
+        if ($command === '' || !is_array($payload)) {
+            apiError(
+                'errors.realtime.invalid_payload',
+                apiLocalizedText('errors.realtime.invalid_payload', 'Invalid realtime command payload', $user),
+                400
+            );
+            return;
+        }
+
+        try {
+            $db = Database::getInstance()->getPdo();
+            $result = (new \BinktermPHP\Realtime\CommandDispatcher($db))->dispatch($user, $command, $payload);
+            echo json_encode($result);
+        } catch (\RuntimeException $e) {
+            apiError(
+                'errors.realtime.unknown_command',
+                apiLocalizedText('errors.realtime.unknown_command', 'Unknown realtime command', $user),
+                400
+            );
         }
     });
 
