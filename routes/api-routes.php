@@ -1847,7 +1847,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // On the PHP built-in dev server (single-threaded) the window is 0 —
         // we release the worker immediately after any catch-up delivery.
 
-        $windowSeconds = $isDevServer ? 0 : 2;
+        $windowSeconds = $isDevServer ? 0 : (int)Config::env('SSE_WINDOW_SECONDS', 2);
         $pollSleep     = 200000; // 200 ms
         $deadline      = microtime(true) + $windowSeconds;
 
