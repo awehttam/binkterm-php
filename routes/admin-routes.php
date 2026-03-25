@@ -6541,6 +6541,69 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
         echo json_encode($result);
     });
 
+    /** Keyword-classify a single echo area (fast, no AI). */
+    SimpleRouter::get('/interests/echoarea/{id}/classify', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        try {
+            $result = (new \BinktermPHP\InterestGenerator())->classifyOne((int)$id, false);
+            echo json_encode($result);
+        } catch (\RuntimeException $e) {
+            http_response_code(404);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    /** AI-classify a single echo area (slower, uses configured AI provider). */
+    SimpleRouter::post('/interests/echoarea/{id}/classify-ai', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        try {
+            $result = (new \BinktermPHP\InterestGenerator())->classifyOne((int)$id, true);
+            echo json_encode($result);
+        } catch (\RuntimeException $e) {
+            http_response_code(404);
+            echo json_encode(['error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    /** Add a single echo area to an interest (non-destructive). */
+    SimpleRouter::post('/interests/{id}/echoareas/add', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        $data       = json_decode(file_get_contents('php://input'), true) ?? [];
+        $echoareaId = (int)($data['echoarea_id'] ?? 0);
+        if (!$echoareaId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'echoarea_id required']);
+            return;
+        }
+        $manager  = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Interest not found']);
+            return;
+        }
+        $manager->addEchoarea((int)$id, $echoareaId);
+        echo json_encode(['ok' => true]);
+    });
+
 });
 
 

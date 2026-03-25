@@ -58,6 +58,7 @@
                             <th>Tag</th>
                             <th>Description</th>
                             <th>Active</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="unassignedTableBody"></tbody>
@@ -278,6 +279,56 @@
 </style>
 
 <!-- =========================================================
+     Classify Echo Area Modal
+     ========================================================= -->
+<div class="modal fade" id="classifyModal" tabindex="-1" aria-labelledby="classifyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="classifyModalLabel"><i class="fas fa-tag me-2"></i>Classify Echo Area</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <code id="classifyTag" class="fs-6"></code>
+                    <div class="text-muted small mt-1" id="classifyDesc"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-uppercase text-muted">Keyword Classification</label>
+                    <div id="classifyKwStatus">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>Classifying…
+                    </div>
+                </div>
+
+                <div class="mb-3" id="classifyAiSection">
+                    <label class="form-label fw-semibold small text-uppercase text-muted">AI Classification</label>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button class="btn btn-sm btn-outline-secondary" id="classifyAiBtn" onclick="runAiClassify()">
+                            <i class="fas fa-wand-magic-sparkles me-1"></i>Classify with AI
+                        </button>
+                        <span id="classifyAiStatus"></span>
+                    </div>
+                </div>
+
+                <div class="mb-1">
+                    <label for="classifyInterestSelect" class="form-label fw-semibold small text-uppercase text-muted">Assign to Interest</label>
+                    <select class="form-select" id="classifyInterestSelect">
+                        <option value="">— Select an interest —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="classifyAssignBtn" onclick="assignToInterest()">
+                    <i class="fas fa-check me-1"></i>Assign
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
      Icon Picker Modal
      ========================================================= -->
 <div class="modal fade" id="iconPickerModal" tabindex="-1" aria-labelledby="iconPickerModalLabel" aria-hidden="true">
@@ -309,6 +360,7 @@ const PALETTE = [
 
 let allEchoareas = [];
 let allFileareas = [];
+let allInterests = [];
 let wizardSuggestions = [];  // current preview suggestions (may be edited/discarded)
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -391,6 +443,7 @@ function renderUnassignedPanel() {
         <td><code>${escapeHtml(a.tag)}</code></td>
         <td>${escapeHtml(a.description || '')}</td>
         <td>${a.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-primary" onclick="openClassifyModal(${a.id})"><i class="fas fa-tag me-1"></i>Classify</button></td>
     </tr>`).join('');
     table.classList.remove('d-none');
 }
@@ -431,7 +484,10 @@ function escapeHtml(str) {
 function loadInterests() {
     fetch('/api/admin/interests')
         .then(r => r.json())
-        .then(data => renderInterestsTable(data))
+        .then(data => {
+            allInterests = Array.isArray(data) ? data : [];
+            renderInterestsTable(data);
+        })
         .catch(() => showAlert('Failed to load interests.', 'danger'));
 }
 
@@ -974,6 +1030,137 @@ async function saveAllSuggestions() {
     document.getElementById('wizardDoneMsg').textContent = msg;
     showWizardStep(4);
     loadInterests();
+}
+
+// ---- Classify Echo Area modal --------------------------------------------
+
+let classifyEchoareaId = null;
+
+function openClassifyModal(echoareaId) {
+    const area = (unassignedData?.areas || []).find(a => a.id === echoareaId);
+    if (!area) return;
+    classifyEchoareaId = echoareaId;
+
+    document.getElementById('classifyTag').textContent = area.tag;
+    document.getElementById('classifyDesc').textContent = area.description || '';
+    document.getElementById('classifyModalLabel').innerHTML =
+        '<i class="fas fa-tag me-2"></i>Classify: ' + escHtml(area.tag);
+
+    // Reset state
+    document.getElementById('classifyKwStatus').innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Classifying…';
+    document.getElementById('classifyAiStatus').innerHTML = '';
+    document.getElementById('classifyAiBtn').disabled = false;
+    document.getElementById('classifyAiSection').classList.remove('d-none');
+    document.getElementById('classifyAssignBtn').disabled = false;
+    document.getElementById('classifyAssignBtn').innerHTML = '<i class="fas fa-check me-1"></i>Assign';
+
+    // Populate interest selector
+    const select = document.getElementById('classifyInterestSelect');
+    select.innerHTML = '<option value="">— Select an interest —</option>' +
+        allInterests.map(i => `<option value="${i.id}">${escHtml(i.name)}</option>`).join('');
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('classifyModal')).show();
+
+    // Run keyword classification automatically
+    fetch(`/api/admin/interests/echoarea/${echoareaId}/classify`)
+        .then(r => r.json())
+        .then(data => {
+            renderKwResult(data);
+            if (!data.ai_available) {
+                document.getElementById('classifyAiSection').classList.add('d-none');
+            }
+            if (data.final_guess) {
+                autoSelectInterest(data.final_guess);
+            }
+        })
+        .catch(() => {
+            document.getElementById('classifyKwStatus').innerHTML =
+                '<span class="text-danger">Classification failed.</span>';
+        });
+}
+
+function renderKwResult(data) {
+    const el = document.getElementById('classifyKwStatus');
+    if (data.keyword_guess) {
+        const meta = data.category_meta || {};
+        el.innerHTML = `<span class="badge" style="background:${escHtml(meta.color || '#6c757d')}">
+            <i class="fas ${escHtml(meta.icon || 'fa-layer-group')} me-1"></i>${escHtml(data.keyword_guess)}
+        </span> <small class="text-muted">matched by keyword</small>`;
+    } else {
+        el.innerHTML = '<span class="text-muted fst-italic">No keyword match found</span>';
+    }
+}
+
+function autoSelectInterest(guessName) {
+    const select = document.getElementById('classifyInterestSelect');
+    const lower  = guessName.toLowerCase();
+    for (const opt of select.options) {
+        if (opt.text.toLowerCase() === lower) {
+            opt.selected = true;
+            return;
+        }
+    }
+}
+
+function runAiClassify() {
+    const btn    = document.getElementById('classifyAiBtn');
+    const status = document.getElementById('classifyAiStatus');
+    btn.disabled = true;
+    status.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Asking AI…';
+
+    fetch(`/api/admin/interests/echoarea/${classifyEchoareaId}/classify-ai`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ai_guess) {
+                const meta = data.category_meta || {};
+                status.innerHTML = `<span class="badge" style="background:${escHtml(meta.color || '#6c757d')}">
+                    <i class="fas ${escHtml(meta.icon || 'fa-layer-group')} me-1"></i>${escHtml(data.ai_guess)}
+                </span> <small class="text-muted">AI suggestion</small>`;
+                autoSelectInterest(data.ai_guess);
+            } else {
+                status.innerHTML = '<span class="text-muted fst-italic">AI could not classify this area</span>';
+            }
+        })
+        .catch(() => {
+            status.innerHTML = '<span class="text-danger">AI classification failed.</span>';
+            btn.disabled = false;
+        });
+}
+
+function assignToInterest() {
+    const interestId = document.getElementById('classifyInterestSelect').value;
+    if (!interestId) {
+        document.getElementById('classifyInterestSelect').focus();
+        return;
+    }
+    const btn = document.getElementById('classifyAssignBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Assigning…';
+
+    fetch(`/api/admin/interests/${interestId}/echoareas/add`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ echoarea_id: classifyEchoareaId }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('classifyModal')).hide();
+            refreshUnassigned();
+            loadInterests();
+            showAlert('Echo area assigned successfully.', 'success');
+        } else {
+            showAlert('Failed to assign: ' + escHtml(data.error || 'Unknown error'), 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Assign';
+        }
+    })
+    .catch(() => {
+        showAlert('Failed to assign echo area.', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Assign';
+    });
 }
 
 // ---- Utility -------------------------------------------------------------

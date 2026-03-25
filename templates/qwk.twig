@@ -167,6 +167,55 @@
                         <p>
                             {{ t('ui.qwk.basic_auth.auth', {}, 'common') }}
                         </p>
+
+                        <div class="card mb-3 border-secondary">
+                            <div class="card-header py-2 fw-semibold text-body">
+                                <i class="fas fa-plug me-2"></i>Reader Connection Settings
+                            </div>
+                            <div class="card-body py-2">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-nowrap fw-semibold" style="width:130px">Download URL</td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control font-monospace" readonly
+                                                           value="{{ site_url }}/qwk/download"
+                                                           id="qwkDownloadUrl">
+                                                    <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="copyQwkUrl('qwkDownloadUrl', this)" title="Copy">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Upload URL</td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control font-monospace" readonly
+                                                           value="{{ site_url }}/qwk/upload"
+                                                           id="qwkUploadUrl">
+                                                    <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="copyQwkUrl('qwkUploadUrl', this)" title="Copy">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Username</td>
+                                            <td class="text-muted small align-middle">Your BBS username</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Password</td>
+                                            <td class="text-muted small align-middle">Your BBS password</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                         <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.download_label', {}, 'common') }}</p>
                         <pre><code>curl -u username:password -o mail.qwk "{{ site_url }}/qwk/download?format=qwk&amp;limit=2500"</code></pre>
                         <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.upload_label', {}, 'common') }}</p>
@@ -257,6 +306,55 @@
                         <p>
                             {{ t('ui.qwk.basic_auth.auth', {}, 'common') }}
                         </p>
+
+                        <div class="card mb-3 border-secondary">
+                            <div class="card-header py-2 fw-semibold text-body">
+                                <i class="fas fa-plug me-2"></i>Reader Connection Settings
+                            </div>
+                            <div class="card-body py-2">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-nowrap fw-semibold" style="width:130px">Download URL</td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control font-monospace" readonly
+                                                           value="{{ site_url }}/qwk/download"
+                                                           id="qwkDownloadUrl">
+                                                    <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="copyQwkUrl('qwkDownloadUrl', this)" title="Copy">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Upload URL</td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control font-monospace" readonly
+                                                           value="{{ site_url }}/qwk/upload"
+                                                           id="qwkUploadUrl">
+                                                    <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="copyQwkUrl('qwkUploadUrl', this)" title="Copy">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Username</td>
+                                            <td class="text-muted small align-middle">Your BBS username</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Password</td>
+                                            <td class="text-muted small align-middle">Your BBS password</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                         <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.download_label', {}, 'common') }}</p>
                         <pre><code>curl -u username:password -o mail.qwk "{{ site_url }}/qwk/download?format=qwk&amp;limit=2500"</code></pre>
                         <p class="mb-2 fw-semibold">{{ t('ui.qwk.basic_auth.upload_label', {}, 'common') }}</p>
@@ -592,6 +690,16 @@ function initFormatRadios() {
                 body: JSON.stringify({ format: format })
             });
         });
+    });
+}
+
+function copyQwkUrl(inputId, btn) {
+    const val = document.getElementById(inputId)?.value;
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+        setTimeout(() => { btn.innerHTML = orig; }, 1500);
     });
 }
 

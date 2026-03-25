@@ -440,6 +440,23 @@ class InterestManager
     }
 
     /**
+     * Add a single echo area to an interest without replacing the existing list.
+     * Safe to call if the area is already assigned (idempotent via ON CONFLICT DO NOTHING).
+     * Propagates the new area to existing interest subscribers.
+     */
+    public function addEchoarea(int $interestId, int $echoareaId): void
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO interest_echoareas (interest_id, echoarea_id)
+            VALUES (?, ?)
+            ON CONFLICT DO NOTHING
+        ");
+        $stmt->execute([$interestId, $echoareaId]);
+
+        $this->propagateNewEchoareasToSubscribers($interestId, [$echoareaId]);
+    }
+
+    /**
      * Atomically replace all echo areas for an interest.
      * After replacing, propagates new areas to existing interest subscribers.
      *

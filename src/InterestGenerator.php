@@ -463,6 +463,45 @@ PROMPT;
         }
     }
 
+    /**
+     * Classify a single echo area by keyword heuristics and optionally AI.
+     *
+     * @return array{area:array<string,mixed>,keyword_guess:string|null,ai_guess:string|null,final_guess:string|null,category_meta:array{icon:string,color:string},ai_available:bool}
+     * @throws \RuntimeException if the echo area is not found
+     */
+    public function classifyOne(int $echoareaId, bool $useAi = false): array
+    {
+        $stmt = $this->db->prepare("SELECT id, tag, description, domain FROM echoareas WHERE id = ?");
+        $stmt->execute([$echoareaId]);
+        $area = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$area) {
+            throw new \RuntimeException('Echo area not found.');
+        }
+
+        $kwResults  = $this->classifyByKeyword([$area]);
+        $kwCategory = $kwResults[$area['tag']]['category'] ?? null;
+
+        $aiCategory = null;
+        if ($useAi && $this->isAiAvailable()) {
+            $aiResults  = $this->classifyByAi([$area]);
+            $aiCategory = $aiResults[$area['tag']] ?? null;
+        }
+
+        $finalCategory = $aiCategory ?? $kwCategory;
+        $catMeta       = $finalCategory
+            ? $this->getCategoryMeta($finalCategory)
+            : ['icon' => 'fa-layer-group', 'color' => '#6c757d'];
+
+        return [
+            'area'          => $area,
+            'keyword_guess' => $kwCategory,
+            'ai_guess'      => $aiCategory,
+            'final_guess'   => $finalCategory,
+            'category_meta' => $catMeta,
+            'ai_available'  => $this->isAiAvailable(),
+        ];
+    }
+
     private function isAiAvailable(): bool
     {
         return !empty($this->aiService->getConfiguredProviders());
