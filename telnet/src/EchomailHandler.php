@@ -102,8 +102,16 @@ class EchomailHandler
         $perPage = MailUtils::getMessagesPerPage($state);
 
         // ── Interest picker ───────────────────────────────────────────────────
-        $resp      = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/interests', null, $session);
-        $interests = $resp['data']['interests'] ?? [];
+        $userId        = (int)($state['user_id'] ?? 0);
+        $interestMgr   = new \BinktermPHP\InterestManager();
+        $interests     = $interestMgr->getInterests(true);
+        $subscribedIds = $userId > 0
+            ? array_flip($interestMgr->getUserSubscribedInterestIds($userId))
+            : [];
+        foreach ($interests as &$_i) {
+            $_i['subscribed'] = isset($subscribedIds[(int)$_i['id']]);
+        }
+        unset($_i);
 
         if (empty($interests)) {
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");

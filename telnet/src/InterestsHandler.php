@@ -6,8 +6,10 @@ namespace BinktermPHP\TelnetServer;
  * InterestsHandler — Interests browsing and subscription management for the telnet server.
  *
  * Presents active interests as a numbered list. Users can subscribe, unsubscribe,
- * and view the echo areas included in each interest. All business logic is
- * delegated to the existing /api/interests/* endpoints.
+ * and view the echo areas included in each interest. Interest lists and subscription
+ * status are read directly from the database via InterestManager (more reliable than
+ * HTTP API cookie auth from a server process). Write operations (subscribe/unsubscribe)
+ * are still delegated to the /api/interests/* endpoints.
  */
 class InterestsHandler
 {
@@ -28,7 +30,8 @@ class InterestsHandler
     public function show($conn, array &$state, string $session): void
     {
         while (true) {
-            $interests = $this->fetchInterests($session);
+            $userId    = (int)($state['user_id'] ?? 0);
+            $interests = $this->fetchInterests($userId);
             $locale    = $state['locale'];
 
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
@@ -105,10 +108,11 @@ class InterestsHandler
     {
         $locale = $state['locale'];
         $id     = (int)($interest['id'] ?? 0);
+        $userId = (int)($state['user_id'] ?? 0);
 
         while (true) {
             // Refresh subscription status on each loop
-            $fresh = $this->fetchInterest($session, $id);
+            $fresh = $this->fetchInterest($userId, $id);
             if ($fresh === null) {
                 return;
             }
@@ -256,18 +260,32 @@ class InterestsHandler
         $this->server->readKeyWithIdleCheck($conn, $state);
     }
 
-    // ── API helpers ───────────────────────────────────────────────────────────
+    // ── DB helpers ────────────────────────────────────────────────────────────
 
-    private function fetchInterests(string $session): array
+    /**
+     * Fetch all active interests with the `subscribed` flag for the given user.
+     * Queries the database directly to avoid HTTP cookie-auth fragility.
+     */
+    private function fetchInterests(int $userId): array
     {
-        $resp = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/interests', null, $session);
-        return $resp['data']['interests'] ?? [];
+        $manager       = new \BinktermPHP\InterestManager();
+        $interests     = $manager->getInterests(true);
+        $subscribedIds = $userId > 0
+            ? array_flip($manager->getUserSubscribedInterestIds($userId))
+            : [];
+        foreach ($interests as &$i) {
+            $i['subscribed'] = isset($subscribedIds[(int)$i['id']]);
+        }
+        unset($i);
+        return $interests;
     }
 
-    private function fetchInterest(string $session, int $id): ?array
+    /**
+     * Return a single interest by ID with the `subscribed` flag set for $userId.
+     */
+    private function fetchInterest(int $userId, int $id): ?array
     {
-        $interests = $this->fetchInterests($session);
-        foreach ($interests as $interest) {
+        foreach ($this->fetchInterests($userId) as $interest) {
             if ((int)($interest['id'] ?? 0) === $id) {
                 return $interest;
             }
@@ -284,7 +302,8 @@ class InterestsHandler
     public function showOnboardingHintIfNeeded($conn, array &$state, string $session): void
     {
         $locale    = $state['locale'];
-        $interests = $this->fetchInterests($session);
+        $userId    = (int)($state['user_id'] ?? 0);
+        $interests = $this->fetchInterests($userId);
         if (empty($interests)) {
             return;
         }
