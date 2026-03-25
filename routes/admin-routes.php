@@ -629,7 +629,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ob_end_clean();
         }
         ob_implicit_flush(true);
-        ignore_user_abort(true);
+        // Do NOT set ignore_user_abort — we want the loop to exit when the
+        // client closes the connection so Stop actually stops the stream.
 
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
@@ -638,18 +639,32 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $count = max(3, min(20, (int)($_GET['count'] ?? 8)));
 
+        // Padding comment: force upstream proxy buffers to flush immediately.
+        // Some proxies hold the first chunk until they accumulate enough bytes
+        // to decide on Transfer-Encoding; 2 KB of SSE comment fills those buffers.
+        echo ':' . str_repeat(' ', 2048) . "\n\n";
+        flush();
+
         for ($i = 0; $i < $count; $i++) {
+            if (connection_aborted()) {
+                break;
+            }
             $ts = (int)round(microtime(true) * 1000);
             echo "event: tick\n";
             echo "data: " . json_encode(['seq' => $i, 'total' => $count, 'server_ts' => $ts]) . "\n\n";
             flush();
             if ($i < $count - 1) {
                 sleep(1);
+                if (connection_aborted()) {
+                    break;
+                }
             }
         }
 
-        echo "event: done\ndata: {}\n\n";
-        flush();
+        if (!connection_aborted()) {
+            echo "event: done\ndata: {}\n\n";
+            flush();
+        }
     });
 
     // Activity statistics page
