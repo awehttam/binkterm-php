@@ -554,7 +554,7 @@ This section helps you right-size your server and tune Apache, PHP-FPM, and Post
 
 ### How SSE Affects php-fpm Worker Count
 
-BinktermPHP uses a short-lived SSE polling model: each open browser tab calls `/api/stream`, which holds a php-fpm worker for up to `SSE_WINDOW_SECONDS` (default: **2 seconds**), delivers any pending events, then closes. The tab's SharedWorker reconnects immediately. The practical effect is that **every active browser tab occupies one php-fpm worker continuously**.
+BinktermPHP uses a long-lived SSE model: the SharedWorker calls `/api/stream`, which holds a php-fpm worker open for `SSE_WINDOW_SECONDS` (default: **60 seconds**), delivering events as they arrive. A keepalive comment is sent every 15 seconds to prevent proxy timeouts. When the window expires the connection is cleanly closed and the SharedWorker reconnects immediately. The practical effect is that **every online user occupies one php-fpm worker continuously**.
 
 This makes `pm.max_children` the most important tuning knob on the system. If all workers are occupied by SSE connections, regular page loads and API calls will queue — or fail entirely.
 
