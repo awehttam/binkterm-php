@@ -368,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadEchoareas();
     loadFileareas();
     loadUnassignedEchoareas();
+    toggleUnassigned(); // expanded by default
     buildColorPalette('colorPalette', 'interestColor', '#6c757d');
 
     document.getElementById('interestIcon').addEventListener('input', function() {
@@ -1147,9 +1148,11 @@ function assignToInterest() {
     .then(data => {
         if (data.ok) {
             bootstrap.Modal.getInstance(document.getElementById('classifyModal')).hide();
+            const savedScroll = window.scrollY;
             refreshUnassigned();
             loadInterests();
             showAlert('Echo area assigned successfully.', 'success');
+            requestAnimationFrame(() => window.scrollTo({ top: savedScroll, behavior: 'instant' }));
         } else {
             showAlert('Failed to assign: ' + escHtml(data.error || 'Unknown error'), 'danger');
             btn.disabled = false;
