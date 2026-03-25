@@ -1838,66 +1838,38 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // ── Production: hold the connection open ─────────────────────────────
         //
-        // Open a raw pg connection so we can LISTEN on the binkstream channel
-        // directly. pg_get_notify() is non-blocking; we sleep 200 ms between
-        // checks giving ~100 ms average delivery latency.
+        // Polls the admin daemon via a single persistent TCP connection.
+        // The daemon already holds the LISTEN binkstream pg connection, so we
+        // avoid opening any additional database connections here.
         //
-        // The connection is held for up to MAX_RUNTIME seconds, then closed with
-        // event:reconnect so the SharedWorker seamlessly re-anchors.
+        // Workers are held for at most MAX_RUNTIME seconds (default 60 s) before
+        // sending event:reconnect. The SharedWorker re-anchors seamlessly.
+        // Short max-runtime keeps PHP-FPM workers cycling regularly.
 
-        $pgConn = null;
-        if (function_exists('pg_connect')) {
-            try {
-                $cfg     = \BinktermPHP\Config::getDatabaseConfig();
-                $connStr = sprintf(
-                    "host=%s port=%s dbname=%s user=%s password=%s",
-                    $cfg['host'], $cfg['port'], $cfg['database'],
-                    $cfg['username'], $cfg['password']
-                );
-                $pgConn = @pg_connect($connStr, PGSQL_CONNECT_FORCE_NEW);
-                if ($pgConn) {
-                    pg_query($pgConn, "LISTEN binkstream");
-                }
-            } catch (\Throwable $e) {
-                $pgConn = null;
-            }
-        }
-
-        $maxRuntime     = 300;           // 5 minutes; worker reconnects after
+        $maxRuntime     = 60;       // seconds before graceful reconnect
+        $pollSleep      = 200000;   // 200 ms between daemon polls
+        $heartbeatEvery = 5;        // seconds — also controls disconnect detection lag
         $startTime      = time();
         $lastHeartbeat  = time();
-        $heartbeatEvery = 15;            // seconds between keepalive comments
-        $pollSleep      = 200000;        // 200 ms in microseconds
 
-        set_time_limit($maxRuntime + 30);
+        set_time_limit($maxRuntime + 10);
+
+        $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
 
         while (!connection_aborted() && (time() - $startTime) < $maxRuntime) {
-            $hasNew = false;
-
-            if ($pgConn) {
-                // Non-blocking drain — each notify payload is a plain sse_events.id
-                while ($notify = @pg_get_notify($pgConn, PGSQL_ASSOC)) {
-                    $sseId = (int)($notify['payload'] ?? 0);
-                    if ($sseId > $lastEventId) {
-                        $hasNew = true;
-                    }
+            try {
+                $res    = $daemon->peekStreamEvents($lastEventId);
+                $maxId  = (int)($res['max_sse_event_id'] ?? 0);
+                if ($maxId > $lastEventId) {
+                    $deliverEvents($lastEventId);
                 }
-            } else {
-                // Fallback: ask the daemon (no raw pg available)
-                try {
-                    $daemon  = new \BinktermPHP\Admin\AdminDaemonClient();
-                    $res     = $daemon->getStreamEvents($lastEventId);
-                    $daemon->close();
-                    $hasNew  = ((int)($res['max_sse_event_id'] ?? 0)) > $lastEventId;
-                } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+                // Daemon went away — reconnect on next iteration
+                $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
             }
 
-            if ($hasNew) {
-                $deliverEvents($lastEventId);
-            }
-
-            // Heartbeat keeps TCP alive through proxies and lets PHP detect
-            // a disconnected client on the next write attempt.
+            // Heartbeat keeps TCP alive and lets PHP detect a disconnected
+            // client: connection_aborted() only updates after a write attempt.
             if (time() - $lastHeartbeat >= $heartbeatEvery) {
                 echo ": heartbeat\n\n";
                 $lastHeartbeat = time();
@@ -1906,9 +1878,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             usleep($pollSleep);
         }
 
-        if ($pgConn) {
-            @pg_close($pgConn);
-        }
+        $daemon->close();
 
         echo "event: reconnect\ndata: {}\n\n";
     });
