@@ -3068,6 +3068,19 @@ class MessageHandler
             }
         }
 
+        // Mask the subject on AreaFix/FileFix messages — the subject carries the
+        // robot password and must never be displayed in the UI.
+        if (isset($cleaned['subject'])) {
+            $toName   = strtolower($cleaned['to_name']   ?? '');
+            $fromName = strtolower($cleaned['from_name'] ?? '');
+            if (
+                str_contains($toName,   'areafix') || str_contains($toName,   'filefix') ||
+                str_contains($fromName, 'areafix') || str_contains($fromName, 'filefix')
+            ) {
+                $cleaned['subject'] = '••••••••';
+            }
+        }
+
         return $cleaned;
     }
 
