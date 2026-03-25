@@ -17,6 +17,7 @@
  *   --tls      Use TLS/HTTPS (sets default port to 443)
  *   --no-verify  Skip TLS certificate verification (for self-signed certs)
  *   --uri      Request URI to test (default: /)
+ *   --session  Use this session ID directly (skips DB lookup)
  *   --user     Username to use (pulls their most recent active session)
  *   --vhost    HTTP Host header value (default: claudes.lovelybits.org)
  *   --help     Show this help
@@ -66,9 +67,10 @@ $useTls     = isset($opts['tls']);
 $noVerify   = isset($opts['no-verify']);
 $apacheHost = $opts['host']  ?? '127.0.0.1';
 $apachePort = (int)($opts['port'] ?? ($useTls ? 443 : 81));
-$uri        = $opts['uri']   ?? '/';
-$vhost      = $opts['vhost'] ?? 'claudes.lovelybits.org';
-$wantUser   = $opts['user']  ?? null;
+$uri        = $opts['uri']     ?? '/';
+$vhost      = $opts['vhost']   ?? 'claudes.lovelybits.org';
+$wantUser   = $opts['user']    ?? null;
+$wantSessId = $opts['session'] ?? null;
 
 // ── Load .env ─────────────────────────────────────────────────────────────────
 
@@ -83,62 +85,70 @@ if (file_exists($envFile)) {
     }
 }
 
-$dbHost = $env['DB_HOST'] ?? 'localhost';
-$dbPort = $env['DB_PORT'] ?? '5432';
-$dbName = $env['DB_NAME'] ?? 'binktest';
-$dbUser = $env['DB_USER'] ?? 'binktest';
-$dbPass = $env['DB_PASS'] ?? '';
+// ── Resolve session ID ────────────────────────────────────────────────────────
 
-// ── Fetch session from DB ─────────────────────────────────────────────────────
-
-echo "Connecting to PostgreSQL {$dbHost}:{$dbPort}/{$dbName}...\n";
-
-try {
-    $dsn = "pgsql:host={$dbHost};port={$dbPort};dbname={$dbName}";
-    $db  = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (PDOException $e) {
-    die("DB connection failed: " . $e->getMessage() . "\n");
-}
-
-if ($wantUser !== null) {
-    $stmt = $db->prepare("
-        SELECT s.session_id, u.username, u.is_admin
-        FROM user_sessions s
-        JOIN users u ON s.user_id = u.id
-        WHERE LOWER(u.username) = LOWER(?)
-          AND s.expires_at > NOW()
-          AND s.service = 'web'
-          AND u.is_active = TRUE
-        ORDER BY s.last_activity DESC
-        LIMIT 1
-    ");
-    $stmt->execute([$wantUser]);
+if ($wantSessId !== null) {
+    // Use the supplied session ID directly — no DB needed
+    $sessionId = $wantSessId;
+    $username  = '(supplied)';
+    $isAdmin   = '';
+    echo "Using supplied session : " . substr($sessionId, 0, 16) . "...\n\n";
 } else {
-    $stmt = $db->query("
-        SELECT s.session_id, u.username, u.is_admin
-        FROM user_sessions s
-        JOIN users u ON s.user_id = u.id
-        WHERE s.expires_at > NOW()
-          AND s.service = 'web'
-          AND u.is_active = TRUE
-        ORDER BY s.last_activity DESC
-        LIMIT 1
-    ");
+    $dbHost = $env['DB_HOST'] ?? 'localhost';
+    $dbPort = $env['DB_PORT'] ?? '5432';
+    $dbName = $env['DB_NAME'] ?? 'binktest';
+    $dbUser = $env['DB_USER'] ?? 'binktest';
+    $dbPass = $env['DB_PASS'] ?? '';
+
+    echo "Connecting to PostgreSQL {$dbHost}:{$dbPort}/{$dbName}...\n";
+
+    try {
+        $dsn = "pgsql:host={$dbHost};port={$dbPort};dbname={$dbName}";
+        $db  = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    } catch (PDOException $e) {
+        die("DB connection failed: " . $e->getMessage() . "\n");
+    }
+
+    if ($wantUser !== null) {
+        $stmt = $db->prepare("
+            SELECT s.session_id, u.username, u.is_admin
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE LOWER(u.username) = LOWER(?)
+              AND s.expires_at > NOW()
+              AND s.service = 'web'
+              AND u.is_active = TRUE
+            ORDER BY s.last_activity DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$wantUser]);
+    } else {
+        $stmt = $db->query("
+            SELECT s.session_id, u.username, u.is_admin
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.expires_at > NOW()
+              AND s.service = 'web'
+              AND u.is_active = TRUE
+            ORDER BY s.last_activity DESC
+            LIMIT 1
+        ");
+    }
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        $who = $wantUser ? "user '{$wantUser}'" : "any active user";
+        die("No active web session found for {$who}. Log in via the browser first.\n");
+    }
+
+    $sessionId = $row['session_id'];
+    $username  = $row['username'];
+    $isAdmin   = $row['is_admin'] ? ' (admin)' : '';
+
+    echo "Using session for    : {$username}{$isAdmin}\n";
+    echo "Session ID           : " . substr($sessionId, 0, 16) . "...\n\n";
 }
-
-$row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$row) {
-    $who = $wantUser ? "user '{$wantUser}'" : "any active user";
-    die("No active web session found for {$who}. Log in via the browser first.\n");
-}
-
-$sessionId = $row['session_id'];
-$username  = $row['username'];
-$isAdmin   = $row['is_admin'] ? ' (admin)' : '';
-
-echo "Using session for    : {$username}{$isAdmin}\n";
-echo "Session ID           : " . substr($sessionId, 0, 16) . "...\n\n";
 
 // ── Build HTTP request ────────────────────────────────────────────────────────
 
