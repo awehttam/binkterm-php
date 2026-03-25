@@ -379,20 +379,6 @@ class AdminDaemonClient
         return $this->sendCommand('get_stream_events', ['since_id' => $sinceId]);
     }
 
-    /**
-     * Like getStreamEvents() but keeps the socket open after the call so the
-     * same connection can be reused on the next call. Used by the long-lived
-     * SSE loop to avoid reconnecting to the daemon on every poll iteration.
-     *
-     * Caller must call close() when the loop ends.
-     *
-     * @param  int $sinceId Last SSE event ID the client already has
-     * @return array{max_sse_event_id: int}
-     */
-    public function peekStreamEvents(int $sinceId = 0): array
-    {
-        return $this->sendCommandKeepAlive('get_stream_events', ['since_id' => $sinceId]);
-    }
 
     public function getMrcConfig(): array
     {
@@ -471,22 +457,6 @@ class AdminDaemonClient
         if (!($response['ok'] ?? false)) {
             throw new \RuntimeException('Admin daemon auth failed');
         }
-    }
-
-    /**
-     * Send a command and return the result without closing the socket.
-     * On failure, closes and rethrows so the caller can decide whether to retry.
-     */
-    private function sendCommandKeepAlive(string $cmd, array $data = []): array
-    {
-        $this->connect();
-        $this->writeLine(['cmd' => $cmd, 'data' => $data]);
-        $response = $this->readResponse();
-        if (!($response['ok'] ?? false)) {
-            $this->close();
-            throw new \RuntimeException('Admin daemon error: ' . ($response['error'] ?? 'unknown_error'));
-        }
-        return $response['result'] ?? [];
     }
 
     private function sendCommand(string $cmd, array $data = []): array

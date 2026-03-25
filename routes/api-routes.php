@@ -1736,6 +1736,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
 
+        // Release the session lock immediately. index.php calls session_start()
+        // for every request; holding it open for the duration of a long-polling
+        // SSE connection blocks all subsequent requests from the same browser
+        // (they all queue on session_start() waiting for the lock).
+        session_write_close();
+
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('X-Accel-Buffering: no');
@@ -1828,57 +1834,37 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $deliverEvents($lastEventId);
         }
 
-        if ($isDevServer) {
-            // PHP's built-in server is single-threaded: a long-lived connection
-            // would block all other requests. Close immediately and let the
-            // SharedWorker reconnect — each cycle is ~5 ms so it stays responsive.
-            echo "event: reconnect\ndata: {}\n\n";
-            return;
-        }
-
-        // ── Production: hold the connection open ─────────────────────────────
+        // ── Short window loop ─────────────────────────────────────────────────
         //
-        // Polls the admin daemon via a single persistent TCP connection.
-        // The daemon already holds the LISTEN binkstream pg connection, so we
-        // avoid opening any additional database connections here.
+        // Hold the Apache/PHP-FPM worker for at most WINDOW_SECONDS, polling
+        // the daemon every 200 ms for new events. As soon as an event arrives
+        // (or the window expires) we send event:reconnect and release the worker.
         //
-        // Workers are held for at most MAX_RUNTIME seconds (default 60 s) before
-        // sending event:reconnect. The SharedWorker re-anchors seamlessly.
-        // Short max-runtime keeps PHP-FPM workers cycling regularly.
+        // This keeps each worker busy for ≤ WINDOW_SECONDS rather than minutes,
+        // so Apache's MaxRequestWorkers limit is not exhausted by SSE connections.
+        // The SharedWorker reconnects immediately, giving ~100 ms average latency.
+        //
+        // On the PHP built-in dev server (single-threaded) the window is 0 —
+        // we release the worker immediately after any catch-up delivery.
 
-        $maxRuntime     = 60;       // seconds before graceful reconnect
-        $pollSleep      = 200000;   // 200 ms between daemon polls
-        $heartbeatEvery = 5;        // seconds — also controls disconnect detection lag
-        $startTime      = time();
-        $lastHeartbeat  = time();
+        $windowSeconds = $isDevServer ? 0 : 2;
+        $pollSleep     = 200000; // 200 ms
+        $deadline      = microtime(true) + $windowSeconds;
 
-        set_time_limit($maxRuntime + 10);
-
-        $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
-
-        while (!connection_aborted() && (time() - $startTime) < $maxRuntime) {
+        while (microtime(true) < $deadline && !connection_aborted()) {
             try {
-                $res    = $daemon->peekStreamEvents($lastEventId);
-                $maxId  = (int)($res['max_sse_event_id'] ?? 0);
+                $res   = (new \BinktermPHP\Admin\AdminDaemonClient())->getStreamEvents($lastEventId);
+                $maxId = (int)($res['max_sse_event_id'] ?? 0);
                 if ($maxId > $lastEventId) {
                     $deliverEvents($lastEventId);
+                    break; // delivered — reconnect immediately so worker is freed
                 }
             } catch (\Throwable $e) {
-                // Daemon went away — reconnect on next iteration
-                $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
-            }
-
-            // Heartbeat keeps TCP alive and lets PHP detect a disconnected
-            // client: connection_aborted() only updates after a write attempt.
-            if (time() - $lastHeartbeat >= $heartbeatEvery) {
-                echo ": heartbeat\n\n";
-                $lastHeartbeat = time();
+                break; // daemon unavailable — reconnect
             }
 
             usleep($pollSleep);
         }
-
-        $daemon->close();
 
         echo "event: reconnect\ndata: {}\n\n";
     });
