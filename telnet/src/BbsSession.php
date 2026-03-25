@@ -345,6 +345,7 @@ class BbsSession
         $auth       = new \BinktermPHP\Auth();
         $userRecord = $auth->validateSession($session);
         $state['is_admin'] = !empty($userRecord['is_admin']);
+        $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
 
         $this->clearFailedLogins($peerIp);
 
@@ -362,12 +363,14 @@ class BbsSession
         $config = BinkpConfig::getInstance();
         $this->setTerminalTitle($conn, $config->getSystemName());
 
-        $netmailHandler  = new NetmailHandler($this, $this->apiBase);
-        $echomailHandler = new EchomailHandler($this, $this->apiBase);
-        $shoutboxHandler = new ShoutboxHandler($this, $this->apiBase);
-        $pollsHandler    = new PollsHandler($this, $this->apiBase);
-        $doorHandler     = new DoorHandler($this, $this->apiBase);
-        $fileHandler     = new FileHandler($this, $this->apiBase, $this->isSsh);
+        $netmailHandler    = new NetmailHandler($this, $this->apiBase);
+        $echomailHandler   = new EchomailHandler($this, $this->apiBase);
+        $shoutboxHandler   = new ShoutboxHandler($this, $this->apiBase);
+        $pollsHandler      = new PollsHandler($this, $this->apiBase);
+        $doorHandler       = new DoorHandler($this, $this->apiBase);
+        $fileHandler       = new FileHandler($this, $this->apiBase, $this->isSsh);
+        $interestsHandler  = new InterestsHandler($this, $this->apiBase);
+        $qwkHandler        = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
 
         // Load saved terminal settings and apply them to the session
         $terminalSettingsHandler = new TerminalSettingsHandler($this, $this->apiBase);
@@ -379,6 +382,10 @@ class BbsSession
         }
 
         $shoutboxHandler->show($conn, $state, $session, 5, false);
+
+        if (Config::env('ENABLE_INTERESTS') === 'true') {
+            $interestsHandler->showOnboardingHintIfNeeded($conn, $state, $session);
+        }
 
         $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
 
@@ -431,11 +438,13 @@ class BbsSession
                 $this->writeLine($conn, $menuPad . $titleLine);
                 $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
 
-                $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
-                $showPolls    = BbsConfig::isFeatureEnabled('voting_booth');
-                $showDoors    = BbsConfig::isFeatureEnabled('webdoors');
-                $showFiles    = \BinktermPHP\FileAreaManager::isFeatureEnabled();
-                $locale       = $state['locale'];
+                $showShoutbox   = BbsConfig::isFeatureEnabled('shoutbox');
+                $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
+                $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
+                $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
+                $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
+                $showQwk        = BbsConfig::isFeatureEnabled('qwk');
+                $locale         = $state['locale'];
 
                 $o = $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
                 $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('N', $o, $menuWidth, $state));
@@ -447,6 +456,8 @@ class BbsSession
                 $pollsOption      = null;
                 $doorsOption      = null;
                 $filesOption      = null;
+                $interestsOption  = null;
+                $qwkOption        = null;
                 $whosOnlineOption = 'w';
 
                 $o = $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
@@ -461,6 +472,16 @@ class BbsSession
                     $o = $this->t('ui.terminalserver.server.menu.polls', 'P) Polls', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('P', $o, $menuWidth, $state));
                     $pollsOption = 'p';
+                }
+                if ($showInterests) {
+                    $o = $this->t('ui.terminalserver.server.menu.interests', 'I) Interests', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('I', $o, $menuWidth, $state));
+                    $interestsOption = 'i';
+                }
+                if ($showQwk) {
+                    $o = $this->t('ui.terminalserver.server.menu.qwk', 'K) QWK Offline Mail', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('K', $o, $menuWidth, $state));
+                    $qwkOption = 'k';
                 }
                 if ($showDoors) {
                     $o = $this->t('ui.terminalserver.server.menu.doors', 'D) Door Games', [], $locale);
@@ -506,7 +527,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d','f','t'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','p','w','d','f','t','i','k'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -528,6 +549,12 @@ class BbsSession
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);
+            } elseif (!empty($interestsOption) && $choice === $interestsOption) {
+                $this->log("Menu: {$username} -> Interests");
+                $interestsHandler->show($conn, $state, $session);
+            } elseif (!empty($qwkOption) && $choice === $qwkOption) {
+                $this->log("Menu: {$username} -> QWK Offline Mail");
+                $qwkHandler->show($conn, $state, $session);
             } elseif (!empty($doorsOption) && $choice === $doorsOption) {
                 $this->log("Menu: {$username} -> Door Games");
                 $doorHandler->show($conn, $state, $session);
