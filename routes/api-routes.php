@@ -1745,12 +1745,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_end_clean();
         }
         ob_implicit_flush(true);
+        ignore_user_abort(true);
 
         $lastEventId = (int)($_SERVER['HTTP_LAST_EVENT_ID'] ?? 0);
+        $isDevServer = (php_sapi_name() === 'cli-server');
 
-        // Ask the admin daemon whether there are new events since the client's
-        // last-seen ID. Falls back to running the query unconditionally if the
-        // daemon is unavailable.
+        // Ask the admin daemon for the current high-water mark.
         $maxSseEventId = 0;
         $daemonOk      = false;
         try {
@@ -1760,24 +1760,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $maxSseEventId = (int)($result['max_sse_event_id'] ?? 0);
             $daemonOk      = true;
         } catch (\Throwable $e) {
-            // Daemon not running — run catch-up unconditionally below
+            // Daemon not running — deliver catch-up unconditionally below
         }
 
         echo "event: connected\n";
         echo "data: " . json_encode(['user_id' => $userId]) . "\n\n";
 
-        if ($lastEventId === 0) {
-            // First connection — no Last-Event-ID from the client. Don't replay
-            // historical messages; just anchor the cursor at the current max so
-            // the next reconnect only delivers truly new events. Historical
-            // messages are the page's loadMessages() responsibility, not SSE's.
-            if ($maxSseEventId > 0) {
-                echo "id: {$maxSseEventId}\n";
-            }
-        } elseif (!$daemonOk || $maxSseEventId > $lastEventId) {
-            // Reconnect after a brief drop — deliver any events missed since the
-            // client's last-known SSE cursor. Also runs when daemon is down as a
-            // safety net (daemonOk=false → maxSseEventId=0, catch-up runs blind).
+        /**
+         * Fetch and emit sse_events with id > $fromId for this user.
+         * Updates $lastEventId (passed by reference) to the highest id emitted.
+         */
+        $deliverEvents = function(int $fromId) use ($userId, &$lastEventId): void {
             $db   = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare("
                 SELECT e.id          AS sse_id,
@@ -1802,7 +1795,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 ORDER BY e.id ASC
                 LIMIT 200
             ");
-            $stmt->execute([$lastEventId, $userId, $userId]);
+            $stmt->execute([$fromId, $userId, $userId]);
             foreach ($stmt->fetchAll() as $row) {
                 $msg = [
                     'id'            => (int)$row['chat_id'],
@@ -1818,13 +1811,106 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo "id: " . (int)$row['sse_id'] . "\n";
                 echo "event: chat_message\n";
                 echo "data: " . json_encode($msg) . "\n\n";
+                $lastEventId = (int)$row['sse_id'];
+            }
+        };
+
+        // Anchor on first connect (no historical replay), or deliver catch-up
+        // events missed since the client's last-known cursor.
+        if ($lastEventId === 0) {
+            // First connection — anchor the cursor at the current max without
+            // replaying history. loadMessages() handles that on page load.
+            if ($maxSseEventId > 0) {
+                echo "id: {$maxSseEventId}\n\n";
+                $lastEventId = $maxSseEventId;
+            }
+        } elseif (!$daemonOk || $maxSseEventId > $lastEventId) {
+            $deliverEvents($lastEventId);
+        }
+
+        if ($isDevServer) {
+            // PHP's built-in server is single-threaded: a long-lived connection
+            // would block all other requests. Close immediately and let the
+            // SharedWorker reconnect — each cycle is ~5 ms so it stays responsive.
+            echo "event: reconnect\ndata: {}\n\n";
+            return;
+        }
+
+        // ── Production: hold the connection open ─────────────────────────────
+        //
+        // Open a raw pg connection so we can LISTEN on the binkstream channel
+        // directly. pg_get_notify() is non-blocking; we sleep 200 ms between
+        // checks giving ~100 ms average delivery latency.
+        //
+        // The connection is held for up to MAX_RUNTIME seconds, then closed with
+        // event:reconnect so the SharedWorker seamlessly re-anchors.
+
+        $pgConn = null;
+        if (function_exists('pg_connect')) {
+            try {
+                $cfg     = \BinktermPHP\Config::getDatabaseConfig();
+                $connStr = sprintf(
+                    "host=%s port=%s dbname=%s user=%s password=%s",
+                    $cfg['host'], $cfg['port'], $cfg['database'],
+                    $cfg['username'], $cfg['password']
+                );
+                $pgConn = @pg_connect($connStr, PGSQL_CONNECT_FORCE_NEW);
+                if ($pgConn) {
+                    pg_query($pgConn, "LISTEN binkstream");
+                }
+            } catch (\Throwable $e) {
+                $pgConn = null;
             }
         }
 
-        // Tell the SharedWorker to reconnect immediately. Each cycle is ~3-5 ms,
-        // so the server is free the vast majority of the time.
-        echo "event: reconnect\n";
-        echo "data: {}\n\n";
+        $maxRuntime     = 300;           // 5 minutes; worker reconnects after
+        $startTime      = time();
+        $lastHeartbeat  = time();
+        $heartbeatEvery = 15;            // seconds between keepalive comments
+        $pollSleep      = 200000;        // 200 ms in microseconds
+
+        set_time_limit($maxRuntime + 30);
+
+        while (!connection_aborted() && (time() - $startTime) < $maxRuntime) {
+            $hasNew = false;
+
+            if ($pgConn) {
+                // Non-blocking drain — each notify payload is a plain sse_events.id
+                while ($notify = @pg_get_notify($pgConn, PGSQL_ASSOC)) {
+                    $sseId = (int)($notify['payload'] ?? 0);
+                    if ($sseId > $lastEventId) {
+                        $hasNew = true;
+                    }
+                }
+            } else {
+                // Fallback: ask the daemon (no raw pg available)
+                try {
+                    $daemon  = new \BinktermPHP\Admin\AdminDaemonClient();
+                    $res     = $daemon->getStreamEvents($lastEventId);
+                    $daemon->close();
+                    $hasNew  = ((int)($res['max_sse_event_id'] ?? 0)) > $lastEventId;
+                } catch (\Throwable $e) {}
+            }
+
+            if ($hasNew) {
+                $deliverEvents($lastEventId);
+            }
+
+            // Heartbeat keeps TCP alive through proxies and lets PHP detect
+            // a disconnected client on the next write attempt.
+            if (time() - $lastHeartbeat >= $heartbeatEvery) {
+                echo ": heartbeat\n\n";
+                $lastHeartbeat = time();
+            }
+
+            usleep($pollSleep);
+        }
+
+        if ($pgConn) {
+            @pg_close($pgConn);
+        }
+
+        echo "event: reconnect\ndata: {}\n\n";
     });
 
     SimpleRouter::get('/echoareas', function() {
