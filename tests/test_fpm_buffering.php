@@ -177,13 +177,18 @@ fwrite($sock, $data);
 $tSent = microtime(true);
 printf("Request sent at      : %.1f ms\n", ($tSent - $tConnect) * 1000);
 
-// Read response, tracking time-to-first-byte
-$stdout   = '';
-$stderr   = '';
-$firstByte = null;
-$tEnd     = null;
-$appStatus = null;
-$done      = false;
+// Read response, streaming body as it arrives; collect headers + stats for summary
+$headerBuf     = '';   // accumulates raw FCGI_STDOUT until headers are separated
+$responseHeaders = ''; // HTTP response headers (text before \r\n\r\n)
+$headersDone   = false;
+$bodyBytes     = 0;
+$stderr        = '';
+$firstByte     = null;
+$tEnd          = null;
+$appStatus     = null;
+$done          = false;
+
+echo str_repeat('-', 60) . "\n";
 
 while (!$done && !feof($sock)) {
     $header = fread($sock, 8);
@@ -191,7 +196,6 @@ while (!$done && !feof($sock)) {
 
     $rec        = unpack('Cversion/Ctype/nrequestId/ncontentLength/CpaddingLength', $header);
     $type       = $rec['type'];
-    $reqId      = $rec['requestId'];
     $contentLen = $rec['contentLength'];
     $paddingLen = $rec['paddingLength'];
 
@@ -205,21 +209,43 @@ while (!$done && !feof($sock)) {
     }
     if ($paddingLen > 0) fread($sock, $paddingLen);
 
-    if ($firstByte === null && $type === 6 && $content !== '') { // FCGI_STDOUT
-        $firstByte = microtime(true);
-        printf("Time to first byte   : %.1f ms\n", ($firstByte - $tConnect) * 1000);
-    }
-
     switch ($type) {
         case 6: // FCGI_STDOUT
-            $stdout .= $content;
+            if ($content === '') break;
+
+            if ($firstByte === null) {
+                $firstByte = microtime(true);
+            }
+
+            if (!$headersDone) {
+                // Buffer until we find the header/body separator
+                $headerBuf .= $content;
+                $sep = strpos($headerBuf, "\r\n\r\n");
+                if ($sep === false) $sep = strpos($headerBuf, "\n\n");
+                if ($sep !== false) {
+                    $sepLen = (substr($headerBuf, $sep, 2) === "\r\n") ? 4 : 2;
+                    $responseHeaders = substr($headerBuf, 0, $sep);
+                    $body = substr($headerBuf, $sep + $sepLen);
+                    $headersDone = true;
+                    if ($body !== '') {
+                        echo $body;
+                        $bodyBytes += strlen($body);
+                    }
+                }
+            } else {
+                echo $content;
+                $bodyBytes += strlen($content);
+            }
             break;
+
         case 7: // FCGI_STDERR
             $stderr .= $content;
             break;
+
         case 3: // FCGI_END_REQUEST
-            if (strlen($content) >= 8) {
-                [, $appStatus] = unpack('NappStatus', $content);
+            if (strlen($content) >= 4) {
+                $r = unpack('NappStatus', $content);
+                $appStatus = $r['appStatus'];
             }
             $tEnd = microtime(true);
             $done = true;
@@ -229,61 +255,49 @@ while (!$done && !feof($sock)) {
 
 fclose($sock);
 
+// ── Summary ───────────────────────────────────────────────────────────────────
+
 $tEnd = $tEnd ?? microtime(true);
+
+echo "\n" . str_repeat('=', 60) . "\n";
+
+if ($firstByte !== null) {
+    printf("Time to first byte   : %.1f ms\n", ($firstByte - $tConnect) * 1000);
+}
 printf("Total response time  : %.1f ms\n", ($tEnd - $tConnect) * 1000);
 if ($firstByte !== null) {
     printf("Body transfer time   : %.1f ms\n", ($tEnd - $firstByte) * 1000);
     $bufferingGap = ($firstByte - $tSent) * 1000;
     printf("Send→first-byte gap  : %.1f ms  %s\n",
         $bufferingGap,
-        $bufferingGap > 200 ? '  ← possible buffering delay' : '  ← looks fine'
+        $bufferingGap > 200 ? ' ← possible buffering delay' : ' ← looks fine'
     );
 }
+printf("Body size            : %d bytes\n", $bodyBytes);
 if ($appStatus !== null) {
     echo "App exit status      : {$appStatus}\n";
 }
 
 echo str_repeat('-', 60) . "\n";
-
-// Parse HTTP headers from FCGI_STDOUT
-$bodyStart = strpos($stdout, "\r\n\r\n");
-if ($bodyStart === false) $bodyStart = strpos($stdout, "\n\n");
-$responseHeaders = $bodyStart !== false ? substr($stdout, 0, $bodyStart) : '';
-$responseBody    = $bodyStart !== false ? substr($stdout, $bodyStart + 4) : $stdout;
-
 echo "Response headers:\n";
 foreach (explode("\n", $responseHeaders) as $hLine) {
     echo "  " . rtrim($hLine) . "\n";
 }
 
-echo "\nBody size: " . strlen($responseBody) . " bytes\n";
-
-// Detect buffering hints
+// Detect notable headers
 $xAccelBuf = null;
-$xBufPHP   = null;
 foreach (explode("\n", $responseHeaders) as $hLine) {
-    $hLine = strtolower(trim($hLine));
-    if (str_starts_with($hLine, 'x-accel-buffering:')) {
-        $xAccelBuf = trim(substr($hLine, strlen('x-accel-buffering:')));
+    $lower = strtolower(trim($hLine));
+    if (str_starts_with($lower, 'x-accel-buffering:')) {
+        $xAccelBuf = trim(substr($lower, strlen('x-accel-buffering:')));
     }
 }
-
-echo "\n";
 if ($xAccelBuf !== null) {
-    echo "X-Accel-Buffering    : {$xAccelBuf}\n";
+    echo "\nX-Accel-Buffering    : {$xAccelBuf}\n";
 }
-
-// Check for PHP output buffering level in response (if any debug header added)
 if (str_contains($responseHeaders, 'X-PHP-OB-Level')) {
     preg_match('/X-PHP-OB-Level:\s*(\S+)/i', $responseHeaders, $m);
     echo "PHP OB level         : " . ($m[1] ?? 'unknown') . "\n";
-}
-
-if ($showRaw) {
-    echo str_repeat('-', 60) . "\n";
-    echo "RAW STDOUT (first 2KB):\n";
-    echo substr($stdout, 0, 2048);
-    echo "\n";
 }
 
 if ($stderr !== '') {
