@@ -36,6 +36,12 @@
         if (listeners[type]) listeners[type].delete(fn);
     }
 
+    const transportMode = window.siteConfig?.sseTransportMode || 'sse';
+    if (transportMode !== 'sse' && transportMode !== 'auto') {
+        // Unsupported transport mode for the current client build.
+        return;
+    }
+
     window.BinkStream = { on: on, off: off };
 
     if (typeof SharedWorker === 'undefined') {

@@ -1859,7 +1859,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // ── Long-lived window loop ────────────────────────────────────────────
         //
-        // Hold the PHP-FPM worker for SSE_WINDOW_SECONDS (default 60), polling
+        // Hold the PHP-FPM worker for SSE_WINDOW_SECONDS, polling
         // sse_events every 200 ms. Events are delivered as they arrive; the
         // connection stays open for the full window rather than closing after
         // the first batch. A keepalive comment is sent every 15 seconds so that
@@ -1868,8 +1868,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         //
         // On the PHP built-in dev server (single-threaded) the window is 0 so
         // the loop body never runs and the worker is released immediately.
-
-        $windowSeconds     = $isDevServer ? 0 : (int)Config::env('SSE_WINDOW_SECONDS', 60);
+        //
+        // Interim Apache mitigation: unless the sysop explicitly sets
+        // SSE_WINDOW_SECONDS, default to a short 2-second window only when
+        // the app is running behind Apache and SSE_TRANSPORT_MODE=auto.
+        // This preserves the SSE interface while reducing how long Apache can
+        // buffer a single response before the connection closes.
+        $configuredTransportMode = strtolower(trim((string)Config::env('SSE_TRANSPORT_MODE', 'auto')));
+        if (!in_array($configuredTransportMode, ['auto', 'sse'], true)) {
+            $configuredTransportMode = 'auto';
+        }
+        $serverSoftware = strtolower((string)($_SERVER['SERVER_SOFTWARE'] ?? ''));
+        $isApacheServer = str_contains($serverSoftware, 'apache');
+        $configuredWindow = Config::env('SSE_WINDOW_SECONDS', null);
+        $defaultWindowSeconds = ($isApacheServer && $configuredTransportMode === 'auto') ? 2 : 60;
+        $windowSeconds     = $isDevServer ? 0 : (int)($configuredWindow ?? $defaultWindowSeconds);
         $pollSleep         = 200000; // 200 ms
         $deadline          = microtime(true) + $windowSeconds;
         $lastHeartbeat     = microtime(true);

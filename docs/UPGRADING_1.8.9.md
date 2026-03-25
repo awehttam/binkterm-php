@@ -633,6 +633,8 @@ SSE_WINDOW_SECONDS=60
 
 On the built-in PHP development server the window is forced to `0` (immediate reconnect) because that server is single-threaded and cannot handle concurrent requests.
 
+Testing has shown that some Apache + PHP-FPM (`mod_proxy_fcgi`) deployments buffer SSE responses instead of flushing events in real time. In those environments, sysops will need to use a lower `SSE_WINDOW_SECONDS` value to reduce how much data Apache can hold before releasing the response. As an interim mitigation, when `REALTIME_TRANSPORT_MODE=auto` and Apache is detected, BinktermPHP automatically uses a default `SSE_WINDOW_SECONDS` of `2` unless the sysop explicitly sets `SSE_WINDOW_SECONDS` in `.env`.
+
 ### php-fpm Worker Capacity
 
 SSE holds one php-fpm worker open per online user for the full `SSE_WINDOW_SECONDS` duration (default: 60 s). This enables low-latency real-time event delivery, but worker count must be planned for your expected concurrent user load.
@@ -909,6 +911,9 @@ php scripts/setup.php
 ```env
 # Opt out of Interests feature
 ENABLE_INTERESTS=false
+
+# Realtime transport strategy (currently supported: auto, sse)
+REALTIME_TRANSPORT_MODE=auto
 
 # SSE connection window duration in seconds (default 60)
 SSE_WINDOW_SECONDS=60

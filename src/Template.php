@@ -202,6 +202,12 @@ class Template
         $this->twig->addGlobal('is_dev', Config::env('IS_DEV', 'false') === 'true');
         $this->twig->addGlobal('debug_ansi_not_perfect', Config::env('DEBUG_ANSI_NOT_PERFECT', 'false') === 'true');
         $this->twig->addGlobal('debug_ansi_use_consolas', Config::env('DEBUG_ANSI_USE_CONSOLAS', 'false') === 'true');
+        $configuredSseTransportMode = strtolower(trim((string)Config::env('SSE_TRANSPORT_MODE', 'auto')));
+        if (!in_array($configuredSseTransportMode, ['auto', 'sse'], true)) {
+            $configuredSseTransportMode = 'auto';
+        }
+        $this->twig->addGlobal('configured_sse_transport_mode', $configuredSseTransportMode);
+        $this->twig->addGlobal('effective_sse_transport_mode', $configuredSseTransportMode);
         // ANSI_RENDERER_MODE: 'grouped' (default, merges same-styled chars into one span,
         // enables URL hyperlinking) or 'perchar' (one span per character, original behavior).
         $ansiRendererMode = Config::env('ANSI_RENDERER_MODE', 'grouped');

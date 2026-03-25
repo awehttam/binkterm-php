@@ -6,7 +6,7 @@
     // When BinkStream SSE is active we fall back to a slow safety-net poll;
     // when SSE is unavailable we use a faster interval.
     const CHAT_POLL_INTERVAL_SSE_MS  = 30000;
-    const CHAT_POLL_INTERVAL_POLL_MS = 3000;
+    const CHAT_POLL_INTERVAL_POLL_MS = 1000;
 
     const state = {
         rooms: [],

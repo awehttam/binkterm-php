@@ -554,7 +554,7 @@ This section helps you right-size your server and tune Apache, PHP-FPM, and Post
 
 ### How SSE Affects php-fpm Worker Count
 
-BinktermPHP uses a long-lived SSE model: the SharedWorker calls `/api/stream`, which holds a php-fpm worker open for `SSE_WINDOW_SECONDS` (default: **60 seconds**), delivering events as they arrive. A keepalive comment is sent every 15 seconds to prevent proxy timeouts. When the window expires the connection is cleanly closed and the SharedWorker reconnects immediately. The practical effect is that **every online user occupies one php-fpm worker continuously**.
+BinktermPHP uses an SSE back-channel: the SharedWorker calls `/api/stream`, which holds a php-fpm worker open for `SSE_WINDOW_SECONDS`, delivering events as they arrive. A keepalive comment is sent every 15 seconds to prevent proxy timeouts. When the window expires the connection is cleanly closed and the SharedWorker reconnects immediately. The practical effect is that **every online user occupies one php-fpm worker continuously** while the connection is open.
 
 This makes `pm.max_children` the most important tuning knob on the system. If all workers are occupied by SSE connections, regular page loads and API calls will queue — or fail entirely.
 
@@ -640,10 +640,28 @@ After changing, reload php-fpm:
 systemctl reload php8.x-fpm
 ```
 
-**`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect (default: **60**). A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. Each active browser tab occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly. Lower this value only if you are severely constrained on workers.
+**`REALTIME_TRANSPORT_MODE`** — currently supported values are `auto` and `sse`.
+
+- `auto` (default): use the normal SSE transport, but if Apache is detected and `SSE_WINDOW_SECONDS` is not explicitly set, BinktermPHP defaults the window to **2 seconds** as an interim mitigation for Apache + php-fpm buffering behavior.
+- `sse`: force the standard SSE behavior and default `SSE_WINDOW_SECONDS` to **60** unless explicitly overridden.
 
 ```bash
 # .env
+REALTIME_TRANSPORT_MODE=auto
+```
+
+**`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect. A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. Each active browser tab occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly.
+
+Defaults:
+
+- **60** seconds normally
+- **2** seconds when `REALTIME_TRANSPORT_MODE=auto`, Apache is detected, and `SSE_WINDOW_SECONDS` is not explicitly set
+
+Testing has shown that some Apache + php-fpm (`mod_proxy_fcgi`) deployments buffer SSE responses instead of flushing events in real time. In those environments, sysops should lower `SSE_WINDOW_SECONDS` explicitly if the automatic 2-second default is still too sluggish.
+
+```bash
+# .env
+REALTIME_TRANSPORT_MODE=auto
 SSE_WINDOW_SECONDS=60
 ```
 
@@ -714,7 +732,8 @@ systemctl reload postgresql
 | `MaxRequestWorkers` | ≥ `pm.max_children` | Keep in sync |
 | `max_connections` (PG) | `pm.max_children` + 10 | Add more for scripts |
 | `shared_buffers` (PG) | 25% of total RAM | Standard rule of thumb |
-| `SSE_WINDOW_SECONDS` | 60 | Lower only if workers are scarce |
+| `REALTIME_TRANSPORT_MODE` | auto | `auto` uses SSE; on Apache it defaults the window to 2 s unless overridden |
+| `SSE_WINDOW_SECONDS` | 60 | Default window unless Apache + `auto` applies the 2 s implicit fallback |
 
 ---
 
