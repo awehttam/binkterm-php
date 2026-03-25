@@ -73,6 +73,12 @@
 - [MRC Chat](#mrc-chat)
   - [Join Command](#join-command)
 - [Docs Viewer: HTML Pass-through](#docs-viewer-html-pass-through)
+- [Telnet / SSH BBS Server](#telnet--ssh-bbs-server)
+  - [Interests Menu](#interests-menu)
+  - [QWK Offline Mail via ZMODEM](#qwk-offline-mail-via-zmodem)
+  - [Echomail Interest-Based Browsing](#echomail-interest-based-browsing)
+- [CLI Tools](#cli-tools)
+  - [fix_date_received.php](#fix_date_receivedphp)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -183,6 +189,14 @@
 - Answerer-side BinkP CRAM-MD5 negotiation now advertises `OPT CRAM-MD5-...` as the first `M_NUL` frame in the handshake, improving interoperability with mailers that expect the CRAM challenge before the rest of the informational `M_NUL` burst.
 
   > ⚠️ **Insecure echomail delivery is not recommended.** Because unauthenticated sessions cannot verify the caller's identity, a malicious node could claim any FTN address. This option exists only as a last resort for legacy systems that cannot support BinkP passwords. The strongly preferred approach is to configure a shared session password on both ends.
+
+**Telnet / SSH BBS Server**
+- The telnet and SSH BBS servers now include an **Interests** menu (key `I` from the main menu) for browsing and subscribing to topic groups when `ENABLE_INTERESTS=true`. The detail screen lists member echo areas inline.
+- The **QWK Offline Mail** menu (key `K`) now supports real ZMODEM file transfer: `D` downloads a QWK packet directly to the terminal, and `U` receives a REP reply packet from the terminal. Both use lrzsz (`sz`/`rz`). The HTTP download URL is shown as a supplemental tip.
+- The echomail area picker now has an **I — Browse by Interest** key (when `ENABLE_INTERESTS=true`) that lets users narrow the area list to one interest's echo areas before selecting an area to read.
+
+**CLI Tools**
+- New `scripts/fix_date_received.php` resets `date_received` to `date_written` for echomail rows in specified echo areas. Useful after a `%RESCAN` import where all messages land with the same `date_received` (import time). Supports `--tag`, `--domain`, `--all`, and `--dry-run` options.
 
 ---
 
@@ -708,6 +722,78 @@ The MRC chat input now accepts `/join <room>` as a slash command. Typing `/join 
 The admin docs viewer (`/admin/docs/view/README`) now renders raw HTML blocks and inline tags in `README.md` unescaped. This allows embedded HTML tables, badges, and image tags in the README to display correctly inside the application rather than appearing as escaped markup.
 
 HTML pass-through is enabled only for `README.md`. All other documents continue to escape HTML for safety.
+
+---
+
+## Telnet / SSH BBS Server
+
+### Interests Menu
+
+When `ENABLE_INTERESTS=true`, a new **I — Interests** option appears in the telnet and SSH BBS main menu. Pressing `I` opens the Interests browser:
+
+- Active interests are listed with a `[+]` (subscribed) or `[ ]` (not subscribed) badge and an echo area count.
+- Selecting a number opens a detail screen showing the interest name, description, current subscription status, and the full list of member echo areas (tag and description) displayed inline.
+- From the detail screen, `S` subscribes and `U` unsubscribes. The subscription status refreshes on every redisplay so it always reflects the current state.
+- After a first login when the user has no interest subscriptions, a one-time onboarding hint is shown suggesting they visit the Interests menu.
+
+### QWK Offline Mail via ZMODEM
+
+The telnet and SSH BBS **K — QWK Offline Mail** menu (controlled by `BbsConfig::isFeatureEnabled('qwk')`) now supports full ZMODEM file transfer in addition to showing the HTTP download URL.
+
+**Download (`D`)**
+
+- Builds a QWK packet on the fly using `QwkBuilder::buildPacket()` for the logged-in user.
+- Transfers the packet to the terminal via ZMODEM (`sz`). On telnet connections, IAC bytes are escaped during transfer.
+- Deletes the temporary packet file after transfer regardless of success or failure.
+- If lrzsz is not installed, the `D` option is shown as dimmed with a note that `sz` is required.
+
+**Upload (`U`)**
+
+- Initiates a ZMODEM receive (`rz`) and waits for the terminal to send a REP packet.
+- Processes the received file with `RepProcessor::processRepPacket()` and reports how many messages were imported, skipped, and errored.
+- If lrzsz is not installed, the `U` option is shown as dimmed with a note that `rz` is required.
+
+The HTTP download URL (for clients that prefer it) is shown on the status screen as a supplemental tip below the action menu.
+
+### Echomail Interest-Based Browsing
+
+The echomail area picker (accessed when browsing echomail from the BBS menu) now includes an **I — Browse by Interest** key when `ENABLE_INTERESTS=true`.
+
+Pressing `I` shows a numbered list of active interests with subscribe/unsubscribe badges. Selecting one filters the area picker to only that interest's echo areas. The user can then select an area normally. Pressing `Q` from the interest list returns to the unfiltered area picker.
+
+The paginated area picker itself retains an `I` hint in its navigation line so users are reminded the option is available while browsing a long area list. Selecting an area from an interest-filtered list opens the echomail reader for that area as usual.
+
+---
+
+## CLI Tools
+
+### fix_date_received.php
+
+`scripts/fix_date_received.php` resets `date_received` to `date_written` for echomail rows in one or more echo areas. This is useful after a `%RESCAN` import, where all imported messages land with the same `date_received` (the import time) instead of their original send date, causing them to appear sorted as a block at the top of the message list.
+
+Only rows where `date_written` is non-NULL and not in the future are updated. Rows where `date_written` already matches `date_received` are skipped.
+
+**Usage:**
+
+```bash
+# By area ID
+php scripts/fix_date_received.php <echoarea_id> [echoarea_id ...]
+
+# By area tag
+php scripts/fix_date_received.php --tag <tag> [--tag <tag> ...]
+
+# By domain
+php scripts/fix_date_received.php --domain <domain>
+
+# Combine tag and domain filters (both must match)
+php scripts/fix_date_received.php --tag <tag> --domain <domain>
+
+# All echo areas
+php scripts/fix_date_received.php --all
+
+# Preview without making changes
+php scripts/fix_date_received.php --all --dry-run
+```
 
 ---
 
