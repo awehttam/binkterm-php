@@ -720,7 +720,9 @@ systemctl reload postgresql
 
 ## Welcome & Text Files
 
-Customise user-facing text by creating optional files in `config/`.  Examples are provided as `config/*.example`.
+The recommended way to manage welcome text is through **Admin → Appearance**, which provides a live editor with Markdown support and instant preview — no file editing or service restart required.
+
+Direct file editing is still supported as a fallback (useful for scripted deployments or when the admin UI is not yet accessible):
 
 | File | When shown |
 |------|-----------|
@@ -728,4 +730,4 @@ Customise user-facing text by creating optional files in `config/`.  Examples ar
 | `config/newuser_welcome.txt` | Email sent to newly approved users |
 | `config/welcome.txt` | General welcome message on the main page / login screen |
 
-Files are plain text; newlines are preserved as written.
+Files are plain text; newlines are preserved as written. When both a file and an Appearance editor value exist, the Appearance editor value takes precedence.
