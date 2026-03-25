@@ -14,6 +14,13 @@
         <div class="card-body">
             <div class="row g-3 align-items-end">
                 <div class="col-sm-auto">
+                    <label class="form-label mb-1">Mode</label>
+                    <select class="form-select form-select-sm" id="ctrlMode">
+                        <option value="direct">Direct stream</option>
+                        <option value="realpath">Real path (via sse_events)</option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
                     <label class="form-label mb-1">{{ t('ui.admin.sse_test.interval') }}</label>
                     <select class="form-select form-select-sm" id="ctrlInterval">
                         <option value="100">100 ms</option>
@@ -32,7 +39,7 @@
                         <option value="120">120 s</option>
                     </select>
                 </div>
-                <div class="col-sm-auto">
+                <div class="col-sm-auto" id="payloadWrap">
                     <label class="form-label mb-1">{{ t('ui.admin.sse_test.payload') }}</label>
                     <select class="form-select form-select-sm" id="ctrlPayload">
                         <option value="0" selected>{{ t('ui.admin.sse_test.payload_none') }}</option>
@@ -136,6 +143,8 @@
 <script>
 (function () {
     let es = null;
+    let injectTimer = null;
+    let durationTimer = null;
     let rows = [];
     let latencies = [];
     let gapDeviations = [];
@@ -143,6 +152,10 @@
     let lastSeq = -1;
     let totalMissed = 0;
     let intervalMs = 500;
+    // Real-path mode: track injected events awaiting SSE delivery {seq -> server_ts}
+    let pendingInjections = new Map();
+    let injectSeq = 0;
+
     const MAX_ROWS = 200;
     const MAX_CHART_PTS = 120;
 
@@ -151,9 +164,15 @@
     const btnClear   = document.getElementById('btnClear');
     const badge      = document.getElementById('connBadge');
     const logBody    = document.getElementById('logBody');
-    const logScroll  = document.getElementById('logScroll');
     const canvas     = document.getElementById('latencyCanvas');
     const ctx        = canvas.getContext('2d');
+    const modeSelect = document.getElementById('ctrlMode');
+
+    // Hide payload picker in real-path mode (not relevant)
+    modeSelect.addEventListener('change', function() {
+        document.getElementById('payloadWrap').style.display =
+            this.value === 'realpath' ? 'none' : '';
+    });
 
     function setStatus(text, cls) {
         badge.textContent = text;
@@ -176,8 +195,7 @@
     }
 
     function updateStats() {
-        const count = rows.length;
-        document.getElementById('statEvents').textContent = count;
+        document.getElementById('statEvents').textContent = rows.length;
 
         const missedEl = document.getElementById('statMissed');
         missedEl.innerHTML = totalMissed > 0
@@ -224,20 +242,17 @@
         });
         ctx.stroke();
 
-        // Zero line at intervalMs if visible
         if (intervalMs >= minVal && intervalMs <= maxVal) {
             const y = h - pad - ((intervalMs - minVal) / range) * (h - pad * 2);
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(25,135,84,0.4)';
             ctx.lineWidth = 1;
             ctx.setLineDash([4, 4]);
-            ctx.moveTo(pad, y);
-            ctx.lineTo(w - pad, y);
+            ctx.moveTo(pad, y); ctx.lineTo(w - pad, y);
             ctx.stroke();
             ctx.setLineDash([]);
         }
 
-        // Axis labels
         ctx.fillStyle = '#6c757d';
         ctx.font = '10px monospace';
         ctx.fillText(fmtMs(maxVal), pad + 2, pad + 10);
@@ -271,32 +286,23 @@
         `;
         logBody.prepend(tr);
         rows.push(tr);
-
-        if (rows.length > MAX_ROWS) {
-            rows.shift().remove();
-        }
+        if (rows.length > MAX_ROWS) rows.shift().remove();
 
         updateStats();
         drawChart();
     }
 
-    function start() {
-        const interval = parseInt(document.getElementById('ctrlInterval').value, 10);
-        const duration = parseInt(document.getElementById('ctrlDuration').value, 10);
-        const payload  = parseInt(document.getElementById('ctrlPayload').value, 10);
-        intervalMs = interval;
+    // ── Direct stream mode ────────────────────────────────────────────────────
 
+    function startDirect(interval, duration, payload) {
         const url = `/admin/sse-test/stream?interval=${interval}&duration=${duration}&payload=${payload}`;
         es = new EventSource(url);
         setStatus('{{ t('ui.admin.sse_test.status_connecting') }}', 'bg-warning text-dark');
-        btnStart.classList.add('d-none');
-        btnStop.classList.remove('d-none');
 
         es.addEventListener('open', function(e) {
             const data = JSON.parse(e.data);
-            const clientTs = Date.now();
             setStatus('{{ t('ui.admin.sse_test.status_connected') }}', 'bg-success');
-            addRow({ seq: -1, server_ts: data.server_ts }, clientTs, 'open');
+            addRow({ seq: -1, server_ts: data.server_ts }, Date.now(), 'open');
             lastSeq = -1;
         });
 
@@ -306,45 +312,118 @@
             const expectedSeq = lastSeq + 1;
             let note = '';
             if (lastSeq >= 0 && data.seq !== expectedSeq) {
-                const missed = data.seq - expectedSeq;
-                totalMissed += missed;
-                note = `⚠ gap (missed ${missed})`;
+                totalMissed += data.seq - expectedSeq;
+                note = `⚠ gap (missed ${data.seq - expectedSeq})`;
             }
             lastSeq = data.seq;
             addRow(data, clientTs, note);
         };
 
-        es.addEventListener('done', function(e) {
-            const data = JSON.parse(e.data);
+        es.addEventListener('done', function() {
             setStatus('{{ t('ui.admin.sse_test.status_done') }}', 'bg-secondary');
             stop(false);
         });
 
         es.onerror = function() {
-            if (es.readyState === EventSource.CLOSED) {
+            if (es && es.readyState === EventSource.CLOSED) {
                 setStatus('{{ t('ui.admin.sse_test.status_error') }}', 'bg-danger');
                 stop(false);
             }
         };
     }
 
-    function stop(closeEs = true) {
-        if (closeEs && es) {
-            es.close();
+    // ── Real path mode ────────────────────────────────────────────────────────
+    // Injects events into sse_events via POST and receives them through the
+    // real /api/stream polling path via the SharedWorker (window.BinkStream).
+    // Latency = client receipt time − server insert time.
+
+    function startRealPath(interval, duration) {
+        setStatus('{{ t('ui.admin.sse_test.status_connecting') }}', 'bg-warning text-dark');
+
+        window.BinkStream.on('sse_test', handleRealPathEvent);
+        setStatus('{{ t('ui.admin.sse_test.status_connected') }}', 'bg-success');
+        lastSeq = -1;
+        injectSeq = 0;
+        pendingInjections.clear();
+
+        injectTimer = setInterval(function() {
+            const seq = injectSeq++;
+            fetch('/admin/sse-test/inject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seq })
+            })
+            .then(r => r.json())
+            .then(function(data) {
+                if (data.ok) {
+                    // Store server_ts from the inject response as the reference time
+                    pendingInjections.set(seq, data.server_ts);
+                }
+            })
+            .catch(function() {
+                // Inject failed — count as missed when we notice the gap
+            });
+        }, interval);
+
+        durationTimer = setTimeout(function() {
+            setStatus('{{ t('ui.admin.sse_test.status_done') }}', 'bg-secondary');
+            stop(false);
+        }, duration * 1000);
+    }
+
+    function handleRealPathEvent(payload) {
+        if (!payload || payload.seq === undefined) return;
+        const clientTs = Date.now();
+        const seq = payload.seq;
+        const serverTs = pendingInjections.has(seq)
+            ? pendingInjections.get(seq)
+            : payload.server_ts;
+        pendingInjections.delete(seq);
+
+        const expectedSeq = lastSeq + 1;
+        let note = '';
+        if (lastSeq >= 0 && seq !== expectedSeq) {
+            totalMissed += seq - expectedSeq;
+            note = `⚠ gap (missed ${seq - expectedSeq})`;
         }
+        lastSeq = seq;
+        addRow({ seq, server_ts: serverTs }, clientTs, note);
+    }
+
+    // ── Common ────────────────────────────────────────────────────────────────
+
+    function start() {
+        const mode     = modeSelect.value;
+        const interval = parseInt(document.getElementById('ctrlInterval').value, 10);
+        const duration = parseInt(document.getElementById('ctrlDuration').value, 10);
+        const payload  = parseInt(document.getElementById('ctrlPayload').value, 10);
+        intervalMs = interval;
+
+        btnStart.classList.add('d-none');
+        btnStop.classList.remove('d-none');
+
+        if (mode === 'realpath') {
+            startRealPath(interval, duration);
+        } else {
+            startDirect(interval, duration, payload);
+        }
+    }
+
+    function stop(closeEs = true) {
+        if (closeEs && es) { es.close(); }
         es = null;
+        if (injectTimer) { clearInterval(injectTimer); injectTimer = null; }
+        if (durationTimer) { clearTimeout(durationTimer); durationTimer = null; }
+        window.BinkStream.off('sse_test', handleRealPathEvent);
+        pendingInjections.clear();
         btnStart.classList.remove('d-none');
         btnStop.classList.add('d-none');
     }
 
     function clear() {
         rows.forEach(r => r.remove());
-        rows = [];
-        latencies = [];
-        gapDeviations = [];
-        lastClientTs = null;
-        lastSeq = -1;
-        totalMissed = 0;
+        rows = []; latencies = []; gapDeviations = [];
+        lastClientTs = null; lastSeq = -1; totalMissed = 0;
         ['statEvents','statMissed','statLatency','statGapDev'].forEach(id => {
             document.getElementById(id).innerHTML = '—';
         });
@@ -354,7 +433,6 @@
     btnStart.addEventListener('click', start);
     btnStop.addEventListener('click', () => stop(true));
     btnClear.addEventListener('click', clear);
-
     window.addEventListener('resize', drawChart);
 })();
 </script>

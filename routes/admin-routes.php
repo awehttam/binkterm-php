@@ -583,6 +583,34 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         flush();
     });
 
+    // SSE real-path inject — inserts a single sse_test event into sse_events
+    // so the real /api/stream polling path can be benchmarked end-to-end.
+    SimpleRouter::post('/sse-test/inject', function() {
+        $user   = RouteHelper::requireAdmin();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        $input    = json_decode(file_get_contents('php://input'), true);
+        $seq      = (int)($input['seq'] ?? 0);
+        $serverTs = (int)round(microtime(true) * 1000);
+
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            INSERT INTO sse_events (event_type, payload)
+            VALUES ('sse_test', :payload)
+            RETURNING id
+        ");
+        $stmt->execute([':payload' => json_encode([
+            'seq'       => $seq,
+            'server_ts' => $serverTs,
+            'user_id'   => $userId,
+        ])]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        echo json_encode(['ok' => true, 'seq' => $seq, 'server_ts' => $serverTs, 'sse_id' => (int)$row['id']]);
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();

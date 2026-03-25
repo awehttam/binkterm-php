@@ -1786,44 +1786,51 @@ SimpleRouter::group(['prefix' => '/api'], function() {
          */
         $deliverEvents = function(int $fromId) use ($db, $userId, &$lastEventId): void {
             $stmt = $db->prepare("
-                SELECT e.id          AS sse_id,
-                       m.id          AS chat_id,
-                       m.room_id,
-                       r.name        AS room_name,
-                       m.from_user_id,
-                       u.username    AS from_username,
-                       m.to_user_id,
-                       m.body,
-                       m.created_at
-                FROM sse_events e
-                JOIN chat_messages m ON (e.payload->>'chat_id')::int = m.id
-                LEFT JOIN chat_rooms r ON m.room_id = r.id
-                JOIN users u ON m.from_user_id = u.id
-                WHERE e.id > ?
-                  AND e.event_type = 'chat_message'
-                  AND (
-                    (m.room_id IS NOT NULL AND r.is_active = TRUE AND m.from_user_id != ?)
-                    OR m.to_user_id = ?
-                  )
-                ORDER BY e.id ASC
+                SELECT sse_id, event_type, event_data FROM (
+
+                    SELECT e.id AS sse_id,
+                           'chat_message' AS event_type,
+                           json_build_object(
+                               'id',            m.id,
+                               'type',          CASE WHEN m.room_id IS NOT NULL THEN 'room' ELSE 'dm' END,
+                               'room_id',       m.room_id,
+                               'room_name',     r.name,
+                               'from_user_id',  m.from_user_id,
+                               'from_username', u.username,
+                               'to_user_id',    m.to_user_id,
+                               'body',          m.body,
+                               'created_at',    m.created_at
+                           )::text AS event_data
+                    FROM sse_events e
+                    JOIN chat_messages m ON (e.payload->>'chat_id')::int = m.id
+                    LEFT JOIN chat_rooms r ON m.room_id = r.id
+                    JOIN users u ON m.from_user_id = u.id
+                    WHERE e.id > ?
+                      AND e.event_type = 'chat_message'
+                      AND (
+                        (m.room_id IS NOT NULL AND r.is_active = TRUE AND m.from_user_id != ?)
+                        OR m.to_user_id = ?
+                      )
+
+                    UNION ALL
+
+                    SELECT e.id AS sse_id,
+                           'sse_test' AS event_type,
+                           e.payload::text AS event_data
+                    FROM sse_events e
+                    WHERE e.id > ?
+                      AND e.event_type = 'sse_test'
+                      AND (e.payload->>'user_id')::int = ?
+
+                ) combined
+                ORDER BY sse_id ASC
                 LIMIT 200
             ");
-            $stmt->execute([$fromId, $userId, $userId]);
-            foreach ($stmt->fetchAll() as $row) {
-                $msg = [
-                    'id'            => (int)$row['chat_id'],
-                    'type'          => $row['room_id'] ? 'room' : 'dm',
-                    'room_id'       => $row['room_id'] ? (int)$row['room_id'] : null,
-                    'room_name'     => $row['room_name'],
-                    'from_user_id'  => (int)$row['from_user_id'],
-                    'from_username' => $row['from_username'],
-                    'to_user_id'    => $row['to_user_id'] ? (int)$row['to_user_id'] : null,
-                    'body'          => $row['body'],
-                    'created_at'    => $row['created_at'],
-                ];
+            $stmt->execute([$fromId, $userId, $userId, $fromId, $userId]);
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
                 echo "id: " . (int)$row['sse_id'] . "\n";
-                echo "event: chat_message\n";
-                echo "data: " . json_encode($msg) . "\n\n";
+                echo "event: " . $row['event_type'] . "\n";
+                echo "data: " . $row['event_data'] . "\n\n";
                 $lastEventId = (int)$row['sse_id'];
             }
         };
