@@ -20,9 +20,10 @@ const STREAM_URL   = '/api/stream';
 const MIN_BACKOFF  = 1000;
 const MAX_BACKOFF  = 30000;
 
-let es        = null;
-let backoff   = MIN_BACKOFF;
-const ports   = new Set();
+let es          = null;
+let backoff     = MIN_BACKOFF;
+let lastCursor  = '';   // explicitly tracked; es.lastEventId is unreliable after close
+const ports     = new Set();
 
 // Event types we have registered listeners for on the current EventSource.
 // Pre-populated with the core type always needed.
@@ -59,7 +60,12 @@ function connect() {
         es.close();
     }
 
-    es = new EventSource(STREAM_URL);
+    // Pass the last known cursor as a URL param. A new EventSource instance
+    // always starts with lastEventId = "" so the browser never sends the
+    // Last-Event-ID header on manually-created reconnects. We track the cursor
+    // ourselves (lastCursor) so the server can resume from the right position.
+    const url = lastCursor ? `${STREAM_URL}?cursor=${encodeURIComponent(lastCursor)}` : STREAM_URL;
+    es = new EventSource(url);
 
     // Capture this specific instance. Each listener checks `thisEs === es`
     // before acting — this prevents stale listeners from a previous connection
@@ -70,11 +76,13 @@ function connect() {
     thisEs.addEventListener('connected', function (e) {
         if (thisEs !== es) return;
         backoff = MIN_BACKOFF;
+        if (e.lastEventId) lastCursor = e.lastEventId;
         broadcast('connected', tryParse(e.data));
     });
 
-    thisEs.addEventListener('reconnect', function () {
+    thisEs.addEventListener('reconnect', function (e) {
         if (thisEs !== es) return;
+        if (e.lastEventId) lastCursor = e.lastEventId;
         // Server closed intentionally — reconnect immediately, no backoff.
         thisEs.close();
         connect();
@@ -82,16 +90,8 @@ function connect() {
 
     thisEs.addEventListener('error', function () {
         if (thisEs !== es) return;
-        if (thisEs.readyState === EventSource.CLOSED) {
-            // Clean server close — reconnect immediately.
-            es = null;
-            thisEs.close();
-            connect();
-        } else {
-            // Network error — back off before retrying.
-            thisEs.close();
-            scheduleReconnect();
-        }
+        thisEs.close();
+        scheduleReconnect();
     });
 
     // Register listeners for all currently subscribed event types.
@@ -107,6 +107,7 @@ function connect() {
 function addListenerForType(targetEs, type) {
     targetEs.addEventListener(type, function (e) {
         if (targetEs !== es) return;
+        if (e.lastEventId) lastCursor = e.lastEventId;
         broadcast(type, tryParse(e.data));
     });
 }

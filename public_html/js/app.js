@@ -254,14 +254,29 @@ function formatPlainMessageText(messageText, searchTerms = []) {
     return `<div class="message-formatted"><pre class="mb-0" style="white-space: pre-wrap;">${escaped}</pre></div>`;
 }
 
+/**
+ * Render message body as raw source — no ANSI stripping, no pipe code conversion,
+ * no URL linkification. Useful for inspecting the wire content of a message.
+ */
+function formatRawMessageText(messageText) {
+    if (!messageText || messageText.trim() === '') {
+        return '';
+    }
+    const escaped = escapeHtml(messageText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return `<div class="message-formatted"><pre class="mb-0" style="white-space: pre-wrap;">${escaped}</pre></div>`;
+}
+
 function normalizeViewerRenderMode(mode) {
     const normalized = String(mode || 'auto').toLowerCase();
-    if (normalized === 'plain') {
-        return 'plain';
-    }
-    if (normalized === 'rip' || normalized === 'ripscript') {
-        return 'rip';
-    }
+    if (normalized === 'plain') return 'plain';
+    if (normalized === 'raw') return 'raw';
+    if (normalized === 'rip' || normalized === 'ripscript') return 'rip';
+    // Handle art format names explicitly — normalizeArtFormat does not recognise
+    // 'amiga_ansi' (only 'amiga'/'amigaansi') and falls back to 'auto' for unknowns,
+    // which would corrupt the viewer mode cycle.
+    if (normalized === 'ansi') return 'ansi';
+    if (normalized === 'amiga_ansi' || normalized === 'amiga' || normalized === 'amigaansi') return 'amiga_ansi';
+    if (normalized === 'petscii') return 'petscii';
     if (window.normalizeArtFormat) {
         return window.normalizeArtFormat(normalized);
     }
@@ -269,7 +284,7 @@ function normalizeViewerRenderMode(mode) {
 }
 
 function getNextViewerRenderMode(mode) {
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain', 'raw'];
     const normalized = normalizeViewerRenderMode(mode);
     const currentIndex = modes.indexOf(normalized);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
@@ -286,6 +301,8 @@ function getViewerRenderModeLabel(mode) {
             return window.t ? window.t('ui.echomail.viewer_mode_amiga_ansi', {}, 'Amiga ANSI') : 'Amiga ANSI';
         case 'plain':
             return window.t ? window.t('ui.echomail.viewer_mode_plain', {}, 'Plain Text') : 'Plain Text';
+        case 'raw':
+            return window.t ? window.t('ui.echomail.viewer_mode_raw', {}, 'Raw Source') : 'Raw Source';
         default:
             return window.t ? window.t('ui.echomail.viewer_mode_auto', {}, 'Auto') : 'Auto';
     }
@@ -515,6 +532,10 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
 
     if (!searchTerms || searchTerms.length === 0) {
         searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
+    if (requestedFormat === 'raw') {
+        return formatRawMessageText(text);
     }
 
     if (forcePlainText || requestedFormat === 'plain') {

@@ -745,7 +745,7 @@ function displayMessageContent(message) {
 }
 
 function getNextRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'plain'];
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'plain', 'raw'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -814,6 +814,7 @@ function renderCurrentMessageBody() {
     if (!container) return;
 
     if (currentRenderMode !== 'plain'
+            && currentRenderMode !== 'raw'
             && typeof looksLikeSixel === 'function'
             && looksLikeSixel(body)) {
         renderSixelChunks(container, body, function (textChunk) {
@@ -843,6 +844,7 @@ function cycleRenderMode() {
 
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
+    showRenderModeToast();
 }
 
 function checkAndDisplayMessage(message, parsedMessage, isSent) {

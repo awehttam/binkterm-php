@@ -1322,7 +1322,7 @@ function getNextRenderMode(mode) {
     if (window.getNextViewerRenderMode) {
         return window.getNextViewerRenderMode(mode);
     }
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain', 'raw'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -1481,6 +1481,7 @@ function renderCurrentMessageBody() {
     }
 
     if (currentRenderMode !== 'plain'
+            && currentRenderMode !== 'raw'
             && typeof looksLikeSixel === 'function'
             && looksLikeSixel(body)) {
         renderSixelChunks(container, body, function (textChunk) {
@@ -1558,6 +1559,7 @@ function updateSaveToAdLibraryButton() {
 function cycleRenderMode() {
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
+    showRenderModeToast();
 }
 
 function printMessage() {

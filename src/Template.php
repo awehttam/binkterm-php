@@ -199,6 +199,7 @@ class Template
             $hasActiveInterests = count($im->getInterests(true)) > 0;
         }
         $this->twig->addGlobal('has_active_interests', $hasActiveInterests);
+        $this->twig->addGlobal('is_dev', Config::env('IS_DEV', 'false') === 'true');
         $this->twig->addGlobal('debug_ansi_not_perfect', Config::env('DEBUG_ANSI_NOT_PERFECT', 'false') === 'true');
         $this->twig->addGlobal('debug_ansi_use_consolas', Config::env('DEBUG_ANSI_USE_CONSOLAS', 'false') === 'true');
         // ANSI_RENDERER_MODE: 'grouped' (default, merges same-styled chars into one span,

@@ -123,11 +123,19 @@
 
     function formatTimestamp(ts) {
         if (!ts) return '';
+        // formatFullDate appends 'Z' and expects a naive UTC string like
+        // "2026-03-25 18:01:13" (what PHP/PDO returns). SSE payloads from
+        // PostgreSQL json_build_object include microseconds and a tz offset
+        // ("2026-03-25T18:01:13.922794+00:00"), which breaks new Date(...+'Z').
+        // Strip both so either source works correctly.
+        const normalized = String(ts)
+            .replace(/\.\d+/, '')               // remove fractional seconds
+            .replace(/[+-]\d{2}:\d{2}$|Z$/, ''); // remove tz offset or trailing Z
         if (window.formatFullDate) {
-            return window.formatFullDate(ts);
+            return window.formatFullDate(normalized);
         } else {
             const userDateFormat = window.userSettings?.date_format || 'en-US';
-            return new Date(ts).toLocaleString(userDateFormat);
+            return new Date(normalized + 'Z').toLocaleString(userDateFormat);
         }
     }
 
@@ -284,7 +292,9 @@
         const header = document.createElement('div');
         header.className = 'chat-message-header';
         const authorClass = window.currentUserIsAdmin ? 'chat-message-author admin-action' : 'chat-message-author';
-        header.innerHTML = `<span class="${authorClass}" data-user-id="${msg.from_user_id || ''}" title="${window.currentUserIsAdmin ? uiT('ui.chat.moderation_hint', 'Right-click or click to moderate') : ''}">${escapeHtml(msg.from_username || uiT('ui.chat.system', 'System'))}</span>
+        const devBadge = window.isDevMode && msg._source
+            ? ` <span class="chat-dev-source">(${msg._source})</span>` : '';
+        header.innerHTML = `<span class="${authorClass}" data-user-id="${msg.from_user_id || ''}" title="${window.currentUserIsAdmin ? uiT('ui.chat.moderation_hint', 'Right-click or click to moderate') : ''}">${escapeHtml(msg.from_username || uiT('ui.chat.system', 'System'))}</span>${devBadge}
             <span class="chat-message-time">${formatTimestamp(msg.created_at)}</span>`;
 
         const body = document.createElement('div');
@@ -417,6 +427,7 @@
             .then(data => {
                 const messages = data.messages || [];
                 messages.forEach(payload => {
+                    payload._source = 'poll';
                     handleIncoming(payload);
                     if (payload.id && payload.id > state.lastChatId) {
                         state.lastChatId = payload.id;
@@ -639,6 +650,7 @@
                 // safety-net poll won't re-deliver the same message.
                 // Note: the SSE Last-Event-ID cursor (sse_events.id) is managed
                 // automatically by the browser/SharedWorker EventSource.
+                payload._source = 'sse';
                 handleIncoming(payload);
                 if (payload.id > state.lastChatId) {
                     state.lastChatId = payload.id;

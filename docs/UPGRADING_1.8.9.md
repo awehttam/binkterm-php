@@ -22,6 +22,8 @@
   - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
   - [Show Entire Conversation](#show-entire-conversation)
   - [Message List Context Menu](#message-list-context-menu)
+  - [Message Viewer: Raw Source Mode](#message-viewer-raw-source-mode)
+  - [Pipe Code False Positive Fix](#pipe-code-false-positive-fix)
 - [QWK Offline Mail](#qwk-offline-mail)
   - [HTTP Basic Auth Endpoints](#http-basic-auth-endpoints)
   - [Conference Area Selection](#conference-area-selection)
@@ -51,6 +53,8 @@
   - [SharedWorker Architecture](#sharedworker-architecture)
   - [Chat Integration](#chat-integration)
   - [Long-lived Connections](#long-lived-connections)
+  - [User and Admin Targeting](#user-and-admin-targeting)
+  - [php-fpm Worker Capacity](#php-fpm-worker-capacity)
   - [SSE Test Tools](#sse-test-tools)
 - [AreaFix / FileFix Manager](#areafix--filefix-manager)
   - [Overview](#areafix-overview)
@@ -107,6 +111,8 @@
 - Echomail and netmail message lists now support a right-click context menu, with mobile long-press support for the same menu on touch devices.
 - Echomail list rows now expose **View Conversation**, **Save for later**, **Download Message**, **Forward to me by EMail**, and **Share** from that menu.
 - Netmail list rows now expose **View Conversation**, **Download Message**, and **Forward to me by EMail** from that menu.
+- The **A** key viewer mode cycle now includes a **Raw Source** mode that displays message bytes verbatim — no ANSI rendering, no pipe code conversion, no URL linkification. Useful for inspecting wire content. Pressing **A** also now shows a brief toast notification indicating the active mode.
+- The pipe code detector no longer false-positives on English words that contain pipe characters followed by letters that happen to look like hex color codes (e.g. `|Advertise` was being treated as a Mystic-style background color code, causing a green background). Detection now requires uppercase letters, matching all real BBS software.
 
 **QWK Offline Mail**
 - QWK packet download and REP upload are now also available through `/qwk/download` and `/qwk/upload` using HTTP Basic Authentication with the user's normal username and password.
@@ -150,7 +156,8 @@
 - A SharedWorker-based Server-Sent Events channel replaces the previous daemon-based event delivery. Each logged-in user holds one long-lived SSE connection shared across all browser tabs. Events are written to an `sse_events` UNLOGGED table; a Postgres trigger on `chat_messages` fires the inserts automatically. The SSE endpoint polls that table directly and delivers events without involving the admin daemon.
 - Connections default to a 60-second window with 15-second keepalive comments to prevent proxy timeouts. The window duration is configurable via `SSE_WINDOW_SECONDS` in `.env`.
 - An SSE diagnostics page is available in the Admin **Help → Developer** submenu. A companion proxy buffer-flush test tool is also in that submenu.
-- Two database migrations are included: `v1.11.0.54_chat_notify_trigger.php` and `v1.11.0.55_sse_events_table.php`.
+- Three database migrations are included: `v1.11.0.54_chat_notify_trigger.php`, `v1.11.0.55_sse_events_table.php`, and `v1.11.0.57_sse_events_user_targeting.php`. The third adds per-user and admin-only targeting to `sse_events` and updates the chat trigger to a fat-payload pattern (no JOINs at delivery time).
+- **Because every online user holds an open php-fpm worker for the SSE window duration, `pm.max_children` must be sized for your expected concurrent user count.** See [docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning) for a capacity table and low-RAM options.
 
 **AreaFix / FileFix Manager**
 - New admin tool at `/admin/areafix` for managing echomail and file-area subscriptions with the upstream hub's AreaFix and FileFix robots.
@@ -331,6 +338,27 @@ Additional echomail-only actions:
 
 - **Save for later** / **Remove from saved**
 - **Share** - opens the existing message-sharing dialog from the list view
+
+### Message Viewer: Raw Source Mode
+
+The **A** key now cycles through one additional viewer mode: **Raw Source**.
+
+Full cycle order: Auto → RIPscrip → ANSI → Amiga ANSI → Plain Text → Raw Source → Auto
+
+| Mode | Behaviour |
+|---|---|
+| **Plain Text** | Strips ANSI escape sequences and pipe color codes; linkifies URLs |
+| **Raw Source** | Displays the message bytes exactly as received — no stripping, no rendering, no linkification |
+
+Raw Source is useful for inspecting the wire content of a message without any client-side transformation applied.
+
+Pressing **A** now also shows a brief toast notification each time the mode changes, making the active mode clearly visible even for modes that look visually similar to Auto.
+
+### Pipe Code False Positive Fix
+
+The pipe code detector previously matched any `|` followed by two characters that happened to be valid hexadecimal — including letters in ordinary English words. For example, `|Advertise` was being treated as a Mystic-style hex color code (`|AD` = bright green background), causing all text after it to render on a green background.
+
+Detection now requires uppercase letters for both hex color codes and two-letter special codes such as `|CL` and `|PA`. All real BBS software produces uppercase pipe codes. The same fix was applied to `convertPipeCodesToAnsi` and `parsePipeCodes` for consistency.
 
 ---
 
@@ -605,6 +633,20 @@ SSE_WINDOW_SECONDS=60
 
 On the built-in PHP development server the window is forced to `0` (immediate reconnect) because that server is single-threaded and cannot handle concurrent requests.
 
+### php-fpm Worker Capacity
+
+SSE holds one php-fpm worker open per online user for the full `SSE_WINDOW_SECONDS` duration (default: 60 s). This enables low-latency real-time event delivery, but worker count must be planned for your expected concurrent user load.
+
+**Rule of thumb:** `pm.max_children` ≥ (concurrent users × 1.1) + 5
+
+If all workers are occupied by SSE connections, regular page loads and API calls will queue or fail. For a full sizing table, php-fpm and Apache configuration snippets, and PostgreSQL tuning guidance, see **[docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning)**.
+
+**Low-RAM options** — if you cannot provision enough workers for the default window:
+
+- **Reduce `SSE_WINDOW_SECONDS`** (e.g. `15` or `30`). Shorter windows free workers more often; reconnect overhead is negligible because the SharedWorker reconnects immediately on window expiry. Event latency is unaffected.
+- **Set `SSE_WINDOW_SECONDS=0`** to disable long-polling entirely. The SharedWorker reconnects immediately on close, giving ~1 s polling cadence at the cost of one extra HTTP round-trip per second per user.
+- Because all tabs for the same user on the same browser share one SharedWorker and therefore one SSE connection, multiple open tabs do not multiply worker usage.
+
 ### SSE Test Tools
 
 Two diagnostic tools are in the Admin **Help → Developer** submenu:
@@ -860,6 +902,7 @@ php scripts/setup.php
 | `v1.11.0.54_chat_notify_trigger.php` | Postgres trigger for SSE chat events |
 | `v1.11.0.55_sse_events_table.php` | SSE events UNLOGGED table |
 | `v1.11.0.56_qwk_area_selections.sql` | QWK per-user conference area selection |
+| `v1.11.0.57_sse_events_user_targeting.php` | SSE event targeting: `user_id` and `admin_only` columns; fat-payload chat trigger |
 
 **Optional `.env` additions:**
 

@@ -1571,7 +1571,10 @@ function hasAnsiCodes(text) {
 function hasPipeCodes(text) {
     // Match single-digit shorthand (|1), two-digit color codes (|01, |0A, |1F),
     // or special letter codes (|CL, |PA, etc.).
-    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2}|[A-Z]{2})/i.test(text);
+    // Requires uppercase letters for both hex and letter codes — all real BBS software
+    // produces uppercase pipe codes, and the case-insensitive version causes false positives
+    // on natural English text (e.g. |Advertise → |Ad matches as a Mystic hex color code).
+    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-F]{2}|[A-Z]{2})/.test(text);
 }
 
 /**
@@ -1606,8 +1609,8 @@ function convertPipeCodesToAnsi(text) {
         'KP', 'KR', 'KS', 'KT', 'KU', 'KD',
         'GE', 'GV', 'GL', 'GR', 'GN', 'GO'
     ];
-    text = text.replace(/\|([A-Z]{2})/gi, (match, code) => {
-        return knownPipeCodes.includes(code.toUpperCase()) ? '' : match;
+    text = text.replace(/\|([A-Z]{2})/g, (match, code) => {
+        return knownPipeCodes.includes(code) ? '' : match;
     });
 
     // Pipe code to ANSI color mapping
@@ -1653,7 +1656,7 @@ function convertPipeCodesToAnsi(text) {
     // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background.
     // Mystic-style hex codes (|0A = bright green, |1F = blue bg + white fg, etc.) are also
     // handled: codes with letters A-F are parsed as hex nibbles.
-    text = text.replace(/\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/g, (match, codeStr) => {
+    text = text.replace(/\|([0-9](?![0-9A-Fa-f])|[0-9A-F]{2})/g, (match, codeStr) => {
         if (codeStr.length === 1) {
             const ansiFg = pipeToAnsiFg[parseInt(codeStr, 10)] || 37;
             return `\x1b[${ansiFg}m`;
@@ -1747,8 +1750,8 @@ function parsePipeCodes(text) {
     let result = '';
     let spanOpen = false;
 
-    // Pipe code pattern: |XX where XX is hex digits
-    const pipePattern = /\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/g;
+    // Pipe code pattern: |XX where XX is hex digits (uppercase only to avoid false positives)
+    const pipePattern = /\|([0-9](?![0-9A-Fa-f])|[0-9A-F]{2})/g;
     let lastIndex = 0;
     let match;
 

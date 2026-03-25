@@ -1763,8 +1763,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ob_implicit_flush(true);
         ignore_user_abort(true);
 
-        $lastEventId = (int)($_SERVER['HTTP_LAST_EVENT_ID'] ?? 0);
+        // Prefer the standard Last-Event-ID header; fall back to the cursor
+        // query param sent by the SharedWorker when it creates a new EventSource
+        // instance (new instances always start with lastEventId="" so the header
+        // is never sent — the worker captures the old id and passes it in the URL).
+        $lastEventId = (int)($_SERVER['HTTP_LAST_EVENT_ID'] ?? $_GET['cursor'] ?? 0);
         $isDevServer = (php_sapi_name() === 'cli-server');
+        $isAdmin     = !empty($user['is_admin']);
 
         $db = \BinktermPHP\Database::getInstance()->getPdo();
 
@@ -1777,56 +1782,49 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return (int)($row['max_id'] ?? 0);
         };
 
+        // Tell the client how long to wait before reconnecting after a close.
+        // On the dev server (window=0) we close immediately, so set a short
+        // retry so the client polls at ~500 ms rather than the browser default
+        // (3 000 ms). On production the long-lived window keeps the connection
+        // open so the retry value is only used after an unexpected disconnect.
+        echo "retry: " . ($isDevServer ? 1000 : 3000) . "\n\n";
+
+        // Anchor the cursor on the connected event. Attaching id: to a real
+        // event (with data) ensures the browser reliably updates lastEventId —
+        // a bare id: with no data is invisible in DevTools and some browsers
+        // may not persist it on the EventSource object across a manual close().
+        $anchorId = $getMaxSseId();
+        echo "id: {$anchorId}\n";
         echo "event: connected\n";
-        echo "data: " . json_encode(['user_id' => $userId]) . "\n\n";
+        echo "data: " . json_encode(['user_id' => $userId, 'cursor' => $anchorId]) . "\n\n";
 
         /**
          * Fetch and emit sse_events with id > $fromId for this user.
          * Updates $lastEventId (passed by reference) to the highest id emitted.
+         *
+         * Targeting rules (enforced by columns on sse_events, not by JOINs):
+         *   user_id IS NULL  → broadcast to all authenticated users
+         *   user_id = X      → deliver only to user X
+         *   admin_only = TRUE → deliver only to admins
+         *
+         * The payload is stored fat (all display fields included at insert time)
+         * so new event types are delivered automatically without modifying this
+         * query — just insert a row with the correct user_id/admin_only flags.
          */
-        $deliverEvents = function(int $fromId) use ($db, $userId, &$lastEventId): void {
+        $deliverEvents = function(int $fromId) use ($db, $userId, $isAdmin, &$lastEventId): void {
+            // $isAdmin is from the session (trusted), safe to inline as a SQL literal
+            // to avoid PostgreSQL type errors when binding PHP booleans via PDO.
+            $adminLiteral = $isAdmin ? 'TRUE' : 'FALSE';
             $stmt = $db->prepare("
-                SELECT sse_id, event_type, event_data FROM (
-
-                    SELECT e.id AS sse_id,
-                           'chat_message' AS event_type,
-                           json_build_object(
-                               'id',            m.id,
-                               'type',          CASE WHEN m.room_id IS NOT NULL THEN 'room' ELSE 'dm' END,
-                               'room_id',       m.room_id,
-                               'room_name',     r.name,
-                               'from_user_id',  m.from_user_id,
-                               'from_username', u.username,
-                               'to_user_id',    m.to_user_id,
-                               'body',          m.body,
-                               'created_at',    m.created_at
-                           )::text AS event_data
-                    FROM sse_events e
-                    JOIN chat_messages m ON (e.payload->>'chat_id')::int = m.id
-                    LEFT JOIN chat_rooms r ON m.room_id = r.id
-                    JOIN users u ON m.from_user_id = u.id
-                    WHERE e.id > ?
-                      AND e.event_type = 'chat_message'
-                      AND (
-                        (m.room_id IS NOT NULL AND r.is_active = TRUE AND m.from_user_id != ?)
-                        OR m.to_user_id = ?
-                      )
-
-                    UNION ALL
-
-                    SELECT e.id AS sse_id,
-                           'sse_test' AS event_type,
-                           e.payload::text AS event_data
-                    FROM sse_events e
-                    WHERE e.id > ?
-                      AND e.event_type = 'sse_test'
-                      AND (e.payload->>'user_id')::int = ?
-
-                ) combined
-                ORDER BY sse_id ASC
+                SELECT id AS sse_id, event_type, payload::text AS event_data
+                FROM sse_events
+                WHERE id > ?
+                  AND (user_id IS NULL OR user_id = ?)
+                  AND (admin_only = FALSE OR admin_only = $adminLiteral)
+                ORDER BY id ASC
                 LIMIT 200
             ");
-            $stmt->execute([$fromId, $userId, $userId, $fromId, $userId]);
+            $stmt->execute([$fromId, $userId]);
             foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
                 echo "id: " . (int)$row['sse_id'] . "\n";
                 echo "event: " . $row['event_type'] . "\n";
@@ -1835,17 +1833,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         };
 
-        // Anchor on first connect (no historical replay), or deliver any events
-        // missed since the client's last-known cursor.
-        if ($lastEventId === 0) {
-            // First connection — anchor the cursor at the current max without
-            // replaying history. loadMessages() handles that on page load.
-            $maxSseEventId = $getMaxSseId();
-            if ($maxSseEventId > 0) {
-                echo "id: {$maxSseEventId}\n\n";
-                $lastEventId = $maxSseEventId;
-            }
-        } else {
+        // On reconnect, deliver any events missed since the client's last cursor.
+        // On first connect ($lastEventId=0) skip delivery — the connected event
+        // already anchored the cursor at $anchorId and loadMessages() handles
+        // the initial message load. Calling $deliverEvents($anchorId) here would
+        // look for id > $anchorId and silently skip the event AT $anchorId.
+        if ($lastEventId > 0) {
             $deliverEvents($lastEventId);
         }
 
@@ -1883,7 +1876,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             usleep($pollSleep);
         }
 
-        echo "event: reconnect\ndata: {}\n\n";
+        // On the dev server the window is 0 so we close immediately. Don't send
+        // the reconnect event — let the worker hit the error/CLOSED path, which
+        // uses scheduleReconnect() and respects MIN_BACKOFF (1 s). Sending
+        // reconnect here would trigger an immediate no-delay reconnect loop.
+        if (!$isDevServer) {
+            echo "event: reconnect\ndata: {}\n\n";
+        }
     });
 
     SimpleRouter::get('/echoareas', function() {

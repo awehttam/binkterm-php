@@ -438,6 +438,7 @@
         window.currentUserId = {{ current_user.user_id ?? current_user.id }};
         window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
         {% endif %}
+        window.isDevMode = {{ is_dev ? 'true' : 'false' }};
 
         // Handle nested dropdown submenus
         $(document).ready(function() {
