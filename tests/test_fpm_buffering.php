@@ -189,7 +189,11 @@ while (!$done && !feof($sock)) {
     $header = fread($sock, 8);
     if ($header === false || strlen($header) < 8) break;
 
-    [, $type, $reqId, $contentLen, $paddingLen] = unpack('Cversion/Ctype/nrequestId/ncontentLength/CpaddingLength', $header);
+    $rec        = unpack('Cversion/Ctype/nrequestId/ncontentLength/CpaddingLength', $header);
+    $type       = $rec['type'];
+    $reqId      = $rec['requestId'];
+    $contentLen = $rec['contentLength'];
+    $paddingLen = $rec['paddingLength'];
 
     $content = '';
     $remaining = $contentLen;
