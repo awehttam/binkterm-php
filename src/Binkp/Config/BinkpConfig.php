@@ -405,6 +405,30 @@ class BinkpConfig
         $uplink = $this->getUplinkByAddress($address);
         return $uplink['tic_password'] ?? '';
     }
+
+    /**
+     * Get the AreaFix password for a specific uplink address.
+     *
+     * @param string $uplinkAddress FTN address of the uplink (e.g. "1:1/23")
+     * @return string The areafix_password value, or empty string if not configured
+     */
+    public function getAreafixPassword(string $uplinkAddress): string
+    {
+        $uplink = $this->getUplinkByAddress($uplinkAddress);
+        return (string)($uplink['areafix_password'] ?? '');
+    }
+
+    /**
+     * Get the FileFix password for a specific uplink address.
+     *
+     * @param string $uplinkAddress FTN address of the uplink (e.g. "1:1/23")
+     * @return string The filefix_password value, or empty string if not configured
+     */
+    public function getFilefixPassword(string $uplinkAddress): string
+    {
+        $uplink = $this->getUplinkByAddress($uplinkAddress);
+        return (string)($uplink['filefix_password'] ?? '');
+    }
     
     public function addUplink($address, $hostname, $port = 24554, $password = '', $options = [])
     {

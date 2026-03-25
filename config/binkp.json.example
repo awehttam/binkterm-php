@@ -36,6 +36,8 @@
             "password": "xyzzy",
             "pkt_password": "",
             "tic_password": "",
+            "areafix_password": "",
+            "filefix_password": "",
             "poll_schedule": "*/15 * * * *",
             "enabled": true,
             "compression": false,

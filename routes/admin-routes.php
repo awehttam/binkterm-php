@@ -6606,4 +6606,236 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
 
 });
 
+// ============================================================
+// AreaFix / FileFix Manager
+// ============================================================
+
+/**
+ * GET /admin/areafix
+ * AreaFix / FileFix manager admin page.
+ */
+SimpleRouter::get('/admin/areafix', function () {
+    $user = RouteHelper::requireAdmin();
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    $uplinks = $areafixManager->getConfiguredUplinks();
+
+    $template = new Template();
+    $template->renderResponse('admin/areafix.twig', [
+        'uplinks'                => $uplinks,
+        'has_configured_uplinks' => !empty($uplinks),
+    ]);
+});
+
+/**
+ * GET /api/admin/areafix/uplinks
+ * Return uplinks that have areafix or filefix passwords configured.
+ */
+SimpleRouter::get('/api/admin/areafix/uplinks', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    $uplinks = $areafixManager->getConfiguredUplinks();
+
+    echo json_encode(['success' => true, 'uplinks' => $uplinks]);
+});
+
+/**
+ * POST /api/admin/areafix/send
+ * Send AreaFix or FileFix commands to a hub uplink.
+ * Body: { uplink: string, robot: "areafix"|"filefix", commands: string[] }
+ */
+SimpleRouter::post('/api/admin/areafix/send', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.areafix.invalid_json',
+            apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? '')));
+    $commands = $body['commands'] ?? [];
+
+    if ($uplinkAddress === '') {
+        apiError(
+            'errors.admin.areafix.uplink_required',
+            apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (!in_array($robot, ['areafix', 'filefix'], true)) {
+        apiError(
+            'errors.admin.areafix.invalid_robot',
+            apiLocalizedText('errors.admin.areafix.invalid_robot', 'Robot must be "areafix" or "filefix"', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (empty($commands) || !is_array($commands)) {
+        apiError(
+            'errors.admin.areafix.commands_required',
+            apiLocalizedText('errors.admin.areafix.commands_required', 'At least one command is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    // Sanitize commands: must be non-empty strings
+    $commands = array_values(array_filter(array_map('trim', $commands), static fn ($c) => $c !== ''));
+    if (empty($commands)) {
+        apiError(
+            'errors.admin.areafix.commands_required',
+            apiLocalizedText('errors.admin.areafix.commands_required', 'At least one command is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+    try {
+        $areafixManager = new \BinktermPHP\AreaFixManager();
+        $areafixManager->sendCommand($uplinkAddress, $commands, $robot, $sysopUserId);
+    } catch (\RuntimeException $e) {
+        apiError(
+            'errors.admin.areafix.send_failed',
+            $e->getMessage(),
+            400,
+            ['success' => false]
+        );
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.areafix.send_failed',
+            apiLocalizedText('errors.admin.areafix.send_failed', 'Failed to send command', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /api/admin/areafix/history
+ * Return AreaFix/FileFix message history for an uplink.
+ * Query params: uplink=<address>
+ */
+SimpleRouter::get('/api/admin/areafix/history', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $uplinkAddress = trim((string)($_GET['uplink'] ?? ''));
+    if ($uplinkAddress === '') {
+        apiError(
+            'errors.admin.areafix.uplink_required',
+            apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+    try {
+        $areafixManager = new \BinktermPHP\AreaFixManager();
+        $messages = $areafixManager->getHistory($uplinkAddress, $sysopUserId);
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.areafix.history_failed',
+            apiLocalizedText('errors.admin.areafix.history_failed', 'Failed to load message history', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true, 'messages' => $messages]);
+});
+
+/**
+ * POST /api/admin/areafix/sync
+ * Parse area list and sync to local echo/file area table.
+ * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool }
+ */
+SimpleRouter::post('/api/admin/areafix/sync', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.areafix.invalid_json',
+            apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? '')));
+    $parsedAreas = $body['areas'] ?? [];
+    $deactivateMissing = (bool)($body['deactivate_missing'] ?? false);
+
+    if ($uplinkAddress === '') {
+        apiError(
+            'errors.admin.areafix.uplink_required',
+            apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (!in_array($robot, ['areafix', 'filefix'], true)) {
+        apiError(
+            'errors.admin.areafix.invalid_robot',
+            apiLocalizedText('errors.admin.areafix.invalid_robot', 'Robot must be "areafix" or "filefix"', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (!is_array($parsedAreas)) {
+        apiError(
+            'errors.admin.areafix.invalid_json',
+            apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    // Look up domain for this uplink
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    try {
+        $areafixManager = new \BinktermPHP\AreaFixManager();
+        $summary = $areafixManager->syncSubscribedAreas(
+            $uplinkAddress,
+            $domain,
+            $parsedAreas,
+            $deactivateMissing,
+            $robot
+        );
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.areafix.sync_failed',
+            apiLocalizedText('errors.admin.areafix.sync_failed', 'Failed to sync areas', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true, 'summary' => $summary]);
+});
 
