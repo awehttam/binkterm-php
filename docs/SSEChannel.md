@@ -26,13 +26,8 @@ BinktermPHP uses a Server-Sent Events (SSE) back-channel to push real-time event
 PostgreSQL trigger
       │
       │  INSERT INTO sse_events
-      │  pg_notify('binkstream', sse_events.id)
       ▼
-Admin Daemon  ──── LISTEN binkstream ────► maxSseEventId (in memory)
-      │
-      │  get_stream_events command (TCP socket, ~1ms)
-      ▼
-PHP /api/stream  ──► SSE response (text/event-stream)
+PHP /api/stream  polls SELECT MAX(id) FROM sse_events every 200 ms
       │
       │  event: chat_message
       │  id: <sse_events.id>
@@ -45,9 +40,13 @@ binkstream.js  ──► window.BinkStream.on('chat_message', handler)
 
 **Why this design?**
 
-- PHP's built-in dev server is single-threaded. A long-lived SSE connection would block all other requests. The endpoint is intentionally short-lived (~3–10 ms) — it delivers any pending events and immediately tells the client to reconnect.
-- The admin daemon holds the one persistent Postgres `LISTEN` connection. PHP endpoints don't need their own pg connection to check for events — they ask the daemon via a fast local TCP socket call.
+- PHP's built-in dev server is single-threaded. A long-lived SSE connection would block all other requests. The endpoint is intentionally short-lived (held open for at most `SSE_WINDOW_SECONDS`) — it delivers any pending events and immediately tells the client to reconnect.
+- The SSE endpoint detects new events by polling `SELECT MAX(id) FROM sse_events` directly. This is a trivial index scan on the BIGSERIAL primary key — no separate daemon or persistent LISTEN connection is required.
 - The SharedWorker means all browser tabs share one EventSource connection rather than each opening their own.
+
+**Why not use `pg_notify` / LISTEN in the daemon?**
+
+The admin daemon forks a child process per client connection. A `pg_connect` + `LISTEN` established in the parent process is not reliably inherited by forked children — the file descriptor is shared but PostgreSQL's LISTEN state is per-connection and the notify dispatch can break after a fork. Direct DB polling avoids this entirely at negligible cost (`SELECT MAX(id)` on a PK index is sub-millisecond).
 
 ---
 
@@ -56,8 +55,7 @@ binkstream.js  ──► window.BinkStream.on('chat_message', handler)
 | File | Purpose |
 |---|---|
 | `database/migrations/v1.11.0.55_sse_events_table.php` | Creates `sse_events` table and installs the DB trigger |
-| `src/Admin/AdminDaemonServer.php` | Daemon: `LISTEN binkstream`, `maxSseEventId`, `get_stream_events` command, periodic pruning |
-| `src/Admin/AdminDaemonClient.php` | Web: `getStreamEvents()` — asks daemon for current max SSE event id |
+| `src/Admin/AdminDaemonServer.php` | Daemon: periodic `sse_events` pruning |
 | `routes/api-routes.php` | `GET /api/stream` — the SSE endpoint |
 | `public_html/js/binkstream-worker.js` | SharedWorker holding the single EventSource |
 | `public_html/js/binkstream.js` | Per-tab client; exposes `window.BinkStream` |
@@ -87,29 +85,15 @@ Using `chat_messages.id` as the SSE cursor would break the moment a second event
 
 ## Admin Daemon Role
 
-The daemon (`scripts/admin_daemon.php`) does three SSE-related things at startup and during its main loop:
-
-### Startup: `initPgListen()`
-
-Opens a raw `pg_connect()` connection (separate from PDO), runs `LISTEN binkstream`, and seeds `maxSseEventId` from `SELECT MAX(id) FROM sse_events`. This ensures the daemon doesn't report a stale 0 immediately after restart.
-
-### Every loop iteration: `drainPgNotifications()`
-
-Calls `pg_get_notify()` in a non-blocking loop. Each notification payload is a plain integer — the `sse_events.id` of the row just inserted by the DB trigger. Updates `maxSseEventId` if the new id is higher.
-
-### On `get_stream_events` command
-
-Drains notifications (for freshness), then returns:
-
-```json
-{ "max_sse_event_id": 42 }
-```
+The admin daemon's only SSE-related responsibility is periodic cleanup:
 
 ### Every ~60 seconds: `pruneSSEEvents()`
 
 ```sql
 DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'
 ```
+
+The daemon no longer participates in event detection or delivery. The SSE endpoint polls the DB directly.
 
 ---
 
@@ -119,7 +103,7 @@ DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'
 
 **Response format:** `Content-Type: text/event-stream`
 
-The endpoint always runs in under ~10 ms regardless of server environment.
+`session_write_close()` is called immediately after authentication to release the PHP session file lock. Without this, the SSE connection would hold the lock for its entire duration, blocking all other requests from the same browser.
 
 ### First connection (`Last-Event-ID` absent or 0)
 
@@ -139,7 +123,7 @@ The `id: 42` line advances the browser's `Last-Event-ID` to 42. On the next reco
 
 ### Reconnect with known cursor (`Last-Event-ID: 42`)
 
-The endpoint asks the daemon for `max_sse_event_id`. If `max > 42`, it runs the catch-up query and emits any missed events.
+The endpoint runs the catch-up query immediately. If new events exist, they are emitted and the connection closes. If nothing is new, the endpoint polls every 200 ms for up to `SSE_WINDOW_SECONDS` before sending `event: reconnect`.
 
 ```
 event: connected
@@ -159,9 +143,17 @@ data: {}
 
 If there are no new events, only `event: connected` and `event: reconnect` are sent.
 
-### Daemon unavailable
+### Polling window
 
-If `AdminDaemonClient` throws (daemon not running), `daemonOk = false` and the catch-up query runs unconditionally. This is a safety net — events won't be silently lost if the daemon is down.
+```
+SSE_WINDOW_SECONDS=2   (default; set in .env)
+```
+
+The endpoint holds the PHP-FPM worker for at most this many seconds, polling `SELECT MAX(id) FROM sse_events` every 200 ms. As soon as a new event is detected it delivers and reconnects immediately. On the PHP built-in dev server (`cli-server`) the window is always 0 — the worker is released immediately after any catch-up delivery.
+
+### SSE filter: own messages
+
+The catch-up query deliberately excludes messages sent by the authenticated user (`from_user_id != userId` for room messages; DMs only match `to_user_id`). The sender's own message is rendered immediately on the client via the `local_message` field returned in the send API response — it never goes through SSE.
 
 ---
 
@@ -275,7 +267,6 @@ BEGIN
     )
     RETURNING id INTO evt_id;
 
-    PERFORM pg_notify('binkstream', evt_id::text);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -287,7 +278,7 @@ CREATE TRIGGER trg_user_online_notify
 
 Wrap this in a migration file: `database/migrations/v1.11.0.XX_user_online_trigger.php`.
 
-If the event is triggered by PHP code (not a DB trigger), insert directly and notify:
+If the event is triggered by PHP code (not a DB trigger), insert directly:
 
 ```php
 // In a PHP route or service
@@ -295,25 +286,19 @@ $db = Database::getInstance()->getPdo();
 $stmt = $db->prepare("
     INSERT INTO sse_events (event_type, payload)
     VALUES ('user_online', :payload)
-    RETURNING id
 ");
 $stmt->execute([':payload' => json_encode([
     'user_id'  => $userId,
     'username' => $username,
     'online'   => true,
 ])]);
-$row = $stmt->fetch();
-$sseId = $row['id'];
-
-// Notify the daemon
-$db->exec("SELECT pg_notify('binkstream', " . $db->quote((string)$sseId) . ")");
 ```
+
+No `pg_notify` call is needed — the SSE endpoint polls `sse_events` directly.
 
 ### Step 2: Deliver the event in `/api/stream`
 
-In `routes/api-routes.php`, inside the catch-up query block, add a branch for the new event type alongside the existing `chat_message` branch.
-
-The simplest approach is to extend the existing query with a `UNION ALL`:
+In `routes/api-routes.php`, extend the `$deliverEvents` closure to handle the new event type alongside `chat_message`. The simplest approach is a `UNION ALL`:
 
 ```php
 $stmt = $db->prepare("
@@ -364,7 +349,7 @@ No changes to `binkstream-worker.js` or `binkstream.js` are needed — the worke
 Any time you change `binkstream-worker.js` or `binkstream.js`, increment `CACHE_NAME` in `public_html/sw.js`:
 
 ```javascript
-const CACHE_NAME = 'binkcache-v578'; // was v577
+const CACHE_NAME = 'binkcache-v581'; // was v580
 ```
 
 ---
@@ -378,19 +363,19 @@ Page load
   │     └─ worker onconnect: connect() → EventSource('/api/stream')
   │
   ├─ /api/stream (Last-Event-ID: 0)
-  │     └─ anchor cursor at maxSseEventId, send reconnect
+  │     └─ anchor cursor at MAX(sse_events.id), send reconnect
   │
   ├─ /api/stream (Last-Event-ID: N)  ← fast reconnect loop
-  │     ├─ if maxSseEventId > N: deliver events, send reconnect
-  │     └─ if nothing new: send reconnect only
+  │     ├─ run catch-up query immediately
+  │     ├─ if events found: deliver, send reconnect
+  │     └─ if nothing new: poll every 200 ms up to SSE_WINDOW_SECONDS, then reconnect
   │
   └─ message arrives in DB
-        ├─ trigger → sse_events INSERT → pg_notify
-        ├─ daemon drainPgNotifications() → maxSseEventId = N+1
-        └─ next /api/stream cycle: deliver event to browser
+        ├─ trigger → sse_events INSERT
+        └─ next /api/stream poll iteration: MAX(id) > N → deliver → reconnect
 ```
 
-**End-to-end latency** is one SSE cycle time — typically under 50 ms on localhost, under 200 ms on a production server depending on network conditions.
+**End-to-end latency** is one SSE poll interval — typically under 50 ms on localhost, under 300 ms on a production server (200 ms poll sleep + query time).
 
 ---
 
@@ -418,14 +403,6 @@ SELECT event_type, count(*)
 FROM sse_events
 WHERE created_at > NOW() - INTERVAL '1 hour'
 GROUP BY event_type;
-```
-
-### Check the daemon is listening
-
-```sql
-SELECT pid, query, state
-FROM pg_stat_activity
-WHERE query LIKE '%LISTEN%';
 ```
 
 ### Force-reload the SharedWorker
