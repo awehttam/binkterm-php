@@ -214,14 +214,15 @@ $firstByte       = null;
 $responseHeaders = '';
 $headersDone     = false;
 $headerBuf       = '';
+$chunkBuf        = '';   // residual buffer for chunked decoding across fread() calls
 $bodyBytes       = 0;
 $isChunked       = false;
 $contentLength   = null;
 $statusLine      = '';
 
 while (!feof($sock)) {
-    $chunk = fread($sock, 4096);
-    if ($chunk === false || $chunk === '') {
+    $raw = fread($sock, 4096);
+    if ($raw === false || $raw === '') {
         $info = stream_get_meta_data($sock);
         if ($info['timed_out']) {
             echo "\n[read timeout]\n";
@@ -234,7 +235,7 @@ while (!feof($sock)) {
     }
 
     if (!$headersDone) {
-        $headerBuf .= $chunk;
+        $headerBuf .= $raw;
         $sep = strpos($headerBuf, "\r\n\r\n");
         if ($sep !== false) {
             $responseHeaders = substr($headerBuf, 0, $sep);
@@ -253,7 +254,8 @@ while (!feof($sock)) {
 
             if ($body !== '') {
                 if ($isChunked) {
-                    $body = decodeChunkedPartial($body);
+                    $chunkBuf .= $body;
+                    $body = decodeChunked($chunkBuf);
                 }
                 echo $body;
                 $bodyBytes += strlen($body);
@@ -261,10 +263,14 @@ while (!feof($sock)) {
         }
     } else {
         if ($isChunked) {
-            $chunk = decodeChunkedPartial($chunk);
+            $chunkBuf .= $raw;
+            $decoded = decodeChunked($chunkBuf);
+            echo $decoded;
+            $bodyBytes += strlen($decoded);
+        } else {
+            echo $raw;
+            $bodyBytes += strlen($raw);
         }
-        echo $chunk;
-        $bodyBytes += strlen($chunk);
     }
 }
 
@@ -319,35 +325,45 @@ exit(0);
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Decode as much chunked transfer-encoding data as possible from a buffer.
- * Returns the decoded body bytes (may be partial if buffer ends mid-chunk).
+ * Decode all complete chunks from $buf (passed by reference).
+ * Leaves any incomplete trailing data in $buf for the next call.
+ * Returns the decoded bytes ready to print.
  */
-function decodeChunkedPartial(string $buf): string
+function decodeChunked(string &$buf): string
 {
     $out = '';
-    $pos = 0;
     $len = strlen($buf);
+    $pos = 0;
 
     while ($pos < $len) {
-        // Find end of chunk-size line
+        // Need at least a chunk-size line ending in \r\n
         $crlf = strpos($buf, "\r\n", $pos);
-        if ($crlf === false) break;
+        if ($crlf === false) break; // incomplete chunk header — wait for more data
 
         $sizeLine  = substr($buf, $pos, $crlf - $pos);
         $chunkSize = hexdec(strtok($sizeLine, ';')); // strip chunk extensions
-        $pos       = $crlf + 2;
 
-        if ($chunkSize === 0) break; // last chunk
-
-        if ($pos + $chunkSize > $len) {
-            // Partial chunk — take what we have
-            $out .= substr($buf, $pos);
+        if ($chunkSize === 0) {
+            // Terminal chunk — consume it and stop (connection will close)
+            $pos = $crlf + 2;
+            // Skip optional trailing headers
             break;
         }
 
-        $out .= substr($buf, $pos, $chunkSize);
-        $pos += $chunkSize + 2; // skip trailing CRLF
+        $dataStart = $crlf + 2;
+        $dataEnd   = $dataStart + $chunkSize;
+
+        if ($dataEnd + 2 > $len) {
+            // Chunk data (or its trailing \r\n) not fully received yet — wait
+            break;
+        }
+
+        $out .= substr($buf, $dataStart, $chunkSize);
+        $pos  = $dataEnd + 2; // skip trailing \r\n
     }
+
+    // Keep only the unconsumed remainder for the next fread() call
+    $buf = substr($buf, $pos);
 
     return $out;
 }
