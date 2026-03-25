@@ -336,7 +336,6 @@
                                         <li><a class="dropdown-item" href="/admin/licensing"><i class="fas fa-id-card"></i> {{ t('ui.base.admin.licensing', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
-                                <li><a class="dropdown-item" href="/admin/sse-test"><i class="fas fa-satellite-dish"></i> {{ t('ui.base.admin.sse_test', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> {{ t('ui.base.admin.help', {}, 'common') }}</a>
@@ -351,6 +350,13 @@
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item text-primary" href="/admin/register"><i class="fas fa-id-card me-1"></i> {{ t('ui.base.admin.register', {}, 'common') }}</a></li>
                                         {% endif %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li class="dropdown-submenu">
+                                            <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-code"></i> Developer</a>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="/admin/sse-test"><i class="fas fa-satellite-dish"></i> SSE Test</a></li>
+                                            </ul>
+                                        </li>
                                     </ul>
                                 </li>
 
