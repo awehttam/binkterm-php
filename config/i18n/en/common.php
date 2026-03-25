@@ -2765,6 +2765,10 @@ return [
     'ui.binkp.add_uplink_failed' => 'Failed to add uplink',
     'ui.binkp.remove_uplink_failed' => 'Failed to remove uplink',
     'ui.binkp.unknown_error' => 'Unknown error',
+    'ui.binkp.check_status' => 'Check',
+    'ui.binkp.check_status_title' => 'Check connectivity status',
+    'ui.binkp.poll_all_confirm' => 'Poll all uplinks now?',
+    'ui.binkp.poll_all_confirm_warning' => 'Warning: Excessive polling may lead to rate limiting or IP bans by remote systems.',
 
     // Echolist Page
     'ui.echolist.search_min_chars' => 'Please enter at least 2 characters to search',

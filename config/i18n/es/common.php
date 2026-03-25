@@ -2773,6 +2773,10 @@ return [
     'ui.binkp.add_uplink_failed' => 'No se pudo agregar el uplink',
     'ui.binkp.remove_uplink_failed' => 'No se pudo quitar el uplink',
     'ui.binkp.unknown_error' => 'Error desconocido',
+    'ui.binkp.check_status' => 'Verificar',
+    'ui.binkp.check_status_title' => 'Verificar estado de conectividad',
+    'ui.binkp.poll_all_confirm' => '¿Sondear todos los uplinks ahora?',
+    'ui.binkp.poll_all_confirm_warning' => 'Advertencia: El sondeo excesivo puede provocar limitación de velocidad o bloqueos de IP por parte de sistemas remotos.',
 
     // Echolist Page
     'ui.echolist.search_min_chars' => 'Ingrese al menos 2 caracteres para buscar',

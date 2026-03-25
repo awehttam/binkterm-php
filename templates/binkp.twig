@@ -469,7 +469,6 @@ function refreshUplinks() {
             document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: binkpUplinks.length });
             renderUplinkStatusList(binkpUplinks);
             updateUplinksTable(data.uplinks);
-            startUplinkConnectivityChecks(binkpUplinks);
         })
         .catch(error => {
             console.error('Error fetching uplinks:', error);
@@ -496,6 +495,9 @@ function renderUplinkStatusList(uplinks) {
             ? `<span class="badge bg-success ms-2">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
             : `<span class="badge bg-secondary ms-2">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
         const initialStatus = getInitialUplinkConnectivityResult(uplink);
+        const statusHtml = initialStatus !== null
+            ? renderUplinkConnectivityHtml(initialStatus)
+            : renderCheckStatusIcon(address);
 
         html += `
             <div class="d-flex justify-content-between align-items-center mb-2" data-uplink-list-row="${escapeHtmlAttr(address)}">
@@ -503,7 +505,7 @@ function renderUplinkStatusList(uplinks) {
                     <span>${escapedAddress}</span>${enabledBadge}
                 </div>
                 <div data-uplink-list-status="${escapeHtmlAttr(address)}">
-                    ${renderUplinkConnectivityHtml(initialStatus)}
+                    ${statusHtml}
                 </div>
             </div>
         `;
@@ -523,7 +525,10 @@ function updateUplinksTable(uplinks) {
         const address = String(uplink.address || '');
         const initialStatus = getInitialUplinkConnectivityResult(uplink);
         const canPoll = Boolean(address) && Boolean(uplink.enabled);
-        
+        const tableStatusHtml = initialStatus !== null
+            ? renderUplinkConnectivityHtml(initialStatus)
+            : renderCheckStatusIcon(address);
+
         const row = tbody.insertRow();
         row.innerHTML = `
             <td>
@@ -532,7 +537,7 @@ function updateUplinksTable(uplinks) {
             </td>
             <td>${escapeHtml(String(uplink.hostname || ''))}</td>
             <td>${uplink.port}</td>
-            <td data-uplink-table-status="${escapeHtmlAttr(address)}">${renderUplinkConnectivityHtml(initialStatus)}</td>
+            <td data-uplink-table-status="${escapeHtmlAttr(address)}">${tableStatusHtml}</td>
             <td><code>${escapeHtml(String(uplink.poll_schedule || ''))}</code></td>
             <td>
                 <button class="btn btn-sm btn-primary" onclick="pollUplink('${escapeJsString(address)}')"${canPoll ? '' : ' disabled'}>${uiT('ui.binkp.poll', 'Poll')}</button>
@@ -542,33 +547,33 @@ function updateUplinksTable(uplinks) {
     });
 }
 
-function startUplinkConnectivityChecks(uplinks) {
-    uplinks.forEach(uplink => {
-        const address = String(uplink.address || '');
-        if (!address || !uplink.enabled) {
-            return;
-        }
-
-        fetch(`/api/binkp/uplink-status?address=${encodeURIComponent(address)}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', {
-                        code: response.status,
-                        text: response.statusText
-                    }));
-                }
-                return response.json();
-            })
-            .then(result => {
-                updateUplinkConnectivityDisplay(address, result);
-            })
-            .catch(error => {
-                updateUplinkConnectivityDisplay(address, {
-                    success: false,
-                    error: error.message
-                });
+function checkUplinkConnectivity(address) {
+    updateUplinkConnectivityDisplay(address, {checking: true});
+    fetch(`/api/binkp/uplink-status?address=${encodeURIComponent(address)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', {
+                    code: response.status,
+                    text: response.statusText
+                }));
+            }
+            return response.json();
+        })
+        .then(result => {
+            updateUplinkConnectivityDisplay(address, result);
+        })
+        .catch(error => {
+            updateUplinkConnectivityDisplay(address, {
+                success: false,
+                error: error.message
             });
-    });
+        });
+}
+
+function renderCheckStatusIcon(address) {
+    const title = uiT('ui.binkp.check_status_title', 'Check connectivity status');
+    const label = uiT('ui.binkp.check_status', 'Check');
+    return `<button class="btn btn-link btn-sm p-0 text-muted" onclick="checkUplinkConnectivity('${escapeJsString(address)}')" title="${escapeHtmlAttr(title)}"><i class="fas fa-circle-question me-1"></i><span class="small">${escapeHtml(label)}</span></button>`;
 }
 
 function getInitialUplinkConnectivityResult(uplink) {
@@ -611,6 +616,10 @@ function renderPendingConnectivityBadge() {
 
 function renderUplinkConnectivityHtml(result) {
     if (!result) {
+        return `<span class="text-muted">—</span>`;
+    }
+
+    if (result.checking) {
         return renderPendingConnectivityBadge();
     }
 
@@ -1090,6 +1099,10 @@ function pollUplink(address) {
 }
 
 function pollAllUplinks() {
+    const warning = uiT('ui.binkp.poll_all_confirm_warning', 'Warning: Excessive polling may lead to rate limiting or IP bans by remote systems.');
+    const msg = uiT('ui.binkp.poll_all_confirm', 'Poll all uplinks now?') + '\n\n' + warning;
+    if (!confirm(msg)) return;
+
     fetch('/api/binkp/poll-all', { method: 'POST' })
         .then(response => response.json())
         .then(data => {
