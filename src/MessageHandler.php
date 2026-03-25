@@ -3068,19 +3068,6 @@ class MessageHandler
             }
         }
 
-        // Mask the subject on AreaFix/FileFix messages — the subject carries the
-        // robot password and must never be displayed in the UI.
-        if (isset($cleaned['subject'])) {
-            $toName   = strtolower($cleaned['to_name']   ?? '');
-            $fromName = strtolower($cleaned['from_name'] ?? '');
-            if (
-                str_contains($toName,   'areafix') || str_contains($toName,   'filefix') ||
-                str_contains($fromName, 'areafix') || str_contains($fromName, 'filefix')
-            ) {
-                $cleaned['subject'] = '••••••••';
-            }
-        }
-
         return $cleaned;
     }
 
@@ -5658,16 +5645,17 @@ class MessageHandler
                    n.subject, n.message_text, n.date_written, n.date_received, n.is_sent,
                    n.message_id, n.kludge_lines, n.bottom_kludges,
                    CASE
-                       WHEN LOWER(n.to_name) = 'areafix' OR LOWER(n.from_name) LIKE 'areafix%' THEN 'echo'
-                       ELSE 'file'
+                       WHEN n.from_address IN ($addressPlaceholders) THEN
+                           CASE WHEN LOWER(n.to_name) LIKE 'filefix%' THEN 'file' ELSE 'echo' END
+                       ELSE 'echo'
                    END AS request_type,
                    CASE
-                       WHEN n.from_address = ? AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%') THEN 'incoming'
-                       ELSE 'outgoing'
+                       WHEN n.from_address IN ($addressPlaceholders) THEN 'outgoing'
+                       ELSE 'incoming'
                    END AS direction
             FROM netmail n
             WHERE (
-                -- Requests are messages sent to AreaFix/FileFix at the configured hub address.
+                -- Outgoing: messages we sent to the hub addressed to the robot (to_name set by us).
                 (
                     n.from_address IN ($addressPlaceholders)
                     AND n.to_address = ?
@@ -5675,10 +5663,10 @@ class MessageHandler
                     AND n.deleted_by_sender = FALSE
                 )
                 OR
-                -- Responses are messages from AreaFix/FileFix at the configured hub address.
+                -- Incoming: any message from the hub to us, regardless of the sender name.
+                -- Robot names vary (SBBSEcho, BRoboCop, etc.) so we match on address only.
                 (
                     n.from_address = ?
-                    AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%')
                     AND n.to_address IN ($addressPlaceholders)
                     AND n.deleted_by_recipient = FALSE
                 )
@@ -5686,8 +5674,7 @@ class MessageHandler
             ORDER BY COALESCE(n.date_written, n.date_received) ASC, n.id ASC
         ";
 
-        $params = [$hubAddress];
-        $params = array_merge($params, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
+        $params = array_merge($myAddresses, $myAddresses, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

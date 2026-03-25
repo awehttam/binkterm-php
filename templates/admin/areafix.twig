@@ -6,7 +6,6 @@
 <style>
 .areafix-history-expand { cursor: pointer; }
 .areafix-row-body { display: none; }
-.areafix-badge-available { background-color: #6c757d; }
 </style>
 {% endblock %}
 
@@ -359,13 +358,6 @@
         sendCommands(robot, ['-' + tag], function () { if (input) input.value = ''; });
     };
 
-    window.subscribeAreaTag = function (robot, tag) {
-        sendCommands(robot, ['+' + tag.toUpperCase()]);
-    };
-
-    window.unsubscribeAreaTag = function (robot, tag) {
-        sendCommands(robot, ['-' + tag.toUpperCase()]);
-    };
 
     // ── Freeform send ─────────────────────────────────────────────────────────
 
@@ -438,14 +430,12 @@
             var messages = (data.messages && data.messages.messages) ? data.messages.messages : (data.messages || []);
             if (!Array.isArray(messages)) messages = [];
 
-            // Filter to robot type
+            // Filter by robot type.
+            // Outgoing: we set to_name, so request_type is reliable.
+            // Incoming: robot names vary (SBBSEcho, BRoboCop, etc.) — show all replies on both tabs.
             var robotMessages = messages.filter(function (m) {
-                var toName   = (m.to_name   || '').toLowerCase();
-                var fromName = (m.from_name || '').toLowerCase();
-                if (robot === 'filefix') {
-                    return toName.indexOf('filefix') !== -1 || fromName.indexOf('filefix') !== -1;
-                }
-                return toName.indexOf('areafix') !== -1 || fromName.indexOf('areafix') !== -1;
+                if (m.direction === 'incoming') return true;
+                return m.request_type === (robot === 'filefix' ? 'file' : 'echo');
             });
 
             renderHistory(container, robotMessages, robot);
@@ -505,153 +495,19 @@
         var panel = document.getElementById('latestReply_' + robot);
         if (!panel) return;
 
-        var body   = message.message_text || '';
-        var parsed = parseAreaList(body);
-        var html   = '';
+        var from = escapeHtml(message.from_name || '');
+        var date = escapeHtml(message.date_received || message.date_written || '');
+        var body = message.message_text || '';
 
-        if (parsed.length >= 2) {
-            html += '<div class="mb-2 d-flex flex-wrap gap-2 align-items-center">';
-            html += '<input type="text" id="areafixSearch_' + robot + '" class="form-control form-control-sm" style="max-width:240px;" ' +
-                'placeholder="' + escapeHtml(window.t('ui.admin.areafix.search_placeholder', {}, 'Search areas...')) + '" ' +
-                'oninput="filterAreaTable(\'' + robot + '\')">';
-            html += '<button class="btn btn-sm btn-outline-primary" onclick="syncAreas(\'' + robot + '\')">';
-            html += '<i class="fas fa-sync-alt me-1"></i>';
-            html += escapeHtml(window.t('ui.admin.areafix.sync_button', {}, 'Sync to Echo Areas'));
-            html += '</button></div>';
-
-            html += '<div class="table-responsive mb-3">';
-            html += '<table class="table table-sm table-hover mb-0" id="areafixAreaTable_' + robot + '">';
-            html += '<thead class="table-light"><tr>';
-            html += '<th>' + escapeHtml(window.t('ui.admin.areafix.col_tag', {}, 'Tag')) + '</th>';
-            html += '<th>' + escapeHtml(window.t('ui.admin.areafix.col_description', {}, 'Description')) + '</th>';
-            html += '<th>' + escapeHtml(window.t('ui.admin.areafix.col_status', {}, 'Status')) + '</th>';
-            html += '<th>' + escapeHtml(window.t('ui.admin.areafix.col_action', {}, 'Action')) + '</th>';
-            html += '</tr></thead><tbody>';
-
-            parsed.forEach(function (area) {
-                var tagEsc  = escapeHtml(area.name);
-                var descEsc = escapeHtml(area.description || '');
-                html += '<tr data-tag="' + tagEsc.toLowerCase() + '">';
-                html += '<td class="font-monospace">' + tagEsc + '</td>';
-                html += '<td>' + descEsc + '</td>';
-                html += '<td><span class="badge areafix-badge-available">' +
-                    escapeHtml(window.t('ui.admin.areafix.status_available', {}, 'Available')) + '</span></td>';
-                html += '<td>';
-                html += '<button class="btn btn-success btn-sm me-1" ' +
-                    'onclick="subscribeAreaTag(\'' + robot + '\',\'' + tagEsc + '\')">' +
-                    escapeHtml(window.t('ui.admin.areafix.btn_subscribe', {}, 'Subscribe')) + '</button>';
-                html += '<button class="btn btn-danger btn-sm" ' +
-                    'onclick="unsubscribeAreaTag(\'' + robot + '\',\'' + tagEsc + '\')">' +
-                    escapeHtml(window.t('ui.admin.areafix.btn_unsubscribe', {}, 'Unsubscribe')) + '</button>';
-                html += '</td></tr>';
-            });
-            html += '</tbody></table></div>';
-
-            window['_areafixParsed_' + robot] = parsed;
-        }
-
-        // Collapsible raw reply
-        var collapseId = 'rawReply_' + robot + '_' + Date.now();
-        html += '<button class="btn btn-link btn-sm p-0 mb-1" type="button" ' +
-            'data-bs-toggle="collapse" data-bs-target="#' + collapseId + '">';
-        html += escapeHtml(window.t('ui.admin.areafix.raw_reply_toggle', {}, 'Raw reply'));
-        html += ' <i class="fas fa-chevron-down small"></i></button>';
-        html += '<div class="collapse" id="' + collapseId + '">';
-        html += '<pre class="small bg-light p-2 rounded" style="white-space:pre-wrap;max-height:300px;overflow-y:auto;">' +
-            escapeHtml(body) + '</pre>';
-        html += '</div>';
-
-        panel.innerHTML = html;
+        panel.innerHTML =
+            '<div class="text-muted small mb-1">' +
+                '<strong>' + from + '</strong>' +
+                (date ? ' &mdash; ' + date : '') +
+            '</div>' +
+            '<pre class="small bg-light p-2 rounded mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto;">' +
+                escapeHtml(body) +
+            '</pre>';
     }
-
-    window.filterAreaTable = function (robot) {
-        var input = document.getElementById('areafixSearch_' + robot);
-        var query = input ? input.value.toLowerCase() : '';
-        var table = document.getElementById('areafixAreaTable_' + robot);
-        if (!table) return;
-        Array.from(table.querySelectorAll('tbody tr')).forEach(function (tr) {
-            var tag = (tr.dataset.tag || '');
-            tr.style.display = (!query || tag.indexOf(query) !== -1) ? '' : 'none';
-        });
-    };
-
-    // ── Client-side area list parser ──────────────────────────────────────────
-
-    function parseAreaList(body) {
-        var areas  = [];
-        var skipKeywords = [
-            'area list', 'linked at', 'areas linked', 'echo areas', 'file areas',
-            'areafix', 'filefix', 'binkd', 'mbse', 'available areas', 'subscribed areas',
-            'not linked', 'unlinked areas', 'areas available', 'your subscriptions',
-            'end of', 'begin of', 'mystic', 'intermail', 'frontdoor', 'husky', 'fmail',
-        ];
-
-        body.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').forEach(function (line) {
-            var trimmed = line.trim();
-            if (!trimmed) return;
-            if (/^[-=*#~\s]{3,}$/.test(trimmed)) return;
-            if (trimmed[0] === '%' || /^[-+]ERR/.test(trimmed)) return;
-            var lc = trimmed.toLowerCase();
-            for (var i = 0; i < skipKeywords.length; i++) {
-                if (lc.indexOf(skipKeywords[i]) !== -1) return;
-            }
-            var parts = trimmed.split(/\s+/);
-            var tag   = parts[0].toUpperCase();
-            if (!/^[A-Z0-9_\-\.]{2,}$/.test(tag)) return;
-            var desc = null;
-            if (parts.length > 1) {
-                var remainder = trimmed.slice(parts[0].length).replace(/^(\s*-\s+|\t+|\s{2,})/, '').trim();
-                if (remainder) desc = remainder;
-            }
-            areas.push({ name: tag, description: desc });
-        });
-
-        return areas.length >= 2 ? areas : [];
-    }
-
-    // ── Sync areas ────────────────────────────────────────────────────────────
-
-    window.syncAreas = function (robot) {
-        var uplink = getSelectedUplink();
-        if (!uplink) {
-            showToast(window.t('ui.admin.areafix.select_uplink_first', {}, 'Please select an uplink'), true);
-            return;
-        }
-
-        var parsed = window['_areafixParsed_' + robot];
-        if (!parsed || !parsed.length) {
-            showToast(window.t('ui.admin.areafix.no_areas_to_sync', {}, 'No areas available to sync'), true);
-            return;
-        }
-
-        fetch('/api/admin/areafix/sync', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
-                uplink:             uplink,
-                robot:              robot,
-                areas:              parsed,
-                deactivate_missing: false,
-            }),
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            if (data.success) {
-                var s   = data.summary || {};
-                var msg = window.t('ui.admin.areafix.sync_ok', {
-                    created:     s.created     || 0,
-                    activated:   s.activated   || 0,
-                    deactivated: s.deactivated || 0,
-                }, 'Sync complete: {created} created, {activated} activated, {deactivated} deactivated');
-                showToast(msg, false);
-            } else {
-                showToast(window.t('ui.admin.areafix.sync_failed', {}, 'Sync failed'), true);
-            }
-        })
-        .catch(function () {
-            showToast(window.t('ui.admin.areafix.sync_failed', {}, 'Sync failed'), true);
-        });
-    };
 
     // ── Initialisation ────────────────────────────────────────────────────────
 
