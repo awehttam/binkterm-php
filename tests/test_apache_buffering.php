@@ -13,7 +13,9 @@
  *
  * Options:
  *   --host     Apache host (default: 127.0.0.1)
- *   --port     Apache port (default: 81)
+ *   --port     Apache port (default: 81; 443 when --tls is set)
+ *   --tls      Use TLS/HTTPS (sets default port to 443)
+ *   --no-verify  Skip TLS certificate verification (for self-signed certs)
  *   --uri      Request URI to test (default: /)
  *   --user     Username to use (pulls their most recent active session)
  *   --vhost    HTTP Host header value (default: claudes.lovelybits.org)
@@ -22,7 +24,9 @@
  * Examples:
  *   php tests/test_apache_buffering.php --uri /echomail
  *   php tests/test_apache_buffering.php --user admin --uri /admin
- *   php tests/test_apache_buffering.php --uri /api/echomail/areas
+ *   php tests/test_apache_buffering.php --tls --uri /echomail
+ *   php tests/test_apache_buffering.php --tls --no-verify --uri /echomail
+ *   php tests/test_apache_buffering.php --tls --host claudes.lovelybits.org --uri /
  */
 
 // ── Argument parser ───────────────────────────────────────────────────────────
@@ -58,8 +62,10 @@ if (isset($opts['help'])) {
     exit(0);
 }
 
+$useTls     = isset($opts['tls']);
+$noVerify   = isset($opts['no-verify']);
 $apacheHost = $opts['host']  ?? '127.0.0.1';
-$apachePort = (int)($opts['port'] ?? 81);
+$apachePort = (int)($opts['port'] ?? ($useTls ? 443 : 81));
 $uri        = $opts['uri']   ?? '/';
 $vhost      = $opts['vhost'] ?? 'claudes.lovelybits.org';
 $wantUser   = $opts['user']  ?? null;
@@ -155,16 +161,29 @@ $request = implode("\r\n", [
 
 // ── Connect and send ──────────────────────────────────────────────────────────
 
-echo "Apache target        : {$apacheHost}:{$apachePort}\n";
+$scheme = $useTls ? 'https' : 'http';
+echo "Apache target        : {$scheme}://{$apacheHost}:{$apachePort}\n";
 echo "Request URI          : {$requestUri}\n";
 echo "Virtual host         : {$vhost}\n";
+if ($useTls && $noVerify) echo "TLS verify           : disabled\n";
 echo str_repeat('-', 60) . "\n";
 
 $tConnect = microtime(true);
 
-$sock = @stream_socket_client("tcp://{$apacheHost}:{$apachePort}", $errno, $errstr, 5.0);
+$streamProto = $useTls ? 'ssl' : 'tcp';
+$context = stream_context_create($useTls ? [
+    'ssl' => [
+        'verify_peer'       => !$noVerify,
+        'verify_peer_name'  => !$noVerify,
+        'allow_self_signed' => $noVerify,
+        'SNI_enabled'       => true,
+        'peer_name'         => $vhost,
+    ],
+] : []);
+
+$sock = @stream_socket_client("{$streamProto}://{$apacheHost}:{$apachePort}", $errno, $errstr, 5.0, STREAM_CLIENT_CONNECT, $context);
 if (!$sock) {
-    die("Cannot connect to Apache ({$apacheHost}:{$apachePort}): [{$errno}] {$errstr}\n");
+    die("Cannot connect to Apache ({$scheme}://{$apacheHost}:{$apachePort}): [{$errno}] {$errstr}\n");
 }
 
 stream_set_timeout($sock, 30);
