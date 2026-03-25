@@ -8,18 +8,24 @@
  * date_received (import time) instead of their original send date.
  *
  * Only rows where date_written is non-NULL and not in the future are updated.
+ * Rows where date_written already equals date_received are skipped.
  *
  * Usage:
  *   php scripts/fix_date_received.php <echoarea_id> [echoarea_id ...]
  *   php scripts/fix_date_received.php --tag <tag> [tag ...]
  *   php scripts/fix_date_received.php --domain <domain> [domain ...]
+ *   php scripts/fix_date_received.php --tag <tag> --domain <domain>
  *   php scripts/fix_date_received.php --all
+ *
+ * --tag and --domain may be combined: only areas matching both filters are
+ * updated. --domain alone applies to all areas in that domain. --tag alone
+ * applies to every area with that tag across all domains.
  *
  * Options:
  *   --dry-run        Show what would be updated without making changes
  *   --all            Apply to every echo area
- *   --tag <tag>      Match areas by tag name instead of numeric id
- *   --domain <name>  Apply to all echo areas belonging to the given domain(s)
+ *   --tag <tag>      Filter by tag name (repeatable)
+ *   --domain <name>  Filter by domain (repeatable)
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -30,46 +36,62 @@ use BinktermPHP\Database;
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
 $args    = array_slice($argv, 1);
-$dryRun   = false;
-$all      = false;
-$byTag    = false;
-$byDomain = false;
-$targets  = [];
+$dryRun  = false;
+$all     = false;
+$tags    = [];
+$domains = [];
+$ids     = [];
+$mode    = null; // current collection target: 'tag', 'domain', or null (ids)
 
-$i = 0;
-while ($i < count($args)) {
-    $a = $args[$i];
+foreach ($args as $a) {
     if ($a === '--dry-run') {
         $dryRun = true;
+        $mode   = null;
     } elseif ($a === '--all') {
-        $all = true;
+        $all  = true;
+        $mode = null;
     } elseif ($a === '--tag') {
-        $byTag = true;
-        $byDomain = false;
+        $mode = 'tag';
     } elseif ($a === '--domain') {
-        $byDomain = true;
-        $byTag = false;
+        $mode = 'domain';
     } elseif (str_starts_with($a, '--')) {
         fwrite(STDERR, "Unknown option: $a\n");
         exit(1);
     } else {
-        $targets[] = $a;
+        if ($mode === 'tag') {
+            $tags[] = $a;
+        } elseif ($mode === 'domain') {
+            $domains[] = $a;
+        } else {
+            $ids[] = $a;
+        }
     }
-    $i++;
 }
 
-if (!$all && empty($targets)) {
+$hasFilter = $all || !empty($ids) || !empty($tags) || !empty($domains);
+
+if (!$hasFilter) {
     fwrite(STDERR, "Usage:\n");
     fwrite(STDERR, "  php scripts/fix_date_received.php <echoarea_id> [id ...]\n");
     fwrite(STDERR, "  php scripts/fix_date_received.php --tag <tag> [tag ...]\n");
     fwrite(STDERR, "  php scripts/fix_date_received.php --domain <domain> [domain ...]\n");
+    fwrite(STDERR, "  php scripts/fix_date_received.php --tag <tag> --domain <domain>\n");
     fwrite(STDERR, "  php scripts/fix_date_received.php --all\n");
     fwrite(STDERR, "\nOptions:\n");
     fwrite(STDERR, "  --dry-run        Show changes without applying them\n");
     fwrite(STDERR, "  --all            Apply to every echo area\n");
-    fwrite(STDERR, "  --tag            Match areas by tag name instead of numeric id\n");
-    fwrite(STDERR, "  --domain <name>  Apply to all areas belonging to the given domain(s)\n");
+    fwrite(STDERR, "  --tag <tag>      Filter by tag (repeatable; combinable with --domain)\n");
+    fwrite(STDERR, "  --domain <name>  Filter by domain (repeatable; combinable with --tag)\n");
     exit(1);
+}
+
+if (!empty($ids)) {
+    foreach ($ids as $id) {
+        if (!ctype_digit($id)) {
+            fwrite(STDERR, "Error: '$id' is not a numeric id. Use --tag to match by name.\n");
+            exit(1);
+        }
+    }
 }
 
 // ── Database ──────────────────────────────────────────────────────────────────
@@ -77,57 +99,52 @@ if (!$all && empty($targets)) {
 $db = Database::getInstance()->getPdo();
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// ── Resolve area IDs ──────────────────────────────────────────────────────────
+// ── Resolve areas ─────────────────────────────────────────────────────────────
+
+$areas = [];
 
 if ($all) {
-    $stmt = $db->query("SELECT id, tag FROM echoareas ORDER BY id");
+    $stmt  = $db->query("SELECT id, tag, domain FROM echoareas ORDER BY domain, tag");
     $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} elseif ($byDomain) {
-    $placeholders = implode(',', array_fill(0, count($targets), '?'));
-    $stmt = $db->prepare(
-        "SELECT id, tag FROM echoareas WHERE LOWER(domain) IN ($placeholders) ORDER BY domain, id"
-    );
-    $stmt->execute(array_map('strtolower', $targets));
+} elseif (!empty($ids)) {
+    $ph    = implode(',', array_fill(0, count($ids), '?'));
+    $stmt  = $db->prepare("SELECT id, tag, domain FROM echoareas WHERE id IN ($ph) ORDER BY id");
+    $stmt->execute($ids);
     $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (empty($areas)) {
-        fwrite(STDERR, "No echo areas found for domain(s): " . implode(', ', $targets) . "\n");
-        exit(1);
-    }
-    echo "Found " . count($areas) . " echo area(s) across domain(s): " . implode(', ', $targets) . "\n\n";
-} elseif ($byTag) {
-    $placeholders = implode(',', array_fill(0, count($targets), '?'));
-    $stmt = $db->prepare(
-        "SELECT id, tag FROM echoareas WHERE LOWER(tag) IN ($placeholders) ORDER BY id"
-    );
-    $stmt->execute(array_map('strtolower', $targets));
-    $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $foundTags = array_column($areas, 'tag');
-    foreach ($targets as $t) {
-        if (!in_array(strtoupper($t), array_map('strtoupper', $foundTags))) {
-            fwrite(STDERR, "Warning: echo area tag not found: $t\n");
+    foreach ($ids as $id) {
+        if (!in_array((int)$id, array_map('intval', array_column($areas, 'id')))) {
+            fwrite(STDERR, "Warning: echo area id not found: $id\n");
         }
     }
 } else {
-    // Numeric IDs
-    foreach ($targets as $t) {
-        if (!ctype_digit($t)) {
-            fwrite(STDERR, "Error: '$t' is not a numeric id. Use --tag to match by name.\n");
-            exit(1);
-        }
+    // Tag and/or domain filter — build WHERE dynamically
+    $conditions = [];
+    $params     = [];
+
+    if (!empty($tags)) {
+        $ph           = implode(',', array_fill(0, count($tags), '?'));
+        $conditions[] = "LOWER(tag) IN ($ph)";
+        $params       = array_merge($params, array_map('strtolower', $tags));
     }
-    $placeholders = implode(',', array_fill(0, count($targets), '?'));
-    $stmt = $db->prepare(
-        "SELECT id, tag FROM echoareas WHERE id IN ($placeholders) ORDER BY id"
-    );
-    $stmt->execute($targets);
+
+    if (!empty($domains)) {
+        $ph           = implode(',', array_fill(0, count($domains), '?'));
+        $conditions[] = "LOWER(domain) IN ($ph)";
+        $params       = array_merge($params, array_map('strtolower', $domains));
+    }
+
+    $where = implode(' AND ', $conditions);
+    $stmt  = $db->prepare("SELECT id, tag, domain FROM echoareas WHERE $where ORDER BY domain, tag");
+    $stmt->execute($params);
     $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $foundIds = array_column($areas, 'id');
-    foreach ($targets as $t) {
-        if (!in_array((int)$t, array_map('intval', $foundIds))) {
-            fwrite(STDERR, "Warning: echo area id not found: $t\n");
+    if (!empty($tags)) {
+        $foundTags = array_map('strtolower', array_column($areas, 'tag'));
+        foreach ($tags as $t) {
+            if (!in_array(strtolower($t), $foundTags)) {
+                fwrite(STDERR, "Warning: no areas found for tag: $t\n");
+            }
         }
     }
 }
@@ -137,19 +154,20 @@ if (empty($areas)) {
     exit(1);
 }
 
-// ── Process each area ─────────────────────────────────────────────────────────
+// ── Process ───────────────────────────────────────────────────────────────────
 
 if ($dryRun) {
     echo "[DRY RUN] No changes will be written.\n\n";
 }
 
+echo "Processing " . count($areas) . " echo area(s)...\n\n";
+
 $totalUpdated = 0;
 
 foreach ($areas as $area) {
-    $areaId  = (int)$area['id'];
-    $areaTag = $area['tag'];
+    $areaId    = (int)$area['id'];
+    $label     = $area['tag'] . ($area['domain'] ? '@' . $area['domain'] : '');
 
-    // Count rows that would be affected
     $countStmt = $db->prepare("
         SELECT COUNT(*) FROM echomail
         WHERE echoarea_id = ?
@@ -161,12 +179,12 @@ foreach ($areas as $area) {
     $count = (int)$countStmt->fetchColumn();
 
     if ($count === 0) {
-        echo "[$areaTag] No rows to update.\n";
+        echo "[$label] No rows to update.\n";
         continue;
     }
 
     if ($dryRun) {
-        echo "[$areaTag] Would update $count row(s): date_received = date_written\n";
+        echo "[$label] Would update $count row(s).\n";
         $totalUpdated += $count;
         continue;
     }
@@ -182,7 +200,7 @@ foreach ($areas as $area) {
     $updateStmt->execute([$areaId]);
     $affected = $updateStmt->rowCount();
 
-    echo "[$areaTag] Updated $affected row(s).\n";
+    echo "[$label] Updated $affected row(s).\n";
     $totalUpdated += $affected;
 }
 

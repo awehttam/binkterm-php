@@ -32,6 +32,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Restart Daemons](#restart-daemons)
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
+- [Fix Date Received](#fix-date-received)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -816,6 +817,49 @@ php scripts/who.php
 # Custom time window
 php scripts/who.php --minutes=30
 ```
+
+## Fix Date Received
+
+Sets `date_received = date_written` for echomail messages in one or more echo areas. Useful after a `%RESCAN` import where all messages land with the same `date_received` (the import timestamp) instead of their original send date, which causes the entire rescan to appear as a single burst of new messages.
+
+Only rows where `date_written` is non-NULL and not in the future are updated. Rows that already have matching values are skipped.
+
+```bash
+# Fix a single area by numeric id
+php scripts/fix_date_received.php 42
+
+# Fix multiple areas by id
+php scripts/fix_date_received.php 42 43 57
+
+# Fix all areas in a domain
+php scripts/fix_date_received.php --domain fidonet
+
+# Fix areas across multiple domains
+php scripts/fix_date_received.php --domain fidonet araknet
+
+# Fix by tag across all domains (use when the tag is unique)
+php scripts/fix_date_received.php --tag FIDONEWS
+
+# Fix multiple tags
+php scripts/fix_date_received.php --tag FIDONEWS COOKING SPORTS
+
+# Fix a specific tag in a specific domain (when the same tag exists in multiple domains)
+php scripts/fix_date_received.php --tag GENERAL --domain fidonet
+
+# Fix every echo area on the system
+php scripts/fix_date_received.php --all
+
+# Preview changes without writing (combine with any selector)
+php scripts/fix_date_received.php --dry-run --domain fidonet
+php scripts/fix_date_received.php --dry-run --tag GENERAL --domain fidonet
+```
+
+Options:
+- `--domain <name>` — Filter by domain (repeatable). Applied alone, selects all areas in that domain.
+- `--tag <tag>` — Filter by tag (repeatable). Applied alone, selects that tag across all domains.
+- `--domain` and `--tag` combined — selects only areas matching both filters (intersection).
+- `--all` — Apply to every echo area on the system.
+- `--dry-run` — Show how many rows would be updated without making any changes.
 
 ## Admin Client
 
