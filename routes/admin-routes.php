@@ -6386,7 +6386,7 @@ SimpleRouter::group(['prefix' => '/api/admin'], function() {
         header('Content-Type: application/json');
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         $stmt = $db->query("
-            SELECT e.id, e.tag, e.description, e.is_active
+            SELECT e.id, e.tag, e.domain, e.description, e.is_active
             FROM echoareas e
             WHERE e.id NOT IN (SELECT echoarea_id FROM interest_echoareas)
             ORDER BY e.tag

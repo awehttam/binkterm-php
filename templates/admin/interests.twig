@@ -440,12 +440,15 @@ function renderUnassignedPanel() {
         return;
     }
     const tbody = document.getElementById('unassignedTableBody');
-    tbody.innerHTML = unassignedData.areas.map(a => `<tr class="${a.is_active ? '' : 'text-muted'}">
-        <td><code>${escapeHtml(a.tag)}</code></td>
+    tbody.innerHTML = unassignedData.areas.map(a => {
+        const echoUrl = '/echomail?echoarea=' + encodeURIComponent(a.tag) + (a.domain ? '&domain=' + encodeURIComponent(a.domain) : '');
+        return `<tr class="${a.is_active ? '' : 'text-muted'}">
+        <td><a href="${echoUrl}" target="_blank" class="font-monospace text-decoration-none">${escapeHtml(a.tag)}<i class="fas fa-external-link-alt ms-1 small opacity-50"></i></a></td>
         <td>${escapeHtml(a.description || '')}</td>
         <td>${a.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-primary" onclick="openClassifyModal(${a.id})"><i class="fas fa-tag me-1"></i>Classify</button></td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
     table.classList.remove('d-none');
 }
 
