@@ -1756,18 +1756,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $lastEventId = (int)($_SERVER['HTTP_LAST_EVENT_ID'] ?? 0);
         $isDevServer = (php_sapi_name() === 'cli-server');
 
-        // Ask the admin daemon for the current high-water mark.
-        $maxSseEventId = 0;
-        $daemonOk      = false;
-        try {
-            $daemon        = new \BinktermPHP\Admin\AdminDaemonClient();
-            $result        = $daemon->getStreamEvents($lastEventId);
-            $daemon->close();
-            $maxSseEventId = (int)($result['max_sse_event_id'] ?? 0);
-            $daemonOk      = true;
-        } catch (\Throwable $e) {
-            // Daemon not running — deliver catch-up unconditionally below
-        }
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        /**
+         * Returns the highest sse_events.id currently in the table.
+         * Cheap index-only scan on the BIGSERIAL PK.
+         */
+        $getMaxSseId = function() use ($db): int {
+            $row = $db->query("SELECT COALESCE(MAX(id), 0) AS max_id FROM sse_events")->fetch(\PDO::FETCH_ASSOC);
+            return (int)($row['max_id'] ?? 0);
+        };
 
         echo "event: connected\n";
         echo "data: " . json_encode(['user_id' => $userId]) . "\n\n";
@@ -1776,8 +1774,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
          * Fetch and emit sse_events with id > $fromId for this user.
          * Updates $lastEventId (passed by reference) to the highest id emitted.
          */
-        $deliverEvents = function(int $fromId) use ($userId, &$lastEventId): void {
-            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $deliverEvents = function(int $fromId) use ($db, $userId, &$lastEventId): void {
             $stmt = $db->prepare("
                 SELECT e.id          AS sse_id,
                        m.id          AS chat_id,
@@ -1821,48 +1818,39 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         };
 
-        // Anchor on first connect (no historical replay), or deliver catch-up
-        // events missed since the client's last-known cursor.
+        // Anchor on first connect (no historical replay), or deliver any events
+        // missed since the client's last-known cursor.
         if ($lastEventId === 0) {
             // First connection — anchor the cursor at the current max without
             // replaying history. loadMessages() handles that on page load.
+            $maxSseEventId = $getMaxSseId();
             if ($maxSseEventId > 0) {
                 echo "id: {$maxSseEventId}\n\n";
                 $lastEventId = $maxSseEventId;
             }
-        } elseif (!$daemonOk || $maxSseEventId > $lastEventId) {
+        } else {
             $deliverEvents($lastEventId);
         }
 
         // ── Short window loop ─────────────────────────────────────────────────
         //
-        // Hold the Apache/PHP-FPM worker for at most WINDOW_SECONDS, polling
-        // the daemon every 200 ms for new events. As soon as an event arrives
+        // Hold the PHP-FPM worker for at most SSE_WINDOW_SECONDS, polling
+        // sse_events every 200 ms for new rows. As soon as an event arrives
         // (or the window expires) we send event:reconnect and release the worker.
         //
-        // This keeps each worker busy for ≤ WINDOW_SECONDS rather than minutes,
-        // so Apache's MaxRequestWorkers limit is not exhausted by SSE connections.
         // The SharedWorker reconnects immediately, giving ~100 ms average latency.
-        //
-        // On the PHP built-in dev server (single-threaded) the window is 0 —
-        // we release the worker immediately after any catch-up delivery.
+        // On the PHP built-in dev server (single-threaded) the window is 0.
 
         $windowSeconds = $isDevServer ? 0 : (int)Config::env('SSE_WINDOW_SECONDS', 2);
         $pollSleep     = 200000; // 200 ms
         $deadline      = microtime(true) + $windowSeconds;
 
         while (microtime(true) < $deadline && !connection_aborted()) {
-            try {
-                $res   = (new \BinktermPHP\Admin\AdminDaemonClient())->getStreamEvents($lastEventId);
-                $maxId = (int)($res['max_sse_event_id'] ?? 0);
-                if ($maxId > $lastEventId) {
-                    $deliverEvents($lastEventId);
-                    break; // delivered — reconnect immediately so worker is freed
-                }
-            } catch (\Throwable $e) {
-                break; // daemon unavailable — reconnect
+            $maxId = $getMaxSseId();
+            if ($maxId > $lastEventId) {
+                $deliverEvents($lastEventId);
+                break; // delivered — reconnect immediately so worker is freed
             }
-
             usleep($pollSleep);
         }
 
