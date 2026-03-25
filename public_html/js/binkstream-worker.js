@@ -1,0 +1,116 @@
+/**
+ * binkstream-worker.js — SharedWorker
+ *
+ * Holds a single EventSource connection to /api/stream on behalf of all
+ * tabs from the same origin. Incoming events are fanned out to every
+ * connected tab port. If the connection drops, it reconnects automatically
+ * with exponential back-off.
+ */
+
+'use strict';
+
+const STREAM_URL   = '/api/stream';
+const MIN_BACKOFF  = 1000;
+const MAX_BACKOFF  = 30000;
+
+let es        = null;
+let backoff   = MIN_BACKOFF;
+const ports   = new Set();
+
+// ── Port management ──────────────────────────────────────────────────────────
+
+self.onconnect = function (e) {
+    const port = e.ports[0];
+    ports.add(port);
+
+    port.onmessage = function (msg) {
+        // Reserved for future client→worker messages (e.g. subscriptions).
+    };
+
+    port.addEventListener('close', function () {
+        ports.delete(port);
+    });
+
+    port.start();
+
+    // Start the SSE connection the first time a tab connects.
+    if (!es || es.readyState === EventSource.CLOSED) {
+        connect();
+    }
+};
+
+// ── SSE connection ───────────────────────────────────────────────────────────
+
+function connect() {
+    if (es) {
+        es.close();
+    }
+
+    es = new EventSource(STREAM_URL);
+
+    // Capture this specific instance. Each listener checks `thisEs === es`
+    // before acting — this prevents stale listeners from a previous connection
+    // firing after a new one has already been created (which would incorrectly
+    // trigger scheduleReconnect() and introduce seconds of delay).
+    const thisEs = es;
+
+    thisEs.addEventListener('connected', function (e) {
+        if (thisEs !== es) return;
+        backoff = MIN_BACKOFF;
+        broadcast('connected', tryParse(e.data));
+    });
+
+    thisEs.addEventListener('chat_message', function (e) {
+        if (thisEs !== es) return;
+        broadcast('chat_message', tryParse(e.data));
+    });
+
+    thisEs.addEventListener('reconnect', function () {
+        if (thisEs !== es) return;
+        // Server closed intentionally — reconnect immediately, no backoff.
+        thisEs.close();
+        connect();
+    });
+
+    thisEs.addEventListener('error', function () {
+        if (thisEs !== es) return;
+        if (thisEs.readyState === EventSource.CLOSED) {
+            // Clean server close — reconnect immediately.
+            es = null;
+            thisEs.close();
+            connect();
+        } else {
+            // Network error — back off before retrying.
+            thisEs.close();
+            scheduleReconnect();
+        }
+    });
+}
+
+function scheduleReconnect() {
+    if (ports.size === 0) {
+        // No tabs open — nothing to do; next onconnect will call connect()
+        es = null;
+        return;
+    }
+    setTimeout(connect, backoff);
+    backoff = Math.min(backoff * 2, MAX_BACKOFF);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function broadcast(type, data) {
+    const deadPorts = [];
+    ports.forEach(function (port) {
+        try {
+            port.postMessage({ type: type, data: data });
+        } catch (_) {
+            deadPorts.push(port);
+        }
+    });
+    deadPorts.forEach(function (p) { ports.delete(p); });
+}
+
+function tryParse(str) {
+    try { return JSON.parse(str); } catch (_) { return str; }
+}

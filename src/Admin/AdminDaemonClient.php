@@ -366,6 +366,19 @@ class AdminDaemonClient
         }
     }
 
+    /**
+     * Ask the daemon for the highest sse_events.id it has seen via pg_notify.
+     * The PHP SSE endpoint uses this to decide whether to run a catch-up query
+     * without opening its own Postgres connection.
+     *
+     * @param  int $sinceId Last SSE event ID the client already has
+     * @return array{max_sse_event_id: int}
+     */
+    public function getStreamEvents(int $sinceId = 0): array
+    {
+        return $this->sendCommand('get_stream_events', ['since_id' => $sinceId]);
+    }
+
     public function getMrcConfig(): array
     {
         return $this->sendCommand('get_mrc_config');

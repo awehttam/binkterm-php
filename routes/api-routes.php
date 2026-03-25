@@ -1701,6 +1701,132 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['messages' => $messages]);
     });
 
+    /**
+     * GET /api/stream
+     *
+     * Server-Sent Events back-channel. Authenticated users connect here and
+     * receive real-time events (chat messages, future: notifications, etc.)
+     * via Postgres LISTEN/NOTIFY on the 'binkstream' channel.
+     *
+     * On PHP's built-in development server (single-threaded) we skip the
+     * blocking listen loop and just send a keepalive every few seconds so
+     * the server stays available for other requests. The SharedWorker
+     * reconnects automatically, giving reasonable dev behaviour.
+     */
+    /**
+     * GET /api/stream
+     *
+     * Server-Sent Events back-channel. Each request is intentionally short-lived:
+     *
+     *  1. Ask the admin daemon for the highest chat_message ID it has seen via
+     *     pg_notify (the daemon holds one persistent Postgres LISTEN connection).
+     *  2. If new messages exist since the client's Last-Event-ID, run a catch-up
+     *     query and push them as SSE events.
+     *  3. Send `event: reconnect` and close — the SharedWorker reconnects
+     *     immediately, keeping end-to-end latency under ~10 ms.
+     *
+     * PHP is only blocked for ~3-5 ms per cycle (one daemon socket call + optional
+     * DB query), so the dev server and production servers both stay responsive
+     * regardless of how many tabs or users are connected.
+     *
+     * If the admin daemon is unreachable the catch-up query runs unconditionally
+     * so messages are never silently lost.
+     */
+    SimpleRouter::get('/stream', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');
+        header('Connection: keep-alive');
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_implicit_flush(true);
+
+        $lastEventId = (int)($_SERVER['HTTP_LAST_EVENT_ID'] ?? 0);
+
+        // Ask the admin daemon whether there are new events since the client's
+        // last-seen ID. Falls back to running the query unconditionally if the
+        // daemon is unavailable.
+        $maxSseEventId = 0;
+        $daemonOk      = false;
+        try {
+            $daemon        = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result        = $daemon->getStreamEvents($lastEventId);
+            $daemon->close();
+            $maxSseEventId = (int)($result['max_sse_event_id'] ?? 0);
+            $daemonOk      = true;
+        } catch (\Throwable $e) {
+            // Daemon not running — run catch-up unconditionally below
+        }
+
+        echo "event: connected\n";
+        echo "data: " . json_encode(['user_id' => $userId]) . "\n\n";
+
+        if ($lastEventId === 0) {
+            // First connection — no Last-Event-ID from the client. Don't replay
+            // historical messages; just anchor the cursor at the current max so
+            // the next reconnect only delivers truly new events. Historical
+            // messages are the page's loadMessages() responsibility, not SSE's.
+            if ($maxSseEventId > 0) {
+                echo "id: {$maxSseEventId}\n";
+            }
+        } elseif (!$daemonOk || $maxSseEventId > $lastEventId) {
+            // Reconnect after a brief drop — deliver any events missed since the
+            // client's last-known SSE cursor. Also runs when daemon is down as a
+            // safety net (daemonOk=false → maxSseEventId=0, catch-up runs blind).
+            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT e.id          AS sse_id,
+                       m.id          AS chat_id,
+                       m.room_id,
+                       r.name        AS room_name,
+                       m.from_user_id,
+                       u.username    AS from_username,
+                       m.to_user_id,
+                       m.body,
+                       m.created_at
+                FROM sse_events e
+                JOIN chat_messages m ON (e.payload->>'chat_id')::int = m.id
+                LEFT JOIN chat_rooms r ON m.room_id = r.id
+                JOIN users u ON m.from_user_id = u.id
+                WHERE e.id > ?
+                  AND e.event_type = 'chat_message'
+                  AND (
+                    (m.room_id IS NOT NULL AND r.is_active = TRUE AND m.from_user_id != ?)
+                    OR m.to_user_id = ?
+                  )
+                ORDER BY e.id ASC
+                LIMIT 200
+            ");
+            $stmt->execute([$lastEventId, $userId, $userId]);
+            foreach ($stmt->fetchAll() as $row) {
+                $msg = [
+                    'id'            => (int)$row['chat_id'],
+                    'type'          => $row['room_id'] ? 'room' : 'dm',
+                    'room_id'       => $row['room_id'] ? (int)$row['room_id'] : null,
+                    'room_name'     => $row['room_name'],
+                    'from_user_id'  => (int)$row['from_user_id'],
+                    'from_username' => $row['from_username'],
+                    'to_user_id'    => $row['to_user_id'] ? (int)$row['to_user_id'] : null,
+                    'body'          => $row['body'],
+                    'created_at'    => $row['created_at'],
+                ];
+                echo "id: " . (int)$row['sse_id'] . "\n";
+                echo "event: chat_message\n";
+                echo "data: " . json_encode($msg) . "\n\n";
+            }
+        }
+
+        // Tell the SharedWorker to reconnect immediately. Each cycle is ~3-5 ms,
+        // so the server is free the vast majority of the time.
+        echo "event: reconnect\n";
+        echo "data: {}\n\n";
+    });
+
     SimpleRouter::get('/echoareas', function() {
         $user = RouteHelper::requireAuth();
 

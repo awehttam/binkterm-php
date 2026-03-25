@@ -1,0 +1,446 @@
+# SSE Back-Channel
+
+BinktermPHP uses a Server-Sent Events (SSE) back-channel to push real-time events to browser tabs without polling. The system is designed to work correctly on PHP's single-threaded built-in development server as well as production deployments.
+
+---
+
+## Table of Contents
+
+1. [Architecture Overview](#architecture-overview)
+2. [Key Files](#key-files)
+3. [The `sse_events` Table](#the-sse_events-table)
+4. [Admin Daemon Role](#admin-daemon-role)
+5. [The `/api/stream` Endpoint](#the-apistream-endpoint)
+6. [SharedWorker (`binkstream-worker.js`)](#sharedworker-binkstream-workerjs)
+7. [Client Library (`binkstream.js`)](#client-library-binkstreamjs)
+8. [Subscribing to Events in JavaScript](#subscribing-to-events-in-javascript)
+9. [Adding a New Event Type](#adding-a-new-event-type)
+10. [Connection Lifecycle](#connection-lifecycle)
+11. [Debugging](#debugging)
+
+---
+
+## Architecture Overview
+
+```
+PostgreSQL trigger
+      │
+      │  INSERT INTO sse_events
+      │  pg_notify('binkstream', sse_events.id)
+      ▼
+Admin Daemon  ──── LISTEN binkstream ────► maxSseEventId (in memory)
+      │
+      │  get_stream_events command (TCP socket, ~1ms)
+      ▼
+PHP /api/stream  ──► SSE response (text/event-stream)
+      │
+      │  event: chat_message
+      │  id: <sse_events.id>
+      ▼
+SharedWorker (binkstream-worker.js)  ──► fan-out to all tabs
+      │
+      ▼
+binkstream.js  ──► window.BinkStream.on('chat_message', handler)
+```
+
+**Why this design?**
+
+- PHP's built-in dev server is single-threaded. A long-lived SSE connection would block all other requests. The endpoint is intentionally short-lived (~3–10 ms) — it delivers any pending events and immediately tells the client to reconnect.
+- The admin daemon holds the one persistent Postgres `LISTEN` connection. PHP endpoints don't need their own pg connection to check for events — they ask the daemon via a fast local TCP socket call.
+- The SharedWorker means all browser tabs share one EventSource connection rather than each opening their own.
+
+---
+
+## Key Files
+
+| File | Purpose |
+|---|---|
+| `database/migrations/v1.11.0.55_sse_events_table.php` | Creates `sse_events` table and installs the DB trigger |
+| `src/Admin/AdminDaemonServer.php` | Daemon: `LISTEN binkstream`, `maxSseEventId`, `get_stream_events` command, periodic pruning |
+| `src/Admin/AdminDaemonClient.php` | Web: `getStreamEvents()` — asks daemon for current max SSE event id |
+| `routes/api-routes.php` | `GET /api/stream` — the SSE endpoint |
+| `public_html/js/binkstream-worker.js` | SharedWorker holding the single EventSource |
+| `public_html/js/binkstream.js` | Per-tab client; exposes `window.BinkStream` |
+
+---
+
+## The `sse_events` Table
+
+```sql
+CREATE UNLOGGED TABLE sse_events (
+    id          BIGSERIAL    PRIMARY KEY,
+    event_type  VARCHAR(64)  NOT NULL,
+    payload     JSONB        NOT NULL DEFAULT '{}',
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+```
+
+**UNLOGGED** — no WAL writes, so inserts are fast. The table is automatically truncated on a Postgres crash, which is acceptable because it is a transient delivery queue. Actual data (messages, etc.) lives in domain tables permanently.
+
+**Why a separate table instead of using domain IDs?**
+
+Using `chat_messages.id` as the SSE cursor would break the moment a second event type is added (e.g. MRC messages, notifications). `sse_events.id` is a single monotonic sequence across all event types, so `Last-Event-ID` works correctly regardless of how many event types share the stream.
+
+**Retention:** The admin daemon deletes rows older than one hour from its main loop (roughly once per minute). Autovacuum handles dead tuples from those deletes. No manual maintenance is required.
+
+---
+
+## Admin Daemon Role
+
+The daemon (`scripts/admin_daemon.php`) does three SSE-related things at startup and during its main loop:
+
+### Startup: `initPgListen()`
+
+Opens a raw `pg_connect()` connection (separate from PDO), runs `LISTEN binkstream`, and seeds `maxSseEventId` from `SELECT MAX(id) FROM sse_events`. This ensures the daemon doesn't report a stale 0 immediately after restart.
+
+### Every loop iteration: `drainPgNotifications()`
+
+Calls `pg_get_notify()` in a non-blocking loop. Each notification payload is a plain integer — the `sse_events.id` of the row just inserted by the DB trigger. Updates `maxSseEventId` if the new id is higher.
+
+### On `get_stream_events` command
+
+Drains notifications (for freshness), then returns:
+
+```json
+{ "max_sse_event_id": 42 }
+```
+
+### Every ~60 seconds: `pruneSSEEvents()`
+
+```sql
+DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'
+```
+
+---
+
+## The `/api/stream` Endpoint
+
+`GET /api/stream` — requires authentication.
+
+**Response format:** `Content-Type: text/event-stream`
+
+The endpoint always runs in under ~10 ms regardless of server environment.
+
+### First connection (`Last-Event-ID` absent or 0)
+
+The browser has no cursor yet. The endpoint anchors it at the current max without delivering any historical messages — those are the page's responsibility via its normal load API calls.
+
+```
+event: connected
+data: {"user_id":7}
+
+id: 42
+
+event: reconnect
+data: {}
+```
+
+The `id: 42` line advances the browser's `Last-Event-ID` to 42. On the next reconnect, only events with `sse_events.id > 42` will be delivered.
+
+### Reconnect with known cursor (`Last-Event-ID: 42`)
+
+The endpoint asks the daemon for `max_sse_event_id`. If `max > 42`, it runs the catch-up query and emits any missed events.
+
+```
+event: connected
+data: {"user_id":7}
+
+id: 43
+event: chat_message
+data: {"id":101,"type":"room","room_id":1,"room_name":"Lobby",...}
+
+id: 44
+event: chat_message
+data: {"id":102,"type":"dm","from_user_id":3,...}
+
+event: reconnect
+data: {}
+```
+
+If there are no new events, only `event: connected` and `event: reconnect` are sent.
+
+### Daemon unavailable
+
+If `AdminDaemonClient` throws (daemon not running), `daemonOk = false` and the catch-up query runs unconditionally. This is a safety net — events won't be silently lost if the daemon is down.
+
+---
+
+## SharedWorker (`binkstream-worker.js`)
+
+The SharedWorker holds **one** EventSource for the entire origin. All tabs connect to it via `MessagePort`.
+
+### Connection lifecycle
+
+```
+connect()
+  └─► new EventSource('/api/stream')
+        │
+        ├─ event: connected  → reset backoff, broadcast 'connected' to tabs
+        ├─ event: <type>     → broadcast to tabs
+        ├─ event: reconnect  → close + connect() immediately (no backoff)
+        └─ error
+              ├─ readyState CLOSED → close + connect() immediately
+              └─ readyState other  → close + scheduleReconnect() (exponential backoff)
+```
+
+### Stale listener prevention
+
+Each call to `connect()` captures the new EventSource in `thisEs`. Every event listener checks `if (thisEs !== es) return` before acting. This prevents a common race condition where:
+
+1. `event: reconnect` fires → `connect()` creates new EventSource (`es = B`)
+2. `error` fires for the old connection — but `es` is now `B`, whose `readyState` is CONNECTING
+3. Without the guard, the error handler would call `scheduleReconnect()`, kill `B`, and wait 1–30 seconds
+
+### Backoff
+
+On network errors (not clean server closes), reconnect delay starts at 1 second and doubles up to 30 seconds. It resets to 1 second on each successful `connected` event.
+
+---
+
+## Client Library (`binkstream.js`)
+
+Loaded on every authenticated page (injected in `base.twig`). Connects to the SharedWorker and exposes `window.BinkStream`.
+
+### API
+
+```javascript
+// Subscribe to an event type
+window.BinkStream.on('chat_message', function(payload) {
+    console.log('New message:', payload);
+});
+
+// Unsubscribe
+window.BinkStream.off('chat_message', handler);
+```
+
+`window.BinkStream` is always defined (even when SharedWorker is not supported). When SharedWorker is unavailable the object is a no-op — subscribers never fire but no errors are thrown. This means all subscriber code works without `if (window.BinkStream)` guards.
+
+---
+
+## Subscribing to Events in JavaScript
+
+### Example: chat notifications on every page
+
+`public_html/js/chat-notify.js` is loaded on all authenticated pages and subscribes to `chat_message` to play notification sounds:
+
+```javascript
+// chat-notify.js (simplified)
+window.BinkStream.on('chat_message', function(payload) {
+    if (payload.from_user_id === window.currentUserId) return;
+    playNotificationSound();
+});
+```
+
+### Example: updating the chat thread in real time
+
+`public_html/js/chat-page.js` subscribes on the chat page only:
+
+```javascript
+window.BinkStream.on('chat_message', function(payload) {
+    if (!payload || !payload.id) return;
+    handleIncoming(payload);               // render or increment unread badge
+    if (payload.id > state.lastChatId) {   // advance poll fallback cursor
+        state.lastChatId = payload.id;
+        saveState();
+    }
+});
+```
+
+Note: `payload.id` is the **domain id** (`chat_messages.id`), not the SSE event id. The SSE cursor (`Last-Event-ID`) is managed automatically by the browser's EventSource — you never need to track it in JavaScript.
+
+---
+
+## Adding a New Event Type
+
+This section walks through adding a hypothetical `user_online` event that fires when a user connects or disconnects.
+
+### Step 1: Add a Postgres trigger (or insert directly)
+
+If the event is triggered by a DB change, add a trigger that inserts into `sse_events`:
+
+```sql
+CREATE OR REPLACE FUNCTION notify_user_online()
+RETURNS trigger AS $$
+DECLARE
+    evt_id BIGINT;
+BEGIN
+    INSERT INTO sse_events (event_type, payload)
+    VALUES (
+        'user_online',
+        json_build_object(
+            'user_id',  NEW.id,
+            'username', NEW.username,
+            'online',   NEW.is_online
+        )
+    )
+    RETURNING id INTO evt_id;
+
+    PERFORM pg_notify('binkstream', evt_id::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_user_online_notify
+    AFTER UPDATE OF is_online ON users
+    FOR EACH ROW EXECUTE FUNCTION notify_user_online();
+```
+
+Wrap this in a migration file: `database/migrations/v1.11.0.XX_user_online_trigger.php`.
+
+If the event is triggered by PHP code (not a DB trigger), insert directly and notify:
+
+```php
+// In a PHP route or service
+$db = Database::getInstance()->getPdo();
+$stmt = $db->prepare("
+    INSERT INTO sse_events (event_type, payload)
+    VALUES ('user_online', :payload)
+    RETURNING id
+");
+$stmt->execute([':payload' => json_encode([
+    'user_id'  => $userId,
+    'username' => $username,
+    'online'   => true,
+])]);
+$row = $stmt->fetch();
+$sseId = $row['id'];
+
+// Notify the daemon
+$db->exec("SELECT pg_notify('binkstream', " . $db->quote((string)$sseId) . ")");
+```
+
+### Step 2: Deliver the event in `/api/stream`
+
+In `routes/api-routes.php`, inside the catch-up query block, add a branch for the new event type alongside the existing `chat_message` branch.
+
+The simplest approach is to extend the existing query with a `UNION ALL`:
+
+```php
+$stmt = $db->prepare("
+    -- existing chat_message branch
+    SELECT e.id AS sse_id, 'chat_message' AS event_type,
+           json_build_object(
+               'id', m.id, 'type', CASE WHEN m.room_id IS NOT NULL THEN 'room' ELSE 'dm' END,
+               ...
+           )::text AS event_data
+    FROM sse_events e
+    JOIN chat_messages m ON (e.payload->>'chat_id')::int = m.id
+    ...
+    WHERE e.id > ? AND e.event_type = 'chat_message' AND ...
+
+    UNION ALL
+
+    -- new user_online branch (no auth filter needed — presence is public)
+    SELECT e.id AS sse_id, 'user_online' AS event_type,
+           e.payload::text AS event_data
+    FROM sse_events e
+    WHERE e.id > ? AND e.event_type = 'user_online'
+
+    ORDER BY sse_id ASC
+    LIMIT 200
+");
+$stmt->execute([$lastEventId, $userId, $userId, $lastEventId]);
+
+foreach ($stmt->fetchAll() as $row) {
+    echo "id: " . (int)$row['sse_id'] . "\n";
+    echo "event: " . $row['event_type'] . "\n";
+    echo "data: " . $row['event_data'] . "\n\n";
+}
+```
+
+### Step 3: Subscribe in JavaScript
+
+```javascript
+window.BinkStream.on('user_online', function(payload) {
+    // payload = { user_id: 7, username: 'alice', online: true }
+    updateUserPresenceIndicator(payload.user_id, payload.online);
+});
+```
+
+No changes to `binkstream-worker.js` or `binkstream.js` are needed — the worker fans out any named event type to subscribers automatically.
+
+### Step 4: Bump the service worker cache
+
+Any time you change `binkstream-worker.js` or `binkstream.js`, increment `CACHE_NAME` in `public_html/sw.js`:
+
+```javascript
+const CACHE_NAME = 'binkcache-v578'; // was v577
+```
+
+---
+
+## Connection Lifecycle
+
+```
+Page load
+  │
+  ├─ binkstream.js: new SharedWorker('/js/binkstream-worker.js')
+  │     └─ worker onconnect: connect() → EventSource('/api/stream')
+  │
+  ├─ /api/stream (Last-Event-ID: 0)
+  │     └─ anchor cursor at maxSseEventId, send reconnect
+  │
+  ├─ /api/stream (Last-Event-ID: N)  ← fast reconnect loop
+  │     ├─ if maxSseEventId > N: deliver events, send reconnect
+  │     └─ if nothing new: send reconnect only
+  │
+  └─ message arrives in DB
+        ├─ trigger → sse_events INSERT → pg_notify
+        ├─ daemon drainPgNotifications() → maxSseEventId = N+1
+        └─ next /api/stream cycle: deliver event to browser
+```
+
+**End-to-end latency** is one SSE cycle time — typically under 50 ms on localhost, under 200 ms on a production server depending on network conditions.
+
+---
+
+## Debugging
+
+### Inspect the SharedWorker
+
+SharedWorker network requests do **not** appear in the main frame's Network tab. To inspect them:
+
+1. Open `chrome://inspect/#workers` (or `edge://inspect/#workers`)
+2. Find `binkstream-worker.js` and click **inspect**
+3. The worker's DevTools shows its own Console, Network tab, and Sources
+
+### Check the SSE event log
+
+```sql
+-- Recent SSE events
+SELECT id, event_type, payload, created_at
+FROM sse_events
+ORDER BY id DESC
+LIMIT 20;
+
+-- Event counts by type in the last hour
+SELECT event_type, count(*)
+FROM sse_events
+WHERE created_at > NOW() - INTERVAL '1 hour'
+GROUP BY event_type;
+```
+
+### Check the daemon is listening
+
+```sql
+SELECT pid, query, state
+FROM pg_stat_activity
+WHERE query LIKE '%LISTEN%';
+```
+
+### Force-reload the SharedWorker
+
+The SharedWorker persists across page reloads as long as at least one tab is open. To force it to reload new code:
+
+1. Close all tabs for the site
+2. Open a new tab — a fresh worker starts with the new code
+
+Or from `chrome://inspect/#workers`, click **terminate** next to the worker, then reload a tab.
+
+### Test the stream endpoint directly
+
+```bash
+curl -N -H 'Cookie: your_session_cookie' http://localhost:1244/api/stream
+```
+
+`-N` disables curl's own buffering so you see events as they arrive.

@@ -31,6 +31,19 @@ class AdminDaemonServer
     private $serverSocket;
     private bool $shutdownRequested = false;
 
+    /** @var resource|null Raw pg_* connection used for LISTEN/NOTIFY */
+    private $pgConn = null;
+
+    /**
+     * High-water mark of sse_events.id seen via pg_notify.
+     * PHP SSE endpoints compare their Last-Event-ID against this to decide
+     * whether to run a catch-up query without opening their own pg connection.
+     */
+    private int $maxSseEventId = 0;
+
+    /** Loop iteration counter used to schedule periodic sse_events cleanup. */
+    private int $loopIteration = 0;
+
     public function __construct(?string $socketTarget = null, ?string $secret = null, ?Logger $logger = null, ?string $pidFile = null, ?string $socketPerms = null)
     {
         $this->socketTarget = $socketTarget
@@ -51,6 +64,8 @@ class AdminDaemonServer
         $this->writePidFile();
 
         $this->logger->info('Admin daemon started', ['socket' => $this->socketTarget]);
+
+        $this->initPgListen();
 
         $canFork = function_exists('pcntl_fork')
             && function_exists('posix_getppid')
@@ -80,7 +95,14 @@ class AdminDaemonServer
                 break;
             }
 
-            $client = @stream_socket_accept($this->serverSocket, 1);
+            $this->drainPgNotifications();
+
+            // Prune stale SSE events roughly once per minute (600 iterations × 0.1 s timeout).
+            if (++$this->loopIteration % 600 === 0) {
+                $this->pruneSSEEvents();
+            }
+
+            $client = @stream_socket_accept($this->serverSocket, 0.1);
             if ($client === false) {
                 continue;
             }
@@ -746,6 +768,16 @@ class AdminDaemonServer
                     $this->saveWeatherConfig($decoded);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWeatherConfig()]);
                     break;
+                case 'get_stream_events':
+                    // Drain any pending pg notifications before responding so the
+                    // caller gets the freshest possible max_sse_event_id.
+                    $this->drainPgNotifications();
+                    $this->writeResponse($client, [
+                        'ok'     => true,
+                        'result' => ['max_sse_event_id' => $this->maxSseEventId],
+                    ]);
+                    break;
+
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -754,6 +786,80 @@ class AdminDaemonServer
             $this->logger->error('Admin daemon command error', ['error' => $e->getMessage(), 'cmd' => $cmd]);
             $this->writeResponse($client, ['ok' => false, 'error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Open a raw pg_* connection and start listening on the 'binkstream' channel.
+     * Called once at daemon startup. Failures are logged but not fatal — the daemon
+     * continues running and PHP endpoints fall back to direct DB catch-up queries.
+     */
+    private function initPgListen(): void
+    {
+        if (!function_exists('pg_connect')) {
+            $this->logger->warning('pg_connect not available — stream event push disabled');
+            return;
+        }
+
+        try {
+            $cfg = \BinktermPHP\Config::getDatabaseConfig();
+            $connStr = sprintf(
+                "host=%s port=%s dbname=%s user=%s password=%s",
+                $cfg['host'], $cfg['port'], $cfg['database'],
+                $cfg['username'], $cfg['password']
+            );
+            $this->pgConn = pg_connect($connStr);
+            if (!$this->pgConn) {
+                $this->logger->warning('Admin daemon: pg_connect failed — stream event push disabled');
+                $this->pgConn = null;
+                return;
+            }
+
+            pg_query($this->pgConn, "LISTEN binkstream");
+
+            // Seed maxSseEventId from sse_events so we don't report stale
+            // data to PHP endpoints that connect immediately after startup.
+            $row = pg_fetch_assoc(pg_query($this->pgConn, "SELECT COALESCE(MAX(id), 0) AS max_id FROM sse_events"));
+            if ($row) {
+                $this->maxSseEventId = (int)$row['max_id'];
+            }
+
+            $this->logger->info('Admin daemon: pg LISTEN binkstream active', ['max_sse_event_id' => $this->maxSseEventId]);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Admin daemon: pg listen init failed', ['error' => $e->getMessage()]);
+            $this->pgConn = null;
+        }
+    }
+
+    /**
+     * Non-blocking drain of pg_notify events. The payload is the sse_events.id
+     * as a plain integer string. Called on every main-loop iteration.
+     */
+    private function drainPgNotifications(): void
+    {
+        if (!$this->pgConn) {
+            return;
+        }
+
+        while ($notify = @pg_get_notify($this->pgConn, PGSQL_ASSOC)) {
+            $id = (int)($notify['payload'] ?? 0);
+            if ($id > $this->maxSseEventId) {
+                $this->maxSseEventId = $id;
+            }
+        }
+    }
+
+    /**
+     * Delete sse_events rows older than one hour. The table is UNLOGGED so
+     * autovacuum handles dead tuples; this just keeps the row count bounded.
+     * Called from the main loop roughly once per minute.
+     */
+    private function pruneSSEEvents(): void
+    {
+        if (!$this->pgConn) {
+            return;
+        }
+
+        @pg_query($this->pgConn, "DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'");
     }
 
     private function runCommand(array $command): array
