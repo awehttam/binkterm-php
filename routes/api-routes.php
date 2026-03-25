@@ -1793,11 +1793,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // open so the retry value is only used after an unexpected disconnect.
         echo "retry: " . ($isDevServer ? 1000 : 3000) . "\n\n";
 
-        // Anchor the cursor on the connected event. Attaching id: to a real
-        // event (with data) ensures the browser reliably updates lastEventId —
-        // a bare id: with no data is invisible in DevTools and some browsers
-        // may not persist it on the EventSource object across a manual close().
-        $anchorId = $getMaxSseId();
+        // Only first-connect (cursor=0) should anchor to the current max id.
+        // On reconnect, advancing lastEventId before catch-up delivery risks
+        // skipping backlog if the connection dies mid-batch.
+        $anchorId = ($lastEventId > 0) ? $lastEventId : $getMaxSseId();
         echo "id: {$anchorId}\n";
         echo "event: connected\n";
         echo "data: " . json_encode(['user_id' => $userId, 'cursor' => $anchorId]) . "\n\n";
@@ -1852,9 +1851,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // On reconnect, deliver any events missed since the client's last cursor.
         // On first connect ($lastEventId=0) skip delivery — the connected event
-        // already anchored the cursor at $anchorId and loadMessages() handles
-        // the initial message load. Calling $deliverEvents($anchorId) here would
-        // look for id > $anchorId and silently skip the event AT $anchorId.
+        // already anchored the cursor at the current max and loadMessages()
+        // handles the initial message load.
         if ($lastEventId > 0) {
             $deliverEvents($lastEventId);
         }
