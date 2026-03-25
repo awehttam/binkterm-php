@@ -1753,11 +1753,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         session_write_close();
 
         header('Content-Type: text/event-stream');
-        header('Cache-Control: no-cache');
+        header('Cache-Control: no-cache, no-transform');
         header('X-Accel-Buffering: no'); // nginx: disable proxy buffering
 
-        if (ob_get_level()) {
-            ob_end_clean();
+        while (ob_get_level() > 0) {
+            ob_end_flush();
         }
         ob_implicit_flush(true);
         ignore_user_abort(true);
@@ -1780,6 +1780,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $row = $db->query("SELECT COALESCE(MAX(id), 0) AS max_id FROM sse_events")->fetch(\PDO::FETCH_ASSOC);
             return (int)($row['max_id'] ?? 0);
         };
+
+        // Prime proxy/filter buffers so the first real SSE event is not held
+        // waiting for Apache to accumulate a larger brigade.
+        echo ':' . str_repeat(' ', 2048) . "\n\n";
+        flush();
 
         // Tell the client how long to wait before reconnecting after a close.
         // On the dev server (window=0) we close immediately, so set a short
@@ -1824,11 +1829,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 LIMIT 200
             ");
             $stmt->execute([$fromId, $userId]);
-            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $emitted = 0;
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
                 echo "id: " . (int)$row['sse_id'] . "\n";
                 echo "event: " . $row['event_type'] . "\n";
                 echo "data: " . $row['event_data'] . "\n\n";
                 $lastEventId = (int)$row['sse_id'];
+                $emitted++;
+
+                // Large catch-up bursts are where Apache most often coalesces
+                // output. Flush progressively instead of waiting for the full
+                // LIMIT 200 batch to finish.
+                if (($emitted % 10) === 0) {
+                    flush();
+                }
+            }
+
+            if ($emitted > 0) {
+                flush();
             }
         };
 
