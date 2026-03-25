@@ -3040,6 +3040,17 @@ class MessageHandler
             return $message;
         }
 
+        // Mask the subject line for AreaFix/FileFix robot messages.
+        // AreaFix uses the netmail subject as its password; exposing it in any
+        // list or detail view would be a security issue.
+        $toName   = strtolower((string)($message['to_name']   ?? ''));
+        $fromName = strtolower((string)($message['from_name'] ?? ''));
+        $isRobotMsg = str_contains($toName, 'areafix')   || str_contains($toName, 'filefix')
+                   || str_contains($fromName, 'areafix') || str_contains($fromName, 'filefix');
+        if ($isRobotMsg && isset($message['subject'])) {
+            $message['subject'] = '••••••••';
+        }
+
         $cleaned = [];
         foreach ($message as $key => $value) {
             if ($key === 'raw_message_bytes') {
