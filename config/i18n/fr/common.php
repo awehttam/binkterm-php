@@ -627,6 +627,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.dashboard.service.gemini_daemon' => 'Serveur Gemini',
     'ui.admin.dashboard.service.mrc_daemon' => 'Démon MRC',
     'ui.admin.dashboard.service.multiplexing_server' => 'Serveur de multiplexage',
+    'ui.admin.dashboard.service.mcp_server' => 'Serveur MCP',
     'ui.admin.dashboard.running' => 'En cours',
     'ui.admin.dashboard.stopped' => 'Arrêté',
     'ui.admin.dashboard.not_configured' => 'Non configuré',
@@ -3827,6 +3828,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.qwk.basic_auth.upload_label' => 'Envoyer le paquet REP',
     'ui.qwk.basic_auth.response_label' => 'Réponse JSON de l\'envoi',
     'ui.qwk.basic_auth.response_description' => 'Le point d\'accès d\'envoi renvoie du JSON avec un indicateur de succès, le nombre de messages importés, le nombre ignoré et un tableau d\'erreurs de traitement.',
+    'ui.qwk.reset_confirm' => 'Réinitialiser à toutes les zones abonnées ? Votre sélection personnalisée sera effacée.',
 
     // Settings
     'ui.settings.echomail_digest' => 'Digest echomail',

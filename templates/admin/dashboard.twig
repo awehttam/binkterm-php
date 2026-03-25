@@ -244,7 +244,8 @@
                         'ssh_daemon': t('ui.admin.dashboard.service.ssh_daemon', {}, locale, ['common']),
                         'gemini_daemon': t('ui.admin.dashboard.service.gemini_daemon', {}, locale, ['common']),
                         'mrc_daemon': t('ui.admin.dashboard.service.mrc_daemon', {}, locale, ['common']),
-                        'multiplexing_server': t('ui.admin.dashboard.service.multiplexing_server', {}, locale, ['common'])
+                        'multiplexing_server': t('ui.admin.dashboard.service.multiplexing_server', {}, locale, ['common']),
+                        'mcp_server': t('ui.admin.dashboard.service.mcp_server', {}, locale, ['common'])
                     } %}
                     {% for key, label in coreServices %}
                         {% set info = daemon_status[key] ?? null %}

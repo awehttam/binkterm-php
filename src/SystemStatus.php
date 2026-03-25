@@ -36,6 +36,7 @@ class SystemStatus
             'gemini_daemon'        => Config::env('GEMINI_PID_FILE',       $runDir . '/gemini_daemon.pid'),
             'mrc_daemon'           => Config::env('MRC_PID_FILE',          $runDir . '/mrc_daemon.pid'),
             'multiplexing_server'  => Config::env('MULTIPLEX_PID_FILE',    $runDir . '/multiplexing-server.pid'),
+            'mcp_server'           => Config::env('MCP_SERVER_PID_FILE',   $runDir . '/mcp-server.pid'),
         ];
 
         $status = [];

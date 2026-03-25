@@ -860,7 +860,7 @@ function selectNone() {
 
 async function resetToSubscribed() {
     // Clear custom mode entirely — revert to all-subscribed default.
-    if (!confirm('Reset to all subscribed areas? Your custom selection will be cleared.')) return;
+    if (!confirm(window.t('ui.qwk.reset_confirm', {}, 'Reset to all subscribed areas? Your custom selection will be cleared.'))) return;
     const statusEl = document.getElementById('saveSelStatus');
     statusEl.textContent = 'Resetting…';
     try {
