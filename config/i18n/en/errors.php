@@ -567,6 +567,8 @@ return [
     'errors.qwk.processing_failed' => 'Failed to process REP packet',
     'errors.qwk.status_failed' => 'Failed to retrieve QWK status',
     'errors.qwk.invalid_format' => 'Format must be "qwk" or "qwke"',
+    'errors.qwk.invalid_input' => 'echoarea_ids array is required',
+    'errors.qwk.save_failed' => 'Failed to save area selections',
 
     // Interests
     'errors.interests.not_found' => 'Interest not found.',

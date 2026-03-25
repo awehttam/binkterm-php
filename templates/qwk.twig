@@ -30,8 +30,9 @@
                     upload the resulting <code>.REP</code> file below.
                 </p>
                 <p class="card-text text-muted mb-3">
-                    The packet includes your <strong>Personal Mail</strong> (netmail) and all
-                    <strong>subscribed echo areas</strong>.
+                    The packet includes your <strong>Personal Mail</strong> (netmail) and your
+                    <strong>selected echo areas</strong>. Use the <i class="fas fa-sliders-h"></i> button
+                    on the Conferences panel to customise which areas are included.
                 </p>
 
                 <div class="mb-3">
@@ -237,12 +238,20 @@
 
     {# ---- Right column: Conference status ---- #}
     <div class="col-lg-5">
-        <div class="card h-100">
+        <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Conferences</h5>
-                <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Conferences
+                    <span id="customSelBadge" class="badge bg-info text-dark ms-2 d-none" title="Custom area selection active">custom</span>
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="toggleAreaPicker()" id="manageBtn" title="Manage conference areas">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div id="conferenceList">
@@ -255,6 +264,53 @@
     </div>
 
 </div>{# /row #}
+
+{# ---- Area picker modal ---- #}
+<div class="modal fade" id="areaPickerModal" tabindex="-1" aria-labelledby="areaPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="areaPickerModalLabel">
+                    <i class="fas fa-sliders-h me-2"></i>QWK Conference Areas
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Choose which echo areas to include in your QWK packets.
+                    Your subscribed areas are shown below. Changes take effect on the next download.
+                </p>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-semibold" id="selCount"></span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="selectAll()">All</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="selectNone()">None</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="resetToSubscribed()">Reset</button>
+                    </div>
+                </div>
+
+                <div id="areaCheckList" style="max-height:320px;overflow-y:auto;border:1px solid var(--bs-border-color);border-radius:.375rem;padding:.5rem;" class="mb-3"></div>
+
+                <label class="form-label fw-semibold">Add an area not in your subscriptions</label>
+                <div class="input-group mb-1">
+                    <input type="text" id="areaSearchInput" class="form-control"
+                           placeholder="Search by tag or description…" autocomplete="off">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+                <div id="areaSearchResults" class="list-group mb-2 d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <span id="saveSelStatus" class="text-muted small me-auto"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveSelections()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {#
 
         
@@ -406,6 +462,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStatus();
     initUploadForm();
     initFormatRadios();
+
+    document.getElementById('areaPickerModal')?.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('areaSearchInput').value = '';
+        document.getElementById('areaSearchResults').classList.add('d-none');
+        document.getElementById('saveSelStatus').textContent = '';
+    });
 });
 
 function updateUploadAvailability(hasDownloaded) {
@@ -499,6 +561,10 @@ async function loadStatus() {
         }
         html += '</tbody></table>';
         listEl.innerHTML = html;
+
+        // Custom selection badge.
+        const custBadge = document.getElementById('customSelBadge');
+        if (custBadge) custBadge.classList.toggle('d-none', !data.has_custom_selection);
 
         // Dev tools.
         document.getElementById('devToolsRow').classList.toggle('d-none', !data.is_dev);
@@ -707,6 +773,194 @@ function escapeHtml(text) {
     const d = document.createElement('div');
     d.appendChild(document.createTextNode(String(text)));
     return d.innerHTML;
+}
+
+// ── Area picker ───────────────────────────────────────────────────────────────
+
+let pickerSubscribed = [];   // [{id, tag, domain, description}]
+let pickerSelected   = new Set(); // echoarea_id integers
+let pickerLoaded     = false;
+
+function toggleAreaPicker() {
+    const modal = new bootstrap.Modal(document.getElementById('areaPickerModal'));
+    if (!pickerLoaded) loadAreaPicker();
+    modal.show();
+}
+
+async function loadAreaPicker() {
+    document.getElementById('areaCheckList').innerHTML =
+        '<div class="text-center text-muted py-2"><i class="fas fa-spinner fa-spin"></i></div>';
+    try {
+        const resp = await fetch('/api/qwk/area-selections');
+        const data = await resp.json();
+        pickerSubscribed = data.subscribed || [];
+
+        if (data.has_custom) {
+            // Pre-tick the saved selection.
+            pickerSelected = new Set(data.selections.map(a => a.id));
+            // Also ensure any selection IDs not in subscribed are kept (extras).
+            data.selections.forEach(a => {
+                if (!pickerSubscribed.find(s => s.id === a.id)) {
+                    pickerSubscribed.push(a);
+                }
+            });
+        } else {
+            // Default: all subscribed ticked.
+            pickerSelected = new Set(pickerSubscribed.map(a => a.id));
+        }
+
+        renderCheckList();
+        pickerLoaded = true;
+    } catch(e) {
+        document.getElementById('areaCheckList').innerHTML =
+            '<div class="text-danger small py-2">Failed to load areas.</div>';
+    }
+}
+
+function renderCheckList() {
+    const list = document.getElementById('areaCheckList');
+    if (!pickerSubscribed.length) {
+        list.innerHTML = '<div class="text-muted small">No subscribed areas.</div>';
+        updateSelCount();
+        return;
+    }
+    list.innerHTML = pickerSubscribed.map(a => {
+        const checked = pickerSelected.has(a.id) ? 'checked' : '';
+        const label   = escapeHtml(a.tag.toUpperCase() + (a.domain ? '@' + a.domain.toUpperCase() : ''));
+        const desc    = a.description ? ' <span class="text-muted">— ' + escapeHtml(a.description) + '</span>' : '';
+        return `<div class="form-check form-check-sm">
+            <input class="form-check-input" type="checkbox" id="ac_${a.id}" value="${a.id}" ${checked}
+                   onchange="toggleArea(${a.id}, this.checked)">
+            <label class="form-check-label small" for="ac_${a.id}">${label}${desc}</label>
+        </div>`;
+    }).join('');
+    updateSelCount();
+}
+
+function toggleArea(id, checked) {
+    if (checked) pickerSelected.add(id); else pickerSelected.delete(id);
+    updateSelCount();
+}
+
+function updateSelCount() {
+    const el = document.getElementById('selCount');
+    const n  = pickerSelected.size;
+    el.textContent = n === 0 ? 'All subscribed (default)' : n + ' area' + (n !== 1 ? 's' : '') + ' selected';
+}
+
+function selectAll() {
+    pickerSubscribed.forEach(a => pickerSelected.add(a.id));
+    renderCheckList();
+}
+
+function selectNone() {
+    pickerSelected.clear();
+    renderCheckList();
+}
+
+async function resetToSubscribed() {
+    // Clear custom mode entirely — revert to all-subscribed default.
+    if (!confirm('Reset to all subscribed areas? Your custom selection will be cleared.')) return;
+    const statusEl = document.getElementById('saveSelStatus');
+    statusEl.textContent = 'Resetting…';
+    try {
+        const resp = await fetch('/api/qwk/area-selections', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ echoarea_ids: [], reset: true }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            pickerLoaded = false;
+            bootstrap.Modal.getInstance(document.getElementById('areaPickerModal'))?.hide();
+            loadStatus();
+        } else {
+            statusEl.textContent = 'Reset failed.';
+        }
+    } catch(e) {
+        statusEl.textContent = 'Reset failed.';
+    }
+}
+
+async function saveSelections() {
+    const statusEl = document.getElementById('saveSelStatus');
+    statusEl.textContent = 'Saving…';
+
+    const ids = [...pickerSelected];
+
+    try {
+        const resp = await fetch('/api/qwk/area-selections', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ echoarea_ids: ids }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            pickerLoaded = false; // force reload on next open
+            bootstrap.Modal.getInstance(document.getElementById('areaPickerModal'))?.hide();
+            loadStatus();
+        } else {
+            statusEl.textContent = 'Save failed.';
+        }
+    } catch(e) {
+        statusEl.textContent = 'Save failed.';
+    }
+}
+
+// Area search (add non-subscribed areas)
+(function() {
+    let searchTimer = null;
+    document.addEventListener('DOMContentLoaded', function() {
+        const inp = document.getElementById('areaSearchInput');
+        if (!inp) return;
+        inp.addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            const q = inp.value.trim();
+            if (q.length < 2) {
+                document.getElementById('areaSearchResults').classList.add('d-none');
+                return;
+            }
+            searchTimer = setTimeout(() => runAreaSearch(q), 280);
+        });
+    });
+})();
+
+async function runAreaSearch(q) {
+    const resultsEl = document.getElementById('areaSearchResults');
+    try {
+        const resp = await fetch('/api/qwk/area-search?q=' + encodeURIComponent(q));
+        const data = await resp.json();
+        const areas = data.areas || [];
+        if (!areas.length) {
+            resultsEl.innerHTML = '<div class="list-group-item list-group-item-action disabled small text-muted">No areas found.</div>';
+        } else {
+            resultsEl.innerHTML = areas.map(a => {
+                const label = escapeHtml(a.tag.toUpperCase() + (a.domain ? '@' + a.domain.toUpperCase() : ''));
+                const desc  = a.description ? ' — ' + escapeHtml(a.description) : '';
+                return `<button type="button" class="list-group-item list-group-item-action small py-1"
+                    onclick="addAreaFromSearch(${a.id}, ${JSON.stringify(a)})">
+                    <strong>${label}</strong>${escapeHtml(desc)}
+                </button>`;
+            }).join('');
+        }
+        resultsEl.classList.remove('d-none');
+    } catch(e) {
+        resultsEl.classList.add('d-none');
+    }
+}
+
+function addAreaFromSearch(id, area) {
+    // Add to the picker list if not already there, then tick it.
+    if (!pickerSubscribed.find(a => a.id === id)) {
+        pickerSubscribed.push(area);
+    }
+    pickerSelected.add(id);
+    document.getElementById('areaSearchInput').value = '';
+    document.getElementById('areaSearchResults').classList.add('d-none');
+    renderCheckList();
+    // Scroll the newly added item into view.
+    const el = document.getElementById('ac_' + id);
+    if (el) el.closest('.form-check')?.scrollIntoView({block: 'nearest'});
 }
 </script>
 {% endblock %}

@@ -24,6 +24,7 @@
   - [Message List Context Menu](#message-list-context-menu)
 - [QWK Offline Mail](#qwk-offline-mail)
   - [HTTP Basic Auth Endpoints](#http-basic-auth-endpoints)
+  - [Conference Area Selection](#conference-area-selection)
 - [BinkP Configuration](#binkp-configuration)
   - [Poll Schedule Builder](#poll-schedule-builder)
   - [Status Page Uplink Checks](#status-page-uplink-checks)
@@ -59,6 +60,7 @@
   - [Message History](#message-history)
   - [Subject Masking](#subject-masking)
   - [Uplink Password Fields](#uplink-password-fields)
+  - [History Table Improvements](#history-table-improvements)
 - [Advertising Improvements](#advertising-improvements)
   - [Content Command Whitelist and Dropdown](#content-command-whitelist-and-dropdown)
   - [Content Command Parameters](#content-command-parameters)
@@ -111,6 +113,7 @@
 - These endpoints reuse the same packet builder and REP import logic as the web UI/API and are intended for external offline-mail tooling.
 - The `/qwk` page now documents this scripted-access workflow directly in the help accordion, including example `curl` commands for both download and upload.
 - The `/qwk` page also documents the JSON response returned by `/qwk/upload`, including the `success`, `imported`, `skipped`, and `errors` fields.
+- Users can now choose exactly which echo areas appear in their QWK packets via a **Conference Areas** picker (sliders button on the Conferences panel). Subscribed areas are pre-selected; non-subscribed areas can be added by searching. An empty selection produces a personal-mail-only packet. Resetting reverts to the default all-subscribed behaviour. Stored in the new `qwk_area_selections` table with an activation flag in `users_meta`.
 
 **User Settings**
 - The settings page has been reorganized from a single long card into a tabbed layout with a left-side navigation panel. Tabs: **Display**, **Messaging**, **Notifications**, and **Account**. The active tab is remembered across page visits via `localStorage`.
@@ -156,6 +159,8 @@
 - The message history table refreshes automatically after every sent command and polls for new replies every 30 seconds.
 - Messages addressed to or from `areafix` or `filefix` now have their subject line masked to `••••••••` in all UI views, because AreaFix uses the subject as a password.
 - `areafix_password` and `filefix_password` fields have been added to the BinkP uplink editor modal.
+- The message history table now shows **Node Address** (the hub's FTN address) and **Network** (domain) columns, and dates are formatted as human-readable local timestamps instead of raw PostgreSQL strings.
+- Subject masking for AreaFix/FileFix robot messages is now applied correctly. The masking code referenced in `AreaFixManager` was previously missing from `MessageHandler::cleanMessageForJson()`; it has been implemented so the password in the subject line is replaced with `••••••••` in all views.
 
 **Advertising**
 - Content commands are now restricted to a whitelist (`scripts/weather_report.php`, `scripts/report_newfiles.php`, and any script in `content_commands/`). The admin editor UI switches from a free-text input to a dropdown populated from that whitelist.
@@ -345,6 +350,31 @@ They reuse the same QWK packet builder and REP processor as the in-app QWK page,
 The `/qwk` page now includes a help section for this automation workflow, including example `curl` commands for both endpoints.
 
 It also now documents the JSON response returned by `/qwk/upload`, including the `success`, `imported`, `skipped`, and `errors` fields.
+
+### Conference Area Selection
+
+Users can now control exactly which echo areas are included in their QWK packets without changing their echomail subscriptions.
+
+A sliders button on the **Conferences** panel opens a **QWK Conference Areas** modal. The modal shows all subscribed areas as checkboxes (all ticked by default) and a search box for adding areas that are not in the user's subscription list.
+
+Behaviour:
+
+- **Default** — when no custom selection has been saved, all subscribed echo areas are included (unchanged from previous behaviour).
+- **Custom selection** — once saved, only the ticked areas appear in the packet. The Conferences panel displays a **custom** badge when a custom selection is active.
+- **Personal mail only** — saving with zero areas ticked produces a packet that contains only conference 0 (Personal Mail / netmail) and no echo areas.
+- **Reset** — the Reset button in the modal clears the custom selection and reverts to the all-subscribed default.
+
+The selection is stored in the new `qwk_area_selections` table. An activation flag (`qwk_custom_areas_active`) in `users_meta` distinguishes "not configured" from "explicitly empty," making personal-mail-only packets possible.
+
+Three new API endpoints support the feature:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/qwk/area-selections` | Returns current selection and subscribed area list |
+| `POST /api/qwk/area-selections` | Saves selection; `{"reset": true}` reverts to default |
+| `GET /api/qwk/area-search?q=` | Searches active areas by tag or description |
+
+Migration `v1.11.0.56_qwk_area_selections.sql` creates the `qwk_area_selections` table and its index.
 
 ---
 
@@ -620,6 +650,17 @@ AreaFix uses the netmail subject line as the robot password. To prevent that pas
 
 The BinkP uplink editor modal now includes **AreaFix Password** and **FileFix Password** fields. These are saved as `areafix_password` and `filefix_password` in `config/binkp.json` via the admin daemon and are used when sending commands to the respective robot. Both fields use a masked password input with a show/hide toggle.
 
+### History Table Improvements
+
+The AreaFix/FileFix message history table now includes two additional columns:
+
+- **Node Address** — the FTN address of the other party: the hub's address for outgoing messages, the hub's address for incoming replies.
+- **Network** — the domain of the selected uplink (e.g. `fidonet`, `araknet`).
+
+Dates in the history table are now formatted as human-readable local timestamps (e.g. `Mar 25, 2026, 05:51 AM`) instead of raw PostgreSQL timestamp strings.
+
+A bug where the subject masking for AreaFix/FileFix messages was not actually applied has been fixed. The `MessageHandler::cleanMessageForJson()` method now replaces the subject with `••••••••` whenever `to_name` or `from_name` contains `areafix` or `filefix` (case-insensitive), covering message lists, detail views, and the history table.
+
 ---
 
 ## Advertising Improvements
@@ -818,6 +859,7 @@ php scripts/setup.php
 | `v1.11.0.53_ad_tracking.sql` | Ad impression and click tracking |
 | `v1.11.0.54_chat_notify_trigger.php` | Postgres trigger for SSE chat events |
 | `v1.11.0.55_sse_events_table.php` | SSE events UNLOGGED table |
+| `v1.11.0.56_qwk_area_selections.sql` | QWK per-user conference area selection |
 
 **Optional `.env` additions:**
 

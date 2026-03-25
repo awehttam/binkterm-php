@@ -514,6 +514,8 @@ return [
     'errors.qwk.processing_failed' => 'Échec du traitement du paquet REP',
     'errors.qwk.status_failed' => 'Échec de la récupération du statut QWK',
     'errors.qwk.upload_error' => 'Erreur lors du téléversement du fichier',
+    'errors.qwk.invalid_input' => 'Le tableau echoarea_ids est requis',
+    'errors.qwk.save_failed' => 'Échec de la sauvegarde de la sélection des zones',
 
     // Referrals
     'errors.referrals.not_licensed' => 'Les analytiques de parrainage nécessitent une licence enregistrée',

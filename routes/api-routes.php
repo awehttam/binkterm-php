@@ -9992,9 +9992,26 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         }
 
         try {
-            $db     = \BinktermPHP\Database::getInstance()->getPdo();
-            $subMgr = new \BinktermPHP\EchoareaSubscriptionManager();
-            $areas  = $subMgr->getUserSubscribedEchoareas($userId);
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            // Use custom QWK area selections when active flag is set, otherwise all subscribed.
+            $meta          = new \BinktermPHP\UserMeta();
+            $customActive  = $meta->getValue($userId, 'qwk_custom_areas_active') === 'true';
+
+            if ($customActive) {
+                $selStmt = $db->prepare("
+                    SELECT e.id, e.tag, e.domain, e.description, e.is_active
+                    FROM qwk_area_selections s
+                    JOIN echoareas e ON e.id = s.echoarea_id
+                    WHERE s.user_id = ? AND e.is_active = TRUE
+                    ORDER BY e.tag
+                ");
+                $selStmt->execute([$userId]);
+                $areas = $selStmt->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                $subMgr = new \BinktermPHP\EchoareaSubscriptionManager();
+                $areas  = $subMgr->getUserSubscribedEchoareas($userId);
+            }
 
             // Retrieve last-seen IDs for all subscribed areas.
             $stateStmt = $db->prepare("
@@ -10084,14 +10101,17 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             $limit   = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
             $hardCap = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
 
+            $hasCustomSelection = $customActive;
+
             echo json_encode([
-                'total_new_messages' => $totalNew,
-                'last_download'      => $lastDl ?: null,
-                'conferences'        => $conferences,
-                'format'             => $format,
-                'limit'              => $limit,
-                'hard_cap'           => $hardCap,
-                'is_dev'             => \BinktermPHP\Config::env('IS_DEV') === 'true',
+                'total_new_messages'   => $totalNew,
+                'last_download'        => $lastDl ?: null,
+                'conferences'          => $conferences,
+                'format'               => $format,
+                'limit'                => $limit,
+                'hard_cap'             => $hardCap,
+                'is_dev'               => \BinktermPHP\Config::env('IS_DEV') === 'true',
+                'has_custom_selection' => $hasCustomSelection,
             ]);
         } catch (\Exception $e) {
             error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
@@ -10163,6 +10183,190 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
+    });
+
+    /**
+     * GET /api/qwk/area-selections
+     *
+     * Returns the current QWK area selection for this user plus the full list
+     * of subscribed areas so the UI can render the picker.
+     *
+     * Response:
+     *   {
+     *     has_custom: bool,           // true when user has an explicit selection
+     *     selections: [{id, tag, domain, description}],  // currently selected (empty = all subscribed)
+     *     subscribed: [{id, tag, domain, description}],  // user's echo subscriptions
+     *   }
+     */
+    SimpleRouter::get('/area-selections', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        $meta        = new \BinktermPHP\UserMeta();
+        $customActive = $meta->getValue($userId, 'qwk_custom_areas_active') === 'true';
+
+        // Current selections.
+        $selStmt = $db->prepare("
+            SELECT e.id, e.tag, e.domain, e.description
+            FROM qwk_area_selections s
+            JOIN echoareas e ON e.id = s.echoarea_id
+            WHERE s.user_id = ?
+            ORDER BY e.tag
+        ");
+        $selStmt->execute([$userId]);
+        $selections = $selStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Subscribed areas.
+        $subMgr     = new \BinktermPHP\EchoareaSubscriptionManager();
+        $subscribed = array_map(function($a) {
+            return [
+                'id'          => (int)$a['id'],
+                'tag'         => $a['tag'],
+                'domain'      => $a['domain'] ?? '',
+                'description' => $a['description'] ?? '',
+            ];
+        }, $subMgr->getUserSubscribedEchoareas($userId));
+
+        echo json_encode([
+            'has_custom'  => $customActive,
+            'selections'  => $customActive ? $selections : [],
+            'subscribed'  => $subscribed,
+        ]);
+    });
+
+    /**
+     * POST /api/qwk/area-selections
+     *
+     * Saves the user's QWK area selection.
+     *
+     * Body: {"echoarea_ids": [1, 5, 12]}
+     *   — Replaces the user's selection with the given list.
+     *   — An empty array clears custom selection (reverts to all subscribed).
+     */
+    SimpleRouter::post('/area-selections', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input) || !array_key_exists('echoarea_ids', $input)) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_input', 'echoarea_ids array is required.');
+            return;
+        }
+
+        // reset:true clears custom mode and reverts to all-subscribed behaviour.
+        $reset = !empty($input['reset']);
+        $ids   = array_values(array_unique(array_filter(array_map('intval', (array)$input['echoarea_ids']))));
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Validate that each id refers to a real, active, accessible area.
+        if (!empty($ids)) {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $isAdmin = !empty($user['is_admin']);
+            $sysopClause = $isAdmin ? '' : 'AND e.is_sysop_only = FALSE';
+            $validStmt = $db->prepare("
+                SELECT id FROM echoareas e
+                WHERE id IN ({$placeholders}) AND e.is_active = TRUE {$sysopClause}
+            ");
+            $validStmt->execute($ids);
+            $ids = array_map('intval', $validStmt->fetchAll(PDO::FETCH_COLUMN));
+        }
+
+        $meta = new \BinktermPHP\UserMeta();
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("DELETE FROM qwk_area_selections WHERE user_id = ?")->execute([$userId]);
+            if ($reset) {
+                // Revert to default (all subscribed) — clear the flag and leave rows empty.
+                $meta->setValue($userId, 'qwk_custom_areas_active', 'false');
+            } else {
+                // Activate custom mode and save the selected ids (may be empty = personal mail only).
+                $meta->setValue($userId, 'qwk_custom_areas_active', 'true');
+                if (!empty($ids)) {
+                    $insertStmt = $db->prepare(
+                        "INSERT INTO qwk_area_selections (user_id, echoarea_id) VALUES (?, ?)"
+                    );
+                    foreach ($ids as $id) {
+                        $insertStmt->execute([$userId, $id]);
+                    }
+                }
+            }
+            $db->commit();
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log('[QWK] area-selections save failed: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.qwk.save_failed', 'Failed to save area selections.');
+            return;
+        }
+
+        echo json_encode(['success' => true, 'count' => $reset ? null : count($ids)]);
+    });
+
+    /**
+     * GET /api/qwk/area-search?q=<term>
+     *
+     * Search echo areas by tag or description.  Used by the area picker to let
+     * users add areas that are not in their subscription list.
+     * Returns up to 20 results.
+     */
+    SimpleRouter::get('/area-search', function() {
+        $user   = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $q = trim((string)($_GET['q'] ?? ''));
+        if (strlen($q) < 2) {
+            echo json_encode(['areas' => []]);
+            return;
+        }
+
+        $isAdmin = !empty($user['is_admin']);
+        $sysopClause = $isAdmin ? '' : 'AND is_sysop_only = FALSE';
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT id, tag, domain, description
+            FROM echoareas
+            WHERE is_active = TRUE {$sysopClause}
+              AND (tag ILIKE ? OR description ILIKE ?)
+            ORDER BY tag
+            LIMIT 20
+        ");
+        $like = '%' . $q . '%';
+        $stmt->execute([$like, $like]);
+        $areas = array_map(function($a) {
+            return [
+                'id'          => (int)$a['id'],
+                'tag'         => $a['tag'],
+                'domain'      => $a['domain'] ?? '',
+                'description' => $a['description'] ?? '',
+            ];
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+        echo json_encode(['areas' => $areas]);
     });
 
 

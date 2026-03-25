@@ -567,6 +567,8 @@ return [
     'errors.qwk.processing_failed' => 'No se pudo procesar el paquete REP',
     'errors.qwk.status_failed' => 'No se pudo obtener el estado QWK',
     'errors.qwk.invalid_format' => 'El formato debe ser "qwk" o "qwke"',
+    'errors.qwk.invalid_input' => 'Se requiere el arreglo echoarea_ids',
+    'errors.qwk.save_failed' => 'No se pudo guardar la selección de áreas',
 
     // Interests
     'errors.interests.not_found' => 'Interés no encontrado.',

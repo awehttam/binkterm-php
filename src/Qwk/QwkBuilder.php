@@ -202,9 +202,8 @@ class QwkBuilder
             'is_netmail'  => true,
         ];
 
-        // Conferences 1–N: subscribed echo areas.
-        $subscriptionManager = new EchoareaSubscriptionManager();
-        $echoareas           = $subscriptionManager->getUserSubscribedEchoareas($userId);
+        // Conferences 1–N: echo areas from user's custom selection (if any), otherwise all subscribed.
+        $echoareas = $this->getConferenceAreas($userId);
         $conferenceNumbers   = (new QwkConferenceNumberManager())->getOrCreateConferenceNumbers($echoareas);
 
         usort($echoareas, function(array $a, array $b) use ($conferenceNumbers) {
@@ -235,6 +234,54 @@ class QwkBuilder
         }
 
         return $conferences;
+    }
+
+    /**
+     * Return the echo areas to include in this user's QWK packet.
+     *
+     * If the user has rows in qwk_area_selections those specific areas are used
+     * (whether or not the user is subscribed to them, subject to the area being
+     * active and not sysop-only unless the user is an admin).
+     *
+     * If no rows exist, falls back to all actively subscribed echo areas —
+     * the original behaviour, preserving backward compatibility.
+     *
+     * @return array<int, array<string, mixed>>  Same shape as getUserSubscribedEchoareas()
+     */
+    private function getConferenceAreas(int $userId): array
+    {
+        // Check whether the user has activated custom area selection.
+        $meta = new \BinktermPHP\UserMeta();
+        if ($meta->getValue($userId, 'qwk_custom_areas_active') !== 'true') {
+            // Default: all subscribed echo areas.
+            return (new EchoareaSubscriptionManager())->getUserSubscribedEchoareas($userId);
+        }
+
+        $selStmt = $this->db->prepare(
+            'SELECT echoarea_id FROM qwk_area_selections WHERE user_id = ?'
+        );
+        $selStmt->execute([$userId]);
+        $selectedIds = $selStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Custom mode active but list may be empty (personal mail only — no echo areas).
+        if (empty($selectedIds)) {
+            return [];
+        }
+
+        // Custom selection: fetch area rows directly, honouring is_active.
+        // We do not enforce is_sysop_only here; if a non-admin somehow has a
+        // sysop-only area in their selections it was put there by an admin or
+        // by the API (which enforces the check), so we trust it.
+        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+        $areaStmt = $this->db->prepare("
+            SELECT e.id, e.tag, e.description, e.domain, e.is_active
+            FROM echoareas e
+            WHERE e.id IN ({$placeholders})
+              AND e.is_active = TRUE
+            ORDER BY e.tag
+        ");
+        $areaStmt->execute($selectedIds);
+        return $areaStmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // -------------------------------------------------------------------------

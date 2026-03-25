@@ -143,12 +143,14 @@
                         <tr>
                             <th>{{ t('ui.admin.areafix.history_col_date', {}, 'common') }}</th>
                             <th>{{ t('ui.admin.areafix.history_col_direction', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_address', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_network', {}, 'common') }}</th>
                             <th>{{ t('ui.admin.areafix.history_col_preview', {}, 'common') }}</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="historyBody_areafix">
-                        <tr><td colspan="4" class="text-center py-3 text-muted">
+                        <tr><td colspan="6" class="text-center py-3 text-muted">
                             <i class="fas fa-spinner fa-spin"></i>
                         </td></tr>
                     </tbody>
@@ -233,12 +235,14 @@
                         <tr>
                             <th>{{ t('ui.admin.areafix.history_col_date', {}, 'common') }}</th>
                             <th>{{ t('ui.admin.areafix.history_col_direction', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_address', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_network', {}, 'common') }}</th>
                             <th>{{ t('ui.admin.areafix.history_col_preview', {}, 'common') }}</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="historyBody_filefix">
-                        <tr><td colspan="4" class="text-center py-3 text-muted">
+                        <tr><td colspan="6" class="text-center py-3 text-muted">
                             <i class="fas fa-spinner fa-spin"></i>
                         </td></tr>
                     </tbody>
@@ -270,6 +274,16 @@
     'use strict';
 
     // ── Utilities ─────────────────────────────────────────────────────────────
+
+    function formatTimestamp(raw) {
+        if (!raw) return '';
+        var d = new Date(raw.replace(' ', 'T'));
+        if (isNaN(d.getTime())) return raw;
+        return d.toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
 
     function escapeHtml(str) {
         if (str === null || str === undefined) return '';
@@ -422,7 +436,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (!data.success) {
-                container.innerHTML = '<tr><td colspan="4" class="text-danger py-2">' +
+                container.innerHTML = '<tr><td colspan="6" class="text-danger py-2">' +
                     escapeHtml(window.t('ui.admin.areafix.history_load_failed', {}, 'Failed to load history')) + '</td></tr>';
                 return;
             }
@@ -447,35 +461,44 @@
             }
         })
         .catch(function () {
-            container.innerHTML = '<tr><td colspan="4" class="text-danger py-2">' +
+            container.innerHTML = '<tr><td colspan="6" class="text-danger py-2">' +
                 escapeHtml(window.t('ui.admin.areafix.history_load_failed', {}, 'Failed to load history')) + '</td></tr>';
         });
     };
 
     function renderHistory(container, messages, robot) {
         if (!messages.length) {
-            container.innerHTML = '<tr><td colspan="4" class="text-muted py-3 px-3">' +
+            container.innerHTML = '<tr><td colspan="6" class="text-muted py-3 px-3">' +
                 escapeHtml(window.t('ui.admin.areafix.no_history', {}, 'No messages yet')) + '</td></tr>';
             return;
         }
+
+        var opt     = getSelectedUplinkOption();
+        var network = opt ? (opt.dataset.domain || '') : '';
 
         var html = '';
         messages.forEach(function (m, i) {
             var dirLabel = m.direction === 'incoming'
                 ? '<span class="badge bg-info text-dark">' + escapeHtml(window.t('ui.admin.areafix.direction_incoming', {}, 'Incoming')) + '</span>'
                 : '<span class="badge bg-secondary">'     + escapeHtml(window.t('ui.admin.areafix.direction_outgoing', {}, 'Outgoing')) + '</span>';
-            var dateStr  = m.date_received || m.date_written || '';
+            var dateStr  = formatTimestamp(m.timestamp || m.date_received || m.date_written);
             var excerpt  = escapeHtml(m.excerpt || m.message_text || '');
             var rowId    = 'histRow_' + robot + '_' + i;
+            // For outgoing we sent to the hub; for incoming the hub sent to us.
+            var nodeAddr = m.direction === 'incoming'
+                ? (m.from_address || '')
+                : (m.to_address   || '');
 
             html += '<tr class="areafix-history-expand" onclick="toggleHistoryRow(\'' + rowId + '\')">';
             html += '<td class="text-muted small">' + escapeHtml(dateStr) + '</td>';
             html += '<td>' + dirLabel + '</td>';
-            html += '<td class="font-monospace small text-truncate" style="max-width:300px;">' + excerpt + '</td>';
+            html += '<td class="font-monospace small">' + escapeHtml(nodeAddr) + '</td>';
+            html += '<td class="small">' + escapeHtml(network) + '</td>';
+            html += '<td class="font-monospace small text-truncate" style="max-width:220px;">' + excerpt + '</td>';
             html += '<td class="text-end"><i class="fas fa-chevron-down small text-muted"></i></td>';
             html += '</tr>';
             html += '<tr id="' + rowId + '" class="areafix-row-body">';
-            html += '<td colspan="4"><pre class="small mb-0 p-2" style="white-space:pre-wrap;">' +
+            html += '<td colspan="6"><pre class="small mb-0 p-2" style="white-space:pre-wrap;">' +
                 escapeHtml(m.message_text || '') + '</pre></td>';
             html += '</tr>';
         });

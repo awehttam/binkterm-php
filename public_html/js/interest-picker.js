@@ -106,8 +106,8 @@ class InterestPicker {
     _render() {
         if (!this._interests.length) {
             const msg = window.t
-                ? window.t('ui.interests.no_interests', {}, 'No interests have been defined yet.')
-                : 'No interests have been defined yet.';
+                ? window.t('ui.interests.no_interests', {}, 'No interests are subscribed to.')
+                : 'No interests are subscribed to.';
             this._el.innerHTML = '<div class="alert alert-info">' + InterestPicker._escHtml(msg) + '</div>';
             return;
         }
