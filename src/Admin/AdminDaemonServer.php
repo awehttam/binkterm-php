@@ -772,6 +772,10 @@ class AdminDaemonServer
                     // Drain any pending pg notifications before responding so the
                     // caller gets the freshest possible max_sse_event_id.
                     $this->drainPgNotifications();
+                    $this->logger->debug('Admin daemon: get_stream_events response', [
+                        'max_sse_event_id' => $this->maxSseEventId,
+                        'pg_conn' => $this->pgConn ? 'active' : 'none',
+                    ]);
                     $this->writeResponse($client, [
                         'ok'     => true,
                         'result' => ['max_sse_event_id' => $this->maxSseEventId],
@@ -807,6 +811,12 @@ class AdminDaemonServer
                 $cfg['host'], $cfg['port'], $cfg['database'],
                 $cfg['username'], $cfg['password']
             );
+            $this->logger->debug('Admin daemon: attempting pg_connect', [
+                'host' => $cfg['host'],
+                'port' => $cfg['port'],
+                'dbname' => $cfg['database'],
+                'user' => $cfg['username'],
+            ]);
             $this->pgConn = pg_connect($connStr);
             if (!$this->pgConn) {
                 $this->logger->warning('Admin daemon: pg_connect failed — stream event push disabled');
@@ -814,11 +824,18 @@ class AdminDaemonServer
                 return;
             }
 
-            pg_query($this->pgConn, "LISTEN binkstream");
+            $this->logger->debug('Admin daemon: pg_connect succeeded, sending LISTEN binkstream');
+            $listenResult = pg_query($this->pgConn, "LISTEN binkstream");
+            if ($listenResult === false) {
+                $this->logger->warning('Admin daemon: LISTEN binkstream failed', ['error' => pg_last_error($this->pgConn)]);
+            } else {
+                $this->logger->debug('Admin daemon: LISTEN binkstream sent OK');
+            }
 
             // Seed maxSseEventId from sse_events so we don't report stale
             // data to PHP endpoints that connect immediately after startup.
-            $row = pg_fetch_assoc(pg_query($this->pgConn, "SELECT COALESCE(MAX(id), 0) AS max_id FROM sse_events"));
+            $result = pg_query($this->pgConn, "SELECT COALESCE(MAX(id), 0) AS max_id FROM sse_events");
+            $row = $result ? pg_fetch_assoc($result) : false;
             if ($row) {
                 $this->maxSseEventId = (int)$row['max_id'];
             }
@@ -837,14 +854,28 @@ class AdminDaemonServer
     private function drainPgNotifications(): void
     {
         if (!$this->pgConn) {
+            $this->logger->debug('Admin daemon: drainPgNotifications skipped — no pg connection');
             return;
         }
 
+        $count = 0;
         while ($notify = @pg_get_notify($this->pgConn, PGSQL_ASSOC)) {
             $id = (int)($notify['payload'] ?? 0);
+            $this->logger->debug('Admin daemon: pg_notify received', [
+                'payload' => $notify['payload'],
+                'parsed_id' => $id,
+                'prev_max' => $this->maxSseEventId,
+            ]);
             if ($id > $this->maxSseEventId) {
                 $this->maxSseEventId = $id;
             }
+            $count++;
+        }
+        if ($count > 0) {
+            $this->logger->debug('Admin daemon: drained pg notifications', [
+                'count' => $count,
+                'max_sse_event_id' => $this->maxSseEventId,
+            ]);
         }
     }
 
