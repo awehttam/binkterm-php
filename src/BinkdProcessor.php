@@ -853,6 +853,7 @@ class BinkdProcessor
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
             VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
+            RETURNING id
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -877,8 +878,8 @@ class BinkdProcessor
         $stmt->bindValue(':reply_to_id', $replyToId);
         $stmt->bindValue(':received_insecure', $isInsecureSession ? 'true' : 'false');
         $stmt->execute();
-
-        $netmailId = $this->db->lastInsertId();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $netmailId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
         $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
 
@@ -1215,6 +1216,7 @@ class BinkdProcessor
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
             VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+            RETURNING id
         ");
         $stmt->bindValue(':echoarea_id', $echoarea['id']);
         $stmt->bindValue(':from_address', $fromAddress);
@@ -1232,8 +1234,8 @@ class BinkdProcessor
         $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
         $stmt->bindValue(':reply_to_id', $replyToId);
         $stmt->execute();
-
-        $newId = (int)$this->db->lastInsertId();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $newId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
         // Backfill reply_to_id for any messages that arrived before their parent.
         // When a reply is stored before the message it references, reply_to_id is
