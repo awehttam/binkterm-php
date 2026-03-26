@@ -662,9 +662,11 @@
             sseActive = true;
         }
 
-        const pollInterval = sseActive ? CHAT_POLL_INTERVAL_SSE_MS : CHAT_POLL_INTERVAL_POLL_MS;
-        pollMessages();
-        setInterval(pollMessages, pollInterval);
+        // Polling is disabled — BinkStream delivers messages in real-time.
+        // Re-enable by uncommenting the lines below if BinkStream is unavailable.
+        // const pollInterval = sseActive ? CHAT_POLL_INTERVAL_SSE_MS : CHAT_POLL_INTERVAL_POLL_MS;
+        // pollMessages();
+        // setInterval(pollMessages, pollInterval);
     }
 
     document.addEventListener('DOMContentLoaded', init);
