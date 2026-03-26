@@ -155,15 +155,19 @@ $(document).ready(function() {
         loadAddressBook($(this).val());
     }, 300));
 
-    // Auto refresh every 2 minutes
-    startAutoRefresh(function() {
-        loadMessages();
-        loadStats();
-    }, 120000);
+    // Polling disabled — BinkStream delivers dashboard_stats on new netmail.
+    // Re-enable by uncommenting if BinkStream is unavailable.
+    // startAutoRefresh(function() { loadMessages(); loadStats(); }, 120000);
 
-    // Cross-tab read sync — apply read styling immediately when another tab
-    // marks a message as read without requiring a full list reload.
     if (window.BinkStream) {
+        // Reload the message list when new netmail arrives.
+        window.BinkStream.on('dashboard_stats', function() {
+            loadMessages();
+            loadStats();
+        });
+
+        // Cross-tab read sync — apply read styling immediately when another tab
+        // marks a message as read without requiring a full list reload.
         window.BinkStream.on('message_read', function(data) {
             if (data.message_type !== 'netmail') return;
             (data.message_ids || []).forEach(function(id) {

@@ -160,15 +160,19 @@ $(document).ready(function() {
         }
     });
 
-    // Auto refresh every 5 minutes
-    startAutoRefresh(function() {
-        loadMessages();
-        loadStats();
-    }, 300000);
+    // Polling disabled — BinkStream delivers dashboard_stats on new echomail.
+    // Re-enable by uncommenting if BinkStream is unavailable.
+    // startAutoRefresh(function() { loadMessages(); loadStats(); }, 300000);
 
-    // Cross-tab read sync — apply read styling immediately when another tab
-    // marks a message as read without requiring a full list reload.
     if (window.BinkStream) {
+        // Reload the message list when new echomail arrives.
+        window.BinkStream.on('dashboard_stats', function() {
+            loadMessages();
+            loadStats();
+        });
+
+        // Cross-tab read sync — apply read styling immediately when another tab
+        // marks a message as read without requiring a full list reload.
         window.BinkStream.on('message_read', function(data) {
             if (data.message_type !== 'echomail') return;
             (data.message_ids || []).forEach(function(id) {
