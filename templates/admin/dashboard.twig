@@ -213,7 +213,7 @@
                             <strong>{{ t('ui.admin.dashboard.active_sessions', {}, locale, ['common']) }}</strong>
                         </div>
                         <div class="col-sm-6">
-                            {{ stats.active_sessions }}
+                            {{ stats.active_sessions }} / {{ stats.all_sessions }}
                         </div>
                     </div>
                     {% if stats.system_metrics_supported %}

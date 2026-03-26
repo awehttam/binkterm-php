@@ -57,6 +57,8 @@ class Database
                 $config['options'] ?? []
             );
 
+            $this->setApplicationName();
+
             if ($useUtcTimezone) {
                 $this->pdo->exec("SET TIME ZONE 'UTC'");
             }
@@ -85,6 +87,21 @@ class Database
     public function getPdo()
     {
         return $this->pdo;
+    }
+
+    /**
+     * Tag PostgreSQL connections so they are identifiable in pg_stat_activity.
+     */
+    private function setApplicationName(): void
+    {
+        $applicationName = sprintf('%s v%s', Version::getAppName(), Version::getVersion());
+        $quotedApplicationName = $this->pdo->quote($applicationName);
+
+        if ($quotedApplicationName === false) {
+            return;
+        }
+
+        $this->pdo->exec("SET application_name = {$quotedApplicationName}");
     }
 
     private function initTables()

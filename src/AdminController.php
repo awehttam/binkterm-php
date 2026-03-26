@@ -320,7 +320,25 @@ class AdminController
         }
         $stats['total_netmail'] = $this->db->query("SELECT COUNT(*) as count FROM netmail")->fetch()['count'];
         $stats['total_echomail'] = $this->db->query("SELECT COUNT(*) as count FROM echomail")->fetch()['count'];
-        $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM user_sessions WHERE expires_at > NOW()")->fetch()['count'];
+        $stats['all_sessions'] = $this->db->query("
+            SELECT COUNT(*) as count
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.expires_at > NOW()
+              AND u.is_active = TRUE
+        ")->fetch()['count'];
+        try {
+            $stats['active_sessions'] = $this->db->query("
+                SELECT COUNT(*) as count
+                FROM user_sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.expires_at > NOW()
+                  AND u.is_active = TRUE
+                  AND u.is_system = FALSE
+            ")->fetch()['count'];
+        } catch (\PDOException $e) {
+            $stats['active_sessions'] = $stats['all_sessions'];
+        }
         $stats['system_metrics_supported'] = PHP_OS_FAMILY !== 'Windows';
         $stats['load_average'] = $this->getLoadAverageSummary();
         $stats['ram_usage'] = $this->getRamUsageSummary();
