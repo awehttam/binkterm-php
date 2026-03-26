@@ -311,16 +311,17 @@
             refreshMailState(null, true);
         }
 
-        // Clear any existing interval and create new one
-        if (pollInterval) {
-            clearInterval(pollInterval);
-        }
-        pollInterval = setInterval(refreshMailState, 30000);
+        // Polling is disabled — BinkStream delivers all events in real-time.
+        // dashboard_stats fires on echomail/netmail/files INSERT; chat_message fires on chat INSERT.
+        // Re-enable by uncommenting the lines below if BinkStream is unavailable.
+        // if (pollInterval) { clearInterval(pollInterval); }
+        // pollInterval = setInterval(refreshMailState, 30000);
 
-        // Real-time chat sound via BinkStream — fires immediately on message arrival.
-        // Incrementing previousStats.chat_total keeps the poll from double-firing a sound
-        // for the same message at the next 30-second tick.
         if (window.BinkStream) {
+            // Real-time chat sound — fires immediately on message arrival.
+            // Incrementing previousStats.chat_total prevents the dashboard_stats
+            // event (which also fires on chat INSERT via the chat trigger) from
+            // double-firing a sound for the same message.
             window.BinkStream.on('chat_message', function () {
                 previousStats.chat_total++;
                 if (!isPathMatch('/chat')) {
@@ -328,6 +329,11 @@
                     updateChatIcons();
                 }
                 maybeChatSound();
+            });
+
+            // Refresh badges immediately when echomail, netmail, or files arrive.
+            window.BinkStream.on('dashboard_stats', function () {
+                refreshMailState();
             });
         }
     }
