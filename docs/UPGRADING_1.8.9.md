@@ -955,6 +955,23 @@ php scripts/fix_date_received.php --all
 php scripts/fix_date_received.php --all --dry-run
 ```
 
+### binktop.php
+
+`scripts/binktop.php` now provides a denser live dashboard for operational monitoring.
+
+Current behavior:
+
+- compact three-line header with uptime, load, RAM, disk, queue totals, PostgreSQL connection totals, and refresh interval
+- `sess:` in the header now means `logged-in users / guest users`, rather than raw session totals
+- current users list with compact timestamps and truncated activity text for narrow terminals
+- daemon list rendered in a tighter two-column layout when terminal width allows
+- daemon state indicated by color instead of a separate `state` column
+- per-daemon RSS plus a total daemon RSS line
+- extra host-process rows for `postgres`, `httpd`, `apache2`, `php-fpm`, and `php-fpm:*` when detected
+- active door sessions shown at the bottom
+
+This makes `binktop.php` more practical as a persistent sysop console, especially on 80-column terminals and mixed-service hosts.
+
 ---
 
 ## Upgrade Instructions

@@ -814,9 +814,24 @@ The dashboard includes:
 
 - a compact three-line system header
 - current users from `user_sessions`
-- daemon status with per-daemon RSS where available
+- daemon status in a dense two-column layout with colorized running/stopped state
+- per-daemon RSS plus a daemon total RSS line
 - active door sessions
 - queue and PostgreSQL totals folded into the header summary
+
+Header notes:
+
+- `users:N` is the total number of online identities shown in the user list
+- `sess:U/G` means `logged-in users / guest users`
+- `pg:T (Aa/Ii)` means `T` total PostgreSQL connections, `A` active, `I` idle
+
+Additional daemon/process rows are included for common host services when detected:
+
+- `postgres`
+- `httpd`
+- `apache2`
+- `php-fpm`
+- `php-fpm:*` for versioned `php-fpm:` worker processes
 
 ```bash
 # Live dashboard (refreshes every 2 seconds by default)
@@ -843,6 +858,8 @@ Options:
 - `--help` — Show usage
 
 On Linux and other `/proc`-based systems, `binktop.php` also shows load average and system RAM totals. On Windows, those fields degrade gracefully when equivalent metrics are not available.
+
+RAM and disk usage in the header are shown in compact `used / total UNIT` form to conserve screen width, for example `ram: 1.4 / 3.8 GB`.
 
 ## Who
 

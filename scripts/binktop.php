@@ -902,13 +902,6 @@ function assembleScreen(array $snapshot, int $interval): string
     $daemonTotalRssKb = getDaemonTotalRssKb($snapshot['daemons']);
     $doorRows = buildDoorRows($snapshot['door_sessions']);
 
-    $remaining = max(6, $lines - count($headerLines) - 1);
-    $daemonSectionHeight = min(count($daemonRows) + 3, max(5, min(14, $remaining - 4)));
-    $remaining -= $daemonSectionHeight;
-
-    $userSectionHeight = max(4, (int)floor($remaining / 2));
-    $doorSectionHeight = max(4, $remaining - $userSectionHeight);
-
     $daemonWidthHints = $columns <= 80
         ? ['daemon' => 14, 'pid' => 5, 'rss' => 8]
         : ['daemon' => 18, 'pid' => 6, 'rss' => 10];
@@ -919,6 +912,11 @@ function assembleScreen(array $snapshot, int $interval): string
         ? ['door' => 12, 'uid' => 4, 'node' => 4, 'ws' => 4, 'bridge' => 6, 'proc' => 6]
         : ['door' => 20, 'uid' => 5, 'node' => 4, 'ws' => 5, 'bridge' => 8, 'proc' => 8];
 
+    $userLines = buildTableLines($userRows, $userWidthHints);
+    $remaining = max(4, $lines - count($headerLines) - count($userLines) - 3);
+    $daemonSectionHeight = min(count($daemonRows) + 3, max(4, min(14, (int)floor($remaining / 2))));
+    $doorSectionHeight = max(4, $remaining - $daemonSectionHeight);
+
     $daemonLines = ($columns >= 80 && count($daemonRows) >= 6)
         ? buildTwoColumnTableLines($daemonRows, $daemonWidthHints, $daemonSectionHeight, $columns)
         : fitTableToHeight($daemonRows, $daemonWidthHints, $daemonSectionHeight);
@@ -927,11 +925,14 @@ function assembleScreen(array $snapshot, int $interval): string
     }
 
     $screenLines = $headerLines;
-    $screenLines = array_merge($screenLines, fitTableToHeight($userRows, $userWidthHints, $userSectionHeight));
+    $screenLines[] = '';
+    $screenLines = array_merge($screenLines, $userLines);
+    $screenLines[] = '';
     $screenLines = array_merge($screenLines, $daemonLines);
+    $screenLines[] = '';
     $screenLines = array_merge($screenLines, wrapSection('Door Sessions', fitTableToHeight($doorRows, $doorWidthHints, $doorSectionHeight)));
 
-    return implode("\n", array_slice($screenLines, 0, $lines - 1)) . "\n";
+    return implode("\n", $screenLines) . "\n";
 }
 
 $args = parseArgs($argv);
