@@ -26,6 +26,12 @@ The business logic is shared. `GET /api/stream`, `POST /api/stream`, and the sta
 12. [Adding a New Event Type](#adding-a-new-event-type)
 13. [Connection Lifecycle](#connection-lifecycle)
 14. [Debugging](#debugging)
+    - [Check the active transport mode](#check-the-active-transport-mode)
+    - [Diagnosing Apache SSE buffering](#diagnosing-apache-sse-buffering)
+    - [Reverse proxy for the realtime server](#reverse-proxy-for-the-realtime-server)
+    - [Inspect the SharedWorker](#inspect-the-sharedworker)
+    - [Dev mode source badge](#dev-mode-source-badge)
+    - [Check recent stream rows](#check-recent-stream-rows)
 
 ---
 
@@ -459,6 +465,118 @@ When `IS_DEV=true`, chat messages can show a small source badge:
 - `poll`
 
 This makes it easy to verify which delivery path actually delivered a message.
+
+### Check the active transport mode
+
+The admin dashboard (**Admin → Dashboard**, Service Status section) shows the
+active transport next to the Realtime Server entry: `WebSocket`, `SSE`, or
+`poll`. This is the live mode reported by the SharedWorker in your browser and
+updates automatically if the transport changes.
+
+`poll` means the SharedWorker is not available (the browser does not support
+it, or it failed to load). `SSE` means the realtime server is not running or
+the WebSocket connection could not be established. `WebSocket` is the expected
+steady state when the realtime server is running.
+
+### Diagnosing Apache SSE buffering
+
+If the realtime server is not running and you are behind Apache, SSE events may
+be buffered and delivered in clumps rather than one at a time. Signs of this:
+
+- Chat messages appear in bursts rather than individually
+- Notification sounds fire late or all at once
+- The source badge (when `IS_DEV=true`) shows `sse` but messages still feel delayed
+
+**Confirming the problem via the SharedWorker inspector:**
+
+Because `/api/stream` is opened inside a SharedWorker, it does not appear in
+the main frame's Network tab. To watch the SSE stream directly:
+
+1. Open `chrome://inspect/#workers` (or `edge://inspect/#workers`)
+2. Find `binkstream-worker-v2.js` and click **inspect**
+3. In the worker's Network tab, find the `/api/stream` request
+4. Click it and watch the **EventStream** tab
+5. Send a chat message from another session
+6. If the event appears immediately: SSE is flushing correctly
+7. If the event appears only after a delay or alongside several others: Apache is buffering
+
+**Fix options (in order of preference):**
+
+1. **Run the realtime server behind a reverse proxy** — eliminates the problem
+   entirely. See [Reverse proxy setup](#reverse-proxy-for-the-realtime-server) below.
+
+2. **Disable output buffering for the SSE endpoint** — add to your Apache VirtualHost or `.htaccess`:
+   ```apache
+   <LocationMatch "^/api/stream">
+       SetEnv no-gzip 1
+       SetEnv dont-vary 1
+   </LocationMatch>
+   ```
+   If using `mod_proxy_fcgi`, also add `flushpackets=on` to the ProxyPass directive:
+   ```apache
+   ProxyPass /api/stream fcgi://127.0.0.1:9000/path/to/public_html/index.php flushpackets=on
+   ```
+
+3. **Lower `SSE_WINDOW_SECONDS`** — reduces the maximum delay before a buffered
+   window is flushed. Set to `2` (or leave unset on Apache, where `auto` mode
+   already defaults to `2`). This does not fix buffering but limits its impact.
+   See `docs/CONFIGURATION.md` for details.
+
+### Reverse proxy for the realtime server
+
+The realtime WebSocket daemon (`scripts/realtime_server.php`) binds to
+`127.0.0.1:6010` by default and must be exposed to browsers through a reverse
+proxy. The browser connects to the public `/ws` path; the proxy upgrades the
+connection and forwards it to the daemon.
+
+**`.env` settings:**
+
+```dotenv
+BINKSTREAM_TRANSPORT_MODE=auto
+BINKSTREAM_WS_BIND_HOST=127.0.0.1
+BINKSTREAM_WS_PORT=6010
+BINKSTREAM_WS_PUBLIC_URL=/ws
+```
+
+**Caddy:**
+
+```caddyfile
+yourdomain.com {
+    # ... your existing PHP / php-fpm config ...
+
+    reverse_proxy /ws 127.0.0.1:6010 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+```
+
+Caddy handles the WebSocket upgrade automatically — no extra directives are needed.
+
+**Nginx:**
+
+```nginx
+location /ws {
+    proxy_pass         http://127.0.0.1:6010;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade $http_upgrade;
+    proxy_set_header   Connection "upgrade";
+    proxy_set_header   Host $host;
+    proxy_read_timeout 3600s;
+}
+```
+
+**Apache with `mod_proxy_wstunnel`:**
+
+WebSocket is a raw TCP tunnel after the upgrade handshake, so it should not be
+affected by the same response-body buffering that causes SSE problems under
+Apache — though this has not been verified. Requires `mod_proxy` and
+`mod_proxy_wstunnel` to be enabled (`a2enmod proxy proxy_wstunnel`).
+
+```apache
+ProxyPass        /ws  ws://127.0.0.1:6010/
+ProxyPassReverse /ws  ws://127.0.0.1:6010/
+```
 
 ### Check recent stream rows
 
