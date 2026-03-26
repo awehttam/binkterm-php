@@ -1687,7 +1687,8 @@ SimpleRouter::post('/qwk/upload', function() {
 
     try {
         $controller = new \BinktermPHP\Qwk\QwkHttpController();
-        echo json_encode($controller->processUploadedRep($_FILES['rep'] ?? [], $userId));
+        $file = $controller->getUploadedRepFromRequest();
+        echo json_encode($controller->processUploadedRep($file, $userId));
     } catch (\InvalidArgumentException $e) {
         http_response_code(400);
         echo json_encode([

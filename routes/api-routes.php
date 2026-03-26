@@ -9850,30 +9850,9 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             return;
         }
 
-        if (empty($_FILES['rep'])) {
-            http_response_code(400);
-            apiError('errors.qwk.no_file', 'No REP file received. Send the file in the "rep" field.');
-            return;
-        }
-
-        $file = $_FILES['rep'];
-
-        if ($file['error'] !== UPLOAD_ERR_OK) {
-            http_response_code(400);
-            apiError('errors.qwk.upload_error', 'File upload error code: ' . $file['error']);
-            return;
-        }
-
-        // Basic extension check — accept .rep and .zip
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        if (!in_array($ext, ['rep', 'zip'], true)) {
-            http_response_code(400);
-            apiError('errors.qwk.invalid_extension', 'Please upload a .REP or .ZIP file.');
-            return;
-        }
-
         try {
             $controller = new \BinktermPHP\Qwk\QwkHttpController();
+            $file = $controller->getUploadedRepFromRequest();
             echo json_encode($controller->processUploadedRep($file, $userId));
         } catch (\InvalidArgumentException $e) {
             http_response_code(400);
