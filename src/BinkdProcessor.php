@@ -1232,7 +1232,31 @@ class BinkdProcessor
         $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
         $stmt->bindValue(':reply_to_id', $replyToId);
         $stmt->execute();
-        
+
+        $newId = (int)$this->db->lastInsertId();
+
+        // Backfill reply_to_id for any messages that arrived before their parent.
+        // When a reply is stored before the message it references, reply_to_id is
+        // left NULL because the parent's row doesn't exist yet. Now that the parent
+        // has been inserted, find orphaned replies in the same echoarea whose REPLY
+        // kludge matches this message's MSGID and wire them up.
+        if (!empty($messageId) && $newId) {
+            $backfillStmt = $this->db->prepare("
+                UPDATE echomail
+                SET reply_to_id = ?
+                WHERE echoarea_id = ?
+                  AND reply_to_id IS NULL
+                  AND kludge_lines ~ ?
+            ");
+            // Match the REPLY kludge value — anchored to avoid partial MSGID matches.
+            $pattern = '(^|\n)\x01REPLY:\s*' . preg_quote($messageId, null) . '\s*(\n|$)';
+            $backfillStmt->execute([$newId, $echoarea['id'], $pattern]);
+            $backfilled = $backfillStmt->rowCount();
+            if ($backfilled > 0) {
+                $this->log("[BINKD]: Backfilled reply_to_id for {$backfilled} orphaned reply(ies) referencing MSGID '{$messageId}'");
+            }
+        }
+
         // Update message count
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
                  ->execute([$echoarea['id']]);

@@ -66,7 +66,7 @@
   - [Overview](#areafix-overview)
   - [Quick Actions](#quick-actions)
   - [Subscribe and Unsubscribe](#subscribe-and-unsubscribe)
-  - [Area List Parsing and Sync](#area-list-parsing-and-sync)
+  - [Latest Reply Panel](#latest-reply-panel)
   - [Message History](#message-history)
   - [Subject Masking](#subject-masking)
   - [Uplink Password Fields](#uplink-password-fields)
@@ -78,9 +78,9 @@
   - [Ad Analytics Admin Page](#ad-analytics-admin-page)
   - [Ad Title File-type Prefix](#ad-title-file-type-prefix)
 - [Interests Updates](#interests-updates)
-  - [Filter to Subscribed Interests Only](#filter-to-subscribed-interests-only)
-  - [Classify Unassigned Echo Areas](#classify-unassigned-echo-areas)
-  - [Unassigned Areas Panel Improvements](#unassigned-areas-panel-improvements)
+  - [Subscribed Interests Filter](#subscribed-interests-filter)
+  - [Classifying Unassigned Echo Areas](#classifying-unassigned-echo-areas)
+  - [Unassigned Areas Panel](#unassigned-areas-panel)
 - [AI Provider Layer](#ai-provider-layer)
 - [MRC Chat](#mrc-chat)
   - [Join Command](#join-command)
@@ -109,7 +109,7 @@ The headline addition is the **Interests** system — a way for admins to bundle
 
 **Messaging** improvements include a right-click context menu on echomail and netmail list rows (with long-press support on touch devices), a Show Entire Conversation mode, a Raw Source viewer mode for inspecting wire content, and a compose-time warning when a message approaches the FidoNet 16 KB limit. QWK offline mail adds HTTP Basic Auth endpoints for scripted access, and users can now choose exactly which echo areas go into their QWK packets.
 
-The **AreaFix / FileFix Manager** is a new admin tool for managing echo area subscriptions with the upstream hub's robots — sending commands, parsing replies, and syncing the resulting area list back into the local database — all without touching a mail client.
+The **AreaFix / FileFix Manager** is a new admin tool for managing echo area subscriptions with the upstream hub's robots — sending commands and reviewing replies — all without touching a mail client.
 
 For AI-curious sysops, an optional **MCP Server** exposes echomail to AI assistants such as Claude via the Model Context Protocol, with per-user bearer keys and the same access controls as the web interface. A new abstracted **AI Provider Layer** backs the Interests suggestion wizard and area classifier, supporting both Anthropic and OpenAI.
 
@@ -158,7 +158,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - `realtime_server.php` is now a core daemon (alongside `binkp_server.php`) and appears in the Admin dashboard service status panel. **`pm.max_children` must be sized for your expected concurrent user count** — see [CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning).
 
 **AreaFix / FileFix Manager**
-- New admin tool at `/admin/areafix` for managing echo area subscriptions with the upstream hub's robots. Quick-action buttons, a structured area list with subscribe/unsubscribe controls, and a **Sync to Echo Areas** button to import the result.
+- New admin tool at `/admin/areafix` for managing echo area subscriptions with the upstream hub's robots. Quick-action buttons send common commands with one click; incoming replies are displayed in a Latest Reply panel.
 - AreaFix/FileFix message subjects are masked to `••••••••` in all views to protect the password.
 - `areafix_password` and `filefix_password` fields added to the BinkP uplink editor.
 
@@ -178,7 +178,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **Telnet / SSH BBS Server**
 - Interests menu (`I`) added for browsing and subscribing to topic groups.
-- QWK Offline Mail (`K`) now supports real ZMODEM file transfer for download and upload.
+- QWK Offline Mail (`K`) now supports ZMODEM file transfer for download (`D`) and upload (`U`) using a built-in PHP ZMODEM implementation — no external tools required.
 
 **Dashboard**
 - Content-command-backed advertisements now render correctly in all views.
@@ -706,11 +706,9 @@ A text field accepts a single area tag. The **Subscribe** and **Unsubscribe** bu
 
 After every sent command the history table and latest reply panel refresh automatically. The latest reply panel also polls for new replies from the hub every 30 seconds.
 
-### Area List Parsing and Sync
+### Latest Reply Panel
 
-When the hub replies with a list of available areas, the incoming message body is parsed client-side to extract area tags and descriptions. If at least two valid entries are found, they are rendered as a table with per-row **Subscribe** and **Unsubscribe** buttons.
-
-A **Sync to Echo Areas** button at the top of that table calls `/api/admin/areafix/sync`, which creates or activates the areas in the local `echoareas` (or `file_areas`) table and links them to the uplink. Existing areas are not overwritten; only missing ones are created.
+The most recent incoming reply from the hub is displayed in the **Latest Reply** panel as raw pre-formatted text, showing the sender name, date, and full message body.
 
 ### Message History
 
@@ -783,27 +781,26 @@ The prefix is applied to both auto-generated titles and any title provided by th
 
 ## Interests Updates
 
-### Filter to Subscribed Interests Only
+### Subscribed Interests Filter
 
-The echomail reader (`/echomail`) interest tabs and the echolist area picker now show only the interests that the viewing user is subscribed to. Previously all active interests were shown to all users regardless of subscription status.
+The echomail reader (`/echomail`) interest tabs and the echolist area picker show only the interests the viewing user is subscribed to.
 
-On the echolist page, when the **Subscribed only** checkbox is checked, the interest filter also limits to the user's own subscribed interests. Unchecking the box shows all interests.
+On the echolist page, the **Subscribed only** checkbox also applies to the interest filter — checking it limits the interest list to the user's own subscriptions. Unchecking it shows all interests.
 
-### Classify Unassigned Echo Areas
+### Classifying Unassigned Echo Areas
 
-The unassigned echo areas table on the admin Interests page now has a **Classify** button for each row. Clicking it opens a modal that:
+The unassigned echo areas table on the admin Interests page has a **Classify** button for each row. Clicking it opens a modal that:
 
-1. Immediately runs a keyword-based classification pass for that area against all existing interests.
+1. Runs a keyword-based classification pass for that area against all existing interests.
 2. Shows the top matching interest with a confidence indicator.
-3. Offers an **AI Classify** button (when an AI provider is configured) for a higher-quality classification pass.
+3. Offers an **AI Classify** button (when an AI provider is configured) for a higher-quality result.
 4. Lets the admin confirm and add the area to the chosen interest with a single click.
 
 Adding an area this way propagates the subscription to all existing interest subscribers automatically.
 
-### Unassigned Areas Panel Improvements
+### Unassigned Areas Panel
 
-- The unassigned echo areas panel is now expanded by default.
-- Area tags in the table are now links that open the echo reader for that area in a new tab, making it easier to inspect an area's content before assigning it.
+The unassigned echo areas panel on the admin Interests page is expanded by default. Area tags in the table are links that open the echo reader for that area in a new tab.
 
 ---
 
@@ -858,15 +855,13 @@ The telnet and SSH BBS **K — QWK Offline Mail** menu (controlled by `BbsConfig
 **Download (`D`)**
 
 - Builds a QWK packet on the fly using `QwkBuilder::buildPacket()` for the logged-in user.
-- Transfers the packet to the terminal via ZMODEM (`sz`). On telnet connections, IAC bytes are escaped during transfer.
+- Transfers the packet to the terminal using the built-in PHP ZMODEM implementation. On telnet connections, IAC bytes are escaped during transfer.
 - Deletes the temporary packet file after transfer regardless of success or failure.
-- If lrzsz is not installed, the `D` option is shown as dimmed with a note that `sz` is required.
 
 **Upload (`U`)**
 
-- Initiates a ZMODEM receive (`rz`) and waits for the terminal to send a REP packet.
+- Initiates a ZMODEM receive and waits for the terminal to send a REP packet.
 - Processes the received file with `RepProcessor::processRepPacket()` and reports how many messages were imported, skipped, and errored.
-- If lrzsz is not installed, the `U` option is shown as dimmed with a note that `rz` is required.
 
 The HTTP download URL (for clients that prefer it) is shown on the status screen as a supplemental tip below the action menu.
 
