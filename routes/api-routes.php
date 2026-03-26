@@ -8408,7 +8408,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/docs/mcp-client-help/claude', function() {
         RouteHelper::requireAuth();
         header('Content-Type: application/json');
-        $mdPath = __DIR__ . '/../docs/MCPClientHelp_Claude.md';
+        $mdPath = __DIR__ . '/../docs/MCPClientHelp.md';
         if (!file_exists($mdPath)) {
             http_response_code(404);
             echo json_encode(['error' => 'Help file not found']);
