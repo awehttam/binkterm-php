@@ -463,6 +463,18 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
  - **PostgreSQL boolean handling:** PostgreSQL is strict about boolean types. When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
+ - **PostgreSQL `lastInsertId()` is unreliable when triggers exist:** `PDO::lastInsertId()` without a sequence name calls PostgreSQL's `lastval()`, which returns the last sequence value used in the **current session** — from *any* sequence, not just the one you just inserted into. If a trigger on the target table inserts into another auto-increment table (e.g. `trg_echomail_dashboard_notify` inserts into `sse_events` after every echomail INSERT), `lastval()` will return that other table's ID instead of the one you want. **Always use `RETURNING id`** in INSERT statements and fetch the result directly instead of calling `lastInsertId()`:
+   ```php
+   // WRONG — breaks when any trigger inserts into another sequence
+   $stmt->execute();
+   $id = $this->db->lastInsertId();
+
+   // CORRECT — immune to trigger side-effects
+   // Add RETURNING id to the INSERT SQL, then:
+   $stmt->execute();
+   $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+   $id = $row ? (int)$row['id'] : 0;
+   ```
 
 ## Future Plans
  - More BBS-like features such as multi-user interaction, messaging, games, etc.

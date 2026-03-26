@@ -1184,6 +1184,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status)
             VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status)
+            RETURNING id
         ");
 
         $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
@@ -1202,11 +1203,11 @@ class MessageHandler
         $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
         $stmt->bindValue(':freq_status', $isFreq ? 'pending' : null, $isFreq ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
 
-        $result = $stmt->execute();
+        $stmt->execute();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
-        if ($result) {
-            $messageId = $this->db->lastInsertId();
-
+        if ($messageId > 0) {
             // Store attachment path and set FILE_ATTACH attribute when a file is attached
             $recipientUser = null;
             if ($attachment !== null) {
@@ -1378,7 +1379,7 @@ class MessageHandler
             }
         }
 
-        return $result;
+        return $messageId > 0;
     }
 
     private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null, $attachment = null)
@@ -1437,6 +1438,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
             VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL)
+            RETURNING id
         ");
 
         $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
@@ -1453,11 +1455,11 @@ class MessageHandler
         $stmt->bindValue(':message_id', $msgId);
         $stmt->bindValue(':kludge_lines', $kludgeLines);
 
-        $result = $stmt->execute();
+        $stmt->execute();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
-        if ($result) {
-            $messageId = $this->db->lastInsertId();
-
+        if ($messageId > 0) {
             // Store attachment into sysop's private file area if provided
             if ($attachment !== null) {
                 try {
@@ -1487,7 +1489,7 @@ class MessageHandler
             }
         }
 
-        return $result;
+        return $messageId > 0;
     }
 
     /**
@@ -1585,6 +1587,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges, tearline_component)
             VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id, :message_id, :origin_line, :kludge_lines, NULL, :tearline_component)
+            RETURNING id
         ");
 
         $stmt->bindValue(':echoarea_id', $echoarea['id'], \PDO::PARAM_INT);
@@ -1602,10 +1605,11 @@ class MessageHandler
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':tearline_component', $tearlineComponent);
 
-        $result = $stmt->execute();
+        $stmt->execute();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
-        if ($result) {
-            $messageId = $this->db->lastInsertId();
+        if ($messageId > 0) {
             if (!$skipCredits) {
                 $creditsRules = $this->getCreditsRules();
                 if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
@@ -1631,7 +1635,7 @@ class MessageHandler
             $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
         }
 
-        return $result;
+        return $messageId > 0;
     }
 
     private function applyUserSignatureAndTagline(string $messageText, int $userId, ?string $tagline = null): string
@@ -2428,6 +2432,7 @@ class MessageHandler
                 (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
                  '', 'UTF-8', NOW(), FALSE, :message_id,
                  :kludge_lines, :attributes, :attachment_path, FALSE, NULL)
+            RETURNING id
         ");
         $stmt->execute([
             ':from_address'    => $originAddress,
@@ -2440,7 +2445,8 @@ class MessageHandler
             ':attributes'      => $attributes,
             ':attachment_path' => $filePath,
         ]);
-        return (int)$this->db->lastInsertId();
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ? (int)$row['id'] : 0;
     }
 
     /**
@@ -2536,6 +2542,7 @@ class MessageHandler
                 (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
                  :message_text, 'UTF-8', NOW(), FALSE, :message_id,
                  :kludge_lines, FALSE, NULL)
+            RETURNING id
         ");
         $stmt->execute([
             ':from_address'  => $originAddress,
@@ -2547,7 +2554,11 @@ class MessageHandler
             ':message_id'    => $msgId,
             ':kludge_lines'  => $kludgeLines,
         ]);
-        $this->spoolOutboundNetmail((int)$this->db->lastInsertId());
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $notifId = $row ? (int)$row['id'] : 0;
+        if ($notifId > 0) {
+            $this->spoolOutboundNetmail($notifId);
+        }
     }
 
     private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
