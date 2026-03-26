@@ -32,7 +32,10 @@
   - [Poll Schedule Builder](#poll-schedule-builder)
   - [Status Page Uplink Checks](#status-page-uplink-checks)
   - [Queue Packet Viewer](#queue-packet-viewer)
+  - [Scheduler](#scheduler)
   - [Insecure Session Enhancements](#insecure-session-enhancements)
+  - [BinkP Session Log Coverage](#binkp-session-log-coverage)
+  - [BinkP Session Log Retention](#binkp-session-log-retention)
 - [Echomail MCP Server](#echomail-mcp-server)
   - [Per-User Bearer Keys](#per-user-bearer-keys)
   - [Daemon Mode and Reverse Proxy Support](#daemon-mode-and-reverse-proxy-support)
@@ -40,6 +43,7 @@
 - [Dashboard](#dashboard)
   - [Dynamic Advertisement Content](#dynamic-advertisement-content)
   - [Today's Callers Table](#todays-callers-table)
+  - [Active BinkP Sessions Card](#active-binkp-sessions-card)
 - [Admin Help](#admin-help)
   - [In-App FAQ and README Viewer](#in-app-faq-and-readme-viewer)
 - [File Areas](#file-areas)
@@ -175,6 +179,8 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - The BinkP status page performs one live authentication check per enabled uplink on load rather than running on a timer.
 - Packet filenames in the queue lists are now clickable and open the packet inspector modal.
 - Uplinks have a new **Allow insecure echomail delivery** option for legacy nodes that cannot authenticate. ⚠️ Not recommended — use only as a last resort.
+- The **BinkP Session Log** now records normal outbound poll sessions and inbound server sessions, not just crash mail activity.
+- `scripts/database_maintenance.php` now purges old `binkp_session_log` rows after 30 days by default. Retention is configurable with `BINKP_SESSION_LOG_RETENTION_DAYS`.
 
 **Telnet / SSH BBS Server**
 - Interests menu (`I`) added for browsing and subscribing to topic groups.
@@ -183,6 +189,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 **Dashboard**
 - Content-command-backed advertisements now render correctly in all views.
 - **Today's Callers** is now a table with User, Time, and Online columns.
+- Admin dashboards now include an **Active BinkP Sessions** card that refreshes automatically as session progress changes.
 
 **Broadcast Manager**
 - Campaign editor now has a **Clone** action to duplicate a campaign as a new disabled copy.
@@ -462,6 +469,30 @@ This change does not alter password timing (`M_PWD` is still sent after `ADR`) o
 
 ---
 
+### BinkP Session Log Coverage
+
+The `binkp_session_log` table now reflects actual BinkP traffic more completely. In addition to crash mail, the application now records:
+
+- normal outbound `binkp_poll` sessions
+- normal inbound `binkp_server` sessions
+- remote IP addresses for connected peers when available
+
+This makes the **Admin -> BinkP Sessions** page and related dashboard widgets much more useful for operational monitoring. Sysops upgrading from earlier 1.8.9 builds should expect the session log to fill more quickly because ordinary BinkP traffic is now included instead of only crash mail activity.
+
+### BinkP Session Log Retention
+
+Because `binkp_session_log` now captures all normal BinkP sessions, the database maintenance job now prunes older records automatically.
+
+By default, `scripts/database_maintenance.php` deletes `binkp_session_log` rows older than 30 days.
+
+To change that retention window, set this in `.env`:
+
+```env
+BINKP_SESSION_LOG_RETENTION_DAYS=30
+```
+
+Set a larger value if you want a longer operational history, or a smaller value if you prefer to keep the session log compact.
+
 ## Echomail MCP Server
 
 An optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server is included in `mcp-server/`. It allows AI assistants that support MCP — such as Claude — to query your echomail database in read-only mode over HTTP. The server requires a valid registered license.
@@ -516,6 +547,12 @@ If the command succeeds, its stdout becomes the rendered ad body. If it fails, t
 ### Today's Callers Table
 
 The **Today's Callers** list in the System Information box (visible to admins on the dashboard) is now rendered as a table with three columns: **User**, **Time**, and **Online**. Users who have been active within the last 15 minutes are marked with a green badge in the Online column.
+
+### Active BinkP Sessions Card
+
+The admin dashboard now includes an **Active BinkP Sessions** card. It lists currently active BinkP sessions and updates automatically as sessions start, transfer data, and finish.
+
+The feed is admin-only and uses the existing BinkStream realtime channel. This replaces the need to manually refresh the dashboard to watch poll progress.
 
 ---
 
@@ -948,6 +985,9 @@ BINKSTREAM_WS_PUBLIC_URL=/ws
 
 # SSE connection window duration in seconds (default 60)
 SSE_WINDOW_SECONDS=60
+
+# Purge BinkP session log entries older than this many days (default 30)
+BINKP_SESSION_LOG_RETENTION_DAYS=30
 ```
 
 ### Using the Installer
