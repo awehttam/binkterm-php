@@ -202,10 +202,10 @@
         mailUnread.netmail = netmailUnread > 0;
         mailUnread.echomail = echomailUnread > 0;
 
-        if (clearTarget === 'netmail') {
+        if (clearTarget === 'netmail' || isPathMatch('/netmail')) {
             mailUnread.netmail = false;
         }
-        if (clearTarget === 'echomail') {
+        if (clearTarget === 'echomail' || isPathMatch('/echomail') || isPathMatch('/echolist')) {
             mailUnread.echomail = false;
         }
 
