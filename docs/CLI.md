@@ -806,6 +806,44 @@ Example output:
 
 Services that are not running are shown with `-` rather than an error. The script reads `/proc/<pid>/status` directly for accurate RSS values.
 
+## Binktop
+
+Shows a live, terminal-sized dashboard similar to `top` for a BinktermPHP host. The screen is refreshed on a timer and is laid out to fit the current terminal window.
+
+The dashboard includes:
+
+- a compact three-line system header
+- current users from `user_sessions`
+- daemon status with per-daemon RSS where available
+- active door sessions
+- queue and PostgreSQL totals folded into the header summary
+
+```bash
+# Live dashboard (refreshes every 2 seconds by default)
+php scripts/binktop.php
+
+# Refresh every second
+php scripts/binktop.php --interval=1
+
+# Show a single snapshot and exit
+php scripts/binktop.php --once
+
+# Use a longer online-user window
+php scripts/binktop.php --minutes=30
+
+# JSON output for monitoring or jq
+php scripts/binktop.php --json
+```
+
+Options:
+- `--interval=N` — Refresh interval in seconds for the live dashboard (default: `2`)
+- `--minutes=N` — Consider users online if active within the last N minutes (default: `15`)
+- `--once` — Render one screen and exit instead of continuously refreshing
+- `--json` — Return a machine-readable snapshot instead of the live dashboard
+- `--help` — Show usage
+
+On Linux and other `/proc`-based systems, `binktop.php` also shows load average and system RAM totals. On Windows, those fields degrade gracefully when equivalent metrics are not available.
+
 ## Who
 
 Shows currently active users — those who have been active within the last N minutes.

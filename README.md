@@ -730,6 +730,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 |--------|-------------|
 | `admin_client.php` | Send commands to the admin daemon from the command line |
 | `backup_database.php` | PostgreSQL database backup via pg_dump |
+| `binktop.php` | Show a top-style snapshot of system, user, daemon, queue, and memory status |
 | `binkp_poll.php` | Manually poll uplinks |
 | `binkp_status.php` | View connection and queue status |
 | `crashmail_poll.php` | Process the crashmail queue for direct delivery |
@@ -778,6 +779,7 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 4. Send/receive messages via Netmail and Echomail tabs
 
 ### Via Command Line
+- Full system snapshot: `php scripts/binktop.php`
 - Monitor status: `php scripts/binkp_status.php`
 - Manual poll: `php scripts/binkp_poll.php --all`
 - Post messages: `php scripts/post_message.php [options]`
