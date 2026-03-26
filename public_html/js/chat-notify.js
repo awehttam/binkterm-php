@@ -7,6 +7,8 @@
     let initialized = false;
     let pollInterval = null;
     let audioUnlocked = false;
+    let lastChatSoundAt = 0;
+    const CHAT_SOUND_COOLDOWN_MS = 3000; // 3 s — standard notification debounce (Discord/Slack/IRC)
     const audioCache = new Map();
     let previousStats = {
         unread_netmail: 0,
@@ -97,6 +99,21 @@
         }
     }
 
+    function maybeChatSound() {
+        if (isPathMatch('/chat')) {
+            return;
+        }
+        if (!audioUnlocked) {
+            return;
+        }
+        const now = Date.now();
+        if (now - lastChatSoundAt < CHAT_SOUND_COOLDOWN_MS) {
+            return;
+        }
+        lastChatSoundAt = now;
+        playNotificationSound('chat');
+    }
+
     function maybePlayNotificationSounds(stats, suppressSounds = false) {
         const currentStats = {
             unread_netmail: parseInt(stats?.unread_netmail || 0, 10) || 0,
@@ -107,7 +124,7 @@
 
         if (!suppressSounds && audioUnlocked) {
             if (currentStats.chat_total > previousStats.chat_total) {
-                playNotificationSound('chat');
+                maybeChatSound();
             }
             if (currentStats.new_echomail > previousStats.new_echomail) {
                 playNotificationSound('echomail');
@@ -299,6 +316,20 @@
             clearInterval(pollInterval);
         }
         pollInterval = setInterval(refreshMailState, 30000);
+
+        // Real-time chat sound via BinkStream — fires immediately on message arrival.
+        // Incrementing previousStats.chat_total keeps the poll from double-firing a sound
+        // for the same message at the next 30-second tick.
+        if (window.BinkStream) {
+            window.BinkStream.on('chat_message', function () {
+                previousStats.chat_total++;
+                if (!isPathMatch('/chat')) {
+                    chatUnread = true;
+                    updateChatIcons();
+                }
+                maybeChatSound();
+            });
+        }
     }
 
     // Listen for postMessage events from WebDoors (credit updates, etc.)
