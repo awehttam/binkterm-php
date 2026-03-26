@@ -829,9 +829,9 @@ class AdminController
     /**
      * Get binkp session statistics
      */
-    public function getBinkpSessionStats(string $period = 'day'): array
+    public function getBinkpSessionStats(string $period = 'day', string $timezone = 'UTC'): array
     {
-        return \BinktermPHP\Binkp\SessionLogger::getSessionStats($period);
+        return \BinktermPHP\Binkp\SessionLogger::getSessionStats($period, $timezone);
     }
 
     public function getBinkpSession(int $id): ?array

@@ -3406,7 +3406,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
             $period = $_GET['period'] ?? 'day';
-            $stats = $adminController->getBinkpSessionStats($period);
+            $requestedTz = $_GET['timezone'] ?? 'UTC';
+            try {
+                new \DateTimeZone($requestedTz);
+                $timezone = $requestedTz;
+            } catch (\Exception $e) {
+                $timezone = 'UTC';
+            }
+            $stats = $adminController->getBinkpSessionStats($period, $timezone);
             echo json_encode($stats);
         });
 

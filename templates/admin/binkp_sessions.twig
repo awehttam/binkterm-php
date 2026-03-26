@@ -309,7 +309,8 @@ function getSessionsTotalPages() {
 }
 
 function loadStats() {
-    fetch('/admin/api/binkp-sessions/stats?period=day')
+    const userTimezone = getUserTimezone();
+    fetch(`/admin/api/binkp-sessions/stats?period=day&timezone=${encodeURIComponent(userTimezone)}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('statTotal').textContent = data.total_sessions || 0;
@@ -371,7 +372,7 @@ function renderTrafficChart(points) {
         if (index !== 0 && index !== points.length - 1 && (index % 4) !== 0) {
             return '';
         }
-        return `<text class="binkp-chart-label" x="${xFor(index)}" y="${height - 10}" text-anchor="middle">${escapeHtml(point.hour_label || '')}</text>`;
+        return `<text class="binkp-chart-label" x="${xFor(index)}" y="${height - 10}" text-anchor="middle">${escapeHtml(formatTrafficChartHourLabel(point))}</text>`;
     }).join('');
 
     const inDots = points.map((point, index) => `<circle class="binkp-chart-point-in" cx="${xFor(index)}" cy="${yFor(point.messages_received)}" r="3"></circle>`).join('');
@@ -661,7 +662,7 @@ function formatLocalizedDateTime(dateStr) {
         return '-';
     }
 
-    const userTimezone = window.userSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const userTimezone = getUserTimezone();
     const userDateFormat = window.userSettings?.date_format || undefined;
 
     return date.toLocaleString(userDateFormat, {
@@ -673,6 +674,28 @@ function formatLocalizedDateTime(dateStr) {
         minute: '2-digit',
         second: '2-digit'
     });
+}
+
+function getUserTimezone() {
+    return window.userSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+function formatTrafficChartHourLabel(point) {
+    const epochSeconds = Number(point?.hour_epoch || 0);
+    const userDateFormat = window.userSettings?.date_format || undefined;
+
+    if (epochSeconds > 0) {
+        const date = new Date(epochSeconds * 1000);
+        if (!Number.isNaN(date.getTime())) {
+            return date.toLocaleTimeString(userDateFormat, {
+                timeZone: getUserTimezone(),
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        }
+    }
+
+    return point?.hour_label || '';
 }
 
 function formatDuration(seconds) {
