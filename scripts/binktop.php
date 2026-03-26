@@ -111,10 +111,17 @@ function padVisible(string $value, int $width): string
 function colorize(string $value, string $color): string
 {
     $codes = [
+        'bold' => '1',
+        'white' => '1;37',
         'green' => '0;32',
         'red' => '0;31',
         'yellow' => '1;33',
         'cyan' => '0;36',
+        'blue' => '0;34',
+        'magenta' => '0;35',
+        'bright_cyan' => '1;36',
+        'bright_blue' => '1;34',
+        'bright_magenta' => '1;35',
     ];
 
     if (!isset($codes[$color])) {
@@ -122,6 +129,11 @@ function colorize(string $value, string $color): string
     }
 
     return "\033[" . $codes[$color] . 'm' . $value . "\033[0m";
+}
+
+function renderHeaderMetric(string $label, string $value, string $labelColor = 'bright_blue', string $valueColor = 'white'): string
+{
+    return colorize($label, $labelColor) . colorize($value, $valueColor);
 }
 
 function formatDuration(int $seconds): string
@@ -854,39 +866,66 @@ function buildHeaderLines(array $snapshot, int $interval, int $columns): array
     $loadAverage = $snapshot['load_average'];
     $memory = $snapshot['memory'];
     $disk = $snapshot['disk'];
-    $sessions = $snapshot['sessions'];
     $postgres = $snapshot['postgres'];
     $queues = $snapshot['queues'];
     $onlineSummary = $snapshot['online_summary'];
+    $title = colorize($snapshot['app_version'], 'bright_magenta');
+    $os = colorize(PHP_OS_FAMILY, 'bright_cyan');
+    $host = renderHeaderMetric('host:', (string)$snapshot['host'], 'blue', 'yellow');
+    $now = renderHeaderMetric('now:', date('Y-m-d H:i:s'), 'blue', 'white');
+    $refresh = renderHeaderMetric('ref:', $interval . 's', 'blue', 'green');
+    $uptime = renderHeaderMetric(
+        'up:',
+        $snapshot['uptime_seconds'] !== null ? formatDuration((int)$snapshot['uptime_seconds']) : 'n/a',
+        'cyan',
+        'white'
+    );
+    $load = renderHeaderMetric(
+        'load:',
+        $loadAverage !== null ? number_format($loadAverage['1m'], 2) . ' ' . number_format($loadAverage['5m'], 2) . ' ' . number_format($loadAverage['15m'], 2) : 'n/a',
+        'cyan',
+        'yellow'
+    );
+    $ram = renderHeaderMetric(
+        'ram:',
+        $memory !== null ? formatUsedTotalBytes($memory['used_bytes'], $memory['total_bytes']) : 'n/a',
+        'cyan',
+        'green'
+    );
+    $diskMetric = renderHeaderMetric(
+        'disk:',
+        $disk !== null ? formatUsedTotalBytes($disk['used_bytes'], $disk['total_bytes']) : 'n/a',
+        'cyan',
+        'green'
+    );
+    $users = renderHeaderMetric('users:', (string)count($snapshot['online_users']), 'magenta', 'white');
+    $sess = renderHeaderMetric(
+        'sess:',
+        isset($onlineSummary['users'], $onlineSummary['guests'])
+            ? $onlineSummary['users'] . '/' . $onlineSummary['guests']
+            : 'n/a',
+        'magenta',
+        'white'
+    );
+    $doors = renderHeaderMetric('doors:', (string)count($snapshot['door_sessions']), 'magenta', 'white');
+    $pg = renderHeaderMetric(
+        'pg:',
+        $postgres['total'] !== null ? $postgres['total'] . ' (' . $postgres['active'] . 'a/' . $postgres['idle'] . 'i)' : 'n/a',
+        'magenta',
+        'yellow'
+    );
+    $inbound = renderHeaderMetric('in:', (string)($queues['inbound']['pending_files'] ?? 'n/a'), 'magenta', 'white');
+    $outbound = renderHeaderMetric(
+        'out:',
+        (string)($queues['outbound']['pending_files'] ?? 'n/a') . '/' . (isset($queues['outbound']['total_size']) ? formatBytes((int)$queues['outbound']['total_size']) : 'n/a'),
+        'magenta',
+        'white'
+    );
 
     return [
-        fitLineToWidth(sprintf(
-            '%s  %s  host:%s  now:%s  ref:%ss',
-            $snapshot['app_version'],
-            PHP_OS_FAMILY,
-            $snapshot['host'],
-            date('Y-m-d H:i:s'),
-            $interval
-        ), $columns),
-        fitLineToWidth(sprintf(
-            'up:%s  load:%s  ram:%s  disk:%s',
-            $snapshot['uptime_seconds'] !== null ? formatDuration((int)$snapshot['uptime_seconds']) : 'n/a',
-            $loadAverage !== null ? number_format($loadAverage['1m'], 2) . ' ' . number_format($loadAverage['5m'], 2) . ' ' . number_format($loadAverage['15m'], 2) : 'n/a',
-            $memory !== null ? formatUsedTotalBytes($memory['used_bytes'], $memory['total_bytes']) : 'n/a',
-            $disk !== null ? formatUsedTotalBytes($disk['used_bytes'], $disk['total_bytes']) : 'n/a'
-        ), $columns),
-        fitLineToWidth(sprintf(
-            'users:%d  sess:%s  doors:%d  pg:%s  in:%s  out:%s/%s',
-            count($snapshot['online_users']),
-            isset($onlineSummary['users'], $onlineSummary['guests'])
-                ? $onlineSummary['users'] . '/' . $onlineSummary['guests']
-                : 'n/a',
-            count($snapshot['door_sessions']),
-            $postgres['total'] !== null ? $postgres['total'] . ' (' . $postgres['active'] . 'a/' . $postgres['idle'] . 'i)' : 'n/a',
-            (string)($queues['inbound']['pending_files'] ?? 'n/a'),
-            (string)($queues['outbound']['pending_files'] ?? 'n/a'),
-            isset($queues['outbound']['total_size']) ? formatBytes((int)$queues['outbound']['total_size']) : 'n/a'
-        ), $columns),
+        fitLineToWidth($title . '  ' . $os . '  ' . $host . '  ' . $now . '  ' . $refresh, $columns),
+        fitLineToWidth($uptime . '  ' . $load . '  ' . $ram . '  ' . $diskMetric, $columns),
+        fitLineToWidth($users . '  ' . $sess . '  ' . $doors . '  ' . $pg . '  ' . $inbound . '  ' . $outbound, $columns),
     ];
 }
 
