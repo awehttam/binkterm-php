@@ -13,6 +13,9 @@
 const STREAM_URL = '/api/stream';
 const MIN_BACKOFF = 1000;
 const MAX_BACKOFF = 30000;
+const WS_HANDSHAKE_TIMEOUT_MS = 3500;
+const MIN_WS_RETRY_PROBE_DELAY_MS = 3000;
+const MAX_WS_RETRY_PROBE_DELAY_MS = 30000;
 
 const ports = new Set();
 const subscribedTypes = new Set();
@@ -28,6 +31,7 @@ let backoff = MIN_BACKOFF;
 let reconnectTimer = null;
 let wsConnectTimer = null;
 let wsRetryProbeTimer = null;
+let wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
 let lastCursor = '';
 
 function debugLog() {
@@ -71,6 +75,9 @@ function initializeConfig(config) {
     preferredTransportMode = ['sse', 'ws'].includes(preferred) ? preferred : 'sse';
     wsUrl = typeof config.wsUrl === 'string' ? config.wsUrl : '';
     csrfToken = typeof config.csrfToken === 'string' ? config.csrfToken : '';
+    if (preferredTransportMode === 'ws') {
+        wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
+    }
     debugLog('[BinkStream worker] init', {
         configuredTransportMode: transportMode,
         preferredTransportMode: preferredTransportMode,
@@ -160,6 +167,7 @@ function scheduleWsRetryProbe() {
     if (wsRetryProbeTimer) {
         return;
     }
+    const delay = wsRetryProbeDelay;
     wsRetryProbeTimer = setTimeout(function () {
         wsRetryProbeTimer = null;
         if (transportMode !== 'auto' || preferredTransportMode !== 'sse' || ports.size === 0) {
@@ -168,7 +176,8 @@ function scheduleWsRetryProbe() {
         debugLog('[BinkStream worker] probing WebSocket transport again from SSE fallback');
         preferredTransportMode = 'ws';
         ensureTransport();
-    }, 30000);
+    }, delay);
+    wsRetryProbeDelay = Math.min(wsRetryProbeDelay * 2, MAX_WS_RETRY_PROBE_DELAY_MS);
 }
 
 function subscribeType(type) {
@@ -305,7 +314,7 @@ function connectWebSocket() {
             ws = null;
             preferredTransportMode = 'sse';
             connectSse();
-        }, 2000);
+        }, WS_HANDSHAKE_TIMEOUT_MS);
     }
 
     current.onopen = function () {
@@ -341,6 +350,7 @@ function connectWebSocket() {
             handshakeComplete = true;
             clearWsConnectTimer();
             clearWsRetryProbeTimer();
+            wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
             debugLog('[BinkStream worker] using WebSocket transport', {
                 cursor: lastCursor || '(none)'
             });
