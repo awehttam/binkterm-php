@@ -4,6 +4,7 @@ namespace BinktermPHP\Realtime;
 
 use BinktermPHP\Auth;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 
 class WebSocketServer
@@ -18,6 +19,8 @@ class WebSocketServer
     private StreamService $streamService;
     private CommandDispatcher $commandDispatcher;
     private int $lastActiveConnectionsLogAt = 0;
+    /** @var array<string, true> */
+    private array $trustedProxies = [];
 
     public function __construct(string $bindHost, int $port, Logger $logger)
     {
@@ -27,6 +30,7 @@ class WebSocketServer
         $db = Database::getInstance()->getPdo();
         $this->streamService = new StreamService($db);
         $this->commandDispatcher = new CommandDispatcher($db);
+        $this->trustedProxies = $this->loadTrustedProxies();
     }
 
     public function run(): void
@@ -91,7 +95,8 @@ class WebSocketServer
             'buffer' => '',
             'handshake_complete' => false,
             'user' => null,
-            'remote_ip' => $this->extractRemoteIp($socket),
+            'socket_ip' => $this->extractSocketIp($socket),
+            'remote_ip' => '',
             'cursor' => 0,
             'subscriptions' => [],
         ];
@@ -174,6 +179,7 @@ class WebSocketServer
 
         $this->clients[$clientId]['handshake_complete'] = true;
         $this->clients[$clientId]['user'] = $user;
+        $this->clients[$clientId]['remote_ip'] = $this->resolveRemoteIp($clientId, $headers);
         $this->clients[$clientId]['cursor'] = $anchorId;
 
         $this->sendJson($clientId, [
@@ -546,7 +552,7 @@ class WebSocketServer
     /**
      * @param resource $socket
      */
-    private function extractRemoteIp($socket): string
+    private function extractSocketIp($socket): string
     {
         $peer = @stream_socket_get_name($socket, true);
         if (!is_string($peer) || $peer === '') {
@@ -568,5 +574,46 @@ class WebSocketServer
         }
 
         return substr($peer, 0, $pos);
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private function resolveRemoteIp(int $clientId, array $headers): string
+    {
+        $socketIp = (string)($this->clients[$clientId]['socket_ip'] ?? '');
+        if ($socketIp === '' || !isset($this->trustedProxies[$socketIp])) {
+            return $socketIp;
+        }
+
+        $xff = trim((string)($headers['x-forwarded-for'] ?? ''));
+        if ($xff === '') {
+            return $socketIp;
+        }
+
+        foreach (explode(',', $xff) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
+        }
+
+        return $socketIp;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function loadTrustedProxies(): array
+    {
+        $configured = (string)Config::env('BINKSTREAM_TRUSTED_PROXIES', Config::env('REALTIME_TRUSTED_PROXIES', '127.0.0.1'));
+        $trusted = [];
+        foreach (explode(',', $configured) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                $trusted[$candidate] = true;
+            }
+        }
+        return $trusted;
     }
 }
