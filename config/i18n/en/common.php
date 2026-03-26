@@ -652,7 +652,9 @@ return [
     'ui.admin.binkp_config.uplinks.modal.filefix_password' => 'FileFix Password',
     'ui.admin.binkp_config.uplinks.modal.filefix_password_help' => 'Password for the FileFix robot at this uplink (file echo subscription management)',
     'ui.admin.binkp_config.uplinks.modal.poll_schedule' => 'Poll Schedule',
+    'ui.admin.binkp_config.uplinks.modal.poll_schedule_help' => 'Keep polling infrequent. Use at least 1 hour, or at least 4 hours for hubs that crash mail to us. When an uplink crash-mails to us, it will push mail immediately, so polling is mainly a catch-up in case something went wrong.',
     'ui.admin.binkp_config.uplinks.modal.networks_one_per_line' => 'Networks (one per line)',
+    'ui.admin.binkp_config.uplinks.modal.feature_flags' => 'Feature Flags',
     'ui.admin.binkp_config.uplinks.modal.allow_markup' => 'Allow Markup',
     'ui.admin.binkp_config.uplinks.modal.allow_markup_help' => 'Enables Markup support (Markdown, StyleCodes, etc.) on compatible/supporting networks',
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Posting Name Policy',
@@ -1088,6 +1090,11 @@ return [
     'ui.admin.binkp_sessions.log_unavailable' => 'No PID was recorded for this session.',
     'ui.admin.binkp_sessions.no_log_lines' => 'No log lines found for this session.',
     'ui.admin.binkp_sessions.log_load_failed' => 'Failed to load session log',
+    'ui.admin.binkp_sessions.rows_per_page' => 'Rows per page',
+    'ui.admin.binkp_sessions.pagination_aria' => 'Binkp sessions pagination',
+    'ui.admin.binkp_sessions.page_status' => 'Showing {start}-{end} of {total}',
+    'ui.admin.binkp_sessions.page_indicator' => 'Page {page} of {pages}',
+    'ui.admin.binkp_sessions.page_status_empty' => '0 sessions',
 
     // Admin Polls
     'ui.admin.polls.load_failed' => 'Error loading polls',

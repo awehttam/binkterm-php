@@ -249,15 +249,20 @@ class BbsSession
             // SSH: already authenticated at the protocol layer
             $loginResult = $this->preAuthSession;
         } else {
+            $showQwkTransfer = BbsConfig::isFeatureEnabled('qwk');
             while ($loginResult === null) {
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (R) Register new account', [], $state['locale']));
+                if ($showQwkTransfer) {
+                    $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.qwk_transfer', '  (K) QWK transfer', [], $state['locale']));
+                }
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.quit',    '  (Q) Quit', [], $state['locale']));
                 $this->writeLine($conn, '');
                 $choice = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login_menu.choice', 'Your choice: ', [], $state['locale']), true);
+                $normalizedChoice = strtolower(trim((string)$choice));
 
-                if ($choice === null || strtolower(trim($choice)) === 'q') {
+                if ($choice === null || $normalizedChoice === 'q') {
                     $this->writeLine($conn, $this->colorize(
                         $this->t('ui.terminalserver.server.goodbye', 'Goodbye!', [], $state['locale']),
                         self::ANSI_CYAN
@@ -267,7 +272,7 @@ class BbsSession
                     return;
                 }
 
-                if (strtolower(trim($choice)) === 'r') {
+                if ($normalizedChoice === 'r') {
                     $registered = $this->attemptRegistration($conn, $state);
                     if ($registered) {
                         $this->writeLine($conn, $this->t('ui.terminalserver.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
@@ -280,6 +285,16 @@ class BbsSession
                     continue;
                 }
 
+                $qwkTransferMode = $showQwkTransfer && $normalizedChoice === 'k';
+                if ($normalizedChoice !== 'l' && !$qwkTransferMode) {
+                    $this->writeLine($conn, $this->colorize(
+                        $this->t('ui.terminalserver.server.login_menu.invalid_choice', 'Invalid selection.', [], $state['locale']),
+                        self::ANSI_RED
+                    ));
+                    $this->writeLine($conn, '');
+                    continue;
+                }
+
                 $this->writeLine($conn, '');
                 $maxAttempts = 3;
                 for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
@@ -287,6 +302,7 @@ class BbsSession
                     $loginResult = $this->attemptLogin($conn, $state, $attemptedUsername);
 
                     if ($loginResult !== null) {
+                        $loginResult['qwk_transfer_mode'] = $qwkTransferMode;
                         $this->writeLine($conn, $this->colorize(
                             $this->t('ui.terminalserver.server.login.success', 'Login successful.', [], $state['locale']),
                             self::ANSI_GREEN
@@ -337,6 +353,7 @@ class BbsSession
         $state['user_timezone']   = $settings['timezone']    ?? 'UTC';
         $state['user_date_format']= $settings['date_format'] ?? 'Y-m-d H:i:s';
         $state['username']        = $username;
+        $state['qwk_transfer_mode'] = !empty($loginResult['qwk_transfer_mode']);
         $userLocale = $settings['locale'] ?? '';
         if ($userLocale !== '' && $this->translator->isSupportedLocale($userLocale)) {
             $state['locale'] = $userLocale;
@@ -377,8 +394,27 @@ class BbsSession
         $terminalSettingsHandler->loadSettings($conn, $state, $session);
 
         // Run first-time detection wizard if no terminal settings have been saved yet
-        if (($state['terminal_charset'] ?? null) === null) {
+        if (($state['terminal_charset'] ?? null) === null && empty($state['qwk_transfer_mode'])) {
             $terminalSettingsHandler->runDetectionWizard($conn, $state, $session);
+        }
+
+        if (!empty($state['qwk_transfer_mode'])) {
+            $this->log("Menu: {$username} -> QWK Offline Mail (direct)");
+            $logoutRequested = $qwkHandler->show($conn, $state, $session, true);
+            if ($logoutRequested) {
+                $this->logoutSession($session);
+            }
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t('ui.terminalserver.server.goodbye', 'Goodbye!', [], $state['locale']),
+                self::ANSI_CYAN
+            ));
+            if (is_resource($conn)) { fflush($conn); }
+            $this->logDuration("Logout", $username, $loginTime);
+            $this->setTerminalTitle($conn, '');
+            fclose($conn);
+            if ($forked) { exit(0); }
+            return;
         }
 
         $shoutboxHandler->show($conn, $state, $session, 5, false);
@@ -2111,6 +2147,23 @@ class BbsSession
     {
         $duration = time() - $loginTime;
         $this->log("{$event}: {$username} (session duration: " . floor($duration / 60) . "m " . ($duration % 60) . "s)");
+    }
+
+    /**
+     * Explicitly invalidate the authenticated session.
+     */
+    private function logoutSession(string $sessionId): void
+    {
+        if ($sessionId === '') {
+            return;
+        }
+
+        try {
+            $auth = new \BinktermPHP\Auth();
+            $auth->logout($sessionId);
+        } catch (\Throwable $e) {
+            $this->log('Logout failed for terminal session: ' . $e->getMessage());
+        }
     }
 }
 

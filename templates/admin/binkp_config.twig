@@ -189,7 +189,7 @@
 </div>
 
 <div class="modal fade" id="uplinkModal" tabindex="-1" aria-labelledby="uplinkModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="uplinkModalLabel">{{ t('ui.admin.binkp_config.uplinks.modal.uplink', {}, locale, ['common']) }}</h5>
@@ -198,117 +198,127 @@
             <div class="modal-body">
                 <input type="hidden" id="uplinkIndex">
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkMe">{{ t('ui.admin.binkp_config.uplinks.modal.me_address', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="uplinkMe">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkAddress">{{ t('ui.admin.binkp_config.uplinks.modal.uplink_address', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="uplinkAddress">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkDomain">{{ t('ui.admin.binkp_config.uplinks.modal.domain', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="uplinkDomain">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkHostname">{{ t('ui.common.hostname', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="uplinkHostname">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label" for="uplinkPort">{{ t('ui.common.port', {}, locale, ['common']) }}</label>
-                        <input type="number" class="form-control" id="uplinkPort" min="1" max="65535">
-                    </div>
-                    <div class="col-md-8">
-                        <label class="form-label" for="uplinkPassword">{{ t('ui.admin.binkp_config.uplinks.modal.binkp_session_password', {}, locale, ['common']) }}</label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="uplinkPassword">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
+                    <div class="col-lg-7">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkMe">{{ t('ui.admin.binkp_config.uplinks.modal.me_address', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="uplinkMe">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkAddress">{{ t('ui.admin.binkp_config.uplinks.modal.uplink_address', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="uplinkAddress">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkDomain">{{ t('ui.admin.binkp_config.uplinks.modal.domain', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="uplinkDomain">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkHostname">{{ t('ui.common.hostname', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="uplinkHostname">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="uplinkPort">{{ t('ui.common.port', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="uplinkPort" min="1" max="65535">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label" for="uplinkPassword">{{ t('ui.admin.binkp_config.uplinks.modal.binkp_session_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="uplinkPassword">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkPktPassword">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="uplinkPktPassword" maxlength="8">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkPktPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkTicPassword">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="uplinkTicPassword">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkTicPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkAreafixPassword">{{ t('ui.admin.binkp_config.uplinks.modal.areafix_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="uplinkAreafixPassword">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkAreafixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.areafix_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="uplinkFilefixPassword">{{ t('ui.admin.binkp_config.uplinks.modal.filefix_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="uplinkFilefixPassword">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkFilefixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.filefix_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label" for="uplinkSchedule">{{ t('ui.admin.binkp_config.uplinks.modal.poll_schedule', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="uplinkSchedule">
+                                <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.poll_schedule_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label" for="uplinkNetworks">{{ t('ui.admin.binkp_config.uplinks.modal.networks_one_per_line', {}, locale, ['common']) }}</label>
+                                <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkPktPassword">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="uplinkPktPassword" maxlength="8">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkPktPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
+                    <div class="col-lg-5">
+                        <div class="border rounded bg-light p-3 h-100">
+                            <h6 class="mb-3">{{ t('ui.admin.binkp_config.uplinks.modal.feature_flags', {}, locale, ['common']) }}</h6>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkEnabled">
+                                <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.enabled_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
+                                <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
+                                <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkCompression">
+                                <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.compression_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.compression', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkCrypt">
+                                <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.crypt_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.crypt', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkDefault">
+                                <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.default_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.table.default', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="uplinkAllowInsecureEchomail">
+                                <label class="form-check-label" for="uplinkAllowInsecureEchomail" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_insecure_echomail_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_insecure_echomail', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label" for="uplinkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, locale, ['common']) }}</label>
+                                <select class="form-select form-select-sm" id="uplinkPostingNamePolicy">
+                                    <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, locale, ['common']) }}</option>
+                                    <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, locale, ['common']) }}</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkTicPassword">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="uplinkTicPassword">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkTicPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkAreafixPassword">{{ t('ui.admin.binkp_config.uplinks.modal.areafix_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="uplinkAreafixPassword">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkAreafixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.areafix_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="uplinkFilefixPassword">{{ t('ui.admin.binkp_config.uplinks.modal.filefix_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="uplinkFilefixPassword">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleUplinkPasswordVisibility('uplinkFilefixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.filefix_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label" for="uplinkSchedule">{{ t('ui.admin.binkp_config.uplinks.modal.poll_schedule', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="uplinkSchedule">
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label" for="uplinkNetworks">{{ t('ui.admin.binkp_config.uplinks.modal.networks_one_per_line', {}, locale, ['common']) }}</label>
-                        <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
-                    </div>
-                    <div class="col-md-3 form-check mt-2 ms-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
-                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
-                    </div>
-                    <div class="col-md-4 mt-1">
-                        <label class="form-label" for="uplinkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, locale, ['common']) }}</label>
-                        <select class="form-select form-select-sm" id="uplinkPostingNamePolicy">
-                            <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, locale, ['common']) }}</option>
-                            <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, locale, ['common']) }}</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 form-check mt-2 ms-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
-                        <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, locale, ['common']) }}</label>
-                    </div>
-                    <div class="col-md-3 form-check mt-2 ms-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkEnabled">
-                        <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.enabled_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, locale, ['common']) }}</label>
-                    </div>
-                    <div class="col-md-3 form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkCompression">
-                        <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.compression_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.compression', {}, locale, ['common']) }}</label>
-                    </div>
-                    <div class="col-md-3 form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkCrypt">
-                        <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.crypt_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.crypt', {}, locale, ['common']) }}</label>
-                    </div>
-                    <div class="col-md-3 form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkDefault">
-                        <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.default_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.table.default', {}, locale, ['common']) }}</label>
-                    </div>
-                    <div class="col-12 form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="uplinkAllowInsecureEchomail">
-                        <label class="form-check-label" for="uplinkAllowInsecureEchomail" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_insecure_echomail_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_insecure_echomail', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
                 <div id="uplinkModalAlert" class="mt-3"></div>

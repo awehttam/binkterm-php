@@ -10,8 +10,10 @@ return [
     'ui.terminalserver.server.login_menu.prompt'       => 'Would you like to:',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Login to existing account',
     'ui.terminalserver.server.login_menu.register'     => '  (R) Register new account',
+    'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK transfer',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Quit',
     'ui.terminalserver.server.login_menu.choice'       => 'Your choice: ',
+    'ui.terminalserver.server.login_menu.invalid_choice' => 'Invalid selection.',
     'ui.terminalserver.server.goodbye'                 => 'Goodbye!',
     'ui.terminalserver.server.press_enter_disconnect'  => 'Press Enter to disconnect.',
 
@@ -196,6 +198,7 @@ return [
     'ui.terminalserver.files.files_back_hint'          => 'B)ack to parent folder',
     'ui.terminalserver.files.not_a_file'               => 'That entry is a folder, not a file.',
     'ui.terminalserver.files.enter_folder_or_file'     => 'Enter a folder number to browse, or a file number to view details.',
+    'ui.terminalserver.qwk.action_logout'              => 'Q) Log out',
 
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Terminal Settings',

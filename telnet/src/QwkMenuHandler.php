@@ -33,7 +33,7 @@ class QwkMenuHandler
     /**
      * Show the QWK menu and handle user interaction.
      */
-    public function show($conn, array &$state, string $session): void
+    public function show($conn, array &$state, string $session, bool $logoutOnQuit = false): bool
     {
         $locale = $state['locale'];
 
@@ -49,7 +49,7 @@ class QwkMenuHandler
                     TelnetUtils::ANSI_YELLOW
                 ));
                 $this->server->readKeyWithIdleCheck($conn, $state);
-                return;
+                return false;
             }
 
             $cols           = max(40, (int)($state['cols'] ?? 80));
@@ -136,17 +136,21 @@ class QwkMenuHandler
             }
             TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.qwk.action_list_conferences', 'C) List conferences', [], $locale));
             TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.qwk.action_change_format', 'F) Change format', [], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.qwk.action_quit', 'Q) Back', [], $locale));
+            $quitKey = $logoutOnQuit
+                ? 'ui.terminalserver.qwk.action_logout'
+                : 'ui.terminalserver.qwk.action_quit';
+            $quitFallback = $logoutOnQuit ? 'Q) Log out' : 'Q) Back';
+            TelnetUtils::writeLine($conn, $this->server->t($quitKey, $quitFallback, [], $locale));
             TelnetUtils::writeLine($conn, '');
 
             $choice = $this->server->prompt($conn, $state, '> ', true);
             if ($choice === null) {
-                return;
+                return false;
             }
             $choice = strtolower(trim($choice));
 
             if ($choice === 'q' || $choice === '') {
-                return;
+                return $logoutOnQuit;
             } elseif ($choice === 'd') {
                 $this->downloadPacket($conn, $state, $format);
             } elseif ($choice === 'u') {

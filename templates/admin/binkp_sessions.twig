@@ -109,7 +109,18 @@
     <!-- Sessions Table -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.recent_sessions', {}, locale, ['common']) }}</h6>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.recent_sessions', {}, locale, ['common']) }}</h6>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <label for="sessionsPerPage" class="form-label mb-0 small text-muted">{{ t('ui.admin.binkp_sessions.rows_per_page', {}, locale, ['common']) }}</label>
+                    <select class="form-select form-select-sm" id="sessionsPerPage" style="width: auto;">
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                    </select>
+                </div>
+            </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -134,6 +145,22 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                <div class="small text-muted" id="sessionsPaginationStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</div>
+                <nav aria-label="{{ t('ui.admin.binkp_sessions.pagination_aria', {}, locale, ['common']) }}">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item">
+                            <button type="button" class="page-link" id="sessionsPrevPage">{{ t('ui.common.previous', {}, locale, ['common']) }}</button>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link" id="sessionsPageIndicator">1 / 1</span>
+                        </li>
+                        <li class="page-item">
+                            <button type="button" class="page-link" id="sessionsNextPage">{{ t('ui.common.next', {}, locale, ['common']) }}</button>
+                        </li>
+                    </ul>
+                </nav>
             </div>
         </div>
     </div>
@@ -173,6 +200,7 @@ function uiT(key, fallback, params = {}) {
 
 document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        initSessionPagination();
         loadStats();
         loadSessions();
         initRealtime();
@@ -184,8 +212,76 @@ document.addEventListener('DOMContentLoaded', function() {
         loadSessions();
     });
 
-    document.getElementById('applyFilter').addEventListener('click', loadSessions);
+    document.getElementById('applyFilter').addEventListener('click', function() {
+        sessionsCurrentPage = 1;
+        loadSessions();
+    });
+    document.getElementById('sessionsPrevPage').addEventListener('click', function() {
+        if (sessionsCurrentPage > 1) {
+            sessionsCurrentPage--;
+            renderSessionsTable();
+        }
+    });
+    document.getElementById('sessionsNextPage').addEventListener('click', function() {
+        const totalPages = getSessionsTotalPages();
+        if (sessionsCurrentPage < totalPages) {
+            sessionsCurrentPage++;
+            renderSessionsTable();
+        }
+    });
+    document.getElementById('sessionsPerPage').addEventListener('change', function(event) {
+        const value = Number(event.target.value) || DEFAULT_SESSIONS_PER_PAGE;
+        sessionsPerPage = normalizeSessionsPerPage(value);
+        sessionsCurrentPage = 1;
+        persistSessionsPerPage();
+        renderSessionsTable();
+    });
 });
+
+const SESSIONS_PER_PAGE_KEY = 'admin.binkpSessions.perPage';
+const DEFAULT_SESSIONS_PER_PAGE = 25;
+const MAX_SESSION_FETCH = 250;
+const ALLOWED_SESSION_PAGE_SIZES = [25, 50, 100, 250];
+
+let allSessions = [];
+let sessionsCurrentPage = 1;
+let sessionsPerPage = DEFAULT_SESSIONS_PER_PAGE;
+
+function initSessionPagination() {
+    sessionsPerPage = loadStoredSessionsPerPage();
+    const select = document.getElementById('sessionsPerPage');
+    if (select) {
+        select.value = String(sessionsPerPage);
+    }
+}
+
+function normalizeSessionsPerPage(value) {
+    return ALLOWED_SESSION_PAGE_SIZES.includes(value) ? value : DEFAULT_SESSIONS_PER_PAGE;
+}
+
+function loadStoredSessionsPerPage() {
+    try {
+        const storedValue = window.localStorage ? window.localStorage.getItem(SESSIONS_PER_PAGE_KEY) : null;
+        return normalizeSessionsPerPage(Number(storedValue));
+    } catch (_) {
+        return DEFAULT_SESSIONS_PER_PAGE;
+    }
+}
+
+function persistSessionsPerPage() {
+    try {
+        if (window.localStorage) {
+            window.localStorage.setItem(SESSIONS_PER_PAGE_KEY, String(sessionsPerPage));
+        }
+    } catch (_) {}
+}
+
+function getSessionsTotalPages() {
+    if (!allSessions.length) {
+        return 1;
+    }
+    return Math.max(1, Math.ceil(allSessions.length / sessionsPerPage));
+}
 
 function loadStats() {
     fetch('/admin/api/binkp-sessions/stats?period=day')
@@ -208,7 +304,7 @@ function loadSessions() {
     const status = document.getElementById('filterStatus').value;
     const address = document.getElementById('filterAddress').value;
 
-    let url = '/admin/api/binkp-sessions?limit=100';
+    let url = `/admin/api/binkp-sessions?limit=${MAX_SESSION_FETCH}`;
     if (sessionType) url += `&session_type=${sessionType}`;
     if (status) url += `&status=${status}`;
     if (address) url += `&remote_address=${encodeURIComponent(address)}`;
@@ -216,39 +312,118 @@ function loadSessions() {
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            const tbody = document.getElementById('sessionsTableBody');
+            const previousFirstSessionId = allSessions.length > 0 ? allSessions[0].id : null;
+            allSessions = Array.isArray(data.sessions) ? data.sessions : [];
 
-            if (!data.sessions || data.sessions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">' + uiT('ui.admin.binkp_sessions.no_sessions_found', 'No sessions found') + '</td></tr>';
-                return;
+            if (previousFirstSessionId !== null && allSessions.length > 0 && allSessions[0].id !== previousFirstSessionId) {
+                sessionsCurrentPage = 1;
             }
 
-            tbody.innerHTML = data.sessions.map(session => `
-                <tr data-session-id="${session.id}">
-                    <td><small>${formatDate(session.started_at)}</small></td>
-                    <td><code>${escapeHtml(session.remote_address || uiT('ui.common.unknown', 'Unknown'))}</code></td>
-                    <td><small>${escapeHtml(session.remote_ip || '-')}</small></td>
-                    <td>
-                        <div><code>${escapeHtml(String(session.process_id || '-'))}</code></div>
-                        <small class="text-muted">${escapeHtml(session.log_file || '-')}</small>
-                    </td>
-                    <td>${getTypeBadge(session.session_type)}</td>
-                    <td>${session.is_inbound
-                        ? '<span class="badge bg-info"><i class="fas fa-arrow-down"></i> ' + uiT('ui.admin.binkp_sessions.in', 'In') + '</span>'
-                        : '<span class="badge bg-secondary"><i class="fas fa-arrow-up"></i> ' + uiT('ui.admin.binkp_sessions.out', 'Out') + '</span>'}</td>
-                    <td>${session.messages_received || 0}</td>
-                    <td>${session.messages_sent || 0}</td>
-                    <td>${getStatusBadge(session.status)}
-                        ${session.error_message ? `<br><small class="text-danger">${escapeHtml(session.error_message.substring(0, 50))}</small>` : ''}</td>
-                    <td>${session.duration_seconds ? formatDuration(session.duration_seconds) : '-'}</td>
-                </tr>
-            `).join('');
+            const totalPages = getSessionsTotalPages();
+            if (sessionsCurrentPage > totalPages) {
+                sessionsCurrentPage = totalPages;
+            }
+
+            renderSessionsTable();
         })
         .catch(error => {
             console.error(uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + ':', error);
-            document.getElementById('sessionsTableBody').innerHTML =
-                '<tr><td colspan="10" class="text-center text-danger">' + uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + '</td></tr>';
+            allSessions = [];
+            renderSessionsTable(true);
         });
+}
+
+function renderSessionsTable(hasError = false) {
+    const tbody = document.getElementById('sessionsTableBody');
+    const prevButton = document.getElementById('sessionsPrevPage');
+    const nextButton = document.getElementById('sessionsNextPage');
+    const pageIndicator = document.getElementById('sessionsPageIndicator');
+    const paginationStatus = document.getElementById('sessionsPaginationStatus');
+
+    if (!tbody || !prevButton || !nextButton || !pageIndicator || !paginationStatus) {
+        return;
+    }
+
+    if (hasError) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">' + uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + '</td></tr>';
+        paginationStatus.textContent = uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions');
+        pageIndicator.textContent = '1 / 1';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        setPaginationDisabledState(prevButton, true);
+        setPaginationDisabledState(nextButton, true);
+        return;
+    }
+
+    if (!allSessions.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">' + uiT('ui.admin.binkp_sessions.no_sessions_found', 'No sessions found') + '</td></tr>';
+        paginationStatus.textContent = uiT('ui.admin.binkp_sessions.page_status_empty', '0 sessions');
+        pageIndicator.textContent = '1 / 1';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        setPaginationDisabledState(prevButton, true);
+        setPaginationDisabledState(nextButton, true);
+        return;
+    }
+
+    const totalPages = getSessionsTotalPages();
+    const currentPage = Math.min(Math.max(1, sessionsCurrentPage), totalPages);
+    sessionsCurrentPage = currentPage;
+
+    const startIndex = (currentPage - 1) * sessionsPerPage;
+    const endIndex = Math.min(startIndex + sessionsPerPage, allSessions.length);
+    const pageSessions = allSessions.slice(startIndex, endIndex);
+
+    tbody.innerHTML = pageSessions.map(session => `
+        <tr data-session-id="${session.id}">
+            <td><small>${formatLocalizedDateTime(session.started_at)}</small></td>
+            <td><code>${escapeHtml(session.remote_address || uiT('ui.common.unknown', 'Unknown'))}</code></td>
+            <td><small>${escapeHtml(session.remote_ip || '-')}</small></td>
+            <td>
+                <div><code>${escapeHtml(String(session.process_id || '-'))}</code></div>
+                <small class="text-muted">${escapeHtml(session.log_file || '-')}</small>
+            </td>
+            <td>${getTypeBadge(session.session_type)}</td>
+            <td>${session.is_inbound
+                ? '<span class="badge bg-info"><i class="fas fa-arrow-down"></i> ' + uiT('ui.admin.binkp_sessions.in', 'In') + '</span>'
+                : '<span class="badge bg-secondary"><i class="fas fa-arrow-up"></i> ' + uiT('ui.admin.binkp_sessions.out', 'Out') + '</span>'}</td>
+            <td>${session.messages_received || 0}</td>
+            <td>${session.messages_sent || 0}</td>
+            <td>${getStatusBadge(session.status)}
+                ${session.error_message ? `<br><small class="text-danger">${escapeHtml(session.error_message.substring(0, 50))}</small>` : ''}</td>
+            <td>${session.duration_seconds ? formatDuration(session.duration_seconds) : '-'}</td>
+        </tr>
+    `).join('');
+
+    paginationStatus.textContent = uiT(
+        'ui.admin.binkp_sessions.page_status',
+        'Showing {start}-{end} of {total}',
+        {
+            start: startIndex + 1,
+            end: endIndex,
+            total: allSessions.length
+        }
+    );
+    pageIndicator.textContent = uiT(
+        'ui.admin.binkp_sessions.page_indicator',
+        'Page {page} of {pages}',
+        {
+            page: currentPage,
+            pages: totalPages
+        }
+    );
+    prevButton.disabled = currentPage <= 1;
+    nextButton.disabled = currentPage >= totalPages;
+    setPaginationDisabledState(prevButton, currentPage <= 1);
+    setPaginationDisabledState(nextButton, currentPage >= totalPages);
+}
+
+function setPaginationDisabledState(button, disabled) {
+    const item = button ? button.closest('.page-item') : null;
+    if (!item) {
+        return;
+    }
+    item.classList.toggle('disabled', disabled);
 }
 
 let binkpSessionRefreshTimer = null;
@@ -363,8 +538,49 @@ function getStatusBadge(status) {
 }
 
 function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleString();
+    return formatLocalizedDateTime(dateStr);
+}
+
+function normalizeServerDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') {
+        return null;
+    }
+
+    let normalized = dateStr.trim().replace(' ', 'T');
+    normalized = normalized.replace(/([+-]\d{2})$/, '$1:00');
+    normalized = normalized.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+    return normalized;
+}
+
+function formatLocalizedDateTime(dateStr) {
+    const parser = typeof window.parseAppDate === 'function'
+        ? window.parseAppDate
+        : function(value) {
+            const normalized = normalizeServerDate(value);
+            if (!normalized) {
+                return null;
+            }
+            const parsed = new Date(normalized);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+
+    const date = parser(dateStr);
+    if (!date) {
+        return '-';
+    }
+
+    const userTimezone = window.userSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const userDateFormat = window.userSettings?.date_format || undefined;
+
+    return date.toLocaleString(userDateFormat, {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+    });
 }
 
 function formatDuration(seconds) {

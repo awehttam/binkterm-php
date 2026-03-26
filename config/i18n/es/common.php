@@ -652,7 +652,9 @@ return [
     'ui.admin.binkp_config.uplinks.modal.filefix_password' => 'Contrasena FileFix',
     'ui.admin.binkp_config.uplinks.modal.filefix_password_help' => 'Contrasena para el robot FileFix de este uplink (gestion de suscripciones file echo)',
     'ui.admin.binkp_config.uplinks.modal.poll_schedule' => 'Horario de sondeo',
+    'ui.admin.binkp_config.uplinks.modal.poll_schedule_help' => 'Mantenga el sondeo poco frecuente. Use al menos 1 hora, o al menos 4 horas para hubs que nos hacen crash mail. Cuando un uplink nos envia crash mail, empuja el correo de inmediato, por lo que el sondeo es principalmente un mecanismo de recuperacion por si algo falla.',
     'ui.admin.binkp_config.uplinks.modal.networks_one_per_line' => 'Redes (una por linea)',
+    'ui.admin.binkp_config.uplinks.modal.feature_flags' => 'Indicadores de funciones',
     'ui.admin.binkp_config.uplinks.modal.allow_markup' => 'Permitir marcado',
     'ui.admin.binkp_config.uplinks.modal.allow_markup_help' => 'Habilita soporte de marcado (Markdown, StyleCodes, etc.) en redes compatibles',
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Politica de nombre de publicacion',
@@ -1143,6 +1145,11 @@ return [
     'ui.admin.binkp_sessions.log_unavailable' => 'No se registró ningún PID para esta sesión.',
     'ui.admin.binkp_sessions.no_log_lines' => 'No se encontraron líneas de registro para esta sesión.',
     'ui.admin.binkp_sessions.log_load_failed' => 'No se pudo cargar el registro de la sesión',
+    'ui.admin.binkp_sessions.rows_per_page' => 'Filas por página',
+    'ui.admin.binkp_sessions.pagination_aria' => 'Paginación de sesiones Binkp',
+    'ui.admin.binkp_sessions.page_status' => 'Mostrando {start}-{end} de {total}',
+    'ui.admin.binkp_sessions.page_indicator' => 'Página {page} de {pages}',
+    'ui.admin.binkp_sessions.page_status_empty' => '0 sesiones',
 
     // Admin Polls
     'ui.admin.polls.load_failed' => 'Error al cargar encuestas',

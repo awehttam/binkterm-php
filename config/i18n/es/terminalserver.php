@@ -10,8 +10,10 @@ return [
     'ui.terminalserver.server.login_menu.prompt'       => '¿Qué desea hacer?',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Iniciar sesión en cuenta existente',
     'ui.terminalserver.server.login_menu.register'     => '  (R) Registrar nueva cuenta',
+    'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) Transferencia QWK',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Salir',
     'ui.terminalserver.server.login_menu.choice'       => 'Su elección: ',
+    'ui.terminalserver.server.login_menu.invalid_choice' => 'Selección no válida.',
     'ui.terminalserver.server.goodbye'                 => '¡Adiós!',
     'ui.terminalserver.server.press_enter_disconnect'  => 'Presione Enter para desconectarse.',
 
@@ -68,6 +70,7 @@ return [
 
     // --- Farewell ---
     'ui.terminalserver.server.farewell'                => '¡Gracias por visitarnos, que tenga un excelente día!',
+    'ui.terminalserver.qwk.action_logout'              => 'Q) Cerrar sesión',
     'ui.terminalserver.server.visit_web'               => 'Vuelva a visitarnos en la web en {url}',
 
     // --- Who's Online ---
