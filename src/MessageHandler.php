@@ -3217,6 +3217,7 @@ class MessageHandler
             $userStmt = $this->db->prepare("
                 INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active, referral_code, referred_by)
                 VALUES (?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
+                RETURNING id
             ");
 
             $userStmt->execute([
@@ -3228,8 +3229,11 @@ class MessageHandler
                 $referralCode,
                 $pendingUser['referrer_id'] ?? null
             ]);
-
-            $newUserId = $this->db->lastInsertId();
+            $insertedUser = $userStmt->fetch(\PDO::FETCH_ASSOC);
+            $newUserId = $insertedUser ? (int)$insertedUser['id'] : 0;
+            if ($newUserId <= 0) {
+                throw new \RuntimeException('Failed to create user account');
+            }
             
             // Create default user settings
             $settingsStmt = $this->db->prepare("
@@ -6170,6 +6174,7 @@ class MessageHandler
                 $stmt = $this->db->prepare("
                     INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
+                    RETURNING id
                 ");
 
                 $stmt->execute([
@@ -6182,8 +6187,8 @@ class MessageHandler
                     $draftData['message_text'] ?? null,
                     $draftData['reply_to_id'] ?? null
                 ]);
-
-                $draftId = $this->db->lastInsertId();
+                $insertedDraft = $stmt->fetch(\PDO::FETCH_ASSOC);
+                $draftId = $insertedDraft ? (int)$insertedDraft['id'] : 0;
                 return ['success' => true, 'draft_id' => $draftId, 'created' => true];
             }
         } catch (\Exception $e) {
