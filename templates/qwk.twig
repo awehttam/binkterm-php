@@ -704,11 +704,16 @@ async function doDownload() {
             throw new Error('Server error ' + resp.status);
         }
 
-        // Derive filename from Content-Disposition or fall back to format-based default.
-        let filename = currentDownloadFormat === 'qwke' ? 'mail.qwk' : 'mail.qwk';
+        // Derive filename from Content-Disposition or fall back to a sane default.
+        let filename = 'mail.qwk';
         const disposition = resp.headers.get('Content-Disposition') || '';
-        const match = disposition.match(/filename[^;=\n]*=(['"]?)([^'";\n]+)\1/i);
-        if (match) filename = match[2].trim();
+        const utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;\n]+)/i);
+        const plainMatch = disposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;\n]+))/i);
+        if (utf8Match && utf8Match[1]) {
+            filename = decodeURIComponent(utf8Match[1].trim());
+        } else if (plainMatch) {
+            filename = (plainMatch[1] || plainMatch[2] || filename).trim();
+        }
 
         const blob = await resp.blob();
         const url  = URL.createObjectURL(blob);
