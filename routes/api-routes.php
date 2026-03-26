@@ -5278,27 +5278,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
             $db->commit();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
+            error_log('[echomail bulk read] Failed to persist read status: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.echomail.bulk_read.failed', apiLocalizedText('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read', $user));
             return;
         }
 
-        // Notify other tabs of the same user via BinkStream
-        $evtStmt = $db->prepare("
-            INSERT INTO sse_events (event_type, payload, user_id, admin_only)
-            VALUES ('message_read', :payload, :user_id, FALSE)
-            RETURNING id
-        ");
-        $evtStmt->execute([
-            ':payload'  => json_encode(['message_ids' => array_map('intval', $messageIds), 'message_type' => 'echomail']),
-            ':user_id'  => $userId,
-        ]);
-        $evtId = $evtStmt->fetchColumn();
-        $db->exec("SELECT pg_notify('binkstream', " . (int)$evtId . ")");
+        try {
+            // Notify other tabs of the same user via BinkStream.
+            // Notification delivery is best-effort and should not fail the read action.
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'message_ids' => array_map('intval', $messageIds),
+                'message_type' => 'echomail',
+            ], $userId);
+        } catch (\Throwable $e) {
+            error_log('[echomail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+        }
 
         echo json_encode([
             'success' => true,
@@ -6726,31 +6725,31 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
 
             $result = $stmt->execute([$userId, (int)$id, $type]);
-
-            if ($result) {
-                // Notify other tabs of the same user via BinkStream
-                $evtStmt = $db->prepare("
-                    INSERT INTO sse_events (event_type, payload, user_id, admin_only)
-                    VALUES ('message_read', :payload, :user_id, FALSE)
-                    RETURNING id
-                ");
-                $evtStmt->execute([
-                    ':payload'  => json_encode(['message_ids' => [(int)$id], 'message_type' => $type]),
-                    ':user_id'  => (int)$userId,
-                ]);
-                $evtId = $evtStmt->fetchColumn();
-                $db->exec("SELECT pg_notify('binkstream', " . (int)$evtId . ")");
-
-                echo json_encode(['success' => true]);
-            } else {
-                http_response_code(500);
-                apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
-            }
-
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            error_log('[message read] Failed to persist read status for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
+            return;
         }
+
+        if (!$result) {
+            http_response_code(500);
+            apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
+            return;
+        }
+
+        try {
+            // Notify other tabs of the same user via BinkStream.
+            // Notification delivery is best-effort and should not fail the read action.
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'message_ids' => [(int)$id],
+                'message_type' => $type,
+            ], (int)$userId);
+        } catch (\Throwable $e) {
+            error_log('[message read] SSE notification failed after read status persisted for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
+        }
+
+        echo json_encode(['success' => true]);
     });
 
     // Save message for later viewing

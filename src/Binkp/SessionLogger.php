@@ -288,18 +288,7 @@ class SessionLogger
         }
 
         try {
-            $stmt = $this->db->prepare("
-                INSERT INTO sse_events (event_type, payload, user_id, admin_only)
-                VALUES ('binkp_session', ?::jsonb, NULL, TRUE)
-                RETURNING id
-            ");
-            $stmt->execute([
-                json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            ]);
-            $eventId = (int)$stmt->fetchColumn();
-            if ($eventId > 0) {
-                $this->db->exec("SELECT pg_notify('binkstream', " . $eventId . ")");
-            }
+            \BinktermPHP\Realtime\BinkStream::emit($this->db, 'binkp_session', $payload, null, true);
             $this->lastRealtimeEmitAt = $now;
         } catch (\Throwable $e) {
             // Realtime delivery is best-effort only; never break a session write.

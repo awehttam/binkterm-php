@@ -595,19 +595,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $seq      = (int)($input['seq'] ?? 0);
         $serverTs = (int)round(microtime(true) * 1000);
 
-        $db   = \BinktermPHP\Database::getInstance()->getPdo();
-        $stmt = $db->prepare("
-            INSERT INTO sse_events (event_type, payload, user_id)
-            VALUES ('sse_test', :payload, :user_id)
-            RETURNING id
-        ");
-        $stmt->execute([
-            ':payload' => json_encode(['seq' => $seq, 'server_ts' => $serverTs]),
-            ':user_id' => $userId,
-        ]);
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $eventId = \BinktermPHP\Realtime\BinkStream::emit($db, 'sse_test', [
+            'seq' => $seq,
+            'server_ts' => $serverTs,
+        ], $userId);
 
-        echo json_encode(['ok' => true, 'seq' => $seq, 'server_ts' => $serverTs, 'sse_id' => (int)$row['id']]);
+        echo json_encode(['ok' => true, 'seq' => $seq, 'server_ts' => $serverTs, 'sse_id' => (int)$eventId]);
     });
 
     // Buffering diagnostics page

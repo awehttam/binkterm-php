@@ -76,7 +76,14 @@ class Logger
         }
         
         if ($this->logFile) {
-            file_put_contents($this->logFile, $logMessage . "\n", FILE_APPEND | LOCK_EX);
+            try {
+                $result = file_put_contents($this->logFile, $logMessage . "\n", FILE_APPEND | LOCK_EX);
+                if ($result === false) {
+                    error_log('LOG FALLBACK: ' . $logMessage);
+                }
+            } catch (\Throwable $e) {
+                error_log('LOG FALLBACK: ' . $logMessage . ' [write failed: ' . $e->getMessage() . ']');
+            }
         }
     }
     
