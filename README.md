@@ -841,7 +841,7 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 0 * * * * /usr/bin/php /path/to/binktest/scripts/send_echomail_digest.php
 
 # Rotate logs weekly
-0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
+0 0 * * 0 /usr/bin/php /path/to/binktest/scripts/logrotate.php
 
 # For passive nodes with no binkp_scheduler or binkp_server running (passive node/no incoming connections)
 # */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
