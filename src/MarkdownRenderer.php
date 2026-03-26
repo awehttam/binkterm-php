@@ -144,7 +144,7 @@ class MarkdownRenderer
             }
 
             // --- Unordered list (supports nested indented sub-lists) ---
-            if (preg_match('/^(\s*)[-*]\s*(.*)$/', $line, $m)) {
+            if (preg_match('/^(\s*)[-*]\s+(.*)$/', $line, $m)) {
                 $output[] = self::parseUnorderedList($lines, $i, $total, strlen($m[1]), $allowHtml);
                 continue;
             }
@@ -410,7 +410,7 @@ class MarkdownRenderer
         $items = [];
 
         while ($i < $total) {
-            if (!preg_match('/^(\s*)[-*]\s*(.*)$/', $lines[$i], $itemMatch)) {
+            if (!preg_match('/^(\s*)[-*]\s+(.*)$/', $lines[$i], $itemMatch)) {
                 break;
             }
 
@@ -433,7 +433,7 @@ class MarkdownRenderer
                     break;
                 }
 
-                if (preg_match('/^(\s*)[-*]\s*(.*)$/', $current, $nestedMatch)) {
+                if (preg_match('/^(\s*)[-*]\s+(.*)$/', $current, $nestedMatch)) {
                     $nestedIndent = strlen($nestedMatch[1]);
                     if ($nestedIndent > $baseIndent) {
                         $itemInner .= self::parseUnorderedList($lines, $i, $total, $nestedIndent, $allowHtml);

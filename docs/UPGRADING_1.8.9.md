@@ -108,17 +108,21 @@ Version 1.8.9 is a broad feature release touching nearly every part of the syste
 
 The headline addition is the **Interests** system — a way for admins to bundle related echo areas and file areas into named topic groups that users can subscribe to in one step. A card-based interest picker guides new users through onboarding, and the echomail reader gains an Interests tab and area list filter so readers can stay focused on what they care about.
 
-**Real-time delivery (BinkStream)** sees its most significant expansion yet. Unread badge counts for echomail, netmail, files, and the new file approval queue are now pushed from the server the moment something changes, driven by PostgreSQL triggers — replacing the last remaining client-side polls. Message-list views update silently in the background without showing a loading spinner, and marking a message as read in one browser tab is immediately reflected in every other open tab via a user-targeted event.
+**Real-time delivery (BinkStream)** is introduced in this release. A SharedWorker owns one persistent transport connection per logged-in user, shared across all open browser tabs, using WebSocket where available and SSE as a fallback. Unread badge counts for echomail, netmail, files, and the file approval queue are pushed from the server the moment something changes — driven by PostgreSQL triggers — eliminating client-side polling for these counts entirely. Message-list views refresh silently in the background without showing a loading spinner, and marking a message as read in one browser tab is immediately reflected in every other open tab. The realtime server is now a core daemon listed alongside the BinkP server in startup documentation and the admin dashboard.
 
-**File areas** gain a proper upload approval workflow. Non-admin uploads land in a pending queue that sysops can review, scan, and approve or reject from a dedicated admin page. Admins see a live notification badge on the Files menu the moment a new upload is waiting, and the badge persists its seen state across page loads. The Files nav item for admins becomes a dropdown that surfaces the File Approvals queue alongside the regular file browser.
+**File areas** gain a proper upload approval workflow. Non-admin uploads land in a pending queue that sysops can review, scan, approve, or reject from a dedicated admin page. Admins see a live notification badge on the Files menu the moment a new upload is waiting, and the badge persists its seen state across page loads. The Files nav item for admins becomes a dropdown that surfaces the File Approvals queue alongside the regular file browser.
 
 **Messaging** improvements include a right-click context menu on echomail and netmail list rows (with long-press support on touch devices), a Show Entire Conversation mode, a Raw Source viewer mode for inspecting wire content, and a compose-time warning when a message approaches the FidoNet 16 KB limit. QWK offline mail adds HTTP Basic Auth endpoints for scripted access, and users can now choose exactly which echo areas go into their QWK packets.
+
+**BinkP configuration** gains several operational improvements. A visual schedule builder simplifies writing cron expressions for poll schedules. Each uplink on the BinkP page has an on-demand connectivity check button that runs a lightweight auth-only probe. Packet filenames in the inbound and outbound queues are now clickable, opening the same packet inspector available on the Kept Packets tab. The scheduler now respects each uplink's configured poll schedule when deciding whether to poll on outbound activity, preventing unnecessary connections to the upstream hub. Session logging is expanded to cover normal inbound and outbound sessions in addition to crash mail, making the BinkP Sessions page and dashboard widgets useful for day-to-day monitoring.
+
+The **Telnet/SSH BBS server** gains several features tied to this release's major additions. When Interests are enabled, a new Interests menu lets BBS users browse and subscribe from the terminal. The QWK Offline Mail menu now supports full ZMODEM file transfer for both download and upload alongside the existing HTTP download URL. The echomail area picker gains an option to filter areas by Interest.
 
 The **AreaFix / FileFix Manager** is a new admin tool for managing echo area subscriptions with the upstream hub's robots — sending commands and reviewing replies — all without touching a mail client.
 
 For AI-curious sysops, an optional **MCP Server** exposes echomail to AI assistants such as Claude via the Model Context Protocol, with per-user bearer keys and the same access controls as the web interface. A new abstracted **AI Provider Layer** backs the Interests suggestion wizard and area classifier, supporting both Anthropic and OpenAI.
 
-Rounding out the release: a tabbed User Settings layout, notification sound previews, ad click-through tracking and analytics, a campaign clone action in the Broadcast Manager, and a handful of bug fixes including a pipe code false-positive that was rendering English words with green backgrounds.
+Rounding out the release: a tabbed User Settings layout, notification sound previews, admin dashboard improvements including a live Active BinkP Sessions card and a redesigned Today's Callers table, ad click-through tracking and analytics, a campaign clone action in the Broadcast Manager, and miscellaneous bug fixes and improvements including a pipe code false-positive that was rendering English words with green backgrounds.
 
 ---
 
@@ -177,7 +181,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **BinkP Configuration**
 - Poll schedule inputs now have a **schedule builder** that breaks a cron expression into editable fields with a human-readable description.
-- The BinkP status page performs one live authentication check per enabled uplink on load rather than running on a timer.
+- The BinkP status page includes options to check uplinks for connectivity status.
 - Packet filenames in the queue lists are now clickable and open the packet inspector modal.
 - Uplinks have a new **Allow insecure echomail delivery** option for legacy nodes that cannot authenticate. ⚠️ Not recommended — use only as a last resort.
 - The **BinkP Session Log** now records normal outbound poll sessions and inbound server sessions, not just crash mail activity.
@@ -418,17 +422,7 @@ Clicking the button again collapses the panel. No changes to the data model or A
 
 ### Status Page Uplink Checks
 
-The BinkP status page (`/binkp`) now renders its uplink list immediately and then performs one status probe per uplink in the background instead of blocking page load on a single aggregate status request.
-
-These probes are now authentication-only checks. They stop after the BinkP handshake succeeds and do not proceed into file transfer or packet download processing.
-
-Additional behavior changes:
-
-- Only enabled uplinks with a configured FTN address are queried.
-- Disabled uplinks show **Disabled** immediately and are not probed.
-- Uplink entries without an address show **Not configured** and are not probed.
-- While an auth probe is running, the UI now shows **Checking...** with a spinner.
-- The page does not re-run these checks on a timer; they run once when the page is loaded or when the user manually refreshes the BinkP overview.
+Each uplink on the BinkP status page (`/binkp`) now has a button to trigger an on-demand connectivity check. The check is an authentication-only probe — it stops after the BinkP handshake succeeds and does not proceed into file transfer or packet download processing.
 
 ### Queue Packet Viewer
 

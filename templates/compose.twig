@@ -895,8 +895,9 @@ function initMarkdownEditor() {
         width: '100%',
         height: editorHeight + 'px',
         resize: 'none',
-        boxSizing: 'border-box'
-    });
+        boxSizing: 'border-box',
+        overflowX: 'auto'
+    }).attr('wrap', 'off');
     $('#mdPreviewPane').css({
         display: 'none',  // mdSetMode('edit') will manage visibility
         width: '100%',
@@ -971,8 +972,8 @@ function destroyMarkdownEditor() {
     // Sync content back to the plain textarea
     $('#messageText').val($('#mdEditorText').val());
 
-    // Remove event handlers
-    $('#mdEditorText').off('input.md keydown.md');
+    // Remove event handlers and restore wrapping
+    $('#mdEditorText').off('input.md keydown.md').removeAttr('wrap').css('overflowX', '');
 
     // Reset to edit mode for next time
     mdSetMode('edit');
