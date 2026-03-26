@@ -581,7 +581,19 @@ let markdownSupportTimer = null;
         abActiveIndex = newIndex;
     }
 
+    // Synthetic entry for the local sysop — matched when the user types "sysop".
+    // No node address is set so the message stays local (no FTN routing).
+    {% if system_sysop %}
+    const SYSOP_ENTRY = { name: {{ system_sysop|json_encode|raw }}, node_address: '', node_domain: '', node_system_name: '', always_crashmail: false, messaging_user_id: {{ system_sysop|json_encode|raw }} };
+    {% else %}
+    const SYSOP_ENTRY = null;
+    {% endif %}
+
     function doSearch(q) {
+        if (SYSOP_ENTRY && q.toLowerCase() === 'sysop') {
+            renderResults([SYSOP_ENTRY]);
+            return;
+        }
         const dd = getDropdown();
         if (dd) {
             dd.innerHTML = '<span class="dropdown-item-text text-muted small px-3 py-2"><i class="fas fa-spinner fa-spin me-1"></i>' +

@@ -1203,10 +1203,12 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
         $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
+        $sysopName = $binkpConfig->getSystemSysop();
     } catch (\Exception $e) {
         $systemName = webLocalizedText('ui.web.fallback.system_name', 'BinktermPHP System', $user);
         $systemAddress = webLocalizedText('ui.common.not_configured', 'Not configured', $user);
         $crashmailEnabled = false;
+        $sysopName = '';
     }
 
     // Get credit costs for display
@@ -1240,6 +1242,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'user_name' => $user['real_name'] ?: $user['username'],
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
+        'system_sysop' => $sysopName,
         'crashmail_enabled' => $crashmailEnabled,
         'netmail_cost' => $netmailCost,
         'crashmail_cost' => $crashmailCost,
