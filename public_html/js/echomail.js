@@ -81,7 +81,6 @@ $(document).ready(function() {
             });
         }
     });
-    loadStats();
 
     // Initialize history state
     if (!history.state) {
