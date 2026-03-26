@@ -266,7 +266,7 @@ return [
     'errors.binkp.logs.search_query_too_short' => 'Search query must be at least 2 characters',
     'errors.binkp.kept_packets.failed' => 'Failed to load kept packets',
     'errors.binkp.kept_packets.invalid_type' => 'type must be inbound or outbound',
-    'errors.binkp.kept_packets.license_required' => 'Viewing kept packets requires a registered license',
+    'errors.binkp.kept_packets.license_required' => 'Viewing packet files requires registration',
     'errors.binkp.kept_packets.inspect_failed' => 'Failed to inspect packet',
     'errors.binkp.queue.inspect_failed' => 'Failed to inspect queue packet',
     'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',

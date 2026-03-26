@@ -7869,7 +7869,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         if (!\BinktermPHP\License::isValid()) {
-            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
             return;
         }
 
@@ -7893,7 +7893,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         if (!\BinktermPHP\License::isValid()) {
-            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
             return;
         }
 
@@ -7983,7 +7983,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         if (!\BinktermPHP\License::isValid()) {
-            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
             return;
         }
 

@@ -355,7 +355,7 @@ class BinkpController
             return [
                 'success'    => false,
                 'error_code' => 'errors.binkp.kept_packets.license_required',
-                'error'      => 'Viewing kept packets requires a registered license',
+                'error'      => 'Viewing packet files requires registration',
             ];
         }
 
@@ -455,7 +455,7 @@ class BinkpController
             return [
                 'success'    => false,
                 'error_code' => 'errors.binkp.kept_packets.license_required',
-                'error'      => 'Viewing kept packets requires a registered license',
+                'error'      => 'Viewing packet files requires registration',
             ];
         }
 
