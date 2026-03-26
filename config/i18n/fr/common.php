@@ -4052,4 +4052,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.terminalserver.qwk.format_unchanged'         => 'Format inchange.',
     'ui.terminalserver.qwk.format_saved'             => 'Format change en {format}.',
     'ui.terminalserver.qwk.format_failed'            => 'Echec du changement de format.',
+    'ui.admin.dashboard.load_average'                => 'Charge moyenne :',
+    'ui.admin.dashboard.ram_usage'                   => 'Utilisation RAM :',
+    'ui.admin.dashboard.metric_unavailable'          => 'Indisponible',
+    'ui.admin.dashboard.ram_usage_modal_title'       => 'Details de l\'utilisation RAM',
+    'ui.admin.dashboard.ram_usage_modal_failed'      => 'Impossible de charger les details de l\'utilisation RAM.',
 ];

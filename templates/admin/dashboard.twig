@@ -216,6 +216,32 @@
                             {{ stats.active_sessions }}
                         </div>
                     </div>
+                    {% if stats.system_metrics_supported %}
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>{{ t('ui.admin.dashboard.load_average', {}, locale, ['common']) }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="text-muted">{{ stats.load_average ?? t('ui.admin.dashboard.metric_unavailable', {}, locale, ['common']) }}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>{{ t('ui.admin.dashboard.ram_usage', {}, locale, ['common']) }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {% if stats.ram_usage %}
+                                <button type="button" class="btn btn-link p-0 align-baseline ram-usage-link" data-bs-toggle="modal" data-bs-target="#ramUsageModal">
+                                    {{ stats.ram_usage }}
+                                </button>
+                            {% else %}
+                                <span class="text-muted">{{ t('ui.admin.dashboard.metric_unavailable', {}, locale, ['common']) }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
@@ -373,6 +399,23 @@
 
 </div>
 
+<div class="modal fade" id="ramUsageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.dashboard.ram_usage_modal_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="ramUsageOutput" class="mb-0 small">{{ t('ui.common.loading', {}, locale, ['common']) }}</pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .border-left-primary {
     border-left: 0.25rem solid #4e73df !important;
@@ -413,6 +456,20 @@
     font-size: 0.9em;
     line-height: 1.3;
 }
+
+.ram-usage-link {
+    text-decoration: none;
+}
+
+.ram-usage-link:hover,
+.ram-usage-link:focus {
+    text-decoration: underline;
+}
+
+#ramUsageOutput {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
 </style>
 {% endblock %}
 {% block scripts %}
@@ -443,6 +500,42 @@
     } else {
         init();
     }
+})();
+</script>
+<script>
+(function () {
+    var modalEl = document.getElementById('ramUsageModal');
+    var outputEl = document.getElementById('ramUsageOutput');
+
+    if (!modalEl || !outputEl) {
+        return;
+    }
+
+    function uiT(key, fallback) {
+        if (typeof window.t === 'function') {
+            return window.t(key, {}, fallback);
+        }
+        return fallback;
+    }
+
+    modalEl.addEventListener('show.bs.modal', function () {
+        outputEl.textContent = uiT('ui.common.loading', 'Loading...');
+        fetch('/admin/api/ram-usage')
+            .then(function (response) {
+                return response.json().then(function (body) {
+                    if (!response.ok || body.success === false) {
+                        throw body;
+                    }
+                    return body;
+                });
+            })
+            .then(function (body) {
+                outputEl.textContent = body.output || uiT('ui.admin.dashboard.metric_unavailable', 'Unavailable');
+            })
+            .catch(function (error) {
+                outputEl.textContent = (error && error.error) || uiT('ui.admin.dashboard.ram_usage_modal_failed', 'Failed to load RAM usage details.');
+            });
+    });
 })();
 </script>
 <script>

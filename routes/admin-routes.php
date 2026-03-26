@@ -176,6 +176,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         echo json_encode(['html' => $html]);
     });
 
+    SimpleRouter::get('/api/ram-usage', function() {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $adminController = new AdminController();
+        $output = $adminController->getRamUsageDetails();
+        if ($output === null) {
+            http_response_code(404);
+            apiError(
+                'errors.admin.dashboard.ram_usage_unavailable',
+                apiLocalizedText('errors.admin.dashboard.ram_usage_unavailable', 'RAM usage details are not available on this system.', $user)
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'output' => $output,
+        ]);
+    });
+
     // License API — GET: current status
     SimpleRouter::get('/api/license', function() {
         RouteHelper::requireAdmin();

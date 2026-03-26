@@ -549,4 +549,5 @@ return [
 
     // Ads - content command validation
     'errors.admin.ads.invalid_content_command' => 'La commande de contenu sélectionnée n\'est pas autorisée.',
+    'errors.admin.dashboard.ram_usage_unavailable' => 'Les details d\'utilisation RAM ne sont pas disponibles sur ce systeme.',
 ];

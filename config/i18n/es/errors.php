@@ -333,6 +333,7 @@ return [
     'errors.admin.appearance.markdown_preview.failed' => 'No se pudo renderizar la vista previa de markdown',
     'errors.admin.appearance.splash.license_required' => 'Se requiere una licencia valida para configurar las paginas de inicio',
     'errors.admin.appearance.splash.save_failed' => 'No se pudo guardar la configuracion de las paginas de inicio',
+    'errors.admin.dashboard.ram_usage_unavailable' => 'Los detalles del uso de RAM no estan disponibles en este sistema.',
     'errors.admin.shell_art.list_failed' => 'No se pudo listar los archivos de arte de shell',
     'errors.admin.shell_art.upload.no_file' => 'No se subio ningun archivo de arte de shell',
     'errors.admin.shell_art.upload.upload_error' => 'La carga del arte de shell fallo',

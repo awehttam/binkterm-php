@@ -298,7 +298,7 @@ class AdminController
         $stats['echomail_posted'] = $stmt->fetch()['count'];
         
         // Session stats
-        $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM sessions WHERE user_id = ?");
+        $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM user_sessions WHERE user_id = ? AND expires_at > NOW()");
         $stmt->execute([$userId]);
         $stats['active_sessions'] = $stmt->fetch()['count'];
         
@@ -320,9 +320,77 @@ class AdminController
         }
         $stats['total_netmail'] = $this->db->query("SELECT COUNT(*) as count FROM netmail")->fetch()['count'];
         $stats['total_echomail'] = $this->db->query("SELECT COUNT(*) as count FROM echomail")->fetch()['count'];
-        $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM sessions WHERE expires_at > NOW()")->fetch()['count'];
+        $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM user_sessions WHERE expires_at > NOW()")->fetch()['count'];
+        $stats['system_metrics_supported'] = PHP_OS_FAMILY !== 'Windows';
+        $stats['load_average'] = $this->getLoadAverageSummary();
+        $stats['ram_usage'] = $this->getRamUsageSummary();
         
         return $stats;
+    }
+
+    public function getRamUsageDetails(): ?string
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return null;
+        }
+
+        $scriptPath = realpath(__DIR__ . '/../scripts/ram_usage.sh');
+        if ($scriptPath === false || !is_file($scriptPath)) {
+            return null;
+        }
+
+        $output = @shell_exec('bash ' . escapeshellarg($scriptPath) . ' 2>&1');
+        if (!is_string($output)) {
+            return null;
+        }
+
+        $output = trim($output);
+        return $output !== '' ? $output : null;
+    }
+
+    private function getLoadAverageSummary(): ?string
+    {
+        if (PHP_OS_FAMILY === 'Windows' || !function_exists('sys_getloadavg')) {
+            return null;
+        }
+
+        $loads = @sys_getloadavg();
+        if (!is_array($loads) || count($loads) < 3) {
+            return null;
+        }
+
+        return implode(', ', array_map(static function($value): string {
+            return number_format((float)$value, 2, '.', '');
+        }, array_slice($loads, 0, 3)));
+    }
+
+    private function getRamUsageSummary(): ?string
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return null;
+        }
+
+        $scriptPath = realpath(__DIR__ . '/../scripts/ram_usage.sh');
+        if ($scriptPath === false || !is_file($scriptPath)) {
+            return null;
+        }
+
+        $output = @shell_exec('bash ' . escapeshellarg($scriptPath) . ' --json 2>&1');
+        if (!is_string($output) || trim($output) === '') {
+            return null;
+        }
+
+        $data = json_decode($output, true);
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $totalMb = isset($data['total_rss_mb']) ? (float)$data['total_rss_mb'] : null;
+        if ($totalMb === null) {
+            return null;
+        }
+
+        return number_format($totalMb, 1, '.', '') . ' MB';
     }
 
     public function getEconomyStats(string $period = '30d'): array
