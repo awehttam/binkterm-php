@@ -35,6 +35,7 @@
   - [Scheduler](#scheduler)
   - [Insecure Session Enhancements](#insecure-session-enhancements)
   - [BinkP Session Log Coverage](#binkp-session-log-coverage)
+  - [BinkP Session Log Details and Log Viewer](#binkp-session-log-details-and-log-viewer)
   - [BinkP Session Log Retention](#binkp-session-log-retention)
 - [Echomail MCP Server](#echomail-mcp-server)
   - [Per-User Bearer Keys](#per-user-bearer-keys)
@@ -180,6 +181,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Packet filenames in the queue lists are now clickable and open the packet inspector modal.
 - Uplinks have a new **Allow insecure echomail delivery** option for legacy nodes that cannot authenticate. ⚠️ Not recommended — use only as a last resort.
 - The **BinkP Session Log** now records normal outbound poll sessions and inbound server sessions, not just crash mail activity.
+- BinkP session records now include the handling process ID and log filename basename, and the admin sessions table can open the matching log lines for a session in a modal.
 - `scripts/database_maintenance.php` now purges old `binkp_session_log` rows after 30 days by default. Retention is configurable with `BINKP_SESSION_LOG_RETENTION_DAYS`.
 
 **Telnet / SSH BBS Server**
@@ -478,6 +480,17 @@ The `binkp_session_log` table now reflects actual BinkP traffic more completely.
 - remote IP addresses for connected peers when available
 
 This makes the **Admin -> BinkP Sessions** page and related dashboard widgets much more useful for operational monitoring. Sysops upgrading from earlier 1.8.9 builds should expect the session log to fill more quickly because ordinary BinkP traffic is now included instead of only crash mail activity.
+
+### BinkP Session Log Details and Log Viewer
+
+New BinkP session rows now also store:
+
+- `process_id` — the PID of the process that handled the session
+- `log_file` — the basename of the log file being written, such as `binkp_poll.log`, `binkp_server.log`, or `crashmail.log`
+
+This allows the **Admin -> BinkP Sessions** table to offer a session log viewer. Clicking a recent session row opens a modal that searches the relevant BinkP log for lines matching that session's PID.
+
+The search uses the recorded log filename basename and checks rotated variants under `data/logs/` as well, so a session can still be inspected even if the active log rolled over after the session completed.
 
 ### BinkP Session Log Retention
 
@@ -968,6 +981,7 @@ php scripts/setup.php
 | `v1.11.0.56_qwk_area_selections.sql` | QWK per-user conference area selection |
 | `v1.11.0.57_sse_events_user_targeting.php` | SSE event targeting: `user_id` and `admin_only` columns; fat-payload chat trigger |
 | `v1.11.0.58_dashboard_stats_triggers.php` | DB triggers on `echomail`, `netmail`, `files` for `dashboard_stats` BinkStream push |
+| `v1.11.0.60_binkp_session_pid_log.sql` | Adds `process_id` and `log_file` to `binkp_session_log` for session-to-log correlation |
 
 **Optional `.env` additions:**
 
