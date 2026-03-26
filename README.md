@@ -528,6 +528,7 @@ Database changes are managed through versioned SQL migration files stored in `da
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| Realtime WebSocket daemon | `6010` | WebSocket/TCP | localhost | `.env` `BINKSTREAM_WS_PORT` — must be exposed via reverse proxy |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |
 | Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
@@ -667,7 +668,7 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
 3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
-5. **Start Realtime Server**: `php scripts/realtime_server.php --daemon` — provides WebSocket-based live updates; falls back gracefully to SSE if not running
+5. **Start Realtime Server**: `php scripts/realtime_server.php --daemon` — provides WebSocket-based live updates; falls back gracefully to SSE if not running. The daemon binds to `127.0.0.1:6010` and must be exposed to browsers via a reverse proxy on the `/ws` path — see [docs/BinkStreamChannel.md](docs/BinkStreamChannel.md) for Caddy, Nginx, and Apache proxy configuration.
 6. **Optional Service Daemons**: start these only if you use the related features:
    - `php telnet/telnet_daemon.php --daemon`
    - `php scripts/gemini_daemon.php --daemon`
