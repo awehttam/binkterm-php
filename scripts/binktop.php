@@ -562,7 +562,10 @@ function fitTableToHeight(array $rows, array $widthHints, int $availableHeight):
         return ['(none)'];
     }
 
-    $maxRows = max(0, $availableHeight - 2);
+    $needsOverflowLine = count($rows) > max(0, $availableHeight - 2);
+    $maxRows = $needsOverflowLine
+        ? max(0, $availableHeight - 3)
+        : max(0, $availableHeight - 2);
     $visibleRows = array_slice($rows, 0, $maxRows);
     $lines = buildTableLines($visibleRows, $widthHints);
 

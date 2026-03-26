@@ -329,7 +329,7 @@ class AdminController
         ")->fetch()['count'];
         try {
             $stats['active_sessions'] = $this->db->query("
-                SELECT COUNT(*) as count
+                SELECT COUNT(DISTINCT s.user_id) as count
                 FROM user_sessions s
                 JOIN users u ON s.user_id = u.id
                 WHERE s.expires_at > NOW()
