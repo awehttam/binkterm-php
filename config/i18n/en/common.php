@@ -1098,6 +1098,9 @@ return [
     'ui.admin.binkp_sessions.page_status' => 'Showing {start}-{end} of {total}',
     'ui.admin.binkp_sessions.page_indicator' => 'Page {page} of {pages}',
     'ui.admin.binkp_sessions.page_status_empty' => '0 sessions',
+    'ui.admin.binkp_sessions.traffic_chart' => 'Message Traffic (24h)',
+    'ui.admin.binkp_sessions.traffic_chart_empty' => 'No message traffic recorded in the last 24 hours.',
+    'ui.admin.binkp_sessions.traffic_chart_aria' => 'BinkP message traffic for the last 24 hours',
 
     // Admin Polls
     'ui.admin.polls.load_failed' => 'Error loading polls',

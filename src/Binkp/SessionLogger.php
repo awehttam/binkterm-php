@@ -457,7 +457,52 @@ class SessionLogger
         ");
         $stmt->execute();
 
-        return $stmt->fetch();
+        $stats = $stmt->fetch();
+        if (!is_array($stats)) {
+            $stats = [];
+        }
+
+        if ($period === 'day') {
+            $stats['timeline_24h'] = self::getMessageTimeline24h();
+        }
+
+        return $stats;
+    }
+
+    public static function getMessageTimeline24h(): array
+    {
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->query("
+            SELECT
+                to_char(bucket.hour_bucket, 'HH24:00') AS hour_label,
+                EXTRACT(EPOCH FROM bucket.hour_bucket) AS hour_epoch,
+                COALESCE(SUM(log.messages_received), 0) AS messages_received,
+                COALESCE(SUM(log.messages_sent), 0) AS messages_sent
+            FROM generate_series(
+                date_trunc('hour', NOW()) - INTERVAL '23 hours',
+                date_trunc('hour', NOW()),
+                INTERVAL '1 hour'
+            ) AS bucket(hour_bucket)
+            LEFT JOIN binkp_session_log log
+                ON date_trunc('hour', log.started_at) = bucket.hour_bucket
+            GROUP BY bucket.hour_bucket
+            ORDER BY bucket.hour_bucket ASC
+        ");
+
+        $rows = $stmt->fetchAll();
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(static function ($row) {
+            return [
+                'hour_label' => (string)($row['hour_label'] ?? ''),
+                'hour_epoch' => isset($row['hour_epoch']) ? (int)$row['hour_epoch'] : 0,
+                'messages_received' => (int)($row['messages_received'] ?? 0),
+                'messages_sent' => (int)($row['messages_sent'] ?? 0),
+            ];
+        }, $rows);
     }
 
     /**

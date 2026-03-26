@@ -1153,6 +1153,9 @@ return [
     'ui.admin.binkp_sessions.page_status' => 'Mostrando {start}-{end} de {total}',
     'ui.admin.binkp_sessions.page_indicator' => 'Página {page} de {pages}',
     'ui.admin.binkp_sessions.page_status_empty' => '0 sesiones',
+    'ui.admin.binkp_sessions.traffic_chart' => 'Trafico de mensajes (24h)',
+    'ui.admin.binkp_sessions.traffic_chart_empty' => 'No se registro trafico de mensajes en las ultimas 24 horas.',
+    'ui.admin.binkp_sessions.traffic_chart_aria' => 'Trafico de mensajes BinkP de las ultimas 24 horas',
 
     // Admin Polls
     'ui.admin.polls.load_failed' => 'Error al cargar encuestas',
