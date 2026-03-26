@@ -115,6 +115,19 @@ function formatTimestamp(?string $timestamp): string
     }
 }
 
+function formatCompactTimestamp(?string $timestamp): string
+{
+    if ($timestamp === null || $timestamp === '') {
+        return '-';
+    }
+
+    try {
+        return (new DateTime($timestamp))->format('m-d H:i');
+    } catch (Throwable $e) {
+        return truncateCell($timestamp, 8);
+    }
+}
+
 function runCommand(string $command): ?string
 {
     $output = @shell_exec($command);
@@ -530,6 +543,11 @@ function wrapSection(string $title, array $bodyLines): array
     return array_merge([$title], $bodyLines, ['']);
 }
 
+function fitLineToWidth(string $line, int $width): string
+{
+    return truncateCell($line, max(1, $width));
+}
+
 function fitTableToHeight(array $rows, array $widthHints, int $availableHeight): array
 {
     if ($availableHeight <= 0) {
@@ -637,7 +655,7 @@ function buildUserRows(array $onlineUsers): array
             'svc' => (string)($user['service'] ?? '-'),
             'activity' => (string)($user['activity'] ?? '-'),
             'ip' => (string)($user['ip_address'] ?? '-'),
-            'last' => formatTimestamp($user['last_activity'] ?? null),
+            'last' => formatCompactTimestamp($user['last_activity'] ?? null),
         ];
     }, $onlineUsers);
 }
@@ -656,7 +674,7 @@ function buildDoorRows(array $doorSessions): array
     }, $doorSessions);
 }
 
-function buildHeaderLines(array $snapshot, int $interval): array
+function buildHeaderLines(array $snapshot, int $interval, int $columns): array
 {
     $loadAverage = $snapshot['load_average'];
     $memory = $snapshot['memory'];
@@ -666,23 +684,23 @@ function buildHeaderLines(array $snapshot, int $interval): array
     $queues = $snapshot['queues'];
 
     return [
-        sprintf(
+        fitLineToWidth(sprintf(
             '%s  %s  host:%s  now:%s',
             $snapshot['app_version'],
             PHP_OS_FAMILY,
             $snapshot['host'],
             date('Y-m-d H:i:s')
-        ),
-        sprintf(
-            'uptime:%s  load:%s  ram:%s  disk:%s  refresh:%ss',
+        ), $columns),
+        fitLineToWidth(sprintf(
+            'up:%s  load:%s  ram:%s  disk:%s  ref:%ss',
             $snapshot['uptime_seconds'] !== null ? formatDuration((int)$snapshot['uptime_seconds']) : 'n/a',
             $loadAverage !== null ? number_format($loadAverage['1m'], 2) . ' ' . number_format($loadAverage['5m'], 2) . ' ' . number_format($loadAverage['15m'], 2) : 'n/a',
             $memory !== null ? formatBytes($memory['used_bytes']) . '/' . formatBytes($memory['total_bytes']) : 'n/a',
             $disk !== null ? formatBytes($disk['used_bytes']) . '/' . formatBytes($disk['total_bytes']) : 'n/a',
             $interval
-        ),
-        sprintf(
-            'users:%d  sessions:%s  doors:%d  pg:%s  inbound:%s  outbound:%s/%s',
+        ), $columns),
+        fitLineToWidth(sprintf(
+            'users:%d  sess:%s  doors:%d  pg:%s  in:%s  out:%s/%s',
             count($snapshot['online_users']),
             ($sessions['valid_user_sessions'] ?? null) !== null && ($sessions['total_sessions'] ?? null) !== null
                 ? $sessions['valid_user_sessions'] . '/' . $sessions['total_sessions']
@@ -692,7 +710,7 @@ function buildHeaderLines(array $snapshot, int $interval): array
             (string)($queues['inbound']['pending_files'] ?? 'n/a'),
             (string)($queues['outbound']['pending_files'] ?? 'n/a'),
             isset($queues['outbound']['total_size']) ? formatBytes((int)$queues['outbound']['total_size']) : 'n/a'
-        ),
+        ), $columns),
     ];
 }
 
@@ -702,7 +720,7 @@ function assembleScreen(array $snapshot, int $interval): string
     $lines = $terminal['lines'];
     $columns = $terminal['columns'];
 
-    $headerLines = buildHeaderLines($snapshot, $interval);
+    $headerLines = buildHeaderLines($snapshot, $interval, $columns);
     $userRows = buildUserRows($snapshot['online_users']);
     $daemonRows = buildDaemonRows($snapshot['daemons']);
     $doorRows = buildDoorRows($snapshot['door_sessions']);
@@ -714,15 +732,25 @@ function assembleScreen(array $snapshot, int $interval): string
     $userSectionHeight = max(4, (int)floor($remaining / 2));
     $doorSectionHeight = max(4, $remaining - $userSectionHeight);
 
-    $daemonLines = ($columns >= 110 && count($daemonRows) >= 6)
-        ? buildTwoColumnTableLines($daemonRows, ['daemon' => 20, 'state' => 5, 'pid' => 6, 'rss' => 10], $daemonSectionHeight, $columns)
-        : fitTableToHeight($daemonRows, ['daemon' => 20, 'state' => 5, 'pid' => 6, 'rss' => 10], $daemonSectionHeight);
+    $daemonWidthHints = $columns <= 80
+        ? ['daemon' => 14, 'state' => 4, 'pid' => 5, 'rss' => 8]
+        : ['daemon' => 20, 'state' => 5, 'pid' => 6, 'rss' => 10];
+    $userWidthHints = $columns <= 80
+        ? ['user' => 10, 'svc' => 4, 'activity' => 14, 'ip' => 10, 'last' => 8]
+        : ['user' => 14, 'svc' => 6, 'activity' => 24, 'ip' => 18, 'last' => 19];
+    $doorWidthHints = $columns <= 80
+        ? ['door' => 12, 'uid' => 4, 'node' => 4, 'ws' => 4, 'bridge' => 6, 'proc' => 6]
+        : ['door' => 20, 'uid' => 5, 'node' => 4, 'ws' => 5, 'bridge' => 8, 'proc' => 8];
+
+    $daemonLines = ($columns >= 96 && count($daemonRows) >= 6)
+        ? buildTwoColumnTableLines($daemonRows, $daemonWidthHints, $daemonSectionHeight, $columns)
+        : fitTableToHeight($daemonRows, $daemonWidthHints, $daemonSectionHeight);
 
     $screenLines = $headerLines;
     $screenLines[] = '';
-    $screenLines = array_merge($screenLines, wrapSection('Current Users', fitTableToHeight($userRows, ['user' => 14, 'svc' => 6, 'activity' => 24, 'ip' => 18, 'last' => 19], $userSectionHeight)));
+    $screenLines = array_merge($screenLines, wrapSection('Current Users', fitTableToHeight($userRows, $userWidthHints, $userSectionHeight)));
     $screenLines = array_merge($screenLines, wrapSection('Daemons', $daemonLines));
-    $screenLines = array_merge($screenLines, wrapSection('Door Sessions', fitTableToHeight($doorRows, ['door' => 20, 'uid' => 5, 'node' => 4, 'ws' => 5, 'bridge' => 8, 'proc' => 8], $doorSectionHeight)));
+    $screenLines = array_merge($screenLines, wrapSection('Door Sessions', fitTableToHeight($doorRows, $doorWidthHints, $doorSectionHeight)));
 
     return implode("\n", array_slice($screenLines, 0, $lines - 1)) . "\n";
 }
