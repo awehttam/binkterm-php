@@ -161,7 +161,7 @@
         filesUnread = newFiles > 0;
         fileApprovalsUnread = pendingApprovals > 0;
 
-        if (clearTarget === 'files') {
+        if (clearTarget === 'files' || isPathMatch('/files')) {
             filesUnread = false;
         }
         if (clearTarget === 'file-approvals' || isPathMatch('/admin/file-approvals')) {
