@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v618';
+const CACHE_NAME = 'binkcache-v619';
 
 // Static assets to precache
 const staticAssets = [
@@ -143,7 +143,7 @@ self.addEventListener('fetch', (event) => {
                     // Do not cache partial responses (206) — the Cache API
                     // rejects them and audio range requests can trigger this.
                     return fetch(request).then((networkResponse) => {
-                        if (networkResponse.ok) {
+                        if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }
                         return networkResponse;
@@ -166,7 +166,7 @@ self.addEventListener('fetch', (event) => {
                         return cachedResponse;
                     }
                     return fetch(request).then((networkResponse) => {
-                        if (networkResponse.ok) {
+                        if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }
                         return networkResponse;
