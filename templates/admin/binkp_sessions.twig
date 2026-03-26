@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadStats();
         loadSessions();
+        initRealtime();
     });
 
     document.getElementById('refreshSessions').addEventListener('click', function() {
@@ -226,6 +227,36 @@ function loadSessions() {
             document.getElementById('sessionsTableBody').innerHTML =
                 '<tr><td colspan="9" class="text-center text-danger">' + uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + '</td></tr>';
         });
+}
+
+let binkpSessionRefreshTimer = null;
+let binkpSessionRealtimeHandler = null;
+
+function scheduleRealtimeRefresh() {
+    clearTimeout(binkpSessionRefreshTimer);
+    binkpSessionRefreshTimer = setTimeout(function() {
+        loadStats();
+        loadSessions();
+    }, 300);
+}
+
+function initRealtime() {
+    if (!window.BinkStream || typeof window.BinkStream.on !== 'function') {
+        return;
+    }
+
+    binkpSessionRealtimeHandler = function () {
+        scheduleRealtimeRefresh();
+    };
+
+    window.BinkStream.on('binkp_session', binkpSessionRealtimeHandler);
+
+    window.addEventListener('beforeunload', function cleanupRealtime() {
+        window.removeEventListener('beforeunload', cleanupRealtime);
+        if (window.BinkStream && typeof window.BinkStream.off === 'function' && binkpSessionRealtimeHandler) {
+            window.BinkStream.off('binkp_session', binkpSessionRealtimeHandler);
+        }
+    });
 }
 
 function getTypeBadge(type) {

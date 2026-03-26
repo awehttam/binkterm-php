@@ -346,7 +346,8 @@ class CrashmailService
 
         // Start session logging
         $sessionLogger = new SessionLogger();
-        $sessionLogger->startSession($destAddress, null, 'crash_outbound', false);
+        $sessionRemoteIp = filter_var($host, FILTER_VALIDATE_IP) ? $host : null;
+        $sessionLogger->startSession($destAddress, $sessionRemoteIp, 'crash_outbound', false);
 
         // Create temporary packet file
         $tempPacket = null;
@@ -370,6 +371,17 @@ class CrashmailService
             }
 
             stream_set_timeout($socket, 60);
+            $socketName = @stream_socket_get_name($socket, true);
+            if (is_string($socketName) && $socketName !== '') {
+                $peerHost = $socketName;
+                $peerPortPos = strrpos($peerHost, ':');
+                if ($peerPortPos !== false && filter_var(substr($peerHost, 0, $peerPortPos), FILTER_VALIDATE_IP)) {
+                    $peerHost = substr($peerHost, 0, $peerPortPos);
+                }
+                if (filter_var($peerHost, FILTER_VALIDATE_IP)) {
+                    $sessionLogger->setRemoteIp($peerHost);
+                }
+            }
 
             // Get password for destination if we have one
             $routeInfo = $this->resolveDestination($destAddress);

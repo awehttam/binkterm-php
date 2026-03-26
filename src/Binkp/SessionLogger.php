@@ -26,15 +26,19 @@ use BinktermPHP\Database;
 
 class SessionLogger
 {
+    private const REALTIME_PROGRESS_THROTTLE_SECONDS = 0.75;
+
     private $db;
     private $sessionId;
     private $startTime;
+    private ?float $lastRealtimeEmitAt;
 
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
         $this->sessionId = null;
         $this->startTime = null;
+        $this->lastRealtimeEmitAt = null;
     }
 
     /**
@@ -64,6 +68,7 @@ class SessionLogger
         $isInboundStr = $isInbound ? 'true' : 'false';
         $stmt->execute([$remoteAddress, $remoteIp, $sessionType, $isInboundStr]);
         $this->sessionId = (int)$stmt->fetchColumn();
+        $this->emitRealtimeUpdate('started', true);
         return $this->sessionId;
     }
 
@@ -108,6 +113,7 @@ class SessionLogger
             $bytesSent,
             $this->sessionId
         ]);
+        $this->emitRealtimeUpdate('stats');
     }
 
     /**
@@ -140,6 +146,7 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$amount, $this->sessionId]);
+        $this->emitRealtimeUpdate('progress');
     }
 
     /**
@@ -162,6 +169,7 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$status, $errorMessage, $this->sessionId]);
+        $this->emitRealtimeUpdate('ended', true);
     }
 
     /**
@@ -197,6 +205,21 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$address, $this->sessionId]);
+        $this->emitRealtimeUpdate('address', true);
+    }
+
+    public function setRemoteIp(string $remoteIp): void
+    {
+        if (!$this->sessionId || filter_var($remoteIp, FILTER_VALIDATE_IP) === false) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE binkp_session_log SET remote_ip = ?::inet
+            WHERE id = ?
+        ");
+        $stmt->execute([$remoteIp, $this->sessionId]);
+        $this->emitRealtimeUpdate('address', true);
     }
 
     /**
@@ -213,6 +236,7 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$sessionType, $this->sessionId]);
+        $this->emitRealtimeUpdate('type', true);
     }
 
     /**
@@ -231,6 +255,89 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$method, $this->sessionId]);
+        $this->emitRealtimeUpdate('auth', true);
+    }
+
+    private function emitRealtimeUpdate(string $reason, bool $force = false): void
+    {
+        if (!$this->sessionId) {
+            return;
+        }
+
+        $now = microtime(true);
+        if (
+            !$force &&
+            $this->lastRealtimeEmitAt !== null &&
+            ($now - $this->lastRealtimeEmitAt) < self::REALTIME_PROGRESS_THROTTLE_SECONDS
+        ) {
+            return;
+        }
+
+        $payload = $this->buildRealtimePayload($reason);
+        if ($payload === null) {
+            return;
+        }
+
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO sse_events (event_type, payload, user_id, admin_only)
+                VALUES ('binkp_session', ?::jsonb, NULL, TRUE)
+                RETURNING id
+            ");
+            $stmt->execute([
+                json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ]);
+            $eventId = (int)$stmt->fetchColumn();
+            if ($eventId > 0) {
+                $this->db->exec("SELECT pg_notify('binkstream', " . $eventId . ")");
+            }
+            $this->lastRealtimeEmitAt = $now;
+        } catch (\Throwable $e) {
+            // Realtime delivery is best-effort only; never break a session write.
+        }
+    }
+
+    private function buildRealtimePayload(string $reason): ?array
+    {
+        if (!$this->sessionId) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT *,
+                   EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) AS duration_seconds
+            FROM binkp_session_log
+            WHERE id = ?
+        ");
+        $stmt->execute([$this->sessionId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'reason' => $reason,
+            'session' => [
+                'id' => (int)$row['id'],
+                'remote_address' => $row['remote_address'] !== null ? (string)$row['remote_address'] : null,
+                'remote_ip' => $row['remote_ip'] !== null ? (string)$row['remote_ip'] : null,
+                'session_type' => (string)$row['session_type'],
+                'is_inbound' => (bool)$row['is_inbound'],
+                'status' => (string)$row['status'],
+                'auth_method' => $row['auth_method'] !== null ? (string)$row['auth_method'] : null,
+                'messages_received' => (int)($row['messages_received'] ?? 0),
+                'messages_sent' => (int)($row['messages_sent'] ?? 0),
+                'files_received' => (int)($row['files_received'] ?? 0),
+                'files_sent' => (int)($row['files_sent'] ?? 0),
+                'bytes_received' => (int)($row['bytes_received'] ?? 0),
+                'bytes_sent' => (int)($row['bytes_sent'] ?? 0),
+                'started_at' => $row['started_at'] !== null ? (string)$row['started_at'] : null,
+                'ended_at' => $row['ended_at'] !== null ? (string)$row['ended_at'] : null,
+                'duration_seconds' => isset($row['duration_seconds']) ? (float)$row['duration_seconds'] : 0.0,
+                'error_message' => $row['error_message'] !== null ? (string)$row['error_message'] : null,
+            ],
+        ];
     }
 
     // ========================================

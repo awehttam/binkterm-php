@@ -111,6 +111,11 @@ class BinkpSession
     {
         $this->logger = $logger;
     }
+
+    public function setSessionLogger($sessionLogger): void
+    {
+        $this->sessionLogger = $sessionLogger;
+    }
     
     public function setUplinkPassword($password)
     {
@@ -633,6 +638,9 @@ class BinkpSession
                 $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
                 $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
+                if ($this->sessionLogger && !empty($this->remoteAddress)) {
+                    $this->sessionLogger->setRemoteAddress($this->remoteAddress);
+                }
 
                 if ($this->state === self::STATE_INIT) {
                     // Answerer hasn't sent ADR yet (rare path)
@@ -829,12 +837,18 @@ class BinkpSession
             $digest = $this->computeCramDigest($this->cramChallenge, $password);
             $cramPassword = "CRAM-MD5-{$digest}";
             $this->authMethod = 'cram-md5';
+            if ($this->sessionLogger) {
+                $this->sessionLogger->setAuthMethod($this->authMethod);
+            }
             $this->log("Sending CRAM-MD5 digest", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $cramPassword);
         } else {
             // Plain text password. Send '-' for empty password to explicitly
             // request an insecure/anonymous session per binkp convention.
             $this->authMethod = 'plaintext';
+            if ($this->sessionLogger) {
+                $this->sessionLogger->setAuthMethod($this->authMethod);
+            }
             $sendPwd = ($password === '') ? '-' : $password;
             $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $sendPwd);
@@ -1299,6 +1313,10 @@ class BinkpSession
 
         if ($bytesSent === $fileSize) {
             $this->filesSent[] = $wireName;
+            if ($this->sessionLogger) {
+                $this->sessionLogger->incrementStat('files_sent', 1);
+                $this->sessionLogger->incrementStat('bytes_sent', $bytesSent);
+            }
             $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
             $this->log("Packet send incomplete: {$wireName} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
@@ -1413,6 +1431,10 @@ class BinkpSession
 
                 $this->currentFile['name'] = $localName;
                 $this->filesReceived[] = $localName;
+                if ($this->sessionLogger) {
+                    $this->sessionLogger->incrementStat('files_received', 1);
+                    $this->sessionLogger->incrementStat('bytes_received', (int)$this->currentFile['received']);
+                }
                 $this->log("File received: {$localName} ({$this->currentFile['received']} bytes)", 'INFO');
 
                 // If the received file is a Bark-style .req file, process it immediately
@@ -1681,6 +1703,10 @@ class BinkpSession
 
                 $this->authMethod = 'cram-md5';
                 $this->sessionType = 'secure';
+                if ($this->sessionLogger) {
+                    $this->sessionLogger->setAuthMethod($this->authMethod);
+                    $this->sessionLogger->setSessionType($this->sessionType);
+                }
                 return true;
             }
 
@@ -1726,6 +1752,10 @@ class BinkpSession
         if ($match) {
             $this->authMethod = 'plaintext';
             $this->sessionType = 'secure';
+            if ($this->sessionLogger) {
+                $this->sessionLogger->setAuthMethod($this->authMethod);
+                $this->sessionLogger->setSessionType($this->sessionType);
+            }
         }
 
         return $match;
@@ -1761,6 +1791,9 @@ class BinkpSession
         $this->isInsecureSession = true;
         $this->insecureReceiveOnly = $this->config->getInsecureReceiveOnly();
         $this->sessionType = 'insecure';
+        if ($this->sessionLogger) {
+            $this->sessionLogger->setSessionType($this->sessionType);
+        }
         $this->log("Insecure session accepted for {$this->remoteAddress}", 'INFO');
         return true;
     }

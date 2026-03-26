@@ -126,6 +126,71 @@
                     </div>
                 </div>
             </div>
+            <div class="card shadow mt-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.dashboard.service_status', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body">
+                    {% set coreServices = {
+                        'admin_daemon': t('ui.admin.dashboard.service.admin_daemon', {}, locale, ['common']),
+                        'binkp_scheduler': t('ui.admin.dashboard.service.binkp_scheduler', {}, locale, ['common']),
+                        'binkp_server': t('ui.admin.dashboard.service.binkp_server', {}, locale, ['common']),
+                        'realtime_server': t('ui.admin.dashboard.service.realtime_server', {}, locale, ['common'])
+                    } %}
+                    {% set optionalServices = {
+                        'telnetd': t('ui.admin.dashboard.service.telnetd', {}, locale, ['common']),
+                        'ssh_daemon': t('ui.admin.dashboard.service.ssh_daemon', {}, locale, ['common']),
+                        'gemini_daemon': t('ui.admin.dashboard.service.gemini_daemon', {}, locale, ['common']),
+                        'mrc_daemon': t('ui.admin.dashboard.service.mrc_daemon', {}, locale, ['common']),
+                        'multiplexing_server': t('ui.admin.dashboard.service.multiplexing_server', {}, locale, ['common']),
+                        'mcp_server': t('ui.admin.dashboard.service.mcp_server', {}, locale, ['common'])
+                    } %}
+                    {% for key, label in coreServices %}
+                        {% set info = daemon_status[key] ?? null %}
+                        <div class="row align-items-center">
+                            <div class="col-sm-6">
+                                <strong>{{ label }}:</strong>
+                            </div>
+                            <div class="col-sm-6">
+                                {% if info and info.running %}
+                                    <span class="badge bg-success">{{ t('ui.admin.dashboard.running', {}, locale, ['common']) }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ t('ui.admin.dashboard.stopped', {}, locale, ['common']) }}</span>
+                                {% endif %}
+                                {% if info and info.pid %}
+                                    <small class="text-muted ms-2">{{ t('ui.admin.dashboard.pid', {}, locale, ['common']) }} {{ info.pid }}</small>
+                                {% endif %}
+                                {% if key == 'realtime_server' %}
+                                    <small class="text-muted ms-2">(<span id="binkstream-transport-mode">â€¦</span>)</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <hr>
+                    {% endfor %}
+                    {% for key, label in optionalServices %}
+                        {% set info = daemon_status[key] ?? null %}
+                        <div class="row align-items-center">
+                            <div class="col-sm-6">
+                                <strong>{{ label }}:</strong>
+                                <small class="text-muted ms-1">({{ t('ui.common.optional', {}, locale, ['common']) }})</small>
+                            </div>
+                            <div class="col-sm-6">
+                                {% if info and info.running %}
+                                    <span class="badge bg-success">{{ t('ui.admin.dashboard.running', {}, locale, ['common']) }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ t('ui.admin.dashboard.stopped', {}, locale, ['common']) }}</span>
+                                {% endif %}
+                                {% if info and info.pid %}
+                                    <small class="text-muted ms-2">{{ t('ui.admin.dashboard.pid', {}, locale, ['common']) }} {{ info.pid }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if not loop.last %}
+                            <hr>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
         </div>
 
         <div class="col-lg-6 mb-4">
@@ -229,7 +294,7 @@
                     </div>
                 </div>
             </div>
-            <div class="card shadow">
+            <div class="card shadow d-none">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.dashboard.service_status', {}, locale, ['common']) }}</h6>
                 </div>
@@ -292,6 +357,15 @@
                             <hr>
                         {% endif %}
                     {% endfor %}
+                </div>
+            </div>
+            <div class="card shadow mt-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Active BinkP Sessions</h6>
+                    <a href="/admin/binkp-sessions" class="small">View all</a>
+                </div>
+                <div class="card-body">
+                    <div id="adminBinkpActiveSessions" class="small text-muted">Loading...</div>
                 </div>
             </div>
         </div>
@@ -361,6 +435,87 @@
             });
         } else {
             modeEl.textContent = '—';
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+<script>
+(function () {
+    var activeSessionsEl = document.getElementById('adminBinkpActiveSessions');
+    var activeSessionsTimer = null;
+
+    if (!activeSessionsEl) {
+        return;
+    }
+
+    function formatDuration(seconds) {
+        if (seconds < 1) { return '&lt;1s'; }
+        if (seconds < 60) { return Math.round(seconds) + 's'; }
+        if (seconds < 3600) { return Math.round(seconds / 60) + 'm'; }
+        return Math.round(seconds / 3600) + 'h';
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    function loadActiveBinkpSessions() {
+        fetch('/admin/api/binkp-sessions?status=active&limit=6')
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                var sessions = Array.isArray(data.sessions) ? data.sessions : [];
+                if (sessions.length === 0) {
+                    activeSessionsEl.innerHTML = '<span class="text-muted">No active BinkP sessions.</span>';
+                    return;
+                }
+
+                activeSessionsEl.innerHTML = sessions.map(function (session) {
+                    var direction = session.is_inbound ? 'In' : 'Out';
+                    var remoteAddress = escapeHtml(session.remote_address || 'Unknown');
+                    var sessionType = escapeHtml(session.session_type || 'unknown');
+                    var summary = (session.messages_received || 0) + ' in / ' + (session.messages_sent || 0) + ' out';
+                    var duration = session.duration_seconds ? formatDuration(session.duration_seconds) : '&lt;1s';
+                    return '' +
+                        '<div class="update-item mb-2">' +
+                            '<div class="d-flex justify-content-between align-items-start gap-2">' +
+                                '<div>' +
+                                    '<div><code>' + remoteAddress + '</code></div>' +
+                                    '<div class="text-muted">' + direction + ' | ' + sessionType + ' | ' + summary + '</div>' +
+                                '</div>' +
+                                '<span class="badge bg-primary">active</span>' +
+                            '</div>' +
+                            '<div class="text-muted mt-1">Running ' + duration + '</div>' +
+                        '</div>';
+                }).join('');
+            })
+            .catch(function () {
+                activeSessionsEl.innerHTML = '<span class="text-danger">Failed to load BinkP sessions.</span>';
+            });
+    }
+
+    function scheduleReload() {
+        clearTimeout(activeSessionsTimer);
+        activeSessionsTimer = setTimeout(loadActiveBinkpSessions, 300);
+    }
+
+    function init() {
+        loadActiveBinkpSessions();
+        if (window.BinkStream && typeof window.BinkStream.on === 'function') {
+            window.BinkStream.on('binkp_session', scheduleReload);
+            window.addEventListener('beforeunload', function cleanupRealtime() {
+                window.removeEventListener('beforeunload', cleanupRealtime);
+                if (window.BinkStream && typeof window.BinkStream.off === 'function') {
+                    window.BinkStream.off('binkp_session', scheduleReload);
+                }
+            });
         }
     }
 

@@ -119,11 +119,18 @@ class BinkpClient
         }
 
         $this->log("Connected to {$hostname}:{$port}");
+        $peerIp = null;
+        if (@socket_getpeername($socket, $connectedIp) && filter_var($connectedIp, FILTER_VALIDATE_IP)) {
+            $peerIp = $connectedIp;
+        }
 
         try {
             $stream = $this->socketToStream($socket);
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
+            $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
+            $sessionLogger->startSession($address, $peerIp, 'secure', false);
+            $session->setSessionLogger($sessionLogger);
 
             // Set the uplink password for this session
             $session->setUplinkPassword($password);
@@ -172,6 +179,8 @@ class BinkpClient
                 'auth_method' => $session->getAuthMethod()
             ];
 
+            $sessionLogger->endSession('success');
+
             $session->close();
             // Don't close socket here - it's already handled by session->close() via the stream
 
@@ -179,6 +188,9 @@ class BinkpClient
 
         } catch (\Exception $e) {
             $this->log("Session failed with {$address}: " . $e->getMessage(), 'ERROR');
+            if (isset($sessionLogger)) {
+                $sessionLogger->endSession('failed', $e->getMessage());
+            }
             // Don't close socket here either - let the session handle cleanup
             throw $e;
         }
@@ -235,11 +247,18 @@ class BinkpClient
         }
 
         $session = null;
+        $peerIp = null;
+        if (@socket_getpeername($socket, $connectedIp) && filter_var($connectedIp, FILTER_VALIDATE_IP)) {
+            $peerIp = $connectedIp;
+        }
 
         try {
             $stream = $this->socketToStream($socket);
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
+            $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
+            $sessionLogger->startSession($address, $peerIp, 'secure', false);
+            $session->setSessionLogger($sessionLogger);
             $session->setUplinkPassword($password);
 
             if ($uplink) {
@@ -253,6 +272,7 @@ class BinkpClient
             }
 
             $session->handshake();
+            $sessionLogger->endSession('success');
 
             return [
                 'success' => true,
@@ -261,6 +281,9 @@ class BinkpClient
             ];
         } catch (\Exception $e) {
             $this->log("Auth-only test failed with {$address}: " . $e->getMessage(), 'ERROR');
+            if (isset($sessionLogger)) {
+                $sessionLogger->endSession('failed', $e->getMessage());
+            }
             throw $e;
         } finally {
             if ($session) {

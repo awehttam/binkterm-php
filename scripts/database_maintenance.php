@@ -14,6 +14,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
+use BinktermPHP\Config;
 
 // Parse command line arguments
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
@@ -33,6 +34,7 @@ try {
     echo str_repeat('=', 60) . "\n\n";
 
     $totalCleaned = 0;
+    $binkpSessionLogRetentionDays = max(1, (int)Config::env('BINKP_SESSION_LOG_RETENTION_DAYS', '30'));
 
     // ========================================================================
     // 1. Clean up old registration attempts (older than 30 days)
@@ -261,10 +263,45 @@ try {
         }
     }
     // ========================================================================
-    // 8. PostgreSQL VACUUM and ANALYZE (if not dry run)
+    // 8. Clean up old BinkP session log entries
+    // ========================================================================
+    echo "\n[8] Cleaning old BinkP session log entries...\n";
+
+    $tableCheck = $db->query("
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'binkp_session_log'
+        )
+    ");
+
+    if ($tableCheck->fetchColumn()) {
+        if ($dryRun) {
+            $stmt = $db->query("
+                SELECT COUNT(*) as count
+                FROM binkp_session_log
+                WHERE started_at < NOW() - INTERVAL '{$binkpSessionLogRetentionDays} days'
+            ");
+            $result = $stmt->fetch();
+            echo "    Would delete {$result['count']} BinkP session log entries older than {$binkpSessionLogRetentionDays} days\n";
+        } else {
+            $stmt = $db->prepare("
+                DELETE FROM binkp_session_log
+                WHERE started_at < NOW() - INTERVAL '{$binkpSessionLogRetentionDays} days'
+            ");
+            $stmt->execute();
+            $deleted = $stmt->rowCount();
+            $totalCleaned += $deleted;
+            echo "    Deleted $deleted BinkP session log entries older than {$binkpSessionLogRetentionDays} days\n";
+        }
+    } else {
+        echo "    Table 'binkp_session_log' does not exist, skipping\n";
+    }
+
+    // ========================================================================
+    // 9. PostgreSQL VACUUM and ANALYZE (if not dry run)
     // ========================================================================
     if (!$dryRun) {
-        echo "\n[8] Running VACUUM and ANALYZE...\n";
+        echo "\n[9] Running VACUUM and ANALYZE...\n";
 
         $tables = $db->query("
             SELECT relname AS table_name
@@ -282,7 +319,7 @@ try {
             }
         }
     } else {
-        echo "\n[8] Skipping VACUUM and ANALYZE (dry run)\n";
+        echo "\n[9] Skipping VACUUM and ANALYZE (dry run)\n";
     }
 
     // ========================================================================
