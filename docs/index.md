@@ -88,6 +88,7 @@ This index lists documents in operational priority order — essentials first, a
 
 - [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
 - [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail
+- [MCP Client Help](MCPClientHelp.md) — configure Claude, Anything LLM, OpenAI, and other MCP clients
 
 ---
 
