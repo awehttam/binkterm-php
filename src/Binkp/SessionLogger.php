@@ -421,15 +421,9 @@ class SessionLogger
      * @param string $period 'hour', 'day', 'week', 'month'
      * @return array
      */
-    public static function getSessionStats(string $period = 'day', string $timezone = 'UTC'): array
+    public static function getSessionStats(string $period = 'day'): array
     {
         $db = Database::getInstance()->getPdo();
-
-        try {
-            new \DateTimeZone($timezone);
-        } catch (\Exception $e) {
-            $timezone = 'UTC';
-        }
 
         $interval = match($period) {
             'hour' => '1 hour',
@@ -469,39 +463,32 @@ class SessionLogger
         }
 
         if ($period === 'day') {
-            $stats['timeline_24h'] = self::getMessageTimeline24h($timezone);
+            $stats['timeline_24h'] = self::getMessageTimeline24h();
         }
 
         return $stats;
     }
 
-    public static function getMessageTimeline24h(string $timezone = 'UTC'): array
+    public static function getMessageTimeline24h(): array
     {
         $db = Database::getInstance()->getPdo();
 
-        try {
-            new \DateTimeZone($timezone);
-        } catch (\Exception $e) {
-            $timezone = 'UTC';
-        }
-
-        $stmt = $db->prepare("
+        $stmt = $db->query("
             SELECT
                 to_char(bucket.hour_bucket, 'HH24:00') AS hour_label,
-                EXTRACT(EPOCH FROM (bucket.hour_bucket AT TIME ZONE :tz)) AS hour_epoch,
+                EXTRACT(EPOCH FROM bucket.hour_bucket) AS hour_epoch,
                 COALESCE(SUM(log.messages_received), 0) AS messages_received,
                 COALESCE(SUM(log.messages_sent), 0) AS messages_sent
             FROM generate_series(
-                date_trunc('hour', NOW() AT TIME ZONE :tz) - INTERVAL '23 hours',
-                date_trunc('hour', NOW() AT TIME ZONE :tz),
+                date_trunc('hour', NOW()) - INTERVAL '23 hours',
+                date_trunc('hour', NOW()),
                 INTERVAL '1 hour'
             ) AS bucket(hour_bucket)
             LEFT JOIN binkp_session_log log
-                ON date_trunc('hour', log.started_at AT TIME ZONE :tz) = bucket.hour_bucket
+                ON date_trunc('hour', log.started_at) = bucket.hour_bucket
             GROUP BY bucket.hour_bucket
             ORDER BY bucket.hour_bucket ASC
         ");
-        $stmt->execute([':tz' => $timezone]);
 
         $rows = $stmt->fetchAll();
         if (!is_array($rows)) {

@@ -309,8 +309,7 @@ function getSessionsTotalPages() {
 }
 
 function loadStats() {
-    const userTimezone = getUserTimezone();
-    fetch(`/admin/api/binkp-sessions/stats?period=day&timezone=${encodeURIComponent(userTimezone)}`)
+    fetch('/admin/api/binkp-sessions/stats?period=day')
         .then(response => response.json())
         .then(data => {
             document.getElementById('statTotal').textContent = data.total_sessions || 0;
@@ -688,7 +687,6 @@ function formatTrafficChartHourLabel(point) {
         const date = new Date(epochSeconds * 1000);
         if (!Number.isNaN(date.getTime())) {
             return date.toLocaleTimeString(userDateFormat, {
-                timeZone: getUserTimezone(),
                 hour: 'numeric',
                 minute: '2-digit'
             });
