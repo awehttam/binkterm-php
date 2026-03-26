@@ -626,6 +626,8 @@ return [
     'ui.admin.binkp_config.uplinks.add_uplink' => 'Agregar uplink',
     'ui.admin.binkp_config.uplinks.edit_uplink' => 'Editar uplink',
     'ui.admin.binkp_config.uplinks.none_configured' => 'No hay uplinks configurados.',
+    'ui.admin.binkp_config.uplinks.check_failed' => 'La comprobacion de conectividad fallo',
+    'ui.admin.binkp_config.uplinks.check_success' => 'La comprobacion de conectividad fue correcta',
     'ui.admin.binkp_config.uplinks.real_name' => 'Nombre real',
     'ui.admin.binkp_config.uplinks.username' => 'Usuario',
     'ui.admin.binkp_config.uplinks.table.me' => 'Yo',

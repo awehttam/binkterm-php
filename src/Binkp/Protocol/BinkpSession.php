@@ -1316,6 +1316,9 @@ class BinkpSession
             if ($this->sessionLogger) {
                 $this->sessionLogger->incrementStat('files_sent', 1);
                 $this->sessionLogger->incrementStat('bytes_sent', $bytesSent);
+                if (preg_match('/\.pkt$/i', $wireName)) {
+                    $this->sessionLogger->incrementStat('messages_sent', $this->countMessagesInPacket($filePath));
+                }
             }
             $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
@@ -1434,6 +1437,9 @@ class BinkpSession
                 if ($this->sessionLogger) {
                     $this->sessionLogger->incrementStat('files_received', 1);
                     $this->sessionLogger->incrementStat('bytes_received', (int)$this->currentFile['received']);
+                    if (preg_match('/\.pkt$/i', $localName)) {
+                        $this->sessionLogger->incrementStat('messages_received', $this->countMessagesInPacket($finalPath));
+                    }
                 }
                 $this->log("File received: {$localName} ({$this->currentFile['received']} bytes)", 'INFO');
 
@@ -1552,6 +1558,85 @@ class BinkpSession
         }
 
         $this->log("Failed to delete sent file: {$filename}", 'ERROR');
+        return false;
+    }
+
+    private function countMessagesInPacket(string $filepath): int
+    {
+        if (!is_file($filepath) || !is_readable($filepath)) {
+            return 0;
+        }
+
+        $handle = @fopen($filepath, 'rb');
+        if (!$handle) {
+            return 0;
+        }
+
+        $count = 0;
+
+        try {
+            $header = fread($handle, 58);
+            if ($header === false || strlen($header) < 58) {
+                return 0;
+            }
+
+            while (!feof($handle) && $count < 1000) {
+                $msgType = fread($handle, 2);
+                if ($msgType === false || strlen($msgType) < 2) {
+                    break;
+                }
+
+                $typeData = unpack('vtype', $msgType);
+                $type = (int)($typeData['type'] ?? 0);
+
+                if ($type === 0) {
+                    break;
+                }
+
+                if ($type !== 2) {
+                    break;
+                }
+
+                $count++;
+
+                $msgHeader = fread($handle, 14);
+                if ($msgHeader === false || strlen($msgHeader) < 14) {
+                    break;
+                }
+
+                if (
+                    !$this->skipNullTerminatedField($handle, 20) ||
+                    !$this->skipNullTerminatedField($handle, 36) ||
+                    !$this->skipNullTerminatedField($handle, 36) ||
+                    !$this->skipNullTerminatedField($handle, 72) ||
+                    !$this->skipNullTerminatedField($handle, 64000)
+                ) {
+                    break;
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return $count;
+    }
+
+    private function skipNullTerminatedField($handle, int $maxBytes): bool
+    {
+        $bytesRead = 0;
+
+        while (!feof($handle) && $bytesRead < $maxBytes) {
+            $char = fread($handle, 1);
+            if ($char === false || $char === '') {
+                return false;
+            }
+
+            $bytesRead++;
+            if (ord($char) === 0) {
+                return true;
+            }
+        }
+
         return false;
     }
 

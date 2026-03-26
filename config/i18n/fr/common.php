@@ -530,6 +530,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.binkp_config.uplinks.add_uplink' => 'Ajouter un uplink',
     'ui.admin.binkp_config.uplinks.edit_uplink' => 'Modifier l\'uplink',
     'ui.admin.binkp_config.uplinks.none_configured' => 'Aucun uplink configuré.',
+    'ui.admin.binkp_config.uplinks.check_failed' => 'La vérification de connectivité a échoué',
+    'ui.admin.binkp_config.uplinks.check_success' => 'La vérification de connectivité a réussi',
     'ui.admin.binkp_config.uplinks.real_name' => 'Nom réel',
     'ui.admin.binkp_config.uplinks.username' => 'Nom d\'utilisateur',
     'ui.admin.binkp_config.uplinks.table.me' => 'Moi',

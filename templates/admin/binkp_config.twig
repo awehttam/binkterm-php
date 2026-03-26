@@ -337,6 +337,7 @@
 <script>
 let binkpConfig = null;
 let uplinkModal;
+let uplinkCheckStates = {};
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -536,6 +537,7 @@ function renderUplinks() {
     }
     uplinks.forEach((uplink, index) => {
         const row = document.createElement('tr');
+        const address = String(uplink.address || '');
         const host = uplink.hostname ? escapeHtml(uplink.hostname) + (uplink.port ? ':' + uplink.port : '') : '';
         const enabledBadge = uplink.enabled
             ? `<span class="badge bg-success">${uiT('ui.admin.binkp_config.uplinks.table.enabled', 'Enabled')}</span>`
@@ -545,18 +547,59 @@ function renderUplinks() {
             : '';
         row.innerHTML = `
             <td class="d-none d-sm-table-cell">${escapeHtml(uplink.me || '')}</td>
-            <td>${escapeHtml(uplink.address || '')}</td>
+            <td>${escapeHtml(address)}</td>
             <td class="d-none d-sm-table-cell">${escapeHtml(uplink.domain || '')}</td>
             <td class="d-none d-md-table-cell">${host}</td>
             <td class="d-none d-lg-table-cell"><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
             <td>${enabledBadge}${defaultBadge}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal(${index})">${uiT('ui.common.edit', 'Edit')}</button>
+                ${renderUplinkCheckButton(address)}
                 <button class="btn btn-sm btn-outline-danger ms-1" type="button" onclick="deleteUplink(${index})">${uiT('ui.common.delete', 'Delete')}</button>
             </td>
         `;
         tbody.appendChild(row);
     });
+}
+
+function renderUplinkCheckButton(address) {
+    const disabled = address === '';
+    const state = uplinkCheckStates[address] || 'idle';
+
+    if (state === 'checking') {
+        return `<button class="btn btn-sm btn-outline-secondary ms-1" type="button" disabled><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span class="visually-hidden">${escapeHtml(uiT('ui.binkp.checking', 'Checking...'))}</span></button>`;
+    }
+
+    if (state === 'success') {
+        return `<button class="btn btn-sm btn-success ms-1" type="button" onclick="checkUplinkConnectivity('${escapeJsString(address)}')" title="${escapeHtmlAttr(uiT('ui.admin.binkp_config.uplinks.check_success', 'Connectivity check succeeded'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.binkp_config.uplinks.check_success', 'Connectivity check succeeded'))}"><i class="fas fa-check"></i></button>`;
+    }
+
+    return `<button class="btn btn-sm btn-outline-secondary ms-1" type="button" onclick="checkUplinkConnectivity('${escapeJsString(address)}')"${disabled ? ' disabled' : ''}>${escapeHtml(uiT('ui.binkp.check_status', 'Check'))}</button>`;
+}
+
+function checkUplinkConnectivity(address) {
+    if (!address) {
+        return;
+    }
+
+    uplinkCheckStates[address] = 'checking';
+    renderUplinks();
+
+    fetch(`/api/binkp/uplink-status?address=${encodeURIComponent(address)}`)
+        .then(response => response.json().then(data => ({ response, data })))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.binkp_config.uplinks.check_failed', 'Connectivity check failed')));
+            }
+
+            uplinkCheckStates[address] = 'success';
+            renderUplinks();
+        })
+        .catch(() => {
+            uplinkCheckStates[address] = 'idle';
+            renderUplinks();
+            window.alert(uiT('ui.admin.binkp_config.uplinks.check_failed', 'Connectivity check failed'));
+        });
 }
 
 function apiError(payload, fallback) {
@@ -775,6 +818,16 @@ function escapeHtml(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+function escapeJsString(value) {
+    return String(value)
+        .replaceAll('\\', '\\\\')
+        .replaceAll("'", "\\'");
 }
 
 function loadAdminUsers(selectId) {
