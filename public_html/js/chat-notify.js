@@ -111,6 +111,18 @@
         if (now - lastChatSoundAt < CHAT_SOUND_COOLDOWN_MS) {
             return;
         }
+        try {
+            const userPart = window.currentUserId ? String(window.currentUserId) : 'anon';
+            const soundLockKey = `bink:chat-sound-at:${userPart}`;
+            const sharedLastSoundAt = parseInt(localStorage.getItem(soundLockKey) || '0', 10) || 0;
+            if (now - sharedLastSoundAt < CHAT_SOUND_COOLDOWN_MS) {
+                lastChatSoundAt = now;
+                return;
+            }
+            localStorage.setItem(soundLockKey, String(now));
+        } catch (_) {
+            // Ignore storage errors and fall back to per-tab cooldown only.
+        }
         lastChatSoundAt = now;
         playNotificationSound('chat');
     }
