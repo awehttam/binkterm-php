@@ -297,7 +297,7 @@
         if (isPathMatch('/netmail')) {
             await markSeen('netmail', stats.total_netmail);
             await refreshMailState('netmail', true);
-        } else if (isPathMatch('/echomail')) {
+        } else if (isPathMatch('/echomail') || isPathMatch('/echolist')) {
             await markSeen('echomail', stats.total_echomail);
             await refreshMailState('echomail', true);
         } else if (isPathMatch('/files')) {
@@ -307,7 +307,7 @@
         if (isPathMatch('/chat')) {
             await refreshMailState('chat', true);
         }
-        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/files')) {
+        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files')) {
             refreshMailState(null, true);
         }
 
