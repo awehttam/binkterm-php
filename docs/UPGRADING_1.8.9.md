@@ -120,126 +120,81 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 ## Summary of Changes
 
 **Interests**
-- New Interests system: admins define named topic groups by bundling echo areas and file areas together, and users can subscribe to an interest to receive all of its echo areas automatically.
-- Admin management page at `/admin/interests`: create, edit, delete, reorder, and activate/deactivate interests; assign echo areas and file areas; configure icon and color; and use the **Generate Suggestions** wizard for keyword-based or optional AI-assisted grouping.
-- User interest picker at `/interests`: card-based subscribe flow with optional per-area selection, plus a **Go to Echo Areas** shortcut back to the reader.
-- Echomail integration: the reader now includes an **Interests** tab and an Area List interest filter, letting users load a unified message feed for an interest or narrow the area list to one interest's areas.
-- Subscription tracking is now interest-aware: newly added areas propagate to existing subscribers, explicit per-area unsubscriptions are respected, and overlapping interests do not remove shared areas when only one interest is unsubscribed.
-- First-time onboarding now routes new users with no interests to `/echo-onboarding` before interest selection, and users can reset that onboarding flag from Settings.
-- Activity Statistics now includes a **Popular Interests** tab showing active interests by subscriber count.
-- Controlled by `ENABLE_INTERESTS` in `.env` and documented in `docs/Interests.md`.
+- Admins define named topic groups (Interests) by bundling echo areas and file areas together. Users subscribe to an interest with a single click and are automatically enrolled in all its member areas.
+- Admin management at `/admin/interests`: create, edit, reorder, and activate/deactivate interests; assign areas; configure icon and color; and use the **Generate Suggestions** wizard for keyword-based or AI-assisted grouping.
+- User interest picker at `/interests`: card-based subscribe flow with optional per-area selection.
+- The echomail reader includes an **Interests** tab and area list filter for a focused reading experience.
+- New users are guided through interest selection during onboarding. Activity Statistics includes a **Popular Interests** tab.
+- Controlled by `ENABLE_INTERESTS` in `.env`.
 
 **Echomail & Netmail**
-- The compose form now shows a warning when the message body approaches the 16 KB FidoNet message body limit, and an error if it exceeds it.
-- Sender name popovers in the echomail list now display in plain text style (no underline) for a cleaner appearance.
-- The echomail Advanced Search modal now includes a **Message ID** field that searches the `message_id` column using a partial (case-insensitive) match.
-- Threaded echomail and netmail views now let users click the reply icon to switch the message list into a dedicated **Show Entire Conversation** mode that loads the full visible conversation instead of only the messages present on the current page.
-- Echomail and netmail message lists now support a right-click context menu, with mobile long-press support for the same menu on touch devices.
-- Echomail list rows now expose **View Conversation**, **Save for later**, **Download Message**, **Forward to me by EMail**, and **Share** from that menu.
-- Netmail list rows now expose **View Conversation**, **Download Message**, and **Forward to me by EMail** from that menu.
-- The **A** key viewer mode cycle now includes a **Raw Source** mode that displays message bytes verbatim — no ANSI rendering, no pipe code conversion, no URL linkification. Useful for inspecting wire content. Pressing **A** also now shows a brief toast notification indicating the active mode.
-- The pipe code detector no longer false-positives on English words that contain pipe characters followed by letters that happen to look like hex color codes (e.g. `|Advertise` was being treated as a Mystic-style background color code, causing a green background). Detection now requires uppercase letters, matching all real BBS software.
+- Message lists now support a right-click context menu (long-press on mobile) with actions including **View Conversation**, **Save for later**, **Download Message**, **Forward by EMail**, and **Share**.
+- A **Show Entire Conversation** mode loads the full thread when clicking the reply icon, not just the messages on the current page.
+- The **A** key cycle now includes a **Raw Source** mode showing message bytes verbatim — useful for inspecting wire content.
+- The compose form warns when approaching the 16 KB FidoNet message body limit.
+- Fixed a pipe code false-positive that rendered English words like `|Advertise` with a green background. Detection now requires uppercase letters, matching real BBS software.
 
 **QWK Offline Mail**
-- QWK packet download and REP upload are now also available through `/qwk/download` and `/qwk/upload` using HTTP Basic Authentication with the user's normal username and password.
-- These endpoints reuse the same packet builder and REP import logic as the web UI/API and are intended for external offline-mail tooling.
-- The `/qwk` page now documents this scripted-access workflow directly in the help accordion, including example `curl` commands for both download and upload.
-- The `/qwk` page also documents the JSON response returned by `/qwk/upload`, including the `success`, `imported`, `skipped`, and `errors` fields.
-- Users can now choose exactly which echo areas appear in their QWK packets via a **Conference Areas** picker (sliders button on the Conferences panel). Subscribed areas are pre-selected; non-subscribed areas can be added by searching. An empty selection produces a personal-mail-only packet. Resetting reverts to the default all-subscribed behaviour. Stored in the new `qwk_area_selections` table with an activation flag in `users_meta`.
+- QWK download and REP upload are now available via HTTP Basic Auth at `/qwk/download` and `/qwk/upload` for use with external offline-mail tools.
+- Users can choose exactly which echo areas appear in their QWK packets via a **Conference Areas** picker.
 
 **User Settings**
-- The settings page has been reorganized from a single long card into a tabbed layout with a left-side navigation panel. Tabs: **Display**, **Messaging**, **Notifications**, and **Account**. The active tab is remembered across page visits via `localStorage`.
-- Notification sound select boxes now have a play button (▶) to preview the selected sound without leaving the settings page.
+- The settings page is reorganized into a tabbed layout: **Display**, **Messaging**, **Notifications**, and **Account**.
+- Notification sound select boxes now have a **▶** button to preview sounds without leaving the page.
 
 **Echomail MCP Server**
-- A new optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server is included in `mcp-server/`. It gives AI assistants (Claude, etc.) read-only access to your echomail database via six tools: `list_echoareas`, `get_echoarea`, `get_echomail_messages`, `get_echomail_message`, `search_echomail`, and `get_echomail_thread`.
-- Authentication is per-user: each user generates a personal bearer key from **Settings → AI → MCP Server Bearer Key**. Keys are stored in `users_meta` and enforce the same echoarea access rules as the web interface — sysop-only areas are hidden for non-admin users.
-- The server reads the main BinktermPHP `.env` file directly and requires a valid registered license to start.
-- Supports `--bind=<host>` for reverse proxy deployments and `--daemon` for boot startup. See `docs/MCPServer.md` for full setup, reverse proxy (nginx, Caddy), systemd, and cron instructions.
-
-**Dashboard**
-- Dynamic advertisements configured with a **Content Command** now render their generated output correctly in all web views that display ads, including the dashboard widget, full ad page, and admin preview modal. Previously these views only used the stored `content` field, so command-backed ads could appear blank unless they also had static fallback content.
-- The **Today's Callers** list in the System Information box is now a table with User, Time, and Online columns. Users who have been active within the last 15 minutes are marked with a green indicator.
-
-**Admin Help**
-- The Admin **Help** menu now opens `FAQ.md` and `README.md` inside the built-in docs viewer instead of linking out to GitHub.
-- The in-app docs viewer now supports these project-root special docs directly and rewrites their markdown links to stay inside the local admin documentation browser.
+- An optional [Model Context Protocol](https://modelcontextprotocol.io/) server (`mcp-server/`) gives AI assistants read-only access to your echomail. Each user generates a personal bearer key from **Settings → AI**. See `docs/MCPServer.md` for setup.
 
 **File Areas**
-- Non-admin file uploads are now placed into a pending approval queue instead of becoming visible immediately.
-- Sysops can review pending uploads from **Admin -> Area Management -> File Approvals**, download them for inspection, and then approve or reject each upload.
-- When virus scanning is enabled, sysops can also trigger an on-demand scan directly from the approval queue before approving a file.
-- Users now get a **My Uploads** view in `/files`, where they can see their own pending, approved, and rejected uploads with status badges.
-- Approved uploads become visible in file listings and can generate TIC distribution at approval time; rejected uploads remain hidden and refund the upload cost when credits are enabled.
-
-**Broadcast Manager**
-- The Broadcast Manager campaign editor now includes a **Clone** action. Cloned campaigns open as new disabled copies, with ` (Copy)` appended to the title so they can be adjusted and enabled later without affecting the original.
-
-**Registration**
-- The registration page now includes a note below the approval notice informing applicants that they will receive an email when their account is approved, that reminder emails may also be sent, and to check their junk/spam folder.
+- Non-admin uploads are placed in a pending approval queue. Sysops review, scan, approve, or reject uploads from **Admin → File Approvals**.
+- Users have a **My Uploads** view in `/files` showing pending, approved, and rejected uploads with status badges.
+- Admins see a live notification badge on the Files menu when uploads are awaiting approval. The badge clears on visiting the approvals page and persists its seen state across page loads.
+- The Files nav entry for admins is now a dropdown containing **Files** and **File Approvals**.
 
 **Real-time Events (BinkStream)**
-- A SharedWorker-based BinkStream channel replaces the previous daemon-based event delivery. BinkStream now supports shared realtime command/event handling over SSE and a standalone PHP WebSocket server. Events are written to an `sse_events` UNLOGGED table; `GET /api/stream`, `POST /api/stream`, and the WebSocket daemon all share the same core command and event logic.
-- In `BINKSTREAM_TRANSPORT_MODE=auto`, the browser prefers WebSocket when the daemon is available and falls back to SSE otherwise. SSE connections default to a 60-second window with 15-second keepalive comments to prevent proxy timeouts. The window duration is configurable via `SSE_WINDOW_SECONDS` in `.env`.
-- A BinkStream diagnostics page is available in the Admin **Help → Developer** submenu. A companion proxy buffer-flush test tool is also in that submenu.
-- **Because every online user holds an open php-fpm worker for the SSE window duration, `pm.max_children` must be sized for your expected concurrent user count.** See [docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning) for a capacity table and low-RAM options.
-- `realtime_server.php` (the standalone WebSocket daemon) is now treated as a core daemon alongside `binkp_server.php`. It appears in the Admin dashboard service status panel with a live transport mode indicator, and the README documents it in the startup and cron sections.
-- Echomail, netmail, and files unread badge counts are now pushed via BinkStream instead of a 30-second client-side poll. A new DB trigger fires on INSERT to the `echomail`, `netmail`, and `files` tables and emits a `dashboard_stats` signal event, debounced to one event per 5-second window. Migration `v1.11.0.58_dashboard_stats_triggers.php` installs these triggers.
-- The echomail and netmail message lists now update automatically when a `dashboard_stats` event arrives, replacing the previous 5-minute and 2-minute auto-refresh intervals. The update is silent — no loading spinner is shown — so the list updates in place without disrupting reading. A 2-second client-side debounce collapses bursts of concurrent import events into a single refresh.
-- When a user marks a message as read in one tab, a user-targeted `message_read` BinkStream event is emitted containing the message ID(s) and type. Other tabs for the same user receive the event and apply the read styling to the message row immediately without reloading the list.
-- When a file is uploaded and enters the pending approval queue, the `dashboard_stats` event notifies admins in real time. The Files nav item now shows an unread indicator for both new files and pending approvals; a sub-item for **File Approvals** lights up independently when there are new pending uploads. The badge clears automatically when the admin visits `/admin/file-approvals`, and the seen position is persisted in `users_meta` so the badge does not reappear on the next page load.
-- For admins the Files nav entry has been converted to a dropdown containing **Files** and **File Approvals**. Non-admin users see the same plain Files link as before.
+- Unread badge counts for echomail, netmail, files, and the file approval queue are now pushed from the server the moment something changes — no more client-side polling.
+- Message lists update silently in the background without a loading spinner.
+- Marking a message as read in one tab immediately reflects in all other open tabs.
+- `realtime_server.php` is now a core daemon (alongside `binkp_server.php`) and appears in the Admin dashboard service status panel. **`pm.max_children` must be sized for your expected concurrent user count** — see [CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning).
 
 **AreaFix / FileFix Manager**
-- New admin tool at `/admin/areafix` for managing echomail and file-area subscriptions with the upstream hub's AreaFix and FileFix robots.
-- Quick-action buttons send common commands (`%QUERY`, `%LIST`, `%UNLINKED`, `%HELP`, `%PAUSE`, `%RESUME`) with one click. A freeform textarea accepts multi-line command sets.
-- Incoming reply messages are parsed to extract a structured area list with subscribe/unsubscribe buttons per area. A **Sync to Echo Areas** button imports the list into the local database.
-- The message history table refreshes automatically after every sent command and polls for new replies every 30 seconds.
-- Messages addressed to or from `areafix` or `filefix` now have their subject line masked to `••••••••` in all UI views, because AreaFix uses the subject as a password.
-- `areafix_password` and `filefix_password` fields have been added to the BinkP uplink editor modal.
-- The message history table now shows **Node Address** (the hub's FTN address) and **Network** (domain) columns, and dates are formatted as human-readable local timestamps instead of raw PostgreSQL strings.
-- Subject masking for AreaFix/FileFix robot messages is now applied correctly. The masking code referenced in `AreaFixManager` was previously missing from `MessageHandler::cleanMessageForJson()`; it has been implemented so the password in the subject line is replaced with `••••••••` in all views.
+- New admin tool at `/admin/areafix` for managing echo area subscriptions with the upstream hub's robots. Quick-action buttons, a structured area list with subscribe/unsubscribe controls, and a **Sync to Echo Areas** button to import the result.
+- AreaFix/FileFix message subjects are masked to `••••••••` in all views to protect the password.
+- `areafix_password` and `filefix_password` fields added to the BinkP uplink editor.
 
 **Advertising**
-- Content commands are now restricted to a whitelist (`scripts/weather_report.php`, `scripts/report_newfiles.php`, and any script in `content_commands/`). The admin editor UI switches from a free-text input to a dropdown populated from that whitelist.
-- Content commands now support arguments. The command string may include space-separated tokens after the script path; each is validated against the whitelist before execution.
-- Advertisements now support a **Click-through URL** field. Clicks on ads that have a URL are tracked in a new `advertisement_clicks` table. Ad views are tracked as impressions in `advertisement_impressions`.
-- A new **Ad Analytics** page at `/admin/ad-analytics` displays impression and click counts, click-through rates, and trends per campaign.
-- Uploaded ad files are automatically prefixed with `[ANSI]`, `[RIP]`, or `[SIXEL]` in the title based on file extension.
-- Two database migrations are included: `v1.11.0.53_ad_tracking.sql`.
-
-**Interests**
-- The echomail reader and echolist area picker now filter the interest dropdown and tab list to interests the user is actually subscribed to. Previously all active interests were shown regardless of subscription.
-- A **Classify** button on the unassigned echo areas table opens a modal that runs keyword-based (and optionally AI-assisted) classification for a single area and lets the admin assign it to a matching interest immediately.
-- The unassigned echo areas panel is now expanded by default. Area tags in the table now link directly to the echo reader in a new tab.
+- Content commands are now restricted to an approved whitelist; the admin editor uses a dropdown instead of free text.
+- Ads now support a **Click-through URL**. Impressions and clicks are tracked and displayed on a new **Ad Analytics** page at `/admin/ad-analytics`.
+- Uploaded ad files are auto-prefixed with `[ANSI]`, `[RIP]`, or `[SIXEL]` based on file type.
 
 **AI Provider Layer**
-- A new abstracted AI provider layer (`src/AI/`) supports both OpenAI and Anthropic as backends. Features that use AI (Interests suggestion wizard, area classification) now route through this layer.
-- AI request accounting is tracked in the `ai_request_accounting` table (migration `v1.11.0.51_ai_request_accounting.sql`). An admin usage report is available at `/admin/ai-usage`.
-- See `docs/AIProviders.md` for configuration and supported models.
-
-**MRC Chat**
-- The `/join <room>` slash command is now recognized in the MRC chat input and switches the user to the named room without typing the room name into the normal input flow. The command works before the user has joined any room and is included in tab-completion.
-
-**Docs Viewer**
-- The admin docs viewer now passes raw HTML blocks through unescaped when rendering `README.md`, so embedded HTML tables and badges in the README render correctly inside the app.
+- A new AI provider layer supports both OpenAI and Anthropic as backends for AI-assisted features. An admin usage report is available at `/admin/ai-usage`. See `docs/AIProviders.md`.
 
 **BinkP Configuration**
-- The poll schedule input on the uplink configuration screen (both the admin page and the user BinkP page) now has a **schedule builder** toggle button. Clicking it opens an inline panel that parses the current cron expression into its five individual fields (Minute, Hour, Day, Month, Weekday). Editing any field immediately rebuilds the expression in the input and shows a human-readable description of the resulting schedule. The builder now handles a wider range of patterns including `*/N` steps in any field, comma lists and ranges in the Weekday field (e.g. `1,2` → Monday, Tuesday; `1-5` → weekdays; `0,6` → weekends), combined step expressions (e.g. `*/5 */4 * * *`), and a compositional fallback for complex combinations.
-- The BinkP status page now loads the uplink list immediately and performs one authentication-only status check per enabled uplink after the page renders. Disabled uplinks and entries without an address are skipped, the UI shows a spinner with **Checking...** while a probe is in flight, and the page no longer runs the checks on a timer.
-- Packet filenames in the Inbound and Outbound queue lists on the Queues tab are now clickable. Clicking a `.pkt` filename opens the existing packet inspector modal showing packet header details and a message list. A download button is also available. Requires a valid license.
-- Uplinks now have an **Allow insecure echomail delivery** checkbox. When ticked, echomail is accepted from this node even when it connects without authentication, provided the node address claimed during the session matches the uplink's configured address. The **Insecure Receive Only** security setting is now enforced: when enabled, unauthenticated sessions cannot receive outbound files, hold-directory files, or serve FREQ requests.
-- Answerer-side BinkP CRAM-MD5 negotiation now advertises `OPT CRAM-MD5-...` as the first `M_NUL` frame in the handshake, improving interoperability with mailers that expect the CRAM challenge before the rest of the informational `M_NUL` burst.
-
-  > ⚠️ **Insecure echomail delivery is not recommended.** Because unauthenticated sessions cannot verify the caller's identity, a malicious node could claim any FTN address. This option exists only as a last resort for legacy systems that cannot support BinkP passwords. The strongly preferred approach is to configure a shared session password on both ends.
+- Poll schedule inputs now have a **schedule builder** that breaks a cron expression into editable fields with a human-readable description.
+- The BinkP status page performs one live authentication check per enabled uplink on load rather than running on a timer.
+- Packet filenames in the queue lists are now clickable and open the packet inspector modal.
+- Uplinks have a new **Allow insecure echomail delivery** option for legacy nodes that cannot authenticate. ⚠️ Not recommended — use only as a last resort.
 
 **Telnet / SSH BBS Server**
-- The telnet and SSH BBS servers now include an **Interests** menu (key `I` from the main menu) for browsing and subscribing to topic groups when `ENABLE_INTERESTS=true`. The detail screen lists member echo areas inline.
-- The **QWK Offline Mail** menu (key `K`) now supports real ZMODEM file transfer: `D` downloads a QWK packet directly to the terminal, and `U` receives a REP reply packet from the terminal. Both use lrzsz (`sz`/`rz`). The HTTP download URL is shown as a supplemental tip.
-- The echomail area picker now has an **I — Browse by Interest** key (when `ENABLE_INTERESTS=true`) that lets users narrow the area list to one interest's echo areas before selecting an area to read.
+- Interests menu (`I`) added for browsing and subscribing to topic groups.
+- QWK Offline Mail (`K`) now supports real ZMODEM file transfer for download and upload.
+
+**Dashboard**
+- Content-command-backed advertisements now render correctly in all views.
+- **Today's Callers** is now a table with User, Time, and Online columns.
+
+**Broadcast Manager**
+- Campaign editor now has a **Clone** action to duplicate a campaign as a new disabled copy.
+
+**Registration**
+- Registration page now advises applicants to expect an approval email and check their spam folder.
+
+**MRC Chat**
+- `/join <room>` slash command added to the MRC chat input.
 
 **CLI Tools**
-- New `scripts/fix_date_received.php` resets `date_received` to `date_written` for echomail rows in specified echo areas. Useful after a `%RESCAN` import where all messages land with the same `date_received` (import time). Supports `--tag`, `--domain`, `--all`, and `--dry-run` options.
+- New `scripts/fix_date_received.php` resets `date_received` to `date_written` for echomail rows in specified areas. Useful after a `%RESCAN` import.
 
 ---
 
