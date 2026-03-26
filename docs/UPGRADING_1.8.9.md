@@ -4,6 +4,7 @@
 
 ## Table of Contents
 
+- [Introduction](#introduction)
 - [Summary of Changes](#summary-of-changes)
 - [Interests](#interests)
   - [Overview](#overview)
@@ -93,6 +94,26 @@
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
+
+---
+
+## Introduction
+
+Version 1.8.9 is a broad feature release touching nearly every part of the system.
+
+The headline addition is the **Interests** system — a way for admins to bundle related echo areas and file areas into named topic groups that users can subscribe to in one step. A card-based interest picker guides new users through onboarding, and the echomail reader gains an Interests tab and area list filter so readers can stay focused on what they care about.
+
+**Real-time delivery (BinkStream)** sees its most significant expansion yet. Unread badge counts for echomail, netmail, files, and the new file approval queue are now pushed from the server the moment something changes, driven by PostgreSQL triggers — replacing the last remaining client-side polls. Message-list views update silently in the background without showing a loading spinner, and marking a message as read in one browser tab is immediately reflected in every other open tab via a user-targeted event.
+
+**File areas** gain a proper upload approval workflow. Non-admin uploads land in a pending queue that sysops can review, scan, and approve or reject from a dedicated admin page. Admins see a live notification badge on the Files menu the moment a new upload is waiting, and the badge persists its seen state across page loads. The Files nav item for admins becomes a dropdown that surfaces the File Approvals queue alongside the regular file browser.
+
+**Messaging** improvements include a right-click context menu on echomail and netmail list rows (with long-press support on touch devices), a Show Entire Conversation mode, a Raw Source viewer mode for inspecting wire content, and a compose-time warning when a message approaches the FidoNet 16 KB limit. QWK offline mail adds HTTP Basic Auth endpoints for scripted access, and users can now choose exactly which echo areas go into their QWK packets.
+
+The **AreaFix / FileFix Manager** is a new admin tool for managing echo area subscriptions with the upstream hub's robots — sending commands, parsing replies, and syncing the resulting area list back into the local database — all without touching a mail client.
+
+For AI-curious sysops, an optional **MCP Server** exposes echomail to AI assistants such as Claude via the Model Context Protocol, with per-user bearer keys and the same access controls as the web interface. A new abstracted **AI Provider Layer** backs the Interests suggestion wizard and area classifier, supporting both Anthropic and OpenAI.
+
+Rounding out the release: a tabbed User Settings layout, notification sound previews, ad click-through tracking and analytics, a campaign clone action in the Broadcast Manager, and a handful of bug fixes including a pipe code false-positive that was rendering English words with green backgrounds.
 
 ---
 
