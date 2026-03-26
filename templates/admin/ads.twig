@@ -43,8 +43,8 @@
                         <input class="form-control" type="text" id="adTitle" name="title">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label" for="adSlug">{{ t('ui.admin.ads.slug_optional') }}</label>
-                        <input class="form-control" type="text" id="adSlug" name="slug" placeholder="retro-sale">
+                        <label class="form-label" for="contentSlug">{{ t('ui.admin.ads.slug_optional') }}</label>
+                        <input class="form-control" type="text" id="contentSlug" name="slug" placeholder="retro-sale">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label" for="adTags">{{ t('ui.admin.ads.tags') }}</label>
@@ -297,7 +297,33 @@ document.addEventListener('DOMContentLoaded', function() {
     if (previewElement) {
         adPreviewModal = new bootstrap.Modal(previewElement);
     }
+
+    window.setTimeout(detectHiddenUploadFields, 50);
 });
+
+function detectHiddenUploadFields() {
+    const slugInput = document.getElementById('contentSlug');
+    if (!slugInput) {
+        return;
+    }
+
+    const style = window.getComputedStyle(slugInput);
+    const hidden = style.display === 'none'
+        || style.visibility === 'hidden'
+        || style.opacity === '0'
+        || slugInput.hidden
+        || slugInput.offsetParent === null;
+
+    if (hidden) {
+        showAdsAlert(
+            uiT(
+                'ui.admin.ads.form_hidden_warning',
+                'A browser extension appears to be hiding parts of this form. If fields are missing, disable content blocking for this admin page.'
+            ),
+            'warning'
+        );
+    }
+}
 
 function loadContentCommands() {
     fetch('/admin/api/ads/content-commands')
@@ -488,7 +514,7 @@ function uploadAd() {
         formData.append('content_command', contentCommand);
     }
     formData.append('title', document.getElementById('adTitle').value.trim());
-    formData.append('slug', document.getElementById('adSlug').value.trim());
+    formData.append('slug', document.getElementById('contentSlug').value.trim());
     formData.append('description', document.getElementById('adDescription').value.trim());
     formData.append('tags', document.getElementById('adTags').value.trim());
     formData.append('dashboard_weight', document.getElementById('adWeight').value || '1');

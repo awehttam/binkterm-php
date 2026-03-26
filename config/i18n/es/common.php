@@ -683,6 +683,7 @@ return [
     'ui.admin.ads.upload_failed_with_status' => 'Fallo la carga ({status})',
     'ui.admin.ads.uploaded' => 'Anuncio cargado correctamente.',
     'ui.admin.ads.upload_failed' => 'Fallo la carga',
+    'ui.admin.ads.form_hidden_warning' => 'Parece que una extension del navegador esta ocultando partes de este formulario. Si faltan campos, desactive el bloqueo de contenido para esta pagina de administracion.',
     'ui.admin.ads.delete_confirm' => 'Eliminar {name}?',
     'ui.admin.ads.delete_failed_with_status' => 'Fallo la eliminacion ({status})',
     'ui.admin.ads.deleted' => 'Anuncio eliminado correctamente.',

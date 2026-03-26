@@ -585,6 +585,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.ads.upload_failed_with_status' => 'Échec du téléversement ({status})',
     'ui.admin.ads.uploaded' => 'Annonce téléversée.',
     'ui.admin.ads.upload_failed' => 'Échec du téléversement',
+    'ui.admin.ads.form_hidden_warning' => 'Une extension du navigateur semble masquer certaines parties de ce formulaire. Si des champs manquent, désactivez le blocage de contenu pour cette page d’administration.',
     'ui.admin.ads.delete_confirm' => 'Supprimer {name} ?',
     'ui.admin.ads.delete_failed_with_status' => 'Échec de la suppression ({status})',
     'ui.admin.ads.deleted' => 'Annonce supprimée.',

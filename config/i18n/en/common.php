@@ -683,6 +683,7 @@ return [
     'ui.admin.ads.upload_failed_with_status' => 'Upload failed ({status})',
     'ui.admin.ads.uploaded' => 'Advertisement uploaded.',
     'ui.admin.ads.upload_failed' => 'Upload failed',
+    'ui.admin.ads.form_hidden_warning' => 'A browser extension appears to be hiding parts of this form. If fields are missing, disable content blocking for this admin page.',
     'ui.admin.ads.delete_confirm' => 'Delete {name}?',
     'ui.admin.ads.delete_failed_with_status' => 'Delete failed ({status})',
     'ui.admin.ads.deleted' => 'Advertisement deleted.',
