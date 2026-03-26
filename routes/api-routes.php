@@ -9798,19 +9798,31 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
      * binary ZIP download.  No JSON is returned — the response body IS the
      * ZIP file.
      */
-    SimpleRouter::get('/download', function() {
+    SimpleRouter::match([\Pecee\Http\Request::REQUEST_TYPE_GET, \Pecee\Http\Request::REQUEST_TYPE_HEAD], '/download', function() {
         $user   = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
 
         try {
             $controller = new \BinktermPHP\Qwk\QwkHttpController();
-            $download = $controller->buildDownloadPacket($userId);
+            $metadata = $controller->getDownloadMetadata($userId);
+
+            $filename = (string)$metadata['filename'];
+            $safeFilename = str_replace(['\\', '"', "\r", "\n"], ['_', '_', '', ''], $filename);
+            $encodedFilename = rawurlencode($filename);
 
             header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . $download['filename'] . '"');
-            header('Content-Length: ' . $download['filesize']);
+            header('Content-Disposition: attachment; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-QWK-BBS-ID: ' . $metadata['bbs_id']);
+            header('X-QWK-Reply-Filename: ' . $metadata['reply_filename']);
             header('Cache-Control: no-store, no-cache, must-revalidate');
             header('Pragma: no-cache');
+
+            if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+                exit;
+            }
+
+            $download = $controller->buildDownloadPacket($userId);
+            header('Content-Length: ' . $download['filesize']);
 
             readfile($download['path']);
             @unlink($download['path']);

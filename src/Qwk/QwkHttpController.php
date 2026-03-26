@@ -12,6 +12,28 @@ use BinktermPHP\UserMeta;
 class QwkHttpController
 {
     /**
+     * Return the filename metadata for this user's QWK packet without building it.
+     *
+     * @param int $userId
+     * @return array{bbs_id:string,filename:string,reply_filename:string}
+     */
+    public function getDownloadMetadata(int $userId): array
+    {
+        if (!BbsConfig::isFeatureEnabled('qwk')) {
+            throw new \DomainException('QWK offline mail is not enabled on this system.');
+        }
+
+        $builder = new QwkBuilder();
+        $bbsId = $builder->getBbsId();
+
+        return [
+            'bbs_id' => $bbsId,
+            'filename' => $bbsId . '.QWK',
+            'reply_filename' => $bbsId . '.REP',
+        ];
+    }
+
+    /**
      * Build a QWK packet and return the generated archive details.
      *
      * @param int $userId
