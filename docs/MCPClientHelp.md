@@ -1,6 +1,6 @@
 # Connecting MCP-compatible desktop clients
 
-BinktermPHP exposes an MCP endpoint (`/mcp`) that desktop assistants (Claude, Anything LLM, OpenAI, etc.) can call directly. This document shows how to configure a generic client so it connects using your Bearer token and the `mcp-remote` helper. Once connected, the client sees the same tools and commands you expose to the web UI.
+BinktermPHP exposes an MCP endpoint (`/mcp`) that desktop assistants (Claude, Anything LLM, OpenAI, etc.) can call directly. By default, the MCP server runs on its own port (`3740`), separate from the main web UI. This document shows how to configure a generic client so it connects using your Bearer token and the `mcp-remote` helper. Once connected, the client sees the same tools and commands you expose to the web UI.
 
 ## Prerequisites
 
@@ -24,6 +24,8 @@ Replace `<client>` with the actual folder name (`Claude`, `OpenAI`, `anything-ll
 
 Every client defines an `mcpServers` map. Add an entry with `npx mcp-remote` that proxies to your BinktermPHP MCP endpoint.
 
+If you are using the default direct MCP listener, point the client at `https://your-bbs-hostname:3740/mcp`. Only omit `:3740` if you placed the MCP server behind a reverse proxy on a different public URL.
+
 ### Example template (macOS/Linux)
 
 ```json
@@ -33,7 +35,7 @@ Every client defines an `mcpServers` map. Add an entry with `npx mcp-remote` tha
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://bbs.example.com/mcp",
+        "https://bbs.example.com:3740/mcp",
         "--header",
         "Authorization: Bearer YOUR_TOKEN"
       ]
@@ -54,7 +56,7 @@ Windows shells need `cmd /c` around `npx`:
       "args": [
         "/c", "npx",
         "mcp-remote",
-        "https://bbs.example.com/mcp",
+        "https://bbs.example.com:3740/mcp",
         "--header",
         "Authorization: Bearer YOUR_TOKEN"
       ]
@@ -67,10 +69,10 @@ Windows shells need `cmd /c` around `npx`:
 
 - **Claude Desktop** uses `claude_desktop_config.json` under `%APPDATA%\Claude`.
 - **OpenAI Desktop** looks for `openai_desktop_config.json` in `%APPDATA%\OpenAI`. The JSON structure is identical to the template above.
-- **Anything LLM** clients store `anything.json` in `~/.config/anything`. Drop the same `mcpServers` block into that file and keep the rest of the JSON valid.
+- **Anything LLM** on Windows stores MCP server definitions in `%APPDATA%\Roaming\anythingllm-desktop\storage\plugins\anythingllm_mcp_servers.json`. Add the same server entry there and keep the JSON valid.
 - You can add multiple entries for different BBS nodes. The label (`my-binktermphp`) is arbitrary.
 
-Always append `/mcp` to your MCP endpoint URL.
+Always append `/mcp` to your MCP endpoint URL. With the default setup, that means a URL such as `https://claudes.lovelybits.org:3740/mcp`.
 
 ## Step 3 — Restart the client
 
@@ -81,7 +83,7 @@ Fully quit the client (use the menu’s Quit command or the system tray) and relau
 - Open a new chat/agent session and confirm your MCP server appears in the tools menu.
 - If it does not show up:
   - verify the Bearer token is valid and has MCP scope.
-  - run `npx mcp-remote https://bbs.example.com/mcp --header "Authorization: Bearer YOUR_TOKEN"` from a terminal; the command should list your tools.
+  - run `npx mcp-remote https://bbs.example.com:3740/mcp --header "Authorization: Bearer YOUR_TOKEN"` from a terminal; the command should list your tools.
   - ensure TLS/DNS routes to your BinktermPHP hostname.
   - double-check the JSON file has no trailing commas and balanced braces.
 

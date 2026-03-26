@@ -169,13 +169,13 @@ See [docs/GeminiCapsule.md](GeminiCapsule.md) for Gemini capsule hosting setup.
 ### MCP Server
 
 ```bash
-# MCP_SERVER_URL=https://mcp.yourbbs.example.com   # Required to enable AI settings tab and key management
+# MCP_SERVER_URL=https://yourbbs.example.com:3740  # Required to enable AI settings tab and key management
 # MCP_SERVER_PORT=3740                              # Port the MCP server listens on (MCP_PORT also accepted)
 # MCP_BIND_HOST=127.0.0.1                          # Bind to localhost when using a reverse proxy
 # MCP_TRUSTED_PROXIES=127.0.0.1,::1,::ffff:127.0.0.1  # Proxy IPs whose X-Forwarded-For header is trusted
 ```
 
-`MCP_SERVER_URL` must be set for users to see the AI settings tab and manage their bearer keys.  It is the public-facing base URL of the MCP server (no trailing slash), e.g. `https://mcp.yourbbs.example.com` or `http://yourbbs.example:3740`.  See [docs/MCPServer.md](MCPServer.md) for full setup instructions.
+`MCP_SERVER_URL` must be set for users to see the AI settings tab and manage their bearer keys.  It is the public-facing base URL of the MCP server (no trailing slash), e.g. `https://yourbbs.example.com:3740` for the default direct listener, or `https://mcp.yourbbs.example.com` when using a reverse proxy or dedicated subdomain.  See [docs/MCPServer.md](MCPServer.md) for full setup instructions.
 
 ### Web Terminal (WebDoor)
 

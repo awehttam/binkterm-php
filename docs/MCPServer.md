@@ -42,7 +42,7 @@ cd ..
 
 No separate `.env` file is needed. The server reads the main BinktermPHP `.env` file automatically.
 
-Add the port to your main `.env` if you want a non-default port:
+The MCP server listens on port `3740` by default. Add this to your main `.env` only if you want to override the default port:
 
 ```
 MCP_SERVER_PORT=3740
@@ -128,7 +128,7 @@ Authorization: Bearer <key>
 X-API-Key: <key>
 ```
 
-The MCP endpoint is `POST /mcp` (and `GET /mcp` for SSE streaming). A health check with no authentication is available at `GET /health`.
+The MCP endpoint is `POST /mcp` (and `GET /mcp` for SSE streaming). On a default direct setup, the full URL is typically `https://your-bbs-hostname:3740/mcp`. A health check with no authentication is available at `GET /health`.
 
 ---
 
