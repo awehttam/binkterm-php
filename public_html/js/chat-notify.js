@@ -2,6 +2,7 @@
     let chatUnreadTotal = 0;
     let mailUnreadTotal = 0;
     let filesUnread = false;
+    let fileApprovalsUnread = false;
     let chatUnread = false;
     let mailUnread = { netmail: false, echomail: false };
     let initialized = false;
@@ -153,15 +154,24 @@
     function updateFileIcon(stats, clearTarget = null) {
         const fileMenuIcons = document.querySelectorAll('.file-menu-icon');
         const fileMenuLinks = document.querySelectorAll('.file-menu-link');
+        const fileApprovalLinks = document.querySelectorAll('.file-approvals-menu-link');
         const newFiles = parseInt(stats?.new_files || 0, 10) || 0;
+        const pendingApprovals = parseInt(stats?.pending_file_approvals || 0, 10) || 0;
+
         filesUnread = newFiles > 0;
+        fileApprovalsUnread = pendingApprovals > 0;
 
         if (clearTarget === 'files') {
             filesUnread = false;
         }
+        if (clearTarget === 'file-approvals' || isPathMatch('/admin/file-approvals')) {
+            fileApprovalsUnread = false;
+        }
 
-        fileMenuIcons.forEach((icon) => icon.classList.toggle('unread', filesUnread));
-        fileMenuLinks.forEach((link) => link.classList.toggle('unread', filesUnread));
+        const fileIconUnread = filesUnread || fileApprovalsUnread;
+        fileMenuIcons.forEach((icon) => icon.classList.toggle('unread', fileIconUnread));
+        fileMenuLinks.forEach((link) => link.classList.toggle('unread', fileIconUnread));
+        fileApprovalLinks.forEach((link) => link.classList.toggle('unread', fileApprovalsUnread));
     }
 
     function updateChatIcons() {
@@ -303,11 +313,14 @@
         } else if (isPathMatch('/files')) {
             await markSeen('files', stats.files_max_id ?? 0);
             await refreshMailState('files', true);
+        } else if (isPathMatch('/admin/file-approvals')) {
+            await markSeen('file-approvals', stats.pending_files_max_id ?? 0);
+            await refreshMailState('file-approvals', true);
         }
         if (isPathMatch('/chat')) {
             await refreshMailState('chat', true);
         }
-        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files') && !isPathMatch('/chat')) {
+        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files') && !isPathMatch('/admin/file-approvals') && !isPathMatch('/chat')) {
             refreshMailState(null, true);
         }
 

@@ -190,11 +190,23 @@
                         {% endif %}
 
                         {% if bbs_feature_enabled('file_areas') and current_user %}
+                        {% if current_user.is_admin %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle file-menu-link" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/files"><i class="fas fa-file me-1"></i> {{ t('ui.base.files', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item file-approvals-menu-link" href="/admin/file-approvals"><i class="fas fa-check-circle me-1"></i> {{ t('ui.base.file_approvals', {}, 'common') }}</a></li>
+                            </ul>
+                        </li>
+                        {% else %}
                         <li class="nav-item">
                             <a class="nav-link file-menu-link" href="/files">
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                         </li>
+                        {% endif %}
                         {% endif %}
 
                         {% if bbs_directory_enabled %}

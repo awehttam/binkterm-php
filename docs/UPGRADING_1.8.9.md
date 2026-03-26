@@ -59,6 +59,8 @@
   - [Realtime Server Promoted to Core Daemon](#realtime-server-promoted-to-core-daemon)
   - [Dashboard Stats Push](#dashboard-stats-push)
   - [Cross-Tab Read Sync](#cross-tab-read-sync)
+  - [File Approval Queue Notifications](#file-approval-queue-notifications)
+  - [Admin File Menu Dropdown](#admin-file-menu-dropdown)
 - [AreaFix / FileFix Manager](#areafix--filefix-manager)
   - [Overview](#areafix-overview)
   - [Quick Actions](#quick-actions)
@@ -165,6 +167,8 @@
 - Echomail, netmail, and files unread badge counts are now pushed via BinkStream instead of a 30-second client-side poll. A new DB trigger fires on INSERT to the `echomail`, `netmail`, and `files` tables and emits a `dashboard_stats` signal event, debounced to one event per 5-second window. Migration `v1.11.0.58_dashboard_stats_triggers.php` installs these triggers.
 - The echomail and netmail message lists now update automatically when a `dashboard_stats` event arrives, replacing the previous 5-minute and 2-minute auto-refresh intervals. The update is silent — no loading spinner is shown — so the list updates in place without disrupting reading. A 2-second client-side debounce collapses bursts of concurrent import events into a single refresh.
 - When a user marks a message as read in one tab, a user-targeted `message_read` BinkStream event is emitted containing the message ID(s) and type. Other tabs for the same user receive the event and apply the read styling to the message row immediately without reloading the list.
+- When a file is uploaded and enters the pending approval queue, the `dashboard_stats` event notifies admins in real time. The Files nav item now shows an unread indicator for both new files and pending approvals; a sub-item for **File Approvals** lights up independently when there are new pending uploads. The badge clears automatically when the admin visits `/admin/file-approvals`, and the seen position is persisted in `users_meta` so the badge does not reappear on the next page load.
+- For admins the Files nav entry has been converted to a dropdown containing **Files** and **File Approvals**. Non-admin users see the same plain Files link as before.
 
 **AreaFix / FileFix Manager**
 - New admin tool at `/admin/areafix` for managing echomail and file-area subscriptions with the upstream hub's AreaFix and FileFix robots.
@@ -684,6 +688,28 @@ The echomail and netmail message lists also listen for `dashboard_stats` and upd
 ### Cross-Tab Read Sync
 
 When a user marks a message as read (single or bulk), the server inserts a user-targeted `message_read` event into `sse_events` in addition to the normal database write. The event payload contains the array of message IDs and the message type (`echomail` or `netmail`). Other browser tabs open to the same message list receive the event via BinkStream and immediately apply the read styling (open envelope icon, faded row) without reloading the list.
+
+### File Approval Queue Notifications
+
+When a non-admin uploads a file it is inserted with `status = 'pending'`. The existing `files` INSERT trigger fires a `dashboard_stats` event, which causes all connected clients to re-fetch `/api/dashboard/stats`. For admin users the response now includes `pending_file_approvals` (new pending files since last seen) and `pending_files_max_id` (the highest ID seen).
+
+The unread indicator logic follows the same pattern used for the Files and Chat badges:
+
+- The Files nav icon and link gain the `unread` class when either `new_files > 0` or `pending_file_approvals > 0`.
+- The File Approvals sub-item gains the `unread` class when `pending_file_approvals > 0`.
+- On page load, if the user is already on `/admin/file-approvals`, `markSeen('file-approvals', pending_files_max_id)` is called immediately so the badge clears and the seen position is persisted to `users_meta` (`last_pending_files_max_id`).
+- `DashboardStatsService` uses the stored `last_pending_files_max_id` to count only files added since the admin last visited the queue. On first visit the current max ID is recorded and the badge starts at zero.
+
+### Admin File Menu Dropdown
+
+For administrators the Files entry in the top navigation has been converted to a Bootstrap dropdown. The dropdown contains two items:
+
+- **Files** — links to `/files` as before.
+- **File Approvals** — links to `/admin/file-approvals`; gains the `unread` badge independently when new pending uploads are waiting.
+
+Non-admin users continue to see a plain Files nav link with no dropdown.
+
+The `ui.base.file_approvals` i18n key has been added to all locale catalogs (`en`, `fr`, `es`).
 
 ---
 

@@ -229,6 +229,7 @@ return [
     'ui.base.mrc_chat' => 'Chat MRC',
     'ui.base.doors_games' => 'Portes',
     'ui.base.files' => 'Fichiers',
+    'ui.base.file_approvals' => 'Approbations de fichiers',
     'ui.base.nodelist' => 'Liste des nœuds',
     'ui.base.admin' => 'Admin',
     'ui.base.profile' => 'Profil',

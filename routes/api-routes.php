@@ -640,9 +640,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $target = strtolower((string)($input['target'] ?? ''));
-        if (!in_array($target, ['netmail', 'echomail', 'chat', 'files'], true)) {
+        if (!in_array($target, ['netmail', 'echomail', 'chat', 'files', 'file-approvals'], true)) {
             http_response_code(400);
             apiError('errors.notify.invalid_target', apiLocalizedText('errors.notify.invalid_target', 'Invalid notification target', $user));
+            return;
+        }
+
+        // file-approvals target is admin-only
+        if ($target === 'file-approvals' && !$isAdmin) {
+            http_response_code(403);
+            apiError('errors.auth.forbidden', 'Forbidden');
             return;
         }
 
@@ -654,6 +661,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
         } elseif ($target === 'files') {
             $meta->setValue((int)$userId, 'last_files_max_id', (string)$currentCount);
+        } elseif ($target === 'file-approvals') {
+            $meta->setValue((int)$userId, 'last_pending_files_max_id', (string)$currentCount);
         } else {
             $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
         }

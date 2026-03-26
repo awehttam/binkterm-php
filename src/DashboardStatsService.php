@@ -149,6 +149,29 @@ class DashboardStatsService
             }
         }
 
+        $pendingFileApprovals = 0;
+        $pendingFilesMaxId = 0;
+        if ($isAdmin) {
+            $lastPendingFilesMaxId = $meta->getValue($userId, 'last_pending_files_max_id');
+
+            if ($lastPendingFilesMaxId === null) {
+                // First visit — record current max so future uploads appear as new
+                $maxPendingStmt = $this->db->query("SELECT COALESCE(MAX(id), 0) AS max_id FROM files WHERE status = 'pending'");
+                $pendingFilesMaxId = (int)($maxPendingStmt->fetch()['max_id'] ?? 0);
+                $meta->setValue($userId, 'last_pending_files_max_id', (string)$pendingFilesMaxId);
+                $pendingFileApprovals = 0;
+            } else {
+                $lastPendingFilesMaxId = (int)$lastPendingFilesMaxId;
+                $pendingStmt = $this->db->prepare(
+                    "SELECT COUNT(*) AS new_count, COALESCE(MAX(id), ?) AS max_id FROM files WHERE status = 'pending' AND id > ?"
+                );
+                $pendingStmt->execute([$lastPendingFilesMaxId, $lastPendingFilesMaxId]);
+                $pendingRow = $pendingStmt->fetch();
+                $pendingFileApprovals = (int)($pendingRow['new_count'] ?? 0);
+                $pendingFilesMaxId = (int)($pendingRow['max_id'] ?? $lastPendingFilesMaxId);
+            }
+        }
+
         return [
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
@@ -160,6 +183,8 @@ class DashboardStatsService
             'files_max_id' => $filesMaxId,
             'total_files' => $totalFiles,
             'credit_balance' => $creditBalance,
+            'pending_file_approvals' => $pendingFileApprovals,
+            'pending_files_max_id' => $pendingFilesMaxId,
         ];
     }
 }
