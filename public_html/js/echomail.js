@@ -166,6 +166,17 @@ $(document).ready(function() {
         loadStats();
     }, 300000);
 
+    // Cross-tab read sync — apply read styling immediately when another tab
+    // marks a message as read without requiring a full list reload.
+    if (window.BinkStream) {
+        window.BinkStream.on('message_read', function(data) {
+            if (data.message_type !== 'echomail') return;
+            (data.message_ids || []).forEach(function(id) {
+                applyEchomailReadStyle(id);
+            });
+        });
+    }
+
     document.addEventListener('click', hideMessageContextMenu);
     document.addEventListener('scroll', hideMessageContextMenu, true);
     window.addEventListener('resize', hideMessageContextMenu);
@@ -1194,20 +1205,20 @@ function updateFilterCounts(counts) {
     $('#draftsCount').text(counts.drafts || 0);
 }
 
+function applyEchomailReadStyle(messageId) {
+    const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+    if (!messageRow.length) return;
+    messageRow.removeClass('unread').addClass('read');
+    messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
+    messageRow.find('.message-subject strong').contents().unwrap();
+    messageRow.find('.fa-envelope-open').attr('title', 'Read');
+    messageRow.css('opacity', '0.85');
+}
+
 function markEchomailAsRead(messageId) {
     $.post(`/api/messages/echomail/${messageId}/read`)
         .done(function() {
-            // Update the UI to show message as read
-            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
-            if (messageRow.length) {
-                messageRow.removeClass('unread').addClass('read');
-                // Change envelope icon from closed to open
-                messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
-                // Remove bold formatting from subject
-                messageRow.find('strong').contents().unwrap();
-                // Update title attribute
-                messageRow.find('.fa-envelope-open').attr('title', 'Read');
-            }
+            applyEchomailReadStyle(messageId);
         })
         .fail(function() {
             console.log('Failed to mark echomail as read');
@@ -2536,12 +2547,7 @@ function deleteSelectedMessages() {
 function markMessageAsRead(messageId) {
     $.post(`/api/messages/echomail/${messageId}/read`)
         .done(function() {
-            // Update the UI to show message as read
-            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
-            messageRow.removeClass('unread').addClass('read');
-            messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
-            messageRow.find('.message-subject strong').contents().unwrap();
-            messageRow.css('opacity', '0.85');
+            applyEchomailReadStyle(messageId);
         })
         .fail(function() {
             console.log('Failed to mark message as read');

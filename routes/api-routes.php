@@ -5283,6 +5283,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // Notify other tabs of the same user via BinkStream
+        $evtStmt = $db->prepare("
+            INSERT INTO sse_events (event_type, payload, user_id, admin_only)
+            VALUES ('message_read', :payload, :user_id, FALSE)
+            RETURNING id
+        ");
+        $evtStmt->execute([
+            ':payload'  => json_encode(['message_ids' => array_map('intval', $messageIds), 'message_type' => 'echomail']),
+            ':user_id'  => $userId,
+        ]);
+        $evtId = $evtStmt->fetchColumn();
+        $db->exec("SELECT pg_notify('binkstream', " . (int)$evtId . ")");
+
         echo json_encode([
             'success' => true,
             'message_code' => 'ui.echomail.bulk_mark_read_success',
@@ -6711,6 +6724,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $stmt->execute([$userId, (int)$id, $type]);
 
             if ($result) {
+                // Notify other tabs of the same user via BinkStream
+                $evtStmt = $db->prepare("
+                    INSERT INTO sse_events (event_type, payload, user_id, admin_only)
+                    VALUES ('message_read', :payload, :user_id, FALSE)
+                    RETURNING id
+                ");
+                $evtStmt->execute([
+                    ':payload'  => json_encode(['message_ids' => [(int)$id], 'message_type' => $type]),
+                    ':user_id'  => (int)$userId,
+                ]);
+                $evtId = $evtStmt->fetchColumn();
+                $db->exec("SELECT pg_notify('binkstream', " . (int)$evtId . ")");
+
                 echo json_encode(['success' => true]);
             } else {
                 http_response_code(500);

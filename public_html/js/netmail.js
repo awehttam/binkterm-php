@@ -160,6 +160,17 @@ $(document).ready(function() {
         loadMessages();
         loadStats();
     }, 120000);
+
+    // Cross-tab read sync — apply read styling immediately when another tab
+    // marks a message as read without requiring a full list reload.
+    if (window.BinkStream) {
+        window.BinkStream.on('message_read', function(data) {
+            if (data.message_type !== 'netmail') return;
+            (data.message_ids || []).forEach(function(id) {
+                applyNetmailReadStyle(id);
+            });
+        });
+    }
 });
 
 function loadMessages(callback) {
@@ -1212,23 +1223,21 @@ function deleteMessage(messageId) {
     });
 }
 
+function applyNetmailReadStyle(messageId) {
+    const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+    if (!messageRow.length) return;
+    messageRow.removeClass('table-light');
+    messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('far fa-envelope-open text-muted');
+    messageRow.find('strong').contents().unwrap();
+    messageRow.find('.fa-envelope-open').attr('title', 'Read');
+    messageRow.css('opacity', '0.85');
+}
+
 // Mark message as read when viewed
 function markMessageAsRead(messageId) {
     $.post(`/api/messages/netmail/${messageId}/read`)
         .done(function() {
-            // Update the UI to show message as read
-            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
-            if (messageRow.length) {
-                messageRow.removeClass('table-light');
-                // Change envelope icon from closed to open
-                messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('far fa-envelope-open text-muted');
-                // Remove bold formatting from subject
-                messageRow.find('strong').contents().unwrap();
-                // Update title attribute
-                messageRow.find('.fa-envelope-open').attr('title', 'Read');
-                // Reduce opacity slightly to show as read
-                messageRow.css('opacity', '0.85');
-            }
+            applyNetmailReadStyle(messageId);
         })
         .fail(function() {
             console.log('Failed to mark netmail as read');

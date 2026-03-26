@@ -56,6 +56,9 @@
   - [User and Admin Targeting](#user-and-admin-targeting)
   - [php-fpm Worker Capacity](#php-fpm-worker-capacity)
   - [BinkStream Test Tools](#binkstream-test-tools)
+  - [Realtime Server Promoted to Core Daemon](#realtime-server-promoted-to-core-daemon)
+  - [Dashboard Stats Push](#dashboard-stats-push)
+  - [Cross-Tab Read Sync](#cross-tab-read-sync)
 - [AreaFix / FileFix Manager](#areafix--filefix-manager)
   - [Overview](#areafix-overview)
   - [Quick Actions](#quick-actions)
@@ -158,6 +161,9 @@
 - A BinkStream diagnostics page is available in the Admin **Help → Developer** submenu. A companion proxy buffer-flush test tool is also in that submenu.
 - Three database migrations are included: `v1.11.0.54_chat_notify_trigger.php`, `v1.11.0.55_sse_events_table.php`, and `v1.11.0.57_sse_events_user_targeting.php`. The third adds per-user and admin-only targeting to `sse_events` and updates the chat trigger to a fat-payload pattern (no JOINs at delivery time).
 - **Because every online user holds an open php-fpm worker for the SSE window duration, `pm.max_children` must be sized for your expected concurrent user count.** See [docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning) for a capacity table and low-RAM options.
+- `realtime_server.php` (the standalone WebSocket daemon) is now treated as a core daemon alongside `binkp_server.php`. It appears in the Admin dashboard service status panel with a live transport mode indicator, and the README documents it in the startup and cron sections.
+- Echomail, netmail, and files unread badge counts are now pushed via BinkStream instead of a 30-second client-side poll. A new DB trigger fires on INSERT to the `echomail`, `netmail`, and `files` tables and emits a `dashboard_stats` signal event, debounced to one event per 5-second window. Migration `v1.11.0.58_dashboard_stats_triggers.php` installs these triggers.
+- When a user marks a message as read in one tab, a user-targeted `message_read` BinkStream event is emitted containing the message ID(s) and type. Other tabs for the same user receive the event and apply the read styling to the message row immediately without reloading the list.
 
 **AreaFix / FileFix Manager**
 - New admin tool at `/admin/areafix` for managing echomail and file-area subscriptions with the upstream hub's AreaFix and FileFix robots.
@@ -662,6 +668,20 @@ Two diagnostic tools are in the Admin **Help → Developer** submenu:
 - **BinkStream Test** — sends a test event through the database trigger and displays it in real time, confirming the full BinkStream pipeline is working.
 - **Proxy Buffer Test** — flushes progressively larger chunks of data and reports whether each chunk arrives immediately or is held by an intervening proxy or web server buffer.
 
+### Realtime Server Promoted to Core Daemon
+
+`realtime_server.php` is now listed as a core daemon (alongside `binkp_server.php`) rather than an optional one. It appears in the Admin dashboard service status panel with a live indicator showing the active transport mode (WebSocket or SSE). The README startup sequence and cron/systemd examples include it in the required services section. See `docs/BinkStreamChannel.md` for reverse proxy setup and diagnostics.
+
+### Dashboard Stats Push
+
+Echomail, netmail, and files unread badge counts are now delivered via BinkStream instead of a 30-second client-side poll. A new shared Postgres trigger function (`notify_dashboard_stats`) fires on INSERT to the `echomail`, `netmail`, and `files` tables. It inserts a signal-only `dashboard_stats` broadcast event into `sse_events` and calls `pg_notify`. The trigger is debounced to one event per 5-second window to avoid flooding clients during a batch mail import. When the event arrives the browser calls `/api/dashboard/stats` for a fresh count.
+
+Migration `v1.11.0.58_dashboard_stats_triggers.php` installs this trigger function and wires it to all three tables.
+
+### Cross-Tab Read Sync
+
+When a user marks a message as read (single or bulk), the server inserts a user-targeted `message_read` event into `sse_events` in addition to the normal database write. The event payload contains the array of message IDs and the message type (`echomail` or `netmail`). Other browser tabs open to the same message list receive the event via BinkStream and immediately apply the read styling (open envelope icon, faded row) without reloading the list.
+
 ---
 
 ## AreaFix / FileFix Manager
@@ -911,6 +931,7 @@ php scripts/setup.php
 | `v1.11.0.55_sse_events_table.php` | SSE events UNLOGGED table |
 | `v1.11.0.56_qwk_area_selections.sql` | QWK per-user conference area selection |
 | `v1.11.0.57_sse_events_user_targeting.php` | SSE event targeting: `user_id` and `admin_only` columns; fat-payload chat trigger |
+| `v1.11.0.58_dashboard_stats_triggers.php` | DB triggers on `echomail`, `netmail`, `files` for `dashboard_stats` BinkStream push |
 
 **Optional `.env` additions:**
 
