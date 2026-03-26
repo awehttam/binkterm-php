@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS netmail (
     attributes INTEGER DEFAULT 0,
     is_read BOOLEAN DEFAULT FALSE,
     is_sent BOOLEAN DEFAULT FALSE,
+    spooled_at TIMESTAMPTZ,
     reply_to_id INTEGER REFERENCES netmail(id)
 );
 
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS echomail (
     message_text TEXT,
     date_written TIMESTAMP,
     date_received TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    spooled_at TIMESTAMPTZ,
     reply_to_id INTEGER REFERENCES echomail(id),
     message_id VARCHAR(100),
     origin_line VARCHAR(255),

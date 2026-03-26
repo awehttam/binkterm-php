@@ -2282,6 +2282,17 @@ class MessageHandler
             return false;
         }
 
+        if (!empty($message['spooled_at'])) {
+            $spooledAt = (string)$message['spooled_at'];
+            $complaint = "[SPOOL] REFUSING to respool netmail #{$messageId}: already spooled at {$spooledAt}. This is a bug, not a retry path.";
+            error_log($complaint);
+            \BinktermPHP\Admin\AdminDaemonClient::log('ERROR', 'duplicate netmail spool prevented', [
+                'message_id' => $messageId,
+                'spooled_at' => $spooledAt,
+            ]);
+            return false;
+        }
+
         // Extract message details for logging
         $fromName = $message['from_name'] ?? 'unknown';
         $fromAddr = $message['from_address'] ?? 'unknown';
@@ -2325,8 +2336,8 @@ class MessageHandler
                 $this->queueImmediateOutboundPoll($routeAddress, "netmail #{$messageId}");
             }
 
-            // Mark message as sent
-            $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
+            // Mark the message as spooled so duplicate spool attempts fail loudly.
+            $this->db->prepare("UPDATE netmail SET is_sent = TRUE, spooled_at = CURRENT_TIMESTAMP WHERE id = ?")
                      ->execute([$messageId]);
 
             \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'netmail sent', [
@@ -2576,6 +2587,18 @@ class MessageHandler
             return false;
         }
 
+        if (!empty($message['spooled_at'])) {
+            $spooledAt = (string)$message['spooled_at'];
+            $complaint = "[SPOOL] REFUSING to respool echomail #{$messageId} ({$echoareaTag}): already spooled at {$spooledAt}. This is a bug, not a retry path.";
+            error_log($complaint);
+            \BinktermPHP\Admin\AdminDaemonClient::log('ERROR', 'duplicate echomail spool prevented', [
+                'message_id' => $messageId,
+                'area'       => $echoareaTag,
+                'spooled_at' => $spooledAt,
+            ]);
+            return false;
+        }
+
         // Check if this is a local-only echoarea
         if (!empty($message['is_local'])) {
             //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
@@ -2628,6 +2651,9 @@ class MessageHandler
                     'msgid'   => $message['message_id'] ?? '',
                     'packet'  => $packetName,
                 ]);
+
+                $this->db->prepare("UPDATE echomail SET spooled_at = CURRENT_TIMESTAMP WHERE id = ?")
+                         ->execute([$messageId]);
 
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
