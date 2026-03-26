@@ -15,6 +15,7 @@ return [
     'errors.auth.token_and_password_required' => 'Le jeton et le nouveau mot de passe sont requis',
     'errors.auth.weak_password' => 'Le mot de passe doit comporter au moins 8 caractères',
     'errors.auth.reset_failed' => 'Échec de la réinitialisation du mot de passe',
+    'errors.auth.forbidden' => 'Interdit',
     'errors.register.invalid_submission' => 'Soumission invalide',
     'errors.register.too_fast' => 'Veuillez prendre le temps de remplir le formulaire.',
     'errors.register.session_expired' => 'Session expirée. Veuillez actualiser la page et réessayer.',

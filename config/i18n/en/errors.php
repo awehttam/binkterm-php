@@ -18,6 +18,7 @@ return [
     'errors.auth.token_and_password_required' => 'Token and new password are required',
     'errors.auth.weak_password' => 'Password must be at least 8 characters long',
     'errors.auth.reset_failed' => 'Failed to reset password',
+    'errors.auth.forbidden' => 'Forbidden',
 
     // Registration
     'errors.register.invalid_submission' => 'Invalid submission',

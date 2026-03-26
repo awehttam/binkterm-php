@@ -18,6 +18,7 @@ return [
     'errors.auth.token_and_password_required' => 'Se requieren token y nueva contrasena',
     'errors.auth.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.auth.reset_failed' => 'No se pudo restablecer la contrasena',
+    'errors.auth.forbidden' => 'Prohibido',
 
     // Registration
     'errors.register.invalid_submission' => 'Envio invalido',
