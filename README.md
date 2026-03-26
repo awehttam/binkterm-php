@@ -305,6 +305,8 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
+- **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
+- **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
 - **Operating User** - It is recommended to run BinktermPHP out of its own user account
 
