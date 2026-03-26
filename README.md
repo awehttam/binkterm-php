@@ -495,7 +495,7 @@ server {
 Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
 ### Caddy
-Caddy is the recommended web server for BinktermPHP. It handles HTTPS automatically and requires no extra buffering configuration for SSE.
+Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and requires no extra buffering configuration for SSE.
 
 ```caddyfile
 yourdomain.com {
