@@ -242,7 +242,7 @@
                 updateMailIcons(data, clearTarget);
                 updateFileIcon(data, clearTarget);
 
-                if (clearTarget === 'chat') {
+                if (clearTarget === 'chat' || isPathMatch('/chat')) {
                     chatUnread = false;
                 }
 
@@ -307,7 +307,7 @@
         if (isPathMatch('/chat')) {
             await refreshMailState('chat', true);
         }
-        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files')) {
+        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files') && !isPathMatch('/chat')) {
             refreshMailState(null, true);
         }
 
