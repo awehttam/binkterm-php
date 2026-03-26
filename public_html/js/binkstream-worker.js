@@ -19,6 +19,7 @@
 const STREAM_URL   = '/api/stream';
 const MIN_BACKOFF  = 1000;
 const MAX_BACKOFF  = 30000;
+const INTENTIONAL_RECONNECT_DELAY_MS = 2500;
 
 let es          = null;
 let backoff     = MIN_BACKOFF;
@@ -85,7 +86,8 @@ function connect() {
         if (e.lastEventId) lastCursor = e.lastEventId;
         // Server closed intentionally — reconnect immediately, no backoff.
         thisEs.close();
-        connect();
+        es = null;
+        setTimeout(connect, INTENTIONAL_RECONNECT_DELAY_MS);
     });
 
     thisEs.addEventListener('error', function () {

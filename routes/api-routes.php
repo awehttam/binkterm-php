@@ -1586,7 +1586,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      *  2. Query `sse_events` directly for any rows newer than that cursor and
      *     push them as SSE events.
      *  3. Send `event: reconnect` and close — the SharedWorker reconnects
-     *     immediately, keeping end-to-end latency under ~10 ms.
+     *     after a short pause so window expiry does not hammer the server.
      *
      * PHP is only blocked for the direct DB query plus the configured polling
      * window, and no admin-daemon round-trip is required for delivery.
@@ -1632,7 +1632,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // longer retry to reduce reconnect churn on the single-threaded server.
         // On production the long-lived window keeps the connection open so the
         // retry value is only used after an unexpected disconnect.
-        echo "retry: " . ($isDevServer ? 2500 : 3000) . "\n\n";
+        echo "retry: 2500\n\n";
 
         // Only first-connect (cursor=0) should anchor to the current max id.
         // On reconnect, advancing lastEventId before catch-up delivery risks

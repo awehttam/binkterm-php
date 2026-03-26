@@ -13,6 +13,7 @@
 const STREAM_URL = '/api/stream';
 const MIN_BACKOFF = 1000;
 const MAX_BACKOFF = 30000;
+const INTENTIONAL_RECONNECT_DELAY_MS = 2500;
 const WS_HANDSHAKE_TIMEOUT_MS = 3500;
 const MIN_WS_RETRY_PROBE_DELAY_MS = 3000;
 const MAX_WS_RETRY_PROBE_DELAY_MS = 30000;
@@ -248,7 +249,11 @@ function connectSse() {
         current.close();
         es = null;
         scheduleWsRetryProbe();
-        ensureTransport();
+        clearReconnectTimer();
+        reconnectTimer = setTimeout(function () {
+            reconnectTimer = null;
+            ensureTransport();
+        }, INTENTIONAL_RECONNECT_DELAY_MS);
     });
 
     current.addEventListener('error', function () {

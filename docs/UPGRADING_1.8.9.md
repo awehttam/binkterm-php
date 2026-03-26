@@ -62,7 +62,7 @@
   - [User and Admin Targeting](#user-and-admin-targeting)
   - [php-fpm Worker Capacity](#php-fpm-worker-capacity)
   - [BinkStream Test Tools](#binkstream-test-tools)
-  - [Realtime Server Promoted to Core Daemon](#realtime-server-promoted-to-core-daemon)
+  - [Real Time Server - Recommended Daemon](#real-time-server---recommended-daemon)
   - [Dashboard Stats Push](#dashboard-stats-push)
   - [Cross-Tab Read Sync](#cross-tab-read-sync)
   - [File Approval Queue Notifications](#file-approval-queue-notifications)
@@ -82,10 +82,6 @@
   - [Click-through URLs and Impression Tracking](#click-through-urls-and-impression-tracking)
   - [Ad Analytics Admin Page](#ad-analytics-admin-page)
   - [Ad Title File-type Prefix](#ad-title-file-type-prefix)
-- [Interests Updates](#interests-updates)
-  - [Subscribed Interests Filter](#subscribed-interests-filter)
-  - [Classifying Unassigned Echo Areas](#classifying-unassigned-echo-areas)
-  - [Unassigned Areas Panel](#unassigned-areas-panel)
 - [AI Provider Layer](#ai-provider-layer)
 - [MRC Chat](#mrc-chat)
   - [Join Command](#join-command)
@@ -651,7 +647,7 @@ Two database migrations run automatically via `php scripts/setup.php`:
 
 ### Chat Integration
 
-The first event type delivered over BinkStream is incoming chat messages. When a chat message is saved, the trigger fires immediately and the sender's own message is returned directly in the API send response for instant rendering without waiting for the transport cycle.
+The first event type delivered over BinkStream is incoming chat messages. When a chat message is saved, the insert trigger queues a BinkStream event immediately, while the sender's own message is returned in the `/api/chat/send` response and rendered locally without waiting for realtime delivery.
 
 ### Long-lived Connections
 
@@ -675,14 +671,16 @@ Testing has shown that some Apache + PHP-FPM (`mod_proxy_fcgi`) deployments buff
 
 When SSE is in use, each active browser session holds one php-fpm worker open for the full `SSE_WINDOW_SECONDS` duration (default: 60 s). This enables low-latency real-time event delivery, but worker count must be planned for your expected concurrent user load.
 
+To minimize SSE requests hitting php-fpm, we recommend running the standalone real-time WebSocket server where possible. With `BINKSTREAM_TRANSPORT_MODE=auto` or `ws` and the realtime daemon available, browser sessions can use WebSocket transport instead of relying on repeated SSE connections through php-fpm.
+
 **Rule of thumb:** `pm.max_children` ≥ (concurrent users × 1.1) + 5
 
 If all workers are occupied by SSE connections, regular page loads and API calls will queue or fail. For a full sizing table, php-fpm and Apache configuration snippets, and PostgreSQL tuning guidance, see **[docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning)**.
 
 **Low-RAM options** — if you cannot provision enough workers for the default window:
 
-- **Reduce `SSE_WINDOW_SECONDS`** (e.g. `15` or `30`). Shorter windows free workers more often; reconnect overhead is negligible because the SharedWorker reconnects immediately on window expiry. Event latency is unaffected.
-- **Set `SSE_WINDOW_SECONDS=0`** to disable long-polling entirely. The SharedWorker reconnects immediately on close, giving ~1 s polling cadence at the cost of one extra HTTP round-trip per second per user.
+- **Reduce `SSE_WINDOW_SECONDS`** (e.g. `15` or `30`). Shorter windows free workers more often; reconnect overhead stays low because the SharedWorker reconnects after a short pause on window expiry. Event latency impact is usually modest.
+- **Set `SSE_WINDOW_SECONDS=0`** to disable long-polling entirely. The SharedWorker reconnects after a short pause on close, reducing hammering at the cost of more frequent HTTP round-trips per user.
 - Because all tabs for the same user on the same browser share one SharedWorker and therefore one SSE connection, multiple open tabs do not multiply worker usage.
 
 ### BinkStream Test Tools
@@ -692,9 +690,9 @@ Two diagnostic tools are in the Admin **Help → Developer** submenu:
 - **BinkStream Test** — sends a test event through the database trigger and displays it in real time, confirming the full BinkStream pipeline is working.
 - **Proxy Buffer Test** — flushes progressively larger chunks of data and reports whether each chunk arrives immediately or is held by an intervening proxy or web server buffer.
 
-### Realtime Server Promoted to Core Daemon
+### Real Time Server - Recommended Daemon
 
-`realtime_server.php` is now listed as a core daemon (alongside `binkp_server.php`) rather than an optional one. It appears in the Admin dashboard service status panel with a live indicator showing the active transport mode (WebSocket or SSE). The README startup sequence and cron/systemd examples include it in the required services section. See `docs/BinkStreamChannel.md` for reverse proxy setup and diagnostics.
+`realtime_server` is recommended to be started on system boot up to support web socket based BinkStream streaming. It appears in the Admin dashboard service status panel with a live indicator showing your current active transport mode (WebSocket or SSE). The README startup sequence and cron/systemd examples include it in the required services section. See `docs/BinkStreamChannel.md` for reverse proxy setup and diagnostics.
 
 ### Dashboard Stats Push
 
@@ -775,7 +773,6 @@ The AreaFix/FileFix message history table now includes two additional columns:
 
 Dates in the history table are now formatted as human-readable local timestamps (e.g. `Mar 25, 2026, 05:51 AM`) instead of raw PostgreSQL timestamp strings.
 
-A bug where the subject masking for AreaFix/FileFix messages was not actually applied has been fixed. The `MessageHandler::cleanMessageForJson()` method now replaces the subject with `••••••••` whenever `to_name` or `from_name` contains `areafix` or `filefix` (case-insensitive), covering message lists, detail views, and the history table.
 
 ---
 
@@ -786,6 +783,7 @@ A bug where the subject masking for AreaFix/FileFix messages was not actually ap
 Ad content commands are now restricted to a server-side whitelist. Only the following are permitted:
 - `scripts/weather_report.php`
 - `scripts/report_newfiles.php`
+- `scripts/generate_ad.php`
 - Any file inside the `content_commands/` directory in the project root
 
 The admin ad editor's Content Command field is now a dropdown populated by scanning those locations, replacing the previous free-text input. This prevents arbitrary command injection through the ad configuration UI.
@@ -820,31 +818,6 @@ When an ad file is uploaded, the title is now automatically prefixed based on th
 - `.six` / `.sixel` → `[SIXEL]`
 
 The prefix is applied to both auto-generated titles and any title provided by the uploader, making it easier to identify the ad format at a glance in the admin list.
-
----
-
-## Interests Updates
-
-### Subscribed Interests Filter
-
-The echomail reader (`/echomail`) interest tabs and the echolist area picker show only the interests the viewing user is subscribed to.
-
-On the echolist page, the **Subscribed only** checkbox also applies to the interest filter — checking it limits the interest list to the user's own subscriptions. Unchecking it shows all interests.
-
-### Classifying Unassigned Echo Areas
-
-The unassigned echo areas table on the admin Interests page has a **Classify** button for each row. Clicking it opens a modal that:
-
-1. Runs a keyword-based classification pass for that area against all existing interests.
-2. Shows the top matching interest with a confidence indicator.
-3. Offers an **AI Classify** button (when an AI provider is configured) for a higher-quality result.
-4. Lets the admin confirm and add the area to the chosen interest with a single click.
-
-Adding an area this way propagates the subscription to all existing interest subscribers automatically.
-
-### Unassigned Areas Panel
-
-The unassigned echo areas panel on the admin Interests page is expanded by default. Area tags in the table are links that open the echo reader for that area in a new tab.
 
 ---
 
