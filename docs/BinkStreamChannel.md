@@ -183,7 +183,7 @@ The admin daemon's only BinkStream-specific responsibility today is periodic cle
 DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'
 ```
 
-The daemon does not deliver events to browsers directly. Event delivery happens through `/api/stream` or the WebSocket server.
+The daemon does not deliver events to browsers directly. Event delivery happens through `/api/stream` or the WebSocket server, both of which query `sse_events` directly.
 
 ---
 

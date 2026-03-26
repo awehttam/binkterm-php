@@ -17,6 +17,7 @@ class WebSocketServer
     private array $clients = [];
     private StreamService $streamService;
     private CommandDispatcher $commandDispatcher;
+    private int $lastActiveConnectionsLogAt = 0;
 
     public function __construct(string $bindHost, int $port, Logger $logger)
     {
@@ -72,6 +73,7 @@ class WebSocketServer
             }
 
             $this->pollAndDispatchEvents();
+            $this->logActiveConnectionsIfDue();
         }
     }
 
@@ -89,6 +91,7 @@ class WebSocketServer
             'buffer' => '',
             'handshake_complete' => false,
             'user' => null,
+            'remote_ip' => $this->extractRemoteIp($socket),
             'cursor' => 0,
             'subscriptions' => [],
         ];
@@ -179,10 +182,16 @@ class WebSocketServer
             'data' => $this->streamService->getConnectedPayload($user, $anchorId),
         ]);
 
-        $this->logger->info('Realtime websocket client connected', [
-            'client_id' => $clientId,
-            'user_id' => (int)($user['user_id'] ?? $user['id'] ?? 0),
-        ]);
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $username = (string)($user['username'] ?? '');
+        $remoteIp = (string)($this->clients[$clientId]['remote_ip'] ?? '');
+        $this->logger->info(sprintf(
+            'Realtime websocket client connected: ip=%s username=%s user_id=%d client_id=%d',
+            $remoteIp !== '' ? $remoteIp : '-',
+            $username !== '' ? $username : '-',
+            $userId,
+            $clientId
+        ));
     }
 
     private function processFrames(int $clientId): void
@@ -320,9 +329,66 @@ class WebSocketServer
         if (!isset($this->clients[$clientId])) {
             return;
         }
+        $client = $this->clients[$clientId];
+        if (!empty($client['handshake_complete']) && is_array($client['user'])) {
+            $user = $client['user'];
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $username = (string)($user['username'] ?? '');
+            $remoteIp = (string)($client['remote_ip'] ?? '');
+            $this->logger->info(sprintf(
+                'Realtime websocket client disconnected: ip=%s username=%s user_id=%d client_id=%d',
+                $remoteIp !== '' ? $remoteIp : '-',
+                $username !== '' ? $username : '-',
+                $userId,
+                $clientId
+            ));
+        }
         $socket = $this->clients[$clientId]['socket'];
         @fclose($socket);
         unset($this->clients[$clientId]);
+    }
+
+    private function logActiveConnectionsIfDue(): void
+    {
+        $now = time();
+        if ($this->lastActiveConnectionsLogAt !== 0 && ($now - $this->lastActiveConnectionsLogAt) < 60) {
+            return;
+        }
+
+        $activeConnections = [];
+        foreach ($this->clients as $clientId => $client) {
+            if (empty($client['handshake_complete']) || !is_array($client['user'])) {
+                continue;
+            }
+            $user = $client['user'];
+            $activeConnections[] = [
+                'client_id' => (int)$clientId,
+                'user_id' => (int)($user['user_id'] ?? $user['id'] ?? 0),
+                'username' => (string)($user['username'] ?? ''),
+                'remote_ip' => (string)($client['remote_ip'] ?? ''),
+            ];
+        }
+
+        if (!$activeConnections) {
+            return;
+        }
+
+        $this->lastActiveConnectionsLogAt = $now;
+        $parts = [];
+        foreach ($activeConnections as $connection) {
+            $parts[] = sprintf(
+                'ip=%s username=%s user_id=%d client_id=%d',
+                $connection['remote_ip'] !== '' ? $connection['remote_ip'] : '-',
+                $connection['username'] !== '' ? $connection['username'] : '-',
+                $connection['user_id'],
+                $connection['client_id']
+            );
+        }
+        $this->logger->debug(sprintf(
+            'Realtime websocket active connections (%d): %s',
+            count($activeConnections),
+            implode('; ', $parts)
+        ));
     }
 
     private function sendJson(int $clientId, array $payload): void
@@ -475,5 +541,32 @@ class WebSocketServer
     {
         $decoded = json_decode($str, true);
         return json_last_error() === JSON_ERROR_NONE ? $decoded : $str;
+    }
+
+    /**
+     * @param resource $socket
+     */
+    private function extractRemoteIp($socket): string
+    {
+        $peer = @stream_socket_get_name($socket, true);
+        if (!is_string($peer) || $peer === '') {
+            return '';
+        }
+
+        if ($peer[0] === '[') {
+            $end = strpos($peer, ']');
+            return $end === false ? $peer : substr($peer, 1, $end - 1);
+        }
+
+        $pos = strrpos($peer, ':');
+        if ($pos === false) {
+            return $peer;
+        }
+
+        if (substr_count($peer, ':') > 1) {
+            return $peer;
+        }
+
+        return substr($peer, 0, $pos);
     }
 }

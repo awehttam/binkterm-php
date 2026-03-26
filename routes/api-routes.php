@@ -1582,19 +1582,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      *
      * Server-Sent Events back-channel. Each request is intentionally short-lived:
      *
-     *  1. Ask the admin daemon for the highest chat_message ID it has seen via
-     *     pg_notify (the daemon holds one persistent Postgres LISTEN connection).
-     *  2. If new messages exist since the client's Last-Event-ID, run a catch-up
-     *     query and push them as SSE events.
+     *  1. Read the client's Last-Event-ID / cursor.
+     *  2. Query `sse_events` directly for any rows newer than that cursor and
+     *     push them as SSE events.
      *  3. Send `event: reconnect` and close — the SharedWorker reconnects
      *     immediately, keeping end-to-end latency under ~10 ms.
      *
-     * PHP is only blocked for ~3-5 ms per cycle (one daemon socket call + optional
-     * DB query), so the dev server and production servers both stay responsive
-     * regardless of how many tabs or users are connected.
-     *
-     * If the admin daemon is unreachable the catch-up query runs unconditionally
-     * so messages are never silently lost.
+     * PHP is only blocked for the direct DB query plus the configured polling
+     * window, and no admin-daemon round-trip is required for delivery.
      */
     SimpleRouter::get('/stream', function() {
         $user = RouteHelper::requireAuth();
