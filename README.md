@@ -505,6 +505,13 @@ yourdomain.com {
 
     root * /path/to/binkterm-php/public_html
 
+    # Compress normal pages and API responses.
+    # Exclude SSE so the event stream is not buffered or delayed.
+    @compressible {
+        not path /api/stream
+    }
+    encode @compressible zstd gzip
+
     # Block dotfiles (.env, .git, etc.)
     @dotfiles {
         path_regexp (^|/)\..

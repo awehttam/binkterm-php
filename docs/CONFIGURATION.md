@@ -547,6 +547,28 @@ a2enmod deflate
 systemctl reload apache2
 ```
 
+### Caddy: enabling compression for JSON and HTML
+
+Caddy does not enable response compression unless you add an `encode` directive. To compress normal pages and API responses, while avoiding compression on the SSE stream endpoint, add:
+
+```caddyfile
+@compressible {
+    not path /api/stream
+}
+encode @compressible zstd gzip
+```
+
+Place this near the top of your site block, after `root`.
+
+This will compress endpoints such as:
+
+- `/api/messages/echomail`
+- `/api/messages/netmail`
+- `/api/i18n/catalog`
+- regular HTML, CSS, and JavaScript responses
+
+Avoid compressing `/api/stream`, because SSE can be negatively affected by buffering or delayed flush behavior when compression is in play.
+
 ---
 
 ## Server Sizing & Tuning
