@@ -463,13 +463,13 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
  - **PostgreSQL boolean handling:** PostgreSQL is strict about boolean types. When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
- - **PostgreSQL `lastInsertId()` is unreliable when triggers exist:** `PDO::lastInsertId()` without a sequence name calls PostgreSQL's `lastval()`, which returns the last sequence value used in the **current session** — from *any* sequence, not just the one you just inserted into. If a trigger on the target table inserts into another auto-increment table (e.g. `trg_echomail_dashboard_notify` inserts into `sse_events` after every echomail INSERT), `lastval()` will return that other table's ID instead of the one you want. **Always use `RETURNING id`** in INSERT statements and fetch the result directly instead of calling `lastInsertId()`:
+ - **PostgreSQL insert IDs:** Treat `PDO::lastInsertId()` as unsafe in this project. On PostgreSQL, `lastInsertId()` without a sequence name calls `lastval()`, which returns the last sequence value used in the **current session** — from *any* sequence, not necessarily the row you just inserted. Triggers are the common way this breaks (for example, an INSERT trigger writing to `sse_events`), but the rule should be simpler: **do not use `lastInsertId()` for application inserts. Always use `RETURNING id` and fetch the returned row directly.** Do this even if there are no known triggers on the table today, because triggers or other sequence-using side effects may be added later.
    ```php
-   // WRONG — breaks when any trigger inserts into another sequence
+   // WRONG — do not rely on session-wide lastval()/lastInsertId()
    $stmt->execute();
    $id = $this->db->lastInsertId();
 
-   // CORRECT — immune to trigger side-effects
+   // CORRECT — fetch the inserted row's id directly
    // Add RETURNING id to the INSERT SQL, then:
    $stmt->execute();
    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
