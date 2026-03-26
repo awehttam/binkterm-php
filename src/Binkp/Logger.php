@@ -304,6 +304,68 @@ class Logger
         ];
     }
 
+    /**
+     * Return all log lines across the provided files for a specific PID.
+     *
+     * @param int $pid
+     * @param array<string,string> $logFiles
+     * @param int $maxFileSize
+     * @return array{lines:list<array{line:string,pid:string}>,line_count:int}
+     */
+    public function getLogsByPid(int $pid, array $logFiles = [], int $maxFileSize = 52428800): array
+    {
+        if ($pid <= 0) {
+            return ['lines' => [], 'line_count' => 0];
+        }
+
+        if (empty($logFiles)) {
+            $logFiles = [basename($this->logFile) => $this->logFile];
+        }
+
+        $pidPattern = '/^\[[\d\- :]+\] \[(\d+)\]/';
+        $results = [];
+
+        foreach ($logFiles as $label => $path) {
+            if (!file_exists($path) || filesize($path) > $maxFileSize) {
+                continue;
+            }
+
+            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines === false) {
+                continue;
+            }
+
+            foreach ($lines as $line) {
+                if (!preg_match($pidPattern, $line, $m) || (int)$m[1] !== $pid) {
+                    continue;
+                }
+
+                $safeLine = mb_convert_encoding("{$label}: {$line}", 'UTF-8', 'UTF-8');
+                if ($safeLine === false || $safeLine === '') {
+                    $safeLine = mb_convert_encoding("{$label}: {$line}", 'UTF-8', 'ASCII');
+                }
+
+                $results[] = [
+                    'sort_key' => substr($line, 0, 21),
+                    'line' => $safeLine,
+                    'pid' => $m[1],
+                ];
+            }
+        }
+
+        usort($results, fn($a, $b) => strcmp($a['sort_key'], $b['sort_key']));
+
+        $output = array_map(fn($r) => [
+            'line' => $r['line'],
+            'pid' => $r['pid'],
+        ], $results);
+
+        return [
+            'lines' => $output,
+            'line_count' => count($output),
+        ];
+    }
+
     public function clearLog()
     {
         if (file_exists($this->logFile)) {

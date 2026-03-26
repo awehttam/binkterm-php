@@ -54,19 +54,28 @@ class SessionLogger
         ?string $remoteAddress,
         ?string $remoteIp,
         string $sessionType,
-        bool $isInbound
+        bool $isInbound,
+        ?int $processId = null,
+        ?string $logFile = null
     ): int {
         $this->startTime = microtime(true);
 
         $stmt = $this->db->prepare("
             INSERT INTO binkp_session_log
-            (remote_address, remote_ip, session_type, is_inbound, status)
-            VALUES (?, ?::inet, ?, ?::boolean, 'active')
+            (remote_address, remote_ip, session_type, is_inbound, status, process_id, log_file)
+            VALUES (?, ?::inet, ?, ?::boolean, 'active', ?, ?)
             RETURNING id
         ");
         // Cast boolean to PostgreSQL-compatible string
         $isInboundStr = $isInbound ? 'true' : 'false';
-        $stmt->execute([$remoteAddress, $remoteIp, $sessionType, $isInboundStr]);
+        $stmt->execute([
+            $remoteAddress,
+            $remoteIp,
+            $sessionType,
+            $isInboundStr,
+            $processId ?? getmypid(),
+            $logFile !== null ? basename($logFile) : null,
+        ]);
         $this->sessionId = (int)$stmt->fetchColumn();
         $this->emitRealtimeUpdate('started', true);
         return $this->sessionId;
@@ -322,6 +331,8 @@ class SessionLogger
                 'id' => (int)$row['id'],
                 'remote_address' => $row['remote_address'] !== null ? (string)$row['remote_address'] : null,
                 'remote_ip' => $row['remote_ip'] !== null ? (string)$row['remote_ip'] : null,
+                'process_id' => isset($row['process_id']) ? (int)$row['process_id'] : null,
+                'log_file' => $row['log_file'] !== null ? (string)$row['log_file'] : null,
                 'session_type' => (string)$row['session_type'],
                 'is_inbound' => (bool)$row['is_inbound'],
                 'status' => (string)$row['status'],
@@ -378,6 +389,11 @@ class SessionLogger
             $params[] = $filters['is_inbound'] === 'true';
         }
 
+        if (!empty($filters['process_id'])) {
+            $where[] = 'process_id = ?';
+            $params[] = (int)$filters['process_id'];
+        }
+
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
         $params[] = $limit;
 
@@ -392,6 +408,22 @@ class SessionLogger
         $stmt->execute($params);
 
         return $stmt->fetchAll();
+    }
+
+    public static function getSessionById(int $id): ?array
+    {
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->prepare("
+            SELECT *,
+                   EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) AS duration_seconds
+            FROM binkp_session_log
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
     }
 
     /**

@@ -3374,6 +3374,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'status' => $_GET['status'] ?? null,
                 'remote_address' => $_GET['remote_address'] ?? null,
                 'is_inbound' => $_GET['is_inbound'] ?? null,
+                'process_id' => $_GET['process_id'] ?? null,
             ];
             $limit = intval($_GET['limit'] ?? 50);
             $sessions = $adminController->getBinkpSessions($filters, $limit);
@@ -3392,6 +3393,41 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $period = $_GET['period'] ?? 'day';
             $stats = $adminController->getBinkpSessionStats($period);
             echo json_encode($stats);
+        });
+
+        SimpleRouter::get('/binkp-sessions/{id}/logs', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $session = $adminController->getBinkpSession((int)$id);
+            if (!$session) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Session not found']);
+                return;
+            }
+
+            $processId = (int)($session['process_id'] ?? 0);
+            if ($processId <= 0) {
+                echo json_encode([
+                    'success' => true,
+                    'session' => $session,
+                    'logs' => ['lines' => [], 'line_count' => 0],
+                ]);
+                return;
+            }
+
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+            $logs = $controller->getLogsForPid($processId, !empty($session['log_file']) ? (string)$session['log_file'] : null);
+            echo json_encode([
+                'success' => true,
+                'session' => $session,
+                'logs' => $logs,
+            ], JSON_INVALID_UTF8_SUBSTITUTE);
         });
 
         // ========================================

@@ -187,7 +187,7 @@ class BinkpServer
             $session = new BinkpSession($stream, false, $this->config);
             $session->setLogger($this->logger);
             $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
-            $sessionLogger->startSession(null, $clientIP, 'secure', true);
+            $sessionLogger->startSession(null, $clientIP, 'secure', true, getmypid(), basename((string)$this->logger->getLogFile()));
             $session->setSessionLogger($sessionLogger);
 
             if ($session->handshake()) {

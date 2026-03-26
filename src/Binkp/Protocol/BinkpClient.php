@@ -129,7 +129,7 @@ class BinkpClient
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
             $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
-            $sessionLogger->startSession($address, $peerIp, 'secure', false);
+            $sessionLogger->startSession($address, $peerIp, 'secure', false, getmypid(), basename((string)$this->logger->getLogFile()));
             $session->setSessionLogger($sessionLogger);
 
             // Set the uplink password for this session
@@ -257,7 +257,7 @@ class BinkpClient
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
             $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
-            $sessionLogger->startSession($address, $peerIp, 'secure', false);
+            $sessionLogger->startSession($address, $peerIp, 'secure', false, getmypid(), basename((string)$this->logger->getLogFile()));
             $session->setSessionLogger($sessionLogger);
             $session->setUplinkPassword($password);
 

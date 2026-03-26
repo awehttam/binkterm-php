@@ -1119,6 +1119,7 @@ return [
     'ui.admin.binkp_sessions.recent_sessions' => 'Sesiones recientes',
     'ui.admin.binkp_sessions.time' => 'Hora',
     'ui.admin.binkp_sessions.ip' => 'IP',
+    'ui.admin.binkp_sessions.pid' => 'PID',
     'ui.admin.binkp_sessions.type' => 'Tipo',
     'ui.admin.binkp_sessions.direction' => 'Direccion',
     'ui.admin.binkp_sessions.msgs_in' => 'Msgs entrantes',
@@ -1131,6 +1132,12 @@ return [
     'ui.admin.binkp_sessions.load_sessions_failed' => 'Error al cargar sesiones',
     'ui.admin.binkp_sessions.crash' => 'Crash',
     'ui.admin.binkp_sessions.active' => 'Activa',
+    'ui.admin.binkp_sessions.log_modal_title' => 'Registro de sesión',
+    'ui.admin.binkp_sessions.loading_log' => 'Cargando registro...',
+    'ui.admin.binkp_sessions.log_file' => 'Archivo de registro',
+    'ui.admin.binkp_sessions.log_unavailable' => 'No se registró ningún PID para esta sesión.',
+    'ui.admin.binkp_sessions.no_log_lines' => 'No se encontraron líneas de registro para esta sesión.',
+    'ui.admin.binkp_sessions.log_load_failed' => 'No se pudo cargar el registro de la sesión',
 
     // Admin Polls
     'ui.admin.polls.load_failed' => 'Error al cargar encuestas',

@@ -119,6 +119,7 @@
                             <th>{{ t('ui.admin.binkp_sessions.time', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.remote_address', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.ip', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.pid', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.type', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.direction', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.msgs_in', {}, locale, ['common']) }}</th>
@@ -129,10 +130,25 @@
                     </thead>
                     <tbody id="sessionsTableBody">
                         <tr>
-                            <td colspan="9" class="text-center">{{ t('ui.common.loading', {}, locale, ['common']) }}</td>
+                            <td colspan="10" class="text-center">{{ t('ui.common.loading', {}, locale, ['common']) }}</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="binkpSessionLogModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="binkpSessionLogModalTitle">{{ t('ui.admin.binkp_sessions.log_modal_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <div id="binkpSessionLogMeta" class="small text-muted mb-3"></div>
+                <pre id="binkpSessionLogBody" class="small mb-0 bg-dark text-light p-3 rounded" style="min-height: 20rem;">{{ t('ui.admin.binkp_sessions.loading_log', {}, locale, ['common']) }}</pre>
             </div>
         </div>
     </div>
@@ -144,6 +160,7 @@
 .border-left-info { border-left: 0.25rem solid #36b9cc !important; }
 .border-left-warning { border-left: 0.25rem solid #f6c23e !important; }
 .border-left-danger { border-left: 0.25rem solid #e74a3b !important; }
+#sessionsTableBody tr[data-session-id] { cursor: pointer; }
 </style>
 
 <script>
@@ -159,6 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadStats();
         loadSessions();
         initRealtime();
+        initSessionLogModal();
     });
 
     document.getElementById('refreshSessions').addEventListener('click', function() {
@@ -201,15 +219,19 @@ function loadSessions() {
             const tbody = document.getElementById('sessionsTableBody');
 
             if (!data.sessions || data.sessions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">' + uiT('ui.admin.binkp_sessions.no_sessions_found', 'No sessions found') + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">' + uiT('ui.admin.binkp_sessions.no_sessions_found', 'No sessions found') + '</td></tr>';
                 return;
             }
 
             tbody.innerHTML = data.sessions.map(session => `
-                <tr>
+                <tr data-session-id="${session.id}">
                     <td><small>${formatDate(session.started_at)}</small></td>
                     <td><code>${escapeHtml(session.remote_address || uiT('ui.common.unknown', 'Unknown'))}</code></td>
                     <td><small>${escapeHtml(session.remote_ip || '-')}</small></td>
+                    <td>
+                        <div><code>${escapeHtml(String(session.process_id || '-'))}</code></div>
+                        <small class="text-muted">${escapeHtml(session.log_file || '-')}</small>
+                    </td>
                     <td>${getTypeBadge(session.session_type)}</td>
                     <td>${session.is_inbound
                         ? '<span class="badge bg-info"><i class="fas fa-arrow-down"></i> ' + uiT('ui.admin.binkp_sessions.in', 'In') + '</span>'
@@ -225,7 +247,7 @@ function loadSessions() {
         .catch(error => {
             console.error(uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + ':', error);
             document.getElementById('sessionsTableBody').innerHTML =
-                '<tr><td colspan="9" class="text-center text-danger">' + uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + '</td></tr>';
+                '<tr><td colspan="10" class="text-center text-danger">' + uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + '</td></tr>';
         });
 }
 
@@ -257,6 +279,68 @@ function initRealtime() {
             window.BinkStream.off('binkp_session', binkpSessionRealtimeHandler);
         }
     });
+}
+
+let binkpSessionLogModal = null;
+
+function initSessionLogModal() {
+    const modalEl = document.getElementById('binkpSessionLogModal');
+    const tbody = document.getElementById('sessionsTableBody');
+    if (!modalEl || !tbody || typeof bootstrap === 'undefined') {
+        return;
+    }
+
+    binkpSessionLogModal = new bootstrap.Modal(modalEl);
+    tbody.addEventListener('click', function (event) {
+        const row = event.target.closest('tr[data-session-id]');
+        if (!row) {
+            return;
+        }
+        loadSessionLog(row.getAttribute('data-session-id'));
+    });
+}
+
+function loadSessionLog(sessionId) {
+    const titleEl = document.getElementById('binkpSessionLogModalTitle');
+    const metaEl = document.getElementById('binkpSessionLogMeta');
+    const bodyEl = document.getElementById('binkpSessionLogBody');
+
+    if (!titleEl || !metaEl || !bodyEl || !binkpSessionLogModal) {
+        return;
+    }
+
+    titleEl.textContent = uiT('ui.admin.binkp_sessions.log_modal_title', 'Session Log');
+    metaEl.textContent = '';
+    bodyEl.textContent = uiT('ui.admin.binkp_sessions.loading_log', 'Loading log...');
+    binkpSessionLogModal.show();
+
+    fetch(`/admin/api/binkp-sessions/${encodeURIComponent(sessionId)}/logs`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.session) {
+                throw new Error(uiT('ui.admin.binkp_sessions.log_load_failed', 'Failed to load session log'));
+            }
+
+            const session = data.session;
+            titleEl.textContent = `${session.remote_address || uiT('ui.common.unknown', 'Unknown')} | PID ${session.process_id || '-'}`;
+            metaEl.textContent = `${uiT('ui.admin.binkp_sessions.log_file', 'Log File')}: ${session.log_file || '-'} | ${uiT('ui.admin.binkp_sessions.pid', 'PID')}: ${session.process_id || '-'}`;
+
+            const lines = data.logs && Array.isArray(data.logs.lines) ? data.logs.lines : [];
+            if (!session.process_id) {
+                bodyEl.textContent = uiT('ui.admin.binkp_sessions.log_unavailable', 'No PID was recorded for this session.');
+                return;
+            }
+            if (lines.length === 0) {
+                bodyEl.textContent = uiT('ui.admin.binkp_sessions.no_log_lines', 'No log lines found for this session.');
+                return;
+            }
+
+            bodyEl.textContent = lines.map(line => line.line || '').join('\n');
+        })
+        .catch(error => {
+            console.error(uiT('ui.admin.binkp_sessions.log_load_failed', 'Failed to load session log') + ':', error);
+            bodyEl.textContent = uiT('ui.admin.binkp_sessions.log_load_failed', 'Failed to load session log');
+        });
 }
 
 function getTypeBadge(type) {

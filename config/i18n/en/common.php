@@ -1064,6 +1064,7 @@ return [
     'ui.admin.binkp_sessions.recent_sessions' => 'Recent Sessions',
     'ui.admin.binkp_sessions.time' => 'Time',
     'ui.admin.binkp_sessions.ip' => 'IP',
+    'ui.admin.binkp_sessions.pid' => 'PID',
     'ui.admin.binkp_sessions.type' => 'Type',
     'ui.admin.binkp_sessions.direction' => 'Direction',
     'ui.admin.binkp_sessions.msgs_in' => 'Msgs In',
@@ -1076,6 +1077,12 @@ return [
     'ui.admin.binkp_sessions.load_sessions_failed' => 'Error loading sessions',
     'ui.admin.binkp_sessions.crash' => 'Crash',
     'ui.admin.binkp_sessions.active' => 'Active',
+    'ui.admin.binkp_sessions.log_modal_title' => 'Session Log',
+    'ui.admin.binkp_sessions.loading_log' => 'Loading log...',
+    'ui.admin.binkp_sessions.log_file' => 'Log File',
+    'ui.admin.binkp_sessions.log_unavailable' => 'No PID was recorded for this session.',
+    'ui.admin.binkp_sessions.no_log_lines' => 'No log lines found for this session.',
+    'ui.admin.binkp_sessions.log_load_failed' => 'Failed to load session log',
 
     // Admin Polls
     'ui.admin.polls.load_failed' => 'Error loading polls',

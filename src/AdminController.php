@@ -747,5 +747,10 @@ class AdminController
     {
         return \BinktermPHP\Binkp\SessionLogger::getSessionStats($period);
     }
+
+    public function getBinkpSession(int $id): ?array
+    {
+        return \BinktermPHP\Binkp\SessionLogger::getSessionById($id);
+    }
 }
 

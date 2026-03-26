@@ -347,7 +347,7 @@ class CrashmailService
         // Start session logging
         $sessionLogger = new SessionLogger();
         $sessionRemoteIp = filter_var($host, FILTER_VALIDATE_IP) ? $host : null;
-        $sessionLogger->startSession($destAddress, $sessionRemoteIp, 'crash_outbound', false);
+        $sessionLogger->startSession($destAddress, $sessionRemoteIp, 'crash_outbound', false, getmypid(), basename((string)$this->logger->getLogFile()));
 
         // Create temporary packet file
         $tempPacket = null;

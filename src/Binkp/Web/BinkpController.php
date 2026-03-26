@@ -747,19 +747,59 @@ class BinkpController
     public function searchLogs(string $query): array
     {
         try {
-            $logFiles = [
-                'binkp_poll.log'      => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
-                'binkp_server.log'    => \BinktermPHP\Config::getLogPath('binkp_server.log'),
-                'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
-                'admin_daemon.log'    => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
-                'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
-                'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),
-            ];
+            $logFiles = $this->getBinkpLogFiles();
             $result = $this->logger->searchLogs($query, $logFiles);
             return array_merge(['success' => true], $result);
         } catch (\Exception $e) {
             return $this->apiErrorResponse('errors.binkp.logs.search_failed', $e->getMessage());
         }
+    }
+
+    public function getLogsForPid(int $pid, ?string $preferredLogFile = null): array
+    {
+        try {
+            $logFiles = $this->getBinkpLogFiles($preferredLogFile);
+            $result = $this->logger->getLogsByPid($pid, $logFiles);
+            return array_merge(['success' => true], $result);
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.logs.search_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function getBinkpLogFiles(?string $preferredLogFile = null): array
+    {
+        $allLogFiles = [
+            'binkp_poll.log'      => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
+            'binkp_server.log'    => \BinktermPHP\Config::getLogPath('binkp_server.log'),
+            'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
+            'admin_daemon.log'    => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
+            'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
+            'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),
+            'crashmail.log'       => \BinktermPHP\Config::getLogPath('crashmail.log'),
+        ];
+
+        if ($preferredLogFile !== null && isset($allLogFiles[$preferredLogFile])) {
+            $preferredPath = $allLogFiles[$preferredLogFile];
+            $matches = glob($preferredPath . '*') ?: [];
+            if ($matches) {
+                $resolved = [];
+                foreach ($matches as $match) {
+                    if (is_file($match)) {
+                        $resolved[basename($match)] = $match;
+                    }
+                }
+                if ($resolved) {
+                    return $resolved;
+                }
+            }
+
+            return [$preferredLogFile => $preferredPath];
+        }
+
+        return $allLogFiles;
     }
 
     public function getConfig()
