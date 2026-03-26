@@ -27,6 +27,7 @@ class SystemStatus
             'admin_daemon'    => Config::env('ADMIN_DAEMON_PID_FILE',    $runDir . '/admin_daemon.pid'),
             'binkp_scheduler' => Config::env('BINKP_SCHEDULER_PID_FILE', $runDir . '/binkp_scheduler.pid'),
             'binkp_server'    => Config::env('BINKP_SERVER_PID_FILE',    $runDir . '/binkp_server.pid'),
+            'realtime_server' => Config::env('BINKSTREAM_WS_PID_FILE', Config::env('REALTIME_WS_PID_FILE', $runDir . '/realtime_server.pid')),
         ];
 
         // Optional daemons — shown with a distinct "not configured" state when absent

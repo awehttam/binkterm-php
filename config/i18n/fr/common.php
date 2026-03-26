@@ -628,6 +628,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.dashboard.service.mrc_daemon' => 'Démon MRC',
     'ui.admin.dashboard.service.multiplexing_server' => 'Serveur de multiplexage',
     'ui.admin.dashboard.service.mcp_server' => 'Serveur MCP',
+    'ui.admin.dashboard.service.realtime_server' => 'Serveur temps réel',
     'ui.admin.dashboard.running' => 'En cours',
     'ui.admin.dashboard.stopped' => 'Arrêté',
     'ui.admin.dashboard.not_configured' => 'Non configuré',

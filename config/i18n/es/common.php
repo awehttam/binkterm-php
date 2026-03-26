@@ -941,6 +941,7 @@ return [
     'ui.admin.dashboard.service.mrc_daemon' => 'Daemon MRC',
     'ui.admin.dashboard.service.multiplexing_server' => 'Servidor de multiplexación',
     'ui.admin.dashboard.service.mcp_server' => 'Servidor MCP',
+    'ui.admin.dashboard.service.realtime_server' => 'Servidor en tiempo real',
     'ui.admin.dashboard.running' => 'En ejecucion',
     'ui.admin.dashboard.stopped' => 'Detenido',
     'ui.admin.dashboard.not_configured' => 'No configurado',

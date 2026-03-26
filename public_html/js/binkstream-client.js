@@ -151,6 +151,7 @@
             const msg = e.data || {};
             if (msg.type === '__transport' && msg.data && msg.data.mode) {
                 currentTransportMode = String(msg.data.mode);
+                dispatch('transport', { mode: currentTransportMode });
                 return;
             }
             if (msg.type === 'command_result' && msg.requestId) {

@@ -237,7 +237,8 @@
                     {% set coreServices = {
                         'admin_daemon': t('ui.admin.dashboard.service.admin_daemon', {}, locale, ['common']),
                         'binkp_scheduler': t('ui.admin.dashboard.service.binkp_scheduler', {}, locale, ['common']),
-                        'binkp_server': t('ui.admin.dashboard.service.binkp_server', {}, locale, ['common'])
+                        'binkp_server': t('ui.admin.dashboard.service.binkp_server', {}, locale, ['common']),
+                        'realtime_server': t('ui.admin.dashboard.service.realtime_server', {}, locale, ['common'])
                     } %}
                     {% set optionalServices = {
                         'telnetd': t('ui.admin.dashboard.service.telnetd', {}, locale, ['common']),
@@ -261,6 +262,9 @@
                                 {% endif %}
                                 {% if info and info.pid %}
                                     <small class="text-muted ms-2">{{ t('ui.admin.dashboard.pid', {}, locale, ['common']) }} {{ info.pid }}</small>
+                                {% endif %}
+                                {% if key == 'realtime_server' %}
+                                    <small class="text-muted ms-2">(<span id="binkstream-transport-mode">…</span>)</small>
                                 {% endif %}
                             </div>
                         </div>
@@ -336,4 +340,35 @@
     line-height: 1.3;
 }
 </style>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    var modeEl = document.getElementById('binkstream-transport-mode');
+    if (!modeEl) { return; }
+
+    var modeLabels = { ws: 'WebSocket', sse: 'SSE', poll: 'poll' };
+
+    function updateMode(mode) {
+        modeEl.textContent = modeLabels[mode] || mode;
+    }
+
+    function init() {
+        if (window.BinkStream) {
+            updateMode(window.BinkStream.getMode());
+            window.BinkStream.on('transport', function (data) {
+                if (data && data.mode) { updateMode(data.mode); }
+            });
+        } else {
+            modeEl.textContent = '—';
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
 {% endblock %}

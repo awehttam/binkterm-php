@@ -478,6 +478,9 @@ Start the core long-running services at boot and keep cron for periodic maintena
 # Start binkp server on boot (Linux/macOS)
 @reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
 
+# Start realtime WebSocket server on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/realtime_server.php --daemon
+
 # Update nodelists daily at 3am
 #0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
@@ -617,6 +620,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | Script | Description |
 |--------|-------------|
 | `binkp_server.php` | BinkP server — accepts inbound FTN connections |
+| `realtime_server.php` | Realtime WebSocket server — provides live updates to the web interface; falls back to SSE if not running |
 | `binkp_scheduler.php` | Automated polling scheduler |
 | `admin_daemon.php` | Control socket for backend task management |
 | `telnet/telnet_daemon.php` | Telnet server daemon |
@@ -663,11 +667,12 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
 3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
-5. **Optional Service Daemons**: start these only if you use the related features:
+5. **Start Realtime Server**: `php scripts/realtime_server.php --daemon` — provides WebSocket-based live updates; falls back gracefully to SSE if not running
+6. **Optional Service Daemons**: start these only if you use the related features:
    - `php telnet/telnet_daemon.php --daemon`
    - `php scripts/gemini_daemon.php --daemon`
    - `node scripts/dosbox-bridge/multiplexing-server.js --daemon`
-6. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
+7. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
 ## Daily Operations
 
@@ -723,6 +728,9 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 
 # Start binkp server on boot (Linux/macOS; pid defaults to data/run/binkp_server.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
+
+# Start realtime WebSocket server on boot (pid defaults to data/run/realtime_server.pid)
+@reboot /usr/bin/php /path/to/binktest/scripts/realtime_server.php --daemon
 
 # Optional: start telnet daemon on boot
 @reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon

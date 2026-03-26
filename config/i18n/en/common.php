@@ -886,6 +886,7 @@ return [
     'ui.admin.dashboard.service.mrc_daemon' => 'MRC Daemon',
     'ui.admin.dashboard.service.multiplexing_server' => 'Multiplexing Server',
     'ui.admin.dashboard.service.mcp_server' => 'MCP Server',
+    'ui.admin.dashboard.service.realtime_server' => 'Realtime Server',
     'ui.admin.dashboard.running' => 'Running',
     'ui.admin.dashboard.stopped' => 'Stopped',
     'ui.admin.dashboard.not_configured' => 'Not configured',
