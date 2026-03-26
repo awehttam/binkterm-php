@@ -360,6 +360,9 @@ const PALETTE = [
 
 let allEchoareas = [];
 let allFileareas = [];
+// Persistent selection sets — survive list re-renders caused by search filtering.
+let selectedEchoIds = new Set();
+let selectedFileIds = new Set();
 let allInterests = [];
 let wizardSuggestions = [];  // current preview suggestions (may be edited/discarded)
 
@@ -551,15 +554,15 @@ function groupEchoareasByNetwork(areas) {
     return sorted;
 }
 
-/** Render a grouped echo area checklist into container; checkedIds is an array of ints. */
-function renderEchoareasByNetwork(container, areas, checkedIds, idPrefix, cssClass) {
+/** Render a grouped echo area checklist into container; uses selectedEchoIds set. */
+function renderEchoareasByNetwork(container, areas, idPrefix, cssClass, selectionSet) {
     if (!areas.length) { container.innerHTML = '<div class="text-muted small">No matching echo areas.</div>'; return; }
     const groups = groupEchoareasByNetwork(areas);
     let html = '';
     for (const [net, netAreas] of groups) {
         html += `<p class="mb-1 mt-2 fw-semibold small text-uppercase text-muted" style="letter-spacing:.05em">${escHtml(net)}</p>`;
         html += netAreas.map(e => {
-            const checked = checkedIds.includes(e.id) ? 'checked' : '';
+            const checked = selectionSet.has(e.id) ? 'checked' : '';
             return `<div class="form-check">
                 <input class="form-check-input ${cssClass}" type="checkbox" value="${e.id}" id="${idPrefix}${e.id}" ${checked}>
                 <label class="form-check-label small" for="${idPrefix}${e.id}">
@@ -569,26 +572,31 @@ function renderEchoareasByNetwork(container, areas, checkedIds, idPrefix, cssCla
         }).join('');
     }
     container.innerHTML = html;
+    // Sync checkbox changes back to the persistent set
+    container.querySelectorAll(`.${cssClass}`).forEach(cb => {
+        cb.addEventListener('change', () => {
+            const id = parseInt(cb.value);
+            if (cb.checked) selectionSet.add(id); else selectionSet.delete(id);
+        });
+    });
 }
 
 function renderEchoareaList(filter = '') {
     const container = document.getElementById('echoAreaList');
-    const checkedIds = getCheckedIds('echoArea');
     const filtered = allEchoareas.filter(e =>
         !filter || (e.tag||'').toLowerCase().includes(filter) || (e.description||'').toLowerCase().includes(filter)
     );
-    renderEchoareasByNetwork(container, filtered, checkedIds, 'ea_', 'echoArea-check');
+    renderEchoareasByNetwork(container, filtered, 'ea_', 'echoArea-check', selectedEchoIds);
 }
 
 function renderFileareaList(filter = '') {
     const container = document.getElementById('fileAreaList');
-    const checkedIds = getCheckedIds('fileArea');
     const filtered = allFileareas.filter(f =>
         !filter || (f.tag||'').toLowerCase().includes(filter) || (f.description||'').toLowerCase().includes(filter)
     );
     if (!filtered.length) { container.innerHTML = '<div class="text-muted small">No matching file areas.</div>'; return; }
     container.innerHTML = filtered.map(f => {
-        const checked = checkedIds.includes(f.id) ? 'checked' : '';
+        const checked = selectedFileIds.has(f.id) ? 'checked' : '';
         return `<div class="form-check">
             <input class="form-check-input fileArea-check" type="checkbox" value="${f.id}" id="fa_${f.id}" ${checked}>
             <label class="form-check-label small" for="fa_${f.id}">
@@ -596,27 +604,27 @@ function renderFileareaList(filter = '') {
             </label>
         </div>`;
     }).join('');
+    container.querySelectorAll('.fileArea-check').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const id = parseInt(cb.value);
+            if (cb.checked) selectedFileIds.add(id); else selectedFileIds.delete(id);
+        });
+    });
 }
 
-function renderEchoareaListWithSelected(selectedIds) {
-    const container = document.getElementById('echoAreaList');
-    renderEchoareasByNetwork(container, allEchoareas, selectedIds, 'ea_', 'echoArea-check');
+function renderEchoareaListWithSelected(ids) {
+    selectedEchoIds = new Set(ids);
+    renderEchoareaList(document.getElementById('echoAreaSearch').value.toLowerCase());
 }
 
-function renderFileareaListWithSelected(selectedIds) {
-    const container = document.getElementById('fileAreaList');
-    container.innerHTML = allFileareas.map(f => {
-        const checked = selectedIds.includes(f.id) ? 'checked' : '';
-        return `<div class="form-check">
-            <input class="form-check-input fileArea-check" type="checkbox" value="${f.id}" id="fa_${f.id}" ${checked}>
-            <label class="form-check-label small" for="fa_${f.id}">
-                <strong>${escHtml(f.tag)}</strong>${f.description ? ' — ' + escHtml(f.description) : ''}
-            </label>
-        </div>`;
-    }).join('');
+function renderFileareaListWithSelected(ids) {
+    selectedFileIds = new Set(ids);
+    renderFileareaList(document.getElementById('fileAreaSearch').value.toLowerCase());
 }
 
 function getCheckedIds(prefix) {
+    if (prefix === 'echoArea') return Array.from(selectedEchoIds);
+    if (prefix === 'fileArea') return Array.from(selectedFileIds);
     return Array.from(document.querySelectorAll(`.${prefix}-check:checked`)).map(el => parseInt(el.value));
 }
 
@@ -628,6 +636,8 @@ function showCreateModal() {
     document.getElementById('iconPreview').className = 'fas fa-layer-group';
     document.getElementById('echoAreaSearch').value = '';
     document.getElementById('fileAreaSearch').value = '';
+    selectedEchoIds = new Set();
+    selectedFileIds = new Set();
     buildColorPalette('colorPalette', 'interestColor', '#6c757d');
     renderEchoareaList();
     renderFileareaList();
