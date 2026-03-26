@@ -459,6 +459,57 @@ server {
 }
 ```
 
+### Caddy
+Caddy is the recommended web server for BinktermPHP. It handles HTTPS automatically, proxies the realtime WebSocket daemon, and requires no extra buffering configuration for SSE.
+
+```caddyfile
+yourdomain.com {
+    bind 0.0.0.0
+
+    root * /path/to/binkterm-php/public_html
+
+    # Block dotfiles (.env, .git, etc.)
+    @dotfiles {
+        path_regexp (^|/)\..
+    }
+    respond @dotfiles 403
+
+    # Service worker must not be cached
+    @sw path /sw.js
+    header @sw Cache-Control "no-cache"
+
+    # CSS/JS versioned by service worker — revalidate on load
+    @assets path_regexp \.(?:css|js)$
+    header @assets Cache-Control "max-age=0, must-revalidate"
+
+    # Remove trailing slashes for non-existent paths
+    @trailingSlash {
+        path_regexp slash ^(.+)/$
+        not file
+    }
+    redir @trailingSlash {re.slash.1} 301
+
+    # Realtime WebSocket daemon (scripts/realtime_server.php)
+    reverse_proxy /ws 127.0.0.1:6010 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+
+    php_fastcgi unix//run/php/php8.2-fpm.sock {
+        capture_stderr
+    }
+
+    file_server
+
+    log {
+        output file /var/log/caddy/binkterm-access.log
+        format console
+    }
+}
+```
+
+Replace `yourdomain.com`, the `bind` address, `root` path, and php-fpm socket path to match your installation. Caddy obtains and renews TLS certificates automatically.
+
 ### PHP Built-in Server (Development)
 ```bash
 cd public_html
