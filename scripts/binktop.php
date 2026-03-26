@@ -8,6 +8,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\DoorSessionManager;
+use BinktermPHP\GuestUser;
 use BinktermPHP\Version;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Queue\InboundQueue;
@@ -69,9 +70,58 @@ function formatBytes(float|int $bytes): string
     return number_format($value, $value >= 10 ? 1 : 2) . ' ' . $units[$unitIndex];
 }
 
+function formatUsedTotalBytes(float|int $usedBytes, float|int $totalBytes): string
+{
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $usedValue = (float)$usedBytes;
+    $totalValue = (float)$totalBytes;
+    $unitIndex = 0;
+
+    while ($totalValue >= 1024 && $unitIndex < count($units) - 1) {
+        $usedValue /= 1024;
+        $totalValue /= 1024;
+        $unitIndex++;
+    }
+
+    $precision = $totalValue >= 10 ? 1 : 2;
+    return number_format($usedValue, $precision) . ' / ' . number_format($totalValue, $precision) . ' ' . $units[$unitIndex];
+}
+
 function formatKb(int $kilobytes): string
 {
     return formatBytes($kilobytes * 1024);
+}
+
+function stripAnsi(string $value): string
+{
+    return (string)preg_replace('/\x1B\[[0-9;]*m/', '', $value);
+}
+
+function visibleLength(string $value): int
+{
+    return strlen(stripAnsi($value));
+}
+
+function padVisible(string $value, int $width): string
+{
+    $padding = max(0, $width - visibleLength($value));
+    return $value . str_repeat(' ', $padding);
+}
+
+function colorize(string $value, string $color): string
+{
+    $codes = [
+        'green' => '0;32',
+        'red' => '0;31',
+        'yellow' => '1;33',
+        'cyan' => '0;36',
+    ];
+
+    if (!isset($codes[$color])) {
+        return $value;
+    }
+
+    return "\033[" . $codes[$color] . 'm' . $value . "\033[0m";
 }
 
 function formatDuration(int $seconds): string
@@ -339,6 +389,83 @@ function getProcessMemoryKb(?string $pid): ?int
     return null;
 }
 
+function findPidsByProcessName(string $name): array
+{
+    if ($name === '') {
+        return [];
+    }
+
+    if (PHP_OS_FAMILY === 'Windows') {
+        $output = runCommand('powershell -NoProfile -Command "Get-Process -Name ' . escapeshellarg($name) . ' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id" 2>$null');
+        if ($output === null) {
+            return [];
+        }
+
+        $pids = preg_split('/\r?\n/', trim($output)) ?: [];
+        return array_values(array_filter(array_map('trim', $pids), static fn(string $pid): bool => ctype_digit($pid)));
+    }
+
+    $output = runCommand('pgrep -x ' . escapeshellarg($name) . ' 2>/dev/null');
+    if ($output === null) {
+        return [];
+    }
+
+    $pids = preg_split('/\r?\n/', trim($output)) ?: [];
+    return array_values(array_filter(array_map('trim', $pids), static fn(string $pid): bool => ctype_digit($pid)));
+}
+
+function findPidsByCommandPattern(string $pattern): array
+{
+    if ($pattern === '') {
+        return [];
+    }
+
+    if (PHP_OS_FAMILY === 'Windows') {
+        $escapedPattern = str_replace("'", "''", $pattern);
+        $output = runCommand('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like ' . "'*" . $escapedPattern . "*'" . ' } | Select-Object -ExpandProperty ProcessId" 2>$null');
+        if ($output === null) {
+            return [];
+        }
+
+        $pids = preg_split('/\r?\n/', trim($output)) ?: [];
+        return array_values(array_filter(array_map('trim', $pids), static fn(string $pid): bool => ctype_digit($pid)));
+    }
+
+    $output = runCommand('pgrep -f ' . escapeshellarg($pattern) . ' 2>/dev/null');
+    if ($output === null) {
+        return [];
+    }
+
+    $pids = preg_split('/\r?\n/', trim($output)) ?: [];
+    return array_values(array_filter(array_map('trim', $pids), static fn(string $pid): bool => ctype_digit($pid)));
+}
+
+function buildProcessGroupStatusRow(string $matchType, string $pattern): array
+{
+    $pids = $matchType === 'cmdline'
+        ? findPidsByCommandPattern($pattern)
+        : findPidsByProcessName($pattern);
+
+    $rssKb = 0;
+    foreach ($pids as $pid) {
+        $pidRssKb = getProcessMemoryKb($pid);
+        if ($pidRssKb !== null) {
+            $rssKb += $pidRssKb;
+        }
+    }
+
+    return [
+        'pid_file' => null,
+        'pid' => count($pids) === 1 ? $pids[0] : null,
+        'pid_display' => count($pids) > 1 ? count($pids) . 'x' : (count($pids) === 1 ? $pids[0] : '-'),
+        'running' => !empty($pids),
+        'optional' => true,
+        'configured' => true,
+        'rss_kb' => !empty($pids) ? $rssKb : null,
+        'process_count' => count($pids),
+    ];
+}
+
 function getDaemonStatusSnapshot(): array
 {
     $runDir = __DIR__ . '/../data/run';
@@ -367,6 +494,18 @@ function getDaemonStatusSnapshot(): array
 
     foreach ($optionalDaemons as $name => $pidFile) {
         $status[$name] = buildDaemonStatusRow($pidFile, true);
+    }
+
+    $extraProcessDaemons = [
+        'postgres' => ['type' => 'name', 'pattern' => 'postgres'],
+        'httpd' => ['type' => 'name', 'pattern' => 'httpd'],
+        'apache2' => ['type' => 'name', 'pattern' => 'apache2'],
+        'php-fpm' => ['type' => 'name', 'pattern' => 'php-fpm'],
+        'php-fpm:*' => ['type' => 'cmdline', 'pattern' => 'php-fpm:'],
+    ];
+
+    foreach ($extraProcessDaemons as $name => $definition) {
+        $status[$name] = buildProcessGroupStatusRow($definition['type'], $definition['pattern']);
     }
 
     return $status;
@@ -423,6 +562,27 @@ function getSessionSummary(\PDO $db): array
             $summary['total_sessions'] = isset($count['total_sessions']) ? (int)$count['total_sessions'] : null;
         } catch (Throwable $inner) {
         }
+    }
+
+    return $summary;
+}
+
+function getOnlineUserSummary(array $onlineUsers): array
+{
+    $guestUserId = GuestUser::getId();
+    $summary = [
+        'users' => 0,
+        'guests' => 0,
+    ];
+
+    foreach ($onlineUsers as $user) {
+        $userId = isset($user['user_id']) ? (int)$user['user_id'] : null;
+        if ($guestUserId !== null && $userId === $guestUserId) {
+            $summary['guests']++;
+            continue;
+        }
+
+        $summary['users']++;
     }
 
     return $summary;
@@ -485,13 +645,13 @@ function truncateCell(string $value, int $width): string
     if ($width < 1) {
         return '';
     }
-    if (strlen($value) <= $width) {
+    if (visibleLength($value) <= $width) {
         return $value;
     }
     if ($width <= 3) {
-        return substr($value, 0, $width);
+        return substr(stripAnsi($value), 0, $width);
     }
-    return substr($value, 0, $width - 3) . '...';
+    return substr(stripAnsi($value), 0, $width - 3) . '...';
 }
 
 function buildTableLines(array $rows, array $widthHints = [], ?int $maxRows = null): array
@@ -512,7 +672,7 @@ function buildTableLines(array $rows, array $widthHints = [], ?int $maxRows = nu
 
     foreach ($rows as $row) {
         foreach ($headers as $header) {
-            $widths[$header] = max($widths[$header], strlen((string)($row[$header] ?? '')));
+            $widths[$header] = max($widths[$header], visibleLength((string)($row[$header] ?? '')));
         }
     }
 
@@ -530,7 +690,7 @@ function buildTableLines(array $rows, array $widthHints = [], ?int $maxRows = nu
     foreach ($rows as $row) {
         $line = '';
         foreach ($headers as $header) {
-            $line .= str_pad(truncateCell((string)($row[$header] ?? ''), $widths[$header]), $widths[$header] + 2);
+            $line .= padVisible(truncateCell((string)($row[$header] ?? ''), $widths[$header]), $widths[$header] + 2);
         }
         $lines[] = rtrim($line);
     }
@@ -596,7 +756,7 @@ function buildTwoColumnTableLines(array $rows, array $widthHints, int $available
 
     $leftWidth = 0;
     foreach ($leftLines as $line) {
-        $leftWidth = max($leftWidth, strlen($line));
+        $leftWidth = max($leftWidth, visibleLength($line));
     }
 
     $gap = 4;
@@ -613,7 +773,7 @@ function buildTwoColumnTableLines(array $rows, array $widthHints, int $available
             $combined[] = rtrim($left);
             continue;
         }
-        $combined[] = rtrim(str_pad($left, $leftWidth + $gap) . $right);
+        $combined[] = rtrim(padVisible($left, $leftWidth + $gap) . $right);
     }
 
     if (count($combined) > $availableHeight) {
@@ -632,22 +792,34 @@ function buildDaemonRows(array $daemonStatus): array
 {
     $rows = [];
     foreach ($daemonStatus as $name => $info) {
-        $status = 'stopped';
+        $color = 'red';
         if (!($info['configured'] ?? true)) {
-            $status = 'n/a';
+            $color = 'yellow';
         } elseif (!empty($info['running'])) {
-            $status = 'run';
+            $color = 'green';
         }
 
         $rows[] = [
-            'daemon' => $name,
-            'state' => $status,
-            'pid' => (string)($info['pid'] ?? '-'),
+            'daemon' => colorize((string)$name, $color),
+            'pid' => (string)($info['pid_display'] ?? $info['pid'] ?? '-'),
             'rss' => isset($info['rss_kb']) && $info['rss_kb'] !== null ? formatKb((int)$info['rss_kb']) : '-',
         ];
     }
 
     return $rows;
+}
+
+function getDaemonTotalRssKb(array $daemonStatus): int
+{
+    $total = 0;
+
+    foreach ($daemonStatus as $info) {
+        if (isset($info['rss_kb']) && is_numeric($info['rss_kb'])) {
+            $total += (int)$info['rss_kb'];
+        }
+    }
+
+    return $total;
 }
 
 function buildUserRows(array $onlineUsers): array
@@ -656,7 +828,7 @@ function buildUserRows(array $onlineUsers): array
         return [
             'user' => (string)($user['username'] ?? '-'),
             'svc' => (string)($user['service'] ?? '-'),
-            'activity' => (string)($user['activity'] ?? '-'),
+            'activity' => truncateCell((string)($user['activity'] ?? '-'), 25),
             'ip' => (string)($user['ip_address'] ?? '-'),
             'last' => formatCompactTimestamp($user['last_activity'] ?? null),
         ];
@@ -685,28 +857,29 @@ function buildHeaderLines(array $snapshot, int $interval, int $columns): array
     $sessions = $snapshot['sessions'];
     $postgres = $snapshot['postgres'];
     $queues = $snapshot['queues'];
+    $onlineSummary = $snapshot['online_summary'];
 
     return [
         fitLineToWidth(sprintf(
-            '%s  %s  host:%s  now:%s',
+            '%s  %s  host:%s  now:%s  ref:%ss',
             $snapshot['app_version'],
             PHP_OS_FAMILY,
             $snapshot['host'],
-            date('Y-m-d H:i:s')
+            date('Y-m-d H:i:s'),
+            $interval
         ), $columns),
         fitLineToWidth(sprintf(
-            'up:%s  load:%s  ram:%s  disk:%s  ref:%ss',
+            'up:%s  load:%s  ram:%s  disk:%s',
             $snapshot['uptime_seconds'] !== null ? formatDuration((int)$snapshot['uptime_seconds']) : 'n/a',
             $loadAverage !== null ? number_format($loadAverage['1m'], 2) . ' ' . number_format($loadAverage['5m'], 2) . ' ' . number_format($loadAverage['15m'], 2) : 'n/a',
-            $memory !== null ? formatBytes($memory['used_bytes']) . '/' . formatBytes($memory['total_bytes']) : 'n/a',
-            $disk !== null ? formatBytes($disk['used_bytes']) . '/' . formatBytes($disk['total_bytes']) : 'n/a',
-            $interval
+            $memory !== null ? formatUsedTotalBytes($memory['used_bytes'], $memory['total_bytes']) : 'n/a',
+            $disk !== null ? formatUsedTotalBytes($disk['used_bytes'], $disk['total_bytes']) : 'n/a'
         ), $columns),
         fitLineToWidth(sprintf(
             'users:%d  sess:%s  doors:%d  pg:%s  in:%s  out:%s/%s',
             count($snapshot['online_users']),
-            ($sessions['valid_user_sessions'] ?? null) !== null && ($sessions['total_sessions'] ?? null) !== null
-                ? $sessions['valid_user_sessions'] . '/' . $sessions['total_sessions']
+            isset($onlineSummary['users'], $onlineSummary['guests'])
+                ? $onlineSummary['users'] . '/' . $onlineSummary['guests']
                 : 'n/a',
             count($snapshot['door_sessions']),
             $postgres['total'] !== null ? $postgres['total'] . ' (' . $postgres['active'] . 'a/' . $postgres['idle'] . 'i)' : 'n/a',
@@ -726,6 +899,7 @@ function assembleScreen(array $snapshot, int $interval): string
     $headerLines = buildHeaderLines($snapshot, $interval, $columns);
     $userRows = buildUserRows($snapshot['online_users']);
     $daemonRows = buildDaemonRows($snapshot['daemons']);
+    $daemonTotalRssKb = getDaemonTotalRssKb($snapshot['daemons']);
     $doorRows = buildDoorRows($snapshot['door_sessions']);
 
     $remaining = max(6, $lines - count($headerLines) - 1);
@@ -736,8 +910,8 @@ function assembleScreen(array $snapshot, int $interval): string
     $doorSectionHeight = max(4, $remaining - $userSectionHeight);
 
     $daemonWidthHints = $columns <= 80
-        ? ['daemon' => 14, 'state' => 4, 'pid' => 5, 'rss' => 8]
-        : ['daemon' => 20, 'state' => 5, 'pid' => 6, 'rss' => 10];
+        ? ['daemon' => 14, 'pid' => 5, 'rss' => 8]
+        : ['daemon' => 18, 'pid' => 6, 'rss' => 10];
     $userWidthHints = $columns <= 80
         ? ['user' => 10, 'svc' => 4, 'activity' => 14, 'ip' => 10, 'last' => 8]
         : ['user' => 14, 'svc' => 6, 'activity' => 24, 'ip' => 18, 'last' => 19];
@@ -745,14 +919,16 @@ function assembleScreen(array $snapshot, int $interval): string
         ? ['door' => 12, 'uid' => 4, 'node' => 4, 'ws' => 4, 'bridge' => 6, 'proc' => 6]
         : ['door' => 20, 'uid' => 5, 'node' => 4, 'ws' => 5, 'bridge' => 8, 'proc' => 8];
 
-    $daemonLines = ($columns >= 96 && count($daemonRows) >= 6)
+    $daemonLines = ($columns >= 80 && count($daemonRows) >= 6)
         ? buildTwoColumnTableLines($daemonRows, $daemonWidthHints, $daemonSectionHeight, $columns)
         : fitTableToHeight($daemonRows, $daemonWidthHints, $daemonSectionHeight);
+    if (!empty($daemonLines)) {
+        $daemonLines[] = 'total rss: ' . formatKb($daemonTotalRssKb);
+    }
 
     $screenLines = $headerLines;
-    $screenLines[] = '';
-    $screenLines = array_merge($screenLines, wrapSection('Current Users', fitTableToHeight($userRows, $userWidthHints, $userSectionHeight)));
-    $screenLines = array_merge($screenLines, wrapSection('Daemons', $daemonLines));
+    $screenLines = array_merge($screenLines, fitTableToHeight($userRows, $userWidthHints, $userSectionHeight));
+    $screenLines = array_merge($screenLines, $daemonLines);
     $screenLines = array_merge($screenLines, wrapSection('Door Sessions', fitTableToHeight($doorRows, $doorWidthHints, $doorSectionHeight)));
 
     return implode("\n", array_slice($screenLines, 0, $lines - 1)) . "\n";
@@ -793,6 +969,10 @@ do {
 
     $daemonStatus = getDaemonStatusSnapshot();
     foreach ($daemonStatus as $name => $info) {
+        if (array_key_exists('rss_kb', $info)) {
+            continue;
+        }
+
         $daemonStatus[$name]['rss_kb'] = !empty($info['running'])
             ? getProcessMemoryKb($info['pid'] ?? null)
             : null;
@@ -813,6 +993,7 @@ do {
         'sessions' => safeSection(static fn() => getSessionSummary($db), ['valid_user_sessions' => null, 'total_sessions' => null]),
         'online_window_minutes' => $onlineMinutes,
         'online_users' => $onlineUsers,
+        'online_summary' => getOnlineUserSummary($onlineUsers),
         'door_sessions' => $doorSessions,
         'daemons' => $daemonStatus,
         'queues' => safeSection(static function (): array {
