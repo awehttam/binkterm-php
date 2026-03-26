@@ -1628,11 +1628,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         flush();
 
         // Tell the client how long to wait before reconnecting after a close.
-        // On the dev server (window=0) we close immediately, so set a short
-        // retry so the client polls at ~500 ms rather than the browser default
-        // (3 000 ms). On production the long-lived window keeps the connection
-        // open so the retry value is only used after an unexpected disconnect.
-        echo "retry: " . ($isDevServer ? 1000 : 3000) . "\n\n";
+        // On the built-in dev server (window=0) we close immediately, so use a
+        // longer retry to reduce reconnect churn on the single-threaded server.
+        // On production the long-lived window keeps the connection open so the
+        // retry value is only used after an unexpected disconnect.
+        echo "retry: " . ($isDevServer ? 2500 : 3000) . "\n\n";
 
         // Only first-connect (cursor=0) should anchor to the current max id.
         // On reconnect, advancing lastEventId before catch-up delivery risks
