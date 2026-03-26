@@ -61,7 +61,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     process.exit(0);
 }
 
-let pidFilePath = null;
+let pidFilePath = path.join(ROOT_DIR, 'data', 'run', 'mcp-server.pid');
 let bindHost    = null;
 let daemonMode  = false;
 for (const arg of process.argv.slice(2)) {
