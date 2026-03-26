@@ -123,19 +123,14 @@
 
     function formatTimestamp(ts) {
         if (!ts) return '';
-        // formatFullDate appends 'Z' and expects a naive UTC string like
-        // "2026-03-25 18:01:13" (what PHP/PDO returns). SSE payloads from
-        // PostgreSQL json_build_object include microseconds and a tz offset
-        // ("2026-03-25T18:01:13.922794+00:00"), which breaks new Date(...+'Z').
-        // Strip both so either source works correctly.
-        const normalized = String(ts)
-            .replace(/\.\d+/, '')               // remove fractional seconds
-            .replace(/[+-]\d{2}:\d{2}$|Z$/, ''); // remove tz offset or trailing Z
         if (window.formatFullDate) {
-            return window.formatFullDate(normalized);
+            return window.formatFullDate(ts);
         } else {
             const userDateFormat = window.userSettings?.date_format || 'en-US';
-            return new Date(normalized + 'Z').toLocaleString(userDateFormat);
+            const parsed = typeof window.parseAppDate === 'function'
+                ? window.parseAppDate(ts)
+                : new Date(String(ts).replace(' ', 'T'));
+            return parsed ? parsed.toLocaleString(userDateFormat) : '';
         }
     }
 

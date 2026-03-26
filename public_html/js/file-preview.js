@@ -1278,9 +1278,11 @@ function openFileInfoModal(fileId, shareParams) {
                         '<dd class="col-sm-9">' + _fpBytes(f.filesize) + '</dd>';
             }
             if (f.created_at) {
-                const d = new Date(f.created_at);
+                const d = typeof window.parseAppDate === 'function'
+                    ? window.parseAppDate(f.created_at)
+                    : new Date(String(f.created_at).replace(' ', 'T'));
                 meta += '<dt class="col-sm-3">' + _fpT('ui.files.uploaded', 'Uploaded') + '</dt>' +
-                        '<dd class="col-sm-9">' + _fpEsc(d.toLocaleString()) + '</dd>';
+                        '<dd class="col-sm-9">' + _fpEsc(d ? d.toLocaleString() : String(f.created_at)) + '</dd>';
             }
             if (f.uploaded_from_address) {
                 meta += '<dt class="col-sm-3">' + _fpT('ui.files.from', 'From') + '</dt>' +

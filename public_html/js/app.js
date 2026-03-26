@@ -1185,10 +1185,41 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Utility functions
+function parseAppDate(dateString) {
+    if (!dateString) {
+        return null;
+    }
+
+    let normalized = String(dateString).trim();
+    if (!normalized) {
+        return null;
+    }
+
+    // Safari is strict about timestamp parsing. PostgreSQL/PDO often returns
+    // "YYYY-MM-DD HH:MM:SS", "YYYY-MM-DD HH:MM:SS+00", or
+    // "YYYY-MM-DD HH:MM:SS.ffffff+00", while SSE/json payloads may include
+    // ISO timestamps with fractional seconds and/or a timezone offset.
+    // Normalize these forms to ISO-8601 before handing them to Date.
+    normalized = normalized.replace(' ', 'T');
+
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}$/.test(normalized)) {
+        normalized += ':00';
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{4}$/.test(normalized)) {
+        normalized = normalized.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(normalized)) {
+        normalized += 'Z';
+    }
+
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatDate(dateString) {
     // Database stores dates in UTC, so parse as UTC and convert to local time
-    //const date = new Date(dateString + 'Z'); // Add 'Z' to treat as UTC
-    const date = new Date(dateString+'Z');
+    const date = parseAppDate(dateString);
+    if (!date) {
+        return '-';
+    }
     const now = new Date();
     const diffMs = now - date;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -1245,7 +1276,10 @@ function formatFidonetAddress(address, systemName) {
 
 function formatFullDate(dateString) {
     // Database stores dates in UTC, so parse as UTC
-    const date = new Date(dateString + 'Z'); // Add 'Z' to treat as UTC
+    const date = parseAppDate(dateString);
+    if (!date) {
+        return '-';
+    }
     const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
     const userDateFormat = window.userSettings?.date_format || 'en-US';
 
@@ -1259,6 +1293,8 @@ function formatFullDate(dateString) {
         hour12: true
     });
 }
+
+window.parseAppDate = parseAppDate;
 
 /**
  * Toggle a loading-blur state on settings cards or any container.
