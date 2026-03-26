@@ -163,6 +163,7 @@
 - **Because every online user holds an open php-fpm worker for the SSE window duration, `pm.max_children` must be sized for your expected concurrent user count.** See [docs/CONFIGURATION.md — Server Sizing & Tuning](CONFIGURATION.md#server-sizing--tuning) for a capacity table and low-RAM options.
 - `realtime_server.php` (the standalone WebSocket daemon) is now treated as a core daemon alongside `binkp_server.php`. It appears in the Admin dashboard service status panel with a live transport mode indicator, and the README documents it in the startup and cron sections.
 - Echomail, netmail, and files unread badge counts are now pushed via BinkStream instead of a 30-second client-side poll. A new DB trigger fires on INSERT to the `echomail`, `netmail`, and `files` tables and emits a `dashboard_stats` signal event, debounced to one event per 5-second window. Migration `v1.11.0.58_dashboard_stats_triggers.php` installs these triggers.
+- The echomail and netmail message lists now update automatically when a `dashboard_stats` event arrives, replacing the previous 5-minute and 2-minute auto-refresh intervals. The update is silent — no loading spinner is shown — so the list updates in place without disrupting reading. A 2-second client-side debounce collapses bursts of concurrent import events into a single refresh.
 - When a user marks a message as read in one tab, a user-targeted `message_read` BinkStream event is emitted containing the message ID(s) and type. Other tabs for the same user receive the event and apply the read styling to the message row immediately without reloading the list.
 
 **AreaFix / FileFix Manager**
@@ -677,6 +678,8 @@ Two diagnostic tools are in the Admin **Help → Developer** submenu:
 Echomail, netmail, and files unread badge counts are now delivered via BinkStream instead of a 30-second client-side poll. A new shared Postgres trigger function (`notify_dashboard_stats`) fires on INSERT to the `echomail`, `netmail`, and `files` tables. It inserts a signal-only `dashboard_stats` broadcast event into `sse_events` and calls `pg_notify`. The trigger is debounced to one event per 5-second window to avoid flooding clients during a batch mail import. When the event arrives the browser calls `/api/dashboard/stats` for a fresh count.
 
 Migration `v1.11.0.58_dashboard_stats_triggers.php` installs this trigger function and wires it to all three tables.
+
+The echomail and netmail message lists also listen for `dashboard_stats` and update silently (no loading spinner) when the event fires, replacing the previous 5-minute and 2-minute polling intervals. A 2-second client-side debounce is applied on top of the DB-level debounce to handle concurrent imports where multiple transactions may each emit an event before the other has committed.
 
 ### Cross-Tab Read Sync
 

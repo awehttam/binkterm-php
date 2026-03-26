@@ -331,9 +331,12 @@
                 maybeChatSound();
             });
 
-            // Refresh badges immediately when echomail, netmail, or files arrive.
+            // Refresh badges when echomail, netmail, or files arrive.
+            // Debounced to absorb bursts from concurrent imports.
+            let _dashboardStatsTimer = null;
             window.BinkStream.on('dashboard_stats', function () {
-                refreshMailState();
+                clearTimeout(_dashboardStatsTimer);
+                _dashboardStatsTimer = setTimeout(refreshMailState, 2000);
             });
         }
     }

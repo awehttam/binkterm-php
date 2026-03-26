@@ -166,9 +166,14 @@ $(document).ready(function() {
 
     if (window.BinkStream) {
         // Reload the message list when new echomail arrives.
+        // Debounced to absorb bursts from concurrent imports.
+        let _dashboardRefreshTimer = null;
         window.BinkStream.on('dashboard_stats', function() {
-            loadMessages();
-            loadStats();
+            clearTimeout(_dashboardRefreshTimer);
+            _dashboardRefreshTimer = setTimeout(function() {
+                loadMessages(null, true);
+                loadStats();
+            }, 2000);
         });
 
         // Cross-tab read sync — apply read styling immediately when another tab
@@ -655,8 +660,8 @@ function selectEchoarea(tag) {
     loadMessages();
 }
 
-function loadMessages(callback) {
-    showLoading('#messagesContainer');
+function loadMessages(callback, silent = false) {
+    if (!silent) showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
     currentSearchTerms = [];
