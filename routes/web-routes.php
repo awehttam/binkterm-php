@@ -851,6 +851,7 @@ SimpleRouter::get('/settings', function() {
         'notification_sounds' => $notificationSounds,
         'license_valid' => \BinktermPHP\License::isValid(),
         'mcp_server_url' => \BinktermPHP\Config::env('MCP_SERVER_URL', ''),
+        'mcp_service_running' => (bool)((\BinktermPHP\SystemStatus::getDaemonStatus()['mcp_server']['running'] ?? false)),
     ];
 
     $template = new Template();

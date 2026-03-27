@@ -2517,6 +2517,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.settings.ai.mcp_copy' => 'Copier',
     'ui.settings.ai.mcp_copied' => 'Clé copiée dans le presse-papiers.',
     'ui.settings.ai.registration_required' => 'Les services IA sont une fonctionnalité avancée et nécessitent une licence enregistrée. Veuillez demander au sysop d\'enregistrer sa copie de BinktermPHP pour activer l\'accès au serveur MCP.',
+    'ui.settings.ai.mcp_service_unavailable' => 'Les services IA ne sont pas disponibles actuellement. Veuillez contacter le sysop pour demander leur activation.',
     'ui.settings.display_preferences' => 'Préférences d\'affichage',
     'ui.settings.messages_per_page' => 'Messages par page',
     'ui.settings.messages_per_page_help' => 'Nombre de messages à afficher par page',

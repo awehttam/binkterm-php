@@ -421,6 +421,11 @@
                             <i class="fas fa-robot me-2"></i>
                             {{ t('ui.settings.ai.mcp_not_enabled', {}, locale, ['common']) }}
                         </div>
+                        {% elseif not mcp_service_running %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {{ t('ui.settings.ai.mcp_service_unavailable', {}, locale, ['common']) }}
+                        </div>
                         {% elseif not license_valid %}
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i>

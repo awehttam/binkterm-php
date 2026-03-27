@@ -3173,6 +3173,7 @@ return [
     'ui.settings.ai.mcp_copy' => 'Copiar',
     'ui.settings.ai.mcp_copied' => 'Clave copiada al portapapeles.',
     'ui.settings.ai.registration_required' => 'Los servicios de IA son una función avanzada y requieren una licencia registrada. Por favor, pide al sysop que registre su copia de BinktermPHP para habilitar el acceso al servidor MCP.',
+    'ui.settings.ai.mcp_service_unavailable' => 'Los servicios de IA no están disponibles actualmente. Ponte en contacto con el sysop para solicitar que los habilite.',
     'ui.settings.display_preferences' => 'Preferencias de visualizacion',
     'ui.settings.messages_per_page' => 'Mensajes por pagina',
     'ui.settings.messages_per_page_help' => 'Cantidad de mensajes a mostrar por pagina',

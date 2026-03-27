@@ -3165,6 +3165,7 @@ return [
     'ui.settings.ai.mcp_copy' => 'Copy',
     'ui.settings.ai.mcp_copied' => 'Key copied to clipboard.',
     'ui.settings.ai.registration_required' => 'AI services are an advanced feature and require a registered license. Please ask the sysop to register their copy of BinktermPHP to enable MCP server access.',
+    'ui.settings.ai.mcp_service_unavailable' => 'AI services are not currently available. Please contact the sysop to request enabling them.',
     'ui.settings.display_preferences' => 'Display Preferences',
     'ui.settings.messages_per_page' => 'Messages per Page',
     'ui.settings.messages_per_page_help' => 'Number of messages to display per page',
