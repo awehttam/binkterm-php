@@ -357,10 +357,7 @@ class AdminController
             return null;
         }
 
-        $phpBinary = defined('PHP_BINARY') && is_string(PHP_BINARY) && PHP_BINARY !== ''
-            ? PHP_BINARY
-            : 'php';
-        $command = escapeshellarg($phpBinary) . ' ' . escapeshellarg($scriptPath) . ' --once 2>&1';
+        $command = escapeshellarg($scriptPath) . ' --once 2>&1';
         $output = @shell_exec($command);
         if (!is_string($output)) {
             return null;

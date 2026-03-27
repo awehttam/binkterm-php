@@ -24,6 +24,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.)
    - **IMPORTANT**: All PHP scripts in scripts/ directory must include shebang line `#!/usr/bin/env php` at the top
    - **IMPORTANT**: CLI scripts must include `src/functions.php` after autoload to access global functions like `generateTzutc()`: `require_once __DIR__ . '/../src/functions.php';`
+   - **IMPORTANT**: Do not use `PHP_BINARY` from web requests to launch CLI scripts. Under php-fpm it points at the FPM SAPI, not the CLI interpreter. Invoke executable scripts directly via their shebang, or use a real CLI `php` path when you explicitly need the interpreter.
    - Scripts should be made executable with `chmod +x` and marked as executable in git with `git update-index --chmod=+x scripts/filename.php`
  - templates/ - html templates
    - **IMPORTANT**: Template resolution order is `templates/custom/` → `templates/shells/<activeShell>/` → `templates/`. The active shell (`web` or `bbs-menu`) has its own `base.twig` at `templates/shells/web/base.twig` and `templates/shells/bbs-menu/base.twig` which take priority over `templates/base.twig`. When adding nav links or modifying shared layout, you must update **both** `templates/base.twig` AND `templates/shells/web/base.twig` (and `bbs-menu` if applicable).
