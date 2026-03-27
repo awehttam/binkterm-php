@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 
 /*
@@ -246,11 +247,13 @@ function analyzeMessages($handle, $startOffset = 58)
                 printf("    Cost: %d\n", $header['cost']);
             }
             
-            // Read null-terminated strings
-            $dateTime = readNullString($handle, 20);
-            $toName = readNullString($handle, 36);
-            $fromName = readNullString($handle, 36);
-            $subject = readNullString($handle, 72);
+            // Read fixed-size header string fields (FTS-0001).
+            // Each field is a fixed number of bytes regardless of where the null falls;
+            // reading byte-by-byte to the null leaves padding unread and drifts the offset.
+            $dateTime = readFixedString($handle, 20);
+            $toName   = readFixedString($handle, 36);
+            $fromName = readFixedString($handle, 36);
+            $subject  = readFixedString($handle, 72);
             
             echo "    Date: $dateTime\n";
             echo "    From name: $fromName\n";
@@ -287,21 +290,15 @@ function analyzeMessages($handle, $startOffset = 58)
     echo "\nTotal messages found: $messageCount\n";
 }
 
-function readNullString($handle, $maxLen)
+function readFixedString($handle, $len)
 {
-    $string = '';
-    $count = 0;
-    
-    while ($count < $maxLen) {
-        $char = fread($handle, 1);
-        if ($char === false || ord($char) === 0) {
-            break;
-        }
-        $string .= $char;
-        $count++;
+    $data = fread($handle, $len);
+    if ($data === false) {
+        return '';
     }
-    
-    return $string;
+    // Trim at first null byte for display; the full $len bytes were consumed.
+    $nullPos = strpos($data, "\0");
+    return $nullPos !== false ? substr($data, 0, $nullPos) : $data;
 }
 
 function skipToNull($handle)

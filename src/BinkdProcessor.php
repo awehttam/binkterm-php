@@ -334,7 +334,18 @@ class BinkdProcessor
         }
         
         $type = unpack('v', $msgType)[1];
-        if ($type !== 2) { // Type 2 = stored message
+        if ($type === 0) {
+            // Normal end-of-packet marker
+            return null;
+        }
+        if ($type !== 2) {
+            $offset = ftell($handle) - 2;
+            $this->log(sprintf(
+                '[BINKD] Unexpected message type 0x%04X at offset %d in packet %s — stopping packet analysis',
+                $type,
+                $offset,
+                $packetInfo['packet_name'] ?? 'unknown'
+            ), 'WARNING');
             return null;
         }
 
@@ -347,11 +358,14 @@ class BinkdProcessor
         // Parse message header
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
-        // Read null-terminated strings (raw bytes first)
-        $dateTimeRaw = $this->readNullStringRaw($handle, 20);
-        $toNameRaw = $this->readNullStringRaw($handle, 36);
-        $fromNameRaw = $this->readNullStringRaw($handle, 36);
-        $subjectRaw = $this->readNullStringRaw($handle, 72);
+        // Read fixed-size header string fields (FTS-0001).
+        // Each field occupies a fixed number of bytes regardless of where the null falls;
+        // reading byte-by-byte to the null leaves padding unread and drifts the file offset,
+        // causing all subsequent messages in the packet to be silently dropped.
+        $dateTimeRaw = $this->readFixedStringRaw($handle, 20);
+        $toNameRaw   = $this->readFixedStringRaw($handle, 36);
+        $fromNameRaw = $this->readFixedStringRaw($handle, 36);
+        $subjectRaw  = $this->readFixedStringRaw($handle, 72);
         
         // Read message text until null terminator
         $messageTextRaw = '';
@@ -485,22 +499,19 @@ class BinkdProcessor
         return $this->convertToUtf8($string, $encoding);
     }
 
-    private function readNullStringRaw($handle, $maxLen)
+    /**
+     * Read exactly $len bytes from $handle and return the raw string up to the first
+     * null byte. The full $len bytes are always consumed so the file offset stays correct
+     * for fixed-size FTN header fields (date: 20, to/from: 36, subject: 72).
+     */
+    private function readFixedStringRaw($handle, int $len): string
     {
-        $string = '';
-        $count = 0;
-        
-        while ($count < $maxLen) {
-            $char = fread($handle, 1);
-            if ($char === false || ord($char) === 0) {
-                break;
-            }
-            $string .= $char;
-            $count++;
+        $data = fread($handle, $len);
+        if ($data === false || $data === '') {
+            return '';
         }
-        
-        // Return raw bytes without encoding conversion
-        return $string;
+        $nullPos = strpos($data, "\0");
+        return $nullPos !== false ? substr($data, 0, $nullPos) : $data;
     }
 
     private function convertToUtf8($string, $preferredEncoding = null)
