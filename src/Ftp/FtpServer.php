@@ -506,13 +506,14 @@ class FtpServer implements LoopServiceInterface
 
     private function prepareStor(int $clientId, string $argument): void
     {
-        if (!$this->ensurePassiveReady($clientId)) {
+        $targetPath = $this->resolvePath($clientId, $argument);
+        $validation = $this->vfs->validateUploadTarget((array)$this->clients[$clientId]['user'], $targetPath);
+        if (!$validation['success']) {
+            $this->sendResponse($clientId, 550, $validation['message']);
             return;
         }
 
-        $targetPath = $this->resolvePath($clientId, $argument);
-        if (!$this->isWritableUploadPath($targetPath)) {
-            $this->sendResponse($clientId, 550, 'Uploads are only permitted inside /incoming or /qwk/upload');
+        if (!$this->ensurePassiveReady($clientId)) {
             return;
         }
 
@@ -854,11 +855,6 @@ class FtpServer implements LoopServiceInterface
     private function resolvePath(int $clientId, string $argument): string
     {
         return $this->vfs->normalizePath((string)$this->clients[$clientId]['cwd'], $argument);
-    }
-
-    private function isWritableUploadPath(string $path): bool
-    {
-        return str_starts_with($path, '/qwk/upload/') || str_starts_with($path, '/incoming/');
     }
 
     private function extractListPathArgument(string $argument): string

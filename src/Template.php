@@ -209,6 +209,15 @@ class Template
 
         $this->twig->addGlobal('bbs_directory_enabled', BbsConfig::isFeatureEnabled('bbs_directory'));
         $this->twig->addGlobal('site_url', Config::getSiteUrl());
+        $ftpEnabled = strtolower(trim((string)Config::env('FTPD_ENABLED', 'false'))) === 'true';
+        $ftpHost = trim((string)Config::env('FTPD_PUBLIC_HOST', ''));
+        if ($ftpHost === '') {
+            $ftpHost = (string)(parse_url(Config::getSiteUrl(), PHP_URL_HOST) ?: '');
+        }
+        $ftpPort = (int)Config::env('FTPD_PORT', '2121');
+        $this->twig->addGlobal('ftp_enabled', $ftpEnabled);
+        $this->twig->addGlobal('ftp_host', $ftpHost);
+        $this->twig->addGlobal('ftp_port', $ftpPort);
         $this->twig->addGlobal('freq_experimental_enabled', Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true');
         $interestsEnabled = Config::env('ENABLE_INTERESTS', 'true') === 'true';
         $this->twig->addGlobal('interests_enabled', $interestsEnabled);

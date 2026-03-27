@@ -629,6 +629,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.dashboard.service.binkp_scheduler' => 'Planificateur Binkp',
     'ui.admin.dashboard.service.binkp_server' => 'Serveur Binkp',
     'ui.admin.dashboard.service.telnetd' => 'Serveur Telnet',
+    'ui.admin.dashboard.service.ftp_daemon' => 'Serveur FTP',
     'ui.admin.dashboard.service.ssh_daemon' => 'Serveur SSH',
     'ui.admin.dashboard.service.gemini_daemon' => 'Serveur Gemini',
     'ui.admin.dashboard.service.mrc_daemon' => 'Démon MRC',

@@ -947,6 +947,7 @@ return [
     'ui.admin.dashboard.service.binkp_scheduler' => 'Programador Binkp',
     'ui.admin.dashboard.service.binkp_server' => 'Servidor Binkp',
     'ui.admin.dashboard.service.telnetd' => 'Servidor Telnet',
+    'ui.admin.dashboard.service.ftp_daemon' => 'Servidor FTP',
     'ui.admin.dashboard.service.ssh_daemon' => 'Servidor SSH',
     'ui.admin.dashboard.service.gemini_daemon' => 'Servidor Gemini',
     'ui.admin.dashboard.service.mrc_daemon' => 'Daemon MRC',

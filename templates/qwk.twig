@@ -232,6 +232,69 @@
                     </div>
                 </div>
             </div>
+            {% if ftp_enabled %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="ftpHeading">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#ftpBody"
+                            aria-expanded="false" aria-controls="ftpBody">
+                        <i class="fas fa-network-wired me-2"></i>FTP Access
+                    </button>
+                </h2>
+                <div id="ftpBody" class="accordion-collapse collapse" aria-labelledby="ftpHeading" data-bs-parent="#qwkHelp">
+                    <div class="accordion-body text-muted">
+                        <p>
+                            The FTP daemon is enabled on this system, so you can also move QWK packets with a normal FTP client.
+                        </p>
+                        <div class="card mb-3 border-secondary">
+                            <div class="card-header py-2 fw-semibold text-body">
+                                <i class="fas fa-plug me-2"></i>FTP Connection Settings
+                            </div>
+                            <div class="card-body py-2">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-nowrap fw-semibold" style="width:130px">Host</td>
+                                            <td class="font-monospace">{{ ftp_host ?: 'your-bbs-hostname' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Port</td>
+                                            <td class="font-monospace">{{ ftp_port }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Username</td>
+                                            <td class="text-muted small align-middle">Your BBS username</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Password</td>
+                                            <td class="text-muted small align-middle">Your BBS password</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <p class="mb-2">
+                            Download your packet from:
+                        </p>
+                        <pre><code>/qwk/download/&lt;BBSID&gt;.QWK</code></pre>
+
+                        <p class="mb-2">
+                            Upload your reply packet to:
+                        </p>
+                        <pre><code>/qwk/upload/&lt;BBSID&gt;.REP</code></pre>
+
+                        <p class="mb-2">
+                            A <code>.ZIP</code> reply packet can also be uploaded into the same <code>/qwk/upload/</code> directory.
+                        </p>
+
+                        <p class="mb-0">
+                            Replace <code>&lt;BBSID&gt;</code> with your configured QWK BBS ID. The download filename on this page uses the same value.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
     </div>

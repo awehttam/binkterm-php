@@ -32,6 +32,7 @@ class SystemStatus
 
         // Optional daemons — shown with a distinct "not configured" state when absent
         $optionalDaemons = [
+            'ftp_daemon'           => Config::env('FTPD_PID_FILE',         $runDir . '/ftpd.pid'),
             'telnetd'              => Config::env('TELNETD_PID_FILE',      $runDir . '/telnetd.pid'),
             'ssh_daemon'           => Config::env('SSHD_PID_FILE',        $runDir . '/sshd.pid'),
             'gemini_daemon'        => Config::env('GEMINI_PID_FILE',       $runDir . '/gemini_daemon.pid'),
