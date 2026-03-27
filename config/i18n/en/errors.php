@@ -597,4 +597,5 @@ return [
 
     // Ads - content command validation
     'errors.admin.ads.invalid_content_command' => 'The selected content command is not allowed.',
+    'errors.admin.weather.preview_failed' => 'Failed to generate weather report preview.',
 ];

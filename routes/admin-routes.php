@@ -4562,6 +4562,54 @@ SimpleRouter::get('/admin/weather-config', function() {
     $template->renderResponse('admin/weather_config.twig');
 });
 
+if (!function_exists('buildWeatherConfigFromRequestBody')) {
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    function buildWeatherConfigFromRequestBody($body): array
+    {
+        if (!is_array($body)) {
+            return [null, 'invalid_json'];
+        }
+
+        $title = trim((string)($body['title'] ?? ''));
+        $coverageArea = trim((string)($body['coverage_area'] ?? ''));
+        $apiKey = trim((string)($body['api_key'] ?? ''));
+        $locations = $body['locations'] ?? [];
+        $settings = $body['settings'] ?? [];
+
+        if ($title === '') {
+            return [null, 'errors.admin.weather.title_required'];
+        }
+        if ($apiKey === '') {
+            return [null, 'errors.admin.weather.api_key_required'];
+        }
+        if (!is_array($locations) || count($locations) === 0) {
+            return [null, 'errors.admin.weather.locations_required'];
+        }
+
+        return [[
+            'title' => $title,
+            'coverage_area' => $coverageArea,
+            'api_key' => $apiKey,
+            'locations' => array_values(array_map(function($loc) {
+                return [
+                    'name' => trim((string)($loc['name'] ?? '')),
+                    'lat' => (float)($loc['lat'] ?? 0),
+                    'lon' => (float)($loc['lon'] ?? 0),
+                ];
+            }, $locations)),
+            'settings' => [
+                'api_timeout' => max(1, (int)($settings['api_timeout'] ?? 10)),
+                'max_locations' => max(1, (int)($settings['max_locations'] ?? 10)),
+                'units' => in_array($settings['units'] ?? '', ['metric', 'imperial', 'standard'], true)
+                    ? $settings['units']
+                    : 'metric',
+            ],
+        ], null];
+    }
+}
+
 // GET current weather config
 SimpleRouter::get('/admin/api/weather-config', function() {
     RouteHelper::requireAdmin();
@@ -4577,60 +4625,66 @@ SimpleRouter::get('/admin/api/weather-config', function() {
     }
 });
 
+// POST weather config preview
+SimpleRouter::post('/admin/api/weather-config/preview', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    [$config, $error] = buildWeatherConfigFromRequestBody(json_decode(file_get_contents('php://input'), true));
+    if ($config === null) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $error]);
+        return;
+    }
+
+    require_once __DIR__ . '/../scripts/weather_report.php';
+
+    $tmpPath = tempnam(sys_get_temp_dir(), 'binkweather_');
+    if ($tmpPath === false) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.preview_failed']);
+        return;
+    }
+
+    try {
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false || file_put_contents($tmpPath, $json) === false) {
+            throw new \RuntimeException('Failed to write temporary weather configuration');
+        }
+
+        $generator = new \WeatherReportGenerator($tmpPath);
+        $report = $generator->generateReport(false);
+        if (strpos($report, 'ERROR:') === 0) {
+            throw new \RuntimeException(trim($report));
+        }
+
+        echo json_encode([
+            'success' => true,
+            'report' => $report,
+        ]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'errors.admin.weather.preview_failed',
+            'message' => $e->getMessage(),
+        ]);
+    } finally {
+        @unlink($tmpPath);
+    }
+});
+
 // POST save weather config
 SimpleRouter::post('/admin/api/weather-config', function() {
     $user = RouteHelper::requireAdmin();
     header('Content-Type: application/json');
 
-    $body = json_decode(file_get_contents('php://input'), true);
-    if (!is_array($body)) {
+    [$config, $error] = buildWeatherConfigFromRequestBody(json_decode(file_get_contents('php://input'), true));
+    if ($config === null) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        echo json_encode(['success' => false, 'error' => $error]);
         return;
     }
-
-    // Validate required fields
-    $title        = trim((string)($body['title'] ?? ''));
-    $coverageArea = trim((string)($body['coverage_area'] ?? ''));
-    $apiKey       = trim((string)($body['api_key'] ?? ''));
-    $locations    = $body['locations'] ?? [];
-    $settings     = $body['settings'] ?? [];
-
-    if ($title === '') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.title_required']);
-        return;
-    }
-    if ($apiKey === '') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.api_key_required']);
-        return;
-    }
-    if (!is_array($locations) || count($locations) === 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.locations_required']);
-        return;
-    }
-
-    $config = [
-        'title'         => $title,
-        'coverage_area' => $coverageArea,
-        'api_key'       => $apiKey,
-        'locations'     => array_values(array_map(function($loc) {
-            return [
-                'name' => trim((string)($loc['name'] ?? '')),
-                'lat'  => (float)($loc['lat'] ?? 0),
-                'lon'  => (float)($loc['lon'] ?? 0),
-            ];
-        }, $locations)),
-        'settings'      => [
-            'api_timeout'   => max(1, (int)($settings['api_timeout'] ?? 10)),
-            'max_locations' => max(1, (int)($settings['max_locations'] ?? 10)),
-            'units'         => in_array($settings['units'] ?? '', ['metric', 'imperial', 'standard'], true)
-                                ? $settings['units']
-                                : 'metric',
-        ],
-    ];
 
     $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
     try {

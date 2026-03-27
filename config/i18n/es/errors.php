@@ -597,4 +597,5 @@ return [
 
     // Ads - content command validation
     'errors.admin.ads.invalid_content_command' => 'El comando de contenido seleccionado no está permitido.',
+    'errors.admin.weather.preview_failed' => 'No se pudo generar la vista previa del reporte del tiempo.',
 ];
