@@ -623,6 +623,10 @@ function displayFileareas(fileareas) {
             ? `<span class="badge bg-dark ms-1">${uiT('ui.fileareas.is_public', 'Public File Area')}</span>`
             : '';
 
+        const freqBadge = area.freq_enabled
+            ? `<span class="badge bg-warning text-dark ms-1">FREQ</span>`
+            : '';
+
         let isoBadge = '';
         if (area.area_type === 'iso') {
             const mountDot = area.iso_accessible
@@ -640,7 +644,7 @@ function displayFileareas(fileareas) {
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
-                <td>${statusBadge}${localBadge}${replaceBadge}${geminiPublicBadge}${publicBadge}${isoBadge}</td>
+                <td>${statusBadge}${localBadge}${replaceBadge}${geminiPublicBadge}${publicBadge}${freqBadge}${isoBadge}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="editFilearea(${area.id})">
                         <i class="fas fa-edit"></i>
