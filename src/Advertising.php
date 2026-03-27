@@ -1985,8 +1985,8 @@ class Advertising
      * Returns a non-null error reason if the command should cause the post to be skipped.
      *
      * The command must be a repo-relative path validated by validateContentCommand().
-     * Relative paths are resolved to absolute paths before execution; PHP scripts are
-     * run through PHP_BINARY automatically.
+     * Relative paths are resolved to absolute paths before execution. PHP scripts are
+     * run through a CLI PHP binary, not the current web SAPI binary.
      */
     private function runContentCommand(string $command): array
     {
@@ -2000,25 +2000,26 @@ class Advertising
         $rawArgs = isset($parts[1]) ? trim($parts[1]) : '';
 
         // Resolve the script to an absolute path
-        $absPath = self::getBaseDir() . '/' . $script;
+        $baseDir = self::getBaseDir();
+        $absPath = $baseDir . '/' . $script;
+        $argv = [];
 
-        // Build the escaped command: PHP_BINARY for .php scripts, otherwise direct exec
+        // PHP scripts must run under a CLI binary. PHP_BINARY may point to php-fpm/mod_php.
         if (str_ends_with($script, '.php')) {
-            $escaped = PHP_BINARY . ' ' . escapeshellarg($absPath);
+            $argv[] = self::getPhpCliBinary();
+            $argv[] = $absPath;
         } else {
-            $escaped = escapeshellarg($absPath);
+            $argv[] = $absPath;
         }
 
-        // Append each argument individually through escapeshellarg
+        // Append each argument individually.
         if ($rawArgs !== '') {
             foreach (preg_split('/\s+/', $rawArgs) as $arg) {
                 if ($arg !== '') {
-                    $escaped .= ' ' . escapeshellarg($arg);
+                    $argv[] = $arg;
                 }
             }
         }
-
-        $command = $escaped;
 
         $descriptors = [
             0 => ['pipe', 'r'],
@@ -2026,7 +2027,7 @@ class Advertising
             2 => ['pipe', 'w'],
         ];
 
-        $process = proc_open($command, $descriptors, $pipes, null, null);
+        $process = proc_open($argv, $descriptors, $pipes, $baseDir, null);
         if (!is_resource($process)) {
             return ['', 'Failed to launch content_command process'];
         }
@@ -2034,10 +2035,15 @@ class Advertising
         fclose($pipes[0]);
         $output = (string)stream_get_contents($pipes[1]);
         fclose($pipes[1]);
+        $stderr = (string)stream_get_contents($pipes[2]);
         fclose($pipes[2]);
         $exitCode = proc_close($process);
 
         if ($exitCode !== 0) {
+            $stderr = trim($stderr);
+            if ($stderr !== '') {
+                return ['', "content_command exited with code {$exitCode}: {$stderr}"];
+            }
             return ['', "content_command exited with code {$exitCode}"];
         }
 
@@ -2046,6 +2052,22 @@ class Advertising
         }
 
         return [$output, null];
+    }
+
+    private static function getPhpCliBinary(): string
+    {
+        $configured = trim((string)Config::env('PHP_CLI_BINARY', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $suffix = DIRECTORY_SEPARATOR === '\\' ? 'php.exe' : 'php';
+        $candidate = rtrim(PHP_BINDIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $suffix;
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+
+        return $suffix;
     }
 
     private function dbBool($value): bool
