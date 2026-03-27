@@ -4,6 +4,10 @@
 
 A modern web interface and mailer tool that receives and sends Fidonet message packets using its own binkp Fidonet mailer. The project provides users with a delightful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of binkp.
 
+ - **Product website**: https://lovelybits.org/binktermphp
+ - **GitHub repo**: https://github.com/awehttam/binkterm-php
+ - **Support BBS**: https://claudes.lovelybits.org
+
 ## Tech Stack
 
  - Frontend: jQuery, Bootstrap 5
