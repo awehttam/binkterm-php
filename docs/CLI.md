@@ -6,6 +6,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 
 - [Message Posting Tool](#message-posting-tool)
 - [Weather Report Generator](#weather-report-generator)
+- [New Files Report](#new-files-report)
 - [Activity Digest Generator](#activity-digest-generator)
 - [Activity Report Sender](#activity-report-sender)
 - [Echomail Maintenance Utility](#echomail-maintenance-utility)
@@ -74,6 +75,31 @@ php scripts/weather_report.php --config=/path/to/custom/weather.json
 ```
 
 The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [docs/Weather.md](Weather.md) for detailed setup instructions and configuration examples.
+
+## New Files Report
+Generate a report of recently uploaded or hatched files:
+
+```bash
+# Default: last 7 days of approved non-private file uploads and hatches
+php scripts/report_newfiles.php
+
+# Custom relative period
+php scripts/report_newfiles.php --since=14d
+
+# Explicit date window
+php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
+
+# Only include file areas marked public
+php scripts/report_newfiles.php --public
+```
+
+Options:
+- `--since=PERIOD` - Relative time window such as `12h`, `7d`, `2w`, `1mo`
+- `--days=N` - Shortcut for `--since=Nd`
+- `--from=YYYY-MM-DD` - Start date
+- `--to=YYYY-MM-DD` - End date (defaults to now when used with `--from`)
+- `--public` - Only report files from file areas where `is_public = true`
+- `--help` - Show usage
 
 ## Activity Digest Generator
 Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:

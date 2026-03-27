@@ -8,6 +8,7 @@
  *   php scripts/report_newfiles.php --since=14d
  *   php scripts/report_newfiles.php --days=30
  *   php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
+ *   php scripts/report_newfiles.php --public
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -25,6 +26,7 @@ function printUsage(): void
     echo "  --days=N            Shortcut for --since=Nd\n";
     echo "  --from=YYYY-MM-DD   Start date (overrides --since/--days)\n";
     echo "  --to=YYYY-MM-DD     End date (used with --from, defaults to now)\n";
+    echo "  --public            Only include file areas where is_public is true\n";
     echo "  --help              Show this help message\n";
 }
 
@@ -125,10 +127,10 @@ function buildWindow(array $args): array
     return [$from, $to];
 }
 
-function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to): array
+function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to, bool $publicOnly = false): array
 {
     $db = Database::getInstance()->getPdo();
-    $stmt = $db->prepare("
+    $sql = "
         SELECT
             f.id,
             f.filename,
@@ -148,8 +150,17 @@ function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to): array
           AND f.created_at < ?
           AND fa.is_private = FALSE
           AND f.source_type IN ('fidonet', 'user_upload')
+    ";
+
+    if ($publicOnly) {
+        $sql .= " AND fa.is_public = TRUE";
+    }
+
+    $sql .= "
         ORDER BY f.created_at DESC, f.id DESC
-    ");
+    ";
+
+    $stmt = $db->prepare($sql);
     $stmt->execute([
         $from->format('Y-m-d H:i:sP'),
         $to->format('Y-m-d H:i:sP'),
@@ -286,7 +297,7 @@ if (isset($args['help'])) {
 
 try {
     [$from, $to] = buildWindow($args);
-    $rows = fetchNewFiles($from, $to);
+    $rows = fetchNewFiles($from, $to, isset($args['public']));
     printReport($rows, $from, $to);
     exit(0);
 } catch (Throwable $e) {
