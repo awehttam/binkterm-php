@@ -35,6 +35,13 @@ class BinkdProcessor
      */
     public ?string $receivedDateOverride = null;
 
+    /**
+     * When true, use the smart fixed-width FTS-0001 field parser that handles
+     * both zero-padded (spec-compliant) and non-padded mailers.
+     * When false (default), use the original null-terminated parser.
+     */
+    public bool $useFixedWidthParser = false;
+
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
@@ -418,19 +425,27 @@ class BinkdProcessor
         // Parse message header
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
-        // Read fixed-size header string fields (FTS-0001).
-        // readFixedStringRaw handles both padded (spec-compliant) and non-padded mailers.
-        $paddingSkipped = false;
-        $dateTimeRaw = $this->readFixedStringRaw($handle, 20, $paddingSkipped);
-        $toNameRaw   = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
-        $fromNameRaw = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
-        $subjectRaw  = $this->readFixedStringRaw($handle, 72, $paddingSkipped);
-        if ($paddingSkipped) {
-            $this->log(sprintf(
-                '[BINKD] Zero-padded FTS-0001 fields detected in packet %s at offset %d — padding skipped correctly',
-                $packetInfo['packet_name'] ?? 'unknown',
-                ftell($handle)
-            ));
+        // Read header string fields — two modes:
+        //   useFixedWidthParser=true  → smart fixed-width parser (handles zero-padded spec-compliant mailers)
+        //   useFixedWidthParser=false → original null-terminated parser (default, production-safe)
+        if ($this->useFixedWidthParser) {
+            $paddingSkipped = false;
+            $dateTimeRaw = $this->readFixedStringRaw($handle, 20, $paddingSkipped);
+            $toNameRaw   = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
+            $fromNameRaw = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
+            $subjectRaw  = $this->readFixedStringRaw($handle, 72, $paddingSkipped);
+            if ($paddingSkipped) {
+                $this->log(sprintf(
+                    '[BINKD] Zero-padded FTS-0001 fields detected in packet %s at offset %d — padding skipped correctly',
+                    $packetInfo['packet_name'] ?? 'unknown',
+                    ftell($handle)
+                ));
+            }
+        } else {
+            $dateTimeRaw = $this->readNullStringRaw($handle);
+            $toNameRaw   = $this->readNullStringRaw($handle);
+            $fromNameRaw = $this->readNullStringRaw($handle);
+            $subjectRaw  = $this->readNullStringRaw($handle);
         }
         
         // Read message text until null terminator
@@ -577,6 +592,15 @@ class BinkdProcessor
      *
      * Sets $paddingSkipped to true if zero-padding bytes were consumed.
      */
+    private function readNullStringRaw($handle): string
+    {
+        $string = '';
+        while (($char = fread($handle, 1)) !== false && $char !== '' && ord($char) !== 0) {
+            $string .= $char;
+        }
+        return $string;
+    }
+
     private function readFixedStringRaw($handle, int $len, bool &$paddingSkipped = false): string
     {
         $string = '';
