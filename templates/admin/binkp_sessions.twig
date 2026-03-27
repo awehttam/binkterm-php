@@ -21,7 +21,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.total_24h', {}, locale, ['common']) }}</div>
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1" id="statTotalLabel">{{ t('ui.admin.binkp_sessions.total_24h', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statTotal">-</div>
                 </div>
             </div>
@@ -70,14 +70,26 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.traffic_chart', {}, locale, ['common']) }}</h6>
-            <div class="small text-muted d-flex flex-wrap gap-3">
+            <h6 class="m-0 font-weight-bold text-primary" id="binkpChartTitle">{{ t('ui.admin.binkp_sessions.traffic_chart', {}, locale, ['common']) }}</h6>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <label for="binkpChartType" class="form-label mb-0 small text-muted">{{ t('ui.admin.binkp_sessions.chart_type_label', {}, locale, ['common']) }}</label>
+                <select class="form-select form-select-sm" id="binkpChartType" style="width: auto;">
+                    <option value="traffic">{{ t('ui.admin.binkp_sessions.traffic_chart', {}, locale, ['common']) }}</option>
+                    <option value="uplinks">{{ t('ui.admin.binkp_sessions.uplink_connections_chart', {}, locale, ['common']) }}</option>
+                </select>
+                <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('ui.admin.binkp_sessions.chart_period_label', {}, locale, ['common']) }}">
+                    <button type="button" class="btn btn-outline-secondary active" data-period="day">{{ t('ui.admin.binkp_sessions.period_24h', {}, locale, ['common']) }}</button>
+                    <button type="button" class="btn btn-outline-secondary" data-period="week">{{ t('ui.admin.binkp_sessions.period_7d', {}, locale, ['common']) }}</button>
+                    <button type="button" class="btn btn-outline-secondary" data-period="month">{{ t('ui.admin.binkp_sessions.period_1m', {}, locale, ['common']) }}</button>
+                </div>
+            </div>
+            <div class="small text-muted d-flex flex-wrap gap-3" id="binkpChartLegend">
                 <span><span class="binkp-chart-legend binkp-chart-legend-in"></span>{{ t('ui.admin.binkp_sessions.files_in', {}, locale, ['common']) }}</span>
                 <span><span class="binkp-chart-legend binkp-chart-legend-out"></span>{{ t('ui.admin.binkp_sessions.files_out', {}, locale, ['common']) }}</span>
             </div>
         </div>
         <div class="card-body">
-            <div id="binkpTrafficChart" class="binkp-traffic-chart text-muted">{{ t('ui.common.loading', {}, locale, ['common']) }}</div>
+            <div id="binkpPrimaryChart" class="binkp-traffic-chart text-muted">{{ t('ui.common.loading', {}, locale, ['common']) }}</div>
         </div>
     </div>
 
@@ -210,6 +222,7 @@
 .binkp-chart-line-out { stroke: #1cc88a; stroke-width: 3; fill: none; }
 .binkp-chart-point-in { fill: #36b9cc; }
 .binkp-chart-point-out { fill: #1cc88a; }
+.binkp-chart-bar { fill: #4e73df; }
 .binkp-chart-legend { display: inline-block; width: 12px; height: 12px; border-radius: 999px; margin-right: 0.35rem; vertical-align: -1px; }
 .binkp-chart-legend-in { background: #36b9cc; }
 .binkp-chart-legend-out { background: #1cc88a; }
@@ -261,16 +274,41 @@ document.addEventListener('DOMContentLoaded', function() {
         persistSessionsPerPage();
         renderSessionsTable();
     });
+
+    document.getElementById('binkpChartType').addEventListener('change', function(event) {
+        selectedChartType = String(event.target.value || 'traffic');
+        renderSelectedChart();
+    });
+
+    document.querySelectorAll('[data-period]').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const period = String(button.getAttribute('data-period') || 'day');
+            if (period === selectedStatsPeriod) {
+                return;
+            }
+            selectedStatsPeriod = period;
+            updatePeriodButtons();
+            loadStats();
+        });
+    });
 });
 
 const SESSIONS_PER_PAGE_KEY = 'admin.binkpSessions.perPage';
 const DEFAULT_SESSIONS_PER_PAGE = 25;
 const MAX_SESSION_FETCH = 250;
 const ALLOWED_SESSION_PAGE_SIZES = [25, 50, 100, 250];
+const PERIOD_LABELS = {
+    day: uiT('ui.admin.binkp_sessions.period_24h', '24 Hours'),
+    week: uiT('ui.admin.binkp_sessions.period_7d', '7 Days'),
+    month: uiT('ui.admin.binkp_sessions.period_1m', '1 Month')
+};
 
 let allSessions = [];
 let sessionsCurrentPage = 1;
 let sessionsPerPage = DEFAULT_SESSIONS_PER_PAGE;
+let selectedStatsPeriod = 'day';
+let selectedChartType = 'traffic';
+let latestStatsPayload = null;
 
 function initSessionPagination() {
     sessionsPerPage = loadStoredSessionsPerPage();
@@ -309,85 +347,207 @@ function getSessionsTotalPages() {
 }
 
 function loadStats() {
-    fetch('/admin/api/binkp-sessions/stats?period=day')
+    updateStatsSummaryLabel();
+    fetch(`/admin/api/binkp-sessions/stats?period=${encodeURIComponent(selectedStatsPeriod)}`)
         .then(response => response.json())
         .then(data => {
+            latestStatsPayload = data || {};
             document.getElementById('statTotal').textContent = data.total_sessions || 0;
             document.getElementById('statSecure').textContent = data.secure_sessions || 0;
             document.getElementById('statInsecure').textContent = data.insecure_sessions || 0;
             document.getElementById('statCrash').textContent = data.crash_sessions || 0;
             document.getElementById('statSuccessful').textContent = data.successful || 0;
             document.getElementById('statFailed').textContent = data.failed || 0;
-            renderTrafficChart(Array.isArray(data.timeline_24h) ? data.timeline_24h : []);
+            renderSelectedChart();
         })
         .catch(error => {
             console.error(uiT('ui.admin.binkp_sessions.load_stats_failed', 'Error loading stats') + ':', error);
-            renderTrafficChart([]);
+            latestStatsPayload = null;
+            renderSelectedChart();
         });
 }
 
 function renderTrafficChart(points) {
-    const container = document.getElementById('binkpTrafficChart');
+    renderLineChart({
+        containerId: 'binkpPrimaryChart',
+        points,
+        emptyText: uiT('ui.admin.binkp_sessions.traffic_chart_empty', 'No file traffic recorded in the selected period.'),
+        ariaLabel: uiT('ui.admin.binkp_sessions.traffic_chart_aria', 'BinkP file traffic for the selected period'),
+        series: [
+            { key: 'messages_received', lineClass: 'binkp-chart-line-in', pointClass: 'binkp-chart-point-in' },
+            { key: 'messages_sent', lineClass: 'binkp-chart-line-out', pointClass: 'binkp-chart-point-out' }
+        ]
+    });
+}
+
+function renderUplinkConnectionsChart(points) {
+    renderBarChart({
+        containerId: 'binkpPrimaryChart',
+        points,
+        valueKey: 'count',
+        emptyText: uiT('ui.admin.binkp_sessions.uplink_connections_chart_empty', 'No uplink connections recorded in the selected period.'),
+        ariaLabel: uiT('ui.admin.binkp_sessions.uplink_connections_chart_aria', 'BinkP uplink connections for the selected period')
+    });
+}
+
+function renderSelectedChart() {
+    updateChartHeader();
+
+    if (selectedChartType === 'uplinks') {
+        renderUplinkConnectionsChart(Array.isArray(latestStatsPayload?.uplink_connections) ? latestStatsPayload.uplink_connections : []);
+        return;
+    }
+
+    renderTrafficChart(Array.isArray(latestStatsPayload?.timeline) ? latestStatsPayload.timeline : []);
+}
+
+function renderLineChart(config) {
+    const container = document.getElementById(config.containerId);
     if (!container) {
         return;
     }
 
-    if (!Array.isArray(points) || points.length === 0) {
-        container.innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.admin.binkp_sessions.traffic_chart_empty', 'No file traffic recorded in the last 24 hours.'))}</div>`;
+    const points = Array.isArray(config.points) ? config.points : [];
+    if (points.length === 0) {
+        container.innerHTML = `<div class="text-muted">${escapeHtml(config.emptyText)}</div>`;
         return;
     }
 
+    const chart = createChartFrame(points, point => config.series.map(series => Number(point[series.key] || 0)));
+    const xLabels = buildXAxisLabels(points, chart, formatTrafficChartLabel);
+    const seriesMarkup = config.series.map(series => {
+        const path = buildLinePath(points, chart, series.key);
+        const dots = points.map((point, index) => `<circle class="${series.pointClass}" cx="${chart.xFor(index)}" cy="${chart.yFor(point[series.key])}" r="3"></circle>`).join('');
+        return `<path class="${series.lineClass}" d="${path}"></path>${dots}`;
+    }).join('');
+
+    container.innerHTML = renderChartSvg(chart, config.ariaLabel, `${seriesMarkup}${xLabels}`);
+}
+
+function renderBarChart(config) {
+    const container = document.getElementById(config.containerId);
+    if (!container) {
+        return;
+    }
+
+    const points = Array.isArray(config.points) ? config.points : [];
+    if (points.length === 0) {
+        container.innerHTML = `<div class="text-muted">${escapeHtml(config.emptyText)}</div>`;
+        return;
+    }
+
+    const chart = createChartFrame(points, point => [Number(point[config.valueKey] || 0)], { bottom: 68 });
+    const barWidth = Math.max(16, Math.min(64, chart.chartWidth / Math.max(points.length * 1.8, 1)));
+    const bars = points.map((point, index) => {
+        const value = Number(point[config.valueKey] || 0);
+        const x = chart.xFor(index) - (barWidth / 2);
+        const y = chart.yFor(value);
+        const height = Math.max(0, chart.height - chart.padding.bottom - y);
+        const labelY = chart.height - 18 + ((index % 2) * 12);
+        return `
+            <rect class="binkp-chart-bar" x="${x}" y="${y}" width="${barWidth}" height="${height}"></rect>
+            <text class="binkp-chart-label" x="${chart.xFor(index)}" y="${labelY}" text-anchor="middle">${escapeHtml(point.label || '')}</text>
+        `;
+    }).join('');
+
+    container.innerHTML = renderChartSvg(chart, config.ariaLabel, bars);
+}
+
+function createChartFrame(points, valueExtractor, paddingOverrides = {}) {
     const width = 960;
     const height = 260;
-    const padding = { top: 18, right: 18, bottom: 34, left: 42 };
+    const padding = Object.assign({ top: 18, right: 18, bottom: 34, left: 42 }, paddingOverrides);
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
-    const maxValue = Math.max(1, ...points.flatMap(point => [Number(point.messages_received || 0), Number(point.messages_sent || 0)]));
+    const maxValue = Math.max(1, ...points.flatMap(point => valueExtractor(point)));
 
-    function xFor(index) {
+    const xFor = function(index) {
         if (points.length === 1) {
             return padding.left + chartWidth / 2;
         }
         return padding.left + (chartWidth * index / (points.length - 1));
-    }
+    };
 
-    function yFor(value) {
+    const yFor = function(value) {
         return padding.top + chartHeight - ((Number(value || 0) / maxValue) * chartHeight);
-    }
-
-    function buildPath(key) {
-        return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(index).toFixed(2)} ${yFor(point[key]).toFixed(2)}`).join(' ');
-    }
+    };
 
     const yTicks = [0, 0.25, 0.5, 0.75, 1].map(fraction => Math.round(maxValue * fraction));
     const uniqueTicks = [...new Set(yTicks)].sort((a, b) => a - b);
-
     const gridLines = uniqueTicks.map(value => {
         const y = yFor(value);
         return `<g><line class="binkp-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"></line><text class="binkp-chart-label" x="${padding.left - 8}" y="${y + 4}" text-anchor="end">${value}</text></g>`;
     }).join('');
 
-    const xLabels = points.map((point, index) => {
-        if (index !== 0 && index !== points.length - 1 && (index % 4) !== 0) {
+    return { width, height, padding, chartWidth, chartHeight, xFor, yFor, gridLines };
+}
+
+function renderChartSvg(chart, ariaLabel, innerMarkup) {
+    return `
+        <svg viewBox="0 0 ${chart.width} ${chart.height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtmlAttr(ariaLabel)}">
+            ${chart.gridLines}
+            <line class="binkp-chart-axis" x1="${chart.padding.left}" y1="${chart.padding.top + chart.chartHeight}" x2="${chart.width - chart.padding.right}" y2="${chart.padding.top + chart.chartHeight}"></line>
+            <line class="binkp-chart-axis" x1="${chart.padding.left}" y1="${chart.padding.top}" x2="${chart.padding.left}" y2="${chart.padding.top + chart.chartHeight}"></line>
+            ${innerMarkup}
+        </svg>
+    `;
+}
+
+function buildLinePath(points, chart, key) {
+    return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${chart.xFor(index).toFixed(2)} ${chart.yFor(point[key]).toFixed(2)}`).join(' ');
+}
+
+function buildXAxisLabels(points, chart, formatter) {
+    return points.map((point, index) => {
+        if (index !== 0 && index !== points.length - 1 && (index % Math.max(1, Math.ceil(points.length / 6))) !== 0) {
             return '';
         }
-        return `<text class="binkp-chart-label" x="${xFor(index)}" y="${height - 10}" text-anchor="middle">${escapeHtml(formatTrafficChartHourLabel(point))}</text>`;
+        return `<text class="binkp-chart-label" x="${chart.xFor(index)}" y="${chart.height - 10}" text-anchor="middle">${escapeHtml(formatter(point))}</text>`;
     }).join('');
+}
 
-    const inDots = points.map((point, index) => `<circle class="binkp-chart-point-in" cx="${xFor(index)}" cy="${yFor(point.messages_received)}" r="3"></circle>`).join('');
-    const outDots = points.map((point, index) => `<circle class="binkp-chart-point-out" cx="${xFor(index)}" cy="${yFor(point.messages_sent)}" r="3"></circle>`).join('');
+function updatePeriodButtons() {
+    document.querySelectorAll('[data-period]').forEach(function(button) {
+        const isActive = button.getAttribute('data-period') === selectedStatsPeriod;
+        button.classList.toggle('active', isActive);
+        button.classList.toggle('btn-outline-secondary', !isActive);
+        button.classList.toggle('btn-primary', isActive);
+    });
+}
 
-    container.innerHTML = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtmlAttr(uiT('ui.admin.binkp_sessions.traffic_chart_aria', 'BinkP file traffic for the last 24 hours'))}">
-            ${gridLines}
-            <line class="binkp-chart-axis" x1="${padding.left}" y1="${padding.top + chartHeight}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
-            <line class="binkp-chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartHeight}"></line>
-            <path class="binkp-chart-line-in" d="${buildPath('messages_received')}"></path>
-            <path class="binkp-chart-line-out" d="${buildPath('messages_sent')}"></path>
-            ${inDots}
-            ${outDots}
-            ${xLabels}
-        </svg>
+function updateStatsSummaryLabel() {
+    const label = document.getElementById('statTotalLabel');
+    if (!label) {
+        return;
+    }
+
+    label.textContent = uiT('ui.admin.binkp_sessions.total_period', 'Total ({period})', {
+        period: PERIOD_LABELS[selectedStatsPeriod] || PERIOD_LABELS.day
+    });
+}
+
+function updateChartHeader() {
+    const titleEl = document.getElementById('binkpChartTitle');
+    const legendEl = document.getElementById('binkpChartLegend');
+
+    if (titleEl) {
+        titleEl.textContent = selectedChartType === 'uplinks'
+            ? uiT('ui.admin.binkp_sessions.uplink_connections_chart', 'Uplink Connections')
+            : uiT('ui.admin.binkp_sessions.traffic_chart', 'File Traffic');
+    }
+
+    if (!legendEl) {
+        return;
+    }
+
+    if (selectedChartType === 'uplinks') {
+        legendEl.innerHTML = `<span><span class="binkp-chart-legend binkp-chart-legend-in"></span>${escapeHtml(uiT('ui.admin.binkp_sessions.connections', 'Connections'))}</span>`;
+        return;
+    }
+
+    legendEl.innerHTML = `
+        <span><span class="binkp-chart-legend binkp-chart-legend-in"></span>${escapeHtml(uiT('ui.admin.binkp_sessions.files_in', 'Files In'))}</span>
+        <span><span class="binkp-chart-legend binkp-chart-legend-out"></span>${escapeHtml(uiT('ui.admin.binkp_sessions.files_out', 'Files Out'))}</span>
     `;
 }
 
@@ -679,21 +839,28 @@ function getUserTimezone() {
     return window.userSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-function formatTrafficChartHourLabel(point) {
-    const epochSeconds = Number(point?.hour_epoch || 0);
+function formatTrafficChartLabel(point) {
+    const epochSeconds = Number(point?.bucket_epoch || 0);
     const userDateFormat = window.userSettings?.date_format || undefined;
 
     if (epochSeconds > 0) {
         const date = new Date(epochSeconds * 1000);
         if (!Number.isNaN(date.getTime())) {
-            return date.toLocaleTimeString(userDateFormat, {
-                hour: 'numeric',
-                minute: '2-digit'
+            if (selectedStatsPeriod === 'day') {
+                return date.toLocaleTimeString(userDateFormat, {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+            }
+
+            return date.toLocaleDateString(userDateFormat, {
+                month: 'short',
+                day: 'numeric'
             });
         }
     }
 
-    return point?.hour_label || '';
+    return point?.label || '';
 }
 
 function formatDuration(seconds) {

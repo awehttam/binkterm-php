@@ -429,13 +429,8 @@ class SessionLogger
     {
         $db = Database::getInstance()->getPdo();
 
-        $interval = match($period) {
-            'hour' => '1 hour',
-            'day' => '24 hours',
-            'week' => '7 days',
-            'month' => '30 days',
-            default => '24 hours'
-        };
+        $periodConfig = self::getPeriodConfig($period);
+        $interval = $periodConfig['interval'];
 
         $stmt = $db->prepare("
             SELECT
@@ -466,32 +461,74 @@ class SessionLogger
             $stats = [];
         }
 
-        if ($period === 'day') {
-            $stats['timeline_24h'] = self::getMessageTimeline24h();
-        }
+        $stats['timeline'] = self::getTrafficTimeline($period);
+        $stats['uplink_connections'] = self::getUplinkConnectionCounts($period);
 
         return $stats;
     }
 
-    public static function getMessageTimeline24h(): array
+    /**
+     * @return array{interval:string,bucket_interval:string,bucket_count:int,label_format:string,label_key:string,group_by:string}
+     */
+    private static function getPeriodConfig(string $period): array
+    {
+        return match($period) {
+            'week' => [
+                'interval' => '7 days',
+                'bucket_interval' => '1 day',
+                'bucket_count' => 7,
+                'label_format' => 'Dy',
+                'label_key' => 'day_label',
+                'group_by' => 'day',
+            ],
+            'month' => [
+                'interval' => '30 days',
+                'bucket_interval' => '1 day',
+                'bucket_count' => 30,
+                'label_format' => 'Mon DD',
+                'label_key' => 'day_label',
+                'group_by' => 'day',
+            ],
+            default => [
+                'interval' => '24 hours',
+                'bucket_interval' => '1 hour',
+                'bucket_count' => 24,
+                'label_format' => 'HH24:00',
+                'label_key' => 'hour_label',
+                'group_by' => 'hour',
+            ],
+        };
+    }
+
+    public static function getTrafficTimeline(string $period = 'day'): array
     {
         $db = Database::getInstance()->getPdo();
+        $periodConfig = self::getPeriodConfig($period);
+        $bucketStart = $periodConfig['group_by'] === 'hour'
+            ? "date_trunc('hour', NOW()) - INTERVAL '23 hours'"
+            : "date_trunc('day', NOW()) - INTERVAL '" . ($periodConfig['bucket_count'] - 1) . " days'";
+        $bucketEnd = $periodConfig['group_by'] === 'hour'
+            ? "date_trunc('hour', NOW())"
+            : "date_trunc('day', NOW())";
+        $joinExpression = $periodConfig['group_by'] === 'hour'
+            ? "date_trunc('hour', log.started_at)"
+            : "date_trunc('day', log.started_at)";
 
         $stmt = $db->query("
             SELECT
-                to_char(bucket.hour_bucket, 'HH24:00') AS hour_label,
-                EXTRACT(EPOCH FROM bucket.hour_bucket) AS hour_epoch,
+                to_char(bucket.time_bucket, '{$periodConfig['label_format']}') AS {$periodConfig['label_key']},
+                EXTRACT(EPOCH FROM bucket.time_bucket) AS bucket_epoch,
                 COALESCE(SUM(log.files_received), 0) AS messages_received,
                 COALESCE(SUM(log.files_sent), 0) AS messages_sent
             FROM generate_series(
-                date_trunc('hour', NOW()) - INTERVAL '23 hours',
-                date_trunc('hour', NOW()),
-                INTERVAL '1 hour'
-            ) AS bucket(hour_bucket)
+                {$bucketStart},
+                {$bucketEnd},
+                INTERVAL '{$periodConfig['bucket_interval']}'
+            ) AS bucket(time_bucket)
             LEFT JOIN binkp_session_log log
-                ON date_trunc('hour', log.started_at) = bucket.hour_bucket
-            GROUP BY bucket.hour_bucket
-            ORDER BY bucket.hour_bucket ASC
+                ON {$joinExpression} = bucket.time_bucket
+            GROUP BY bucket.time_bucket
+            ORDER BY bucket.time_bucket ASC
         ");
 
         $rows = $stmt->fetchAll();
@@ -501,12 +538,67 @@ class SessionLogger
 
         return array_map(static function ($row) {
             return [
-                'hour_label' => (string)($row['hour_label'] ?? ''),
-                'hour_epoch' => isset($row['hour_epoch']) ? (int)$row['hour_epoch'] : 0,
+                'label' => (string)($row['hour_label'] ?? $row['day_label'] ?? ''),
+                'bucket_epoch' => isset($row['bucket_epoch']) ? (int)$row['bucket_epoch'] : 0,
                 'messages_received' => (int)($row['messages_received'] ?? 0),
                 'messages_sent' => (int)($row['messages_sent'] ?? 0),
             ];
         }, $rows);
+    }
+
+    public static function getUplinkConnectionCounts(string $period = 'day'): array
+    {
+        $periodConfig = self::getPeriodConfig($period);
+        $uplinkAddresses = [];
+
+        try {
+            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            foreach ($config->getEnabledUplinks() as $uplink) {
+                $address = trim((string)($uplink['address'] ?? ''));
+                if ($address !== '') {
+                    $uplinkAddresses[$address] = $address;
+                }
+            }
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if ($uplinkAddresses === []) {
+            return [];
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $placeholders = implode(',', array_fill(0, count($uplinkAddresses), '?'));
+        $params = array_values($uplinkAddresses);
+        $params[] = $periodConfig['interval'];
+
+        $stmt = $db->prepare("
+            SELECT remote_address, COUNT(*) AS connection_count
+            FROM binkp_session_log
+            WHERE remote_address IN ({$placeholders})
+              AND started_at > NOW() - CAST(? AS interval)
+            GROUP BY remote_address
+            ORDER BY remote_address ASC
+        ");
+        $stmt->execute($params);
+
+        $rows = $stmt->fetchAll();
+        $counts = [];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $counts[(string)$row['remote_address']] = (int)($row['connection_count'] ?? 0);
+            }
+        }
+
+        $result = [];
+        foreach ($uplinkAddresses as $address) {
+            $result[] = [
+                'label' => $address,
+                'count' => (int)($counts[$address] ?? 0),
+            ];
+        }
+
+        return $result;
     }
 
     /**
