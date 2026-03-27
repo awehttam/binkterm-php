@@ -550,13 +550,9 @@ class FtpVirtualFilesystem
             return [];
         }
 
-        $metadata = $this->qwkController->getDownloadMetadata((int)$user['id']);
-        return [[
-            'name' => $metadata['reply_filename'],
-            'type' => 'file',
-            'size' => 0,
-            'mtime' => time(),
-        ]];
+        // Present /qwk/upload as an empty drop directory so FTP clients do not
+        // treat the synthetic reply target as an already-existing remote file.
+        return [];
     }
 
     /**
