@@ -393,8 +393,31 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/filearea-rules', function() {
         $user = RouteHelper::requireAdmin();
 
+        $fileAreaManager = new \BinktermPHP\FileAreaManager();
+        $fileAreas = $fileAreaManager->getFileAreas('all', (int)($user['user_id'] ?? $user['id'] ?? 0), true);
+        $fileAreaOptions = [];
+        foreach ($fileAreas as $area) {
+            $tag = strtoupper(trim((string)($area['tag'] ?? '')));
+            $domain = trim((string)($area['domain'] ?? ''));
+            if ($tag === '') {
+                continue;
+            }
+
+            $value = $domain !== ''
+                ? $tag . '@' . $domain
+                : $tag;
+
+            $fileAreaOptions[$value] = [
+                'value' => $value,
+                'label' => $value,
+            ];
+        }
+        ksort($fileAreaOptions, SORT_NATURAL | SORT_FLAG_CASE);
+
         $template = new Template();
-        $template->renderResponse('admin/filearea_rules.twig');
+        $template->renderResponse('admin/filearea_rules.twig', [
+            'filearea_rule_options' => array_values($fileAreaOptions),
+        ]);
     });
 
     // File upload approval queue

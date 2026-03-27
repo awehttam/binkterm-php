@@ -205,7 +205,12 @@
             </div>
             <div class="modal-body">
                 <label class="form-label fw-semibold">{{ t('ui.admin.filearea_rules.area_tag_label', {}, locale, ['common']) }}</label>
-                <input type="text" class="form-control font-monospace" id="newAreaTagInput" placeholder="NODELIST">
+                <select class="form-select font-monospace" id="newAreaTagInput">
+                    <option value=""></option>
+                    {% for areaOption in filearea_rule_options|default([]) %}
+                    <option value="{{ areaOption.value }}">{{ areaOption.label }}</option>
+                    {% endfor %}
+                </select>
                 <div class="form-text">{{ t('ui.admin.filearea_rules.area_tag_hint', {}, locale, ['common']) }}</div>
             </div>
             <div class="modal-footer">

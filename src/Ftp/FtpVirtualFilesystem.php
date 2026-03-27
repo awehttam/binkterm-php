@@ -80,6 +80,9 @@ class FtpVirtualFilesystem
         if ($resolved === '/fileareas') {
             return $this->listFileAreas($user);
         }
+        if ($this->isFileAreaDomainPath($user, $resolved)) {
+            return $this->listFileAreaDomain($user, $resolved);
+        }
         if (str_starts_with($resolved, '/incoming/')) {
             $incomingArea = $this->resolveIncomingArea($user, $resolved);
             if ($incomingArea === null) {
@@ -141,6 +144,10 @@ class FtpVirtualFilesystem
             return true;
         }
 
+        if ($this->isFileAreaDomainPath($user, $resolved)) {
+            return $this->isBrowsableFileAreaDomain($user, $resolved);
+        }
+
         if ($anonymous) {
             return $this->resolveFileAreaDirectory($user, $resolved) !== null;
         }
@@ -156,6 +163,10 @@ class FtpVirtualFilesystem
     {
         $resolved = $this->normalizePath('/', $path);
         if (in_array($resolved, ['/', '/qwk', '/qwk/download', '/qwk/upload', '/incoming', '/fileareas'], true)) {
+            return null;
+        }
+
+        if ($this->isFileAreaDomainPath($user, $resolved)) {
             return null;
         }
 
@@ -558,20 +569,75 @@ class FtpVirtualFilesystem
         }
 
         $entries = [];
-        $viewerUserId = $this->getViewerUserId($user);
-        foreach ($this->fileAreaManager->getFileAreas('active', $viewerUserId, !empty($user['is_admin'])) as $area) {
-            if (!$this->fileAreaManager->canAccessFileArea((int)$area['id'], $viewerUserId, !empty($user['is_admin']))) {
+        $domains = [];
+        foreach ($this->getAccessibleFileAreas($user) as $area) {
+            $domain = trim((string)($area['domain'] ?? ''));
+            if ($domain === '') {
+                $entries[] = [
+                    'name' => (string)($area['tag'] ?? ''),
+                    'type' => 'dir',
+                    'size' => 0,
+                    'mtime' => strtotime((string)($area['updated_at'] ?? 'now')) ?: time(),
+                    'description' => $this->normalizeDescription((string)($area['description'] ?? '')),
+                ];
+                continue;
+            }
+
+            $key = strtolower($domain);
+            if (!isset($domains[$key])) {
+                $domains[$key] = [
+                    'name' => $domain,
+                    'type' => 'dir',
+                    'size' => 0,
+                    'mtime' => strtotime((string)($area['updated_at'] ?? 'now')) ?: time(),
+                ];
+            } else {
+                $domains[$key]['mtime'] = max(
+                    (int)$domains[$key]['mtime'],
+                    strtotime((string)($area['updated_at'] ?? 'now')) ?: time()
+                );
+            }
+        }
+
+        foreach ($domains as $domainEntry) {
+            $entries[] = $domainEntry;
+        }
+
+        usort($entries, static function (array $a, array $b): int {
+            return strcasecmp((string)$a['name'], (string)$b['name']);
+        });
+
+        return $entries;
+    }
+
+    /**
+     * @return array<int, array{name:string,type:string,size:int,mtime:int,description?:string}>
+     */
+    private function listFileAreaDomain(array $user, string $path): array
+    {
+        $domain = $this->extractFileAreaDomainForUser($user, $path);
+        if ($domain === null) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->getAccessibleFileAreas($user) as $area) {
+            if (strcasecmp((string)($area['domain'] ?? ''), $domain) !== 0) {
                 continue;
             }
 
             $entries[] = [
-                'name' => $this->buildAreaKey($area),
+                'name' => (string)($area['tag'] ?? ''),
                 'type' => 'dir',
                 'size' => 0,
                 'mtime' => strtotime((string)($area['updated_at'] ?? 'now')) ?: time(),
                 'description' => $this->normalizeDescription((string)($area['description'] ?? '')),
             ];
         }
+
+        usort($entries, static function (array $a, array $b): int {
+            return strcasecmp((string)$a['name'], (string)$b['name']);
+        });
 
         return $entries;
     }
@@ -610,6 +676,23 @@ class FtpVirtualFilesystem
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getAccessibleFileAreas(array $user): array
+    {
+        $entries = [];
+        $viewerUserId = $this->getViewerUserId($user);
+        foreach ($this->fileAreaManager->getFileAreas('active', $viewerUserId, !empty($user['is_admin'])) as $area) {
+            if (!$this->fileAreaManager->canAccessFileArea((int)$area['id'], $viewerUserId, !empty($user['is_admin']))) {
+                continue;
+            }
+            $entries[] = $area;
+        }
+
+        return $entries;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function resolveFileAreaDirectory(array $user, string $path): ?array
@@ -624,16 +707,13 @@ class FtpVirtualFilesystem
         }
 
         $segments = explode('/', $relative);
-        $areaKey = array_shift($segments);
-        if ($areaKey === null || $areaKey === '') {
+        $areaResolution = $this->resolveFileAreaPathArea($user, $segments);
+        if ($areaResolution === null) {
             return null;
         }
 
-        $area = $this->resolveAreaByKey($user, $areaKey);
-        if ($area === null) {
-            return null;
-        }
-
+        $area = $areaResolution['area'];
+        $segments = $areaResolution['remaining_segments'];
         $subfolder = $this->resolveSubfolderPath((int)$area['id'], $segments);
         if ($segments && $subfolder === null) {
             return null;
@@ -660,18 +740,15 @@ class FtpVirtualFilesystem
         }
 
         $segments = explode('/', $relative);
-        $areaKey = array_shift($segments);
-        if ($areaKey === null || $areaKey === '' || !$segments) {
+        $areaResolution = $this->resolveFileAreaPathArea($user, $segments);
+        if ($areaResolution === null || !$areaResolution['remaining_segments']) {
             return null;
         }
 
+        $area = $areaResolution['area'];
+        $segments = $areaResolution['remaining_segments'];
         $filename = array_pop($segments);
         if ($filename === null || $filename === '') {
-            return null;
-        }
-
-        $area = $this->resolveAreaByKey($user, $areaKey);
-        if ($area === null) {
             return null;
         }
 
@@ -718,6 +795,103 @@ class FtpVirtualFilesystem
             [$tag, $domain] = explode('@', $areaKey, 2);
         }
 
+        $area = $this->fileAreaManager->getFileAreaByTag($tag, $domain);
+        if ($area === null || empty($area['is_active'])) {
+            return null;
+        }
+
+        if (!$this->fileAreaManager->canAccessFileArea((int)$area['id'], $this->getViewerUserId($user), !empty($user['is_admin']))) {
+            return null;
+        }
+
+        return $area;
+    }
+
+    private function isFileAreaDomainPath(array $user, string $path): bool
+    {
+        $domain = $this->extractFileAreaDomainForUser($user, $path);
+        return $domain !== null;
+    }
+
+    private function isBrowsableFileAreaDomain(array $user, string $path): bool
+    {
+        $domain = $this->extractFileAreaDomainForUser($user, $path);
+        return $domain !== null;
+    }
+
+    private function extractFileAreaDomainForUser(array $user, string $path): ?string
+    {
+        if (!str_starts_with($path, '/fileareas/')) {
+            return null;
+        }
+
+        $relative = substr($path, strlen('/fileareas/'));
+        if ($relative === false || $relative === '') {
+            return null;
+        }
+
+        $segments = explode('/', $relative);
+        if (count($segments) !== 1) {
+            return null;
+        }
+
+        $candidate = trim((string)$segments[0]);
+        if ($candidate === '') {
+            return null;
+        }
+
+        foreach ($this->getAccessibleFileAreas($user) as $area) {
+            $domain = trim((string)($area['domain'] ?? ''));
+            if ($domain !== '' && strcasecmp($domain, $candidate) === 0) {
+                return (string)$area['domain'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $segments
+     * @return array{area:array<string, mixed>,remaining_segments:array<int, string>}|null
+     */
+    private function resolveFileAreaPathArea(array $user, array $segments): ?array
+    {
+        if ($segments === []) {
+            return null;
+        }
+
+        $first = array_shift($segments);
+        if ($first === null || $first === '') {
+            return null;
+        }
+
+        if ($segments !== []) {
+            $domainArea = $this->resolveAreaByTagAndDomain($user, (string)$segments[0], $first);
+            if ($domainArea !== null) {
+                array_shift($segments);
+                return [
+                    'area' => $domainArea,
+                    'remaining_segments' => array_values($segments),
+                ];
+            }
+        }
+
+        $area = $this->resolveAreaByKey($user, $first);
+        if ($area === null) {
+            return null;
+        }
+
+        return [
+            'area' => $area,
+            'remaining_segments' => array_values($segments),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveAreaByTagAndDomain(array $user, string $tag, string $domain): ?array
+    {
         $area = $this->fileAreaManager->getFileAreaByTag($tag, $domain);
         if ($area === null || empty($area['is_active'])) {
             return null;
@@ -814,14 +988,19 @@ class FtpVirtualFilesystem
         }
 
         $segments = explode('/', $relative);
-        $areaKey = array_shift($segments);
-        $filename = array_pop($segments);
-        if ($areaKey === null || $areaKey === '' || $filename === null || $filename === '') {
+        $areaResolution = $this->resolveFileAreaPathArea($user, $segments);
+        if ($areaResolution === null || !$areaResolution['remaining_segments']) {
             return null;
         }
 
-        $area = $this->resolveAreaByKey($user, $areaKey);
-        if ($area === null || !$this->canUploadToArea($area, $user)) {
+        $area = $areaResolution['area'];
+        $segments = $areaResolution['remaining_segments'];
+        $filename = array_pop($segments);
+        if ($filename === null || $filename === '') {
+            return null;
+        }
+
+        if (!$this->canUploadToArea($area, $user)) {
             return null;
         }
 
