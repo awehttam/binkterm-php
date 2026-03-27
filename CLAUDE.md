@@ -151,6 +151,12 @@ return function($db) {
  - **Charset columns**: The `message_charset` column on `echomail` and `netmail` stores the canonical iconv-compatible charset name (e.g. `CP437`, `UTF-8`) as normalized by `BinkpConfig::normalizeCharset()`. The raw `CHRS` value from the original FTN packet is preserved as-is in the `kludge_lines` column and may differ (e.g. `IBMPC`, `ASCII`). Always use `message_charset` for encoding/decoding operations and pre-selecting the charset UI; read `kludge_lines` only when you need the original wire value.
  - Write phpDoc blocks when possible
 
+## Internationalization (i18n) & Encoding Policy
+- **Strict UTF-8 (No BOM):** All i18n catalogs and source files must be saved as UTF-8 without a Byte Order Mark.
+- **Accent Handling:** When editing French or other accented catalogs, use literal characters (e.g., 'é', 'à') only. Never use HTML entities (e.g., &eacute;) or Unicode escape sequences unless explicitly requested.
+- **No Emojis/4-Byte Characters:** Strictly prohibit the use of Emojis or any character outside the Basic Multilingual Plane (U+0000 to U+FFFF). These break legacy FTN/BBS terminal rendering.
+- **Verification Step:** Before completing a translation task, verify that you haven't "double-encoded" characters (e.g., ensuring 'é' doesn't become 'Ã©').
+
 ## Localization (i18n) Workflow
 
 The project uses key-based localization for both Twig and JavaScript. Translation catalogs live in:
