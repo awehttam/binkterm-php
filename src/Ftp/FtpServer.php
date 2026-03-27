@@ -88,7 +88,12 @@ class FtpServer implements LoopServiceInterface
             if (isset($client['passive_listener']) && is_resource($client['passive_listener'])) {
                 $sockets[] = $client['passive_listener'];
             }
-            if (($client['transfer']['mode'] ?? null) === 'receive' && isset($client['data_socket']) && is_resource($client['data_socket'])) {
+            if (
+                ($client['data_socket_state'] ?? null) === 'connected'
+                && ($client['transfer']['mode'] ?? null) === 'receive'
+                && isset($client['data_socket'])
+                && is_resource($client['data_socket'])
+            ) {
                 $sockets[] = $client['data_socket'];
             }
         }
@@ -100,7 +105,14 @@ class FtpServer implements LoopServiceInterface
     {
         $sockets = [];
         foreach ($this->clients as $client) {
-            if (($client['transfer']['mode'] ?? null) === 'send' && isset($client['data_socket']) && is_resource($client['data_socket'])) {
+            if (
+                isset($client['data_socket'])
+                && is_resource($client['data_socket'])
+                && (
+                    ($client['data_socket_state'] ?? null) === 'connecting'
+                    || (($client['data_socket_state'] ?? null) === 'connected' && ($client['transfer']['mode'] ?? null) === 'send')
+                )
+            ) {
                 $sockets[] = $client['data_socket'];
             }
         }
@@ -136,6 +148,12 @@ class FtpServer implements LoopServiceInterface
     {
         foreach ($this->clients as $clientId => $client) {
             if (isset($client['data_socket']) && $socket === $client['data_socket']) {
+                if (($client['data_socket_state'] ?? null) === 'connecting') {
+                    $this->clients[$clientId]['data_socket_state'] = 'connected';
+                    if (($client['transfer']['mode'] ?? null) !== 'send') {
+                        return;
+                    }
+                }
                 $this->writeDataSocket($clientId);
                 return;
             }
@@ -234,6 +252,8 @@ class FtpServer implements LoopServiceInterface
             'remote_ip' => $this->extractSocketIp($socket),
             'passive_listener' => null,
             'data_socket' => null,
+            'data_socket_state' => null,
+            'active_endpoint' => null,
             'transfer' => null,
             'last_activity' => time(),
         ];
@@ -309,7 +329,7 @@ class FtpServer implements LoopServiceInterface
                 $this->sendResponse($clientId, 215, 'UNIX Type: L8');
                 return;
             case 'FEAT':
-                $this->sendMultilineResponse($clientId, 211, [' UTF8', ' SIZE', ' MDTM', ' EPSV', ' PASV']);
+                $this->sendMultilineResponse($clientId, 211, [' UTF8', ' SIZE', ' MDTM', ' EPSV', ' PASV', ' EPRT', ' PORT']);
                 return;
             case 'OPTS':
             case 'TYPE':
@@ -334,8 +354,10 @@ class FtpServer implements LoopServiceInterface
                 $this->enterPassiveMode($clientId, true);
                 return;
             case 'PORT':
+                $this->handlePort($clientId, $argument);
+                return;
             case 'EPRT':
-                $this->sendResponse($clientId, 502, 'Active mode is not supported');
+                $this->handleEprt($clientId, $argument);
                 return;
             case 'LIST':
             case 'NLST':
@@ -444,7 +466,7 @@ class FtpServer implements LoopServiceInterface
 
     private function prepareDirectoryTransfer(int $clientId, string $argument, bool $namesOnly): void
     {
-        if (!$this->ensurePassiveReady($clientId)) {
+        if (!$this->ensureDataChannelReady($clientId)) {
             return;
         }
 
@@ -480,7 +502,7 @@ class FtpServer implements LoopServiceInterface
 
     private function prepareRetr(int $clientId, string $argument): void
     {
-        if (!$this->ensurePassiveReady($clientId)) {
+        if (!$this->ensureDataChannelReady($clientId)) {
             return;
         }
 
@@ -514,7 +536,7 @@ class FtpServer implements LoopServiceInterface
             return;
         }
 
-        if (!$this->ensurePassiveReady($clientId)) {
+        if (!$this->ensureDataChannelReady($clientId)) {
             return;
         }
 
@@ -545,16 +567,21 @@ class FtpServer implements LoopServiceInterface
     private function startPendingTransfer(int $clientId, array $transfer, string $message): void
     {
         $this->clients[$clientId]['transfer'] = $transfer;
+        if (!$this->prepareTransferDataSocket($clientId)) {
+            $this->clients[$clientId]['transfer'] = null;
+            return;
+        }
         $this->sendResponse($clientId, 150, $message);
     }
 
-    private function ensurePassiveReady(int $clientId): bool
+    private function ensureDataChannelReady(int $clientId): bool
     {
         $hasPassiveListener = isset($this->clients[$clientId]['passive_listener']) && is_resource($this->clients[$clientId]['passive_listener']);
         $hasDataSocket = isset($this->clients[$clientId]['data_socket']) && is_resource($this->clients[$clientId]['data_socket']);
+        $hasActiveEndpoint = is_array($this->clients[$clientId]['active_endpoint'] ?? null);
 
-        if (!$hasPassiveListener && !$hasDataSocket) {
-            $this->sendResponse($clientId, 425, 'Use PASV or EPSV first');
+        if (!$hasPassiveListener && !$hasDataSocket && !$hasActiveEndpoint) {
+            $this->sendResponse($clientId, 425, 'Use PORT, EPRT, PASV or EPSV first');
             return false;
         }
 
@@ -569,6 +596,7 @@ class FtpServer implements LoopServiceInterface
     private function enterPassiveMode(int $clientId, bool $extended): void
     {
         $this->closePassiveSockets($clientId);
+        $this->clients[$clientId]['active_endpoint'] = null;
 
         $listener = null;
         $port = 0;
@@ -632,6 +660,7 @@ class FtpServer implements LoopServiceInterface
 
         stream_set_blocking($dataSocket, false);
         $this->clients[$clientId]['data_socket'] = $dataSocket;
+        $this->clients[$clientId]['data_socket_state'] = 'connected';
         @fclose($listener);
         $this->clients[$clientId]['passive_listener'] = null;
     }
@@ -737,6 +766,7 @@ class FtpServer implements LoopServiceInterface
         }
 
         $this->clients[$clientId]['data_socket'] = null;
+        $this->clients[$clientId]['data_socket_state'] = null;
         $this->clients[$clientId]['transfer'] = null;
         $this->sendResponse($clientId, $code, $message);
     }
@@ -796,6 +826,7 @@ class FtpServer implements LoopServiceInterface
 
         $this->clients[$clientId]['passive_listener'] = null;
         $this->clients[$clientId]['data_socket'] = null;
+        $this->clients[$clientId]['data_socket_state'] = null;
     }
 
     private function closeClient(int $clientId): void
@@ -856,6 +887,162 @@ class FtpServer implements LoopServiceInterface
     private function resolvePath(int $clientId, string $argument): string
     {
         return $this->vfs->normalizePath((string)$this->clients[$clientId]['cwd'], $argument);
+    }
+
+    private function handlePort(int $clientId, string $argument): void
+    {
+        $parts = array_map('trim', explode(',', $argument));
+        if (count($parts) !== 6) {
+            $this->sendResponse($clientId, 501, 'Invalid PORT syntax');
+            return;
+        }
+
+        foreach ($parts as $part) {
+            if ($part === '' || !ctype_digit($part) || (int)$part < 0 || (int)$part > 255) {
+                $this->sendResponse($clientId, 501, 'Invalid PORT syntax');
+                return;
+            }
+        }
+
+        $host = implode('.', array_slice($parts, 0, 4));
+        $port = ((int)$parts[4] * 256) + (int)$parts[5];
+        if ($port < 1 || $port > 65535) {
+            $this->sendResponse($clientId, 501, 'Invalid PORT port');
+            return;
+        }
+
+        if (!$this->validateActiveEndpoint($clientId, $host)) {
+            $this->sendResponse($clientId, 501, 'Active mode target must match the control connection IP');
+            return;
+        }
+
+        $this->closePassiveSockets($clientId);
+        $this->clients[$clientId]['active_endpoint'] = [
+            'host' => $host,
+            'port' => $port,
+            'family' => 'ipv4',
+        ];
+        $this->sendResponse($clientId, 200, 'PORT command successful');
+    }
+
+    private function handleEprt(int $clientId, string $argument): void
+    {
+        if ($argument === '') {
+            $this->sendResponse($clientId, 501, 'Invalid EPRT syntax');
+            return;
+        }
+
+        $delimiter = $argument[0];
+        $parts = explode($delimiter, $argument);
+        if (count($parts) < 5) {
+            $this->sendResponse($clientId, 501, 'Invalid EPRT syntax');
+            return;
+        }
+
+        $protocol = trim((string)($parts[1] ?? ''));
+        $host = trim((string)($parts[2] ?? ''));
+        $portText = trim((string)($parts[3] ?? ''));
+
+        if (($protocol !== '1' && $protocol !== '2') || $host === '' || $portText === '' || !ctype_digit($portText)) {
+            $this->sendResponse($clientId, 501, 'Invalid EPRT syntax');
+            return;
+        }
+
+        $port = (int)$portText;
+        if ($port < 1 || $port > 65535) {
+            $this->sendResponse($clientId, 501, 'Invalid EPRT port');
+            return;
+        }
+
+        if ($protocol === '1' && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+            $this->sendResponse($clientId, 522, 'EPRT protocol 1 requires an IPv4 address');
+            return;
+        }
+
+        if ($protocol === '2' && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+            $this->sendResponse($clientId, 522, 'EPRT protocol 2 requires an IPv6 address');
+            return;
+        }
+
+        if (!$this->validateActiveEndpoint($clientId, $host)) {
+            $this->sendResponse($clientId, 501, 'Active mode target must match the control connection IP');
+            return;
+        }
+
+        $this->closePassiveSockets($clientId);
+        $this->clients[$clientId]['active_endpoint'] = [
+            'host' => $host,
+            'port' => $port,
+            'family' => $protocol === '2' ? 'ipv6' : 'ipv4',
+        ];
+        $this->sendResponse($clientId, 200, 'EPRT command successful');
+    }
+
+    private function prepareTransferDataSocket(int $clientId): bool
+    {
+        $hasPassiveListener = isset($this->clients[$clientId]['passive_listener']) && is_resource($this->clients[$clientId]['passive_listener']);
+        $hasDataSocket = isset($this->clients[$clientId]['data_socket']) && is_resource($this->clients[$clientId]['data_socket']);
+        $activeEndpoint = $this->clients[$clientId]['active_endpoint'] ?? null;
+
+        if ($hasPassiveListener || $hasDataSocket) {
+            return true;
+        }
+
+        if (!is_array($activeEndpoint)) {
+            $this->sendResponse($clientId, 425, 'No data connection available');
+            return false;
+        }
+
+        return $this->openActiveDataSocket($clientId, $activeEndpoint);
+    }
+
+    /**
+     * @param array<string, mixed> $endpoint
+     */
+    private function openActiveDataSocket(int $clientId, array $endpoint): bool
+    {
+        $host = (string)($endpoint['host'] ?? '');
+        $port = (int)($endpoint['port'] ?? 0);
+        $family = (string)($endpoint['family'] ?? 'ipv4');
+
+        if ($host === '' || $port < 1 || $port > 65535) {
+            $this->sendResponse($clientId, 425, 'Invalid active data endpoint');
+            return false;
+        }
+
+        $target = $family === 'ipv6'
+            ? sprintf('tcp://[%s]:%d', $host, $port)
+            : sprintf('tcp://%s:%d', $host, $port);
+
+        $errno = 0;
+        $errstr = '';
+        $socket = @stream_socket_client(
+            $target,
+            $errno,
+            $errstr,
+            5,
+            STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT
+        );
+
+        if (!is_resource($socket)) {
+            $this->sendResponse($clientId, 425, 'Unable to open active data connection');
+            return false;
+        }
+
+        stream_set_blocking($socket, false);
+        $this->clients[$clientId]['data_socket'] = $socket;
+        $this->clients[$clientId]['data_socket_state'] = 'connecting';
+        return true;
+    }
+
+    private function validateActiveEndpoint(int $clientId, string $host): bool
+    {
+        $remoteIp = trim((string)($this->clients[$clientId]['remote_ip'] ?? ''));
+        if ($remoteIp === '') {
+            return true;
+        }
+
+        return strcasecmp($remoteIp, trim($host)) === 0;
     }
 
     private function extractListPathArgument(string $argument): string

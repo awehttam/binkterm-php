@@ -1,6 +1,6 @@
 # FTP Server
 
-BinktermPHP includes a standalone passive FTP daemon for QWK packet exchange and
+BinktermPHP includes a standalone FTP daemon for QWK packet exchange and
 file-area access.
 
 This document covers daemon startup, `.env` configuration, passive FTP network
@@ -20,6 +20,7 @@ running the daemon as root.
   - `/fileareas/...`
 - Per-user upload/download logging
 - Passive FTP (`PASV` / `EPSV`)
+- Active FTP (`PORT` / `EPRT`)
 - Single-process `stream_select()` loop, so it works on Windows too
 
 ## Requirements
@@ -90,6 +91,21 @@ FTPD_PUBLIC_HOST=ftp.example.com
 
 If this is wrong, clients often log in successfully but fail on `LIST`, `RETR`,
 or `STOR`.
+
+## Active Mode Support
+
+The daemon now supports classic active-mode data connections through both:
+
+- `PORT` for IPv4 clients
+- `EPRT` for IPv4 or IPv6 clients
+
+For safety, active mode is restricted so the requested data connection target
+must match the same remote IP address already connected on the FTP control
+socket. This prevents FTP bounce behavior where a client asks the server to
+open data connections to unrelated third-party hosts.
+
+If the active target does not match the control connection IP, the daemon
+rejects the command.
 
 ## Starting the Daemon
 
