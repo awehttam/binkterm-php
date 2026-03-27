@@ -689,6 +689,34 @@ BINKSTREAM_WS_PUBLIC_URL=/ws
 BINKSTREAM_WS_PID_FILE=data/run/realtime_server.pid
 ```
 
+**`FTPD_ENABLED`**, **`FTPD_BIND_HOST`**, **`FTPD_PORT`**, **`FTPD_PUBLIC_HOST`**, **`FTPD_PASSIVE_PORT_START`**, and **`FTPD_PASSIVE_PORT_END`** — settings for the standalone FTP daemon (`scripts/ftp_daemon.php`).
+
+- `FTPD_ENABLED`: enable or disable the standalone passive FTP daemon
+- `FTPD_BIND_HOST`: FTP control socket bind host, typically `0.0.0.0` for inbound access or `127.0.0.1` when fronted by another layer
+- `FTPD_PORT`: FTP control port, default `2121`
+- `FTPD_PUBLIC_HOST`: optional public IPv4 address or hostname advertised in `PASV` replies when the daemon sits behind NAT or binds to `0.0.0.0`
+- `FTPD_PASSIVE_PORT_START` / `FTPD_PASSIVE_PORT_END`: passive-mode data port range opened by the daemon
+
+The FTP virtual filesystem exposes:
+
+- `/qwk/download/<BBSID>.QWK` for downloading the authenticated user's QWK packet
+- `/qwk/upload/*.REP` or `/qwk/upload/*.ZIP` for uploading REP reply packets
+- `/incoming/<AREA>/...` for uploading files into writable file areas using the existing pending-approval workflow
+- `/fileareas/...` for browsing and downloading approved files from accessible file areas
+
+Anonymous FTP login is also supported. Anonymous users are restricted to `/fileareas/...` and only see file areas marked `is_public`; they cannot access QWK endpoints or upload anything.
+
+See [FTPServer.md](FTPServer.md) for daemon startup, systemd/cron examples, NAT setup, and rootless port-21 redirect rules.
+
+```bash
+# .env
+FTPD_ENABLED=false
+FTPD_BIND_HOST=0.0.0.0
+FTPD_PORT=2121
+FTPD_PASSIVE_PORT_START=2122
+FTPD_PASSIVE_PORT_END=2149
+```
+
 **`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect. A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. When SSE is the active transport, each active browser session occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly.
 
 Defaults:
@@ -777,6 +805,9 @@ systemctl reload postgresql
 | `BINKSTREAM_WS_PORT` | 6010 | Port used by the standalone PHP realtime WebSocket daemon |
 | `BINKSTREAM_WS_PUBLIC_URL` | /ws | Browser-facing WebSocket URL or path |
 | `BINKSTREAM_WS_PID_FILE` | `data/run/realtime_server.pid` | PID file hint used by `auto` transport selection |
+| `FTPD_PORT` | 2121 | FTP control port exposed by the standalone FTP daemon |
+| `FTPD_PASSIVE_PORT_START` | 2122 | First port in the FTP passive data range |
+| `FTPD_PASSIVE_PORT_END` | 2149 | Last port in the FTP passive data range |
 | `SSE_WINDOW_SECONDS` | 60 | Default SSE window unless Apache + `auto` applies the 2 s implicit fallback |
 
 ---

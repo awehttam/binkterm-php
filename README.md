@@ -567,7 +567,7 @@ php -S localhost:8080
 ```
 
 ## Set Up Cron Jobs (Recommended)
-Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
+Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as FTP, telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
 
 ```cron
 # Start admin daemon on boot
@@ -581,6 +581,9 @@ Start the core long-running services at boot and keep cron for periodic maintena
 
 # Start realtime WebSocket server on boot
 @reboot /usr/bin/php /path/to/binkterm/scripts/realtime_server.php --daemon
+
+# Optional: start FTP daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/ftp_daemon.php --daemon
 
 # Update nodelists daily at 3am
 #0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
@@ -630,6 +633,8 @@ Database changes are managed through versioned SQL migration files stored in `da
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
 | Realtime WebSocket daemon | `6010` | WebSocket/TCP | localhost | `.env` `BINKSTREAM_WS_PORT` — must be exposed via reverse proxy |
+| FTP daemon | `2121` | FTP control/TCP | Inbound | `.env` `FTPD_PORT` |
+| FTP passive range | `2122`–`2149` | FTP data/TCP | Inbound | `.env` `FTPD_PASSIVE_PORT_START` / `FTPD_PASSIVE_PORT_END` |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |
 | Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
@@ -723,6 +728,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 |--------|-------------|
 | `binkp_server.php` | BinkP server — accepts inbound FTN connections |
 | `realtime_server.php` | Realtime WebSocket server — provides live updates to the web interface; falls back to SSE if not running |
+| `ftp_daemon.php` | Standalone FTP server for QWK and file-area transfers |
 | `binkp_scheduler.php` | Automated polling scheduler |
 | `admin_daemon.php` | Control socket for backend task management |
 | `telnet/telnet_daemon.php` | Telnet server daemon |
@@ -761,6 +767,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `who.php` | Show currently active users |
 
 Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for documentation on scripts including usage examples, options, and cron job examples.
+See **[docs/FTPServer.md](docs/FTPServer.md)** for FTP daemon setup, configuration, anonymous access, and rootless port-21 redirect guidance.
 
 # Operation
 
@@ -772,6 +779,7 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
 5. **Start Realtime Server**: `php scripts/realtime_server.php --daemon` — provides WebSocket-based live updates; falls back gracefully to SSE if not running. The daemon binds to `127.0.0.1:6010` and must be exposed to browsers via a reverse proxy on the `/ws` path — see [docs/BinkStreamChannel.md](docs/BinkStreamChannel.md) for Caddy, Nginx, and Apache proxy configuration.
 6. **Optional Service Daemons**: start these only if you use the related features:
+   - `php scripts/ftp_daemon.php --daemon`
    - `php telnet/telnet_daemon.php --daemon`
    - `php scripts/gemini_daemon.php --daemon`
    - `node scripts/dosbox-bridge/multiplexing-server.js --daemon`
@@ -821,7 +829,7 @@ php scripts/generate_ad.php --stdout
 For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
 
 ## Cron Job Setup
-The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
+The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use FTP, telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
 # Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
@@ -835,6 +843,9 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 
 # Start realtime WebSocket server on boot (pid defaults to data/run/realtime_server.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/realtime_server.php --daemon
+
+# Optional: start FTP daemon on boot
+@reboot /usr/bin/php /path/to/binktest/scripts/ftp_daemon.php --daemon
 
 # Optional: start telnet daemon on boot
 @reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon

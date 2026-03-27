@@ -31,8 +31,8 @@ function showUsage(): void
 {
     echo "Usage: php scripts/realtime_server.php [options]\n";
     echo "Options:\n";
-    echo "  --host=HOST        Bind host (default: BINKSTREAM_WS_BIND_HOST or 127.0.0.1)\n";
-    echo "  --port=PORT        Bind port (default: BINKSTREAM_WS_PORT or 6010)\n";
+    echo "  --host=HOST        WebSocket bind host (default: BINKSTREAM_WS_BIND_HOST or 127.0.0.1)\n";
+    echo "  --port=PORT        WebSocket bind port (default: BINKSTREAM_WS_PORT or 6010)\n";
     echo "  --daemon           Run as daemon (requires pcntl_fork)\n";
     echo "  --pid-file=FILE    Write PID file (default: data/run/realtime_server.pid)\n";
     echo "  --log-file=FILE    Log file path (default: data/logs/realtime_server.log)\n";
@@ -106,10 +106,9 @@ register_shutdown_function(static function () use ($pidFile): void {
 });
 
 try {
-    $server = new WebSocketServer($host, $port, $logger);
-    $server->run();
+    (new WebSocketServer($host, $port, $logger))->run();
 } catch (Throwable $e) {
-    $logger->error('Realtime websocket server failed', ['error' => $e->getMessage()]);
+    $logger->error('Realtime daemon failed', ['error' => $e->getMessage()]);
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
     exit(1);
 }

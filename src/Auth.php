@@ -117,6 +117,16 @@ class Auth
 
     public function createSession($userId, string $service = 'web')
     {
+        return $this->createSessionForConnection(
+            (int)$userId,
+            $service,
+            (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
+        );
+    }
+
+    public function createSessionForConnection(int $userId, string $service, string $ipAddress = '', string $userAgent = ''): string
+    {
         $sessionId = bin2hex(random_bytes(32));
 
         $stmt = $this->db->prepare('
@@ -126,8 +136,8 @@ class Auth
         $stmt->execute([
             $sessionId,
             $userId,
-            $_SERVER['REMOTE_ADDR'] ?? '',
-            $_SERVER['HTTP_USER_AGENT'] ?? '',
+            $ipAddress,
+            $userAgent,
             $service
         ]);
 

@@ -27,6 +27,7 @@
   - [Pipe Code False Positive Fix](#pipe-code-false-positive-fix)
 - [QWK Offline Mail](#qwk-offline-mail)
   - [HTTP Basic Auth Endpoints](#http-basic-auth-endpoints)
+  - [FTP Access](#ftp-access)
   - [Conference Area Selection](#conference-area-selection)
 - [BinkP Configuration](#binkp-configuration)
   - [Poll Schedule Builder](#poll-schedule-builder)
@@ -141,6 +142,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **QWK Offline Mail**
 - QWK download and REP upload are now available via HTTP Basic Auth at `/qwk/download` and `/qwk/upload` for use with external offline-mail tools.
+- A standalone FTP daemon (`scripts/ftp_daemon.php`) is available for scripted QWK access and file transfers. It is disabled by default and must be enabled explicitly with `FTPD_ENABLED=true`.
 - Users can choose exactly which echo areas appear in their QWK packets via a **Conference Areas** picker.
 
 **User Settings**
@@ -373,6 +375,23 @@ They reuse the same QWK packet builder and REP processor as the in-app QWK page,
 The `/qwk` page now includes a help section for this automation workflow, including example `curl` commands for both endpoints.
 
 It also now documents the JSON response returned by `/qwk/upload`, including the `success`, `imported`, `skipped`, and `errors` fields.
+
+### FTP Access
+
+The standalone FTP daemon (`scripts/ftp_daemon.php`) provides a passive FTP service for moving QWK packets and file-area content without going through the browser.
+
+The FTP virtual filesystem exposes:
+
+- `/qwk/download/<BBSID>.QWK` to generate and download the authenticated user's QWK packet
+- `/qwk/upload/*.REP` or `/qwk/upload/*.ZIP` to upload REP reply packets for import
+- `/incoming/<AREA>/...` to upload files into writable file areas using the same pending-approval path as the web interface
+- `/fileareas/...` to browse and download approved files from accessible file areas
+
+Anonymous FTP login is supported for public downloads. Anonymous users are restricted to `/fileareas/...` and only see file areas marked public; they cannot access QWK paths or upload files.
+
+This FTP service is **disabled by default**. To enable it, set `FTPD_ENABLED=true` and configure the control port plus passive port range in `.env`. If the daemon is behind NAT or bound to `0.0.0.0`, also set `FTPD_PUBLIC_HOST` so passive-mode clients receive a usable address in `PASV` replies.
+
+By default the FTP daemon listens on port `2121`, not privileged port `21`. If you want users to connect on the standard FTP port, set up a NAT or port-forward rule that redirects external port `21` to internal port `2121`, and forward the configured passive port range as well.
 
 ### Conference Area Selection
 
@@ -980,6 +999,13 @@ BINKSTREAM_TRANSPORT_MODE=auto
 BINKSTREAM_WS_BIND_HOST=127.0.0.1
 BINKSTREAM_WS_PORT=6010
 BINKSTREAM_WS_PUBLIC_URL=/ws
+
+# Optional standalone FTP daemon
+FTPD_ENABLED=false
+FTPD_BIND_HOST=0.0.0.0
+FTPD_PORT=2121
+FTPD_PASSIVE_PORT_START=2122
+FTPD_PASSIVE_PORT_END=2149
 
 # SSE connection window duration in seconds (default 60)
 SSE_WINDOW_SECONDS=60

@@ -1317,7 +1317,8 @@ class FileAreaManager
                 LEFT JOIN shared_files sf ON sf.file_id = f.id
                     AND sf.is_active = TRUE
                     AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
-                WHERE f.file_area_id = ? AND f.status = 'approved' AND f.subfolder IS NULL
+                WHERE f.file_area_id = ? AND f.status = 'approved'
+                  AND (f.subfolder IS NULL OR f.subfolder = '')
                   AND (f.source_type IS DISTINCT FROM 'iso_subdir')
                 ORDER BY f.created_at DESC, f.filename ASC
             ";
@@ -1478,7 +1479,7 @@ class FileAreaManager
      * @return int File ID
      * @throws \Exception If upload fails
      */
-    public function uploadFileFromPath(int $fileAreaId, string $sourcePath, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null): int
+    public function uploadFileFromPath(int $fileAreaId, string $sourcePath, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null, string $initialStatus = 'approved', ?string $originalFilename = null): int
     {
         $fileArea = $this->getFileAreaById($fileAreaId);
         if (!$fileArea || !$fileArea['is_active']) {
@@ -1489,7 +1490,7 @@ class FileAreaManager
             throw new \Exception('Source file not found or not readable');
         }
 
-        $filename = str_replace(' ', '_', basename($sourcePath));
+        $filename = str_replace(' ', '_', basename($originalFilename !== null && $originalFilename !== '' ? $originalFilename : $sourcePath));
         $fileSize = filesize($sourcePath);
 
         if ($fileSize > $fileArea['max_file_size']) {
@@ -1531,31 +1532,11 @@ class FileAreaManager
             }
         }
 
-        $areaDir     = $this->getAreaStorageDir($fileArea);
-        self::ensureDirectoryExists($areaDir);
-        $storagePath = $areaDir . '/' . $filename;
-
-        if (file_exists($storagePath)) {
-            if ($fileArea['replace_existing']) {
-                $oldFile = $this->getFileByPath($storagePath);
-                if ($oldFile) {
-                    $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
-                    $stmt->execute([$oldFile['id']]);
-                }
-                unlink($storagePath);
-            } else {
-                $counter = 1;
-                while (file_exists($storagePath)) {
-                    $pathInfo    = pathinfo($filename);
-                    $newFilename = $pathInfo['filename'] . '_' . $counter;
-                    if (isset($pathInfo['extension'])) {
-                        $newFilename .= '.' . $pathInfo['extension'];
-                    }
-                    $storagePath = $areaDir . '/' . $newFilename;
-                    $filename    = $newFilename;
-                    $counter++;
-                }
-            }
+        $status = strtolower(trim($initialStatus)) === 'pending' ? 'pending' : 'approved';
+        if ($status === 'pending') {
+            $storagePath = $this->allocatePendingStoragePath($fileArea, $filename);
+        } else {
+            [$filename, $storagePath] = $this->allocateApprovedStoragePath($fileArea, $filename);
         }
 
         if (!rename($sourcePath, $storagePath)) {
@@ -1575,7 +1556,7 @@ class FileAreaManager
                 ?, ?, ?, ?, ?,
                 ?, 'user_upload',
                 ?, ?,
-                ?, 'approved', NOW()
+                ?, ?, NOW()
             ) RETURNING id
         ");
 
@@ -1589,12 +1570,11 @@ class FileAreaManager
             $shortDescription,
             $longDescription,
             $ownerId,
+            $status,
         ]);
 
         $result = $stmt->fetch();
         $fileId = $result['id'];
-
-        $this->updateFileAreaStats($fileAreaId);
 
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
@@ -1603,14 +1583,18 @@ class FileAreaManager
             }
         }
 
-        try {
-            $ruleProcessor = new FileAreaRuleProcessor();
-            $ruleResult    = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
-            if (!empty($ruleResult['output'])) {
-                error_log("File area rules output for {$filename}: " . $ruleResult['output']);
+        if ($status === 'approved') {
+            $this->updateFileAreaStats($fileAreaId);
+
+            try {
+                $ruleProcessor = new FileAreaRuleProcessor();
+                $ruleResult    = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
+                if (!empty($ruleResult['output'])) {
+                    error_log("File area rules output for {$filename}: " . $ruleResult['output']);
+                }
+            } catch (\Exception $e) {
+                error_log("File area rules error for {$filename}: " . $e->getMessage());
             }
-        } catch (\Exception $e) {
-            error_log("File area rules error for {$filename}: " . $e->getMessage());
         }
 
         return $fileId;

@@ -15,6 +15,7 @@ MULTIPLEX_PID="${MULTIPLEX_PID:-${RUN_DIR}/multiplexing-server.pid}"
 GEMINI_PID="${GEMINI_PID:-${RUN_DIR}/gemini_daemon.pid}"
 MCP_PID="${MCP_PID:-${RUN_DIR}/mcp-server.pid}"
 REALTIME_PID="${REALTIME_PID:-${RUN_DIR}/realtime_server.pid}"
+FTPD_PID="${FTPD_PID:-${RUN_DIR}/ftpd.pid}"
 
 mkdir -p "$RUN_DIR"
 
@@ -70,6 +71,7 @@ stop_service() {
         mcp_server)          stop_process "$MCP_PID"       "mcp_server"          || true ;;
         realtime_daemon|realtime_server)
                              stop_process "$REALTIME_PID"  "realtime_daemon"     || true ;;
+        ftp_daemon|ftpd)      stop_process "$FTPD_PID"      "ftp_daemon"          || true ;;
         ssh_daemon|sshd)     stop_process "$SSHD_PID"      "ssh_daemon"          || true ;;
         termserver)
             stop_service telnetd
@@ -77,7 +79,7 @@ stop_service() {
             ;;
         *)
             echo "Unknown service: ${svc}"
-            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, termserver"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, termserver"
             exit 1
             ;;
     esac
@@ -113,6 +115,9 @@ start_service() {
         realtime_daemon|realtime_server)
             start_process "${PHP_BIN} scripts/realtime_server.php --daemon --pid-file=${REALTIME_PID}" "realtime_daemon"
             ;;
+        ftp_daemon|ftpd)
+            start_process "${PHP_BIN} scripts/ftp_daemon.php --daemon --pid-file=${FTPD_PID}" "ftp_daemon"
+            ;;
         ssh_daemon|sshd)
             start_process "${PHP_BIN} ssh/ssh_daemon.php --daemon --pid-file=${SSHD_PID}" "ssh_daemon"
             ;;
@@ -122,7 +127,7 @@ start_service() {
             ;;
         *)
             echo "Unknown service: ${svc}"
-            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, termserver"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, termserver"
             exit 1
             ;;
     esac
@@ -174,6 +179,11 @@ restart_service() {
             stop_process "$REALTIME_PID" "realtime_daemon" || true
             start_process "${PHP_BIN} scripts/realtime_server.php --daemon --pid-file=${REALTIME_PID}" "realtime_daemon"
             ;;
+        ftp_daemon|ftpd)
+            if stop_process "$FTPD_PID" "ftp_daemon"; then
+                start_process "${PHP_BIN} scripts/ftp_daemon.php --daemon --pid-file=${FTPD_PID}" "ftp_daemon"
+            fi
+            ;;
         ssh_daemon|sshd)
             if stop_process "$SSHD_PID" "ssh_daemon"; then
                 start_process "${PHP_BIN} ssh/ssh_daemon.php --daemon --pid-file=${SSHD_PID}" "ssh_daemon"
@@ -185,7 +195,7 @@ restart_service() {
             ;;
         *)
             echo "Unknown service: ${svc}"
-            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, termserver"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, termserver"
             exit 1
             ;;
     esac
@@ -206,6 +216,7 @@ elif [[ $# -gt 0 && "$1" == "--list" ]]; then
     echo "binkp_scheduler     (always restarted)"
     echo "binkp_server        (always restarted)"
     echo "realtime_daemon     (always restarted)"
+    echo "ftp_daemon          (only if running)"
     echo "telnetd             (only if running)"
     echo "mrc_daemon          (only if running)"
     echo "multiplexing-server (only if running)"
@@ -227,6 +238,7 @@ else
     restart_service binkp_scheduler
     restart_service binkp_server
     restart_service realtime_daemon
+    restart_service ftp_daemon
     restart_service telnetd
     restart_service mrc_daemon
     restart_service multiplexing-server

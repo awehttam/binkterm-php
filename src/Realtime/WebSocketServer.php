@@ -7,7 +7,7 @@ use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 
-class WebSocketServer
+class WebSocketServer implements LoopServiceInterface
 {
     private string $bindHost;
     private int $port;
@@ -35,6 +35,16 @@ class WebSocketServer
 
     public function run(): void
     {
+        (new MultiServiceDaemon([$this], $this->logger))->run();
+    }
+
+    public function getName(): string
+    {
+        return 'websocket';
+    }
+
+    public function start(): void
+    {
         $errno = 0;
         $errstr = '';
         $this->server = @stream_socket_server(
@@ -53,32 +63,56 @@ class WebSocketServer
             'bind_host' => $this->bindHost,
             'port' => $this->port,
         ]);
+    }
 
-        while (true) {
-            $read = [$this->server];
-            foreach ($this->clients as $client) {
-                $read[] = $client['socket'];
-            }
-
-            $write = null;
-            $except = null;
-            $changed = @stream_select($read, $write, $except, 0, 200000);
-            if ($changed === false) {
-                usleep(200000);
-                continue;
-            }
-
-            foreach ($read as $socket) {
-                if ($socket === $this->server) {
-                    $this->acceptClient();
-                    continue;
-                }
-                $this->readClient($socket);
-            }
-
-            $this->pollAndDispatchEvents();
-            $this->logActiveConnectionsIfDue();
+    public function stop(): void
+    {
+        foreach (array_keys($this->clients) as $clientId) {
+            $this->closeClient($clientId);
         }
+
+        if (is_resource($this->server)) {
+            @fclose($this->server);
+            $this->server = null;
+        }
+    }
+
+    public function tick(): void
+    {
+        $this->pollAndDispatchEvents();
+        $this->logActiveConnectionsIfDue();
+    }
+
+    public function getReadSockets(): array
+    {
+        $read = [];
+        if (is_resource($this->server)) {
+            $read[] = $this->server;
+        }
+        foreach ($this->clients as $client) {
+            $read[] = $client['socket'];
+        }
+        return $read;
+    }
+
+    public function getWriteSockets(): array
+    {
+        return [];
+    }
+
+    public function handleReadableSocket($socket): void
+    {
+        if ($socket === $this->server) {
+            $this->acceptClient();
+            return;
+        }
+
+        $this->readClient($socket);
+    }
+
+    public function handleWritableSocket($socket): void
+    {
+        unset($socket);
     }
 
     private function acceptClient(): void
