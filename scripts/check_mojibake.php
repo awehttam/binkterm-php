@@ -48,6 +48,10 @@ if (empty($paths)) {
 
 $scanExtensions = ['php', 'twig', 'js', 'json', 'md'];
 $skipDirs       = ['vendor', 'node_modules', '.git', '.svn'];
+$skipFiles      = [
+    'CLAUDE.md',
+    'check_mojibake.php',
+];
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Main
@@ -58,7 +62,7 @@ $affectedFiles = 0;
 $fixedFiles    = 0;
 $hasError      = false;
 
-foreach (collectFiles($paths, $scanExtensions, $skipDirs) as $file) {
+foreach (collectFiles($paths, $scanExtensions, $skipDirs, $skipFiles) as $file) {
     $totalFiles++;
 
     $content = file_get_contents($file);
@@ -224,14 +228,17 @@ function rebuildContent(string $content, array $issues): string
  * @param  string[] $paths
  * @param  string[] $extensions  Without leading dot.
  * @param  string[] $skipDirs    Directory basenames to ignore.
+ * @param  string[] $skipFiles   File basenames to ignore.
  * @return string[]
  */
-function collectFiles(array $paths, array $extensions, array $skipDirs): array
+function collectFiles(array $paths, array $extensions, array $skipDirs, array $skipFiles = []): array
 {
     $files = [];
     foreach ($paths as $path) {
         if (is_file($path)) {
-            $files[] = realpath($path);
+            if (!in_array(basename($path), $skipFiles, true)) {
+                $files[] = realpath($path);
+            }
             continue;
         }
         if (!is_dir($path)) {
@@ -256,7 +263,9 @@ function collectFiles(array $paths, array $extensions, array $skipDirs): array
             if ($skip) {
                 continue;
             }
-            if (in_array(strtolower($fileInfo->getExtension()), $extensions, true)) {
+            if (in_array(strtolower($fileInfo->getExtension()), $extensions, true)
+                && !in_array($fileInfo->getBasename(), $skipFiles, true)
+            ) {
                 $files[] = $fileInfo->getPathname();
             }
         }
