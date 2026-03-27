@@ -524,6 +524,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.ansi_editor.preview_panel' => 'Aperçu',
     'ui.ansi_editor.preview_empty' => 'Rien à prévisualiser pour le moment.',
     'ui.ansi_editor.cheatsheet_title' => 'Aide-mémoire ANSI',
+    'ui.ansi_editor.insert_file' => 'Insérer un fichier',
     'ui.ansi_editor.cheatsheet_help' => 'Utilisez ces séquences dans l éditeur. ESC désigne le caractère d échappement (ASCII 27).',
     'ui.ansi_editor.cheatsheet_sequence' => 'Séquence',
     'ui.ansi_editor.cheatsheet_description' => 'Description',

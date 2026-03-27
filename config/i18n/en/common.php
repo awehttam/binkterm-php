@@ -595,6 +595,7 @@ return [
     'ui.ansi_editor.preview_panel' => 'Preview',
     'ui.ansi_editor.preview_empty' => 'Nothing to preview yet.',
     'ui.ansi_editor.cheatsheet_title' => 'ANSI Cheatsheet',
+    'ui.ansi_editor.insert_file' => 'Insert File',
     'ui.ansi_editor.cheatsheet_help' => 'Use these sequences in the editor. ESC means the escape character (ASCII 27).',
     'ui.ansi_editor.cheatsheet_sequence' => 'Sequence',
     'ui.ansi_editor.cheatsheet_description' => 'Description',

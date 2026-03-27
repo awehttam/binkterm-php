@@ -352,11 +352,15 @@
                 + '</div>'
                 + '<div class="col-12">'
                 + '  <div class="d-flex gap-2 flex-wrap">'
-                + '    <button type="button" class="btn btn-sm btn-outline-primary" data-ansi-editor-preview-btn>'
-                + escapeHtml(translate('ui.common.preview', 'Preview'))
-                + '    </button>'
                 + '    <button type="button" class="btn btn-sm btn-outline-secondary" data-ansi-editor-cheatsheet-btn>'
                 + escapeHtml(translate('ui.ansi_editor.cheatsheet_title', 'ANSI Cheatsheet'))
+                + '    </button>'
+                + '    <button type="button" class="btn btn-sm btn-outline-secondary" data-ansi-editor-insert-file-btn>'
+                + escapeHtml(translate('ui.ansi_editor.insert_file', 'Insert File'))
+                + '    </button>'
+                + '    <input type="file" data-ansi-editor-file-input style="display:none;">'
+                + '    <button type="button" class="btn btn-sm btn-outline-primary" data-ansi-editor-preview-btn>'
+                + escapeHtml(translate('ui.common.preview', 'Preview'))
                 + '    </button>'
                 + '  </div>'
                 + '</div>';
@@ -429,6 +433,33 @@
             this.root.querySelector('[data-ansi-editor-cheatsheet-btn]').addEventListener('click', () => {
                 openCheatsheet();
             });
+
+            const fileInput = this.root.querySelector('[data-ansi-editor-file-input]');
+            this.root.querySelector('[data-ansi-editor-insert-file-btn]').addEventListener('click', () => {
+                if (fileInput) {
+                    fileInput.click();
+                }
+            });
+
+            if (fileInput) {
+                fileInput.addEventListener('change', () => {
+                    const file = fileInput.files && fileInput.files[0];
+                    if (!file) {
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const content = typeof reader.result === 'string' ? reader.result : '';
+                        this.insertAtCaret(content);
+                        fileInput.value = '';
+                    };
+                    reader.onerror = () => {
+                        fileInput.value = '';
+                    };
+                    reader.readAsText(file);
+                });
+            }
 
             this.textarea.addEventListener('scroll', () => {
                 this.syncRulerScroll();

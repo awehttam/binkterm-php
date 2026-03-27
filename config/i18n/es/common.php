@@ -595,6 +595,7 @@ return [
     'ui.ansi_editor.preview_panel' => 'Vista previa',
     'ui.ansi_editor.preview_empty' => 'Todavia no hay nada para previsualizar.',
     'ui.ansi_editor.cheatsheet_title' => 'Chuleta ANSI',
+    'ui.ansi_editor.insert_file' => 'Insertar archivo',
     'ui.ansi_editor.cheatsheet_help' => 'Use estas secuencias en el editor. ESC significa el caracter de escape (ASCII 27).',
     'ui.ansi_editor.cheatsheet_sequence' => 'Secuencia',
     'ui.ansi_editor.cheatsheet_description' => 'Descripcion',
