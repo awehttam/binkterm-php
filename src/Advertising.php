@@ -880,7 +880,13 @@ class Advertising
             }
 
             foreach ($dueSchedules as $schedule) {
-                $markScheduleTriggered = false;
+                if (!$dryRun && !empty($schedule['id']) && empty($schedule['legacy'])) {
+                    $slotAt = (string)($schedule['slot_at'] ?? '');
+                    if ($slotAt === '' || !$this->claimScheduleTriggerSlot((int)$schedule['id'], $slotAt)) {
+                        continue;
+                    }
+                }
+
                 foreach ($this->getCampaignTargets((int)$campaign['id']) as $target) {
                     if (empty($target['is_active'])) {
                         continue;
@@ -890,14 +896,7 @@ class Advertising
                     $result['schedule_time_of_day'] = $schedule['time_of_day'] ?? null;
                     $result['schedule_timezone'] = $schedule['timezone'] ?? null;
                     $result['schedule_days_mask'] = $schedule['days_mask'] ?? null;
-                    if (!$dryRun && ($result['status'] ?? '') === 'success') {
-                        $markScheduleTriggered = true;
-                    }
                     $results[] = $result;
-                }
-
-                if (!$dryRun && $markScheduleTriggered && !empty($schedule['id'])) {
-                    $this->updateScheduleTriggerState((int)$schedule['id']);
                 }
             }
         }
@@ -1703,14 +1702,19 @@ class Advertising
         $stmt->execute([$advertisementId, $campaignId]);
     }
 
-    private function updateScheduleTriggerState(int $scheduleId): void
+    private function claimScheduleTriggerSlot(int $scheduleId, string $slotAt): bool
     {
         $stmt = $this->db->prepare("
             UPDATE advertisement_campaign_schedules
             SET last_triggered_at = NOW()
             WHERE id = ?
+              AND (
+                    last_triggered_at IS NULL
+                 OR last_triggered_at < ?
+              )
         ");
-        $stmt->execute([$scheduleId]);
+        $stmt->execute([$scheduleId, $slotAt]);
+        return $stmt->rowCount() > 0;
     }
 
     private function summarizeCampaignSchedules(array $schedules): string
