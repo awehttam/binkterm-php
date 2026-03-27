@@ -165,6 +165,7 @@
 
     function updateFileIcon(stats, clearTarget = null) {
         const fileMenuIcons = document.querySelectorAll('.file-menu-icon');
+        const fileMenuParentLinks = document.querySelectorAll('.file-menu-parent-link');
         const fileMenuLinks = document.querySelectorAll('.file-menu-link');
         const fileApprovalLinks = document.querySelectorAll('.file-approvals-menu-link');
         const newFiles = parseInt(stats?.new_files || 0, 10) || 0;
@@ -182,7 +183,8 @@
 
         const fileIconUnread = filesUnread || fileApprovalsUnread;
         fileMenuIcons.forEach((icon) => icon.classList.toggle('unread', fileIconUnread));
-        fileMenuLinks.forEach((link) => link.classList.toggle('unread', fileIconUnread));
+        fileMenuParentLinks.forEach((link) => link.classList.toggle('unread', fileIconUnread));
+        fileMenuLinks.forEach((link) => link.classList.toggle('unread', filesUnread));
         fileApprovalLinks.forEach((link) => link.classList.toggle('unread', fileApprovalsUnread));
     }
 
