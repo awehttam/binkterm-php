@@ -605,7 +605,7 @@
             // });
 
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
                     .then(registration => {
                         // Path 1 (postMessage from SW) is the only notification mechanism.
                         // Path 2 (watchWorker statechange) was removed: it fired on every

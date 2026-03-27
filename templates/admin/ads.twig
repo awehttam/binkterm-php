@@ -179,35 +179,10 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="editAdContent">{{ t('ui.admin.ads.ansi_content') }}</label>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-4">
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="insertAnsiEscapePrefix()">
-                                    {{ t('ui.admin.ads.insert_escape_prefix') }}
-                                </button>
-                            </div>
-                            <div class="col-md-5">
-                                <select class="form-select form-select-sm" id="editAdAnsiPreset">
-                                    <option value="">{{ t('ui.admin.ads.select_sequence') }}</option>
-                                    <option value="0m">{{ t('ui.admin.ads.sequence_reset') }}</option>
-                                    <option value="1m">{{ t('ui.admin.ads.sequence_bold') }}</option>
-                                    <option value="31m">{{ t('ui.admin.ads.sequence_red') }}</option>
-                                    <option value="32m">{{ t('ui.admin.ads.sequence_green') }}</option>
-                                    <option value="33m">{{ t('ui.admin.ads.sequence_yellow') }}</option>
-                                    <option value="34m">{{ t('ui.admin.ads.sequence_blue') }}</option>
-                                    <option value="37m">{{ t('ui.admin.ads.sequence_white') }}</option>
-                                    <option value="2J">{{ t('ui.admin.ads.sequence_clear_screen') }}</option>
-                                    <option value="K">{{ t('ui.admin.ads.sequence_clear_line') }}</option>
-                                    <option value="H">{{ t('ui.admin.ads.sequence_cursor_home') }}</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="insertAnsiPreset()">
-                                    {{ t('ui.admin.ads.insert_sequence') }}
-                                </button>
-                            </div>
-                        </div>
                         <div class="form-text mb-2">{{ t('ui.admin.ads.escape_helper_help') }}</div>
-                        <textarea class="form-control font-monospace" id="editAdContent" rows="14"></textarea>
+                        <div id="editAdContentEditor">
+                            <textarea class="form-control font-monospace" id="editAdContent" rows="14"></textarea>
+                        </div>
                     </div>
                     <div class="col-12">
                         <div class="form-check form-check-inline">
@@ -224,29 +199,11 @@
                         </div>
                     </div>
                     <div class="col-12 d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-outline-primary" onclick="previewEditedAd()">{{ t('ui.common.preview') }}</button>
                         <button type="button" class="btn btn-outline-secondary" onclick="closeEditor()">{{ t('ui.common.cancel') }}</button>
                         <button type="submit" class="btn btn-primary">{{ t('ui.common.save') }}</button>
                     </div>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div class="modal fade" id="adPreviewModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="adPreviewModalTitle">{{ t('ui.admin.ads.view') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="adPreviewContainer" class="w-100" style="overflow: hidden;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -256,9 +213,10 @@
 <script src="/js/ansisys.js"></script>
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
+<script src="/js/ansi-editor.js"></script>
 <script>
 let currentAds = [];
-let adPreviewModal = null;
+let adAnsiEditor = null;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -268,6 +226,12 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    adAnsiEditor = window.AnsiEditor ? window.AnsiEditor.create(document.getElementById('editAdContentEditor'), {
+        previewTitleResolver: function() {
+            return document.getElementById('editAdTitle').value.trim() || uiT('ui.common.preview', 'Preview');
+        }
+    }) : null;
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadAds();
         loadContentCommands();
@@ -292,11 +256,6 @@ document.addEventListener('DOMContentLoaded', function() {
         event.preventDefault();
         saveAd();
     });
-
-    const previewElement = document.getElementById('adPreviewModal');
-    if (previewElement) {
-        adPreviewModal = new bootstrap.Modal(previewElement);
-    }
 
     window.setTimeout(detectHiddenUploadFields, 50);
 });
@@ -434,13 +393,11 @@ function previewAd(id) {
                 throw new Error(uiT('ui.admin.ads.not_found', 'Advertisement not found'));
             }
 
-            document.getElementById('adPreviewModalTitle').textContent = ad.title || uiT('ui.admin.ads.view', 'View');
-            const container = document.getElementById('adPreviewContainer');
-            if (container && typeof renderAdContent === 'function') {
-                renderAdContent(container, ad.content || '');
-            }
-            if (adPreviewModal) {
-                adPreviewModal.show();
+            if (window.AnsiEditor) {
+                window.AnsiEditor.openPreview({
+                    title: ad.title || uiT('ui.admin.ads.view', 'View'),
+                    content: ad.content || ''
+                });
             }
         })
         .catch(error => {
@@ -449,49 +406,10 @@ function previewAd(id) {
 }
 
 function previewEditedAd() {
-    const title = document.getElementById('editAdTitle').value.trim() || uiT('ui.common.preview', 'Preview');
-    const container = document.getElementById('adPreviewContainer');
-    if (!container) {
+    if (!adAnsiEditor) {
         return;
     }
-
-    document.getElementById('adPreviewModalTitle').textContent = title;
-    if (typeof renderAdContent === 'function') {
-        renderAdContent(container, document.getElementById('editAdContent').value || '');
-    }
-    if (adPreviewModal) {
-        adPreviewModal.show();
-    }
-}
-
-function insertAnsiEscapePrefix() {
-    insertIntoAdEditor('\x1b[');
-}
-
-function insertAnsiPreset() {
-    const select = document.getElementById('editAdAnsiPreset');
-    if (!select || !select.value) {
-        return;
-    }
-
-    insertIntoAdEditor('\x1b[' + select.value);
-    select.value = '';
-}
-
-function insertIntoAdEditor(text) {
-    const textarea = document.getElementById('editAdContent');
-    if (!textarea) {
-        return;
-    }
-
-    const start = textarea.selectionStart ?? textarea.value.length;
-    const end = textarea.selectionEnd ?? textarea.value.length;
-    const before = textarea.value.slice(0, start);
-    const after = textarea.value.slice(end);
-    textarea.value = before + text + after;
-    textarea.focus();
-    const caret = start + text.length;
-    textarea.setSelectionRange(caret, caret);
+    adAnsiEditor.openPreview();
 }
 
 function uploadAd() {
@@ -584,6 +502,7 @@ function openEditor(id) {
                 showAdsAlert(uiT('ui.admin.ads.content_command_invalid_stored', 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.'), 'warning');
             }
             document.getElementById('editAdContent').value = ad.stored_content || '';
+            adAnsiEditor?.refreshPreview();
             document.getElementById('editAdIsActive').checked = !!ad.is_active;
             document.getElementById('editAdShowOnDashboard').checked = !!ad.show_on_dashboard;
             document.getElementById('editAdAllowAutoPost').checked = !!ad.allow_auto_post;
@@ -601,6 +520,7 @@ function closeEditor() {
     document.getElementById('adEditorCard').classList.add('d-none');
     document.getElementById('adEditorForm').reset();
     document.getElementById('editAdId').value = '';
+    adAnsiEditor?.refreshPreview();
 }
 
 function saveAd() {

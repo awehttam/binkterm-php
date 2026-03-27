@@ -62,6 +62,7 @@
   - [Ignored Echomail Management](#ignored-echomail-management)
 - [Appearance](#appearance)
   - [Terminal Server Screens](#terminal-server-screens)
+  - [Shared ANSI Editor](#shared-ansi-editor)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [SharedWorker Architecture](#sharedworker-architecture)
   - [Chat Integration](#chat-integration)
@@ -89,6 +90,7 @@
   - [Click-through URLs and Impression Tracking](#click-through-urls-and-impression-tracking)
   - [Ad Analytics Admin Page](#ad-analytics-admin-page)
   - [Ad Title File-type Prefix](#ad-title-file-type-prefix)
+  - [ANSI Editing Workflow](#ansi-editing-workflow)
 - [AI Provider Layer](#ai-provider-layer)
 - [MRC Chat](#mrc-chat)
   - [Join Command](#join-command)
@@ -163,6 +165,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - The BBS menu shell's `ansi` variant now supports size presets: `80x25`, `132x24`, `132x43`, `132x50`, and `Full Screen`.
 - `80x25` is the authentic baseline terminal presentation. `Full Screen` instead scales the rendered ANSI art to the available browser viewport below the shell header.
 - A new **Term Server** tab in **Admin -> Appearance** lets sysops edit or upload the supported custom ANSI screens used by the telnet and SSH terminal servers.
+- ANSI-capable admin editors now share a reusable editor widget with modal preview, an ANSI cheatsheet, and a 132-column ruler for alignment work.
 
 **Echomail MCP Server**
 - An optional [Model Context Protocol](https://modelcontextprotocol.io/) server (`mcp-server/`) gives AI assistants read-only access to your echomail. Each user generates a personal bearer key from **Settings → AI**. See `docs/MCPServer.md` for setup.
@@ -190,6 +193,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Content commands are now restricted to an approved whitelist; the admin editor uses a dropdown instead of free text.
 - Ads now support a **Click-through URL**. Impressions and clicks are tracked and displayed on a new **Ad Analytics** page at `/admin/ad-analytics`.
 - Uploaded ad files are auto-prefixed with `[ANSI]`, `[RIP]`, or `[SIXEL]` based on file type.
+- The ad content editor now uses the shared ANSI editor component, giving it a richer sequence helper, modal preview, cheatsheet, and column ruler.
 
 **AI Provider Layer**
 - A new AI provider layer supports both OpenAI and Anthropic as backends for AI-assisted features. An admin usage report is available at `/admin/ai-usage`. See `docs/AIProviders.md`.
@@ -741,6 +745,22 @@ From this tab, a sysop can:
 
 The editor works directly with the same screen files already used by the terminal daemons, so saving a custom screen takes effect without any additional appearance configuration.
 
+### Shared ANSI Editor
+
+ANSI editing in the admin interface is now handled through one shared editor component instead of separate page-specific controls.
+
+Current behavior:
+
+- the **Content Library** ad editor and **Admin -> Appearance -> Term Server** editor use the same ANSI editing widget
+- preview opens in a modal and renders directly from the current textarea content
+- an **ANSI Cheatsheet** button opens a reference table of common escape sequences with rendered examples where that makes sense
+- a fixed ruler above the textarea marks columns from `1` through `132`, with stronger indicators every `10` columns, so ANSI art and terminal layouts can be lined up more reliably
+- soft wrapping is disabled in these editors so visible columns match actual character positions
+
+This change does not add any migration or configuration requirement. It is an editing workflow improvement for sysops who maintain terminal server screens or ANSI advertisements.
+
+The service worker asset update path for these JavaScript changes was also tightened so fresh editor code is fetched and precached more reliably during upgrades. If a browser still shows the old editor behavior immediately after deployment, reload once after the new service worker activates.
+
 ---
 
 ## Real-time Events (BinkStream)
@@ -928,6 +948,19 @@ When an ad file is uploaded, the title is now automatically prefixed based on th
 - `.six` / `.sixel` → `[SIXEL]`
 
 The prefix is applied to both auto-generated titles and any title provided by the uploader, making it easier to identify the ad format at a glance in the admin list.
+
+### ANSI Editing Workflow
+
+The advertisement editor now uses the same shared ANSI editor component as the terminal-screen editor.
+
+In practice, this means:
+
+- the old ad-specific inline sequence helper has been replaced by a shared toolbar with a larger preset list
+- preview opens in a modal instead of taking space below the editor
+- an **ANSI Cheatsheet** button is available beside the preview button
+- a `1` to `132` column ruler is shown above the textarea so ANSI art can be aligned to traditional terminal widths while editing
+
+No stored ad format changed in the `advertisements` table. Existing ANSI content continues to render as before; this is a usability improvement for editing and previewing content.
 
 ---
 

@@ -451,7 +451,9 @@
                 <div class="mt-3">
                     <div class="small text-muted mb-1" id="termScreenDescription"></div>
                     <div class="small text-muted mb-2" id="termScreenMeta"></div>
-                    <textarea class="form-control font-monospace" id="termScreenContent" rows="16" placeholder="{{ t('ui.admin.appearance.term_server.placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div id="termScreenContentEditor">
+                        <textarea class="form-control font-monospace" id="termScreenContent" rows="16" placeholder="{{ t('ui.admin.appearance.term_server.placeholder', {}, locale, ['common']) }}"></textarea>
+                    </div>
                     <div class="form-text">{{ t('ui.admin.appearance.term_server.editor_help', {}, locale, ['common']) }}</div>
                 </div>
 
@@ -542,6 +544,10 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
+<script src="/js/ansi-editor.js"></script>
 <script>
 const defaultMenuItems = [
     { key: 'M', label: uiT('ui.admin.appearance.default_menu.messages', 'Messages'), label_key: 'ui.admin.appearance.default_menu.messages', icon: 'envelope', url: '/echomail' },
@@ -554,6 +560,7 @@ const defaultMenuItems = [
 let appearanceData = {};
 let terminalScreens = [];
 let currentTerminalScreenKey = '';
+let termScreenAnsiEditor = null;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -581,6 +588,15 @@ function getTerminalScreenDescription(key) {
 }
 
 $(document).ready(function() {
+    termScreenAnsiEditor = window.AnsiEditor ? window.AnsiEditor.create(document.getElementById('termScreenContentEditor'), {
+        previewTitleResolver: function() {
+            if (!currentTerminalScreenKey) {
+                return uiT('ui.common.preview', 'Preview');
+            }
+            return getTerminalScreenLabel(currentTerminalScreenKey);
+        }
+    }) : null;
+
     loadAppearanceConfig();
 
     // Accent color sync
@@ -1062,6 +1078,7 @@ function loadTerminalScreenList(selectedKey) {
             $('#termScreenDescription').text('');
             $('#termScreenMeta').text('');
             $('#termScreenContent').val('');
+            termScreenAnsiEditor?.refreshPreview();
             $('#deleteTerminalScreenBtn').hide();
         }
     }).fail(function(xhr) {
@@ -1081,6 +1098,7 @@ function loadTerminalScreen(key) {
         if (!screen.exists) metaParts.push(uiT('ui.admin.appearance.term_server.default_active', 'default'));
         $('#termScreenMeta').text(metaParts.join(' • '));
         $('#termScreenContent').val(screen.content || '');
+        termScreenAnsiEditor?.refreshPreview();
         $('#deleteTerminalScreenBtn').toggle(!!screen.exists);
         $('#termScreenStatus').text('');
     }).fail(function(xhr) {

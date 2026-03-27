@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v655';
+const CACHE_NAME = 'binkcache-v661';
 
 // Static assets to precache
 const staticAssets = [
@@ -13,6 +13,7 @@ const staticAssets = [
     '/js/binkstream-client.js',
     '/js/binkstream-worker-v2.js',
     '/js/ansisys.js',
+    '/js/ansi-editor.js',
     '/js/file-preview.js',
     '/js/pcboard.js',
     '/css/ansisys.css',
@@ -55,6 +56,17 @@ function getCache() {
     ]);
 }
 
+async function precacheStaticAssets(cache) {
+    for (const asset of staticAssets) {
+        const request = new Request(asset, { cache: 'reload' });
+        const response = await fetch(request);
+        if (!response.ok) {
+            throw new Error(`precache-failed:${asset}:${response.status}`);
+        }
+        await cache.put(request, response);
+    }
+}
+
 // Install event - cache static assets and activate immediately.
 // Always delete and re-create the cache on install so that a version bump
 // guarantees fresh assets even if the same cache name was previously populated
@@ -67,7 +79,7 @@ self.addEventListener('install', (event) => {
             .then(async (cache) => {
                 _cache = cache;
                 console.log('[SW] Caching', staticAssets.length, 'static assets');
-                await cache.addAll(staticAssets);
+                await precacheStaticAssets(cache);
             })
             .then(() => {
                 console.log('[SW] New version installed, skipping wait');
