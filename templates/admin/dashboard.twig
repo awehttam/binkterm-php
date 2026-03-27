@@ -468,10 +468,13 @@
 
 #ramUsageOutput {
     min-height: 24rem;
+    overflow-x: auto;
 }
 
 #ramUsageOutput .ansi-art {
     min-width: 100%;
+    white-space: pre;
+    display: inline-block;
 }
 </style>
 {% endblock %}
@@ -511,6 +514,8 @@
     var modalEl = document.getElementById('ramUsageModal');
     var outputEl = document.getElementById('ramUsageOutput');
     var refreshTimer = null;
+    var requestInFlight = false;
+    var hasLoadedOutput = false;
 
     if (!modalEl || !outputEl) {
         return;
@@ -525,7 +530,7 @@
 
     function renderBinktopOutput(text) {
         if (typeof window.renderAnsiBuffer === 'function') {
-            outputEl.innerHTML = renderAnsiBuffer(text || '', 100, 120);
+            outputEl.innerHTML = '<pre class="ansi-art mb-0">' + renderAnsiBuffer(text || '', 100, 120) + '</pre>';
             return;
         }
 
@@ -537,7 +542,13 @@
     }
 
     function loadBinktop() {
-        renderBinktopOutput(uiT('ui.common.loading', 'Loading...'));
+        if (requestInFlight) {
+            return;
+        }
+        requestInFlight = true;
+        if (!hasLoadedOutput) {
+            renderBinktopOutput(uiT('ui.common.loading', 'Loading...'));
+        }
         fetch('/admin/api/ram-usage')
             .then(function (response) {
                 return response.json().then(function (body) {
@@ -548,14 +559,20 @@
                 });
             })
             .then(function (body) {
+                hasLoadedOutput = true;
                 renderBinktopOutput(body.output || uiT('ui.admin.dashboard.metric_unavailable', 'Unavailable'));
             })
             .catch(function (error) {
+                hasLoadedOutput = true;
                 renderBinktopOutput((error && error.error) || uiT('ui.admin.dashboard.ram_usage_modal_failed', 'Failed to load RAM usage details.'));
+            })
+            .finally(function () {
+                requestInFlight = false;
             });
     }
 
     modalEl.addEventListener('show.bs.modal', function () {
+        hasLoadedOutput = false;
         loadBinktop();
         clearInterval(refreshTimer);
         refreshTimer = setInterval(loadBinktop, 2000);
