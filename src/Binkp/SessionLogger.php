@@ -388,6 +388,8 @@ class SessionLogger
 
         $stmt = $db->prepare("
             SELECT *,
+                   files_received AS messages_received,
+                   files_sent AS messages_sent,
                    EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) as duration_seconds
             FROM binkp_session_log
             {$whereClause}
@@ -405,6 +407,8 @@ class SessionLogger
 
         $stmt = $db->prepare("
             SELECT *,
+                   files_received AS messages_received,
+                   files_sent AS messages_sent,
                    EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) AS duration_seconds
             FROM binkp_session_log
             WHERE id = ?
@@ -446,8 +450,8 @@ class SessionLogger
                 COUNT(*) FILTER (WHERE is_inbound = FALSE) as outbound,
                 COUNT(*) FILTER (WHERE auth_method = 'cram-md5') as cram_md5_sessions,
                 COUNT(*) FILTER (WHERE auth_method = 'plaintext') as plaintext_sessions,
-                COALESCE(SUM(messages_received), 0) as total_messages_received,
-                COALESCE(SUM(messages_sent), 0) as total_messages_sent,
+                COALESCE(SUM(files_received), 0) as total_messages_received,
+                COALESCE(SUM(files_sent), 0) as total_messages_sent,
                 COALESCE(SUM(files_received), 0) as total_files_received,
                 COALESCE(SUM(files_sent), 0) as total_files_sent,
                 COALESCE(SUM(bytes_received), 0) as total_bytes_received,
@@ -477,8 +481,8 @@ class SessionLogger
             SELECT
                 to_char(bucket.hour_bucket, 'HH24:00') AS hour_label,
                 EXTRACT(EPOCH FROM bucket.hour_bucket) AS hour_epoch,
-                COALESCE(SUM(log.messages_received), 0) AS messages_received,
-                COALESCE(SUM(log.messages_sent), 0) AS messages_sent
+                COALESCE(SUM(log.files_received), 0) AS messages_received,
+                COALESCE(SUM(log.files_sent), 0) AS messages_sent
             FROM generate_series(
                 date_trunc('hour', NOW()) - INTERVAL '23 hours',
                 date_trunc('hour', NOW()),

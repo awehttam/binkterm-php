@@ -72,8 +72,8 @@
         <div class="card-header py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.traffic_chart', {}, locale, ['common']) }}</h6>
             <div class="small text-muted d-flex flex-wrap gap-3">
-                <span><span class="binkp-chart-legend binkp-chart-legend-in"></span>{{ t('ui.admin.binkp_sessions.msgs_in', {}, locale, ['common']) }}</span>
-                <span><span class="binkp-chart-legend binkp-chart-legend-out"></span>{{ t('ui.admin.binkp_sessions.msgs_out', {}, locale, ['common']) }}</span>
+                <span><span class="binkp-chart-legend binkp-chart-legend-in"></span>{{ t('ui.admin.binkp_sessions.files_in', {}, locale, ['common']) }}</span>
+                <span><span class="binkp-chart-legend binkp-chart-legend-out"></span>{{ t('ui.admin.binkp_sessions.files_out', {}, locale, ['common']) }}</span>
             </div>
         </div>
         <div class="card-body">
@@ -146,8 +146,8 @@
                             <th>{{ t('ui.admin.binkp_sessions.pid', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.type', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.direction', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.msgs_in', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.msgs_out', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.files_in', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.files_out', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.common.status', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.binkp_sessions.duration', {}, locale, ['common']) }}</th>
                         </tr>
@@ -333,7 +333,7 @@ function renderTrafficChart(points) {
     }
 
     if (!Array.isArray(points) || points.length === 0) {
-        container.innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.admin.binkp_sessions.traffic_chart_empty', 'No message traffic recorded in the last 24 hours.'))}</div>`;
+        container.innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.admin.binkp_sessions.traffic_chart_empty', 'No file traffic recorded in the last 24 hours.'))}</div>`;
         return;
     }
 
@@ -378,7 +378,7 @@ function renderTrafficChart(points) {
     const outDots = points.map((point, index) => `<circle class="binkp-chart-point-out" cx="${xFor(index)}" cy="${yFor(point.messages_sent)}" r="3"></circle>`).join('');
 
     container.innerHTML = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtmlAttr(uiT('ui.admin.binkp_sessions.traffic_chart_aria', 'BinkP message traffic for the last 24 hours'))}">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtmlAttr(uiT('ui.admin.binkp_sessions.traffic_chart_aria', 'BinkP file traffic for the last 24 hours'))}">
             ${gridLines}
             <line class="binkp-chart-axis" x1="${padding.left}" y1="${padding.top + chartHeight}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
             <line class="binkp-chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartHeight}"></line>

@@ -1316,9 +1316,6 @@ class BinkpSession
             if ($this->sessionLogger) {
                 $this->sessionLogger->incrementStat('files_sent', 1);
                 $this->sessionLogger->incrementStat('bytes_sent', $bytesSent);
-                if (preg_match('/\.pkt$/i', $wireName)) {
-                    $this->sessionLogger->incrementStat('messages_sent', $this->countMessagesInPacket($filePath));
-                }
             }
             $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
@@ -1437,9 +1434,6 @@ class BinkpSession
                 if ($this->sessionLogger) {
                     $this->sessionLogger->incrementStat('files_received', 1);
                     $this->sessionLogger->incrementStat('bytes_received', (int)$this->currentFile['received']);
-                    if (preg_match('/\.pkt$/i', $localName)) {
-                        $this->sessionLogger->incrementStat('messages_received', $this->countMessagesInPacket($finalPath));
-                    }
                 }
                 $this->log("File received: {$localName} ({$this->currentFile['received']} bytes)", 'INFO');
 
