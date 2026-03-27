@@ -138,7 +138,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **Echomail & Netmail**
 - Message lists now support a right-click context menu (long-press on mobile) with actions including **View Conversation**, **Save for later**, **Download Message**, **Forward by EMail**, and **Share**.
-- Echomail messages can now be hidden with per-user ignore rules that match the exact sender name, the exact sender node address, and optionally a substring in the subject line. Leaving the subject blank blocks that sender entirely.
+- Echomail message lists now include an **Ignore message** action. It creates per-user ignore rules that match the exact sender name, the exact sender node address, and optionally a substring in the subject line. Leaving the subject blank blocks that sender entirely.
 - A **Show Entire Conversation** mode loads the full thread when clicking the reply icon, not just the messages on the current page.
 - The **A** key cycle now includes a **Raw Source** mode showing message bytes verbatim — useful for inspecting wire content.
 - The compose form warns when approaching the 16 KB FidoNet message body limit.

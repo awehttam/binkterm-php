@@ -1784,6 +1784,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $db = Database::getInstance()->getPdo();
+        $messageHandler = new MessageHandler();
+        $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
 
         // Query with separate subqueries for total and unread counts, plus last post info
         $sql = "SELECT
@@ -1810,15 +1812,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Add subscription filtering if requested
         if ($subscribedOnly === 'true') {
             $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ? AND ues.is_active = TRUE";
-            $params = [$userId, $userId];
-        } else {
             $params = [$userId];
+        } else {
+            $params = [];
         }
 
         $sql .= " LEFT JOIN (
-                    SELECT echoarea_id, COUNT(*) as message_count
-                    FROM echomail
-                    GROUP BY echoarea_id
+                    SELECT em.echoarea_id, COUNT(*) as message_count
+                    FROM echomail em
+                    WHERE 1=1{$ignoreFilter['sql']}
+                    GROUP BY em.echoarea_id
                 ) total_counts ON e.id = total_counts.echoarea_id
                 LEFT JOIN (
                     SELECT
@@ -1826,17 +1829,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                         COUNT(*) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE mrs.read_at IS NULL
+                    WHERE mrs.read_at IS NULL{$ignoreFilter['sql']}
                     GROUP BY em.echoarea_id
                 ) unread_counts ON e.id = unread_counts.echoarea_id
                 LEFT JOIN (
-                    SELECT DISTINCT ON (echoarea_id)
-                        echoarea_id,
-                        subject as last_subject,
-                        from_name as last_author,
-                        date_received as last_date
-                    FROM echomail
-                    ORDER BY echoarea_id, date_received DESC
+                    SELECT DISTINCT ON (em.echoarea_id)
+                        em.echoarea_id,
+                        em.subject as last_subject,
+                        em.from_name as last_author,
+                        em.date_received as last_date
+                    FROM echomail em
+                    WHERE 1=1{$ignoreFilter['sql']}
+                    ORDER BY em.echoarea_id, em.date_received DESC
                 ) last_posts ON e.id = last_posts.echoarea_id
                 LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as subscriber_count
@@ -1844,6 +1848,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     WHERE is_active = TRUE
                     GROUP BY echoarea_id
                 ) sub_counts ON e.id = sub_counts.echoarea_id";
+
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
+        $params[] = $userId;
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
@@ -10047,6 +10062,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
 
         try {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $messageHandler = new \BinktermPHP\MessageHandler();
 
             // Use custom QWK area selections when active flag is set, otherwise all subscribed.
             $meta          = new \BinktermPHP\UserMeta();
@@ -10131,8 +10147,19 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
 
             foreach ($areas as $area) {
                 $lastId  = $stateByArea[(int)$area['id']] ?? 0;
-                $emStmt  = $db->prepare("SELECT COUNT(*) AS cnt FROM echomail WHERE echoarea_id = ? AND id > ?");
-                $emStmt->execute([(int)$area['id'], $lastId]);
+                $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+                $emStmt  = $db->prepare("
+                    SELECT COUNT(*) AS cnt
+                    FROM echomail em
+                    WHERE em.echoarea_id = ?
+                      AND em.id > ?
+                      {$ignoreFilter['sql']}
+                ");
+                $emParams = [(int)$area['id'], $lastId];
+                if (!empty($ignoreFilter['params'])) {
+                    $emParams = array_merge($emParams, $ignoreFilter['params']);
+                }
+                $emStmt->execute($emParams);
                 $newCount = (int)$emStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
 
                 $conferences[] = [

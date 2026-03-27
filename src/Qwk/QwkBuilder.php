@@ -19,6 +19,7 @@ use BinktermPHP\BbsConfig;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Database;
 use BinktermPHP\EchoareaSubscriptionManager;
+use BinktermPHP\MessageHandler;
 use BinktermPHP\Version;
 use PDO;
 use ZipArchive;
@@ -67,11 +68,13 @@ class QwkBuilder
 
     private PDO $db;
     private BinkpConfig $binkpConfig;
+    private MessageHandler $messageHandler;
 
     public function __construct()
     {
-        $this->db          = Database::getInstance()->getPdo();
-        $this->binkpConfig = BinkpConfig::getInstance();
+        $this->db             = Database::getInstance()->getPdo();
+        $this->binkpConfig    = BinkpConfig::getInstance();
+        $this->messageHandler = new MessageHandler();
     }
 
     // -------------------------------------------------------------------------
@@ -727,6 +730,12 @@ class QwkBuilder
     private function fetchEchomail(int $userId, int $echoareaId, int $limit): array
     {
         $lastId = $this->getEchomailLastId($userId, $echoareaId);
+        $ignoreFilter = $this->messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+        $params = [$echoareaId, (int)$lastId];
+        if (!empty($ignoreFilter['params'])) {
+            $params = array_merge($params, $ignoreFilter['params']);
+        }
+        $params[] = $limit;
 
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
@@ -735,10 +744,11 @@ class QwkBuilder
             FROM echomail em
             WHERE em.echoarea_id = ?
               AND em.id > ?
+              {$ignoreFilter['sql']}
             ORDER BY em.id ASC
             LIMIT ?
         ");
-        $stmt->execute([$echoareaId, (int)$lastId, $limit]);
+        $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($rows as &$row) {
