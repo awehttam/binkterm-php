@@ -23,6 +23,7 @@
   - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
   - [Show Entire Conversation](#show-entire-conversation)
   - [Message List Context Menu](#message-list-context-menu)
+  - [Ignored Echomail Messages](#ignored-echomail-messages)
   - [Message Viewer: Raw Source Mode](#message-viewer-raw-source-mode)
   - [Pipe Code False Positive Fix](#pipe-code-false-positive-fix)
 - [QWK Offline Mail](#qwk-offline-mail)
@@ -50,12 +51,14 @@
   - [In-App FAQ and README Viewer](#in-app-faq-and-readme-viewer)
 - [File Areas](#file-areas)
   - [Upload Approval Queue](#upload-approval-queue)
+  - [ISO Mount Point Restriction](#iso-mount-point-restriction)
 - [Broadcast Manager](#broadcast-manager)
   - [Clone Campaign](#clone-campaign)
 - [Registration Page](#registration-page)
 - [User Settings](#user-settings)
   - [Tabbed Layout](#tabbed-layout)
   - [Notification Sound Preview](#notification-sound-preview)
+  - [Ignored Echomail Management](#ignored-echomail-management)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [SharedWorker Architecture](#sharedworker-architecture)
   - [Chat Integration](#chat-integration)
@@ -135,6 +138,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **Echomail & Netmail**
 - Message lists now support a right-click context menu (long-press on mobile) with actions including **View Conversation**, **Save for later**, **Download Message**, **Forward by EMail**, and **Share**.
+- Echomail messages can now be hidden with per-user ignore rules that match the exact sender name, the exact sender node address, and optionally a substring in the subject line. Leaving the subject blank blocks that sender entirely.
 - A **Show Entire Conversation** mode loads the full thread when clicking the reply icon, not just the messages on the current page.
 - The **A** key cycle now includes a **Raw Source** mode showing message bytes verbatim — useful for inspecting wire content.
 - The compose form warns when approaching the 16 KB FidoNet message body limit.
@@ -148,6 +152,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 **User Settings**
 - The settings page is reorganized into a tabbed layout: **Display**, **Messaging**, **Notifications**, and **Account**.
 - Notification sound select boxes now have a **▶** button to preview sounds without leaving the page.
+- The **Messaging** tab now ends with an **Ignored Echomail** section where users can review and remove saved echomail ignore rules.
 
 **Echomail MCP Server**
 - An optional [Model Context Protocol](https://modelcontextprotocol.io/) server (`mcp-server/`) gives AI assistants read-only access to your echomail. Each user generates a personal bearer key from **Settings → AI**. See `docs/MCPServer.md` for setup.
@@ -157,6 +162,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Users have a **My Uploads** view in `/files` showing pending, approved, and rejected uploads with status badges.
 - Admins see a live notification badge on the Files menu when uploads are awaiting approval. The badge clears on visiting the approvals page and persists its seen state across page loads.
 - The Files nav entry for admins is now a dropdown containing **Files** and **File Approvals**.
+- ISO file-area mount points entered through the web interface or API must now stay under `data/iso_mounts`. If you need a custom external mount path, set it directly in the database after upgrade.
 
 **Real-time Events (BinkStream)**
 - Unread badge counts for echomail, netmail, files, and the file approval queue are now pushed from the server the moment something changes — no more client-side polling.
@@ -335,6 +341,28 @@ Additional echomail-only actions:
 
 - **Save for later** / **Remove from saved**
 - **Share** - opens the existing message-sharing dialog from the list view
+
+### Ignored Echomail Messages
+
+Echomail now supports per-user ignore rules for hiding messages from the reader and API responses.
+
+The echomail message list context menu includes **Ignore message**. Choosing it opens a dialog pre-filled from the selected message:
+
+- **Sender** - the exact sender name plus the sender's FTN node address
+- **Subject contains** - words from the selected subject line
+
+Ignore matching is done on the backend. A message is hidden only when all populated parts of the rule match:
+
+- `from_name` matches exactly
+- `from_address` matches exactly
+- `subject` contains the saved text
+
+If the **Subject contains** field is left blank, the rule hides all echomail from that sender identity regardless of subject.
+
+Two migrations support this feature:
+
+- `v1.11.0.61_echomail_ignore_rules.sql` - creates the ignore-rule storage table
+- `v1.11.0.62_echomail_ignore_rule_sender_address.sql` - extends matching to include sender node address and installs the final uniqueness rule
 
 ### Message Viewer: Raw Source Mode
 
@@ -605,6 +633,14 @@ User-uploaded files now support a moderation workflow.
 
 This change adds the migration `v1.11.0.52_file_upload_approval.sql`, which records approval and rejection metadata on the `files` table and adds an index for the pending queue.
 
+### ISO Mount Point Restriction
+
+When an ISO-backed file area is created or edited through the web interface or API, its mount point must now live under `data/iso_mounts`.
+
+This restriction applies only to values entered through the application UI and API. It is intended to keep browser-configured ISO mount paths inside the application's managed mount tree and prevent accidental references to arbitrary filesystem locations.
+
+If you intentionally use a custom external mount path for an ISO area, set that value directly in the database after the upgrade.
+
 ---
 
 ## Broadcast Manager
@@ -649,6 +685,12 @@ The Save button is hidden on the Account tab (which uses its own action buttons)
 ### Notification Sound Preview
 
 Each notification sound select box on the Notifications tab now has an adjacent **▶** button. Clicking it plays the currently selected sound so you can audition each option without saving.
+
+### Ignored Echomail Management
+
+The **Messaging** tab in `/settings` now includes an **Ignored Echomail** section at the bottom of the page, separated from the forward-to-email and digest settings.
+
+This section lists the user's saved echomail ignore rules and provides a remove action for each one, giving users a way to unhide messages by deleting the matching rule.
 
 ---
 
@@ -985,6 +1027,8 @@ php scripts/setup.php
 | `v1.11.0.57_sse_events_user_targeting.php` | SSE event targeting: `user_id` and `admin_only` columns; fat-payload chat trigger |
 | `v1.11.0.58_dashboard_stats_triggers.php` | DB triggers on `echomail`, `netmail`, `files` for `dashboard_stats` BinkStream push |
 | `v1.11.0.60_binkp_session_pid_log.sql` | Adds `process_id` and `log_file` to `binkp_session_log` for session-to-log correlation |
+| `v1.11.0.61_echomail_ignore_rules.sql` | Creates per-user echomail ignore-rule storage |
+| `v1.11.0.62_echomail_ignore_rule_sender_address.sql` | Extends ignore rules to match sender node address and installs the final uniqueness rule |
 
 **Optional `.env` additions:**
 

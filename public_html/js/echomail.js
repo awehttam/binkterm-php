@@ -105,6 +105,8 @@ $(document).ready(function() {
         hideKeyboardHelp();
     });
 
+    $('#ignoreMessageForm').on('submit', saveIgnoreMessageRule);
+
     // Add keyboard navigation for message modal
     $(document).on('keydown', function(e) {
         // Only handle keyboard shortcuts when the message modal is open
@@ -986,7 +988,7 @@ function changePage(page) {
 
 function showConversation(messageId) {
     currentConversationMessageId = messageId;
-    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    const selected = getCurrentMessageById(messageId);
     currentConversationSubject = selected && selected.subject ? selected.subject : '';
     loadMessages();
 }
@@ -995,6 +997,10 @@ function clearConversationView() {
     currentConversationMessageId = null;
     currentConversationSubject = '';
     loadMessages();
+}
+
+function getCurrentMessageById(messageId) {
+    return currentMessages.find(msg => Number(msg.id) === Number(messageId)) || null;
 }
 
 function openMessageContextMenu(event, messageId) {
@@ -1079,6 +1085,78 @@ function downloadMessageFromContextMenu() {
     const messageId = currentContextMenuMessageId;
     hideMessageContextMenu();
     window.location.href = `/api/messages/echomail/${messageId}/download`;
+}
+
+function openIgnoreMessageModalFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+
+    const messageId = currentContextMenuMessageId;
+    const message = getCurrentMessageById(messageId);
+    hideMessageContextMenu();
+
+    if (!message || message.type === 'file') {
+        showError(uiT('errors.messages.echomail.ignore.message_not_available', 'Unable to load the selected message'));
+        return;
+    }
+
+    const senderName = message.from_name || '';
+    const senderAddress = message.from_address || '';
+    const senderDisplay = senderAddress ? `${senderName} <${senderAddress}>` : senderName;
+
+    $('#ignoreMessageSender').val(senderName);
+    $('#ignoreMessageSenderAddress').val(senderAddress);
+    $('#ignoreMessageSenderDisplay').val(senderDisplay);
+    $('#ignoreMessageSubjectContains').val(message.subject || '');
+    $('#ignoreMessageModal').data('message-id', messageId).modal('show');
+}
+
+function saveIgnoreMessageRule(event) {
+    event.preventDefault();
+
+    const senderName = String($('#ignoreMessageSender').val() || '').trim();
+    const senderAddress = String($('#ignoreMessageSenderAddress').val() || '').trim();
+    const subjectContains = String($('#ignoreMessageSubjectContains').val() || '').trim();
+    const submitButton = $('#ignoreMessageSubmitButton');
+
+    if (!senderName) {
+        showError(uiT('errors.messages.echomail.ignore.invalid_input', 'Sender name is required'));
+        return;
+    }
+
+    submitButton.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.common.saving', 'Saving...')}`);
+
+    $.ajax({
+        url: '/api/messages/echomail/ignore-rules',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            sender_name: senderName,
+            sender_address: senderAddress,
+            subject_contains: subjectContains
+        }),
+        success: function(response) {
+            submitButton.prop('disabled', false).html(`<i class="fas fa-eye-slash me-1"></i>${uiT('ui.echomail.ignore.save_button', 'Ignore message')}`);
+
+            if (!response || !response.success) {
+                showError(apiError(response, uiT('errors.messages.echomail.ignore.save_failed', 'Failed to save ignore rule')));
+                return;
+            }
+
+            $('#ignoreMessageModal').modal('hide');
+            showSuccess(
+                window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.echomail.ignore.saved', 'Messages from {sender} with matching subject text will now be hidden', { sender: senderName }))
+                    : uiT('ui.echomail.ignore.saved', 'Messages from {sender} with matching subject text will now be hidden', { sender: senderName })
+            );
+            loadMessages();
+        },
+        error: function(xhr) {
+            submitButton.prop('disabled', false).html(`<i class="fas fa-eye-slash me-1"></i>${uiT('ui.echomail.ignore.save_button', 'Ignore message')}`);
+            showError(apiError(xhr.responseJSON || {}, uiT('errors.messages.echomail.ignore.save_failed', 'Failed to save ignore rule')));
+        }
+    });
 }
 
 function shareMessageFromContextMenu() {

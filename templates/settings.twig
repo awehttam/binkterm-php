@@ -283,6 +283,16 @@
                             <div class="form-text">{{ t('ui.settings.echomail_digest_help', {}, locale, ['common']) }}</div>
                         </div>
                         {% endif %}
+
+                        <hr class="mt-4 mb-3">
+
+                        <div class="mb-0">
+                            <label class="form-label">{{ t('ui.settings.echomail_ignore_rules.title', {}, locale, ['common']) }}</label>
+                            <div class="form-text mb-3">{{ t('ui.settings.echomail_ignore_rules.help', {}, locale, ['common']) }}</div>
+                            <div id="echomailIgnoreRulesList">
+                                <div class="text-muted">{{ t('ui.settings.echomail_ignore_rules.loading', {}, locale, ['common']) }}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -536,6 +546,7 @@ function uiT(key, fallback, params = {}) {
 
 $(document).ready(function() {
     loadSettings();
+    loadEchomailIgnoreRules();
 
     // Restore last active tab
     const savedTab = localStorage.getItem('settingsActiveTab');
@@ -646,6 +657,86 @@ function loadSettings() {
         .fail(function() {
             console.log(uiT('ui.settings.load_failed_console', 'Failed to load settings'));
         });
+}
+
+function loadEchomailIgnoreRules() {
+    const container = $('#echomailIgnoreRulesList');
+    container.html(`<div class="text-muted"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.settings.echomail_ignore_rules.loading', 'Loading ignore rules...')}</div>`);
+
+    $.get('/api/user/echomail-ignore-rules')
+        .done(function(response) {
+            const rules = Array.isArray(response.rules) ? response.rules : [];
+
+            if (rules.length === 0) {
+                container.html(`<div class="text-muted">${uiT('ui.settings.echomail_ignore_rules.empty', 'No echomail ignore rules saved.')}</div>`);
+                return;
+            }
+
+            let html = '<div class="list-group">';
+            rules.forEach(function(rule) {
+                const senderDisplay = rule.sender_address
+                    ? `${escapeHtml(rule.sender_name)} &lt;${escapeHtml(rule.sender_address)}&gt;`
+                    : escapeHtml(rule.sender_name);
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div><strong>${senderDisplay}</strong></div>
+                                <div class="text-muted small">${uiT('ui.settings.echomail_ignore_rules.subject_contains_prefix', 'Subject contains:')} ${escapeHtml(rule.subject_contains || '')}</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteEchomailIgnoreRule(${Number(rule.id)})">
+                                <i class="fas fa-trash me-1"></i>${uiT('ui.settings.echomail_ignore_rules.remove', 'Remove')}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.html(html);
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('ui.settings.echomail_ignore_rules.load_failed', 'Failed to load ignore rules'))
+                : uiT('ui.settings.echomail_ignore_rules.load_failed', 'Failed to load ignore rules');
+            container.html(`<div class="text-danger">${escapeHtml(error)}</div>`);
+        });
+}
+
+function deleteEchomailIgnoreRule(ruleId) {
+    if (!confirm(uiT('ui.settings.echomail_ignore_rules.remove_confirm', 'Remove this echomail ignore rule?'))) {
+        return;
+    }
+
+    $.ajax({
+        url: `/api/user/echomail-ignore-rules/${encodeURIComponent(ruleId)}`,
+        method: 'DELETE',
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.echomail.ignore.removed', 'Ignore rule removed'))
+                : uiT('ui.echomail.ignore.removed', 'Ignore rule removed');
+            $('#settingsStatus').show().html(`
+                <div class="alert alert-success">
+                    <i class="fas fa-check me-2"></i>
+                    ${escapeHtml(successMessage)}
+                </div>
+            `);
+            loadEchomailIgnoreRules();
+            setTimeout(function() {
+                $('#settingsStatus').fadeOut();
+            }, 3000);
+        },
+        error: function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found'))
+                : uiT('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found');
+            $('#settingsStatus').show().html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${escapeHtml(error)}
+                </div>
+            `);
+        }
+    });
 }
 
 

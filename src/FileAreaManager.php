@@ -40,6 +40,62 @@ class FileAreaManager
         $this->db = Database::getInstance()->getPdo();
     }
 
+    /**
+     * Returns the allowed base directory for ISO mount points configured via the UI/API.
+     */
+    private function getAllowedIsoMountBase(): string
+    {
+        $base = realpath(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'iso_mounts');
+        if ($base === false) {
+            $base = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'iso_mounts';
+        }
+
+        return $this->normalizeFilesystemPath($base);
+    }
+
+    /**
+     * Normalize a filesystem path for reliable prefix comparisons.
+     */
+    private function normalizeFilesystemPath(string $path): string
+    {
+        $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, trim($path));
+        $path = rtrim($path, DIRECTORY_SEPARATOR);
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $path = strtolower($path);
+        }
+
+        return $path;
+    }
+
+    /**
+     * Restrict UI/API configurable ISO mount points to data/iso_mounts.
+     *
+     * Admins who need custom locations can still edit the database directly.
+     */
+    private function validateIsoMountPointFromUi(?string $mountPoint): ?string
+    {
+        if ($mountPoint === null) {
+            return null;
+        }
+
+        $mountPoint = trim($mountPoint);
+        if ($mountPoint === '') {
+            return null;
+        }
+
+        $allowedBase = $this->getAllowedIsoMountBase();
+        $resolvedMount = realpath($mountPoint);
+        $normalizedMount = $this->normalizeFilesystemPath($resolvedMount !== false ? $resolvedMount : $mountPoint);
+
+        $allowedPrefix = $allowedBase . DIRECTORY_SEPARATOR;
+        if ($normalizedMount !== $allowedBase && !str_starts_with($normalizedMount, $allowedPrefix)) {
+            throw new \Exception('ISO mount point must be inside data/iso_mounts');
+        }
+
+        return $mountPoint;
+    }
+
     private function isFreqExperimentalEnabled(): bool
     {
         return Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true';
@@ -985,7 +1041,9 @@ class FileAreaManager
 
         // ISO fields
         $areaType      = in_array($data['area_type'] ?? 'normal', ['normal', 'iso']) ? ($data['area_type'] ?? 'normal') : 'normal';
-        $isoMountPoint = $areaType === 'iso' ? (trim($data['iso_mount_point'] ?? '') ?: null) : null;
+        $isoMountPoint = $areaType === 'iso'
+            ? $this->validateIsoMountPointFromUi(trim($data['iso_mount_point'] ?? '') ?: null)
+            : null;
         // Force read-only for ISO areas
         if ($areaType === 'iso') {
             $uploadPermission = self::UPLOAD_READ_ONLY;
@@ -1078,7 +1136,7 @@ class FileAreaManager
             : 'normal';
 
         $manualMountPoint = $areaType === 'iso' && array_key_exists('iso_mount_point', $data)
-            ? (trim($data['iso_mount_point'] ?? '') ?: null)
+            ? $this->validateIsoMountPointFromUi(trim($data['iso_mount_point'] ?? '') ?: null)
             : null; // null = not supplied, don't touch existing value
 
         // Force read-only for ISO areas

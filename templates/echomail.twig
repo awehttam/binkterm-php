@@ -376,6 +376,9 @@
     <button type="button" class="dropdown-item" onclick="downloadMessageFromContextMenu()">
         <i class="fas fa-download me-2"></i>{{ t('ui.common.download_message', {}, locale, ['common']) }}
     </button>
+    <button type="button" class="dropdown-item" onclick="openIgnoreMessageModalFromContextMenu()">
+        <i class="fas fa-eye-slash me-2"></i>{{ t('ui.echomail.ignore.open_action', {}, locale, ['common']) }}
+    </button>
     <button type="button" class="dropdown-item" onclick="shareMessageFromContextMenu()">
         <i class="fas fa-share-alt me-2"></i>{{ t('ui.common.share', {}, locale, ['common']) }}
     </button>
@@ -384,6 +387,38 @@
         <i class="fas fa-envelope me-2"></i>{{ t('ui.common.forward_to_me_by_email', {}, locale, ['common']) }}
     </button>
     {% endif %}
+</div>
+
+<div class="modal fade" id="ignoreMessageModal" tabindex="-1" aria-labelledby="ignoreMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="ignoreMessageForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ignoreMessageModalLabel">{{ t('ui.echomail.ignore.modal_title', {}, locale, ['common']) }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">{{ t('ui.echomail.ignore.help', {}, locale, ['common']) }}</p>
+                    <div class="mb-3">
+                        <label for="ignoreMessageSenderDisplay" class="form-label">{{ t('ui.echomail.ignore.sender_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="ignoreMessageSenderDisplay" maxlength="255" readonly>
+                        <input type="hidden" id="ignoreMessageSender" name="sender_name">
+                        <input type="hidden" id="ignoreMessageSenderAddress" name="sender_address">
+                    </div>
+                    <div class="mb-0">
+                        <label for="ignoreMessageSubjectContains" class="form-label">{{ t('ui.echomail.ignore.subject_contains_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="ignoreMessageSubjectContains" name="subject_contains" maxlength="255">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                    <button type="submit" class="btn btn-warning" id="ignoreMessageSubmitButton">
+                        <i class="fas fa-eye-slash me-1"></i>{{ t('ui.echomail.ignore.save_button', {}, locale, ['common']) }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- Message View Modal -->

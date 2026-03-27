@@ -47,6 +47,140 @@ class MessageHandler
         return self::ECHOMAIL_DATE_FIELD_DEFAULT;
     }
 
+    /**
+     * Builds the SQL fragment used to hide echomail messages ignored by a user.
+     *
+     * @param int|null $userId
+     * @param string $messageAlias
+     * @return array{sql:string,params:array<int,int>}
+     */
+    public function buildEchomailIgnoreFilter(?int $userId, string $messageAlias = 'em'): array
+    {
+        if (empty($userId)) {
+            return ['sql' => '', 'params' => []];
+        }
+
+        return [
+            'sql' => " AND NOT EXISTS (
+                SELECT 1
+                FROM user_echomail_ignore_rules ueir
+                WHERE ueir.user_id = ?
+                  AND ueir.sender_name = {$messageAlias}.from_name
+                  AND COALESCE(ueir.sender_address, '') = COALESCE({$messageAlias}.from_address, '')
+                  AND (
+                      ueir.subject_contains = ''
+                      OR POSITION(LOWER(ueir.subject_contains) IN LOWER(COALESCE({$messageAlias}.subject, ''))) > 0
+                  )
+            )",
+            'params' => [(int)$userId]
+        ];
+    }
+
+    /**
+     * Creates or updates an echomail ignore rule for a user.
+     */
+    public function createEchomailIgnoreRule(int $userId, string $senderName, string $senderAddress, string $subjectContains): bool
+    {
+        $senderName = trim($senderName);
+        $senderAddress = trim($senderAddress);
+        $subjectContains = trim($subjectContains);
+
+        if ($userId <= 0 || $senderName === '') {
+            return false;
+        }
+
+        $updateLegacyStmt = $this->db->prepare("
+            UPDATE user_echomail_ignore_rules
+            SET sender_address = ?
+            WHERE user_id = ?
+              AND sender_name = ?
+              AND subject_contains = ?
+            RETURNING id
+        ");
+        $updateLegacyStmt->execute([$senderAddress, $userId, $senderName, $subjectContains]);
+        $legacyRow = $updateLegacyStmt->fetch(\PDO::FETCH_ASSOC);
+        if ($legacyRow) {
+            return true;
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO user_echomail_ignore_rules (user_id, sender_name, sender_address, subject_contains)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT (user_id, sender_name, sender_address, subject_contains)
+            DO UPDATE SET sender_name = EXCLUDED.sender_name
+            RETURNING id
+        ");
+        $stmt->execute([$userId, $senderName, $senderAddress, $subjectContains]);
+
+        return (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Checks whether a single echomail message is hidden by an ignore rule.
+     */
+    public function isEchomailIgnoredForUser(int $userId, string $senderName, string $senderAddress, string $subject): bool
+    {
+        if ($userId <= 0 || $senderName === '') {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM user_echomail_ignore_rules
+            WHERE user_id = ?
+              AND sender_name = ?
+              AND COALESCE(sender_address, '') = COALESCE(?, '')
+              AND (
+                  subject_contains = ''
+                  OR POSITION(LOWER(subject_contains) IN LOWER(COALESCE(?, ''))) > 0
+              )
+            LIMIT 1
+        ");
+        $stmt->execute([$userId, $senderName, $senderAddress, $subject]);
+
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Lists saved echomail ignore rules for a user.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function getEchomailIgnoreRules(int $userId): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id, sender_name, sender_address, subject_contains, created_at
+            FROM user_echomail_ignore_rules
+            WHERE user_id = ?
+            ORDER BY created_at DESC, id DESC
+        ");
+        $stmt->execute([$userId]);
+
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Deletes an echomail ignore rule owned by a user.
+     */
+    public function deleteEchomailIgnoreRule(int $userId, int $ruleId): bool
+    {
+        if ($userId <= 0 || $ruleId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            DELETE FROM user_echomail_ignore_rules
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([$ruleId, $userId]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
@@ -289,6 +423,8 @@ class MessageHandler
         }
         // Hide future-dated messages until their date_written has passed
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         $dateField = $this->getEchomailDateField();
 
@@ -327,6 +463,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             if (!empty($domain)) {
                 $params[] = $domain;
             }
@@ -344,6 +483,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             if (!empty($domain)) {
@@ -373,6 +515,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -386,6 +531,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
@@ -403,11 +551,14 @@ class MessageHandler
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE ea.tag = ? AND mrs.read_at IS NULL AND {$domainCondition}
-                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
                 ");
                 $unreadParams = [$userId, $echoareaTag];
                 if (!empty($domain)) {
                     $unreadParams[] = $domain;
+                }
+                foreach ($ignoreFilter['params'] as $param) {
+                    $unreadParams[] = $param;
                 }
                 $unreadCountStmt->execute($unreadParams);
             } else {
@@ -415,9 +566,13 @@ class MessageHandler
                     SELECT COUNT(*) as count FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE mrs.read_at IS NULL
-                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
                 ");
-                $unreadCountStmt->execute([$userId]);
+                $unreadParams = [$userId];
+                foreach ($ignoreFilter['params'] as $param) {
+                    $unreadParams[] = $param;
+                }
+                $unreadCountStmt->execute($unreadParams);
             }
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
@@ -494,6 +649,8 @@ class MessageHandler
         }
         // Hide future-dated messages until their date_written has passed
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -533,6 +690,9 @@ class MessageHandler
         foreach ($filterParams as $param) {
             $params[] = $param;
         }
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
         $params[] = $limit;
         $params[] = $offset;
         
@@ -553,6 +713,9 @@ class MessageHandler
         foreach ($filterParams as $param) {
             $countParams[] = $param;
         }
+        foreach ($ignoreFilter['params'] as $param) {
+            $countParams[] = $param;
+        }
         
         $countStmt->execute($countParams);
         $total = $countStmt->fetch()['total'];
@@ -565,10 +728,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE AND mrs.read_at IS NULL
-                  AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+                  AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
             ");
             $unreadParams = [$userId];
             $unreadParams = array_merge($unreadParams, $echoareaIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $unreadParams[] = $param;
+            }
             $unreadCountStmt->execute($unreadParams);
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
@@ -661,6 +827,7 @@ class MessageHandler
             $filterClause = ' AND sav.id IS NOT NULL';
         }
 
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
         $sysopClause  = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
         $echoPH       = implode(',', array_fill(0, count($echoareaIds), '?'));
         $dateField    = $this->getEchomailDateField();
@@ -719,7 +886,7 @@ class MessageHandler
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                     LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}
 
                     UNION ALL
 
@@ -761,6 +928,9 @@ class MessageHandler
 
             $params = [$userId, $userId, $userId];
             $params = array_merge($params, $echoareaIds, $fileareaIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -773,7 +943,7 @@ class MessageHandler
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}
                     UNION ALL
                     SELECT f.id
                     FROM files f
@@ -785,6 +955,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId];
             $countParams = array_merge($countParams, $echoareaIds, $fileareaIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
             $countStmt->execute($countParams);
             $total = $countStmt->fetch()['total'];
         } else {
@@ -812,13 +985,16 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
 
             $params = [$userId, $userId, $userId];
             $params = array_merge($params, $echoareaIds, $filterParams);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -829,10 +1005,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}
             ");
             $countParams = [$userId, $userId];
             $countParams = array_merge($countParams, $echoareaIds, $filterParams);
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
             $countStmt->execute($countParams);
             $total = $countStmt->fetch()['total'];
         }
@@ -841,10 +1020,13 @@ class MessageHandler
             SELECT COUNT(*) as count FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
+            WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL{$ignoreFilter['sql']}
         ");
         $unreadParams = [$userId];
         $unreadParams = array_merge($unreadParams, $echoareaIds);
+        foreach ($ignoreFilter['params'] as $param) {
+            $unreadParams[] = $param;
+        }
         $unreadStmt->execute($unreadParams);
         $unreadCount = $unreadStmt->fetch()['count'];
 
@@ -962,6 +1144,7 @@ class MessageHandler
             }
         } else {
             // Echomail is public, so no user restriction needed
+            $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
             $stmt = $this->db->prepare("
                 SELECT em.*,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
@@ -972,9 +1155,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                WHERE em.id = ?
+                WHERE em.id = ?{$ignoreFilter['sql']}
             ");
-            $stmt->execute([$userId, $userId, $messageId]);
+            $params = [$userId, $userId, $messageId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            $stmt->execute($params);
         }
         
         $message = $stmt->fetch();
@@ -4714,6 +4901,8 @@ class MessageHandler
         }
         // Hide future-dated messages until their date_written has passed
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -4753,6 +4942,9 @@ class MessageHandler
         $params = [$userId, $userId, $userId];
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
+            $params[] = $param;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
             $params[] = $param;
         }
         $params[] = $limit;
@@ -4796,6 +4988,9 @@ class MessageHandler
         $countParams = [$userId, $userId];
         $countParams = array_merge($countParams, $echoareaIds);
         foreach ($filterParams as $param) {
+            $countParams[] = $param;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
             $countParams[] = $param;
         }
         
@@ -4874,6 +5069,8 @@ class MessageHandler
         }
         // Hide future-dated messages until their date_written has passed
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         // First, get the total count of root messages (threads) for pagination
         $totalThreads = 0;
@@ -4891,6 +5088,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
             if (!empty($domain)) {
                 $countParams[] = $domain;
             }
@@ -4906,6 +5106,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
@@ -4948,6 +5151,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             if (!empty($domain)) {
                 $params[] = $domain;
             }
@@ -4976,6 +5182,9 @@ class MessageHandler
             ");
             $params = [$userId, $userId, $userId];
             foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
             }
             $params[] = $limit;
@@ -5055,6 +5264,7 @@ class MessageHandler
 
         while (!empty($currentLevelIds) && $depth < $maxDepth) {
             $placeholders = implode(',', array_fill(0, count($currentLevelIds), '?'));
+            $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
 
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
@@ -5070,11 +5280,14 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE em.reply_to_id IN ({$placeholders})
+                WHERE em.reply_to_id IN ({$placeholders}){$ignoreFilter['sql']}
             ");
 
             $params = [$userId, $userId, $userId];
             $params = array_merge($params, $currentLevelIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $stmt->execute($params);
 
             $children = $stmt->fetchAll();

@@ -5348,6 +5348,106 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::post('/messages/echomail/ignore-rules', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $senderName = trim((string)($input['sender_name'] ?? ''));
+        $senderAddress = trim((string)($input['sender_address'] ?? ''));
+        $subjectContains = trim((string)($input['subject_contains'] ?? ''));
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        if ($senderName === '') {
+            http_response_code(400);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_input',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_input', 'Sender name is required', $user)
+            );
+            return;
+        }
+
+        if (mb_strlen($senderName) > 255 || mb_strlen($subjectContains) > 255) {
+            http_response_code(400);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_input',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_input', 'Sender name is required', $user)
+            );
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $saved = $handler->createEchomailIgnoreRule($userId, $senderName, $senderAddress, $subjectContains);
+
+        if (!$saved) {
+            http_response_code(500);
+            apiError(
+                'errors.messages.echomail.ignore.save_failed',
+                apiLocalizedText('errors.messages.echomail.ignore.save_failed', 'Failed to save ignore rule', $user)
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.echomail.ignore.saved',
+            'message_params' => [
+                'sender' => $senderName
+            ]
+        ]);
+    });
+
+    SimpleRouter::get('/user/echomail-ignore-rules', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $handler = new MessageHandler();
+        $rules = $handler->getEchomailIgnoreRules($userId);
+
+        echo json_encode([
+            'success' => true,
+            'rules' => $rules
+        ]);
+    });
+
+    SimpleRouter::delete('/user/echomail-ignore-rules/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $ruleId = (int)$id;
+
+        if ($ruleId <= 0) {
+            http_response_code(400);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_rule',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found', $user)
+            );
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $deleted = $handler->deleteEchomailIgnoreRule($userId, $ruleId);
+
+        if (!$deleted) {
+            http_response_code(404);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_rule',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found', $user)
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.echomail.ignore.removed'
+        ]);
+    })->where(['id' => '[0-9]+']);
+
     // Echomail statistics endpoints - must come before parameterized routes
     SimpleRouter::get('/messages/echomail/stats', function() {
         $user = RouteHelper::requireAuth();
@@ -5358,14 +5458,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
+        $handler = new MessageHandler();
+        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
         // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
-        $totalStmt->execute([$userId]);
+        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}{$ignoreFilter['sql']}");
+        $totalParams = [$userId];
+        foreach ($ignoreFilter['params'] as $param) {
+            $totalParams[] = $param;
+        }
+        $totalStmt->execute($totalParams);
         $total = $totalStmt->fetch()['count'];
 
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
-        $recentStmt->execute([$userId]);
+        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}{$ignoreFilter['sql']}");
+        $recentParams = [$userId];
+        foreach ($ignoreFilter['params'] as $param) {
+            $recentParams[] = $param;
+        }
+        $recentStmt->execute($recentParams);
         $recent = $recentStmt->fetch()['count'];
 
         $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
@@ -5391,9 +5501,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}{$ignoreFilter['sql']}
             ");
-            $unreadStmt->execute([$userId, $userId]);
+            $unreadParams = [$userId, $userId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $unreadParams[] = $param;
+            }
+            $unreadStmt->execute($unreadParams);
             $unreadCount = $unreadStmt->fetch()['count'];
 
             // Read count
@@ -5402,9 +5516,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
             ");
-            $readStmt->execute([$userId, $userId]);
+            $readParams = [$userId, $userId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $readParams[] = $param;
+            }
+            $readStmt->execute($readParams);
             $readCount = $readStmt->fetch()['count'];
 
             // To Me count
@@ -5413,9 +5531,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
+                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}{$ignoreFilter['sql']}
                 ");
-                $toMeStmt->execute([$userId, $userInfo['username'], $userInfo['real_name']]);
+                $toMeParams = [$userId, $userInfo['username'], $userInfo['real_name']];
+                foreach ($ignoreFilter['params'] as $param) {
+                    $toMeParams[] = $param;
+                }
+                $toMeStmt->execute($toMeParams);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
 
@@ -5425,9 +5547,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
             ");
-            $savedStmt->execute([$userId, $userId]);
+            $savedParams = [$userId, $userId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $savedParams[] = $param;
+            }
+            $savedStmt->execute($savedParams);
             $savedCount = $savedStmt->fetch()['count'];
         }
 
@@ -5468,6 +5594,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
+        $handler = new MessageHandler();
+        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
         if (!$isAdmin && $userId) {
             $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
@@ -5494,11 +5622,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                    COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ? AND {$domainCondition}
+            WHERE ea.tag = ? AND {$domainCondition}{$ignoreFilter['sql']}
         ");
         $params = [$echoarea];
         if (!empty($domain)) {
             $params[] = $domain;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
         }
         $stmt->execute($params);
         $stats = $stmt->fetch();
@@ -5521,10 +5652,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL{$ignoreFilter['sql']}
             ");
             $unreadParams = [$userId, $echoarea];
             if (!empty($domain)) $unreadParams[] = $domain;
+            foreach ($ignoreFilter['params'] as $param) {
+                $unreadParams[] = $param;
+            }
             $unreadStmt->execute($unreadParams);
             $unreadCount = $unreadStmt->fetch()['count'];
 
@@ -5533,10 +5667,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL{$ignoreFilter['sql']}
             ");
             $readParams = [$userId, $echoarea];
             if (!empty($domain)) $readParams[] = $domain;
+            foreach ($ignoreFilter['params'] as $param) {
+                $readParams[] = $param;
+            }
             $readStmt->execute($readParams);
             $readCount = $readStmt->fetch()['count'];
 
@@ -5545,12 +5682,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $toMeStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$ignoreFilter['sql']}
                 ");
                 $toMeParams = [$echoarea];
                 if (!empty($domain)) $toMeParams[] = $domain;
                 $toMeParams[] = $userInfo['username'];
                 $toMeParams[] = $userInfo['real_name'];
+                foreach ($ignoreFilter['params'] as $param) {
+                    $toMeParams[] = $param;
+                }
                 $toMeStmt->execute($toMeParams);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
@@ -5560,10 +5700,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL{$ignoreFilter['sql']}
             ");
             $savedParams = [$userId, $echoarea];
             if (!empty($domain)) $savedParams[] = $domain;
+            foreach ($ignoreFilter['params'] as $param) {
+                $savedParams[] = $param;
+            }
             $savedStmt->execute($savedParams);
             $savedCount = $savedStmt->fetch()['count'];
         }
