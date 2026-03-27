@@ -87,6 +87,35 @@ class Advertising
     }
 
     /**
+     * @return array<string, string>
+     */
+    private static function getWhitelistedContentCommandAliases(): array
+    {
+        $aliases = [];
+        foreach ([
+            'scripts/weather_report.php',
+            'scripts/report_newfiles.php',
+            'scripts/generate_ad.php',
+        ] as $path) {
+            $aliases[$path] = $path;
+            $aliases[basename($path)] = $path;
+        }
+
+        return $aliases;
+    }
+
+    private static function normalizeContentCommandScript(string $script): string
+    {
+        $script = trim($script);
+        if ($script === '') {
+            return '';
+        }
+
+        $aliases = self::getWhitelistedContentCommandAliases();
+        return $aliases[$script] ?? $script;
+    }
+
+    /**
      * Return true if the given content command value is allowed.
      *
      * The value may include arguments after the script path, e.g.:
@@ -122,6 +151,7 @@ class Advertising
 
         // Extract the script path — the first whitespace-delimited token
         $script = preg_split('/\s+/', trim($cmd), 2)[0];
+        $script = self::normalizeContentCommandScript($script);
 
         // Reject absolute paths and directory traversal in the script portion
         if (str_starts_with($script, '/') || str_contains($script, '..')) {
@@ -129,11 +159,7 @@ class Advertising
         }
 
         // Whitelisted exact relative paths
-        $whitelist = [
-            'scripts/weather_report.php',
-            'scripts/report_newfiles.php',
-            'scripts/generate_ad.php',
-        ];
+        $whitelist = array_values(array_unique(self::getWhitelistedContentCommandAliases()));
         if (in_array($script, $whitelist, true)) {
             return true;
         }
@@ -1970,7 +1996,7 @@ class Advertising
 
         // Split into script path and optional arguments
         $parts = preg_split('/\s+/', trim($command), 2);
-        $script  = $parts[0];
+        $script  = self::normalizeContentCommandScript((string)$parts[0]);
         $rawArgs = isset($parts[1]) ? trim($parts[1]) : '';
 
         // Resolve the script to an absolute path
