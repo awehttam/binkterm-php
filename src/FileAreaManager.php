@@ -155,7 +155,7 @@ class FileAreaManager
                        max_file_size, allowed_extensions, blocked_extensions,
                        replace_existing, allow_duplicate_hash, upload_permission,
                        scan_virus, file_count, total_size, created_at, updated_at,
-                       gemini_public, freq_enabled
+                       gemini_public, is_public, freq_enabled
                 FROM file_areas WHERE 1=1";
         $params = [];
 
