@@ -2319,7 +2319,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // File Areas API routes
     SimpleRouter::get('/fileareas', function() {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         header('Content-Type: application/json');
 
@@ -2327,7 +2328,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filter = $_GET['filter'] ?? 'active';
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
-        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
+        $publicOnly = !$user;
+        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin, $publicOnly);
         foreach ($fileareas as &$fa) {
             if (($fa['area_type'] ?? '') === 'iso') {
                 $mp = $fa['iso_mount_point'] ?? '';
@@ -2501,12 +2503,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/fileareas/stats', function() {
-        RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         header('Content-Type: application/json');
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $stats = $manager->getStats();
+        $stats = $manager->getStats(!$user);
 
         echo json_encode($stats);
     });
@@ -2664,7 +2667,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/files/recent', function() {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -2676,7 +2680,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $limit = min((int)($_GET['limit'] ?? 25), 50);
         $manager = new \BinktermPHP\FileAreaManager();
-        $files = $manager->getRecentFiles($limit);
+        $files = $manager->getRecentFiles($limit, !$user);
 
         echo json_encode(['files' => $files]);
     });
@@ -2709,7 +2713,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * Requires authentication. Returns up to 100 results ordered by area tag and filename.
      */
     SimpleRouter::get('/files/search', function() {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -2728,6 +2733,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db      = \BinktermPHP\Database::getInstance()->getPdo();
         $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
         $isAdmin = !empty($user['is_admin']);
+        $isGuest = !$user;
 
         // Build accessible-area conditions:
         // - Area must be active
@@ -2739,6 +2745,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $areaConditions .= " OR fa.tag = " . $db->quote($privateTag);
         }
         $areaConditions .= ")";
+        if ($isGuest) {
+            $areaConditions .= " AND fa.is_public = TRUE";
+        }
 
         $sql = "
             SELECT

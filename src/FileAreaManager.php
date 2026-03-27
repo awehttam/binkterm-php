@@ -149,7 +149,7 @@ class FileAreaManager
      * @param bool $isAdmin Whether the user is an admin (admins see all areas)
      * @return array Array of file areas
      */
-    public function getFileAreas(string $filter = 'active', ?int $userId = null, bool $isAdmin = false): array
+    public function getFileAreas(string $filter = 'active', ?int $userId = null, bool $isAdmin = false, bool $publicOnly = false): array
     {
         $sql = "SELECT id, tag, description, domain, is_local, is_active,
                        max_file_size, allowed_extensions, blocked_extensions,
@@ -169,6 +169,10 @@ class FileAreaManager
         // Private areas are system-managed (e.g., netmail attachments)
         // Users can still access their files via direct download links
         $sql .= " AND (is_private = FALSE OR is_private IS NULL)";
+
+        if ($publicOnly) {
+            $sql .= " AND is_public = TRUE";
+        }
 
         $sql .= " ORDER BY tag ASC";
 
@@ -1263,11 +1267,21 @@ class FileAreaManager
      *
      * @return array Statistics array with active_count, total_files, total_size
      */
-    public function getStats(): array
+    public function getStats(bool $publicOnly = false): array
     {
-        $activeCount = $this->db->query("SELECT COUNT(*) as count FROM file_areas WHERE is_active = TRUE")->fetch()['count'];
-        $totalFiles = $this->db->query("SELECT SUM(file_count) as count FROM file_areas")->fetch()['count'] ?? 0;
-        $totalSize = $this->db->query("SELECT SUM(total_size) as size FROM file_areas")->fetch()['size'] ?? 0;
+        if ($publicOnly) {
+            $where = "WHERE is_active = TRUE AND is_public = TRUE AND (is_private = FALSE OR is_private IS NULL)";
+            $activeStmt = $this->db->query("SELECT COUNT(*) as count FROM file_areas {$where}");
+            $totalsStmt = $this->db->query("SELECT SUM(file_count) as count, SUM(total_size) as size FROM file_areas {$where}");
+            $activeCount = $activeStmt->fetch()['count'];
+            $totals = $totalsStmt->fetch();
+            $totalFiles = $totals['count'] ?? 0;
+            $totalSize = $totals['size'] ?? 0;
+        } else {
+            $activeCount = $this->db->query("SELECT COUNT(*) as count FROM file_areas WHERE is_active = TRUE")->fetch()['count'];
+            $totalFiles = $this->db->query("SELECT SUM(file_count) as count FROM file_areas")->fetch()['count'] ?? 0;
+            $totalSize = $this->db->query("SELECT SUM(total_size) as size FROM file_areas")->fetch()['size'] ?? 0;
+        }
 
         return [
             'active_count' => (int)$activeCount,
@@ -1293,7 +1307,7 @@ class FileAreaManager
      * @param int $limit Maximum rows to return
      * @return array
      */
-    public function getRecentFiles(int $limit = 25): array
+    public function getRecentFiles(int $limit = 25, bool $publicOnly = false): array
     {
         $sharedJoin = "
             LEFT JOIN shared_files sf ON sf.file_id = f.id
@@ -1304,6 +1318,11 @@ class FileAreaManager
             AND fa.is_active = TRUE
             AND (fa.is_private = FALSE OR fa.is_private IS NULL)
         ";
+        if ($publicOnly) {
+            $areaFilter .= "
+            AND fa.is_public = TRUE
+        ";
+        }
 
         $stmt = $this->db->prepare("
             WITH regular AS (

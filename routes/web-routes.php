@@ -1122,19 +1122,10 @@ SimpleRouter::get('/public-files', function() {
         return;
     }
 
-    $db   = \BinktermPHP\Database::getInstance()->getPdo();
-    $stmt = $db->query("
-        SELECT id, tag, description, domain, is_active,
-               (SELECT COUNT(*) FROM files f WHERE f.file_area_id = fa.id AND f.status = 'approved') AS file_count
-        FROM file_areas fa
-        WHERE is_public = TRUE AND is_private = FALSE AND is_active = TRUE
-        ORDER BY tag ASC
-    ");
-    $publicAreas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
     $template = new Template();
-    $template->renderResponse('public_files.twig', [
-        'public_areas' => $publicAreas,
+    $template->renderResponse('files.twig', [
+        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'is_public_index'     => true,
     ]);
 });
 

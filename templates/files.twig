@@ -52,8 +52,7 @@
         </div>
     </div>
 
-    <!-- File Areas sidebar (hidden for guests on public areas) -->
-    {% if current_user or not (is_public_area is defined and is_public_area) %}
+    <!-- File Areas sidebar -->
     <div class="col-lg-3 order-1 order-lg-2">
         <div class="card mb-3">
             <div class="card-header">
@@ -110,10 +109,8 @@
             </div>
         </div>
     </div>
-    {% endif %}{# end sidebar guard for guests on public areas #}
 
     <!-- Statistics (mobile only - at bottom) -->
-    {% if current_user or not (is_public_area is defined and is_public_area) %}
     <div class="col-12 d-lg-none order-3">
         <div class="card">
             <div class="card-header">
@@ -133,7 +130,6 @@
             </div>
         </div>
     </div>
-    {% endif %}{# end mobile stats guard #}
 </div>
 
 <!-- File Preview Modal -->
@@ -552,24 +548,12 @@ function canDeleteFileRecord(file) {
 }
 
 const isPublicAreaGuest = {{ (is_public_area is defined and is_public_area and not current_user) ? 'true' : 'false' }};
-const guestPublicArea   = {{ (is_public_area is defined and is_public_area and initial_area is defined and initial_area) ? initial_area|json_encode|raw : 'null' }};
+const guestIndexPath = {{ current_user ? '"/files"' : '"/public-files"' }};
 
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
-        if (isPublicAreaGuest && guestPublicArea) {
-            // Guest on a public area: load files directly without calling /api/fileareas
-            allFileAreas = [guestPublicArea];
-            currentAreaId = guestPublicArea.id;
-            const displayTag = escapeHtml(guestPublicArea.tag);
-            $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
-            if (guestPublicArea.description) {
-                $('#currentAreaMeta').html(`<small class="text-muted">${escapeHtml(guestPublicArea.description)}</small>`).show();
-            }
-            loadFiles(guestPublicArea.id, null);
-        } else {
-            loadFileAreas();
-            loadStats();
-        }
+        loadFileAreas();
+        loadStats();
     });
 
     $('#searchFiles').on('input', function() {
@@ -680,9 +664,9 @@ function displayRecentFiles(files) {
     $('#currentAreaTitle').html(`<i class="fas fa-clock"></i> ${uiT('ui.files.recent_uploads', 'Recent Uploads')}`);
     $('#currentAreaMeta').hide();
     $('#uploadFileBtn').hide();
-    // Return URL to /files when showing recent uploads
-    if (window.location.pathname !== '/files') {
-        history.replaceState(null, '', '/files');
+    // Return URL to the correct file index when showing recent uploads
+    if (window.location.pathname !== guestIndexPath) {
+        history.replaceState(null, '', guestIndexPath);
     }
 
     if (files.length === 0) {
@@ -1131,6 +1115,8 @@ function selectFileArea(areaId, subfolder) {
         const UPLOAD_READ_ONLY = 2;
 
         if (uploadPermission === UPLOAD_READ_ONLY) {
+            $('#uploadFileBtn').hide();
+        } else if (currentUserId === null) {
             $('#uploadFileBtn').hide();
         } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
             if (isAdmin) {
