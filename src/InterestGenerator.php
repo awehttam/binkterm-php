@@ -399,7 +399,7 @@ class InterestGenerator
         'Astrology & Horoscopes'                => 'astrology, horoscopes, zodiac, tarot, divination',
         'Space & Astronomy'                     => 'space exploration, astronomy, planets, NASA, telescopes, stargazing',
         'History & Cold War'                    => 'history, military history, cold war, ancient/medieval history',
-        'Synchronet & Other BBS Software'       => 'Synchronet BBS software, Mystic, Enigma, BinktermPHP, GoldED, Husky, other specific BBS/FTN software packages',
+        'BBS and related software'              => 'Synchronet BBS software, Mystic, Enigma, BinktermPHP, GoldED, Husky, other specific BBS/FTN software packages',
         'Hobbies & Crafts'                      => 'hobbies, crafts, models, collectibles, knitting, woodworking, sewing',
         'Genealogy & Family History'            => 'genealogy, family history, ancestry research',
         'Paranormal & Conspiracy'               => 'UFOs, paranormal, conspiracy theories, cryptids, ghosts',

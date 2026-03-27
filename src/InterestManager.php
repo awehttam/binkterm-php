@@ -169,6 +169,115 @@ class InterestManager
     }
 
     /**
+     * Return interests with subscriber counts and flattened member area lists.
+     *
+     * Each member row includes:
+     * - member_type: echoarea|filearea
+     * - area_id
+     * - tag
+     * - domain
+     * - description
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function getInterestReport(bool $activeOnly = true): array
+    {
+        $interests = $this->getInterests($activeOnly);
+        if ($interests === []) {
+            return [];
+        }
+
+        $interestMap = [];
+        foreach ($interests as $interest) {
+            $interestId = (int)$interest['id'];
+            $interest['members'] = [];
+            $interestMap[$interestId] = $interest;
+        }
+
+        $interestIds = array_keys($interestMap);
+        $placeholders = implode(',', array_fill(0, count($interestIds), '?'));
+
+        $echoStmt = $this->db->prepare("
+            SELECT
+                ie.interest_id,
+                'echoarea' AS member_type,
+                e.id AS area_id,
+                e.tag,
+                COALESCE(e.domain, '') AS domain,
+                COALESCE(e.description, '') AS description
+            FROM interest_echoareas ie
+            INNER JOIN echoareas e ON e.id = ie.echoarea_id
+            WHERE ie.interest_id IN ({$placeholders})
+            ORDER BY ie.interest_id ASC, e.tag ASC, e.domain ASC
+        ");
+        $echoStmt->execute($interestIds);
+
+        foreach ($echoStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $interestId = (int)$row['interest_id'];
+            if (!isset($interestMap[$interestId])) {
+                continue;
+            }
+
+            $interestMap[$interestId]['members'][] = [
+                'member_type' => (string)$row['member_type'],
+                'area_id' => (int)$row['area_id'],
+                'tag' => (string)$row['tag'],
+                'domain' => (string)$row['domain'],
+                'description' => (string)$row['description'],
+            ];
+        }
+
+        $fileStmt = $this->db->prepare("
+            SELECT
+                if2.interest_id,
+                'filearea' AS member_type,
+                f.id AS area_id,
+                f.tag,
+                COALESCE(f.domain, '') AS domain,
+                COALESCE(f.description, '') AS description
+            FROM interest_fileareas if2
+            INNER JOIN file_areas f ON f.id = if2.filearea_id
+            WHERE if2.interest_id IN ({$placeholders})
+            ORDER BY if2.interest_id ASC, f.tag ASC, f.domain ASC
+        ");
+        $fileStmt->execute($interestIds);
+
+        foreach ($fileStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $interestId = (int)$row['interest_id'];
+            if (!isset($interestMap[$interestId])) {
+                continue;
+            }
+
+            $interestMap[$interestId]['members'][] = [
+                'member_type' => (string)$row['member_type'],
+                'area_id' => (int)$row['area_id'],
+                'tag' => (string)$row['tag'],
+                'domain' => (string)$row['domain'],
+                'description' => (string)$row['description'],
+            ];
+        }
+
+        foreach ($interestMap as &$interest) {
+            usort($interest['members'], static function (array $a, array $b): int {
+                $typeCompare = strcmp((string)$a['member_type'], (string)$b['member_type']);
+                if ($typeCompare !== 0) {
+                    return $typeCompare;
+                }
+
+                $tagCompare = strcasecmp((string)$a['tag'], (string)$b['tag']);
+                if ($tagCompare !== 0) {
+                    return $tagCompare;
+                }
+
+                return strcasecmp((string)$a['domain'], (string)$b['domain']);
+            });
+        }
+        unset($interest);
+
+        return array_values($interestMap);
+    }
+
+    /**
      * Return a map of echoarea_id => [interest_id, ...] for all active interests.
      * Used to annotate echo area lists with their interest memberships.
      *
