@@ -237,15 +237,7 @@ function formatPlainMessageText(messageText, searchTerms = []) {
         searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
     }
 
-    let plainText = messageText;
-    if (window.hasPipeCodes && window.hasPipeCodes(plainText) && window.convertPipeCodesToAnsi) {
-        plainText = window.convertPipeCodesToAnsi(plainText);
-    }
-    if (window.stripAllAnsi) {
-        plainText = window.stripAllAnsi(plainText);
-    }
-
-    let escaped = escapeHtml(plainText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let escaped = escapeHtml(messageText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     escaped = linkifyUrls(escaped);
     if (searchTerms && searchTerms.length > 0) {
         escaped = highlightSearchTerms(escaped, searchTerms);
