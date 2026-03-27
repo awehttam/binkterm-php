@@ -1480,7 +1480,7 @@ class FileAreaManager
      * @return int File ID
      * @throws \Exception If upload fails
      */
-    public function uploadFileFromPath(int $fileAreaId, string $sourcePath, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null, string $initialStatus = 'approved', ?string $originalFilename = null): int
+    public function uploadFileFromPath(int $fileAreaId, string $sourcePath, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null, string $initialStatus = 'approved', ?string $originalFilename = null, ?string $subfolder = null): int
     {
         $fileArea = $this->getFileAreaById($fileAreaId);
         if (!$fileArea || !$fileArea['is_active']) {
@@ -1552,12 +1552,12 @@ class FileAreaManager
                 file_area_id, filename, filesize, file_hash, storage_path,
                 uploaded_from_address, source_type,
                 short_description, long_description,
-                owner_id, status, created_at
+                owner_id, status, subfolder, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?,
                 ?, 'user_upload',
                 ?, ?,
-                ?, ?, NOW()
+                ?, ?, ?, NOW()
             ) RETURNING id
         ");
 
@@ -1572,6 +1572,7 @@ class FileAreaManager
             $longDescription,
             $ownerId,
             $status,
+            $subfolder,
         ]);
 
         $result = $stmt->fetch();

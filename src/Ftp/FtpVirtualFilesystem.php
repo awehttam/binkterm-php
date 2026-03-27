@@ -272,6 +272,41 @@ class FtpVirtualFilesystem
     /**
      * @return array{success:bool,message:string}
      */
+    public function validateUploadTarget(array $user, string $path): array
+    {
+        if ($this->isAnonymousUser($user)) {
+            return ['success' => false, 'message' => 'Anonymous users cannot upload files'];
+        }
+
+        $resolved = $this->normalizePath('/', $path);
+        if ($this->isQwkUploadFile($resolved)) {
+            return ['success' => true, 'message' => 'OK'];
+        }
+
+        $incomingArea = $this->resolveIncomingArea($user, $resolved);
+        if ($incomingArea !== null) {
+            return ['success' => true, 'message' => 'OK'];
+        }
+
+        $fileAreaUpload = $this->resolveFileAreaUploadTarget($user, $resolved);
+        if ($fileAreaUpload !== null) {
+            return ['success' => true, 'message' => 'OK'];
+        }
+
+        if (str_starts_with($resolved, '/incoming/')) {
+            return ['success' => false, 'message' => 'Upload directory not found or not permitted'];
+        }
+
+        if (str_starts_with($resolved, '/fileareas/')) {
+            return ['success' => false, 'message' => 'Upload directory not found or not permitted'];
+        }
+
+        return ['success' => false, 'message' => 'Uploads are only allowed inside /incoming/<area>, /fileareas/<area>, or /qwk/upload'];
+    }
+
+    /**
+     * @return array{success:bool,message:string}
+     */
     public function importUploadedRep(array $user, string $path, string $tempPath): array
     {
         if ($this->isAnonymousUser($user)) {
@@ -319,17 +354,19 @@ class FtpVirtualFilesystem
         }
 
         $resolved = $this->normalizePath('/', $path);
-        $incomingArea = $this->resolveIncomingArea($user, $resolved);
-        if ($incomingArea === null) {
-            return ['success' => false, 'message' => 'Uploads are only allowed inside /incoming/<area>'];
+        $uploadTarget = $this->resolveIncomingAreaUploadTarget($user, $resolved)
+            ?? $this->resolveFileAreaUploadTarget($user, $resolved);
+        if ($uploadTarget === null) {
+            return ['success' => false, 'message' => 'Uploads are only allowed inside /incoming/<area> or /fileareas/<area>'];
         }
 
-        $fileArea = $incomingArea['area'];
+        $fileArea = $uploadTarget['area'];
+        $subfolder = $uploadTarget['subfolder'];
         $ownerId = (int)($user['id'] ?? 0);
         $isAdmin = !empty($user['is_admin']);
         $isOwnPrivateArea = !empty($fileArea['is_private']) && (string)($fileArea['tag'] ?? '') === ('PRIVATE_USER_' . $ownerId);
         $initialStatus = ($isAdmin || $isOwnPrivateArea) ? 'approved' : 'pending';
-        $filename = basename($resolved);
+        $filename = (string)$uploadTarget['filename'];
         $shortDescription = $filename;
         $uploadedBy = (string)($user['username'] ?? 'Unknown');
 
@@ -362,7 +399,8 @@ class FtpVirtualFilesystem
                 $uploadedBy,
                 $ownerId,
                 $initialStatus,
-                $filename
+                $filename,
+                $subfolder
             );
 
             ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, $fileId, $filename, ['file_area_id' => (int)$fileArea['id']]);
@@ -674,6 +712,85 @@ class FtpVirtualFilesystem
         }
 
         return ['area' => $area];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveIncomingAreaUploadTarget(array $user, string $path): ?array
+    {
+        if (!str_starts_with($path, '/incoming/')) {
+            return null;
+        }
+
+        $relative = substr($path, strlen('/incoming/'));
+        if ($relative === false || $relative === '') {
+            return null;
+        }
+
+        $segments = explode('/', $relative);
+        $areaKey = array_shift($segments);
+        $filename = array_pop($segments);
+        if ($areaKey === null || $areaKey === '' || $filename === null || $filename === '') {
+            return null;
+        }
+
+        if ($segments) {
+            return null;
+        }
+
+        $area = $this->resolveAreaByKey($user, $areaKey);
+        if ($area === null || !$this->canUploadToArea($area, $user)) {
+            return null;
+        }
+
+        return [
+            'area' => $area,
+            'subfolder' => null,
+            'filename' => $filename,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveFileAreaUploadTarget(array $user, string $path): ?array
+    {
+        if (!str_starts_with($path, '/fileareas/')) {
+            return null;
+        }
+
+        $relative = substr($path, strlen('/fileareas/'));
+        if ($relative === false || $relative === '') {
+            return null;
+        }
+
+        $segments = explode('/', $relative);
+        $areaKey = array_shift($segments);
+        $filename = array_pop($segments);
+        if ($areaKey === null || $areaKey === '' || $filename === null || $filename === '') {
+            return null;
+        }
+
+        $area = $this->resolveAreaByKey($user, $areaKey);
+        if ($area === null || !$this->canUploadToArea($area, $user)) {
+            return null;
+        }
+
+        $subfolder = $segments ? implode('/', $segments) : null;
+        if ($subfolder !== null) {
+            $context = $this->resolveFileAreaDirectory($user, '/fileareas/' . $areaKey . '/' . $subfolder);
+            if ($context === null) {
+                return null;
+            }
+            $subfolder = $context['subfolder'];
+        }
+
+        return [
+            'area' => $area,
+            'subfolder' => $subfolder,
+            'filename' => $filename,
+        ];
     }
 
     private function canUploadToArea(array $area, array $user): bool
