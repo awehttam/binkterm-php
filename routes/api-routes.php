@@ -8470,6 +8470,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
                 $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
+                $settings['image_load_mode'] = $meta->getValue((int)$userId, 'image_load_mode') ?? 'click';
             }
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -8556,6 +8557,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $meta->setValue((int)$userId, 'compose_hard_wrap', (string)$wrapVal);
                     $metaSettingsUpdated = true;
                 }
+
+                if (isset($settings['image_load_mode'])) {
+                    $modeVal = (string)$settings['image_load_mode'];
+                    if (!in_array($modeVal, ['click', 'auto'], true)) {
+                        $modeVal = 'click';
+                    }
+                    $meta->setValue((int)$userId, 'image_load_mode', $modeVal);
+                    $metaSettingsUpdated = true;
+                }
             }
 
             unset(
@@ -8565,7 +8575,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['netmail_notification_sound'],
                 $settings['file_notification_sound'],
                 $settings['compose_advanced_open'],
-                $settings['compose_hard_wrap']
+                $settings['compose_hard_wrap'],
+                $settings['image_load_mode']
             );
 
             $handler = new MessageHandler();
@@ -10818,5 +10829,78 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => 'Failed to record click']);
         }
     })->where(['id' => '[0-9]+']);
+
+    // -----------------------------------------------------------------
+    // Markdown post image upload
+    // POST /api/markdown-images  (multipart, field: image)
+    // Returns { success, url, filename }
+    // -----------------------------------------------------------------
+    SimpleRouter::get('/markdown-images', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $images  = $manager->listMarkdownImages($userId);
+
+            $result = array_map(function(array $img): array {
+                return [
+                    'hash'       => $img['file_hash'],
+                    'filename'   => $img['filename'],
+                    'url'        => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $img['file_hash'],
+                    'created_at' => $img['created_at'],
+                ];
+            }, $images);
+
+            echo json_encode(['success' => true, 'images' => $result]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.settings.load_failed', apiLocalizedText('errors.settings.load_failed', 'Failed to load images'), 500);
+        }
+    });
+
+    SimpleRouter::post('/markdown-images', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $uploadError = $_FILES['image']['error'] ?? -1;
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            apiError('errors.markdown_images.upload_failed', apiLocalizedText('errors.markdown_images.upload_failed', 'Upload failed'), 400);
+            return;
+        }
+
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $mimeType     = mime_content_type($_FILES['image']['tmp_name']);
+        if (!in_array($mimeType, $allowedMimes, true)) {
+            apiError('errors.markdown_images.invalid_type', apiLocalizedText('errors.markdown_images.invalid_type', 'Unsupported image type'), 400);
+            return;
+        }
+
+        $maxBytes = (int)\BinktermPHP\Config::env('MARKDOWN_IMAGE_MAX_BYTES', (string)(5 * 1024 * 1024));
+        if ($_FILES['image']['size'] > $maxBytes) {
+            apiError('errors.markdown_images.too_large', apiLocalizedText('errors.markdown_images.too_large', 'Image exceeds maximum size'), 400);
+            return;
+        }
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $result  = $manager->storeMarkdownImage(
+                $userId,
+                $_FILES['image']['tmp_name'],
+                basename($_FILES['image']['name'])
+            );
+
+            echo json_encode([
+                'success'  => true,
+                'url'      => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $result['hash'],
+                'filename' => basename($_FILES['image']['name']),
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.markdown_images.upload_failed', apiLocalizedText('errors.markdown_images.upload_failed', 'Failed to store image'), 500);
+        }
+    });
 
 });

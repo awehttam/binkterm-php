@@ -24,6 +24,8 @@
   - [Show Entire Conversation](#show-entire-conversation)
   - [Message List Context Menu](#message-list-context-menu)
   - [Ignored Echomail Messages](#ignored-echomail-messages)
+  - [Ignored Echomail: Multi-Address Rule Fix](#ignored-echomail-multi-address-rule-fix)
+  - [Markdown Image Support](#markdown-image-support)
   - [Message Viewer: Raw Source Mode](#message-viewer-raw-source-mode)
   - [Pipe Code False Positive Fix](#pipe-code-false-positive-fix)
 - [QWK Offline Mail](#qwk-offline-mail)
@@ -60,6 +62,7 @@
   - [Tabbed Layout](#tabbed-layout)
   - [Notification Sound Preview](#notification-sound-preview)
   - [Ignored Echomail Management](#ignored-echomail-management)
+  - [Markdown Image Load Preference](#markdown-image-load-preference)
 - [Appearance](#appearance)
   - [Terminal Server Screens](#terminal-server-screens)
   - [Shared ANSI Editor](#shared-ansi-editor)
@@ -145,6 +148,8 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 **Echomail & Netmail**
 - Message lists now support a right-click context menu (long-press on mobile) with actions including **View Conversation**, **Save for later**, **Download Message**, **Forward by EMail**, and **Share**.
 - Echomail message lists now include an **Ignore message** action. It creates per-user ignore rules that match the exact sender name, the exact sender node address, and optionally a substring in the subject line. Leaving the subject blank blocks that sender entirely.
+- Each distinct combination of sender name, node address, and subject is stored as its own independent ignore rule. A sender posting from multiple node addresses under the same name can be blocked per address or all at once.
+- Markdown messages now render `![alt](url)` image syntax as a click-to-load placeholder instead of displaying a raw exclamation mark and hyperlink. Clicking the placeholder fetches and displays the image inline. The Markdown toolbar in compose gains an **Insert Image** button that opens a dialog for entering an image URL, uploading an image file, or selecting a previously uploaded image. Uploaded images are stored privately under the user's file area and served via a stable URL on this BBS (`/echomail-images/{hash}`). Those URLs always use the configured `SITE_URL` so they resolve correctly when messages are read on other systems.
 - A **Show Entire Conversation** mode loads the full thread when clicking the reply icon, not just the messages on the current page.
 - The **A** key cycle now includes a **Raw Source** mode showing message bytes verbatim — useful for inspecting wire content.
 - Messages explicitly marked as **Plain Text** now bypass ANSI and pipe-code rendering completely.
@@ -160,6 +165,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - The settings page is reorganized into a tabbed layout: **Display**, **Messaging**, **Notifications**, and **Account**.
 - Notification sound select boxes now have a **▶** button to preview sounds without leaving the page.
 - The **Messaging** tab now ends with an **Ignored Echomail** section where users can review and remove saved echomail ignore rules.
+- The **Messaging** tab includes an **Image Loading** preference: images in Markdown messages can be set to load automatically or only on tap (default: tap to load).
 
 **Appearance**
 - The BBS menu shell's `ansi` variant now supports size presets: `80x25`, `132x24`, `132x43`, `132x50`, and `Full Screen`.
@@ -379,6 +385,34 @@ Two migrations support this feature:
 
 - `v1.11.0.61_echomail_ignore_rules.sql` - creates the ignore-rule storage table
 - `v1.11.0.62_echomail_ignore_rule_sender_address.sql` - extends matching to include sender node address and installs the final uniqueness rule
+
+### Ignored Echomail: Multiple Rules per Sender
+
+Each ignore rule is uniquely identified by the combination of sender name, sender node address, and subject substring. A sender who posts from multiple node addresses under the same display name can be silenced per address — or across all addresses if the subject field is left blank — and each rule is stored and managed independently.
+
+No database migration is required. No configuration change is needed.
+
+### Markdown Image Support
+
+Echomail and netmail messages written in Markdown can now include inline images using standard Markdown syntax: `![alt text](url)`.
+
+**Image rendering**
+
+`![alt](url)` syntax is rendered as a click-to-load placeholder showing an image icon and the alt text as a link. Clicking it fetches the image and displays it inline, replacing the placeholder. A user setting in **Settings → Messaging** controls whether images load automatically instead of requiring a tap (default: tap to load).
+
+**Insert Image toolbar button**
+
+The Markdown editor toolbar gains an **Insert Image** button beside the existing Insert Link button. Clicking it opens a dialog with three tabs:
+
+- **Image URL** — paste an external URL and optional alt text; the syntax is inserted at the cursor.
+- **Upload** — select a JPEG, PNG, GIF, or WebP file (up to the configured size limit). The file is stored privately under the user's file area in a dedicated subfolder, deduplicated by SHA-256 hash, and served through this BBS at `/echomail-images/{hash}`. The full absolute URL is inserted into the message.
+- **My Images** — a dropdown list of images previously uploaded by this user; selecting one fills in the URL automatically.
+
+**Image URL construction**
+
+Hosted image URLs are built from the `SITE_URL` environment variable so they resolve correctly when a message is read on another system or client. Ensure `SITE_URL` is set correctly in `.env` for hosted image links to work in distributed messages.
+
+Uploaded images are stored in the existing `files` table under the user's private file area. No new database migration is required for this feature.
 
 ### Message Viewer: Raw Source Mode
 
@@ -722,6 +756,15 @@ Each notification sound select box on the Notifications tab now has an adjacent 
 The **Messaging** tab in `/settings` now includes an **Ignored Echomail** section at the bottom of the page, separated from the forward-to-email and digest settings.
 
 This section lists the user's saved echomail ignore rules and provides a remove action for each one, giving users a way to unhide messages by deleting the matching rule.
+
+### Markdown Image Load Preference
+
+The **Messaging** tab includes a new **Image Loading** preference controlling how inline images in Markdown messages are handled:
+
+- **Tap to load** (default) — images render as a placeholder; clicking fetches and displays the image inline.
+- **Automatically load** — images are fetched and displayed as soon as the message is rendered.
+
+This preference is stored per user and requires no database migration.
 
 ---
 

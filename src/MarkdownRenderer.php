@@ -236,20 +236,33 @@ class MarkdownRenderer
             $text
         );
 
-        // Protect markdown links before emphasis parsing so underscores in URLs
-        // are not interpreted as italics.
+        // Protect markdown links and images before emphasis parsing so underscores
+        // in URLs are not interpreted as italics.
+        // Image syntax ![alt](url) is matched by the optional leading `!`.
         $links = [];
         $text = preg_replace_callback(
-            '/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
+            '/(!?)\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
             function ($m) use (&$links, &$codeSpans) {
-                // Restore any inline-code tokens that appear inside the link label
+                $isImage = $m[1] === '!';
+                // Restore any inline-code tokens that appear inside the label
                 // (e.g. [The `foo` Table](#anchor)) so they render as <code> not %%CODE0%%.
-                $label = !empty($codeSpans) ? strtr($m[1], $codeSpans) : $m[1];
-                $url   = $m[2];
-                $isExternal = str_starts_with($url, 'http');
-                $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+                $label = !empty($codeSpans) ? strtr($m[2], $codeSpans) : $m[2];
+                $url   = $m[3];
                 $token = '%%LINK' . count($links) . '%%';
-                $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+
+                if ($isImage) {
+                    // Render as a click-to-load placeholder. The user's browser will
+                    // not auto-fetch the remote image; clicking reveals it inline.
+                    $links[$token] = '<span class="md-image-placeholder" data-src="' . $url . '" data-alt="' . $label . '">'
+                        . '<a href="' . $url . '" class="md-image-load" target="_blank" rel="noopener noreferrer">'
+                        . '<i class="fas fa-image"></i> ' . $label
+                        . '</a></span>';
+                } else {
+                    $isExternal = str_starts_with($url, 'http');
+                    $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+                    $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+                }
+
                 return $token;
             },
             $text

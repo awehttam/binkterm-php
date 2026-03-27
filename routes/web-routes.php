@@ -1705,6 +1705,39 @@ SimpleRouter::post('/qwk/upload', function() {
     }
 });
 
+// Serve a markdown post image inline by its SHA-256 hash token.
+// No authentication required — images are embedded in public posts.
+SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
+    $manager = new \BinktermPHP\FileAreaManager();
+    $file    = $manager->getMarkdownImageByHash($hash);
+
+    if (!$file || !file_exists($file['storage_path'])) {
+        http_response_code(404);
+        echo 'Image not found';
+        return;
+    }
+
+    $ext   = strtolower(pathinfo((string)$file['filename'], PATHINFO_EXTENSION));
+    $mimes = [
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'gif'  => 'image/gif',
+        'webp' => 'image/webp',
+    ];
+    $contentType = $mimes[$ext] ?? (mime_content_type($file['storage_path']) ?: 'application/octet-stream');
+
+    $fileSize = filesize($file['storage_path']);
+    $safeName = addslashes(basename((string)$file['filename']));
+    header('Content-Type: ' . $contentType);
+    header('Content-Length: ' . $fileSize);
+    header('Content-Disposition: inline; filename="' . $safeName . '"');
+    header('Cache-Control: public, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
+    readfile($file['storage_path']);
+    exit;
+});
+
 // Include local/custom routes if they exist
 $localRoutes = __DIR__ . '/web-routes.local.php';
 if (file_exists($localRoutes)) {

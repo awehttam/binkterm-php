@@ -562,6 +562,11 @@ return [
     'errors.admin.appearance.term_server.upload.failed' => 'Impossible de téléverser l\'écran du serveur terminal',
     'errors.admin.appearance.term_server.upload.file_too_large' => 'Le fichier d\'écran du serveur terminal dépasse la limite de taille',
     'errors.admin.appearance.term_server.delete.failed' => 'Impossible de supprimer l\'écran du serveur terminal',
+
+    // Markdown image upload
+    'errors.markdown_images.upload_failed' => 'Echec du telechargement de l\'image. Veuillez reessayer.',
+    'errors.markdown_images.invalid_type'  => 'Type d\'image non pris en charge. Utilisez JPEG, PNG, GIF ou WebP.',
+    'errors.markdown_images.too_large'     => 'Image trop volumineuse. Taille maximale : 5 Mo.',
 ];
 
 

@@ -2707,6 +2707,118 @@ class FileAreaManager
     }
 
     /**
+     * Store an uploaded markdown post image in the user's private file area
+     * under a 'markdown-images' subfolder.
+     *
+     * Deduplicates by SHA-256 within the user's area: uploading the same image
+     * twice returns the existing record without writing a second copy.
+     *
+     * @param int    $userId   Owner user ID
+     * @param string $tempPath Path to the validated uploaded temp file
+     * @param string $filename Original client-supplied filename
+     * @return array{hash: string, file_id: int}
+     * @throws \Exception on filesystem or database failure
+     */
+    public function storeMarkdownImage(int $userId, string $tempPath, string $filename): array
+    {
+        $fileArea = $this->getOrCreatePrivateFileArea($userId);
+        $fileHash = hash_file('sha256', $tempPath);
+        $fileSize = filesize($tempPath);
+
+        // Return existing record if the same image was already uploaded
+        $stmt = $this->db->prepare("
+            SELECT id, file_hash FROM files
+            WHERE file_area_id = ? AND file_hash = ? AND subfolder = 'markdown-images'
+            LIMIT 1
+        ");
+        $stmt->execute([$fileArea['id'], $fileHash]);
+        $existing = $stmt->fetch();
+
+        if ($existing) {
+            return ['hash' => (string)$existing['file_hash'], 'file_id' => (int)$existing['id']];
+        }
+
+        // Store under a hash-named file to prevent directory enumeration
+        $ext         = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $storageName = $fileHash . ($ext !== '' ? '.' . $ext : '');
+        $areaDir     = $this->getAreaStorageDir($fileArea);
+        $imagesDir   = $areaDir . '/markdown-images';
+        self::ensureDirectoryExists($imagesDir);
+        $storagePath = $imagesDir . '/' . $storageName;
+
+        if (!copy($tempPath, $storagePath)) {
+            throw new \Exception("Failed to store markdown image");
+        }
+        chmod($storagePath, 0664);
+        $storagePath = realpath($storagePath);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO files (
+                file_area_id, filename, filesize, file_hash, storage_path,
+                source_type, short_description, owner_id, subfolder, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, 'markdown_image', 'Markdown post image', ?, 'markdown-images', 'approved', NOW())
+            RETURNING id
+        ");
+        $stmt->execute([$fileArea['id'], $filename, $fileSize, $fileHash, $storagePath, $userId]);
+        $row    = $stmt->fetch();
+        $fileId = (int)$row['id'];
+
+        $this->updateFileAreaStats($fileArea['id']);
+
+        return ['hash' => $fileHash, 'file_id' => $fileId];
+    }
+
+    /**
+     * List the most recent markdown post images uploaded by a user.
+     *
+     * @param  int   $userId
+     * @param  int   $limit  Maximum rows to return (default 60)
+     * @return array         Array of file rows, newest first
+     */
+    public function listMarkdownImages(int $userId, int $limit = 60): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.id, f.filename, f.file_hash, f.filesize, f.created_at
+            FROM files f
+            JOIN file_areas fa ON fa.id = f.file_area_id
+            WHERE fa.tag = ?
+              AND f.subfolder = 'markdown-images'
+              AND f.status = 'approved'
+            ORDER BY f.created_at DESC
+            LIMIT ?
+        ");
+        $tag = "PRIVATE_USER_{$userId}";
+        $stmt->execute([$tag, $limit]);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Look up a markdown post image by its SHA-256 hash for inline serving.
+     *
+     * @param  string     $hash 64-character lowercase hex SHA-256
+     * @return array|null       File row including storage_path, or null if not found
+     */
+    public function getMarkdownImageByHash(string $hash): ?array
+    {
+        if (!preg_match('/^[0-9a-f]{64}$/', $hash)) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT f.*
+            FROM files f
+            WHERE f.file_hash = ?
+              AND f.subfolder = 'markdown-images'
+              AND f.status = 'approved'
+            LIMIT 1
+        ");
+        $stmt->execute([$hash]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    /**
      * Store a file received via FREQ into the user's private file area under
      * an "incoming" subdirectory.  Used by freq_getfile.php after a session.
      *

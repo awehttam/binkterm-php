@@ -1478,6 +1478,20 @@ tbody, td, tfoot, th, thead, tr {
     color: var(--term-green);
 }
 
+.md-image-picker-thumb.selected {
+    border-color: var(--term-green);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--term-green) 25%, transparent);
+}
+
+.md-image-placeholder {
+    border-color: var(--term-green-dark);
+    color: var(--term-green-dim);
+}
+
+.md-image-placeholder .md-image-load:hover {
+    color: var(--term-green);
+}
+
 /* StyleCodes (MARKUP: StyleCodes 1.0) */
 .sc-inverse {
     filter: invert(1);

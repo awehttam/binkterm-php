@@ -195,6 +195,7 @@
                             </div>
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-secondary" onclick="mdAction('link')" title="{{ t('ui.compose.markdown.link_title', {}, locale, ['common']) }}"><i class="fas fa-link"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="showMdImageModal()" title="{{ t('ui.compose.markdown.image_title', {}, locale, ['common']) }}"><i class="fas fa-image"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ul')" title="{{ t('ui.compose.markdown.unordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ul"></i></button>
@@ -734,6 +735,11 @@ $('#insertFileInput').on('change', function() {
 });
 
 function updateMarkdownSection(allowed) {
+    // Replying to a formatted message: always show the selector so the user
+    // can match the original format, even if the area default is plain text.
+    if (!allowed && replyMarkupType) {
+        allowed = true;
+    }
     const section = $('#markdownSection');
     if (allowed) {
         section.show();
@@ -1257,9 +1263,209 @@ function mdToggleLinePrefix(ta, prefix) {
     ta.selectionStart = ta.selectionEnd = newPos;
 }
 
+// Saved textarea selection for restoring after the image modal closes
+let mdImageSavedStart = 0, mdImageSavedEnd = 0;
+// Whether the picker has been loaded for this modal open
+let mdImagePickerLoaded = false;
+
 /**
- * Show the markdown quick-reference help modal.
+ * Open the insert-image modal, saving the current cursor position first.
  */
+function showMdImageModal() {
+    const ta = document.getElementById('mdEditorText');
+    if (ta) {
+        mdImageSavedStart = ta.selectionStart;
+        mdImageSavedEnd   = ta.selectionEnd;
+    }
+    // Reset modal state
+    document.getElementById('mdImageUrl').value       = '';
+    document.getElementById('mdImageAltUrl').value    = '';
+    document.getElementById('mdImageAltUpload').value = '';
+    document.getElementById('mdImageAltPicker').value = '';
+    document.getElementById('mdImageFile').value      = '';
+    document.getElementById('mdImageUploadStatus').classList.add('d-none');
+    document.getElementById('mdImageModalError').classList.add('d-none');
+    document.getElementById('mdImageInsertBtn').disabled = false;
+    mdImagePickerLoaded = false;
+    // Activate URL tab
+    bootstrap.Tab.getOrCreateInstance(document.getElementById('mdImageUrlTab')).show();
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('mdImageModal'));
+    // Load picker when its tab is shown
+    document.getElementById('mdImagePickerTab').addEventListener('shown.bs.tab', mdImageLoadPicker, { once: false });
+    modal.show();
+}
+
+/**
+ * Insert image markdown at saved cursor position, or upload first if the
+ * upload tab is active.
+ */
+function mdImageInsert() {
+    const uploadTabActive = document.getElementById('mdImageUploadPane').classList.contains('show');
+    const pickerTabActive = document.getElementById('mdImagePickerPane').classList.contains('show');
+
+    if (pickerTabActive) {
+        const sel = document.getElementById('mdImagePickerSelect');
+        if (!sel || !sel.value) return;
+        const opt = sel.options[sel.selectedIndex];
+        const url = sel.value;
+        const filename = opt ? opt.dataset.filename : '';
+        const alt = document.getElementById('mdImageAltPicker').value.trim() || filename.replace(/\.[^.]+$/, '');
+        mdImageDoInsert(url, alt);
+    } else if (uploadTabActive) {
+        const file = document.getElementById('mdImageFile').files[0];
+        if (!file) {
+            mdImageShowError(window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Please select a file') : 'Please select a file');
+            return;
+        }
+        mdImageUpload(file);
+    } else {
+        const url = document.getElementById('mdImageUrl').value.trim();
+        if (!url) return;
+        const alt = document.getElementById('mdImageAltUrl').value.trim() || 'image';
+        mdImageDoInsert(url, alt);
+    }
+}
+
+/**
+ * Load the user's previously uploaded images into the picker dropdown.
+ * Only fetches once per modal open.
+ */
+function mdImageLoadPicker() {
+    if (mdImagePickerLoaded) return;
+    mdImagePickerLoaded = true;
+
+    const sel      = document.getElementById('mdImagePickerSelect');
+    const emptyMsg = window.t ? window.t('ui.compose.markdown.image_modal.picker_empty', {}, 'No images uploaded yet.') : 'No images uploaded yet.';
+
+    $.get('/api/markdown-images')
+        .done(function(response) {
+            const images = (response.success && Array.isArray(response.images)) ? response.images : [];
+            sel.innerHTML = '';
+            if (images.length === 0) {
+                const opt = document.createElement('option');
+                opt.disabled = true;
+                opt.textContent = emptyMsg;
+                sel.appendChild(opt);
+                return;
+            }
+            images.forEach(function(img) {
+                const opt = document.createElement('option');
+                opt.value            = img.url;
+                opt.dataset.filename = img.filename;
+                opt.textContent      = img.filename;
+                sel.appendChild(opt);
+            });
+            // Pre-fill alt text when selection changes
+            sel.addEventListener('change', function() {
+                const altField = document.getElementById('mdImageAltPicker');
+                if (!altField.value) {
+                    const chosen = sel.options[sel.selectedIndex];
+                    altField.value = chosen ? chosen.dataset.filename.replace(/\.[^.]+$/, '') : '';
+                }
+            });
+        })
+        .fail(function() {
+            sel.innerHTML = '';
+            const opt = document.createElement('option');
+            opt.disabled = true;
+            opt.textContent = emptyMsg;
+            sel.appendChild(opt);
+        });
+}
+
+/**
+ * Upload an image file, then insert the returned URL.
+ * @param {File} file
+ */
+function mdImageUpload(file) {
+    const btn         = document.getElementById('mdImageInsertBtn');
+    const statusEl    = document.getElementById('mdImageUploadStatus');
+    const progressBar = document.getElementById('mdImageUploadProgress');
+    const msgEl       = document.getElementById('mdImageUploadMsg');
+    const alt         = document.getElementById('mdImageAltUpload').value.trim() || file.name.replace(/\.[^.]+$/, '');
+
+    btn.disabled = true;
+    statusEl.classList.remove('d-none');
+    progressBar.style.width = '0%';
+    msgEl.textContent = window.t ? window.t('ui.compose.markdown.image_modal.uploading', {}, 'Uploading...') : 'Uploading...';
+    document.getElementById('mdImageModalError').classList.add('d-none');
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/markdown-images');
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) xhr.setRequestHeader('X-CSRF-Token', csrfMeta.content);
+
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            progressBar.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+        }
+    };
+
+    xhr.onload = function() {
+        btn.disabled = false;
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch(e) { data = {}; }
+
+        if (xhr.status === 200 && data.success) {
+            progressBar.style.width = '100%';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('mdImageModal')).hide();
+            mdImageDoInsert(data.url, alt);
+        } else {
+            statusEl.classList.add('d-none');
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(data, window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Upload failed') : 'Upload failed')
+                : (data.error || 'Upload failed');
+            mdImageShowError(msg);
+        }
+    };
+
+    xhr.onerror = function() {
+        btn.disabled = false;
+        statusEl.classList.add('d-none');
+        mdImageShowError(window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Upload failed') : 'Upload failed');
+    };
+
+    xhr.send(formData);
+}
+
+/**
+ * Insert ![alt](url) at the saved cursor position in the markdown textarea.
+ * @param {string} url
+ * @param {string} alt
+ */
+function mdImageDoInsert(url, alt) {
+    const ta = document.getElementById('mdEditorText');
+    if (!ta) return;
+
+    const before  = ta.value.substring(0, mdImageSavedStart);
+    const after   = ta.value.substring(mdImageSavedEnd);
+    const snippet = '![' + alt + '](' + url + ')';
+    ta.value = before + snippet + after;
+
+    const newPos = mdImageSavedStart + snippet.length;
+    ta.selectionStart = ta.selectionEnd = newPos;
+    ta.focus();
+
+    $('#messageText').val(ta.value);
+    if (typeof mdPreviewTimer !== 'undefined' && mdPreviewTimer) clearTimeout(mdPreviewTimer);
+    mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('mdImageModal')).hide();
+}
+
+/**
+ * Show an error message inside the image modal.
+ * @param {string} msg
+ */
+function mdImageShowError(msg) {
+    const el = document.getElementById('mdImageModalError');
+    el.textContent = msg;
+    el.classList.remove('d-none');
+}
+
 /**
  * Hard-wrap keydown handler.
  * When the cursor is at or past hardWrapLimit on its line and the user types a
@@ -2093,6 +2299,82 @@ function saveComposeAddressBookEntry() {
 </script>
 {% endif %}
 
+<!-- Markdown Insert Image Modal -->
+<div class="modal fade" id="mdImageModal" tabindex="-1" aria-labelledby="mdImageModalLabel">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mdImageModalLabel"><i class="fas fa-image me-2"></i>{{ t('ui.compose.markdown.image_modal.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="mdImageTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="mdImageUrlTab" data-bs-toggle="tab" data-bs-target="#mdImageUrlPane" type="button" role="tab">
+                            {{ t('ui.compose.markdown.image_modal.tab_url', {}, locale, ['common']) }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mdImageUploadTab" data-bs-toggle="tab" data-bs-target="#mdImageUploadPane" type="button" role="tab">
+                            {{ t('ui.compose.markdown.image_modal.tab_upload', {}, locale, ['common']) }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mdImagePickerTab" data-bs-toggle="tab" data-bs-target="#mdImagePickerPane" type="button" role="tab">
+                            {{ t('ui.compose.markdown.image_modal.tab_picker', {}, locale, ['common']) }}
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="mdImageUrlPane" role="tabpanel">
+                        <div class="mb-3">
+                            <label for="mdImageUrl" class="form-label">{{ t('ui.compose.markdown.image_modal.url_label', {}, locale, ['common']) }}</label>
+                            <input type="url" class="form-control" id="mdImageUrl" placeholder="{{ t('ui.compose.markdown.image_modal.url_placeholder', {}, locale, ['common']) }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="mdImageAltUrl" class="form-label">{{ t('ui.compose.markdown.image_modal.alt_label', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="mdImageAltUrl" placeholder="{{ t('ui.compose.markdown.image_modal.alt_placeholder', {}, locale, ['common']) }}">
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="mdImageUploadPane" role="tabpanel">
+                        <div class="mb-3">
+                            <label for="mdImageFile" class="form-label">{{ t('ui.compose.markdown.image_modal.tab_upload', {}, locale, ['common']) }}</label>
+                            <input type="file" class="form-control" id="mdImageFile" accept="image/jpeg,image/png,image/gif,image/webp">
+                            <div class="form-text">{{ t('ui.compose.markdown.image_modal.upload_hint', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mdImageAltUpload" class="form-label">{{ t('ui.compose.markdown.image_modal.alt_label', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="mdImageAltUpload" placeholder="{{ t('ui.compose.markdown.image_modal.alt_placeholder', {}, locale, ['common']) }}">
+                        </div>
+                        <div id="mdImageUploadStatus" class="d-none">
+                            <div class="progress mb-2">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="mdImageUploadProgress" style="width:0%"></div>
+                            </div>
+                            <small id="mdImageUploadMsg" class="text-muted"></small>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="mdImagePickerPane" role="tabpanel">
+                        <div class="mb-3">
+                            <select class="form-select" id="mdImagePickerSelect" size="6">
+                                <option disabled>{{ t('ui.compose.markdown.image_modal.picker_loading', {}, locale, ['common']) }}</option>
+                            </select>
+                        </div>
+                        <div class="mb-0">
+                            <label for="mdImageAltPicker" class="form-label">{{ t('ui.compose.markdown.image_modal.alt_label', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="mdImageAltPicker" placeholder="{{ t('ui.compose.markdown.image_modal.alt_placeholder', {}, locale, ['common']) }}">
+                        </div>
+                    </div>
+                </div>
+                <div id="mdImageModalError" class="alert alert-danger d-none mt-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="mdImageInsertBtn" onclick="mdImageInsert()">{{ t('ui.compose.markdown.image_modal.insert', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Markdown Quick Reference Modal -->
 <div class="modal fade" id="markdownHelpModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -2112,6 +2394,7 @@ function saveComposeAddressBookEntry() {
                                 <tr><td><code>*italic*</code></td><td><em>italic</em></td></tr>
                                 <tr><td><code>`inline code`</code></td><td><code>inline code</code></td></tr>
                                 <tr><td><code>[link](url)</code></td><td>{{ t('ui.compose.markdown.help.hyperlink', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>![alt](url)</code></td><td>{{ t('ui.compose.markdown.help.image', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
                         <h6>{{ t('ui.compose.markdown.help.headings', {}, locale, ['common']) }}</h6>

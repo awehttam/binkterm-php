@@ -605,4 +605,9 @@ return [
     // Ads - content command validation
     'errors.admin.ads.invalid_content_command' => 'The selected content command is not allowed.',
     'errors.admin.weather.preview_failed' => 'Failed to generate weather report preview.',
+
+    // Markdown image upload
+    'errors.markdown_images.upload_failed' => 'Image upload failed. Please try again.',
+    'errors.markdown_images.invalid_type'  => 'Unsupported image type. Please use JPEG, PNG, GIF, or WebP.',
+    'errors.markdown_images.too_large'     => 'Image is too large. Maximum size is 5 MB.',
 ];

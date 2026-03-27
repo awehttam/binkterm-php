@@ -799,6 +799,16 @@ function printMessage() {
 // Global user settings object
 window.userSettings = {};
 
+/**
+ * Replace a .md-image-placeholder element with an inline <img>.
+ * @param {jQuery} $placeholder
+ */
+function loadMarkdownImage($placeholder) {
+    const src = $placeholder.data('src');
+    const alt = $placeholder.data('alt');
+    $placeholder.replaceWith($('<img>').attr({ src: src, alt: alt }).addClass('md-image img-fluid'));
+}
+
 // Lightweight i18n client state with lazy namespace loading.
 window.i18n = window.i18n || {
     locale: window.appLocale || 'en',
@@ -1682,6 +1692,27 @@ $(document).ready(function(){
         $('[data-bs-toggle="tooltip"]').tooltip();
         $('[data-bs-toggle="popover"]').popover();
     });
+
+    // Markdown inline image: click-to-load placeholder
+    $(document).on('click', '.md-image-placeholder .md-image-load', function(e) {
+        e.preventDefault();
+        loadMarkdownImage($(this).closest('.md-image-placeholder'));
+    });
+
+    // Auto-load images when the setting is enabled, watching for dynamically added content
+    const mdImageObserver = new MutationObserver(function(mutations) {
+        if ((window.userSettings || {}).image_load_mode !== 'auto') return;
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const placeholders = node.classList && node.classList.contains('md-image-placeholder')
+                    ? [node]
+                    : node.querySelectorAll('.md-image-placeholder');
+                placeholders.forEach(function(el) { loadMarkdownImage($(el)); });
+            });
+        });
+    });
+    mdImageObserver.observe(document.body, { childList: true, subtree: true });
 
     // Handle page unload
     $(window).on('beforeunload', function() {

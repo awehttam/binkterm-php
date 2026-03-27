@@ -89,20 +89,6 @@ class MessageHandler
             return false;
         }
 
-        $updateLegacyStmt = $this->db->prepare("
-            UPDATE user_echomail_ignore_rules
-            SET sender_address = ?
-            WHERE user_id = ?
-              AND sender_name = ?
-              AND subject_contains = ?
-            RETURNING id
-        ");
-        $updateLegacyStmt->execute([$senderAddress, $userId, $senderName, $subjectContains]);
-        $legacyRow = $updateLegacyStmt->fetch(\PDO::FETCH_ASSOC);
-        if ($legacyRow) {
-            return true;
-        }
-
         $stmt = $this->db->prepare("
             INSERT INTO user_echomail_ignore_rules (user_id, sender_name, sender_address, subject_contains)
             VALUES (?, ?, ?, ?)
