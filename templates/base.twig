@@ -511,23 +511,27 @@
     </script>
     <script>
         if ('serviceWorker' in navigator) {
-            let updateNotified = false;
-
-            function showUpdateToast() {
-                if (updateNotified) return;
-                updateNotified = true;
-                const toastEl = document.getElementById('updateToast');
-                if (toastEl && window.bootstrap) {
-                    bootstrap.Toast.getOrCreateInstance(toastEl).show();
-                }
-            }
-
+            // Reload/update toast intentionally disabled.
+            // The service worker still updates and claims clients normally, but
+            // we no longer interrupt users with a reload prompt.
+            //
+            // let updateNotified = false;
+            //
+            // function showUpdateToast() {
+            //     if (updateNotified) return;
+            //     updateNotified = true;
+            //     const toastEl = document.getElementById('updateToast');
+            //     if (toastEl && window.bootstrap) {
+            //         bootstrap.Toast.getOrCreateInstance(toastEl).show();
+            //     }
+            // }
+            //
             // Path 1: SW sends UPDATE_AVAILABLE after activate + clients.claim().
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-                    showUpdateToast();
-                }
-            });
+            // navigator.serviceWorker.addEventListener('message', (event) => {
+            //     if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+            //         showUpdateToast();
+            //     }
+            // });
 
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')

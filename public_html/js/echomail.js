@@ -3053,6 +3053,7 @@ function saveEditMessage() {
         }
         // Refresh the list row
         displayMessages(currentMessages, currentMessages.some(m => m.thread_level > 0));
+        renderCurrentMessageBody();
         $('#editMessageSuccess').removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     }).fail(function(xhr) {

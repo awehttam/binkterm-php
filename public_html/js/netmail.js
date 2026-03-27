@@ -1071,6 +1071,7 @@ function saveEditMessage() {
         if (listMsg) {
             listMsg.art_format = artFormat || null;
         }
+        renderCurrentMessageBody();
         $('#editMessageSuccess').removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     }).fail(function(xhr) {
