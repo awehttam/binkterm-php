@@ -4637,7 +4637,9 @@ SimpleRouter::post('/admin/api/weather-config/preview', function() {
         return;
     }
 
+    ob_start();
     require_once __DIR__ . '/../scripts/weather_report.php';
+    ob_end_clean();
 
     $tmpPath = tempnam(sys_get_temp_dir(), 'binkweather_');
     if ($tmpPath === false) {
