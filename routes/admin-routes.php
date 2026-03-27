@@ -1911,6 +1911,102 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/appearance/terminal-screens', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screens = $client->listTerminalScreens();
+                echo json_encode(['success' => true, 'screens' => $screens]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.list_failed', apiLocalizedText('errors.admin.appearance.term_server.list_failed', 'Failed to load terminal screens'));
+            }
+        });
+
+        SimpleRouter::get('/appearance/terminal-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->getTerminalScreen($key);
+                echo json_encode(['success' => true, 'screen' => $screen]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.load_failed', apiLocalizedText('errors.admin.appearance.term_server.load_failed', 'Failed to load terminal screen'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/terminal-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $content = (string)($payload['content'] ?? '');
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->saveTerminalScreen($key, $content);
+                echo json_encode([
+                    'success' => true,
+                    'screen' => $screen,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.save_failed', apiLocalizedText('errors.admin.appearance.term_server.save_failed', 'Failed to save terminal screen'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/terminal-screens/{key}/upload', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                if (empty($_FILES['file'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_server.upload.no_file', apiLocalizedText('errors.admin.appearance.term_server.upload.no_file', 'No terminal screen file uploaded'));
+                    return;
+                }
+                $file = $_FILES['file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_server.upload.failed', apiLocalizedText('errors.admin.appearance.term_server.upload.failed', 'Terminal screen upload failed'));
+                    return;
+                }
+                if ($file['size'] > 1048576) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_server.upload.file_too_large', apiLocalizedText('errors.admin.appearance.term_server.upload.file_too_large', 'Terminal screen file exceeds size limit'));
+                    return;
+                }
+
+                $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->uploadTerminalScreen($key, $contentBase64, basename((string)$file['name']));
+                echo json_encode([
+                    'success' => true,
+                    'screen' => $screen,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.upload.failed', apiLocalizedText('errors.admin.appearance.term_server.upload.failed', 'Failed to upload terminal screen'));
+            }
+        });
+
+        SimpleRouter::delete('/appearance/terminal-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteTerminalScreen($key);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.delete.failed', apiLocalizedText('errors.admin.appearance.term_server.delete.failed', 'Failed to delete terminal screen'));
+            }
+        });
+
         SimpleRouter::get('/taglines', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();

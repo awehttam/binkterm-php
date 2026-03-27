@@ -60,6 +60,8 @@
   - [Tabbed Layout](#tabbed-layout)
   - [Notification Sound Preview](#notification-sound-preview)
   - [Ignored Echomail Management](#ignored-echomail-management)
+- [Appearance](#appearance)
+  - [Terminal Server Screens](#terminal-server-screens)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [SharedWorker Architecture](#sharedworker-architecture)
   - [Chat Integration](#chat-integration)
@@ -92,6 +94,7 @@
   - [Join Command](#join-command)
 - [Docs Viewer: HTML Pass-through](#docs-viewer-html-pass-through)
 - [Telnet / SSH BBS Server](#telnet--ssh-bbs-server)
+  - [System News and Recent Shoutbox Flow](#system-news-and-recent-shoutbox-flow)
   - [Interests Menu](#interests-menu)
   - [QWK Offline Mail via ZMODEM](#qwk-offline-mail-via-zmodem)
   - [Echomail Interest-Based Browsing](#echomail-interest-based-browsing)
@@ -142,6 +145,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Echomail message lists now include an **Ignore message** action. It creates per-user ignore rules that match the exact sender name, the exact sender node address, and optionally a substring in the subject line. Leaving the subject blank blocks that sender entirely.
 - A **Show Entire Conversation** mode loads the full thread when clicking the reply icon, not just the messages on the current page.
 - The **A** key cycle now includes a **Raw Source** mode showing message bytes verbatim — useful for inspecting wire content.
+- Messages explicitly marked as **Plain Text** now bypass ANSI and pipe-code rendering completely.
 - The compose form warns when approaching the 16 KB FidoNet message body limit.
 - Fixed a pipe code false-positive that rendered English words like `|Advertise` with a green background. Detection now requires uppercase letters, matching real BBS software.
 
@@ -158,6 +162,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 **Appearance**
 - The BBS menu shell's `ansi` variant now supports size presets: `80x25`, `132x24`, `132x43`, `132x50`, and `Full Screen`.
 - `80x25` is the authentic baseline terminal presentation. `Full Screen` instead scales the rendered ANSI art to the available browser viewport below the shell header.
+- A new **Term Server** tab in **Admin -> Appearance** lets sysops edit or upload the supported custom ANSI screens used by the telnet and SSH terminal servers.
 
 **Echomail MCP Server**
 - An optional [Model Context Protocol](https://modelcontextprotocol.io/) server (`mcp-server/`) gives AI assistants read-only access to your echomail. Each user generates a personal bearer key from **Settings → AI**. See `docs/MCPServer.md` for setup.
@@ -199,6 +204,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - `scripts/database_maintenance.php` now purges old `binkp_session_log` rows after 30 days by default. Retention is configurable with `BINKP_SESSION_LOG_RETENTION_DAYS`.
 
 **Telnet / SSH BBS Server**
+- After login, telnet users now see **SYSTEM NEWS** from `data/systemnews.md` rendered in a framed terminal screen before the recent shoutbox. The read-only recent shoutbox screen now also offers a quick `S` shortcut to post a shout before continuing.
 - Interests menu (`I`) added for browsing and subscribing to topic groups.
 - QWK Offline Mail (`K`) now supports ZMODEM file transfer for download (`D`) and upload (`U`) using a built-in PHP ZMODEM implementation — no external tools required.
 
@@ -391,7 +397,9 @@ The pipe code detector previously matched any `|` followed by two characters tha
 
 Detection now requires uppercase letters for both hex color codes and two-letter special codes such as `|CL` and `|PA`. All real BBS software produces uppercase pipe codes. The same fix was applied to `convertPipeCodesToAnsi` and `parsePipeCodes` for consistency.
 
-The detector and parser now also treat doubled pipes (`||`) as literal pipe characters instead of the start of a pipe code. This prevents ordinary text such as FTP `229 Entering Extended Passive Mode (||22|)` responses from being mis-rendered.
+The detector and parser now also treat doubled pipes (`||`) as literal pipe characters instead of the start of a pipe code, and they no longer match partial two-character codes inside longer numeric strings. This prevents ordinary text such as FTP `229 Entering Extended Passive Mode (||22|)` and `229 Entering Extended Passive Mode (|||2122|)` responses from being mis-rendered.
+
+Messages explicitly marked as `plain` / **Plain Text** now bypass ANSI and pipe-code rendering entirely in the web viewer instead of being auto-rendered based on message contents.
 
 ---
 
@@ -713,6 +721,28 @@ This section lists the user's saved echomail ignore rules and provides a remove 
 
 ---
 
+## Appearance
+
+### Terminal Server Screens
+
+The **Appearance** page now includes a **Term Server** tab for managing the built-in ANSI screens used by the telnet and SSH terminal servers.
+
+Supported screen slots are:
+
+- `welcome` -> `telnet/screens/login.ans`
+- `main_menu` -> `telnet/screens/mainmenu.ans`
+- `goodbye` -> `telnet/screens/bye.ans`
+
+From this tab, a sysop can:
+
+- edit the screen contents directly in a textarea
+- upload a replacement `.ans`, `.asc`, or `.txt` file
+- reset a custom screen so the default terminal behavior is used again
+
+The editor works directly with the same screen files already used by the terminal daemons, so saving a custom screen takes effect without any additional appearance configuration.
+
+---
+
 ## Real-time Events (BinkStream)
 
 ### SharedWorker Architecture
@@ -935,6 +965,17 @@ HTML pass-through is enabled only for `README.md`. All other documents continue 
 ---
 
 ## Telnet / SSH BBS Server
+
+### System News and Recent Shoutbox Flow
+
+After a successful telnet login, the BBS now loads `data/systemnews.md`, renders its Markdown for terminal display, clears the screen, and shows it in a framed **SYSTEM NEWS** screen before the recent shoutbox.
+
+The terminal Markdown renderer now formats headings and inline Markdown links into terminal-friendly output so system news can be maintained as ordinary Markdown without exposing raw `#` or `[label](url)` syntax to callers.
+
+After the system news screen is dismissed, the read-only recent shoutbox screen appears. Users can:
+
+- press `S` to enter and post a new shout immediately
+- press any other key to continue into the normal BBS session
 
 ### Interests Menu
 

@@ -514,6 +514,31 @@ class AdminDaemonServer
                     $this->deleteShellArt((string)$name);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'list_terminal_screens':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listTerminalScreens()]);
+                    break;
+                case 'get_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTerminalScreen($key)]);
+                    break;
+                case 'save_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $content = (string)($data['content'] ?? '');
+                    $this->saveTerminalScreen($key, $content);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTerminalScreen($key)]);
+                    break;
+                case 'upload_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $contentBase64 = (string)($data['content_base64'] ?? '');
+                    $originalName = (string)($data['original_name'] ?? '');
+                    $this->uploadTerminalScreen($key, $contentBase64, $originalName);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTerminalScreen($key)]);
+                    break;
+                case 'delete_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $this->deleteTerminalScreen($key);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'list_custom_templates':
                     $templates = $this->listCustomTemplates();
                     $this->writeResponse($client, ['ok' => true, 'result' => $templates]);
@@ -1561,6 +1586,155 @@ class AdminDaemonServer
     private function getShellArtDir(): string
     {
         return __DIR__ . '/../../data/shell_art';
+    }
+
+    /**
+     * @return array<string,array{filename:string,label:string,description:string}>
+     */
+    private function getSupportedTerminalScreens(): array
+    {
+        return [
+            'welcome' => [
+                'filename' => 'login.ans',
+                'label' => 'Welcome',
+                'description' => 'Shown when a user first connects to the terminal server.',
+            ],
+            'main_menu' => [
+                'filename' => 'mainmenu.ans',
+                'label' => 'Main Menu',
+                'description' => 'Shown behind the terminal main menu after login.',
+            ],
+            'goodbye' => [
+                'filename' => 'bye.ans',
+                'label' => 'Goodbye',
+                'description' => 'Shown when a user disconnects from the terminal server.',
+            ],
+        ];
+    }
+
+    private function getTerminalScreensDir(): string
+    {
+        return __DIR__ . '/../../telnet/screens';
+    }
+
+    /**
+     * @return array{filename:string,label:string,description:string}|null
+     */
+    private function resolveTerminalScreen(string $key): ?array
+    {
+        $supported = $this->getSupportedTerminalScreens();
+        return $supported[$key] ?? null;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function listTerminalScreens(): array
+    {
+        $dir = $this->getTerminalScreensDir();
+        $result = [];
+
+        foreach ($this->getSupportedTerminalScreens() as $key => $meta) {
+            $path = $dir . DIRECTORY_SEPARATOR . $meta['filename'];
+            $exists = is_file($path);
+            $result[] = [
+                'key' => $key,
+                'filename' => $meta['filename'],
+                'label' => $meta['label'],
+                'description' => $meta['description'],
+                'exists' => $exists,
+                'size' => $exists ? (filesize($path) ?: 0) : 0,
+                'updated_at' => $exists ? date('c', filemtime($path) ?: time()) : null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function getTerminalScreen(string $key): array
+    {
+        $meta = $this->resolveTerminalScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported terminal screen');
+        }
+
+        $path = $this->getTerminalScreensDir() . DIRECTORY_SEPARATOR . $meta['filename'];
+        $exists = is_file($path);
+        $content = $exists ? (@file_get_contents($path) ?: '') : '';
+
+        return [
+            'key' => $key,
+            'filename' => $meta['filename'],
+            'label' => $meta['label'],
+            'description' => $meta['description'],
+            'exists' => $exists,
+            'content' => $content,
+            'size' => $exists ? (filesize($path) ?: 0) : 0,
+            'updated_at' => $exists ? date('c', filemtime($path) ?: time()) : null,
+        ];
+    }
+
+    private function saveTerminalScreen(string $key, string $content): void
+    {
+        $meta = $this->resolveTerminalScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported terminal screen');
+        }
+
+        $dir = $this->getTerminalScreensDir();
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            throw new \RuntimeException('Failed to create terminal screens directory');
+        }
+
+        $path = $dir . DIRECTORY_SEPARATOR . $meta['filename'];
+        if (@file_put_contents($path, $content) === false) {
+            throw new \RuntimeException('Failed to save terminal screen');
+        }
+    }
+
+    private function uploadTerminalScreen(string $key, string $contentBase64, string $originalName): void
+    {
+        if ($contentBase64 === '') {
+            throw new \RuntimeException('Missing content');
+        }
+
+        $content = base64_decode($contentBase64, true);
+        if ($content === false) {
+            throw new \RuntimeException('Invalid content encoding');
+        }
+
+        if (strlen($content) > 1024 * 1024) {
+            throw new \RuntimeException('File is too large (max 1MB)');
+        }
+
+        if ($originalName !== '') {
+            $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['ans', 'asc', 'txt'], true)) {
+                throw new \RuntimeException('Invalid file extension');
+            }
+        }
+
+        $this->saveTerminalScreen($key, $content);
+    }
+
+    private function deleteTerminalScreen(string $key): void
+    {
+        $meta = $this->resolveTerminalScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported terminal screen');
+        }
+
+        $path = $this->getTerminalScreensDir() . DIRECTORY_SEPARATOR . $meta['filename'];
+        if (!is_file($path)) {
+            return;
+        }
+
+        if (!@unlink($path)) {
+            throw new \RuntimeException('Failed to delete terminal screen');
+        }
     }
 
     private function sanitizeShellArtFilename(string $name): string
