@@ -291,16 +291,17 @@
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> {{ t('ui.base.admin.area_management', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> {{ t('ui.base.admin.echo_areas', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/admin/file-approvals"><i class="fas fa-user-check"></i> {{ t('ui.base.admin.file_approvals', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
                                         {% if interests_enabled %}
                                         <li><a class="dropdown-item" href="/admin/interests"><i class="fas fa-layer-group"></i> {{ t('ui.base.admin.interests', {}, 'common') }}</a></li>
                                         {% endif %}
+                                        <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/file-approvals"><i class="fas fa-user-check"></i> {{ t('ui.base.admin.file_approvals', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/echomail-robots"><i class="fas fa-robot"></i> {{ t('ui.base.admin.echomail_robots', {}, 'common') }}</a></li>
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/lovlynet"><i class="fas fa-globe"></i> {{ t('ui.base.admin.lovlynet', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/areafix"><i class="fas fa-network-wired me-1"></i> {{ t('ui.base.admin.areafix', {}, 'common') }}</a></li>
                                     </ul>
