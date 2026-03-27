@@ -927,10 +927,11 @@ class MessageHandler
             ");
 
             $params = [$userId, $userId, $userId];
-            $params = array_merge($params, $echoareaIds, $fileareaIds);
+            $params = array_merge($params, $echoareaIds);
             foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
             }
+            $params = array_merge($params, $fileareaIds);
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -954,10 +955,11 @@ class MessageHandler
                 ) combined
             ");
             $countParams = [$userId, $userId];
-            $countParams = array_merge($countParams, $echoareaIds, $fileareaIds);
+            $countParams = array_merge($countParams, $echoareaIds);
             foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
+            $countParams = array_merge($countParams, $fileareaIds);
             $countStmt->execute($countParams);
             $total = $countStmt->fetch()['total'];
         } else {
