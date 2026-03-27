@@ -412,7 +412,7 @@ function renderCampaignTable(campaigns) {
             <td class="text-nowrap small" data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.next_run', 'Next Run'))}">${escapeHtml(formatNextRun(campaign.next_run || null))}</td>
             <td class="text-end" data-label="${escapeHtml(uiT('ui.common.actions', 'Actions'))}">
                 <div class="d-flex flex-wrap justify-content-end gap-2 campaign-actions">
-                <button class="btn btn-sm btn-outline-primary" type="button" onclick="runCampaign(${Number(campaign.id)})">${uiT('ui.admin.ad_campaigns.run_now', 'Run Now')}</button>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="runCampaign(${Number(campaign.id)}, '${escapeJs(campaign.name || '')}')">${uiT('ui.admin.ad_campaigns.run_now', 'Run Now')}</button>
                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="editCampaign(${Number(campaign.id)})">${uiT('ui.common.edit', 'Edit')}</button>
                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="cloneCampaign(${Number(campaign.id)})">${uiT('ui.common.clone', 'Clone')}</button>
                 <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCampaign(${Number(campaign.id)}, '${escapeJs(campaign.name || '')}')">${uiT('ui.common.delete', 'Delete')}</button>
@@ -1024,7 +1024,11 @@ function deleteCampaign(id, name) {
     });
 }
 
-function runCampaign(id) {
+function runCampaign(id, name) {
+    const campaignName = String(name || '').trim() || uiT('ui.admin.ad_campaigns.this_campaign', 'this campaign');
+    if (!confirm(uiT('ui.admin.ad_campaigns.run_now_confirm', 'Run {name} right now?', { name: campaignName }))) {
+        return;
+    }
     fetch(`/admin/api/ad-campaigns/run/${encodeURIComponent(id)}`, { method: 'POST' }).then(readJsonResponse).then(({ response, data }) => {
         if (!response.ok || !data.success) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.run_failed', 'Failed to run ad campaign')));
         showCampaignAlert(window.getApiMessage ? window.getApiMessage(data, uiT('ui.admin.ad_campaigns.run_complete', 'Campaign run complete.')) : uiT('ui.admin.ad_campaigns.run_complete', 'Campaign run complete.'), 'success');

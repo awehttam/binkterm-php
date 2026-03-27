@@ -428,6 +428,8 @@ return [
     'ui.admin_users.inactive_cannot_login' => 'Los usuarios inactivos no pueden iniciar sesion',
     'ui.admin_users.admin_privileges' => 'Privilegios de administrador',
     'ui.admin_users.admin_privileges_help' => 'Los administradores pueden gestionar usuarios y configuracion del sistema',
+    'ui.admin_users.is_system_account' => 'Es cuenta del sistema',
+    'ui.admin_users.is_system_account_help' => 'Las cuentas del sistema se ocultan de la lista normal de usuarios y se reservan para uso interno o de servicios.',
     'ui.admin_users.email_optional_help' => 'Opcional: para recuperacion de cuenta y notificaciones',
     'ui.admin_users.min_8_characters' => 'Minimo 8 caracteres',
     'ui.admin_users.username_cannot_change' => 'El usuario no se puede cambiar',
@@ -4205,4 +4207,6 @@ return [
     'ui.terminalserver.qwk.format_unchanged'         => 'Formato sin cambios.',
     'ui.terminalserver.qwk.format_saved'             => 'Formato cambiado a {format}.',
     'ui.terminalserver.qwk.format_failed'            => 'Error al cambiar el formato.',
+    'ui.admin.ad_campaigns.run_now_confirm' => 'Ejecutar {name} ahora mismo?',
+    'ui.admin.ad_campaigns.this_campaign' => 'esta campana',
 ];

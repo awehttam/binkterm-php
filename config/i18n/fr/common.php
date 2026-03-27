@@ -365,6 +365,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin_users.inactive_cannot_login' => 'Les utilisateurs inactifs ne peuvent pas se connecter',
     'ui.admin_users.admin_privileges' => 'Privilèges administrateur',
     'ui.admin_users.admin_privileges_help' => 'Les administrateurs peuvent gérer les utilisateurs et les paramètres système',
+    'ui.admin_users.is_system_account' => 'Est un compte système',
+    'ui.admin_users.is_system_account_help' => 'Les comptes système sont masqués de la liste normale des utilisateurs et réservés à un usage interne ou de service.',
     'ui.admin_users.email_optional_help' => 'Facultatif - pour la récupération de compte et les notifications',
     'ui.admin_users.min_8_characters' => 'Minimum 8 caractères',
     'ui.admin_users.username_cannot_change' => 'Le nom d\'utilisateur ne peut pas être modifié',
@@ -4108,4 +4110,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.dashboard.metric_unavailable'          => 'Indisponible',
     'ui.admin.dashboard.ram_usage_modal_title'       => 'Details de l\'utilisation RAM',
     'ui.admin.dashboard.ram_usage_modal_failed'      => 'Impossible de charger les details de l\'utilisation RAM.',
+    'ui.admin.ad_campaigns.run_now_confirm' => 'ExÃ©cuter {name} tout de suite ?',
+    'ui.admin.ad_campaigns.this_campaign' => 'cette campagne',
 ];

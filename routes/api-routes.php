@@ -9068,7 +9068,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, is_active, is_admin, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, is_active, is_admin, is_system, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -9113,6 +9113,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $email = $_POST['email'] ?? '';
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
             $password = $_POST['password'] ?? '';
 
             if (empty($realName)) {
@@ -9126,9 +9127,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'real_name = ?',
                 'email = ?',
                 'is_active = ?',
-                'is_admin = ?'
+                'is_admin = ?',
+                'is_system = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem];
 
             // Add password if provided
             if ($password) {
@@ -9221,6 +9223,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $password = $_POST['password'] ?? '';
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
 
             // Validate required fields
             if (empty($username) || empty($realName) || empty($password)) {
@@ -9267,8 +9270,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Create user
             $insertStmt = $db->prepare("
-                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, is_system, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $insertStmt->execute([
@@ -9277,7 +9280,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $realName,
                 $email ?: null,
                 $isActive,
-                $isAdmin
+                $isAdmin,
+                $isSystem
             ]);
 
             $newUserId = $db->lastInsertId();

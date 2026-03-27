@@ -1596,12 +1596,17 @@ function hasAnsiCodes(text) {
  * Check if text contains pipe codes (BBS color codes like |15, |04, etc. or special codes like |CL)
  */
 function hasPipeCodes(text) {
+    if (!text) {
+        return false;
+    }
+
+    const normalized = String(text).replace(/\|\|/g, '');
     // Match single-digit shorthand (|1), two-digit color codes (|01, |0A, |1F),
     // or special letter codes (|CL, |PA, etc.).
     // Requires uppercase letters for both hex and letter codes — all real BBS software
     // produces uppercase pipe codes, and the case-insensitive version causes false positives
     // on natural English text (e.g. |Advertise → |Ad matches as a Mystic hex color code).
-    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-F]{2}|[A-Z]{2})/.test(text);
+    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-F]{2}|[A-Z]{2})/.test(normalized);
 }
 
 /**
@@ -1611,6 +1616,8 @@ function hasPipeCodes(text) {
  */
 function convertPipeCodesToAnsi(text) {
     if (!text) return text;
+
+    text = text.replace(/\|\|/g, '\x00PIPE\x00');
 
     // Handle |PI first: Mystic BBS escape for a literal pipe character
     text = text.replace(/\|PI/gi, '\x00PIPE\x00');
@@ -1751,6 +1758,8 @@ function parsePipeCodes(text) {
         return escapeHtml(text);
     }
 
+    text = text.replace(/\|\|/g, '\x00PIPE\x00');
+
     // Pipe code color mapping (0-15 standard colors)
     const pipeColors = [
         'black',        // 0
@@ -1843,7 +1852,7 @@ function parsePipeCodes(text) {
         result += '</span>';
     }
 
-    return result;
+    return result.replace(/\x00PIPE\x00/g, '|');
 }
 
 /**

@@ -191,6 +191,13 @@
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, locale, ['common']) }}</div>
                             </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="create-is-system">
+                                <label class="form-check-label" for="create-is-system">
+                                    {{ t('ui.admin_users.is_system_account', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -258,6 +265,13 @@
                                     {{ t('ui.admin_users.admin_privileges', {}, locale, ['common']) }}
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="edit-is-system">
+                                <label class="form-check-label" for="edit-is-system">
+                                    {{ t('ui.admin_users.is_system_account', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
@@ -481,6 +495,9 @@ function renderAllUsers(users) {
         const adminBadge = user.is_admin ? 
             `<span class="badge bg-warning">${uiT('ui.common.admin', 'Admin')}</span>` :
             `<span class="badge bg-secondary">${uiT('ui.common.user', 'User')}</span>`;
+        const systemBadge = user.is_system ?
+            `<span class="badge bg-info ms-1">${uiT('ui.admin_users.is_system_account', 'System')}</span>` :
+            '';
             
         html += `
             <tr>
@@ -488,7 +505,7 @@ function renderAllUsers(users) {
                 <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${escapeHtml(user.real_name || '')}</td>
                 <td>${statusBadge}</td>
-                <td>${adminBadge}</td>
+                <td>${adminBadge}${systemBadge}</td>
                 <td>${createdDate}</td>
                 <td>${lastLogin}</td>
                 <td>${lastReminded}</td>
@@ -667,6 +684,7 @@ function editUser(userId) {
                 $('#edit-email').val(user.email || '');
                 $('#edit-is-active').prop('checked', !!user.is_active);
                 $('#edit-is-admin').prop('checked', !!user.is_admin);
+                $('#edit-is-system').prop('checked', !!user.is_system);
                 $('#edit-new-password').val('');
                 
                 // Show modal
@@ -696,7 +714,8 @@ function saveUserChanges() {
         real_name: $('#edit-real-name').val(),
         email: $('#edit-email').val(),
         is_active: $('#edit-is-active').is(':checked') ? 1 : 0,
-        is_admin: $('#edit-is-admin').is(':checked') ? 1 : 0
+        is_admin: $('#edit-is-admin').is(':checked') ? 1 : 0,
+        is_system: $('#edit-is-system').is(':checked') ? 1 : 0
     };
     
     // Only include password if it's provided
@@ -774,6 +793,7 @@ function createNewUser() {
     $('#create-confirm-password').val('');
     $('#create-is-active').prop('checked', true);
     $('#create-is-admin').prop('checked', false);
+    $('#create-is-system').prop('checked', false);
     
     // Show modal
     new bootstrap.Modal(document.getElementById('createUserModal')).show();
@@ -787,6 +807,7 @@ function saveNewUser() {
     const confirmPassword = $('#create-confirm-password').val();
     const isActive = $('#create-is-active').is(':checked') ? 1 : 0;
     const isAdmin = $('#create-is-admin').is(':checked') ? 1 : 0;
+    const isSystem = $('#create-is-system').is(':checked') ? 1 : 0;
     
     // Validate required fields
     if (!username || !realName || !password) {
@@ -818,7 +839,8 @@ function saveNewUser() {
         email: email || null,
         password: password,
         is_active: isActive,
-        is_admin: isAdmin
+        is_admin: isAdmin,
+        is_system: isSystem
     };
     
     const btn = $('button[onclick="saveNewUser()"]');

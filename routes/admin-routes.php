@@ -4222,11 +4222,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         // Top downloaded files
         $topFilesStmt = $db->query("
-            SELECT object_name AS name, COUNT(*) AS count
+            SELECT COALESCE(f.filename, ual.object_name) AS name, COUNT(*) AS count
             FROM user_activity_log ual
+            JOIN files f ON f.id = ual.object_id
+            JOIN file_areas fa ON fa.id = f.file_area_id
             WHERE activity_type_id = 6 {$dateFilter}{$adminFilter}
-              AND object_name IS NOT NULL
-            GROUP BY object_name
+              AND COALESCE(fa.is_private, FALSE) = FALSE
+              AND COALESCE(f.filename, ual.object_name) IS NOT NULL
+            GROUP BY COALESCE(f.filename, ual.object_name)
             ORDER BY count DESC
             LIMIT 15
         ");
@@ -4238,9 +4241,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $fileAreasStmt = $db->query("
             SELECT ual.object_id AS area_id, fa.tag AS area_name, COUNT(*) AS count
             FROM user_activity_log ual
-            LEFT JOIN file_areas fa ON fa.id = ual.object_id
+            JOIN file_areas fa ON fa.id = ual.object_id
             WHERE ual.activity_type_id = 5 {$dateFilter}{$adminFilter}
               AND ual.object_id IS NOT NULL
+              AND COALESCE(fa.is_private, FALSE) = FALSE
             GROUP BY ual.object_id, fa.tag
             ORDER BY count DESC
             LIMIT 10

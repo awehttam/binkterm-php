@@ -40,10 +40,9 @@ class AdminController
         
         try {
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system
                 FROM users
-                WHERE is_system = FALSE
-                  AND (username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?)
+                WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             ";
@@ -79,8 +78,7 @@ class AdminController
         try {
             $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM users
-                WHERE is_system = FALSE
-                  AND (username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?)
+                WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
             ");
             $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
         } catch (\PDOException $e) {

@@ -51,6 +51,7 @@
   - [In-App FAQ and README Viewer](#in-app-faq-and-readme-viewer)
 - [File Areas](#file-areas)
   - [Upload Approval Queue](#upload-approval-queue)
+  - [Activity Statistics Exclude Private File Areas](#activity-statistics-exclude-private-file-areas)
   - [ISO Mount Point Restriction](#iso-mount-point-restriction)
 - [Broadcast Manager](#broadcast-manager)
   - [Clone Campaign](#clone-campaign)
@@ -166,6 +167,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Users have a **My Uploads** view in `/files` showing pending, approved, and rejected uploads with status badges.
 - Admins see a live notification badge on the Files menu when uploads are awaiting approval. The badge clears on visiting the approvals page and persists its seen state across page loads.
 - The Files nav entry for admins is now a dropdown containing **Files** and **File Approvals**.
+- The **Activity Statistics** page now excludes private file areas from its file-activity reports so public/admin-facing download and browse totals do not reveal private-area usage.
 - ISO file-area mount points entered through the web interface or API must now stay under `data/iso_mounts`. If you need a custom external mount path, set it directly in the database after upgrade.
 
 **Real-time Events (BinkStream)**
@@ -388,6 +390,8 @@ Pressing **A** now also shows a brief toast notification each time the mode chan
 The pipe code detector previously matched any `|` followed by two characters that happened to be valid hexadecimal — including letters in ordinary English words. For example, `|Advertise` was being treated as a Mystic-style hex color code (`|AD` = bright green background), causing all text after it to render on a green background.
 
 Detection now requires uppercase letters for both hex color codes and two-letter special codes such as `|CL` and `|PA`. All real BBS software produces uppercase pipe codes. The same fix was applied to `convertPipeCodesToAnsi` and `parsePipeCodes` for consistency.
+
+The detector and parser now also treat doubled pipes (`||`) as literal pipe characters instead of the start of a pipe code. This prevents ordinary text such as FTP `229 Entering Extended Passive Mode (||22|)` responses from being mis-rendered.
 
 ---
 
@@ -636,6 +640,17 @@ User-uploaded files now support a moderation workflow.
 - Uploaders can review the status of their own submissions from the new **My Uploads** entry on the `/files` page.
 
 This change adds the migration `v1.11.0.52_file_upload_approval.sql`, which records approval and rejection metadata on the `files` table and adds an index for the pending queue.
+
+### Activity Statistics Exclude Private File Areas
+
+The **Admin → Activity Statistics** page now omits private file areas from the file-activity tab.
+
+This affects:
+
+- **Top Downloaded Files**
+- **Most Browsed File Areas**
+
+The change keeps private-area usage out of aggregate admin activity reports while leaving the underlying activity log table unchanged.
 
 ### ISO Mount Point Restriction
 
