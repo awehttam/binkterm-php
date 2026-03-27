@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
+use BinktermPHP\License;
 use BinktermPHP\Realtime\LoopServiceInterface;
 
 class FtpServer implements LoopServiceInterface
@@ -961,6 +962,16 @@ class FtpServer implements LoopServiceInterface
 
     private function authenticateAnonymousClient(int $clientId, string $password): void
     {
+        if (!License::isValid()) {
+            $this->logger->info(sprintf(
+                'FTP anonymous login denied (registration required): ip=%s client_id=%d',
+                (string)$this->clients[$clientId]['remote_ip'],
+                $clientId
+            ));
+            $this->sendResponse($clientId, 530, 'Anonymous FTP requires a registered license');
+            return;
+        }
+
         $alreadyAuthenticated = !empty($this->clients[$clientId]['authenticated'])
             && is_array($this->clients[$clientId]['user'] ?? null)
             && !empty($this->clients[$clientId]['user']['is_anonymous']);

@@ -767,7 +767,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `who.php` | Show currently active users |
 
 Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for documentation on scripts including usage examples, options, and cron job examples.
-See **[docs/FTPServer.md](docs/FTPServer.md)** for FTP daemon setup, configuration, anonymous access, and rootless port-21 redirect guidance.
+See **[docs/FTPServer.md](docs/FTPServer.md)** for FTP daemon setup, configuration, registered-only anonymous access, and rootless port-21 redirect guidance.
 
 # Operation
 

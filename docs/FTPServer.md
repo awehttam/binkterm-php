@@ -191,7 +191,7 @@ sudo systemctl start binkterm-ftpd
 
 ### Anonymous Users
 
-Anonymous login is supported with:
+Anonymous login is supported on registered systems with:
 
 - username: `anonymous` or `ftp`
 - password: any string
@@ -206,6 +206,9 @@ Anonymous users cannot:
 - access `/qwk/...`
 - upload to `/incoming/...`
 - upload REP packets
+
+If the system is not registered, anonymous login is rejected and only normal
+authenticated BBS users can log in over FTP.
 
 ## Port 21 Without Running as Root
 
