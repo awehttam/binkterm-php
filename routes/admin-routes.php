@@ -1742,6 +1742,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (!in_array($variant, ['cards', 'ansi', 'text'], true)) {
                     $variant = 'cards';
                 }
+                $ansiSize = (string)($bbsMenu['ansi_size'] ?? '80x25');
+                if (!in_array($ansiSize, ['80x25', '132x24', '132x43', '132x50', 'full'], true)) {
+                    $ansiSize = '80x25';
+                }
 
                 $menuItems = $bbsMenu['menu_items'] ?? [];
                 $sanitizedItems = [];
@@ -1768,6 +1772,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config['shell']['lock_shell'] = !empty($shell['lock_shell']);
                 $config['shell']['bbs_menu']['variant'] = $variant;
                 $config['shell']['bbs_menu']['ansi_file'] = basename(trim((string)($bbsMenu['ansi_file'] ?? '')));
+                $config['shell']['bbs_menu']['ansi_size'] = $ansiSize;
                 if (!empty($sanitizedItems)) {
                     $config['shell']['bbs_menu']['menu_items'] = $sanitizedItems;
                 }

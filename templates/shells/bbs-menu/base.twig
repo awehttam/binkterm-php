@@ -329,8 +329,35 @@
         // Render ANSI art if present on this page
         $(document).ready(function() {
             const pre = document.getElementById('shellMenuAnsi');
-            if (pre && typeof renderAnsiTerminal === 'function') {
-                pre.innerHTML = renderAnsiTerminal(pre.textContent);
+            if (pre && (typeof renderAnsiBuffer === 'function' || typeof renderAnsiTerminal === 'function')) {
+                const ansiSize = {{ appearance.shell.bbs_menu.ansi_size|default('80x25')|json_encode|raw }};
+                const dims = (function resolveAnsiMenuDimensions(size) {
+                    switch (size) {
+                        case '132x24':
+                            return { cols: 132, rows: 24 };
+                        case '132x43':
+                            return { cols: 132, rows: 43 };
+                        case '132x50':
+                            return { cols: 132, rows: 50 };
+                        case 'full':
+                            return {
+                                cols: 132,
+                                rows: Math.max(25, Math.floor((window.innerHeight - 140) / 16))
+                            };
+                        case '80x25':
+                        default:
+                            return { cols: 80, rows: 25 };
+                    }
+                })(ansiSize);
+                if (typeof renderAnsiBuffer === 'function') {
+                    pre.innerHTML = renderAnsiBuffer(pre.textContent, dims.cols, dims.rows, null, {
+                        preserveFullWidth: true,
+                        preserveFullHeight: true,
+                        rowCount: dims.rows
+                    });
+                } else {
+                    pre.innerHTML = renderAnsiTerminal(pre.textContent, dims.cols, dims.rows);
+                }
             }
         });
 

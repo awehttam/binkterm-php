@@ -370,6 +370,18 @@
                         <div id="shellArtUploadStatus" class="mt-1 small"></div>
                     </div>
 
+                    <div class="mb-3" id="ansiSizeRow" style="display:none;">
+                        <label class="form-label" for="ansiSizeSelect">{{ t('ui.admin.appearance.shell.ansi_art_size', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="ansiSizeSelect" style="max-width: 240px;">
+                            <option value="80x25">80x25</option>
+                            <option value="132x24">132x24</option>
+                            <option value="132x43">132x43</option>
+                            <option value="132x50">132x50</option>
+                            <option value="full">{{ t('ui.admin.appearance.shell.ansi_art_size_full', {}, locale, ['common']) }}</option>
+                        </select>
+                        <div class="form-text">{{ t('ui.admin.appearance.shell.ansi_art_size_help', {}, locale, ['common']) }}</div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">{{ t('ui.admin.appearance.shell.menu_items', {}, locale, ['common']) }}</label>
                         <div class="form-text mb-2">{{ t('ui.admin.appearance.shell.menu_items_help', {}, locale, ['common']) }}</div>
@@ -522,9 +534,11 @@ $(document).ready(function() {
     $('input[name="bbsVariant"]').on('change', function() {
         if ($(this).val() === 'ansi') {
             $('#ansiFileRow').show();
+            $('#ansiSizeRow').show();
             loadShellArtList();
         } else {
             $('#ansiFileRow').hide();
+            $('#ansiSizeRow').hide();
         }
     });
 
@@ -605,11 +619,14 @@ function loadAppearanceConfig() {
             $('input[name="bbsVariant"][value="' + variant + '"]').prop('checked', true);
             if (variant === 'ansi') {
                 $('#ansiFileRow').show();
+                $('#ansiSizeRow').show();
                 loadShellArtList(bbsMenu.ansi_file || '');
             } else {
                 $('#ansiFileRow').hide();
+                $('#ansiSizeRow').hide();
             }
             $('#ansiFile').val(bbsMenu.ansi_file || '');
+            $('#ansiSizeSelect').val(bbsMenu.ansi_size || '80x25');
 
             const items = bbsMenu.menu_items || defaultMenuItems;
             $('#menuItemsBody').empty();
@@ -855,6 +872,7 @@ function saveShell() {
             bbs_menu: {
                 variant: variant,
                 ansi_file: $('#ansiFile').val().trim(),
+                ansi_size: $('#ansiSizeSelect').val() || '80x25',
                 menu_items: menuItems.length > 0 ? menuItems : defaultMenuItems
             }
         }

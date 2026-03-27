@@ -154,6 +154,10 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Notification sound select boxes now have a **▶** button to preview sounds without leaving the page.
 - The **Messaging** tab now ends with an **Ignored Echomail** section where users can review and remove saved echomail ignore rules.
 
+**Appearance**
+- The BBS menu shell's `ansi` variant now supports size presets: `80x25`, `132x24`, `132x43`, `132x50`, and `Full Screen`.
+- `80x25` is the authentic baseline terminal presentation. `Full Screen` instead scales the rendered ANSI art to the available browser viewport below the shell header.
+
 **Echomail MCP Server**
 - An optional [Model Context Protocol](https://modelcontextprotocol.io/) server (`mcp-server/`) gives AI assistants read-only access to your echomail. Each user generates a personal bearer key from **Settings → AI**. See `docs/MCPServer.md` for setup.
 

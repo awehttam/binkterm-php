@@ -69,6 +69,7 @@ class AppearanceConfig
                     'variant' => 'cards',
                     'menu_items' => self::DEFAULT_MENU_ITEMS,
                     'ansi_file' => '',
+                    'ansi_size' => '80x25',
                 ],
             ],
             'branding' => [
@@ -189,7 +190,7 @@ class AppearanceConfig
     }
 
     /**
-     * BBS menu sub-configuration (variant, items, ansi_file).
+     * BBS menu sub-configuration (variant, items, ansi_file, ansi_size).
      */
     public static function getBbsMenuConfig(): array
     {
@@ -201,6 +202,11 @@ class AppearanceConfig
             $variant = 'cards';
         }
 
+        $ansiSize = (string)($cfg['ansi_size'] ?? '80x25');
+        if (!in_array($ansiSize, ['80x25', '132x24', '132x43', '132x50', 'full'], true)) {
+            $ansiSize = '80x25';
+        }
+
         $items = $cfg['menu_items'] ?? self::DEFAULT_MENU_ITEMS;
         if (!is_array($items)) {
             $items = self::DEFAULT_MENU_ITEMS;
@@ -210,6 +216,7 @@ class AppearanceConfig
             'variant' => $variant,
             'menu_items' => $items,
             'ansi_file' => (string)($cfg['ansi_file'] ?? ''),
+            'ansi_size' => $ansiSize,
         ];
     }
 

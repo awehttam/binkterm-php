@@ -621,17 +621,31 @@ class ArtHtmlRenderer {
         return classes;
     }
 
-    render(buffer) {
+    render(buffer, options = {}) {
         let html = '';
-        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const preserveFullWidth = options.preserveFullWidth === true;
+        const preserveFullHeight = options.preserveFullHeight === true;
+        const requestedRowCount = Number.isInteger(options.rowCount) && options.rowCount > 0
+            ? options.rowCount
+            : buffer.rows;
+        const usedRows = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const rowsToRender = preserveFullHeight
+            ? Math.min(buffer.buffer.length, Math.max(usedRows, requestedRowCount))
+            : usedRows;
 
         for (let r = 0; r < rowsToRender; r++) {
             const row = buffer.buffer[r];
-            let lastNonSpace = -1;
-            for (let c = row.length - 1; c >= 0; c--) {
-                if (row[c].char !== ' ' || row[c].bg !== 0) {
-                    lastNonSpace = c;
-                    break;
+            let lastNonSpace;
+
+            if (preserveFullWidth) {
+                lastNonSpace = Math.max(0, buffer.cols - 1);
+            } else {
+                lastNonSpace = -1;
+                for (let c = row.length - 1; c >= 0; c--) {
+                    if (row[c].char !== ' ' || row[c].bg !== 0) {
+                        lastNonSpace = c;
+                        break;
+                    }
                 }
             }
 
@@ -677,17 +691,30 @@ class ArtHtmlRenderer {
  * across individual spans.
  */
 class ArtHtmlRendererPerChar extends ArtHtmlRenderer {
-    render(buffer) {
+    render(buffer, options = {}) {
         let html = '';
-        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const preserveFullWidth = options.preserveFullWidth === true;
+        const preserveFullHeight = options.preserveFullHeight === true;
+        const requestedRowCount = Number.isInteger(options.rowCount) && options.rowCount > 0
+            ? options.rowCount
+            : buffer.rows;
+        const usedRows = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const rowsToRender = preserveFullHeight
+            ? Math.min(buffer.buffer.length, Math.max(usedRows, requestedRowCount))
+            : usedRows;
 
         for (let r = 0; r < rowsToRender; r++) {
             const row = buffer.buffer[r];
-            let lastNonSpace = -1;
-            for (let c = row.length - 1; c >= 0; c--) {
-                if (row[c].char !== ' ' || row[c].bg !== 0) {
-                    lastNonSpace = c;
-                    break;
+            let lastNonSpace;
+            if (preserveFullWidth) {
+                lastNonSpace = Math.max(0, buffer.cols - 1);
+            } else {
+                lastNonSpace = -1;
+                for (let c = row.length - 1; c >= 0; c--) {
+                    if (row[c].char !== ' ' || row[c].bg !== 0) {
+                        lastNonSpace = c;
+                        break;
+                    }
                 }
             }
 
@@ -1317,7 +1344,7 @@ function findScreenRamOffset(bytes) {
     return -1;
 }
 
-function renderAnsiBuffer(text, cols = 80, rows = 500, rendererMode = null) {
+function renderAnsiBuffer(text, cols = 80, rows = 500, rendererMode = null, renderOptions = null) {
     const buffer = new ArtScreenBuffer(cols, rows);
     const decoder = new ArtAnsiDecoder(buffer);
     const effectiveRendererMode = rendererMode || window.siteConfig?.ansiRendererMode || 'grouped';
@@ -1325,7 +1352,7 @@ function renderAnsiBuffer(text, cols = 80, rows = 500, rendererMode = null) {
         ? new ArtHtmlRendererPerChar()
         : new ArtHtmlRenderer();
     decoder.decode(text);
-    return renderer.render(buffer);
+    return renderer.render(buffer, renderOptions || {});
 }
 
 
