@@ -403,11 +403,11 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">{{ t('ui.admin.dashboard.ram_usage_modal_title', {}, locale, ['common']) }}</h5>
+                <h5 class="modal-title">binktop</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
-                <pre id="ramUsageOutput" class="mb-0 small">{{ t('ui.common.loading', {}, locale, ['common']) }}</pre>
+                <div id="ramUsageOutput" class="ansi-art-container small"><pre class="ansi-art mb-0">{{ t('ui.common.loading', {}, locale, ['common']) }}</pre></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
@@ -467,12 +467,16 @@
 }
 
 #ramUsageOutput {
-    white-space: pre-wrap;
-    word-break: break-word;
+    min-height: 24rem;
+}
+
+#ramUsageOutput .ansi-art {
+    min-width: 100%;
 }
 </style>
 {% endblock %}
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
 <script>
 (function () {
     var modeEl = document.getElementById('binkstream-transport-mode');
@@ -506,6 +510,7 @@
 (function () {
     var modalEl = document.getElementById('ramUsageModal');
     var outputEl = document.getElementById('ramUsageOutput');
+    var refreshTimer = null;
 
     if (!modalEl || !outputEl) {
         return;
@@ -518,8 +523,21 @@
         return fallback;
     }
 
-    modalEl.addEventListener('show.bs.modal', function () {
-        outputEl.textContent = uiT('ui.common.loading', 'Loading...');
+    function renderBinktopOutput(text) {
+        if (typeof window.renderAnsiBuffer === 'function') {
+            outputEl.innerHTML = renderAnsiBuffer(text || '', 100, 120);
+            return;
+        }
+
+        outputEl.innerHTML = '<pre class="ansi-art mb-0"></pre>';
+        var pre = outputEl.querySelector('pre');
+        if (pre) {
+            pre.textContent = text || '';
+        }
+    }
+
+    function loadBinktop() {
+        renderBinktopOutput(uiT('ui.common.loading', 'Loading...'));
         fetch('/admin/api/ram-usage')
             .then(function (response) {
                 return response.json().then(function (body) {
@@ -530,11 +548,22 @@
                 });
             })
             .then(function (body) {
-                outputEl.textContent = body.output || uiT('ui.admin.dashboard.metric_unavailable', 'Unavailable');
+                renderBinktopOutput(body.output || uiT('ui.admin.dashboard.metric_unavailable', 'Unavailable'));
             })
             .catch(function (error) {
-                outputEl.textContent = (error && error.error) || uiT('ui.admin.dashboard.ram_usage_modal_failed', 'Failed to load RAM usage details.');
+                renderBinktopOutput((error && error.error) || uiT('ui.admin.dashboard.ram_usage_modal_failed', 'Failed to load RAM usage details.'));
             });
+    }
+
+    modalEl.addEventListener('show.bs.modal', function () {
+        loadBinktop();
+        clearInterval(refreshTimer);
+        refreshTimer = setInterval(loadBinktop, 2000);
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
     });
 })();
 </script>

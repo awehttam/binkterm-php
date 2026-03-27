@@ -352,12 +352,16 @@ class AdminController
             return null;
         }
 
-        $scriptPath = realpath(__DIR__ . '/../scripts/ram_usage.sh');
+        $scriptPath = realpath(__DIR__ . '/../scripts/binktop.php');
         if ($scriptPath === false || !is_file($scriptPath)) {
             return null;
         }
 
-        $output = @shell_exec('bash ' . escapeshellarg($scriptPath) . ' 2>&1');
+        $phpBinary = defined('PHP_BINARY') && is_string(PHP_BINARY) && PHP_BINARY !== ''
+            ? PHP_BINARY
+            : 'php';
+        $command = escapeshellarg($phpBinary) . ' ' . escapeshellarg($scriptPath) . ' --once 2>&1';
+        $output = @shell_exec($command);
         if (!is_string($output)) {
             return null;
         }
