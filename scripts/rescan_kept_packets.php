@@ -230,11 +230,10 @@ function scanPacket(string $path): ?array
             break;
         }
 
-        // Fixed-size string fields — read full block, trim to null for display
-        $dateTime = readFixed($handle, 20);
-        $toName   = readFixed($handle, 36);
-        $fromName = readFixed($handle, 36);
-        $subject  = readFixed($handle, 72);
+        $dateTime = readFixed($handle);
+        $toName   = readFixed($handle);
+        $fromName = readFixed($handle);
+        $subject  = readFixed($handle);
 
         // Variable-length null-terminated message body
         $body = '';
@@ -276,36 +275,16 @@ function scanPacket(string $path): ?array
  * boundary. If a non-zero byte follows the null, it belongs to the next field
  * (non-padded mailer) and the file position is rewound by one byte.
  */
-function readFixed($handle, int $len): string
+/**
+ * Read a null-terminated string field — matches the parser used by BinkdProcessor
+ * so extracted values align with what is stored in the database.
+ */
+function readFixed($handle): string
 {
     $string = '';
-    $count  = 0;
-
-    while ($count < $len) {
-        $char = fread($handle, 1);
-        if ($char === false || $char === '') {
-            return $string;
-        }
-        $count++;
-        if (ord($char) === 0) {
-            break;
-        }
+    while (($char = fread($handle, 1)) !== false && $char !== '' && ord($char) !== 0) {
         $string .= $char;
     }
-
-    while ($count < $len) {
-        $char = fread($handle, 1);
-        if ($char === false || $char === '') {
-            break;
-        }
-        $count++;
-        if (ord($char) !== 0) {
-            fseek($handle, -1, SEEK_CUR);
-            $count--;
-            break;
-        }
-    }
-
     return $string;
 }
 
