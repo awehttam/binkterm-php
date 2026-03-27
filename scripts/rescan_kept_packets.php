@@ -4,11 +4,13 @@
 /**
  * rescan_kept_packets.php
  *
- * Scans the kept packet directory for packets that may have had messages
- * silently dropped due to a parser bug where fixed-size FTN header fields
- * (date, to, from, subject) were read byte-by-byte until a null terminator
- * rather than consuming the full fixed-width block. Any message after a
- * short field value in the same packet would be lost.
+ * Scans the kept packet directory for messages not present in the database
+ * and optionally reimports them.
+ *
+ * Also supports --preview mode which runs both the production null-terminated
+ * parser and the experimental fixed-width parser side by side, showing field
+ * values and MSGIDs from each without importing anything. Use this to validate
+ * the fixed-width parser before enabling it in production.
  *
  * Usage:
  *   php scripts/rescan_kept_packets.php [options]
@@ -20,6 +22,8 @@
  *   --file=PATH      Scan a single specific .pkt file instead of a directory.
  *   --dry-run        Report only; do not import even if --reimport is given.
  *   --verbose        Show details for every message checked, not just missing ones.
+ *   --preview        Show field values from both parsers for packets with missing
+ *                    messages. Does not import. Use to validate the fixed-width parser.
  *   --help           Show this help text.
  */
 
@@ -36,6 +40,7 @@ $opts = [
     'reimport' => false,
     'dry-run'  => false,
     'verbose'  => false,
+    'preview'  => false,
     'dir'      => null,
     'file'     => null,
 ];
@@ -44,6 +49,7 @@ foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--reimport')        { $opts['reimport'] = true; }
     elseif ($arg === '--dry-run')     { $opts['dry-run']  = true; }
     elseif ($arg === '--verbose')     { $opts['verbose']  = true; }
+    elseif ($arg === '--preview')     { $opts['preview']  = true; }
     elseif ($arg === '--help')        { showHelp(); exit(0); }
     elseif (str_starts_with($arg, '--dir='))  { $opts['dir']  = substr($arg, 6); }
     elseif (str_starts_with($arg, '--file=')) { $opts['file'] = substr($arg, 7); }
@@ -63,6 +69,8 @@ function showHelp(): void
     echo "                 date_received is set to the .pkt file modification time.\n";
     echo "  --dry-run      Report without importing (overrides --reimport).\n";
     echo "  --verbose      Show all messages checked, not just missing ones.\n";
+    echo "  --preview      For packets with missing messages, show what the fixed-width\n";
+    echo "                 parser would import (field values, MSGID) without importing.\n";
     echo "  --dir=PATH     Kept packet directory (default: data/inbound/keep).\n";
     echo "  --file=PATH    Scan a single specific .pkt file.\n";
 }
@@ -149,6 +157,37 @@ foreach ($packets as $pktPath) {
         echo "  -> " . count($missing) . " missing / " . count($messages) . " total"
            . " | pkt mtime: $pktDate UTC\n";
 
+        if ($opts['preview']) {
+            $fwMessages = scanPacket($pktPath, true);
+            $count = max(count($messages), count($fwMessages ?? []));
+            echo "  -> Parser comparison (null-term vs fixed-width):\n";
+            for ($i = 0; $i < $count; $i++) {
+                $old = $messages[$i]    ?? null;
+                $new = ($fwMessages ?? [])[$i] ?? null;
+                echo sprintf("     #%d\n", $i + 1);
+                $fields = ['area', 'fromName', 'toName', 'subject', 'msgid'];
+                foreach ($fields as $f) {
+                    $ov = $old[$f] ?? '(missing)';
+                    $nv = $new[$f] ?? '(missing)';
+                    $marker = ($ov !== $nv) ? ' ***' : '';
+                    if ($ov !== $nv || $opts['verbose']) {
+                        echo sprintf("        %-10s null-term=%-40s fixed=%s%s\n",
+                            $f . ':',
+                            mb_substr(json_encode($ov), 0, 40),
+                            mb_substr(json_encode($nv), 0, 40),
+                            $marker);
+                    }
+                }
+                if ($old && $new) {
+                    $same = true;
+                    foreach ($fields as $f) {
+                        if (($old[$f] ?? null) !== ($new[$f] ?? null)) { $same = false; break; }
+                    }
+                    echo $same ? "        (parsers agree)\n" : "        ^^^ PARSERS DIFFER\n";
+                }
+            }
+        }
+
         if ($opts['reimport'] && !$opts['dry-run']) {
             $receivedDate = gmdate('Y-m-d H:i:s', $pktMtime);
             echo "  -> Reimporting packet with date_received=$receivedDate …\n";
@@ -189,12 +228,14 @@ if ($opts['reimport'] && !$opts['dry-run']) {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a .pkt file using fixed-width field reads (the correct FTS-0001 method)
- * and return an array of message summaries for DB lookup.
+ * Parse a .pkt file and return an array of message summaries for DB lookup.
  *
+ * @param bool $fixedWidth  When true, use the fixed-width parser (experimental).
+ *                          When false (default), use the null-terminated parser
+ *                          that matches what BinkdProcessor stores in the DB.
  * @return array[]|null  Array of message arrays, or null on parse failure.
  */
-function scanPacket(string $path): ?array
+function scanPacket(string $path, bool $fixedWidth = false): ?array
 {
     $handle = fopen($path, 'rb');
     if (!$handle) {
@@ -230,10 +271,17 @@ function scanPacket(string $path): ?array
             break;
         }
 
-        $dateTime = readFixed($handle);
-        $toName   = readFixed($handle);
-        $fromName = readFixed($handle);
-        $subject  = readFixed($handle);
+        if ($fixedWidth) {
+            $dateTime = readFixedWidth($handle, 20);
+            $toName   = readFixedWidth($handle, 36);
+            $fromName = readFixedWidth($handle, 36);
+            $subject  = readFixedWidth($handle, 72);
+        } else {
+            $dateTime = readFixed($handle);
+            $toName   = readFixed($handle);
+            $fromName = readFixed($handle);
+            $subject  = readFixed($handle);
+        }
 
         // Variable-length null-terminated message body
         $body = '';
@@ -270,14 +318,8 @@ function scanPacket(string $path): ?array
 }
 
 /**
- * Read an FTN fixed-size string field, handling both padded and non-padded mailers.
- * Reads byte-by-byte until null, then skips consecutive zero bytes up to the field
- * boundary. If a non-zero byte follows the null, it belongs to the next field
- * (non-padded mailer) and the file position is rewound by one byte.
- */
-/**
- * Read a null-terminated string field — matches the parser used by BinkdProcessor
- * so extracted values align with what is stored in the database.
+ * Read a null-terminated string field.
+ * Matches the parser BinkdProcessor uses for import so MSGID comparisons align.
  */
 function readFixed($handle): string
 {
@@ -286,6 +328,28 @@ function readFixed($handle): string
         $string .= $char;
     }
     return $string;
+}
+
+/**
+ * Read an FTS-0001 fixed-width string field (experimental fixed-width parser).
+ * Reads exactly $len bytes, trims at the first null, and seeks back if bytes
+ * after the null are non-zero (non-padded mailer whose next field follows immediately).
+ */
+function readFixedWidth($handle, int $len): string
+{
+    $raw = fread($handle, $len);
+    if ($raw === false || $raw === '') {
+        return '';
+    }
+    $pos = strpos($raw, "\0");
+    if ($pos === false) {
+        return $raw;
+    }
+    $afterNull = substr($raw, $pos + 1);
+    if ($afterNull !== '' && ltrim($afterNull, "\0") !== '') {
+        fseek($handle, -strlen($afterNull), SEEK_CUR);
+    }
+    return substr($raw, 0, $pos);
 }
 
 /**
