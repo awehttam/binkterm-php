@@ -7608,7 +7608,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
-        $onlineUsers = $auth->getOnlineUsers(15);
+        $onlineUsers = $auth->getOnlineSessions(15);
+        $onlineUserCount = $auth->getOnlineUserCount(15);
         $isAdmin = !empty($user['is_admin']);
 
         $responseUsers = array_map(function($onlineUser) use ($isAdmin) {
@@ -7627,6 +7628,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'users' => $responseUsers,
+            'online_user_count' => $onlineUserCount,
             'online_minutes' => 15
         ]);
     });

@@ -305,7 +305,7 @@ class Auth
             WHERE s.last_activity > NOW() - INTERVAL '1 minute' * ?
               AND s.expires_at > NOW()
               AND u.is_active = TRUE
-            ORDER BY s.last_activity DESC, u.username ASC, s.service ASC, s.session_id ASC
+            ORDER BY u.username ASC, s.last_activity DESC, s.service ASC, s.session_id ASC
         ");
         $stmt->execute([$minutes]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);

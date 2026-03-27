@@ -887,10 +887,12 @@ SimpleRouter::get('/whosonline', function() {
     }
 
     $onlineUsers = $auth->getOnlineSessions(15);
+    $onlineUserCount = $auth->getOnlineUserCount(15);
 
     $template = new Template();
     $template->renderResponse('whos_online.twig', [
         'online_users' => $onlineUsers,
+        'online_user_count' => $onlineUserCount,
         'online_minutes' => 15
     ]);
 });
