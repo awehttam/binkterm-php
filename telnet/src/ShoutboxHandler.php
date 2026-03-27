@@ -166,8 +166,57 @@ class ShoutboxHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-        $this->server->readKeyWithIdleCheck($conn, $state);
+        TelnetUtils::writeLine(
+            $conn,
+            TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.shoutbox.quick_prompt', 'Press S to shout, or any other key to continue...', [], $state['locale']),
+                TelnetUtils::ANSI_YELLOW
+            )
+        );
+
+        $key = $this->server->readKeyWithIdleCheck($conn, $state);
+        if ($key === null) {
+            return;
+        }
+
+        if ($key === 'CHAR:s' || $key === 'CHAR:S') {
+            TelnetUtils::writeLine($conn, '');
+            $message = $this->server->prompt(
+                $conn,
+                $state,
+                TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.new_shout', 'New shout (blank to cancel): ', [], $state['locale']), TelnetUtils::ANSI_CYAN),
+                true
+            );
+            if ($message === null) {
+                return;
+            }
+
+            $message = trim($message);
+            if ($message === '') {
+                return;
+            }
+
+            $response = TelnetUtils::apiRequest(
+                $this->apiBase,
+                'POST',
+                '/api/shoutbox',
+                ['message' => $message],
+                $session,
+                3,
+                $state['csrf_token'] ?? null
+            );
+
+            TelnetUtils::writeLine($conn, '');
+            if (($response['data']['success'] ?? false) === true) {
+                $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: posted message");
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.posted', 'Shout posted.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+            } else {
+                $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: post failed: " . ($response['data']['error'] ?? 'unknown'));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? $this->server->t('ui.terminalserver.shoutbox.post_failed', 'Failed to post shout.', [], $state['locale'])), TelnetUtils::ANSI_RED));
+            }
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+        }
     }
 
     private function getMessages(string $session, int $limit): array
@@ -183,4 +232,3 @@ class ShoutboxHandler
         return $response['data']['messages'] ?? [];
     }
 }
-

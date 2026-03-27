@@ -34,6 +34,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude
  - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
  - telnet/ - the telnet BBS server (separate from the web interface)
+   - **IMPORTANT**: `telnet/telnet_daemon.php` and `ssh/ssh_daemon.php` manually `require_once` telnet-side classes from `telnet/src/`. New classes under `telnet/src/` are **not** Composer-autoloaded for those daemons. When adding a class there, update the `require_once` lists in both daemon entrypoints as needed.
 
 ## Credits
 

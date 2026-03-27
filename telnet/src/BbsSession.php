@@ -417,6 +417,7 @@ class BbsSession
             return;
         }
 
+        $this->showSystemNews($conn, $state);
         $shoutboxHandler->show($conn, $state, $session, 5, false);
 
         if (Config::env('ENABLE_INTERESTS') === 'true') {
@@ -886,6 +887,16 @@ class BbsSession
             'l_tee' => '╠',
             'r_tee' => '╣',
         ];
+    }
+
+    /**
+     * Public wrapper so helper classes can reuse the terminal's frame glyphs.
+     *
+     * @return array{h:string,h_bold:string,v:string,tl:string,tr:string,bl:string,br:string,l_tee:string,r_tee:string}
+     */
+    public function getTerminalLineDrawingChars(): array
+    {
+        return $this->getLineDrawingChars();
     }
 
     /**
@@ -1372,6 +1383,36 @@ class BbsSession
             self::ANSI_YELLOW
         ));
         $this->readKeyWithIdleCheck($conn, $state);
+    }
+
+    /**
+     * Show system news from data/systemnews.md before entering the shoutbox.
+     */
+    private function showSystemNews($conn, array &$state): void
+    {
+        $markdown = \BinktermPHP\AppearanceConfig::getSystemNewsMarkdown();
+        if ($markdown === null || trim($markdown) === '') {
+            return;
+        }
+
+        $cols = max(40, (int)($state['cols'] ?? 80));
+        $contentWidth = max(20, min($cols - 8, 92) - 4);
+        $lines = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
+        if (!$this->ansiColorEnabled) {
+            $lines = array_map(
+                static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
+                $lines
+            );
+        }
+
+        $boxRenderer = new TerminalBoxRenderer($this);
+        $boxRenderer->showPagedBox(
+            $conn,
+            $state,
+            'SYSTEM NEWS',
+            $lines,
+            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale'])
+        );
     }
 
     // ===== AUTHENTICATION =====
