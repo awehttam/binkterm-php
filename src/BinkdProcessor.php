@@ -36,11 +36,19 @@ class BinkdProcessor
     public ?string $receivedDateOverride = null;
 
     /**
-     * When true, use the smart fixed-width FTS-0001 field parser that handles
+     * When true, use the fixed-width FTS-0001 field parser that correctly handles
      * both zero-padded (spec-compliant) and non-padded mailers.
      * When false (default), use the original null-terminated parser.
      */
     public bool $useFixedWidthParser = false;
+
+    /**
+     * When true (default), run the fixed-width parser in shadow mode alongside
+     * the null-terminated parser. Differences are logged but the null-terminated
+     * parser's results are used for import. Set to false once useFixedWidthParser
+     * is enabled in production.
+     */
+    public bool $shadowFixedWidthParser = true;
 
     public function __construct()
     {
@@ -425,33 +433,70 @@ class BinkdProcessor
         // Parse message header
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
-        // Read header string fields — two modes:
-        //   useFixedWidthParser=true  → smart fixed-width parser (handles zero-padded spec-compliant mailers)
-        //   useFixedWidthParser=false → original null-terminated parser (default, production-safe)
+        // Read header string fields and message body.
+        $preFieldsPos = ftell($handle);
+
         if ($this->useFixedWidthParser) {
-            $paddingSkipped = false;
-            $dateTimeRaw = $this->readFixedStringRaw($handle, 20, $paddingSkipped);
-            $toNameRaw   = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
-            $fromNameRaw = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
-            $subjectRaw  = $this->readFixedStringRaw($handle, 72, $paddingSkipped);
-            if ($paddingSkipped) {
-                $this->log(sprintf(
-                    '[BINKD] Zero-padded FTS-0001 fields detected in packet %s at offset %d — padding skipped correctly',
-                    $packetInfo['packet_name'] ?? 'unknown',
-                    ftell($handle)
-                ));
-            }
+            // Fixed-width parser: handles both padded and non-padded mailers correctly.
+            $dateTimeRaw = $this->readFixedStringRaw($handle, 20);
+            $toNameRaw   = $this->readFixedStringRaw($handle, 36);
+            $fromNameRaw = $this->readFixedStringRaw($handle, 36);
+            $subjectRaw  = $this->readFixedStringRaw($handle, 72);
         } else {
+            // Original null-terminated parser (production default).
             $dateTimeRaw = $this->readNullStringRaw($handle);
             $toNameRaw   = $this->readNullStringRaw($handle);
             $fromNameRaw = $this->readNullStringRaw($handle);
             $subjectRaw  = $this->readNullStringRaw($handle);
         }
-        
+
         // Read message text until null terminator
         $messageTextRaw = '';
         while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
             $messageTextRaw .= $char;
+        }
+        $postBodyPos = ftell($handle);
+
+        // Shadow mode: run fixed-width parser on the same bytes and compare.
+        // Differences are logged but do not affect what gets imported.
+        if (!$this->useFixedWidthParser && $this->shadowFixedWidthParser) {
+            fseek($handle, $preFieldsPos);
+            $shDateTime = $this->readFixedStringRaw($handle, 20);
+            $shToName   = $this->readFixedStringRaw($handle, 36);
+            $shFromName = $this->readFixedStringRaw($handle, 36);
+            $shSubject  = $this->readFixedStringRaw($handle, 72);
+            $shBodyRaw  = '';
+            while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
+                $shBodyRaw .= $char;
+            }
+            fseek($handle, $postBodyPos);
+
+            $extractMsgid = function (string $body): string {
+                foreach (preg_split('/[\r\n]+/', $body) as $line) {
+                    if (str_starts_with($line, "\x01MSGID:")) {
+                        return trim(substr($line, 7));
+                    }
+                }
+                return '';
+            };
+
+            $diffs = [];
+            if ($shDateTime !== $dateTimeRaw) $diffs[] = 'dateTime: old=' . json_encode($dateTimeRaw) . ' new=' . json_encode($shDateTime);
+            if ($shToName   !== $toNameRaw)   $diffs[] = 'toName: old='   . json_encode($toNameRaw)   . ' new=' . json_encode($shToName);
+            if ($shFromName !== $fromNameRaw) $diffs[] = 'fromName: old=' . json_encode($fromNameRaw) . ' new=' . json_encode($shFromName);
+            if ($shSubject  !== $subjectRaw)  $diffs[] = 'subject: old='  . json_encode($subjectRaw)  . ' new=' . json_encode($shSubject);
+
+            $oldMsgid = $extractMsgid($messageTextRaw);
+            $newMsgid = $extractMsgid($shBodyRaw);
+            if ($oldMsgid !== $newMsgid) $diffs[] = 'msgid: old=' . json_encode($oldMsgid) . ' new=' . json_encode($newMsgid);
+
+            if (!empty($diffs)) {
+                $pkt = $packetInfo['packet_name'] ?? 'unknown';
+                $this->log(sprintf('[BINKD] Parser shadow diff in %s at offset %d:', $pkt, $preFieldsPos), 'WARNING');
+                foreach ($diffs as $diff) {
+                    $this->log('  ' . $diff, 'WARNING');
+                }
+            }
         }
 
         // Extract CHRS kludge to determine character encoding before conversion
@@ -601,41 +646,28 @@ class BinkdProcessor
         return $string;
     }
 
-    private function readFixedStringRaw($handle, int $len, bool &$paddingSkipped = false): string
+    private function readFixedStringRaw($handle, int $len): string
     {
-        $string = '';
-        $count  = 0;
-
-        while ($count < $len) {
-            $char = fread($handle, 1);
-            if ($char === false || $char === '') {
-                return $string;
-            }
-            $count++;
-            if (ord($char) === 0) {
-                break;
-            }
-            $string .= $char;
+        $raw = fread($handle, $len);
+        if ($raw === false || $raw === '') {
+            return '';
         }
 
-        // Skip zero-padding bytes up to the field boundary.
-        // If a non-zero byte follows the null it belongs to the next field
-        // (non-padded mailer) — seek back and stop without setting the flag.
-        while ($count < $len) {
-            $char = fread($handle, 1);
-            if ($char === false || $char === '') {
-                break;
-            }
-            $count++;
-            if (ord($char) !== 0) {
-                fseek($handle, -1, SEEK_CUR);
-                $count--;
-                break;
-            }
-            $paddingSkipped = true;
+        $pos = strpos($raw, "\0");
+        if ($pos === false) {
+            // No null found — string fills the entire field width
+            return $raw;
         }
 
-        return $string;
+        // If any byte after the null is non-zero, those bytes belong to the
+        // next field (non-padded mailer) — seek back so they are read correctly.
+        $afterNull = substr($raw, $pos + 1);
+        if ($afterNull !== '' && ltrim($afterNull, "\0") !== '') {
+            fseek($handle, -strlen($afterNull), SEEK_CUR);
+        }
+        // If all bytes after the null are zero, they are padding — already consumed.
+
+        return substr($raw, 0, $pos);
     }
 
     private function convertToUtf8($string, $preferredEncoding = null)
