@@ -280,6 +280,38 @@ class Auth
     }
 
     /**
+     * Get list of online sessions (active within specified minutes).
+     * Unlike getOnlineUsers(), this returns one row per active session/service.
+     *
+     * @param int $minutes Consider sessions online if active within this many minutes
+     * @return array List of online sessions
+     */
+    public function getOnlineSessions(int $minutes = 15): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                u.id as user_id,
+                u.username,
+                u.real_name,
+                u.location,
+                u.fidonet_address,
+                s.last_activity,
+                s.activity,
+                s.ip_address,
+                s.service,
+                s.session_id
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.last_activity > NOW() - INTERVAL '1 minute' * ?
+              AND s.expires_at > NOW()
+              AND u.is_active = TRUE
+            ORDER BY s.last_activity DESC, u.username ASC, s.service ASC, s.session_id ASC
+        ");
+        $stmt->execute([$minutes]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Get count of online users
      *
      * @param int $minutes Consider users online if active within this many minutes

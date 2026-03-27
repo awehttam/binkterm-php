@@ -886,7 +886,7 @@ SimpleRouter::get('/whosonline', function() {
         return SimpleRouter::response()->redirect('/login');
     }
 
-    $onlineUsers = $auth->getOnlineUsers(15);
+    $onlineUsers = $auth->getOnlineSessions(15);
 
     $template = new Template();
     $template->renderResponse('whos_online.twig', [

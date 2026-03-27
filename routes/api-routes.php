@@ -1068,7 +1068,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         $auth = new Auth();
 
-        $onlineUsers = $auth->getOnlineUsers(15);
+        $onlineUsers = $auth->getOnlineSessions(15);
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $filtered = [];
