@@ -645,13 +645,24 @@ class Scheduler
                 'address' => $address,
                 'schedule' => $schedule,
                 'enabled' => $uplink['enabled'] ?? true,
-                'last_poll' => $lastPoll ? date('Y-m-d H:i:s', $lastPoll) : 'Never',
-                'next_poll' => $nextPoll ? date('Y-m-d H:i:s', $nextPoll) : 'Unknown',
+                'last_poll' => $this->formatStatusTimestamp($lastPoll, 'Never'),
+                'next_poll' => $this->formatStatusTimestamp($nextPoll, 'Unknown'),
                 'due_now' => $this->isScheduleDue($schedule, $address)
             ];
         }
         
         return $status;
+    }
+
+    private function formatStatusTimestamp(int $timestamp, string $fallback): string
+    {
+        if ($timestamp <= 0) {
+            return $fallback;
+        }
+
+        return (new \DateTimeImmutable('@' . $timestamp))
+            ->setTimezone(new \DateTimeZone('UTC'))
+            ->format('Y-m-d\TH:i:s\Z');
     }
 }
 

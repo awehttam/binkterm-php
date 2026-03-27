@@ -11,6 +11,21 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Version;
 
+function formatStatusTimestamp(string $value): string
+{
+    if ($value === '' || $value === 'Never' || $value === 'Unknown') {
+        return $value;
+    }
+
+    try {
+        return (new DateTimeImmutable($value))
+            ->setTimezone(new DateTimeZone(date_default_timezone_get()))
+            ->format('Y-m-d H:i:s T');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
 function showUsage()
 {
     echo "Usage: php binkp_scheduler.php [options]\n";
@@ -104,8 +119,8 @@ try {
             echo "\n{$address}:\n";
             echo "  Schedule: {$info['schedule']}\n";
             echo "  Status: {$enabledStatus} / {$dueStatus}\n";
-            echo "  Last poll: {$info['last_poll']}\n";
-            echo "  Next poll: {$info['next_poll']}\n";
+            echo "  Last poll: " . formatStatusTimestamp($info['last_poll']) . "\n";
+            echo "  Next poll: " . formatStatusTimestamp($info['next_poll']) . "\n";
         }
         exit(0);
     }

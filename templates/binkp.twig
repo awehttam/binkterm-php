@@ -391,6 +391,50 @@ function apiMessage(payload, fallback) {
     return payload && payload.message ? payload.message : fallback;
 }
 
+function formatLocalizedDateTime(value, fallback = null) {
+    if (!value || value === 'Never' || value === 'Unknown') {
+        return value || fallback || '—';
+    }
+
+    const parser = typeof window.parseAppDate === 'function'
+        ? window.parseAppDate
+        : function(dateString) {
+            if (!dateString) {
+                return null;
+            }
+
+            let normalized = String(dateString).trim().replace(' ', 'T');
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) {
+                normalized += 'Z';
+            } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}$/.test(normalized)) {
+                normalized += ':00';
+            } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}$/.test(normalized)) {
+                normalized = normalized.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+            }
+
+            const parsed = new Date(normalized);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+
+    const date = parser(value);
+    if (!date) {
+        return fallback !== null ? fallback : String(value);
+    }
+
+    const userTimezone = window.userSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const userDateFormat = window.userSettings?.date_format || undefined;
+
+    return date.toLocaleString(userDateFormat, {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
@@ -896,7 +940,7 @@ function renderKeptPackets(type, data) {
                 <td>${pkt.dest_address}</td>
                 <td>${msgs}</td>
                 <td>${size}</td>
-                <td><small class="text-muted">${pkt.modified}</small></td>
+                <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
             </tr>`;
         });
 
@@ -945,7 +989,7 @@ function renderPacketInspector(data) {
         <tbody>
             <tr><th style="width:35%">{{ t('ui.binkp.from_address') }}</th><td><code>${p.orig_address}</code></td></tr>
             <tr><th>{{ t('ui.binkp.to_address') }}</th><td><code>${p.dest_address}</code></td></tr>
-            <tr><th>{{ t('ui.common.date') }}</th><td>${p.created}</td></tr>
+            <tr><th>{{ t('ui.common.date') }}</th><td>${escapeHtml(String(p.created || '—'))}</td></tr>
             <tr><th>{{ t('ui.common.size') }}</th><td>${sizeKb}</td></tr>
             <tr><th>{{ t('ui.binkp.pkt_version') }}</th><td>${p.packet_version}</td></tr>
             <tr><th>{{ t('ui.binkp.pkt_product') }}</th><td>${p.product_code}</td></tr>
@@ -979,7 +1023,7 @@ function renderPacketInspector(data) {
                 <td>${msg.from}${addrInfo}</td>
                 <td>${msg.to}</td>
                 <td>${msg.subject || '<span class="text-muted">—</span>'}</td>
-                <td><small class="text-muted">${msg.date}</small></td>
+                <td><small class="text-muted">${escapeHtml(String(msg.date || '—'))}</small></td>
                 <td>${flags}</td>
             </tr>`;
         });

@@ -59,7 +59,7 @@ class BinkpController
                 'inbound' => $inboundStats,
                 'outbound' => $outboundStats
             ],
-            'timestamp' => date('Y-m-d H:i:s')
+            'timestamp' => $this->formatUnixTimestamp(time())
         ];
     }
 
@@ -432,12 +432,19 @@ class BinkpController
         return [
             'filename'      => basename($path),
             'size'          => filesize($path),
-            'modified'      => date('Y-m-d H:i:s', $modifiedTs),
+            'modified'      => $this->formatUnixTimestamp($modifiedTs),
             'modified_ts'   => $modifiedTs,
             'message_count' => $info['message_count'],
             'dest_address'  => $info['dest_address'],
             'orig_address'  => $info['orig_address'],
         ];
+    }
+
+    private function formatUnixTimestamp(int $timestamp): string
+    {
+        return (new \DateTimeImmutable('@' . $timestamp))
+            ->setTimezone(new \DateTimeZone('UTC'))
+            ->format('Y-m-d\TH:i:s\Z');
     }
 
     /**

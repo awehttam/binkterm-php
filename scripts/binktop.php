@@ -513,6 +513,7 @@ function getDaemonStatusSnapshot(): array
         'postgres' => ['type' => 'name', 'pattern' => 'postgres'],
         'httpd' => ['type' => 'name', 'pattern' => 'httpd'],
         'apache2' => ['type' => 'name', 'pattern' => 'apache2'],
+        'caddy' => ['type' => 'name', 'pattern' => 'caddy'],
         'php-fpm' => ['type' => 'name', 'pattern' => 'php-fpm'],
         'php-fpm:*' => ['type' => 'cmdline', 'pattern' => 'php-fpm:'],
     ];
