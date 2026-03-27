@@ -1617,7 +1617,7 @@ function hasPipeCodes(text) {
 function convertPipeCodesToAnsi(text) {
     if (!text) return text;
 
-    text = text.replace(/\|\|/g, '\x00PIPE\x00');
+    text = text.replace(/\|\|/g, '\x00DOUBLEPIPE\x00');
 
     // Handle |PI first: Mystic BBS escape for a literal pipe character
     text = text.replace(/\|PI/gi, '\x00PIPE\x00');
@@ -1730,6 +1730,7 @@ function convertPipeCodesToAnsi(text) {
     text = text.replace(/\|T[0-9]/gi, '');
 
     // Restore escaped pipe characters
+    text = text.replace(/\x00DOUBLEPIPE\x00/g, '||');
     text = text.replace(/\x00PIPE\x00/g, '|');
 
     return text;
@@ -1758,7 +1759,7 @@ function parsePipeCodes(text) {
         return escapeHtml(text);
     }
 
-    text = text.replace(/\|\|/g, '\x00PIPE\x00');
+    text = text.replace(/\|\|/g, '\x00DOUBLEPIPE\x00');
 
     // Pipe code color mapping (0-15 standard colors)
     const pipeColors = [
@@ -1852,7 +1853,9 @@ function parsePipeCodes(text) {
         result += '</span>';
     }
 
-    return result.replace(/\x00PIPE\x00/g, '|');
+    return result
+        .replace(/\x00DOUBLEPIPE\x00/g, '||')
+        .replace(/\x00PIPE\x00/g, '|');
 }
 
 /**

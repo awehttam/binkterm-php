@@ -690,11 +690,31 @@ function populateCampaignForm(campaign, cloneMode = false) {
 
 function populateCampaignMeta(selectedUserId = '') {
     const userSelect = document.getElementById('campaignUser');
-    userSelect.innerHTML = `<option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>` + (campaignMeta.users || []).map(user => {
+    userSelect.innerHTML = buildCampaignUserOptions();
+    userSelect.value = selectedUserId ? String(selectedUserId) : '';
+}
+
+function buildCampaignUserOptions() {
+    const users = Array.isArray(campaignMeta.users) ? campaignMeta.users : [];
+    const systemUsers = [];
+    const regularUsers = [];
+
+    users.forEach(user => {
+        (user.is_system ? systemUsers : regularUsers).push(user);
+    });
+
+    const buildOption = user => {
         const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
         return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
-    }).join('');
-    userSelect.value = selectedUserId ? String(selectedUserId) : '';
+    };
+
+    const parts = [`<option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>`];
+    systemUsers.forEach(user => parts.push(buildOption(user)));
+    if (systemUsers.length > 0 && regularUsers.length > 0) {
+        parts.push('<option value="" disabled>----</option>');
+    }
+    regularUsers.forEach(user => parts.push(buildOption(user)));
+    return parts.join('');
 }
 
 function renderCampaignTagFilters(tagFilters) {
@@ -1384,10 +1404,7 @@ function renderWizardStep2() {
     const systemName = {{ system_name|json_encode|raw }};
     const defaultName = `${preset.label}: ${systemName}`;
 
-    const userOptions = (campaignMeta.users || []).map(user => {
-        const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
-        return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
-    }).join('');
+    const userOptions = buildCampaignUserOptions();
 
     const echoareas = Array.isArray(campaignMeta.echoareas) ? campaignMeta.echoareas : [];
     const prioritized = [];
@@ -1448,7 +1465,6 @@ function renderWizardStep2() {
             <div class="col-md-6">
                 <label class="form-label" for="wizardUser">${uiT('ui.admin.ad_campaigns.post_as_user', 'Post As User')}</label>
                 <select class="form-select" id="wizardUser">
-                    <option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>
                     ${userOptions}
                 </select>
             </div>

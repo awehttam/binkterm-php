@@ -1619,7 +1619,7 @@ function isAnsiAdCandidate(message, bodyText) {
     if (format === 'ansi' || format === 'amiga_ansi') {
         return true;
     }
-    if (format === 'rip' || format === 'plain') {
+    if (format === 'rip' || format === 'plain' || format === 'plain_text' || format === 'text') {
         return false;
     }
 

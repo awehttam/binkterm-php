@@ -268,7 +268,7 @@ function formatRawMessageText(messageText) {
 
 function normalizeViewerRenderMode(mode) {
     const normalized = String(mode || 'auto').toLowerCase();
-    if (normalized === 'plain') return 'plain';
+    if (normalized === 'plain' || normalized === 'plain_text' || normalized === 'text') return 'plain';
     if (normalized === 'raw') return 'raw';
     if (normalized === 'rip' || normalized === 'ripscript') return 'rip';
     // Handle art format names explicitly — normalizeArtFormat does not recognise

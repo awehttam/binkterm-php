@@ -2905,7 +2905,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $ads = new \BinktermPHP\Advertising();
-                $users = $db->query("SELECT id, username, real_name FROM users ORDER BY LOWER(username)")->fetchAll(PDO::FETCH_ASSOC);
+                $users = $db->query("SELECT id, username, real_name, is_system FROM users ORDER BY is_system DESC, LOWER(username)")->fetchAll(PDO::FETCH_ASSOC);
                 $echoareas = $db->query("SELECT id, tag, domain, is_local FROM echoareas WHERE is_active = TRUE ORDER BY LOWER(tag), LOWER(domain)")->fetchAll(PDO::FETCH_ASSOC);
 
                 echo json_encode([
