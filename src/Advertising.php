@@ -1968,6 +1968,7 @@ class Advertising
         $row['dashboard_weight'] = (int)($row['dashboard_weight'] ?? 1);
         $row['dashboard_priority'] = (int)($row['dashboard_priority'] ?? 0);
         $row['size'] = (int)($row['size_bytes'] ?? strlen((string)($row['content'] ?? '')));
+        $row['stored_content'] = (string)($row['content'] ?? '');
         $row['is_active'] = $this->dbBool($row['is_active'] ?? false);
         $row['show_on_dashboard'] = $this->dbBool($row['show_on_dashboard'] ?? false);
         $row['allow_auto_post'] = $this->dbBool($row['allow_auto_post'] ?? false);

@@ -583,7 +583,7 @@ function openEditor(id) {
             if (storedScript && editCmdSel.value !== storedScript) {
                 showAdsAlert(uiT('ui.admin.ads.content_command_invalid_stored', 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.'), 'warning');
             }
-            document.getElementById('editAdContent').value = ad.content || '';
+            document.getElementById('editAdContent').value = ad.stored_content || '';
             document.getElementById('editAdIsActive').checked = !!ad.is_active;
             document.getElementById('editAdShowOnDashboard').checked = !!ad.show_on_dashboard;
             document.getElementById('editAdAllowAutoPost').checked = !!ad.allow_auto_post;
