@@ -223,7 +223,7 @@
                             <div id="isoFieldsGroup" style="display:none;">
                                 <div class="mb-3">
                                     <label for="fileareaIsoMountPoint" class="form-label">{{ t('ui.fileareas.iso_mount_point', {}, locale, ['common']) }}</label>
-                                    <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="/srv/isos/mounts/1  or  D:\">
+                                    <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="{{ is_windows_host ? 'D:\\' : iso_mounts_path }}">
                                     <div class="form-text">{{ t('ui.fileareas.iso_mount_point_help', {}, locale, ['common']) }}</div>
                                 </div>
                                 <div id="isoMountControls" style="display:none;" class="mb-3">

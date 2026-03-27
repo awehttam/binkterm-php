@@ -54,6 +54,14 @@ class FileAreaManager
     }
 
     /**
+     * Windows hosts may need arbitrary drive-letter or custom mount paths.
+     */
+    private function isWindowsHost(): bool
+    {
+        return DIRECTORY_SEPARATOR === '\\';
+    }
+
+    /**
      * Normalize a filesystem path for reliable prefix comparisons.
      */
     private function normalizeFilesystemPath(string $path): string
@@ -82,6 +90,10 @@ class FileAreaManager
         $mountPoint = trim($mountPoint);
         if ($mountPoint === '') {
             return null;
+        }
+
+        if ($this->isWindowsHost()) {
+            return $mountPoint;
         }
 
         $allowedBase = $this->getAllowedIsoMountBase();

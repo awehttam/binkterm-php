@@ -195,6 +195,8 @@ class Template
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
         $this->twig->addGlobal('app_base_dir', dirname(__DIR__));
+        $this->twig->addGlobal('is_windows_host', DIRECTORY_SEPARATOR === '\\');
+        $this->twig->addGlobal('iso_mounts_path', dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'iso_mounts');
 
         // Expose whether an upgrade notes page exists for the current version
         $upgradingFile = __DIR__ . '/../docs/UPGRADING_' . Version::getVersion() . '.md';
