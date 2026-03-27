@@ -91,6 +91,12 @@ php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
 
 # Only include file areas marked public
 php scripts/report_newfiles.php --public
+
+# Only include file areas from one domain
+php scripts/report_newfiles.php --domain=lovlynet
+
+# Combine public-only and domain filtering
+php scripts/report_newfiles.php --public --domain=lovlynet
 ```
 
 Options:
@@ -99,6 +105,7 @@ Options:
 - `--from=YYYY-MM-DD` - Start date
 - `--to=YYYY-MM-DD` - End date (defaults to now when used with `--from`)
 - `--public` - Only report files from file areas where `is_public = true`
+- `--domain=NAME` - Only report files from file areas in the specified domain
 - `--help` - Show usage
 
 ## Activity Digest Generator
