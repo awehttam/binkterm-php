@@ -257,6 +257,36 @@ or:
 FTPD_PUBLIC_HOST=203.0.113.10
 ```
 
+## `nftables` Redirect Rules
+
+### Local Redirect on the Same Host
+
+The equivalent `nftables` redirect rule looks like this:
+
+```bash
+sudo nft add table ip nat
+sudo nft 'add chain ip nat prerouting { type nat hook prerouting priority dstnat; }'
+sudo nft add rule ip nat prerouting tcp dport 21 redirect to :2121
+```
+
+If clients on the same host connect to the machine's own public IP, you may
+also need an output-chain redirect:
+
+```bash
+sudo nft 'add chain ip nat output { type nat hook output priority -100; }'
+sudo nft add rule ip nat output ip daddr YOUR.SERVER.IP tcp dport 21 redirect to :2121
+```
+
+Replace `YOUR.SERVER.IP` with the machine's actual IP.
+
+### Port Forward From a Router or Firewall
+
+If the daemon sits behind a router/NAT device, the forwarding requirements are
+the same as with `iptables`:
+
+- external TCP `21` -> internal TCP `2121`
+- external TCP `2122`-`2149` -> internal TCP `2122`-`2149`
+
 ### Persisting `iptables`
 
 Rules added with `iptables` are not persistent by default.
@@ -272,6 +302,19 @@ Example on Debian/Ubuntu:
 ```bash
 sudo apt-get install iptables-persistent
 sudo netfilter-persistent save
+```
+
+### Persisting `nftables`
+
+On systems that use `nftables` natively, save the running ruleset and ensure it
+is loaded at boot.
+
+Example:
+
+```bash
+sudo sh -c 'nft list ruleset > /etc/nftables.conf'
+sudo systemctl enable nftables
+sudo systemctl restart nftables
 ```
 
 ## Firewall Checklist

@@ -29,6 +29,8 @@ This index lists documents in operational priority order — essentials first, a
 - [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
 - [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
 
+- [FTP Server](FTPServer.md) - Standalone passive FTP daemon for QWK exchange and file-area transfers
+
 ---
 
 ## Doors & Games
