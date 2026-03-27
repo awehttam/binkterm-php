@@ -904,20 +904,13 @@ class FtpServer implements LoopServiceInterface
     private function formatListLine(array $entry): string
     {
         $isDir = ($entry['type'] ?? '') === 'dir';
-        $line = sprintf(
+        return sprintf(
             '%s 1 binkterm binkterm %12d %s %s',
             $isDir ? 'drwxr-xr-x' : '-rw-r--r--',
             (int)($entry['size'] ?? 0),
             gmdate('M d H:i', (int)($entry['mtime'] ?? time())),
             (string)$entry['name']
         );
-
-        $description = trim((string)($entry['description'] ?? ''));
-        if ($description !== '') {
-            $line .= ' - ' . $description;
-        }
-
-        return $line;
     }
 
     private function resolvePassiveHost(int $clientId): string
