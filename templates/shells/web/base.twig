@@ -44,6 +44,9 @@
         .file-menu-link.unread {
             color: #ffc107 !important;
         }
+        .file-approvals-menu-link.unread {
+            color: #ffc107 !important;
+        }
 
         /* Nested dropdown submenu styles */
         .dropdown-submenu {
@@ -213,7 +216,7 @@
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/files"><i class="fas fa-file me-1"></i> {{ t('ui.base.files', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item file-menu-link" href="/files"><i class="fas fa-file me-1"></i> {{ t('ui.base.files', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item file-approvals-menu-link" href="/admin/file-approvals"><i class="fas fa-check-circle me-1"></i> {{ t('ui.base.file_approvals', {}, 'common') }}</a></li>
                             </ul>
                         </li>

@@ -18,6 +18,7 @@ namespace BinktermPHP;
 
 use PDO;
 use BinktermPHP\FileArea\FileAreaRuleProcessor;
+use BinktermPHP\Realtime\BinkStream;
 
 /**
  * FileAreaManager - Manages file areas and files
@@ -1597,6 +1598,8 @@ class FileAreaManager
             }
         }
 
+        $this->emitFileRealtimeEvent($status);
+
         return $fileId;
     }
 
@@ -1731,6 +1734,8 @@ class FileAreaManager
             $this->finalizeApprovedUserUpload((int)$fileId);
         }
 
+        $this->emitFileRealtimeEvent($status);
+
         return $fileId;
     }
 
@@ -1864,6 +1869,9 @@ class FileAreaManager
             }
         }
 
+        $this->emitFileRealtimeEvent('pending_removed');
+        $this->emitFileRealtimeEvent('approved');
+
         return true;
     }
 
@@ -1910,7 +1918,23 @@ class FileAreaManager
             }
         }
 
+        $this->emitFileRealtimeEvent('pending_removed');
+
         return true;
+    }
+
+    private function emitFileRealtimeEvent(string $state): void
+    {
+        $normalizedState = strtolower(trim($state));
+
+        if ($normalizedState === 'approved') {
+            BinkStream::emit($this->db, 'files_changed');
+            return;
+        }
+
+        if (in_array($normalizedState, ['pending', 'pending_removed'], true)) {
+            BinkStream::emit($this->db, 'file_approvals_changed', [], null, true);
+        }
     }
 
     /**

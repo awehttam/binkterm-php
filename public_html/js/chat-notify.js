@@ -356,12 +356,23 @@
                 maybeChatSound();
             });
 
-            // Refresh badges when echomail, netmail, or files arrive.
-            // Debounced to absorb bursts from concurrent imports.
+            // Refresh badges when mail changes or when legacy insert-based
+            // file events arrive. Separate file-specific events handle
+            // approval transitions that do not INSERT new rows.
             let _dashboardStatsTimer = null;
-            window.BinkStream.on('dashboard_stats', function () {
+            const scheduleRefresh = function (delayMs = 1000) {
                 clearTimeout(_dashboardStatsTimer);
-                _dashboardStatsTimer = setTimeout(refreshMailState, 2000);
+                _dashboardStatsTimer = setTimeout(refreshMailState, delayMs);
+            };
+
+            window.BinkStream.on('dashboard_stats', function () {
+                scheduleRefresh(2000);
+            });
+            window.BinkStream.on('files_changed', function () {
+                scheduleRefresh(500);
+            });
+            window.BinkStream.on('file_approvals_changed', function () {
+                scheduleRefresh(500);
             });
         }
     }
