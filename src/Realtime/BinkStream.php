@@ -27,7 +27,9 @@ class BinkStream
 
         $eventId = (int)$stmt->fetchColumn();
         if ($eventId > 0) {
-            $db->exec("SELECT pg_notify('binkstream', " . $eventId . ")");
+            $notifyStmt = $db->prepare("SELECT pg_notify('binkstream', :payload)");
+            $notifyStmt->bindValue(':payload', (string)$eventId, PDO::PARAM_STR);
+            $notifyStmt->execute();
             return $eventId;
         }
 
