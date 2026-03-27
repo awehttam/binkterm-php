@@ -10,6 +10,8 @@ use BinktermPHP\UserCredit;
 
 class FtpVirtualFilesystem
 {
+    private const VIRTUAL_DIRECTORY_INDEX_FILES = ['00INDEX.TXT', 'FILES.BBS'];
+
     private FileAreaManager $fileAreaManager;
     private QwkHttpController $qwkController;
 
@@ -97,7 +99,7 @@ class FtpVirtualFilesystem
         $entries = [];
         foreach ($this->fileAreaManager->getSubfolders((int)$fileAreaContext['area']['id'], $fileAreaContext['subfolder']) as $subfolder) {
             $entries[] = [
-                'name' => basename((string)$subfolder['subfolder']),
+                'name' => $this->getSubfolderDisplayName($subfolder),
                 'type' => 'dir',
                 'size' => 0,
                 'mtime' => time(),
@@ -105,13 +107,20 @@ class FtpVirtualFilesystem
             ];
         }
 
-        foreach ($this->fileAreaManager->getFiles((int)$fileAreaContext['area']['id'], $fileAreaContext['subfolder']) as $file) {
+        $files = $this->fileAreaManager->getFiles((int)$fileAreaContext['area']['id'], $fileAreaContext['subfolder']);
+        foreach ($files as $file) {
             $entries[] = [
                 'name' => (string)$file['filename'],
                 'type' => 'file',
                 'size' => (int)($file['filesize'] ?? 0),
                 'mtime' => strtotime((string)($file['created_at'] ?? 'now')) ?: time(),
             ];
+        }
+
+        if ($files !== []) {
+            foreach ($this->buildVirtualDirectoryIndexEntries($fileAreaContext, $files) as $indexEntry) {
+                $entries[] = $indexEntry;
+            }
         }
 
         usort($entries, static function (array $a, array $b): int {
@@ -216,6 +225,16 @@ class FtpVirtualFilesystem
             return null;
         }
 
+        if (($fileContext['virtual_type'] ?? null) === 'generated_text') {
+            $content = (string)($fileContext['virtual_content'] ?? '');
+            return [
+                'name' => (string)$fileContext['file']['filename'],
+                'type' => 'file',
+                'size' => strlen($content),
+                'mtime' => time(),
+            ];
+        }
+
         return [
             'name' => (string)$fileContext['file']['filename'],
             'type' => 'file',
@@ -251,6 +270,26 @@ class FtpVirtualFilesystem
         $fileContext = $this->resolveFileAreaFile($user, $resolved);
         if ($fileContext === null) {
             return null;
+        }
+
+        if (($fileContext['virtual_type'] ?? null) === 'generated_text') {
+            $stream = fopen('php://temp', 'r+b');
+            if ($stream === false) {
+                return null;
+            }
+
+            $content = (string)($fileContext['virtual_content'] ?? '');
+            fwrite($stream, $content);
+            rewind($stream);
+
+            return [
+                'stream' => $stream,
+                'size' => strlen($content),
+                'mtime' => time(),
+                'cleanup' => static function () use ($stream): void {
+                    @fclose($stream);
+                },
+            ];
         }
 
         $storagePath = $this->fileAreaManager->resolveFilePath($fileContext['file']);
@@ -595,18 +634,9 @@ class FtpVirtualFilesystem
             return null;
         }
 
-        $subfolder = $segments ? implode('/', $segments) : null;
-        if ($subfolder !== null) {
-            $valid = false;
-            foreach ($this->fileAreaManager->getSubfolders((int)$area['id'], $this->parentSubfolder($subfolder)) as $candidate) {
-                if ((string)$candidate['subfolder'] === $subfolder) {
-                    $valid = true;
-                    break;
-                }
-            }
-            if (!$valid) {
-                return null;
-            }
+        $subfolder = $this->resolveSubfolderPath((int)$area['id'], $segments);
+        if ($segments && $subfolder === null) {
+            return null;
         }
 
         return [
@@ -645,7 +675,25 @@ class FtpVirtualFilesystem
             return null;
         }
 
-        $subfolder = $segments ? implode('/', $segments) : null;
+        $subfolder = $this->resolveSubfolderPath((int)$area['id'], $segments);
+        if ($segments && $subfolder === null) {
+            return null;
+        }
+        $virtualIndex = $this->resolveVirtualDirectoryIndexFile((int)$area['id'], $subfolder, $filename);
+        if ($virtualIndex !== null) {
+            return [
+                'area' => $area,
+                'file' => [
+                    'filename' => $virtualIndex['filename'],
+                    'filesize' => strlen($virtualIndex['content']),
+                    'created_at' => date('c'),
+                ],
+                'subfolder' => $subfolder,
+                'virtual_type' => 'generated_text',
+                'virtual_content' => $virtualIndex['content'],
+            ];
+        }
+
         foreach ($this->fileAreaManager->getFiles((int)$area['id'], $subfolder) as $file) {
             if (strcasecmp((string)$file['filename'], $filename) === 0) {
                 return [
@@ -777,13 +825,9 @@ class FtpVirtualFilesystem
             return null;
         }
 
-        $subfolder = $segments ? implode('/', $segments) : null;
-        if ($subfolder !== null) {
-            $context = $this->resolveFileAreaDirectory($user, '/fileareas/' . $areaKey . '/' . $subfolder);
-            if ($context === null) {
-                return null;
-            }
-            $subfolder = $context['subfolder'];
+        $subfolder = $this->resolveSubfolderPath((int)$area['id'], $segments);
+        if ($segments && $subfolder === null) {
+            return null;
         }
 
         return [
@@ -791,6 +835,209 @@ class FtpVirtualFilesystem
             'subfolder' => $subfolder,
             'filename' => $filename,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $subfolder
+     */
+    private function getSubfolderDisplayName(array $subfolder): string
+    {
+        $label = trim((string)($subfolder['description'] ?? ''));
+        if ($label !== '') {
+            return $label;
+        }
+
+        return basename((string)($subfolder['subfolder'] ?? ''));
+    }
+
+    /**
+     * @param array<int, string> $segments
+     */
+    private function resolveSubfolderPath(int $areaId, array $segments): ?string
+    {
+        if (!$segments) {
+            return null;
+        }
+
+        $resolved = null;
+        foreach ($segments as $segment) {
+            $matched = null;
+            foreach ($this->fileAreaManager->getSubfolders($areaId, $resolved) as $candidate) {
+                $candidatePath = (string)($candidate['subfolder'] ?? '');
+                $candidateBase = basename($candidatePath);
+                $candidateDisplay = $this->getSubfolderDisplayName($candidate);
+                if (
+                    strcasecmp($candidateDisplay, $segment) === 0
+                    || strcasecmp($candidateBase, $segment) === 0
+                ) {
+                    $matched = $candidatePath;
+                    break;
+                }
+            }
+
+            if ($matched === null) {
+                return null;
+            }
+
+            $resolved = $matched;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<int, array<string, mixed>> $files
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildVirtualDirectoryIndexEntries(array $context, array $files): array
+    {
+        $entries = [];
+        foreach (self::VIRTUAL_DIRECTORY_INDEX_FILES as $filename) {
+            $content = $this->generateVirtualDirectoryIndexContent($context, $files, $filename);
+            $entries[] = [
+                'name' => $filename,
+                'type' => 'file',
+                'size' => strlen($content),
+                'mtime' => time(),
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function resolveVirtualDirectoryIndexFile(int $areaId, ?string $subfolder, string $filename): ?array
+    {
+        foreach (self::VIRTUAL_DIRECTORY_INDEX_FILES as $virtualFilename) {
+            if (strcasecmp($virtualFilename, $filename) !== 0) {
+                continue;
+            }
+
+            $files = $this->fileAreaManager->getFiles($areaId, $subfolder);
+            if ($files === []) {
+                return null;
+            }
+
+            return [
+                'filename' => $virtualFilename,
+                'content' => $this->generateVirtualDirectoryIndexContent(
+                    ['area' => ['id' => $areaId], 'subfolder' => $subfolder],
+                    $files,
+                    $virtualFilename
+                ),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<int, array<string, mixed>> $files
+     */
+    private function generateVirtualDirectoryIndexContent(array $context, array $files, string $filename): string
+    {
+        return strtoupper($filename) === 'FILES.BBS'
+            ? $this->generateFilesBbsContent($files)
+            : $this->generateZeroZeroIndexContent($context, $files);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $files
+     */
+    private function generateFilesBbsContent(array $files): string
+    {
+        $lines = [];
+        foreach ($files as $file) {
+            $name = (string)($file['filename'] ?? '');
+            $description = $this->normalizeVirtualFileDescription($file);
+            $wrapped = $this->wrapText($description, 58);
+            $lines[] = $name . '  ' . ($wrapped[0] ?? '');
+            for ($i = 1; $i < count($wrapped); $i++) {
+                $lines[] = '    ' . $wrapped[$i];
+            }
+        }
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<int, array<string, mixed>> $files
+     */
+    private function generateZeroZeroIndexContent(array $context, array $files): string
+    {
+        $lines = [];
+        $directoryLabel = $this->buildVirtualDirectoryLabel($context);
+        if ($directoryLabel !== '') {
+            $lines[] = 'Directory: ' . $directoryLabel;
+            $lines[] = '';
+        }
+
+        foreach ($files as $file) {
+            $lines[] = 'File: ' . (string)($file['filename'] ?? '');
+            $lines[] = '';
+            foreach ($this->wrapText($this->normalizeVirtualFileDescription($file), 72) as $line) {
+                $lines[] = '    ' . $line;
+            }
+            $lines[] = '';
+        }
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function buildVirtualDirectoryLabel(array $context): string
+    {
+        $area = (array)($context['area'] ?? []);
+        $areaTag = (string)($area['tag'] ?? '');
+        $subfolder = (string)($context['subfolder'] ?? '');
+        if ($subfolder === '') {
+            return $areaTag;
+        }
+
+        return $areaTag . '/' . $subfolder;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     */
+    private function normalizeVirtualFileDescription(array $file): string
+    {
+        $long = trim((string)($file['long_description'] ?? ''));
+        if ($long !== '') {
+            return preg_replace('/\r\n?/', "\n", $long) ?? $long;
+        }
+
+        $short = trim((string)($file['short_description'] ?? ''));
+        if ($short !== '') {
+            return $short;
+        }
+
+        return (string)($file['filename'] ?? '');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function wrapText(string $text, int $width): array
+    {
+        $normalized = trim(str_replace(["\r\n", "\r"], "\n", $text));
+        if ($normalized === '') {
+            return [''];
+        }
+
+        $lines = [];
+        foreach (explode("\n", $normalized) as $paragraph) {
+            $wrapped = wordwrap($paragraph, $width, "\n", false);
+            foreach (explode("\n", $wrapped) as $line) {
+                $lines[] = rtrim($line);
+            }
+        }
+
+        return $lines === [] ? [''] : $lines;
     }
 
     private function canUploadToArea(array $area, array $user): bool
