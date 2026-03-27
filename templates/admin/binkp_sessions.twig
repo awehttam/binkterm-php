@@ -10,9 +10,9 @@
             <button class="btn btn-outline-primary me-2" id="refreshSessions">
                 <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
             </button>
-            <a href="/admin" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.binkp_sessions.back_to_dashboard', {}, locale, ['common']) }}
-            </a>
+            <button type="button" class="btn btn-outline-secondary" onclick="goBackFromBinkpSessions()">
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.common.back', {}, locale, ['common']) }}
+            </button>
         </div>
     </div>
 
@@ -309,6 +309,15 @@ let sessionsPerPage = DEFAULT_SESSIONS_PER_PAGE;
 let selectedStatsPeriod = 'day';
 let selectedChartType = 'traffic';
 let latestStatsPayload = null;
+
+function goBackFromBinkpSessions() {
+    if (window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+
+    window.location.href = '/binkp';
+}
 
 function initSessionPagination() {
     sessionsPerPage = loadStoredSessionsPerPage();
