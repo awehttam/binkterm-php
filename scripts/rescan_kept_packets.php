@@ -1,0 +1,393 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * rescan_kept_packets.php
+ *
+ * Scans the kept packet directory for packets that may have had messages
+ * silently dropped due to a parser bug where fixed-size FTN header fields
+ * (date, to, from, subject) were read byte-by-byte until a null terminator
+ * rather than consuming the full fixed-width block. Any message after a
+ * short field value in the same packet would be lost.
+ *
+ * Usage:
+ *   php scripts/rescan_kept_packets.php [options]
+ *
+ * Options:
+ *   --reimport       Import missing messages found during the scan.
+ *                    date_received is set to the .pkt file's mtime.
+ *   --dir=PATH       Override the kept packet directory (default: data/inbound/keep).
+ *   --file=PATH      Scan a single specific .pkt file instead of a directory.
+ *   --dry-run        Report only; do not import even if --reimport is given.
+ *   --verbose        Show details for every message checked, not just missing ones.
+ *   --help           Show this help text.
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
+
+use BinktermPHP\Database;
+use BinktermPHP\BinkdProcessor;
+
+// ---------------------------------------------------------------------------
+// Argument parsing
+// ---------------------------------------------------------------------------
+$opts = [
+    'reimport' => false,
+    'dry-run'  => false,
+    'verbose'  => false,
+    'dir'      => null,
+    'file'     => null,
+];
+
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--reimport')        { $opts['reimport'] = true; }
+    elseif ($arg === '--dry-run')     { $opts['dry-run']  = true; }
+    elseif ($arg === '--verbose')     { $opts['verbose']  = true; }
+    elseif ($arg === '--help')        { showHelp(); exit(0); }
+    elseif (str_starts_with($arg, '--dir='))  { $opts['dir']  = substr($arg, 6); }
+    elseif (str_starts_with($arg, '--file=')) { $opts['file'] = substr($arg, 7); }
+    else {
+        fwrite(STDERR, "Unknown option: $arg\n");
+        showHelp();
+        exit(1);
+    }
+}
+
+function showHelp(): void
+{
+    global $argv;
+    echo "Usage: {$argv[0]} [--reimport] [--dry-run] [--verbose] [--dir=PATH] [--file=PATH]\n";
+    echo "\n";
+    echo "  --reimport     Import messages missing from the database.\n";
+    echo "                 date_received is set to the .pkt file modification time.\n";
+    echo "  --dry-run      Report without importing (overrides --reimport).\n";
+    echo "  --verbose      Show all messages checked, not just missing ones.\n";
+    echo "  --dir=PATH     Kept packet directory (default: data/inbound/keep).\n";
+    echo "  --file=PATH    Scan a single specific .pkt file.\n";
+}
+
+$baseDir = dirname(__DIR__);
+$db = Database::getInstance()->getPdo();
+
+// ---------------------------------------------------------------------------
+// Discover .pkt files — either a single file or a directory tree
+// ---------------------------------------------------------------------------
+$packets = [];
+
+if ($opts['file'] !== null) {
+    $filePath = $opts['file'];
+    if (!file_exists($filePath)) {
+        fwrite(STDERR, "File not found: $filePath\n");
+        exit(1);
+    }
+    if (strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) !== 'pkt') {
+        fwrite(STDERR, "File does not appear to be a .pkt file: $filePath\n");
+        exit(1);
+    }
+    $packets[] = realpath($filePath);
+} else {
+    $keepDir = $opts['dir'] ?? ($baseDir . '/data/inbound/keep');
+    if (!is_dir($keepDir)) {
+        fwrite(STDERR, "Kept packet directory not found: $keepDir\n");
+        exit(1);
+    }
+    $iter = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($keepDir));
+    foreach ($iter as $file) {
+        if ($file->isFile() && strtolower($file->getExtension()) === 'pkt') {
+            $packets[] = $file->getPathname();
+        }
+    }
+    sort($packets);
+}
+
+$scanTarget = $opts['file'] ?? ($opts['dir'] ?? ($baseDir . '/data/inbound/keep'));
+
+if (empty($packets)) {
+    echo "No .pkt files found in $scanTarget\n";
+    exit(0);
+}
+
+echo "Found " . count($packets) . " packet(s) in $scanTarget\n";
+
+// ---------------------------------------------------------------------------
+// Per-packet scan
+// ---------------------------------------------------------------------------
+$totalMissing  = 0;
+$totalFound    = 0;
+$affectedPkts  = 0;
+$reimportStats = ['imported' => 0, 'failed' => 0];
+
+foreach ($packets as $pktPath) {
+    $pktName  = basename($pktPath);
+    $pktMtime = filemtime($pktPath);
+    $pktDate  = date('Y-m-d H:i:s', $pktMtime); // UTC for display (server stores UTC)
+
+    $messages = scanPacket($pktPath);
+    if ($messages === null) {
+        echo "[$pktName] ERROR: Could not parse packet — skipping\n";
+        continue;
+    }
+
+    $missing = [];
+    foreach ($messages as $msg) {
+        $inDb = messageExistsInDb($db, $msg);
+        if ($inDb) {
+            $totalFound++;
+            if ($opts['verbose']) {
+                echo "[$pktName] OK   " . formatMsgSummary($msg) . "\n";
+            }
+        } else {
+            $totalMissing++;
+            $missing[] = $msg;
+            echo "[$pktName] MISS " . formatMsgSummary($msg) . "\n";
+        }
+    }
+
+    if (!empty($missing)) {
+        $affectedPkts++;
+        echo "  -> " . count($missing) . " missing / " . count($messages) . " total"
+           . " | pkt mtime: $pktDate UTC\n";
+
+        if ($opts['reimport'] && !$opts['dry-run']) {
+            $receivedDate = gmdate('Y-m-d H:i:s', $pktMtime);
+            echo "  -> Reimporting packet with date_received=$receivedDate …\n";
+            try {
+                $processor = new BinkdProcessor();
+                $processor->receivedDateOverride = $receivedDate;
+                $result = $processor->processKeptPacket($pktPath);
+                $reimportStats['imported'] += $result['imported'];
+                $reimportStats['failed']   += $result['failed'];
+                echo "  -> Done: {$result['imported']} imported, {$result['failed']} failed\n";
+            } catch (\Exception $e) {
+                echo "  -> FAILED: " . $e->getMessage() . "\n";
+            }
+        } elseif ($opts['reimport'] && $opts['dry-run']) {
+            echo "  -> (dry-run: would reimport)\n";
+        }
+
+        echo "\n";
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Summary
+// ---------------------------------------------------------------------------
+echo str_repeat('-', 60) . "\n";
+echo "Packets scanned : " . count($packets) . "\n";
+echo "Packets affected: $affectedPkts\n";
+echo "Messages found  : $totalFound\n";
+echo "Messages missing: $totalMissing\n";
+
+if ($opts['reimport'] && !$opts['dry-run']) {
+    echo "Messages imported: {$reimportStats['imported']}\n";
+    echo "Import failures  : {$reimportStats['failed']}\n";
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a .pkt file using fixed-width field reads (the correct FTS-0001 method)
+ * and return an array of message summaries for DB lookup.
+ *
+ * @return array[]|null  Array of message arrays, or null on parse failure.
+ */
+function scanPacket(string $path): ?array
+{
+    $handle = fopen($path, 'rb');
+    if (!$handle) {
+        return null;
+    }
+
+    // Skip 58-byte packet header
+    $header = fread($handle, 58);
+    if (strlen($header) < 58) {
+        fclose($handle);
+        return null;
+    }
+
+    $messages = [];
+
+    while (!feof($handle)) {
+        $typeRaw = fread($handle, 2);
+        if (strlen($typeRaw) < 2) {
+            break;
+        }
+        $type = unpack('v', $typeRaw)[1];
+
+        if ($type === 0) {
+            break; // End of packet
+        }
+        if ($type !== 2) {
+            break; // Unexpected type — stop
+        }
+
+        // Fixed 12-byte message header (origNode, destNode, origNet, destNet, attr, cost)
+        $fixedHeader = fread($handle, 12);
+        if (strlen($fixedHeader) < 12) {
+            break;
+        }
+
+        // Fixed-size string fields — read full block, trim to null for display
+        $dateTime = readFixed($handle, 20);
+        $toName   = readFixed($handle, 36);
+        $fromName = readFixed($handle, 36);
+        $subject  = readFixed($handle, 72);
+
+        // Variable-length null-terminated message body
+        $body = '';
+        while (($ch = fread($handle, 1)) !== false && $ch !== '' && ord($ch) !== 0) {
+            $body .= $ch;
+        }
+
+        // Extract AREA: tag (first line of body for echomail)
+        $area   = null;
+        $msgid  = null;
+        $lines  = preg_split('/[\r\n]+/', $body);
+        if (isset($lines[0]) && str_starts_with($lines[0], 'AREA:')) {
+            $area = strtoupper(trim(substr($lines[0], 5)));
+        }
+        foreach ($lines as $line) {
+            if (str_starts_with($line, "\x01MSGID:")) {
+                $msgid = trim(substr($line, 7));
+                break;
+            }
+        }
+
+        $messages[] = [
+            'msgid'    => $msgid,
+            'area'     => $area,
+            'fromName' => $fromName,
+            'toName'   => $toName,
+            'subject'  => $subject,
+            'dateTime' => $dateTime,
+        ];
+    }
+
+    fclose($handle);
+    return $messages;
+}
+
+/**
+ * Read an FTN fixed-size string field, handling both padded and non-padded mailers.
+ * Reads byte-by-byte until null, then skips consecutive zero bytes up to the field
+ * boundary. If a non-zero byte follows the null, it belongs to the next field
+ * (non-padded mailer) and the file position is rewound by one byte.
+ */
+function readFixed($handle, int $len): string
+{
+    $string = '';
+    $count  = 0;
+
+    while ($count < $len) {
+        $char = fread($handle, 1);
+        if ($char === false || $char === '') {
+            return $string;
+        }
+        $count++;
+        if (ord($char) === 0) {
+            break;
+        }
+        $string .= $char;
+    }
+
+    while ($count < $len) {
+        $char = fread($handle, 1);
+        if ($char === false || $char === '') {
+            break;
+        }
+        $count++;
+        if (ord($char) !== 0) {
+            fseek($handle, -1, SEEK_CUR);
+            $count--;
+            break;
+        }
+    }
+
+    return $string;
+}
+
+/**
+ * Strip bytes that would cause PostgreSQL UTF-8 encoding errors.
+ * Packets may contain raw CP437/Latin-1 bytes; we only need these strings
+ * for lookup comparison, not for storage.
+ */
+function sanitizeForDb(string $s): string
+{
+    // Replace invalid UTF-8 sequences with '?'
+    $clean = mb_convert_encoding($s, 'UTF-8', 'UTF-8');
+    // Strip control characters (except tab/newline) that Postgres rejects
+    return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $clean);
+}
+
+/**
+ * Check whether a scanned message exists in the database.
+ * Matches by MSGID when available, otherwise by (from_name, subject, area/type).
+ */
+function messageExistsInDb(\PDO $db, array $msg): bool
+{
+    if (!empty($msg['msgid'])) {
+        $msgid = sanitizeForDb($msg['msgid']);
+        if ($msg['area'] !== null) {
+            // Echomail: MSGID + echoarea tag
+            $stmt = $db->prepare("
+                SELECT 1 FROM echomail em
+                JOIN echoareas ea ON ea.id = em.echoarea_id
+                WHERE em.message_id = ?
+                  AND UPPER(ea.tag) = UPPER(?)
+                LIMIT 1
+            ");
+            $stmt->execute([$msgid, $msg['area']]);
+        } else {
+            // Netmail: MSGID only (no area)
+            $stmt = $db->prepare("
+                SELECT 1 FROM netmail WHERE message_id = ? LIMIT 1
+            ");
+            $stmt->execute([$msgid]);
+        }
+        return (bool) $stmt->fetchColumn();
+    }
+
+    // No MSGID — fall back to from_name + subject match (less reliable)
+    $fromName = sanitizeForDb($msg['fromName']);
+    $subject  = sanitizeForDb($msg['subject']);
+
+    if ($msg['area'] !== null) {
+        $stmt = $db->prepare("
+            SELECT 1 FROM echomail em
+            JOIN echoareas ea ON ea.id = em.echoarea_id
+            WHERE em.from_name = ?
+              AND em.subject   = ?
+              AND UPPER(ea.tag) = UPPER(?)
+            LIMIT 1
+        ");
+        $stmt->execute([$fromName, $subject, $msg['area']]);
+    } else {
+        $stmt = $db->prepare("
+            SELECT 1 FROM netmail
+            WHERE from_name = ? AND subject = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$fromName, $subject]);
+    }
+    return (bool) $stmt->fetchColumn();
+}
+
+/**
+ * Format a one-line message summary for console output.
+ */
+function formatMsgSummary(array $msg): string
+{
+    $area     = $msg['area']  ? '[' . $msg['area'] . '] ' : '[netmail] ';
+    $msgid    = $msg['msgid'] ? 'MSGID:' . sanitizeForDb($msg['msgid']) : '(no msgid)';
+    $fromName = preg_replace('/[^\x20-\x7E]/', '?', $msg['fromName']);
+    $subject  = preg_replace('/[^\x20-\x7E]/', '?', $msg['subject']);
+    return sprintf('%s%-20s %-40s %s',
+        $area,
+        mb_substr($fromName, 0, 20),
+        mb_substr($subject,  0, 40),
+        $msgid
+    );
+}

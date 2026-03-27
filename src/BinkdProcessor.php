@@ -28,6 +28,13 @@ class BinkdProcessor
     private $config;
     private Logger $logger;
 
+    /**
+     * When set, this UTC timestamp string is used as date_received on all inserted
+     * echomail and netmail rows instead of the database DEFAULT (NOW()).
+     * Format: 'YYYY-MM-DD HH:MM:SS' UTC.
+     */
+    public ?string $receivedDateOverride = null;
+
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
@@ -264,6 +271,59 @@ class BinkdProcessor
         }
     }
 
+    /**
+     * Process a kept/archived packet file for reimport purposes.
+     * Unlike processPacket(), this method skips password validation and insecure-session
+     * checks — kept packets have already been received and verified. Duplicate messages
+     * are silently skipped by the existing MSGID check in storeEchomail/storeNetmail.
+     *
+     * Set $this->receivedDateOverride before calling to stamp date_received on imported rows.
+     *
+     * @return array{imported:int,skipped_duplicate:int,failed:int}
+     */
+    public function processKeptPacket(string $filename): array
+    {
+        $packetName = basename($filename);
+        $this->log("[RESCAN] Processing kept packet $packetName");
+
+        $handle = fopen($filename, 'rb');
+        if (!$handle) {
+            throw new \RuntimeException("Cannot open packet file: $filename");
+        }
+
+        $header = fread($handle, 58);
+        if (strlen($header) < 58) {
+            fclose($handle);
+            throw new \RuntimeException("Packet header too short in $packetName");
+        }
+
+        $packetInfo = $this->parsePacketHeader($header);
+        $packetInfo['packet_name'] = $packetName;
+
+        $imported = 0;
+        $failed   = 0;
+
+        while (!feof($handle)) {
+            try {
+                $message = $this->readMessage($handle, $packetInfo);
+                if (!$message) {
+                    continue;
+                }
+                $undeliverable = false;
+                $this->storeMessage($message, $packetInfo, false, $undeliverable);
+                $imported++;
+            } catch (\Exception $e) {
+                $failed++;
+                $this->log("[RESCAN] Failed to process message in $packetName: " . $e->getMessage());
+            }
+        }
+
+        fclose($handle);
+        $this->log("[RESCAN] $packetName: $imported imported, $failed failed");
+
+        return ['imported' => $imported, 'failed' => $failed];
+    }
+
     private function parsePacketHeader($header)
     {
         // Basic FTS-0001 packet header parsing (58 bytes)
@@ -359,13 +419,19 @@ class BinkdProcessor
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
         // Read fixed-size header string fields (FTS-0001).
-        // Each field occupies a fixed number of bytes regardless of where the null falls;
-        // reading byte-by-byte to the null leaves padding unread and drifts the file offset,
-        // causing all subsequent messages in the packet to be silently dropped.
-        $dateTimeRaw = $this->readFixedStringRaw($handle, 20);
-        $toNameRaw   = $this->readFixedStringRaw($handle, 36);
-        $fromNameRaw = $this->readFixedStringRaw($handle, 36);
-        $subjectRaw  = $this->readFixedStringRaw($handle, 72);
+        // readFixedStringRaw handles both padded (spec-compliant) and non-padded mailers.
+        $paddingSkipped = false;
+        $dateTimeRaw = $this->readFixedStringRaw($handle, 20, $paddingSkipped);
+        $toNameRaw   = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
+        $fromNameRaw = $this->readFixedStringRaw($handle, 36, $paddingSkipped);
+        $subjectRaw  = $this->readFixedStringRaw($handle, 72, $paddingSkipped);
+        if ($paddingSkipped) {
+            $this->log(sprintf(
+                '[BINKD] Zero-padded FTS-0001 fields detected in packet %s at offset %d — padding skipped correctly',
+                $packetInfo['packet_name'] ?? 'unknown',
+                ftell($handle)
+            ));
+        }
         
         // Read message text until null terminator
         $messageTextRaw = '';
@@ -500,18 +566,52 @@ class BinkdProcessor
     }
 
     /**
-     * Read exactly $len bytes from $handle and return the raw string up to the first
-     * null byte. The full $len bytes are always consumed so the file offset stays correct
-     * for fixed-size FTN header fields (date: 20, to/from: 36, subject: 72).
+     * Read an FTN fixed-size string field, handling both spec-compliant (zero-padded)
+     * and non-compliant (bare null-terminated) mailers.
+     *
+     * Reads byte-by-byte until a null terminator, then peeks ahead and skips any
+     * consecutive zero bytes up to the field boundary. This correctly handles:
+     * - Non-padded mailers: null found early, no zeros follow → stop immediately.
+     * - Padded mailers: null found early, zeros follow to field end → skip padding.
+     * - Full-width strings: null at position $len-1 → nothing extra to skip.
+     *
+     * Sets $paddingSkipped to true if zero-padding bytes were consumed.
      */
-    private function readFixedStringRaw($handle, int $len): string
+    private function readFixedStringRaw($handle, int $len, bool &$paddingSkipped = false): string
     {
-        $data = fread($handle, $len);
-        if ($data === false || $data === '') {
-            return '';
+        $string = '';
+        $count  = 0;
+
+        while ($count < $len) {
+            $char = fread($handle, 1);
+            if ($char === false || $char === '') {
+                return $string;
+            }
+            $count++;
+            if (ord($char) === 0) {
+                break;
+            }
+            $string .= $char;
         }
-        $nullPos = strpos($data, "\0");
-        return $nullPos !== false ? substr($data, 0, $nullPos) : $data;
+
+        // Skip zero-padding bytes up to the field boundary.
+        // If a non-zero byte follows the null it belongs to the next field
+        // (non-padded mailer) — seek back and stop without setting the flag.
+        while ($count < $len) {
+            $char = fread($handle, 1);
+            if ($char === false || $char === '') {
+                break;
+            }
+            $count++;
+            if (ord($char) !== 0) {
+                fseek($handle, -1, SEEK_CUR);
+                $count--;
+                break;
+            }
+            $paddingSkipped = true;
+        }
+
+        return $string;
     }
 
     private function convertToUtf8($string, $preferredEncoding = null)
@@ -860,12 +960,19 @@ class BinkdProcessor
             }
         }
 
-        // We don't record date_received explictly to allow postgres to use its DEFAULT value
-        $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
-            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
-            RETURNING id
-        ");
+        if ($this->receivedDateOverride !== null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, date_received, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+                VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :date_received, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
+                RETURNING id
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+                VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
+                RETURNING id
+            ");
+        }
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
 
@@ -888,6 +995,9 @@ class BinkdProcessor
         $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
         $stmt->bindValue(':reply_to_id', $replyToId);
         $stmt->bindValue(':received_insecure', $isInsecureSession ? 'true' : 'false');
+        if ($this->receivedDateOverride !== null) {
+            $stmt->bindValue(':date_received', $this->receivedDateOverride);
+        }
         $stmt->execute();
         $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
         $netmailId = $insertedRow ? (int)$insertedRow['id'] : 0;
@@ -1224,11 +1334,19 @@ class BinkdProcessor
                     ', Subject: '.$message['subject']
         );
 
-        $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
-            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
-            RETURNING id
-        ");
+        if ($this->receivedDateOverride !== null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, date_received, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+                VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :date_received, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+                RETURNING id
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+                VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+                RETURNING id
+            ");
+        }
         $stmt->bindValue(':echoarea_id', $echoarea['id']);
         $stmt->bindValue(':from_address', $fromAddress);
         $stmt->bindValue(':from_name', $message['fromName']);
@@ -1244,6 +1362,9 @@ class BinkdProcessor
         $stmt->bindValue(':kludge_lines', $kludgeText);
         $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
         $stmt->bindValue(':reply_to_id', $replyToId);
+        if ($this->receivedDateOverride !== null) {
+            $stmt->bindValue(':date_received', $this->receivedDateOverride);
+        }
         $stmt->execute();
         $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
         $newId = $insertedRow ? (int)$insertedRow['id'] : 0;

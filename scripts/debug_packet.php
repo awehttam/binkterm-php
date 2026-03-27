@@ -290,15 +290,39 @@ function analyzeMessages($handle, $startOffset = 58)
     echo "\nTotal messages found: $messageCount\n";
 }
 
-function readFixedString($handle, $len)
+function readFixedString($handle, int $len): string
 {
-    $data = fread($handle, $len);
-    if ($data === false) {
-        return '';
+    $string = '';
+    $count  = 0;
+
+    while ($count < $len) {
+        $char = fread($handle, 1);
+        if ($char === false || $char === '') {
+            return $string;
+        }
+        $count++;
+        if (ord($char) === 0) {
+            break;
+        }
+        $string .= $char;
     }
-    // Trim at first null byte for display; the full $len bytes were consumed.
-    $nullPos = strpos($data, "\0");
-    return $nullPos !== false ? substr($data, 0, $nullPos) : $data;
+
+    // Skip zero-padding bytes; if a non-zero byte follows the null it belongs
+    // to the next field (non-padded mailer) — seek back and stop.
+    while ($count < $len) {
+        $char = fread($handle, 1);
+        if ($char === false || $char === '') {
+            break;
+        }
+        $count++;
+        if (ord($char) !== 0) {
+            fseek($handle, -1, SEEK_CUR);
+            $count--;
+            break;
+        }
+    }
+
+    return $string;
 }
 
 function skipToNull($handle)

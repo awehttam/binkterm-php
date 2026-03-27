@@ -77,7 +77,7 @@ class Logger
         
         if ($this->logFile) {
             try {
-                $result = file_put_contents($this->logFile, $logMessage . "\n", FILE_APPEND | LOCK_EX);
+                $result = @file_put_contents($this->logFile, $logMessage . "\n", FILE_APPEND | LOCK_EX);
                 if ($result === false) {
                     error_log('LOG FALLBACK: ' . $logMessage);
                 }
