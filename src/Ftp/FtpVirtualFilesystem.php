@@ -659,7 +659,7 @@ class FtpVirtualFilesystem
             }
 
             $entries[] = [
-                'name' => $this->buildAreaKey($area),
+                'name' => $this->buildIncomingAreaKey($area),
                 'type' => 'dir',
                 'size' => 0,
                 'mtime' => strtotime((string)($area['updated_at'] ?? 'now')) ?: time(),
@@ -673,6 +673,18 @@ class FtpVirtualFilesystem
     private function buildAreaKey(array $area): string
     {
         return (string)($area['tag'] ?? '');
+    }
+
+    private function buildIncomingAreaKey(array $area): string
+    {
+        $tag = (string)($area['tag'] ?? '');
+        $domain = trim((string)($area['domain'] ?? ''));
+
+        if ($tag === '' || $domain === '') {
+            return $tag;
+        }
+
+        return $tag . '@' . $domain;
     }
 
     /**
