@@ -223,12 +223,10 @@ class FtpVirtualFilesystem
         }
 
         if (!$this->isAnonymousUser($user) && $this->isQwkUploadFile($resolved)) {
-            return [
-                'name' => basename($resolved),
-                'type' => 'file',
-                'size' => 0,
-                'mtime' => time(),
-            ];
+            // Upload slot — not a readable/stat-able file. Return null so SIZE/MDTM
+            // commands report "not found", preventing clients from treating it as an
+            // already-existing file and refusing to overwrite.
+            return null;
         }
 
         $fileContext = $this->resolveFileAreaFile($user, $resolved);
