@@ -4157,6 +4157,8 @@ return [
     'ui.admin.weather_config.saved_success' => 'Configuración del tiempo guardada exitosamente.',
     'ui.admin.weather_config.save_failed' => 'No se pudo guardar la configuración del tiempo.',
     'ui.admin.weather_config.save_error' => 'Ocurrió un error al guardar.',
+    'ui.admin.weather_config.show_api_key' => 'Mostrar',
+    'ui.admin.weather_config.hide_api_key' => 'Ocultar',
 
     // Interests
     'ui.base.admin.interests' => 'Intereses',

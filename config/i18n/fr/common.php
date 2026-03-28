@@ -4048,6 +4048,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.weather_config.saved_success' => 'Configuration météo enregistrée avec succès.',
     'ui.admin.weather_config.save_failed' => 'Échec de l\'enregistrement de la configuration météo.',
     'ui.admin.weather_config.save_error' => 'Une erreur s\'est produite lors de l\'enregistrement.',
+    'ui.admin.weather_config.show_api_key' => 'Afficher',
+    'ui.admin.weather_config.hide_api_key' => 'Masquer',
 
     // Interests
     'ui.base.admin.interests' => 'Centres d\'intérêt',

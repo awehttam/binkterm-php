@@ -37,8 +37,13 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="weatherApiKey">{{ t('ui.admin.weather_config.api_key') }}</label>
-                        <input type="text" class="form-control font-monospace" id="weatherApiKey" maxlength="200"
-                               placeholder="{{ t('ui.admin.weather_config.api_key_placeholder') }}" autocomplete="off">
+                        <div class="input-group">
+                            <input type="password" class="form-control font-monospace" id="weatherApiKey" maxlength="200"
+                                   placeholder="{{ t('ui.admin.weather_config.api_key_placeholder') }}" autocomplete="off">
+                            <button class="btn btn-outline-secondary" type="button" id="toggleApiKeyBtn" onclick="toggleApiKeyVisibility()">
+                                {{ t('ui.admin.weather_config.show_api_key') }}
+                            </button>
+                        </div>
                         <div class="form-text">
                             {{ t('ui.admin.weather_config.api_key_help') }}
                             <a href="https://openweathermap.org/api" target="_blank" rel="noopener">OpenWeatherMap</a>.
@@ -366,6 +371,16 @@ function saveWeatherConfig() {
         alertEl.innerHTML = `<div class="alert alert-danger">${window.t('ui.admin.weather_config.save_error', {}, '{{ t('ui.admin.weather_config.save_error') }}')}</div>`;
     })
     .finally(() => { btn.disabled = false; });
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('weatherApiKey');
+    const btn   = document.getElementById('toggleApiKeyBtn');
+    const show  = input.type === 'password';
+    input.type  = show ? 'text' : 'password';
+    btn.textContent = show
+        ? window.t('ui.admin.weather_config.hide_api_key', {}, '{{ t('ui.admin.weather_config.hide_api_key') }}')
+        : window.t('ui.admin.weather_config.show_api_key', {}, '{{ t('ui.admin.weather_config.show_api_key') }}');
 }
 
 function escapeHtml(s) {

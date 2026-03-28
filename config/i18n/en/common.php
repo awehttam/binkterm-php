@@ -4151,6 +4151,8 @@ return [
     'ui.admin.weather_config.saved_success' => 'Weather configuration saved successfully.',
     'ui.admin.weather_config.save_failed' => 'Failed to save weather configuration.',
     'ui.admin.weather_config.save_error' => 'An error occurred while saving.',
+    'ui.admin.weather_config.show_api_key' => 'Show',
+    'ui.admin.weather_config.hide_api_key' => 'Hide',
 
     // Interests
     'ui.base.admin.interests' => 'Interests',
