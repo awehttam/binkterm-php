@@ -799,7 +799,10 @@ function buildTwoColumnTableLines(array $rows, array $widthHints, int $available
 
 function clearScreen(): void
 {
-    echo "\033[H\033[2J";
+    // Move cursor to home without erasing first; content is overwritten in place.
+    // \033[J clears from cursor to end of screen after the new content is written,
+    // avoiding the full-screen flash that \033[2J causes.
+    echo "\033[H";
 }
 
 /**
@@ -1010,6 +1013,9 @@ function assembleScreen(array $snapshot, int $interval, bool $interactive = fals
     if ($interactive) {
         $output .= colorize('[q]', 'bright_cyan') . ' quit  ' . colorize('[i]', 'bright_cyan') . ' set interval';
     }
+    // Erase from cursor to end of screen so leftover lines from a taller previous
+    // render don't bleed through (replaces the full \033[2J clear that causes blink).
+    $output .= "\033[J";
     return $output;
 }
 
