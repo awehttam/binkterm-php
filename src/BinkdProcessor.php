@@ -43,12 +43,18 @@ class BinkdProcessor
     public bool $useFixedWidthParser = false;
 
     /**
-     * When true (default), run the fixed-width parser in shadow mode alongside
+     * When true (default), run the gap-detect parser in shadow mode alongside
      * the null-terminated parser. Differences are logged but the null-terminated
-     * parser's results are used for import. Set to false once useFixedWidthParser
-     * is enabled in production.
+     * parser's results are used for import. Set to false once the gap-detect
+     * parser is promoted to production via useGapDetectParser.
      */
-    public bool $shadowFixedWidthParser = true;
+    public bool $shadowGapDetectParser = true;
+
+    /**
+     * When true, use the gap-detect parser for import instead of null-terminated.
+     * Enable this once shadow mode confirms the parsers agree on all packets.
+     */
+    public bool $useGapDetectParser = false;
 
     public function __construct()
     {
@@ -436,8 +442,11 @@ class BinkdProcessor
         // Read header string fields and message body.
         $preFieldsPos = ftell($handle);
 
-        if ($this->useFixedWidthParser) {
-            // Fixed-width parser: handles both padded and non-padded mailers correctly.
+        if ($this->useGapDetectParser) {
+            // Gap-detect parser: null-terminated reads + padding skip when gap is all zeros.
+            [$dateTimeRaw, $toNameRaw, $fromNameRaw, $subjectRaw] = $this->readMessageFieldsGapDetect($handle);
+        } elseif ($this->useFixedWidthParser) {
+            // Fixed-width parser (experimental, not validated for production).
             $dateTimeRaw = $this->readFixedStringRaw($handle, 20);
             $toNameRaw   = $this->readFixedStringRaw($handle, 36);
             $fromNameRaw = $this->readFixedStringRaw($handle, 36);
@@ -457,15 +466,12 @@ class BinkdProcessor
         }
         $postBodyPos = ftell($handle);
 
-        // Shadow mode: run fixed-width parser on the same bytes and compare.
+        // Shadow mode: run gap-detect parser on the same bytes and compare.
         // Differences are logged but do not affect what gets imported.
-        if (!$this->useFixedWidthParser && $this->shadowFixedWidthParser) {
+        if (!$this->useGapDetectParser && $this->shadowGapDetectParser) {
             fseek($handle, $preFieldsPos);
-            $shDateTime = $this->readFixedStringRaw($handle, 20);
-            $shToName   = $this->readFixedStringRaw($handle, 36);
-            $shFromName = $this->readFixedStringRaw($handle, 36);
-            $shSubject  = $this->readFixedStringRaw($handle, 72);
-            $shBodyRaw  = '';
+            [$shDateTime, $shToName, $shFromName, $shSubject] = $this->readMessageFieldsGapDetect($handle);
+            $shBodyRaw = '';
             while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
                 $shBodyRaw .= $char;
             }
@@ -644,6 +650,43 @@ class BinkdProcessor
             $string .= $char;
         }
         return $string;
+    }
+
+    /**
+     * Read all four FTS-0001 fixed-size string fields using gap-detection.
+     *
+     * Each field is read null-terminated. After all four fields are consumed,
+     * the total bytes read is compared to the expected 164-byte block
+     * (20+36+36+72). If the gap bytes are all zeros they are padding from a
+     * spec-compliant mailer and are consumed. If any byte is non-zero the gap
+     * bytes belong to the message body (non-padded mailer) and are left in the
+     * stream.
+     *
+     * @return array{string, string, string, string} [dateTime, toName, fromName, subject]
+     */
+    private function readMessageFieldsGapDetect($handle): array
+    {
+        $prePos = ftell($handle);
+
+        $dateTime = $this->readNullStringRaw($handle);
+        $toName   = $this->readNullStringRaw($handle);
+        $fromName = $this->readNullStringRaw($handle);
+        $subject  = $this->readNullStringRaw($handle);
+
+        $consumed = ftell($handle) - $prePos;
+        $expected = 20 + 36 + 36 + 72; // 164
+        $gap      = $expected - $consumed;
+
+        if ($gap > 0) {
+            $gapBytes = fread($handle, $gap);
+            if ($gapBytes !== false && ltrim($gapBytes, "\0") !== '') {
+                // Non-zero bytes in gap — body content, not padding; seek back
+                fseek($handle, -strlen($gapBytes), SEEK_CUR);
+            }
+            // All zeros — padding from spec-compliant mailer, consumed correctly
+        }
+
+        return [$dateTime, $toName, $fromName, $subject];
     }
 
     private function readFixedStringRaw($handle, int $len): string
