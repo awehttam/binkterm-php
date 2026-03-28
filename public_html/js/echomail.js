@@ -1004,6 +1004,9 @@ function getCurrentMessageById(messageId) {
 }
 
 function openMessageContextMenu(event, messageId) {
+    if (event.shiftKey) {
+        return;
+    }
     event.preventDefault();
     event.stopPropagation();
     openMessageContextMenuAtPosition(event.pageX, event.pageY, messageId);
@@ -2598,6 +2601,16 @@ function deleteSelectedMessages() {
 
     // Convert Set to Array for API call
     const messageIds = Array.from(selectedMessages);
+
+    const savedCount = messageIds.filter(id => {
+        const msg = currentMessages.find(m => Number(m.id) === Number(id));
+        return msg && Number(msg.is_saved) === 1;
+    }).length;
+    if (savedCount > 0) {
+        if (!confirm(uiT('ui.echomail.bulk_delete.saved_confirm', '{count} of the selected messages are saved. Are you sure you want to delete them?', { count: savedCount }))) {
+            return;
+        }
+    }
 
     // Show loading state
     const deleteBtn = $('#bulkActions .btn-outline-danger');

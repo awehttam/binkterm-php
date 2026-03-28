@@ -3566,7 +3566,9 @@ return [
     'ui.netmail.search.failed' => 'La busqueda fallo',
     'ui.netmail.message_deleted_success' => 'Mensaje eliminado correctamente',
     'ui.netmail.delete_message_confirm' => 'Esta seguro de que desea eliminar este mensaje? Esta accion no se puede deshacer.',
+    'ui.netmail.delete_saved_confirm' => 'Este mensaje esta guardado. Esta seguro de que desea eliminarlo?',
     'ui.netmail.bulk_delete.confirm' => 'Esta seguro de que desea eliminar {count} mensaje(s)?',
+    'ui.netmail.bulk_delete.saved_confirm' => '{count} de los mensajes seleccionados estan guardados. Esta seguro de que desea eliminarlos?',
     'ui.netmail.bulk_delete.success' => 'Se eliminaron {count} mensaje(s)',
     'ui.netmail.address_book.load_entry_failed_prefix' => 'No se pudo cargar la entrada: ',
     'ui.netmail.bulk_delete.failed' => 'No se pudieron eliminar los mensajes',
@@ -3582,6 +3584,9 @@ return [
     'ui.netmail.received_insecurely' => 'Recibido de forma insegura',
     'ui.netmail.not_authenticated' => 'Este mensaje no fue autenticado',
     'ui.netmail.next_page_title' => 'Cargar siguiente pagina',
+    'ui.netmail.saved_items' => 'Guardados',
+    'ui.netmail.saved_items.saved' => 'Mensaje guardado para despues',
+    'ui.netmail.saved_items.removed' => 'Mensaje eliminado de los elementos guardados',
 
     // Echomail
     'ui.echomail.search.failed' => 'La busqueda fallo',
@@ -3601,6 +3606,7 @@ return [
     'ui.echomail.bulk_delete.failed' => 'No se pudieron eliminar los mensajes',
     'ui.echomail.bulk_delete.success' => 'Se eliminaron {count} mensaje(s)',
     'ui.echomail.bulk_delete.confirm' => 'Esta seguro de que desea eliminar {count} mensaje(s) seleccionados para todos?',
+    'ui.echomail.bulk_delete.saved_confirm' => '{count} de los mensajes seleccionados estan guardados. Esta seguro de que desea eliminarlos?',
     'ui.echomail.bulk_deleting' => 'Eliminando...',
     'ui.echomail.shares.check_failed' => 'No se pudieron verificar los compartidos existentes',
     'ui.echomail.shares.friendly_url_failed' => 'No se pudo generar la URL amigable',

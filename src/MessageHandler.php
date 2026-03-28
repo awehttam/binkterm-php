@@ -233,6 +233,9 @@ class MessageHandler
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
+        } elseif ($filter === 'saved') {
+            // Show only messages saved by this user
+            $whereClause .= " AND sav.id IS NOT NULL";
         }
 
         // Filter out soft-deleted messages
@@ -257,35 +260,38 @@ class MessageHandler
                    n.subject, n.date_received, n.user_id, n.date_written,
                    n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
             $whereClause
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
         
-        // Insert userId at the beginning for the LEFT JOIN, then add existing params
-        $allParams = [$userId];
+        // Insert userId twice at the beginning for the two LEFT JOINs (mrs and sav), then add existing params
+        $allParams = [$userId, $userId];
         foreach ($params as $param) {
             $allParams[] = $param;
         }
         $allParams[] = $limit;
         $allParams[] = $offset;
-        
+
         $stmt->execute($allParams);
         $messages = $stmt->fetchAll();
 
-        // Get total count with same filter - need to include the LEFT JOIN for unread filter
-        $countAllParams = [$userId];
+        // Get total count with same filter - need to include the LEFT JOINs for unread/saved filters
+        $countAllParams = [$userId, $userId];
         foreach ($params as $param) {
             $countAllParams[] = $param;
         }
-        
+
         $countStmt = $this->db->prepare("
-            SELECT COUNT(*) as total 
+            SELECT COUNT(*) as total
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
             $whereClause
         ");
         $countStmt->execute($countAllParams);
@@ -5665,6 +5671,9 @@ class MessageHandler
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
+        } elseif ($filter === 'saved') {
+            // Show only messages saved by this user
+            $whereClause .= " AND sav.id IS NOT NULL";
         }
 
         // Filter out soft-deleted messages
@@ -5682,19 +5691,21 @@ class MessageHandler
                    n.subject, n.date_received, n.user_id, n.date_written,
                    n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
             $whereClause
             ORDER BY n.date_received DESC
         ");
-        
-        // Insert userId at the beginning for the LEFT JOIN, then add existing params
-        $allParams = [$userId];
+
+        // Insert userId twice at the beginning for the two LEFT JOINs (mrs and sav), then add existing params
+        $allParams = [$userId, $userId];
         foreach ($params as $param) {
             $allParams[] = $param;
         }
-        
+
         $stmt->execute($allParams);
         $allMessages = $stmt->fetchAll();
         

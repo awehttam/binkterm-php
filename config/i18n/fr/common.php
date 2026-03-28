@@ -2860,7 +2860,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.netmail.search.failed' => 'Échec de la recherche',
     'ui.netmail.message_deleted_success' => 'Message supprimé avec succès',
     'ui.netmail.delete_message_confirm' => 'Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.',
+    'ui.netmail.delete_saved_confirm' => 'Ce message est enregistre. Êtes-vous sûr de vouloir le supprimer ?',
     'ui.netmail.bulk_delete.confirm' => 'Êtes-vous sûr de vouloir supprimer {count} message(s) ?',
+    'ui.netmail.bulk_delete.saved_confirm' => '{count} des messages sélectionnés sont enregistres. Êtes-vous sûr de vouloir les supprimer ?',
     'ui.netmail.bulk_delete.success' => '{count} message(s) supprimé(s)',
     'ui.netmail.address_book.load_entry_failed_prefix' => 'Échec du chargement de l\'entrée : ',
     'ui.netmail.bulk_delete.failed' => 'Échec de la suppression des messages',
@@ -2892,6 +2894,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echomail.bulk_delete.failed' => 'Échec de la suppression des messages',
     'ui.echomail.bulk_delete.success' => '{count} message(s) supprimé(s)',
     'ui.echomail.bulk_delete.confirm' => 'Êtes-vous sûr de vouloir supprimer {count} message(s) sélectionné(s) pour tout le monde ?',
+    'ui.echomail.bulk_delete.saved_confirm' => '{count} des messages sélectionnés sont enregistres. Êtes-vous sûr de vouloir les supprimer ?',
     'ui.echomail.bulk_deleting' => 'Suppression en cours...',
     'ui.echomail.shares.check_failed' => 'Échec de la vérification des partages existants',
     'ui.echomail.shares.friendly_url_failed' => 'Échec de la génération de l\'URL conviviale',
@@ -3934,6 +3937,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
 
     // Netmail
     'ui.netmail.next_page_title' => 'Charger la page suivante',
+    'ui.netmail.saved_items' => 'Enregistres',
+    'ui.netmail.saved_items.saved' => 'Message enregistre pour plus tard',
+    'ui.netmail.saved_items.removed' => 'Message retire des elements enregistres',
 
     // Nodelist
     'ui.nodelist.freq_not_advertised' => 'Ce nœud n\'annonce pas l\'indicateur FREQ. Une demande sera quand même envoyée, mais le nœud ne prend peut-être pas en charge les demandes de fichiers.',

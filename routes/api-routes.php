@@ -5010,10 +5010,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $sent = 0;
         }
 
+        // Saved messages — exclude soft-deleted rows
+        $savedStmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM saved_messages sav
+            JOIN netmail n ON n.id = sav.message_id
+            WHERE sav.user_id = ? AND sav.message_type = 'netmail'
+              AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                       ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
+        ");
+        $savedStmt->execute([$userId, $userId, $user['username'], $user['real_name']]);
+        $saved = $savedStmt->fetch()['count'];
+
         echo json_encode([
             'total' => $total,
             'unread' => $unread,
-            'sent' => $sent
+            'sent' => $sent,
+            'saved' => $saved,
         ]);
     });
 
@@ -5355,6 +5368,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
         $deleted = 0;
+
+        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+        $db->prepare("UPDATE echomail SET reply_to_id = NULL WHERE reply_to_id IN ($placeholders)")
+           ->execute(array_values($messageIds));
 
         foreach ($messageIds as $id) {
             $stmt = $db->prepare("DELETE FROM echomail WHERE id = ?");

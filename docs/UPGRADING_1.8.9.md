@@ -23,6 +23,10 @@
   - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
   - [Show Entire Conversation](#show-entire-conversation)
   - [Message List Context Menu](#message-list-context-menu)
+  - [Netmail: Save Message](#netmail-save-message)
+  - [Delete Saved Message Confirmation](#delete-saved-message-confirmation)
+  - [Context Menu: Shift-Click Passthrough](#context-menu-shift-click-passthrough)
+  - [Echomail Bulk Delete: Foreign Key Fix](#echomail-bulk-delete-foreign-key-fix)
   - [Ignored Echomail Messages](#ignored-echomail-messages)
   - [Ignored Echomail: Multi-Address Rule Fix](#ignored-echomail-multi-address-rule-fix)
   - [Markdown Image Support](#markdown-image-support)
@@ -146,7 +150,10 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Controlled by `ENABLE_INTERESTS` in `.env`.
 
 **Echomail & Netmail**
-- Message lists now support a right-click context menu (long-press on mobile) with actions including **View Conversation**, **Save for later**, **Download Message**, **Forward by EMail**, and **Share**.
+- Message lists now support a right-click context menu (long-press on mobile) with actions including **View Conversation**, **Save for later**, **Download Message**, **Forward by EMail**, and **Share**. Holding **Shift** while right-clicking bypasses the custom menu and shows the browser's native context menu.
+- Netmail gains full **Save for later** support: bookmark icon in message rows, a Save button in the message reader footer, a Saved filter tab, and a saved count in the quick stats panel — matching the existing echomail feature.
+- Deleting a saved message (single or bulk) now requires a second confirmation dialog so saved messages are not removed accidentally.
+- Fixed a crash when bulk-deleting echomail messages where one message was referenced by another message's reply chain.
 - Echomail message lists now include an **Ignore message** action. It creates per-user ignore rules that match the exact sender name, the exact sender node address, and optionally a substring in the subject line. Leaving the subject blank blocks that sender entirely.
 - Each distinct combination of sender name, node address, and subject is stored as its own independent ignore rule. A sender posting from multiple node addresses under the same name can be blocked per address or all at once.
 - Markdown messages now render `![alt](url)` image syntax as a click-to-load placeholder instead of displaying a raw exclamation mark and hyperlink. Clicking the placeholder fetches and displays the image inline. The Markdown toolbar in compose gains an **Insert Image** button that opens a dialog for entering an image URL, uploading an image file, or selecting a previously uploaded image. Uploaded images are stored privately under the user's file area and served via a stable URL on this BBS (`/echomail-images/{hash}`). Those URLs always use the configured `SITE_URL` so they resolve correctly when messages are read on other systems.
@@ -363,6 +370,36 @@ Additional echomail-only actions:
 
 - **Save for later** / **Remove from saved**
 - **Share** - opens the existing message-sharing dialog from the list view
+
+### Netmail: Save Message
+
+Netmail now has the same Save for later feature that echomail has had. Users can bookmark individual netmail messages for retrieval at any time.
+
+- A bookmark icon appears in every message row in the netmail list. Clicking it toggles the saved state without opening the message.
+- The message reader footer includes a **Save** / **Saved** button that stays in sync with the bookmark icon.
+- A small bookmark icon in the message header area also toggles the saved state from within the reader.
+- The **Saved** filter tab in the netmail toolbar shows only saved messages, with a badge showing the count.
+- The **Quick Stats** panel sidebar includes a Saved count.
+- Saved messages can be unsaved from the right-click context menu via **Remove from saved**.
+
+No database migration is required. The existing `saved_messages` table already stores a `message_type` column that accepts both `echomail` and `netmail`.
+
+### Delete Saved Message Confirmation
+
+Deleting a saved message now requires a second confirmation dialog after the standard delete prompt, in both netmail and echomail.
+
+- **Single message delete (netmail):** if the message being deleted is currently saved, a second prompt appears: *"This message is saved. Are you sure you want to delete it?"*
+- **Bulk delete (netmail and echomail):** if any of the selected messages are saved, a second prompt identifies how many saved messages are in the selection: *"{N} of the selected messages are saved. Are you sure you want to delete them?"*
+
+Cancelling either confirmation aborts the deletion entirely.
+
+### Context Menu: Shift-Click Passthrough
+
+Holding **Shift** while right-clicking a message row in the echomail or netmail list now bypasses the custom context menu entirely and lets the browser show its own native context menu. This is useful for actions the custom menu does not expose, such as opening a link in a new tab or inspecting element.
+
+### Echomail Bulk Delete: Foreign Key Fix
+
+The admin echomail bulk-delete endpoint could crash with a PostgreSQL foreign key violation when one of the messages being deleted was referenced by another message's `reply_to_id` column. The delete now clears those back-references before removing the rows, preventing the error.
 
 ### Ignored Echomail Messages
 

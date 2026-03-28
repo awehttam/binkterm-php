@@ -38,6 +38,9 @@
                             <input type="radio" class="btn-check" name="filter" id="sent" value="sent">
                             <label class="btn btn-outline-secondary" for="sent">{{ t('ui.common.sent', {}, locale, ['common']) }}</label>
 
+                            <input type="radio" class="btn-check" name="filter" id="saved" value="saved">
+                            <label class="btn btn-outline-secondary" for="saved">{{ t('ui.netmail.saved_items', {}, locale, ['common']) }} <span class="badge bg-secondary ms-1" id="savedFilterBadge" style="display:none;"></span></label>
+
                             <input type="radio" class="btn-check" name="filter" id="drafts" value="drafts">
                             <label class="btn btn-outline-secondary" for="drafts">{{ t('ui.common.drafts', {}, locale, ['common']) }}</label>
                         </div>
@@ -140,6 +143,9 @@
                     
                     <dt class="col-6">{{ t('ui.common.sent', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="sentCount">-</dd>
+
+                    <dt class="col-6">{{ t('ui.netmail.saved_items', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-6" id="savedCount">-</dd>
                 </dl>
             </div>
         </div>
@@ -152,6 +158,9 @@
     </button>
     <button type="button" class="dropdown-item" onclick="viewConversationFromContextMenu()">
         <i class="fas fa-comments me-2"></i>{{ t('ui.common.view_conversation', {}, locale, ['common']) }}
+    </button>
+    <button type="button" class="dropdown-item" id="messageContextMenuSave" onclick="saveFromContextMenu()">
+        <i class="fas fa-bookmark me-2"></i><span id="messageContextMenuSaveLabel">{{ t('ui.common.save_for_later', {}, locale, ['common']) }}</span>
     </button>
     <button type="button" class="dropdown-item" onclick="downloadMessageFromContextMenu()">
         <i class="fas fa-download me-2"></i>{{ t('ui.common.download_message', {}, locale, ['common']) }}
@@ -200,14 +209,21 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-danger" id="deleteButton">
+                <button type="button" class="btn btn-danger btn-compact-label" id="deleteButton">
                     <i class="fas fa-trash"></i>
-                    {{ t('ui.common.delete', {}, locale, ['common']) }}
+                    <span class="btn-text">{{ t('ui.common.delete', {}, locale, ['common']) }}</span>
                 </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
-                <button type="button" class="btn btn-fidonet" id="replyButton">
+                <button type="button" class="btn btn-secondary btn-compact-label" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                    <span class="btn-text">{{ t('ui.common.close', {}, locale, ['common']) }}</span>
+                </button>
+                <button type="button" class="btn btn-outline-warning btn-compact-label" id="modalSaveButton">
+                    <i class="fas fa-bookmark"></i>
+                    <span class="btn-text" id="modalSaveText">{{ t('ui.common.save', {}, locale, ['common']) }}</span>
+                </button>
+                <button type="button" class="btn btn-fidonet btn-compact-label" id="replyButton">
                     <i class="fas fa-reply"></i>
-                    {{ t('ui.common.reply', {}, locale, ['common']) }}
+                    <span class="btn-text">{{ t('ui.common.reply', {}, locale, ['common']) }}</span>
                 </button>
             </div>
 
@@ -659,6 +675,7 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
         margin: 0 0.5rem;
     }
 }
+
 </style>
 {% endblock %}
 

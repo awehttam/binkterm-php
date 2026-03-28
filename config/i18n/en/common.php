@@ -3560,7 +3560,9 @@ return [
     'ui.netmail.search.failed' => 'Search failed',
     'ui.netmail.message_deleted_success' => 'Message deleted successfully',
     'ui.netmail.delete_message_confirm' => 'Are you sure you want to delete this message? This action cannot be undone.',
+    'ui.netmail.delete_saved_confirm' => 'This message is saved. Are you sure you want to delete it?',
     'ui.netmail.bulk_delete.confirm' => 'Are you sure you want to delete {count} message(s)?',
+    'ui.netmail.bulk_delete.saved_confirm' => '{count} of the selected messages are saved. Are you sure you want to delete them?',
     'ui.netmail.bulk_delete.success' => 'Deleted {count} message(s)',
     'ui.netmail.address_book.load_entry_failed_prefix' => 'Failed to load entry: ',
     'ui.netmail.bulk_delete.failed' => 'Failed to delete messages',
@@ -3576,6 +3578,9 @@ return [
     'ui.netmail.received_insecurely' => 'Received Insecurely',
     'ui.netmail.not_authenticated' => 'This message was not authenticated',
     'ui.netmail.next_page_title' => 'Load next page',
+    'ui.netmail.saved_items' => 'Saved',
+    'ui.netmail.saved_items.saved' => 'Message saved for later',
+    'ui.netmail.saved_items.removed' => 'Message removed from saved items',
 
     // Echomail
     'ui.echomail.search.failed' => 'Search failed',
@@ -3595,6 +3600,7 @@ return [
     'ui.echomail.bulk_delete.failed' => 'Failed to delete messages',
     'ui.echomail.bulk_delete.success' => 'Deleted {count} message(s)',
     'ui.echomail.bulk_delete.confirm' => 'Are you sure you want to delete {count} selected message(s) for everyone?',
+    'ui.echomail.bulk_delete.saved_confirm' => '{count} of the selected messages are saved. Are you sure you want to delete them?',
     'ui.echomail.bulk_deleting' => 'Deleting...',
     'ui.echomail.shares.check_failed' => 'Failed to check existing shares',
     'ui.echomail.shares.friendly_url_failed' => 'Failed to generate friendly URL',
