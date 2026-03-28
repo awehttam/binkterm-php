@@ -379,7 +379,7 @@ function displayMessages(messages, isThreaded = false) {
                         <br>
                     </td>
                     <td>
-                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
+                        ${isUnread ? '<strong class="subject-unread">' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
                         ${msg.has_attachment ? ` <i class="fas fa-paperclip text-muted" title="${uiT('ui.common.has_attachment', 'Has attachment')}"></i>` : ''}
                         <br>
                         <small class="text-muted">
@@ -1238,7 +1238,7 @@ function applyNetmailReadStyle(messageId) {
     if (!messageRow.length) return;
     messageRow.removeClass('table-light');
     messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('far fa-envelope-open text-muted');
-    messageRow.find('strong').contents().unwrap();
+    messageRow.find('strong.subject-unread').contents().unwrap();
     messageRow.find('.fa-envelope-open').attr('title', 'Read');
     messageRow.css('opacity', '0.85');
 }
