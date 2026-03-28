@@ -109,6 +109,9 @@
   - [Echomail Interest-Based Browsing](#echomail-interest-based-browsing)
 - [CLI Tools](#cli-tools)
   - [fix_date_received.php](#fix_date_receivedphp)
+  - [binktop.php](#binktopphp)
+- [Admin Terminal](#admin-terminal)
+- [Weather Report Configuration](#weather-report-configuration)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -241,6 +244,20 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **CLI Tools**
 - New `scripts/fix_date_received.php` resets `date_received` to `date_written` for echomail rows in specified areas. Useful after a `%RESCAN` import.
+- `scripts/binktop.php` gains interactive keyboard controls: press **q** to quit and **i** to change the refresh interval while running. The display no longer blinks on each refresh — content is rewritten in place.
+
+**Admin Terminal**
+- A floating xterm.js terminal panel is available to administrators when `ADMIN_TERMINAL=true`. Commands include `who`, `finger`, `wall`, `msg`, `uplinks`, and `poll`. The `stream watch` hidden command shows live BinkStream events in real time. Command history is persisted in `localStorage` per user and cleared on logout.
+
+**Weather Report Configuration**
+- The OpenWeatherMap API key field in the weather report admin page is now masked by default. A **Show / Hide** toggle reveals or re-hides the value.
+
+**Advertising**
+- Campaign scheduler now triggers an immediate outbound binkp poll after all messages are spooled, matching the behavior of user-posted messages. Previously, campaign-posted mail waited until the next scheduled poll.
+
+**Bug Fixes**
+- Fixed FTP server rejecting REP packet uploads when a same-named file already existed in the inbound directory.
+- Fixed pipe code parser failing to render color codes that are immediately followed by a digit (e.g. `|152` — `|15` is bright white, `2` is a literal character).
 
 ---
 
@@ -473,6 +490,8 @@ The pipe code detector previously matched any `|` followed by two characters tha
 Detection now requires uppercase letters for both hex color codes and two-letter special codes such as `|CL` and `|PA`. All real BBS software produces uppercase pipe codes. The same fix was applied to `convertPipeCodesToAnsi` and `parsePipeCodes` for consistency.
 
 The detector and parser now also treat doubled pipes (`||`) as literal pipe characters instead of the start of a pipe code, and they no longer match partial two-character codes inside longer numeric strings. This prevents ordinary text such as FTP `229 Entering Extended Passive Mode (||22|)` and `229 Entering Extended Passive Mode (|||2122|)` responses from being mis-rendered.
+
+A follow-up fix corrects the opposite problem: the negative lookahead that prevented false positives was also blocking legitimate pipe codes when the text immediately after the code started with a digit. For example, `|152 users` should parse as color code `|15` (bright white) followed by the literal string `2 users`, but the lookahead caused the entire sequence to go unmatched and render verbatim. The parser now matches exactly two decimal digits greedily, consuming the code and leaving the rest of the text untouched.
 
 Messages explicitly marked as `plain` / **Plain Text** now bypass ANSI and pipe-code rendering entirely in the web viewer instead of being auto-rendered based on message contents.
 
@@ -1170,8 +1189,46 @@ Current behavior:
 - per-daemon RSS plus a total daemon RSS line
 - extra host-process rows for `postgres`, `httpd`, `apache2`, `php-fpm`, and `php-fpm:*` when detected
 - active door sessions shown at the bottom
+- press **q** to quit, **i** to enter a new refresh interval — both take effect immediately without waiting for the current sleep to expire
+- display is rewritten in place each refresh cycle rather than clearing the screen first, eliminating the visible blink between updates
 
 This makes `binktop.php` more practical as a persistent sysop console, especially on 80-column terminals and mixed-service hosts.
+
+---
+
+## Admin Terminal
+
+A floating xterm.js terminal panel is available to administrators, enabled with `ADMIN_TERMINAL=true` in `.env`. The button appears in the lower-right corner of every page on desktop; it is hidden on mobile. See `docs/AdminTerminal.md` for the full command reference.
+
+**Commands:**
+
+| Command | Description |
+|---|---|
+| `help` | List all available commands |
+| `clear` | Clear terminal output and saved log |
+| `stream` | Show BinkStream transport status and event counters |
+| `who` | List currently online users |
+| `finger <username>` | Show profile and session details for a specific user |
+| `wall <message>` | Broadcast a modal message to all connected users |
+| `msg <username> <message>` | Send a private modal message to one user |
+| `uplinks` | List configured binkp uplink addresses |
+| `poll [<address>\|all]` | Trigger a binkp poll synchronously and print results |
+
+Command history (up to 100 entries) is persisted in `localStorage` per user and cleared on logout. Up/Down arrows navigate history; Ctrl-R performs reverse search.
+
+The `stream watch` hidden command (not shown in `help`) toggles live BinkStream event output in cyan as events arrive.
+
+**Optional `.env` setting:**
+
+```env
+ADMIN_TERMINAL=true
+```
+
+---
+
+## Weather Report Configuration
+
+The OpenWeatherMap API key field in the weather report admin page (`/admin/weather-config`) is now a password input by default. A **Show** button next to the field reveals the key in plain text; clicking it again re-hides it. This prevents the key from being visible over the shoulder or in screen recordings when reviewing the configuration page.
 
 ---
 
