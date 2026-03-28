@@ -559,6 +559,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Error al enviar el comando',
     'errors.admin.areafix.history_failed' => 'Error al cargar el historial de mensajes',
     'errors.admin.areafix.sync_failed' => 'Error al sincronizar las áreas',
+    'errors.admin.poll.failed' => 'No se pudo consultar el uplink BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Carga de solicitud no válida',
     'errors.admin.lovlynet.invalid_area_type' => 'Tipo de área no válido',

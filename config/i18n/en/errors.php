@@ -559,6 +559,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Failed to send command',
     'errors.admin.areafix.history_failed' => 'Failed to load message history',
     'errors.admin.areafix.sync_failed' => 'Failed to sync areas',
+    'errors.admin.poll.failed' => 'Failed to poll BinkP uplink',
 
     'errors.admin.lovlynet.invalid_json' => 'Invalid request payload',
     'errors.admin.lovlynet.invalid_area_type' => 'Invalid area type',
