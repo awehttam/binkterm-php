@@ -61,6 +61,7 @@ FTPD_PORT=2121
 FTPD_PUBLIC_HOST=bbs.example.com
 FTPD_PASSIVE_PORT_START=2122
 FTPD_PASSIVE_PORT_END=2149
+FTPD_ALLOW_ANONYMOUS=false
 ```
 
 ### Variables
@@ -73,6 +74,7 @@ FTPD_PASSIVE_PORT_END=2149
 | `FTPD_PUBLIC_HOST` | empty | Hostname or IPv4 address advertised in passive replies |
 | `FTPD_PASSIVE_PORT_START` | `2122` | First passive data port |
 | `FTPD_PASSIVE_PORT_END` | `2149` | Last passive data port |
+| `FTPD_ALLOW_ANONYMOUS` | `false` | Allow anonymous (`anonymous`/`ftp`) logins |
 
 ### `FTPD_PUBLIC_HOST`
 
@@ -207,7 +209,13 @@ sudo systemctl start binkterm-ftpd
 
 ### Anonymous Users
 
-Anonymous login is supported on registered systems with:
+Anonymous login is disabled by default. To enable it, set in `.env`:
+
+```ini
+FTPD_ALLOW_ANONYMOUS=true
+```
+
+When enabled, anonymous login is only permitted on registered systems, using:
 
 - username: `anonymous` or `ftp`
 - password: any string
@@ -223,8 +231,8 @@ Anonymous users cannot:
 - upload to `/incoming/...`
 - upload REP packets
 
-If the system is not registered, anonymous login is rejected and only normal
-authenticated BBS users can log in over FTP.
+If the system is not registered, anonymous login is rejected regardless of
+the `FTPD_ALLOW_ANONYMOUS` setting.
 
 ## Port 21 Without Running as Root
 
