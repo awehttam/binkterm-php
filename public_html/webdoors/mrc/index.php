@@ -168,9 +168,11 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
     <!-- Pipe/ANSI color code parser -->
     <script src="/js/ansisys.js"></script>
     <script>
+        window.currentUserId = <?php echo (int)($currentUser['user_id'] ?? 0) ?: 'null'; ?>;
         window.mrcCurrentUser = <?php echo json_encode($currentUser['username'] ?? ''); ?>;
         window.mrcCurrentBbs = <?php echo json_encode(MrcConfig::getInstance()->getBbsName()); ?>;
     </script>
+    <script src="/js/user-storage.js"></script>
     <!-- MRC Client JS -->
     <script src="mrc.js?v=<?php echo filemtime(__DIR__ . '/mrc.js'); ?>"></script>
 

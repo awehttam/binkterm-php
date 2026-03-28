@@ -2455,13 +2455,13 @@ function toggleComposeSidebar() {
     main.classList.toggle('col-lg-12', hidden);
     main.classList.toggle('col-lg-8', !hidden);
 
-    localStorage.setItem(SIDEBAR_KEY, hidden ? '1' : '0');
+    UserStorage.setItem(SIDEBAR_KEY, hidden ? '1' : '0');
 }
 
 document.getElementById('sidebarToggleBtn').addEventListener('click', toggleComposeSidebar);
 
 // Restore state on load
-if (localStorage.getItem(SIDEBAR_KEY) === '1') {
+if (UserStorage.getItem(SIDEBAR_KEY) === '1') {
     toggleComposeSidebar();
 }
 </script>

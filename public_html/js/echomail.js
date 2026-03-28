@@ -1333,18 +1333,18 @@ function toggleModalFullscreen() {
         dialog.classList.add('modal-lg');
         icon.classList.remove('fa-compress');
         icon.classList.add('fa-expand');
-        localStorage.setItem('modalFullscreen', 'false');
+        UserStorage.setItem('modalFullscreen', 'false');
     } else {
         dialog.classList.remove('modal-lg');
         dialog.classList.add('modal-fullscreen');
         icon.classList.remove('fa-expand');
         icon.classList.add('fa-compress');
-        localStorage.setItem('modalFullscreen', 'true');
+        UserStorage.setItem('modalFullscreen', 'true');
     }
 }
 
 function applyModalFullscreenPreference() {
-    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const isFullscreen = UserStorage.getItem('modalFullscreen') === 'true';
     const modal = document.getElementById('messageModal');
     const dialog = modal.querySelector('.modal-dialog');
     const icon = document.querySelector('#fullscreenToggle i');

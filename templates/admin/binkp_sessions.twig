@@ -333,7 +333,7 @@ function normalizeSessionsPerPage(value) {
 
 function loadStoredSessionsPerPage() {
     try {
-        const storedValue = window.localStorage ? window.localStorage.getItem(SESSIONS_PER_PAGE_KEY) : null;
+        const storedValue = window.UserStorage ? window.UserStorage.getItem(SESSIONS_PER_PAGE_KEY) : null;
         return normalizeSessionsPerPage(Number(storedValue));
     } catch (_) {
         return DEFAULT_SESSIONS_PER_PAGE;
@@ -342,8 +342,8 @@ function loadStoredSessionsPerPage() {
 
 function persistSessionsPerPage() {
     try {
-        if (window.localStorage) {
-            window.localStorage.setItem(SESSIONS_PER_PAGE_KEY, String(sessionsPerPage));
+        if (window.UserStorage) {
+            window.UserStorage.setItem(SESSIONS_PER_PAGE_KEY, String(sessionsPerPage));
         }
     } catch (_) {}
 }

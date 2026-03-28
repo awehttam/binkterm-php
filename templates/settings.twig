@@ -571,7 +571,7 @@ $(document).ready(function() {
     loadEchomailIgnoreRules();
 
     // Restore last active tab
-    const savedTab = localStorage.getItem('settingsActiveTab');
+    const savedTab = UserStorage.getItem('settingsActiveTab');
     if (savedTab) {
         const btn = document.querySelector(`[data-bs-target="${savedTab}"]`);
         if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
@@ -581,7 +581,7 @@ $(document).ready(function() {
     document.querySelectorAll('#settingsTabs [data-bs-toggle="pill"]').forEach(function(btn) {
         btn.addEventListener('shown.bs.tab', function(e) {
             const target = e.target.getAttribute('data-bs-target');
-            localStorage.setItem('settingsActiveTab', target);
+            UserStorage.setItem('settingsActiveTab', target);
             $('#saveButtonRow').toggle(target !== '#tab-account' && target !== '#tab-ai');
         });
     });

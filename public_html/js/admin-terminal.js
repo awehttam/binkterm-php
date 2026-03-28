@@ -27,16 +27,15 @@
     var streamLastEventAt = null;
 
     // ── Persistent state ─────────────────────────────────────────────────────────
-    // Namespace by user ID so different accounts on the same browser don't share
-    // terminal state (output log, command history, panel open/closed).
-    var LS_KEY = 'binkterm_admin_terminal_' + (window.currentUserId || '0');
+    // UserStorage automatically namespaces by user ID.
+    var LS_KEY = 'adminTerminal';
     var MAX_LOG = 500;
     var MAX_HISTORY = 100;
     var outputLog = [];
 
     function saveState() {
         try {
-            localStorage.setItem(LS_KEY, JSON.stringify({
+            UserStorage.setItem(LS_KEY, JSON.stringify({
                 v: 1,
                 streamWatch: streamWatch,
                 panelOpen: panelOpen,
@@ -48,7 +47,7 @@
 
     function loadState() {
         try {
-            var raw = localStorage.getItem(LS_KEY);
+            var raw = UserStorage.getItem(LS_KEY);
             if (!raw) { return; }
             var s = JSON.parse(raw);
             if (!s || s.v !== 1) { return; }
@@ -712,7 +711,7 @@
     // completed layout before xterm tries to measure the container.
     setTimeout(function () {
         try {
-            var raw = localStorage.getItem(LS_KEY);
+            var raw = UserStorage.getItem(LS_KEY);
             if (raw) {
                 var s = JSON.parse(raw);
                 if (s && s.v === 1 && s.panelOpen) { openPanel(); }

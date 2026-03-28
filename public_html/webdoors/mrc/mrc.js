@@ -38,7 +38,7 @@ class MrcClient {
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
         this.localBbs = window.mrcCurrentBbs || null;
-        this.pollMode = localStorage.getItem('mrc_poll_mode') || 'simple'; // 'longpoll' | 'simple'
+        this.pollMode = UserStorage.getItem('mrc_poll_mode') || 'simple'; // 'longpoll' | 'simple'
         this.missingPresenceCount = 0;
         this.inputHistory = [];
         this.historyIndex = -1;
@@ -610,7 +610,7 @@ class MrcClient {
      */
     togglePollMode() {
         this.pollMode = this.pollMode === 'longpoll' ? 'simple' : 'longpoll';
-        localStorage.setItem('mrc_poll_mode', this.pollMode);
+        UserStorage.setItem('mrc_poll_mode', this.pollMode);
         this.startPolling();
         this.updatePollModeButton();
     }

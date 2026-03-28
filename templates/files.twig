@@ -618,18 +618,18 @@ function togglePreviewFullscreen() {
         dialog.classList.add('modal-xl');
         icon.classList.remove('fa-compress');
         icon.classList.add('fa-expand');
-        localStorage.setItem('previewModalFullscreen', 'false');
+        UserStorage.setItem('previewModalFullscreen', 'false');
     } else {
         dialog.classList.remove('modal-xl');
         dialog.classList.add('modal-fullscreen');
         icon.classList.remove('fa-expand');
         icon.classList.add('fa-compress');
-        localStorage.setItem('previewModalFullscreen', 'true');
+        UserStorage.setItem('previewModalFullscreen', 'true');
     }
 }
 
 function applyPreviewFullscreenPreference() {
-    const isFullscreen = localStorage.getItem('previewModalFullscreen') === 'true';
+    const isFullscreen = UserStorage.getItem('previewModalFullscreen') === 'true';
     const modal  = document.getElementById('filePreviewModal');
     const dialog = modal.querySelector('.modal-dialog');
     const icon   = document.querySelector('#previewFullscreenToggle i');

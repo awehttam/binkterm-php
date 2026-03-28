@@ -1,8 +1,9 @@
-const CACHE_NAME = 'binkcache-v685';
+const CACHE_NAME = 'binkcache-v686';
 
 // Static assets to precache
 const staticAssets = [
     '/favicon.svg',
+    '/js/user-storage.js',
     '/js/app.js',
     '/js/interest-picker.js',
     '/js/netmail.js',
