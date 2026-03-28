@@ -676,7 +676,7 @@ class AdminController
         $currentDate = new \DateTime();
         $interval = $currentDate->diff($reminderDate);
 
-        error_log("[ADMIN] calculateDaysSinceReminder: lastReminded='$lastReminded', days={$interval->days}");
+        //error_log("[ADMIN] calculateDaysSinceReminder: lastReminded='$lastReminded', days={$interval->days}");
 
         return $interval->days;
     }
