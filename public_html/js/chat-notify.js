@@ -227,7 +227,7 @@
         if (clearTarget === 'netmail' || isPathMatch('/netmail')) {
             mailUnread.netmail = false;
         }
-        if (clearTarget === 'echomail' || isPathMatch('/echomail') || isPathMatch('/echolist')) {
+        if (clearTarget === 'echomail') {
             mailUnread.echomail = false;
         }
 
