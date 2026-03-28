@@ -802,6 +802,39 @@ function clearScreen(): void
     echo "\033[H\033[2J";
 }
 
+/**
+ * Put/restore the terminal in raw (non-blocking) mode so we can poll for keypresses.
+ * On Windows stream_set_blocking is used; on POSIX stty is used.
+ */
+function setRawMode(bool $raw): void
+{
+    if (PHP_OS_FAMILY === 'Windows') {
+        stream_set_blocking(STDIN, !$raw);
+        return;
+    }
+    if ($raw) {
+        @system('stty -echo -icanon min 0 time 0 2>/dev/null');
+        stream_set_blocking(STDIN, false);
+    } else {
+        @system('stty sane 2>/dev/null');
+        stream_set_blocking(STDIN, true);
+    }
+}
+
+/**
+ * Return the next character from STDIN without blocking, or null if none is available.
+ */
+function readChar(): ?string
+{
+    $read = [STDIN];
+    $write = $except = [];
+    if (@stream_select($read, $write, $except, 0, 0) < 1) {
+        return null;
+    }
+    $ch = @fread(STDIN, 1);
+    return ($ch === false || $ch === '') ? null : $ch;
+}
+
 function buildDaemonRows(array $daemonStatus): array
 {
     $rows = [];
@@ -931,7 +964,7 @@ function buildHeaderLines(array $snapshot, int $interval, int $columns): array
     ];
 }
 
-function assembleScreen(array $snapshot, int $interval): string
+function assembleScreen(array $snapshot, int $interval, bool $interactive = false): string
 {
     $terminal = getTerminalSize();
     $lines = $terminal['lines'];
@@ -973,7 +1006,11 @@ function assembleScreen(array $snapshot, int $interval): string
     $screenLines[] = '';
     $screenLines = array_merge($screenLines, wrapSection('Door Sessions', fitTableToHeight($doorRows, $doorWidthHints, $doorSectionHeight)));
 
-    return implode("\n", $screenLines) . "\n";
+    $output = implode("\n", $screenLines) . "\n";
+    if ($interactive) {
+        $output .= colorize('[q]', 'bright_cyan') . ' quit  ' . colorize('[i]', 'bright_cyan') . ' set interval';
+    }
+    return $output;
 }
 
 $args = parseArgs($argv);
@@ -988,6 +1025,14 @@ $onlineMinutes = isset($args['minutes']) && ctype_digit((string)$args['minutes']
 $interval = isset($args['interval']) && is_numeric((string)$args['interval']) ? max(1, (int)$args['interval']) : 2;
 $renderOnce = isset($args['once']) || $json;
 
+$interactive = !$renderOnce && !$json;
+
+if ($interactive) {
+    setRawMode(true);
+    register_shutdown_function(static fn() => setRawMode(false));
+}
+
+$keepRunning = true;
 do {
     $db = Database::reconnect()->getPdo();
     $auth = new Auth();
@@ -1054,11 +1099,48 @@ do {
     }
 
     clearScreen();
-    echo assembleScreen($snapshot, $interval);
+    echo assembleScreen($snapshot, $interval, $interactive);
 
     if ($renderOnce) {
         break;
     }
 
-    sleep($interval);
-} while (true);
+    // Wait $interval seconds in 100 ms slices so we can react to keypresses promptly.
+    $waitedUs = 0;
+    $sliceUs = 100000; // 100 ms
+    while ($waitedUs < $interval * 1000000) {
+        usleep($sliceUs);
+        $waitedUs += $sliceUs;
+
+        if (!$interactive) {
+            continue;
+        }
+
+        $ch = readChar();
+        if ($ch === null) {
+            continue;
+        }
+
+        $ch = strtolower($ch);
+
+        if ($ch === 'q') {
+            $keepRunning = false;
+            break;
+        }
+
+        if ($ch === 'i') {
+            setRawMode(false);
+            echo "\n" . colorize('New interval (seconds): ', 'bright_cyan');
+            $line = trim((string)fgets(STDIN));
+            if (ctype_digit($line) && (int)$line >= 1) {
+                $interval = (int)$line;
+            }
+            setRawMode(true);
+            break; // refresh immediately with new interval
+        }
+    }
+} while ($keepRunning);
+
+if ($interactive) {
+    setRawMode(false);
+}

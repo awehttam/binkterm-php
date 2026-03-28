@@ -298,14 +298,13 @@ class Auth
                 s.last_activity,
                 s.activity,
                 s.ip_address,
-                s.service,
-                s.session_id
+                s.service
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.last_activity > NOW() - INTERVAL '1 minute' * ?
               AND s.expires_at > NOW()
               AND u.is_active = TRUE
-            ORDER BY u.username ASC, s.last_activity DESC, s.service ASC, s.session_id ASC
+            ORDER BY u.username ASC, s.last_activity DESC, s.service ASC
         ");
         $stmt->execute([$minutes]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
