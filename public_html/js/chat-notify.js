@@ -379,6 +379,48 @@
         }
     }
 
+    function showWallMessage(from, message) {
+        var modalId = 'wallMessageModal';
+        var existing = document.getElementById(modalId);
+        if (existing) { existing.remove(); }
+
+        var escaped = function (str) {
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(str));
+            return d.innerHTML;
+        };
+
+        var html = [
+            '<div class="modal fade" id="' + modalId + '" tabindex="-1" aria-labelledby="wallMessageModalLabel" aria-modal="true" role="dialog">',
+            '  <div class="modal-dialog modal-dialog-centered">',
+            '    <div class="modal-content">',
+            '      <div class="modal-header">',
+            '        <h5 class="modal-title" id="wallMessageModalLabel">',
+            '          <i class="fas fa-bullhorn me-2"></i>',
+            window.t ? window.t('ui.admin.wall.incoming', { from: escaped(from) }, 'Incoming message from ' + escaped(from)) : ('Incoming message from ' + escaped(from)),
+            '        </h5>',
+            '        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>',
+            '      </div>',
+            '      <div class="modal-body">',
+            '        <p class="mb-0">' + escaped(message) + '</p>',
+            '      </div>',
+            '      <div class="modal-footer">',
+            '        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">',
+            window.t ? window.t('ui.common.close', {}, 'Close') : 'Close',
+            '        </button>',
+            '      </div>',
+            '    </div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        var el = document.getElementById(modalId);
+        el.addEventListener('hidden.bs.modal', function () { el.remove(); });
+        var modal = new bootstrap.Modal(el);
+        modal.show();
+    }
+
     // Listen for postMessage events from WebDoors (credit updates, etc.)
     window.addEventListener('message', (event) => {
         // Validate origin - only accept messages from same origin
@@ -409,6 +451,18 @@
             creditBalanceElement.textContent = symbol + Math.floor(credits);
         }
     });
+
+    // Register the wall_message listener immediately — do NOT wait for the async
+    // init() to complete. Events can arrive as soon as BinkStream connects, and
+    // any event that arrives before a listener is registered is silently dropped.
+    // Registering here (synchronously, at script-parse time) ensures the handler
+    // is in place before the first SSE event can be dispatched to this page.
+    if (window.BinkStream) {
+        window.BinkStream.on('wall_message', function (data) {
+            if (!data || !data.from) { return; }
+            showWallMessage(data.from, data.message || '');
+        });
+    }
 
     document.addEventListener('DOMContentLoaded', init);
 })();

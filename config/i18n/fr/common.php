@@ -4200,4 +4200,5 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.dashboard.ram_usage_modal_failed'      => 'Impossible de charger les details de l\'utilisation RAM.',
     'ui.admin.ad_campaigns.run_now_confirm' => 'Exécuter {name} tout de suite ?',
     'ui.admin.ad_campaigns.this_campaign' => 'cette campagne',
+    'ui.admin.wall.incoming'              => 'Message entrant de {from}',
 ];

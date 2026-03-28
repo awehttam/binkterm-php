@@ -567,6 +567,16 @@ return [
     'errors.markdown_images.upload_failed' => 'Echec du telechargement de l\'image. Veuillez reessayer.',
     'errors.markdown_images.invalid_type'  => 'Type d\'image non pris en charge. Utilisez JPEG, PNG, GIF ou WebP.',
     'errors.markdown_images.too_large'     => 'Image trop volumineuse. Taille maximale : 5 Mo.',
+
+    // Wall message
+    'errors.admin.wall.empty_message'    => 'Le message ne peut pas etre vide.',
+    'errors.admin.wall.message_too_long' => 'Message trop long (maximum 1000 caracteres).',
+
+    // Msg (private admin message)
+    'errors.admin.msg.no_username'       => 'Le nom d\'utilisateur est requis.',
+    'errors.admin.msg.empty_message'     => 'Le message ne peut pas etre vide.',
+    'errors.admin.msg.message_too_long'  => 'Message trop long (maximum 1000 caracteres).',
+    'errors.admin.msg.user_not_found'    => 'Utilisateur introuvable.',
 ];
 
 

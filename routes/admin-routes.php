@@ -834,6 +834,61 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        // Finger a user by username — used by the admin terminal
+        SimpleRouter::get('/finger/{username}', function($username) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT id, username, real_name, location, fidonet_address,
+                       is_active, is_admin, created_at, last_login
+                FROM users
+                WHERE LOWER(username) = LOWER(?)
+                LIMIT 1
+            ");
+            $stmt->execute([$username]);
+            $target = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$target) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+
+            // Fetch any active sessions for this user
+            $sessions = $auth->getOnlineSessions(15);
+            $userSessions = array_values(array_filter($sessions, function($s) use ($target) {
+                return (int)$s['user_id'] === (int)$target['id'];
+            }));
+
+            $online = array_map(function($s) {
+                return [
+                    'service'       => $s['service'] ?? 'web',
+                    'activity'      => $s['activity'] ?? '',
+                    'last_activity' => $s['last_activity'] ?? null,
+                    'ip_address'    => $s['ip_address'] ?? null,
+                ];
+            }, $userSessions);
+
+            echo json_encode([
+                'username'       => $target['username'],
+                'real_name'      => $target['real_name'],
+                'location'       => $target['location'],
+                'fidonet_address'=> $target['fidonet_address'],
+                'is_active'      => (bool)$target['is_active'],
+                'is_admin'       => (bool)$target['is_admin'],
+                'created_at'     => $target['created_at'],
+                'last_login'     => $target['last_login'],
+                'online'         => $online,
+            ]);
+        });
+
         // Create new user
         SimpleRouter::post('/users', function() {
             $auth = new Auth();
@@ -7071,5 +7126,123 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
     }
 
     echo json_encode(['success' => true, 'summary' => $summary]);
+});
+
+// GET /admin/api/uplinks — list configured uplink addresses for the admin terminal
+SimpleRouter::get('/admin/api/uplinks', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplinks = array_map(function ($u) {
+        return [
+            'address' => $u['address'] ?? '',
+            'host'    => $u['host'] ?? '',
+            'domain'  => $u['domain'] ?? '',
+        ];
+    }, $config->getUplinks());
+
+    echo json_encode(['success' => true, 'uplinks' => $uplinks]);
+});
+
+// POST /admin/api/poll — synchronous binkp poll for the admin terminal
+SimpleRouter::post('/admin/api/poll', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $upstream = trim((string)($input['upstream'] ?? 'all'));
+    if ($upstream === '') {
+        $upstream = 'all';
+    }
+
+    try {
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $result = $client->binkPollSync($upstream);
+        $client->close();
+        echo json_encode(['success' => true, 'result' => $result]);
+    } catch (\Throwable $e) {
+        apiError('errors.admin.poll.failed', 'Poll failed: ' . $e->getMessage(), 500);
+    }
+});
+
+// POST /admin/api/wall — broadcast a wall message to all connected users
+SimpleRouter::post('/admin/api/wall', function () {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $message = trim((string)($input['message'] ?? ''));
+
+    if ($message === '') {
+        apiError('errors.admin.wall.empty_message', 'Message cannot be empty', 400);
+        return;
+    }
+
+    if (mb_strlen($message) > 1000) {
+        apiError('errors.admin.wall.message_too_long', 'Message too long (max 1000 characters)', 400);
+        return;
+    }
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    \BinktermPHP\Realtime\BinkStream::emit($db, 'wall_message', [
+        'from'    => $user['username'],
+        'message' => $message,
+    ], null, false);
+
+    echo json_encode(['success' => true]);
+});
+
+// POST /admin/api/msg — send a private message to a specific user
+SimpleRouter::post('/admin/api/msg', function () {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $targetUsername = trim((string)($input['username'] ?? ''));
+    $message = trim((string)($input['message'] ?? ''));
+
+    if ($targetUsername === '') {
+        apiError('errors.admin.msg.no_username', 'Username is required', 400);
+        return;
+    }
+
+    if ($message === '') {
+        apiError('errors.admin.msg.empty_message', 'Message cannot be empty', 400);
+        return;
+    }
+
+    if (mb_strlen($message) > 1000) {
+        apiError('errors.admin.msg.message_too_long', 'Message too long (max 1000 characters)', 400);
+        return;
+    }
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1");
+    $stmt->execute([$targetUsername]);
+    $target = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$target) {
+        apiError('errors.admin.msg.user_not_found', 'User not found', 404);
+        return;
+    }
+
+    \BinktermPHP\Realtime\BinkStream::emit($db, 'wall_message', [
+        'from'    => $user['username'],
+        'message' => $message,
+        'private' => true,
+    ], (int)$target['id'], false);
+
+    echo json_encode(['success' => true]);
 });
 

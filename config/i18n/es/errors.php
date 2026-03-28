@@ -610,4 +610,14 @@ return [
     'errors.markdown_images.upload_failed' => 'Error al subir la imagen. Intentalo de nuevo.',
     'errors.markdown_images.invalid_type'  => 'Tipo de imagen no compatible. Usa JPEG, PNG, GIF o WebP.',
     'errors.markdown_images.too_large'     => 'La imagen es demasiado grande. El tamano maximo es 5 MB.',
+
+    // Wall message
+    'errors.admin.wall.empty_message'    => 'El mensaje no puede estar vacio.',
+    'errors.admin.wall.message_too_long' => 'Mensaje demasiado largo (maximo 1000 caracteres).',
+
+    // Msg (private admin message)
+    'errors.admin.msg.no_username'       => 'Se requiere un nombre de usuario.',
+    'errors.admin.msg.empty_message'     => 'El mensaje no puede estar vacio.',
+    'errors.admin.msg.message_too_long'  => 'Mensaje demasiado largo (maximo 1000 caracteres).',
+    'errors.admin.msg.user_not_found'    => 'Usuario no encontrado.',
 ];

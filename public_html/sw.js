@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v666';
+const CACHE_NAME = 'binkcache-v678';
 
 // Static assets to precache
 const staticAssets = [
@@ -138,6 +138,13 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     if (request.headers.get('accept')?.includes('text/html')) {
+        return;
+    }
+
+    // Admin-only files are excluded from caching — they change frequently during
+    // development and are only loaded for admins, so per-user caching isn't worth it.
+    const adminPaths = ['/js/admin-terminal.js', '/js/xterm.js', '/js/xterm-addon-fit.js', '/css/xterm.css'];
+    if (adminPaths.includes(url.pathname)) {
         return;
     }
 

@@ -4289,4 +4289,5 @@ return [
     'ui.terminalserver.qwk.format_unchanged'         => 'Format unchanged.',
     'ui.terminalserver.qwk.format_saved'             => 'Format changed to {format}.',
     'ui.terminalserver.qwk.format_failed'            => 'Failed to change format.',
+    'ui.admin.wall.incoming'                         => 'Incoming message from {from}',
 ];

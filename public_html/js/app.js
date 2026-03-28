@@ -1156,6 +1156,12 @@ function applyFontSettings() {
 
 // Authentication functions
 function logout() {
+    // Clear admin terminal state for this user before navigating away
+    if (window.currentUserId) {
+        try {
+            localStorage.removeItem('binkterm_admin_terminal_' + window.currentUserId);
+        } catch (_) {}
+    }
     $.ajax({
         url: '/api/auth/logout',
         method: 'POST',

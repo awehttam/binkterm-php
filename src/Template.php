@@ -204,6 +204,7 @@ class Template
 
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
+        $this->twig->addGlobal('admin_terminal_enabled', Config::env('ADMIN_TERMINAL', 'false') === 'true');
 
         // Is the game system enabled
         $this->twig->addGlobal('webdoors_active', GameConfig::isGameSystemEnabled());

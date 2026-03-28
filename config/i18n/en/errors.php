@@ -610,4 +610,14 @@ return [
     'errors.markdown_images.upload_failed' => 'Image upload failed. Please try again.',
     'errors.markdown_images.invalid_type'  => 'Unsupported image type. Please use JPEG, PNG, GIF, or WebP.',
     'errors.markdown_images.too_large'     => 'Image is too large. Maximum size is 5 MB.',
+
+    // Wall message
+    'errors.admin.wall.empty_message'    => 'Message cannot be empty.',
+    'errors.admin.wall.message_too_long' => 'Message too long (max 1000 characters).',
+
+    // Msg (private admin message)
+    'errors.admin.msg.no_username'       => 'Username is required.',
+    'errors.admin.msg.empty_message'     => 'Message cannot be empty.',
+    'errors.admin.msg.message_too_long'  => 'Message too long (max 1000 characters).',
+    'errors.admin.msg.user_not_found'    => 'User not found.',
 ];

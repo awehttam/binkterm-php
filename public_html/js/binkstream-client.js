@@ -45,14 +45,21 @@
     }
 
     function dispatch(type, data) {
-        if (!listeners[type]) {
-            return;
+        if (listeners[type]) {
+            listeners[type].forEach(function (fn) {
+                try {
+                    fn(data);
+                } catch (_) {}
+            });
         }
-        listeners[type].forEach(function (fn) {
-            try {
-                fn(data);
-            } catch (_) {}
-        });
+        // Wildcard listeners receive every event as (type, data)
+        if (type !== '*' && listeners['*']) {
+            listeners['*'].forEach(function (fn) {
+                try {
+                    fn(type, data);
+                } catch (_) {}
+            });
+        }
     }
 
     function postSubscription(type, action) {
@@ -68,7 +75,8 @@
         }
         const hadListeners = listeners[type].size > 0;
         listeners[type].add(fn);
-        if (!hadListeners) {
+        // '*' is a client-side wildcard — no worker subscription needed
+        if (!hadListeners && type !== '*') {
             postSubscription(type, 'subscribe');
         }
     }
@@ -80,7 +88,9 @@
         listeners[type].delete(fn);
         if (listeners[type].size === 0) {
             delete listeners[type];
-            postSubscription(type, 'unsubscribe');
+            if (type !== '*') {
+                postSubscription(type, 'unsubscribe');
+            }
         }
     }
 

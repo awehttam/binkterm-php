@@ -1059,6 +1059,15 @@ function isMessageRowInteractiveTarget(target) {
     );
 }
 
+function replyFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    composeMessage('echomail', messageId);
+}
+
 function viewConversationFromContextMenu() {
     if (!currentContextMenuMessageId) {
         return;

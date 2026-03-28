@@ -1307,8 +1307,12 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Remove "Re: " prefix if it exists (case insensitive)
                 $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
                 $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
-                // Set echoarea with domain for proper select matching (format: tag@domain)
-                $echoarea = $originalMessage['echoarea'] . '@' . $originalMessage['domain'];
+                // Set echoarea for proper select matching — only append @domain when
+                // domain is non-empty, matching the JS option format: tag@domain or tag
+                $echoarea = $originalMessage['echoarea'];
+                if (!empty($originalMessage['domain'])) {
+                    $echoarea .= '@' . $originalMessage['domain'];
+                }
                 $templateVars['domain'] = $originalMessage['domain'];
                 // Filter out kludge lines but preserve blank lines so quoted structure is intact
                 $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);

@@ -4297,4 +4297,5 @@ return [
     'ui.terminalserver.qwk.format_failed'            => 'Error al cambiar el formato.',
     'ui.admin.ad_campaigns.run_now_confirm' => 'Ejecutar {name} ahora mismo?',
     'ui.admin.ad_campaigns.this_campaign' => 'esta campana',
+    'ui.admin.wall.incoming'              => 'Mensaje entrante de {from}',
 ];

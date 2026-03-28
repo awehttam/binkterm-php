@@ -274,6 +274,25 @@ class AdminDaemonServer
                     $this->logger->info("Spawned background binkp_poll for {$upstream}");
                     $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
+                case 'binkp_poll_sync':
+                    // Synchronous poll — runs binkp_poll.php and waits for it to finish.
+                    // Used by the admin terminal so the result is visible immediately.
+                    $upstream = $data['upstream'] ?? null;
+                    if (!$upstream) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_upstream']);
+                        break;
+                    }
+                    if ($upstream === 'all') {
+                        $cmd = [PHP_BINARY, 'scripts/binkp_poll.php', '--all', '--no-console'];
+                    } else {
+                        // No --no-console for single uplink: logger output goes to stdout
+                        // so the admin terminal can display the actual error detail.
+                        $cmd = [PHP_BINARY, 'scripts/binkp_poll.php', $upstream];
+                    }
+                    $result = $this->runCommand($cmd);
+                    $this->logCommandResult('binkp_poll_sync', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 case 'binkp_auth_test':
                     $domain = $data['domain'] ?? null;
                     $address = $data['address'] ?? null;

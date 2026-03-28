@@ -590,6 +590,15 @@ function isMessageRowInteractiveTarget(target) {
     );
 }
 
+function replyFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    composeMessage('netmail', messageId);
+}
+
 function viewConversationFromContextMenu() {
     if (!currentContextMenuMessageId) {
         return;

@@ -367,6 +367,9 @@
 </div>
 
 <div id="messageContextMenu" class="dropdown-menu" style="display:none; position:absolute; z-index:1080;">
+    <button type="button" class="dropdown-item" onclick="replyFromContextMenu()">
+        <i class="fas fa-reply me-2"></i>{{ t('ui.common.reply', {}, 'common') }}
+    </button>
     <button type="button" class="dropdown-item" onclick="viewConversationFromContextMenu()">
         <i class="fas fa-comments me-2"></i>{{ t('ui.common.view_conversation', {}, locale, ['common']) }}
     </button>

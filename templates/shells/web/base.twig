@@ -109,6 +109,12 @@
     {% if current_user and bbs_feature_enabled('chat') %}
     <script src="/js/chat-notify.js"></script>
     {% endif %}
+    {% if current_user.is_admin and admin_terminal_enabled %}
+    <script src="/js/xterm.js"></script>
+    <script src="/js/xterm-addon-fit.js"></script>
+    <link href="/css/xterm.css" rel="stylesheet">
+    <script src="/js/admin-terminal.js" defer></script>
+    {% endif %}
     {# Include custom header insertions if available #}
     {% include 'custom/header.insert.twig' ignore missing %}
     {% if debug_ansi_not_perfect %}

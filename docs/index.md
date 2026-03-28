@@ -98,6 +98,7 @@ This index lists documents in operational priority order — essentials first, a
 
 - [Developer Guide](DEVELOPER_GUIDE.md) — Architecture overview, coding conventions, contribution guide
 - [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, admin daemon, SharedWorker, and how to add new event types
+- [Admin Terminal](AdminTerminal.md) — Floating xterm.js terminal for admins: live event stream, wall/msg commands, command history, and state persistence
 
 ---
 

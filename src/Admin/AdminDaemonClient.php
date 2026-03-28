@@ -51,6 +51,11 @@ class AdminDaemonClient
         return $this->sendCommand('binkp_poll', ['upstream' => $upstream]);
     }
 
+    public function binkPollSync(string $upstream): array
+    {
+        return $this->sendCommand('binkp_poll_sync', ['upstream' => $upstream]);
+    }
+
     public function binkpAuthTest(string $domain): array
     {
         return $this->sendCommand('binkp_auth_test', ['domain' => $domain]);
