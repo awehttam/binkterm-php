@@ -1039,6 +1039,7 @@ if ($interactive) {
 }
 
 $keepRunning = true;
+$firstRender = true;
 do {
     $db = Database::reconnect()->getPdo();
     $auth = new Auth();
@@ -1104,6 +1105,10 @@ do {
         exit(0);
     }
 
+    if ($firstRender) {
+        echo "\033[H\033[2J";
+        $firstRender = false;
+    }
     clearScreen();
     echo assembleScreen($snapshot, $interval, $interactive);
 
