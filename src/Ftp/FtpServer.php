@@ -389,6 +389,15 @@ class FtpServer implements LoopServiceInterface
         }
 
         if ($this->isAnonymousUsername($username)) {
+            if (\BinktermPHP\Config::env('FTPD_ALLOW_ANONYMOUS', 'false') !== 'true') {
+                $this->logger->info(sprintf(
+                    'FTP anonymous login denied (disabled by config): ip=%s client_id=%d',
+                    (string)$this->clients[$clientId]['remote_ip'],
+                    $clientId
+                ));
+                $this->sendResponse($clientId, 530, 'Anonymous login not permitted');
+                return;
+            }
             $this->authenticateAnonymousClient($clientId, $password);
             return;
         }
