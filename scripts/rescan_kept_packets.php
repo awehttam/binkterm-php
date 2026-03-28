@@ -158,32 +158,40 @@ foreach ($packets as $pktPath) {
            . " | pkt mtime: $pktDate UTC\n";
 
         if ($opts['preview']) {
-            $fwMessages = scanPacket($pktPath, true);
-            $count = max(count($messages), count($fwMessages ?? []));
-            echo "  -> Parser comparison (null-term vs fixed-width):\n";
+            $fwMessages  = scanPacket($pktPath, 'fixed-width');
+            $gdMessages  = scanPacket($pktPath, 'gap-detect');
+            $count = max(count($messages), count($fwMessages ?? []), count($gdMessages ?? []));
+            echo "  -> Parser comparison (null-term / fixed-width / gap-detect):\n";
+            $fields = ['area', 'fromName', 'toName', 'subject', 'msgid'];
             for ($i = 0; $i < $count; $i++) {
-                $old = $messages[$i]    ?? null;
-                $new = ($fwMessages ?? [])[$i] ?? null;
-                echo sprintf("     #%d\n", $i + 1);
-                $fields = ['area', 'fromName', 'toName', 'subject', 'msgid'];
+                $nt = $messages[$i]           ?? null;
+                $fw = ($fwMessages ?? [])[$i] ?? null;
+                $gd = ($gdMessages ?? [])[$i] ?? null;
+                $hasDiff = false;
                 foreach ($fields as $f) {
-                    $ov = $old[$f] ?? '(missing)';
-                    $nv = $new[$f] ?? '(missing)';
-                    $marker = ($ov !== $nv) ? ' ***' : '';
-                    if ($ov !== $nv || $opts['verbose']) {
-                        echo sprintf("        %-10s null-term=%-40s fixed=%s%s\n",
+                    $ntv = $nt[$f] ?? '(missing)';
+                    $fwv = $fw[$f] ?? '(missing)';
+                    $gdv = $gd[$f] ?? '(missing)';
+                    if ($ntv !== $fwv || $ntv !== $gdv || $opts['verbose']) {
+                        if (!$hasDiff) {
+                            echo sprintf("     #%d\n", $i + 1);
+                            $hasDiff = true;
+                        }
+                        $marker = ($ntv !== $fwv || $ntv !== $gdv) ? ' ***' : '';
+                        echo sprintf("        %-10s nt=%-30s fw=%-30s gd=%s%s\n",
                             $f . ':',
-                            mb_substr(json_encode($ov), 0, 40),
-                            mb_substr(json_encode($nv), 0, 40),
+                            mb_substr(json_encode($ntv), 0, 30),
+                            mb_substr(json_encode($fwv), 0, 30),
+                            mb_substr(json_encode($gdv), 0, 30),
                             $marker);
                     }
                 }
-                if ($old && $new) {
-                    $same = true;
+                if ($hasDiff) {
+                    $allAgree = true;
                     foreach ($fields as $f) {
-                        if (($old[$f] ?? null) !== ($new[$f] ?? null)) { $same = false; break; }
+                        if (($nt[$f] ?? null) !== ($gd[$f] ?? null)) { $allAgree = false; break; }
                     }
-                    echo $same ? "        (parsers agree)\n" : "        ^^^ PARSERS DIFFER\n";
+                    echo $allAgree ? "        (nt and gd agree)\n" : "        ^^^ PARSERS DIFFER\n";
                 }
             }
         }
@@ -230,12 +238,10 @@ if ($opts['reimport'] && !$opts['dry-run']) {
 /**
  * Parse a .pkt file and return an array of message summaries for DB lookup.
  *
- * @param bool $fixedWidth  When true, use the fixed-width parser (experimental).
- *                          When false (default), use the null-terminated parser
- *                          that matches what BinkdProcessor stores in the DB.
+ * @param string $mode  'null-term' (default), 'fixed-width', or 'gap-detect'
  * @return array[]|null  Array of message arrays, or null on parse failure.
  */
-function scanPacket(string $path, bool $fixedWidth = false): ?array
+function scanPacket(string $path, string $mode = 'null-term'): ?array
 {
     $handle = fopen($path, 'rb');
     if (!$handle) {
@@ -271,11 +277,13 @@ function scanPacket(string $path, bool $fixedWidth = false): ?array
             break;
         }
 
-        if ($fixedWidth) {
+        if ($mode === 'fixed-width') {
             $dateTime = readFixedWidth($handle, 20);
             $toName   = readFixedWidth($handle, 36);
             $fromName = readFixedWidth($handle, 36);
             $subject  = readFixedWidth($handle, 72);
+        } elseif ($mode === 'gap-detect') {
+            [$dateTime, $toName, $fromName, $subject] = readFieldsGapDetect($handle);
         } else {
             $dateTime = readFixed($handle);
             $toName   = readFixed($handle);
@@ -350,6 +358,40 @@ function readFixedWidth($handle, int $len): string
         fseek($handle, -strlen($afterNull), SEEK_CUR);
     }
     return substr($raw, 0, $pos);
+}
+
+/**
+ * Read all four FTS-0001 fixed-size string fields using gap-detection.
+ *
+ * Reads each field null-terminated, then checks whether the bytes between the
+ * consumed position and the 164-byte field block boundary are all zeros. If so,
+ * they are zero-padding from a spec-compliant mailer and are consumed. If any
+ * byte is non-zero, they are body content (non-padded mailer) and are left in
+ * the stream. Returns [dateTime, toName, fromName, subject].
+ */
+function readFieldsGapDetect($handle): array
+{
+    $prePos = ftell($handle);
+
+    $dateTime = readFixed($handle);
+    $toName   = readFixed($handle);
+    $fromName = readFixed($handle);
+    $subject  = readFixed($handle);
+
+    $consumed = ftell($handle) - $prePos;
+    $expected = 20 + 36 + 36 + 72; // 164
+    $gap      = $expected - $consumed;
+
+    if ($gap > 0) {
+        $gapBytes = fread($handle, $gap);
+        if ($gapBytes !== false && ltrim($gapBytes, "\0") !== '') {
+            // Non-zero bytes in gap — body content, not padding; seek back
+            fseek($handle, -strlen($gapBytes), SEEK_CUR);
+        }
+        // All zeros — padding consumed correctly
+    }
+
+    return [$dateTime, $toName, $fromName, $subject];
 }
 
 /**
