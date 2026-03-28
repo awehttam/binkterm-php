@@ -992,7 +992,7 @@ do {
     $db = Database::reconnect()->getPdo();
     $auth = new Auth();
 
-    $onlineUsers = safeSection(static fn() => $auth->getOnlineUsers($onlineMinutes), []);
+    $onlineUsers = safeSection(static fn() => $auth->getOnlineSessions($onlineMinutes), []);
     $doorSessions = array_values(array_filter(
         safeSection(static fn() => (new DoorSessionManager())->getActiveSessions(), []),
         static function (array $session): bool {
