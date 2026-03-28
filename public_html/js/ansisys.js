@@ -1787,8 +1787,9 @@ function parsePipeCodes(text) {
     let result = '';
     let spanOpen = false;
 
-    // Pipe code pattern: |XX where XX is hex digits (uppercase only to avoid false positives)
-    const pipePattern = /\|([0-9](?![0-9A-Fa-f])|[0-9A-F]{2}(?![0-9A-Fa-f]))/g;
+    // Pipe code pattern: |XX where XX is exactly two decimal digits (00-99).
+    // Greedy 2-digit match so |152 is parsed as color code |15 followed by literal "2".
+    const pipePattern = /\|([0-9]{2})/g;
     let lastIndex = 0;
     let match;
 
