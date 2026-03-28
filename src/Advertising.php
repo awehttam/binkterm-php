@@ -852,6 +852,7 @@ class Advertising
             : array_filter($this->listCampaigns(), static fn(array $campaign): bool => !empty($campaign['is_active']));
 
         $nowUtc = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $handler = new MessageHandler();
         $results = [];
         foreach ($campaigns as $campaign) {
             // Auto-deactivate campaigns that have passed their end_at
@@ -891,7 +892,7 @@ class Advertising
                     if (empty($target['is_active'])) {
                         continue;
                     }
-                    $result = $this->runCampaignTarget($campaign, $target, $dryRun);
+                    $result = $this->runCampaignTarget($campaign, $target, $dryRun, $handler);
                     $result['schedule_slot_at'] = $schedule['slot_at'] ?? null;
                     $result['schedule_time_of_day'] = $schedule['time_of_day'] ?? null;
                     $result['schedule_timezone'] = $schedule['timezone'] ?? null;
@@ -899,6 +900,11 @@ class Advertising
                     $results[] = $result;
                 }
             }
+        }
+
+        $anySpooled = !$dryRun && array_filter($results, static fn(array $r): bool => ($r['status'] ?? '') === 'success');
+        if ($anySpooled) {
+            $handler->flushImmediateOutboundPolls();
         }
 
         return $results;
@@ -1483,7 +1489,7 @@ class Advertising
         return $due;
     }
 
-    private function runCampaignTarget(array $campaign, array $target, bool $dryRun): array
+    private function runCampaignTarget(array $campaign, array $target, bool $dryRun, ?MessageHandler $handler = null): array
     {
         $ad = $this->selectCampaignAdvertisement((int)$campaign['id'], (int)($campaign['last_posted_ad_id'] ?? 0));
         if (!$ad) {
@@ -1533,7 +1539,7 @@ class Advertising
         }
 
         try {
-            $handler = new MessageHandler();
+            $handler = $handler ?? new MessageHandler();
             $posted = $handler->postEchomail(
                 (int)$campaign['from_user_id'],
                 (string)$target['echoarea_tag'],
