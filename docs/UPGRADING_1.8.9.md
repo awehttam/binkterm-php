@@ -101,6 +101,10 @@
 - [AI Provider Layer](#ai-provider-layer)
 - [MRC Chat](#mrc-chat)
   - [Join Command](#join-command)
+  - [Interface Refresh](#interface-refresh)
+  - [Custom MRC Handles](#custom-mrc-handles)
+  - [Inline Private Messages](#inline-private-messages)
+  - [BinkStream Delivery](#binkstream-delivery)
 - [Docs Viewer: HTML Pass-through](#docs-viewer-html-pass-through)
 - [Telnet / SSH BBS Server](#telnet--ssh-bbs-server)
   - [System News and Recent Shoutbox Flow](#system-news-and-recent-shoutbox-flow)
@@ -241,6 +245,10 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 
 **MRC Chat**
 - `/join <room>` slash command added to the MRC chat input.
+- The MRC webdoor interface was restructured around a connect screen, a room dropdown, and a simplified chat layout.
+- The MRC connect form now lets each user choose a custom MRC handle instead of always using the BBS account username.
+- Private messages now render inline in the main message stream instead of switching the interface into a separate direct-message view.
+- MRC message delivery now uses BinkStream realtime events for room updates instead of relying on the old client polling flow for live chat updates.
 
 **CLI Tools**
 - New `scripts/fix_date_received.php` resets `date_received` to `date_written` for echomail rows in specified areas. Useful after a `%RESCAN` import.
@@ -1082,9 +1090,56 @@ See `docs/AIProviders.md` for supported models, configuration, and cost manageme
 
 ## MRC Chat
 
+### Interface Refresh
+
+The MRC webdoor now opens on a dedicated **connect screen** instead of dropping the user directly into the chat layout. After connecting, the interface switches to a simplified live-chat view with:
+
+- a room selector dropdown in the header
+- a clearer connection-status indicator
+- a disconnect button on the main toolbar
+- an inline direct-message badge when chatting privately
+
+This replaces the earlier room-list-driven layout and reduces the amount of chrome on screen while keeping the main room controls visible at all times.
+
+### Custom MRC Handles
+
+The username field on the MRC connect screen is now editable. It is pre-filled with the user's BBS account username for convenience, but the value entered there becomes the actual MRC handle used for that browser session.
+
+This changes the MRC webdoor from a fixed-identity client to a session-scoped handle model:
+
+- the chosen handle is sent during connect and used for later MRC commands and messages
+- the browser remembers the last chosen handle for that user
+- local room presence and realtime delivery are keyed to the logged-in user account rather than assuming the MRC handle matches `users.username`
+
+Upgrade note: run `php scripts/setup.php` so the newer MRC presence/handle migrations are applied before using custom handles.
+
 ### Join Command
 
 The MRC chat input now accepts `/join <room>` as a slash command. Typing `/join myroom` in the message input is equivalent to clicking the room in the room list — it calls `joinRoom()` directly. The command is recognized before the user has joined any room and is included in the tab-completion command list.
+
+### Inline Private Messages
+
+Private messages are now shown in the main message area instead of moving the user into a separate direct-message-only view.
+
+In practice this means:
+
+- incoming private messages appear inline with the rest of the visible message flow
+- `/msg <user> <message>` still sends a direct message, but it no longer changes the page into a separate private-chat mode
+- the user list no longer acts as a click target for opening a DM thread
+- the private unread badge is no longer used in the sidebar
+
+This keeps the MRC webdoor closer to a single-stream terminal-style chat presentation.
+
+### BinkStream Delivery
+
+The MRC webdoor now consumes **BinkStream** realtime events for live room and direct-message updates. Incoming room messages, presence updates, and server notices are pushed through the same SharedWorker-based realtime channel used elsewhere in the web UI instead of depending on the older MRC-specific live-update path.
+
+This means MRC now follows the site's main realtime transport selection:
+
+- **WebSocket** when the realtime daemon is available and transport mode allows it
+- **SSE** fallback when WebSocket is not available
+
+On systems using `BINKSTREAM_TRANSPORT_MODE=auto`, make sure the realtime daemon is running so MRC can use WebSocket transport rather than the SSE fallback path.
 
 ---
 
