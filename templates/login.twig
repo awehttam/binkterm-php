@@ -15,8 +15,11 @@
     margin: 0 auto;
     --login-ansi-cols: 80;
     --login-ansi-rows: 25;
+    --login-ansi-min-font-size: 6px;
+    --login-ansi-max-font-size: 16px;
+    --login-ansi-mobile-font-size: 8px;
     --login-ansi-font-size: min(
-        16px,
+        var(--login-ansi-max-font-size),
         calc((100vw - 4rem) / var(--login-ansi-cols)),
         calc((100dvh - 18rem) / var(--login-ansi-rows))
     );
@@ -31,14 +34,14 @@
 .login-ansi-shell .ansi-art-container pre,
 .login-ansi-shell .ansi-art {
     display: inline-block;
-    font-size: max(6px, var(--login-ansi-font-size)) !important;
-    line-height: max(6px, var(--login-ansi-font-size)) !important;
+    font-size: max(var(--login-ansi-min-font-size), var(--login-ansi-font-size)) !important;
+    line-height: max(var(--login-ansi-min-font-size), var(--login-ansi-font-size)) !important;
 }
 .login-ansi-prompt {
     background: #050505;
     color: #d8d8d8;
     font-family: 'Perfect DOS VGA 437', Consolas, monospace;
-    font-size: clamp(11px, calc(var(--login-ansi-font-size) * 1.05), 20px);
+    font-size: clamp(13px, calc(var(--login-ansi-font-size) * 1.05), 20px);
     padding: clamp(0.85rem, 1.5vw, 1.25rem);
 }
 .login-ansi-line {
@@ -121,6 +124,14 @@
     max-width: 100%;
 }
 @media (max-width: 768px) {
+    .login-ansi-shell .ansi-art-container pre,
+    .login-ansi-shell .ansi-art {
+        font-size: max(var(--login-ansi-mobile-font-size), var(--login-ansi-font-size)) !important;
+        line-height: max(var(--login-ansi-mobile-font-size), var(--login-ansi-font-size)) !important;
+    }
+    .login-ansi-prompt {
+        font-size: clamp(15px, 4vw, 18px);
+    }
     .login-ansi-label {
         min-width: 100%;
     }
@@ -170,20 +181,35 @@
         {% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
         {% set loginAnsiCols = 80 %}
         {% set loginAnsiRows = 25 %}
+        {% set loginAnsiMinFont = '8px' %}
+        {% set loginAnsiMaxFont = '16px' %}
+        {% set loginAnsiMobileFont = '12px' %}
         {% if login_screen.ansi_size|default('80x25') == '132x24' %}
             {% set loginAnsiCols = 132 %}
             {% set loginAnsiRows = 24 %}
+            {% set loginAnsiMinFont = '6px' %}
+            {% set loginAnsiMaxFont = '12px' %}
+            {% set loginAnsiMobileFont = '10px' %}
         {% elseif login_screen.ansi_size|default('80x25') == '132x43' %}
             {% set loginAnsiCols = 132 %}
             {% set loginAnsiRows = 43 %}
+            {% set loginAnsiMinFont = '6px' %}
+            {% set loginAnsiMaxFont = '11px' %}
+            {% set loginAnsiMobileFont = '10px' %}
         {% elseif login_screen.ansi_size|default('80x25') == '132x50' %}
             {% set loginAnsiCols = 132 %}
             {% set loginAnsiRows = 50 %}
+            {% set loginAnsiMinFont = '5px' %}
+            {% set loginAnsiMaxFont = '10px' %}
+            {% set loginAnsiMobileFont = '9px' %}
         {% elseif login_screen.ansi_size|default('80x25') == 'full' %}
             {% set loginAnsiCols = 132 %}
             {% set loginAnsiRows = 50 %}
+            {% set loginAnsiMinFont = '5px' %}
+            {% set loginAnsiMaxFont = '12px' %}
+            {% set loginAnsiMobileFont = '9px' %}
         {% endif %}
-        <div class="login-ansi-shell" style="--login-ansi-cols: {{ loginAnsiCols }}; --login-ansi-rows: {{ loginAnsiRows }};">
+        <div class="login-ansi-shell" style="--login-ansi-cols: {{ loginAnsiCols }}; --login-ansi-rows: {{ loginAnsiRows }}; --login-ansi-min-font-size: {{ loginAnsiMinFont }}; --login-ansi-max-font-size: {{ loginAnsiMaxFont }}; --login-ansi-mobile-font-size: {{ loginAnsiMobileFont }};">
             {% if welcome_message %}
             <div class="card mb-0 border-0 border-bottom rounded-0">
                 <div class="card-body text-center">
@@ -350,6 +376,40 @@ document.addEventListener('DOMContentLoaded', function() {
         preserveTrailingSpaces: true,
         trimTrailingSpaces: false
     });
+
+    var shell = pre.closest('.login-ansi-shell');
+    var container = pre.closest('.ansi-art-container');
+    function fitAnsiToContainer() {
+        if (!container) {
+            return;
+        }
+
+        pre.style.removeProperty('font-size');
+        pre.style.removeProperty('line-height');
+
+        var horizontalPadding = 12;
+        var availableWidth = Math.max(0, container.clientWidth - horizontalPadding);
+        var renderedWidth = pre.scrollWidth;
+        var computedSize = parseFloat(window.getComputedStyle(pre).fontSize) || 16;
+        var maxFont = shell ? parseFloat(window.getComputedStyle(shell).getPropertyValue('--login-ansi-max-font-size')) || computedSize : computedSize;
+
+        if (!availableWidth || !renderedWidth || !computedSize) {
+            return;
+        }
+
+        var nextSize = computedSize * (availableWidth / renderedWidth);
+        nextSize = Math.min(maxFont, nextSize);
+        nextSize = Math.max(4, nextSize);
+
+        pre.style.setProperty('font-size', nextSize + 'px', 'important');
+        pre.style.setProperty('line-height', nextSize + 'px', 'important');
+    }
+
+    requestAnimationFrame(fitAnsiToContainer);
+    window.addEventListener('resize', fitAnsiToContainer);
+    if (window.ResizeObserver && container) {
+        new ResizeObserver(fitAnsiToContainer).observe(container);
+    }
 });
 </script>
 {% endif %}
