@@ -2,6 +2,27 @@
 
 {% block title %}{{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+<style>
+.md-paste-area {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: 6px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: default;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s;
+}
+.md-paste-area.paste-ready {
+    border-color: var(--bs-success);
+}
+</style>
+{% endblock %}
+
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -1267,6 +1288,8 @@ function mdToggleLinePrefix(ta, prefix) {
 let mdImageSavedStart = 0, mdImageSavedEnd = 0;
 // Whether the picker has been loaded for this modal open
 let mdImagePickerLoaded = false;
+// File captured via paste on the Paste tab
+let mdImagePastedFile = null;
 
 /**
  * Open the insert-image modal, saving the current cursor position first.
@@ -1287,6 +1310,14 @@ function showMdImageModal() {
     document.getElementById('mdImageModalError').classList.add('d-none');
     document.getElementById('mdImageInsertBtn').disabled = false;
     mdImagePickerLoaded = false;
+    // Reset paste tab state
+    mdImagePastedFile = null;
+    document.getElementById('mdImagePasteArea').classList.remove('paste-ready');
+    document.getElementById('mdImagePasteHint').classList.remove('d-none');
+    document.getElementById('mdImagePasteReady').classList.add('d-none');
+    document.getElementById('mdImagePastePreview').classList.add('d-none');
+    document.getElementById('mdImagePastePreview').src = '';
+    document.getElementById('mdImageAltPaste').value = '';
     // Activate URL tab
     bootstrap.Tab.getOrCreateInstance(document.getElementById('mdImageUrlTab')).show();
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('mdImageModal'));
@@ -1302,8 +1333,14 @@ function showMdImageModal() {
 function mdImageInsert() {
     const uploadTabActive = document.getElementById('mdImageUploadPane').classList.contains('show');
     const pickerTabActive = document.getElementById('mdImagePickerPane').classList.contains('show');
+    const pasteTabActive  = document.getElementById('mdImagePastePane').classList.contains('show');
 
-    if (pickerTabActive) {
+    if (pasteTabActive) {
+        if (!mdImagePastedFile) return;
+        const alt = document.getElementById('mdImageAltPaste').value.trim() || 'image';
+        mdImageUpload(mdImagePastedFile, alt);
+        return;
+    } else if (pickerTabActive) {
         const sel = document.getElementById('mdImagePickerSelect');
         if (!sel || !sel.value) return;
         const opt = sel.options[sel.selectedIndex];
@@ -1376,13 +1413,14 @@ function mdImageLoadPicker() {
 /**
  * Upload an image file, then insert the returned URL.
  * @param {File} file
+ * @param {string} [altOverride] - If provided, use this alt text instead of reading the upload alt field
  */
-function mdImageUpload(file) {
+function mdImageUpload(file, altOverride) {
     const btn         = document.getElementById('mdImageInsertBtn');
     const statusEl    = document.getElementById('mdImageUploadStatus');
     const progressBar = document.getElementById('mdImageUploadProgress');
     const msgEl       = document.getElementById('mdImageUploadMsg');
-    const alt         = document.getElementById('mdImageAltUpload').value.trim() || file.name.replace(/\.[^.]+$/, '');
+    const alt         = altOverride !== undefined ? altOverride : (document.getElementById('mdImageAltUpload').value.trim() || file.name.replace(/\.[^.]+$/, ''));
 
     btn.disabled = true;
     statusEl.classList.remove('d-none');
@@ -1465,6 +1503,46 @@ function mdImageShowError(msg) {
     el.textContent = msg;
     el.classList.remove('d-none');
 }
+
+/**
+ * Global paste handler for the image modal's Paste tab.
+ * Captures image data from the clipboard when the Paste pane is active.
+ */
+document.addEventListener('paste', function(e) {
+    const pastePane = document.getElementById('mdImagePastePane');
+    if (!pastePane || !pastePane.classList.contains('show')) return;
+
+    const items = (e.clipboardData || e.originalEvent && e.originalEvent.clipboardData || {}).items;
+    if (!items) return;
+
+    let imageFile = null;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            imageFile = items[i].getAsFile();
+            break;
+        }
+    }
+
+    if (!imageFile) {
+        const noImageMsg = window.t ? window.t('ui.compose.markdown.image_modal.paste_no_image', {}, 'No image found in clipboard. Copy an image first, then paste.') : 'No image found in clipboard. Copy an image first, then paste.';
+        mdImageShowError(noImageMsg);
+        return;
+    }
+
+    e.preventDefault();
+    document.getElementById('mdImageModalError').classList.add('d-none');
+    mdImagePastedFile = imageFile;
+
+    const preview = document.getElementById('mdImagePastePreview');
+    const objectUrl = URL.createObjectURL(imageFile);
+    preview.src = objectUrl;
+    preview.classList.remove('d-none');
+    preview.onload = function() { URL.revokeObjectURL(objectUrl); };
+
+    document.getElementById('mdImagePasteHint').classList.add('d-none');
+    document.getElementById('mdImagePasteReady').classList.remove('d-none');
+    document.getElementById('mdImagePasteArea').classList.add('paste-ready');
+});
 
 /**
  * Hard-wrap keydown handler.
@@ -2324,6 +2402,11 @@ function saveComposeAddressBookEntry() {
                             {{ t('ui.compose.markdown.image_modal.tab_picker', {}, locale, ['common']) }}
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mdImagePasteTab" data-bs-toggle="tab" data-bs-target="#mdImagePastePane" type="button" role="tab">
+                            {{ t('ui.compose.markdown.image_modal.tab_paste', {}, locale, ['common']) }}
+                        </button>
+                    </li>
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="mdImageUrlPane" role="tabpanel">
@@ -2362,6 +2445,23 @@ function saveComposeAddressBookEntry() {
                         <div class="mb-0">
                             <label for="mdImageAltPicker" class="form-label">{{ t('ui.compose.markdown.image_modal.alt_label', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="mdImageAltPicker" placeholder="{{ t('ui.compose.markdown.image_modal.alt_placeholder', {}, locale, ['common']) }}">
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="mdImagePastePane" role="tabpanel">
+                        <div id="mdImagePasteArea" class="md-paste-area mb-3" tabindex="0">
+                            <p id="mdImagePasteHint" class="text-muted mb-0">
+                                <i class="fas fa-clipboard me-1"></i>
+                                {{ t('ui.compose.markdown.image_modal.paste_hint', {}, locale, ['common']) }}
+                            </p>
+                            <p id="mdImagePasteReady" class="text-success mb-1 d-none">
+                                <i class="fas fa-check-circle me-1"></i>
+                                {{ t('ui.compose.markdown.image_modal.paste_ready', {}, locale, ['common']) }}
+                            </p>
+                            <img id="mdImagePastePreview" src="" alt="" class="img-fluid d-none mt-2" style="max-height:180px;">
+                        </div>
+                        <div class="mb-0">
+                            <label for="mdImageAltPaste" class="form-label">{{ t('ui.compose.markdown.image_modal.alt_label', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="mdImageAltPaste" placeholder="{{ t('ui.compose.markdown.image_modal.alt_placeholder', {}, locale, ['common']) }}">
                         </div>
                     </div>
                 </div>

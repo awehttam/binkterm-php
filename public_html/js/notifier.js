@@ -377,8 +377,15 @@
                 // Suppress badge for messages already seen in the MRC window.
                 // mrc.js writes the highest rendered mrc_messages.id to UserStorage
                 // so replayed BinkStream events for already-seen messages are ignored.
+                // Only notify for private (direct) messages, not room messages.
+                if (!data || !data.is_private) {
+                    return;
+                }
+                // Suppress badge for messages already seen in the MRC window.
+                // mrc.js writes the highest rendered mrc_messages.id to UserStorage
+                // so replayed BinkStream events for already-seen messages are ignored.
                 const lastSeen = parseInt(UserStorage.getItem('mrc_last_seen_id') || '0', 10);
-                if (data && data.id && data.id <= lastSeen) {
+                if (data.id && data.id <= lastSeen) {
                     return;
                 }
                 mrcUnread = true;
