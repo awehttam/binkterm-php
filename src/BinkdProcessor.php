@@ -1369,7 +1369,8 @@ class BinkdProcessor
 
         // Drop if no valid AREA: line was found — malformed echomail with no area tag
         if (!$hasAreaLine) {
-            $this->log("[BINKD] Dropping echomail with no valid AREA: line from " . ($message['fromName'] ?? '?') . " <" . ($message['origAddr'] ?? '?') . "> subject=\"" . ($message['subject'] ?? '') . "\"");
+            $pktName = $packetInfo['packet_name'] ?? '?';
+            $this->log("[BINKD] Dropping echomail with no valid AREA: line from " . ($message['fromName'] ?? '?') . " <" . ($message['origAddr'] ?? '?') . "> subject=\"" . ($message['subject'] ?? '') . "\" packet={$pktName}");
             return;
         }
 
