@@ -67,6 +67,11 @@
   - [Notification Sound Preview](#notification-sound-preview)
   - [Ignored Echomail Management](#ignored-echomail-management)
   - [Markdown Image Load Preference](#markdown-image-load-preference)
+- [User Profile](#user-profile)
+  - [About Me Field](#about-me-field)
+  - [Activity Log Timezone](#activity-log-timezone)
+  - [Last Login Label](#last-login-label)
+  - [View Profile Button](#view-profile-button)
 - [Appearance](#appearance)
   - [Login Screen](#login-screen)
   - [Terminal Server Screens](#terminal-server-screens)
@@ -181,6 +186,12 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - Notification sound select boxes now have a **▶** button to preview sounds without leaving the page.
 - The **Messaging** tab now ends with an **Ignored Echomail** section where users can review and remove saved echomail ignore rules.
 - The **Messaging** tab includes an **Image Loading** preference: images in Markdown messages can be set to load automatically or only on tap (default: tap to load).
+
+**User Profile**
+- Users can now fill in an **About Me** field on their edit profile page (`/profile`). The content is rendered as Markdown and displayed in a card on their public profile (`/profile/{username}`). Profiles with no about-me text show a "Hasn't shared anything yet" placeholder.
+- The activity log on the admin view of a user's profile now displays timestamps in the viewing admin's configured timezone instead of raw UTC.
+- The "Last seen" label on the public profile has been corrected to "Last login".
+- The edit profile page (`/profile`) now has a **View Profile** button linking directly to the user's public profile.
 
 **Appearance**
 - The Appearance page now includes a dedicated **Login** tab for configuring the shared `/login` experience across all shells. Sysops can choose between the standard form and an ANSI-driven login screen with the prompt appended after the ANSI display.
@@ -837,6 +848,32 @@ This preference is stored per user and requires no database migration.
 
 ---
 
+## User Profile
+
+### About Me Field
+
+Users can now fill in an **About Me** field on the edit profile page (`/profile`). The field is a multi-line textarea limited to 2 000 characters. Content is saved to a new `about_me` column on the `users` table.
+
+On the public profile page (`/profile/{username}`), the about-me text is rendered as Markdown using the same `MarkdownRenderer` class used throughout the application — supporting bold, italic, inline code, fenced code blocks, links, headings, lists, block quotes, and horizontal rules. The rendered output appears in a card directly below the user information block.
+
+If a user has not entered anything, the card displays the message "Hasn't shared anything yet" in muted italic text.
+
+This feature requires database migration `v1.11.0.65_users_about_me.sql`.
+
+### Activity Log Timezone
+
+The timestamps shown in the activity log table on the admin view of a user's profile (`/profile/{username}`) were previously displayed as raw UTC values. They now use `formatFullDate()` — the same date formatting utility used elsewhere in the web interface — which converts timestamps to the viewing user's configured timezone and locale-appropriate format.
+
+### Last Login Label
+
+The label "Last seen" on the public profile page has been corrected to "Last login", more accurately reflecting that the date comes from the `last_login` column on the `users` table.
+
+### View Profile Button
+
+The edit profile page (`/profile`) now displays a **View Profile** button in the page header, next to the page title. Clicking it navigates to the user's public profile at `/profile/{username}`.
+
+---
+
 ## Appearance
 
 ### Login Screen
@@ -1340,6 +1377,7 @@ php scripts/setup.php
 | `v1.11.0.60_binkp_session_pid_log.sql` | Adds `process_id` and `log_file` to `binkp_session_log` for session-to-log correlation |
 | `v1.11.0.61_echomail_ignore_rules.sql` | Creates per-user echomail ignore-rule storage |
 | `v1.11.0.62_echomail_ignore_rule_sender_address.sql` | Extends ignore rules to match sender node address and installs the final uniqueness rule |
+| `v1.11.0.65_users_about_me.sql` | Adds `about_me TEXT` column to `users` for the user profile About Me field |
 
 **Optional `.env` additions:**
 

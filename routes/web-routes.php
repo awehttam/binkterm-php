@@ -655,6 +655,7 @@ SimpleRouter::get('/profile', function() {
         'user_real_name' => $user['real_name'] ?? '',
         'user_email' => $user['email'] ?? '',
         'user_location' => $user['location'] ?? '',
+        'user_about_me' => $user['about_me'] ?? '',
         'user_created_at' => $user['created_at'],
         'user_last_login' => $user['last_login'],
         'user_is_admin' => (bool)$user['is_admin'],
@@ -682,7 +683,7 @@ SimpleRouter::get('/profile/{username}', function($username) {
     // Get the target user's information
     $db = \BinktermPHP\Database::getInstance()->getPdo();
     $stmt = $db->prepare('
-        SELECT id, username, real_name, location, fidonet_address, created_at, last_login, is_admin, is_active
+        SELECT id, username, real_name, location, about_me, fidonet_address, created_at, last_login, is_admin, is_active
         FROM users
         WHERE username = ? AND is_active = TRUE
     ');
@@ -763,6 +764,9 @@ SimpleRouter::get('/profile/{username}', function($username) {
         'profile_username' => $targetUser['username'],
         'profile_real_name' => $targetUser['real_name'] ?? '',
         'profile_location' => $targetUser['location'] ?? '',
+        'profile_about_me_html' => $targetUser['about_me']
+            ? \BinktermPHP\MarkdownRenderer::toHtml($targetUser['about_me'])
+            : '',
         'profile_fidonet_address' => $targetUser['fidonet_address'] ?? '',
         'profile_created_at' => $targetUser['created_at'],
         'profile_last_login' => $targetUser['last_login'],

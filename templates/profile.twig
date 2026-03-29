@@ -8,6 +8,10 @@
         <i class="fas fa-user"></i>
         {{ t('ui.profile.my_profile', {}, 'common') }}
     </h2>
+    <a href="/profile/{{ user_username }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-id-card me-1"></i>
+        {{ t('ui.profile.view_profile', {}, 'common') }}
+    </a>
 </div>
 
 <div class="row">
@@ -40,6 +44,12 @@
                         <label for="location" class="form-label">{{ t('ui.profile.location', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="location" name="location" value="{{ user_location }}" maxlength="100" placeholder="{{ t('ui.profile.location_placeholder', {}, 'common') }}">
                         <div class="form-text">{{ t('ui.profile.location_help', {}, 'common') }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="aboutMe" class="form-label">{{ t('ui.profile.about_me', {}, 'common') }}</label>
+                        <textarea class="form-control" id="aboutMe" name="about_me" rows="5" maxlength="2000" placeholder="{{ t('ui.profile.about_me_placeholder', {}, 'common') }}">{{ user_about_me }}</textarea>
+                        <div class="form-text">{{ t('ui.profile.about_me_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-4">

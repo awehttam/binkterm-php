@@ -7055,12 +7055,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $realName = trim($input['real_name'] ?? '');
             $email = trim($input['email'] ?? '');
             $location = trim($input['location'] ?? '');
+            $aboutMe = trim($input['about_me'] ?? '');
             $currentPassword = $input['current_password'] ?? '';
             $newPassword = $input['new_password'] ?? '';
 
             // Update profile information (users cannot change their name)
-            $stmt = $db->prepare("UPDATE users SET email = ?, location = ? WHERE id = ?");
-            $stmt->execute([$email, $location ?: null, $user['user_id']]);
+            $stmt = $db->prepare("UPDATE users SET email = ?, location = ?, about_me = ? WHERE id = ?");
+            $stmt->execute([$email, $location ?: null, $aboutMe ?: null, $user['user_id']]);
 
             // Handle password change if provided
             if (!empty($currentPassword) && !empty($newPassword)) {
