@@ -371,7 +371,7 @@ class Advertising
         $stmt = $this->db->query($sql);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         return array_map(function (array $row): array {
-            return $this->resolveAdContent($this->hydrateAd($row));
+            return $this->resolveAdContent($this->hydrateAd($row), false);
         }, $rows);
     }
 
@@ -405,7 +405,24 @@ class Advertising
         ");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row), false) : null;
+    }
+
+    public function previewAdById(int $id): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT a.*,
+                   COALESCE(STRING_AGG(t.name, ', ' ORDER BY LOWER(t.name)), '') AS tags_csv,
+                   OCTET_LENGTH(a.content) AS size_bytes
+            FROM advertisements a
+            LEFT JOIN advertisement_tag_map atm ON atm.advertisement_id = a.id
+            LEFT JOIN advertisement_tags t ON t.id = atm.tag_id
+            WHERE a.id = ?
+            GROUP BY a.id
+        ");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? $this->resolveAdContent($this->hydrateAd($row), true) : null;
     }
 
     public function getAdBySlug(string $slug): ?array
@@ -1043,10 +1060,10 @@ class Advertising
         return $deduped;
     }
 
-    private function resolveAdContent(array $ad): array
+    private function resolveAdContent(array $ad, bool $execute = true): array
     {
         $contentCommand = trim((string)($ad['content_command'] ?? ''));
-        if ($contentCommand === '') {
+        if ($contentCommand === '' || !$execute) {
             return $ad;
         }
 

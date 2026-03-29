@@ -2910,6 +2910,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         })->where(['id' => '[0-9]+']);
 
+        SimpleRouter::get('/ads/{id}/preview', function($id) {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $ad = $ads->previewAdById((int)$id);
+                if (!$ad) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                echo json_encode(['ad' => $ad]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ads.load_one_failed', apiLocalizedText('errors.admin.ads.load_one_failed', 'Failed to load advertisement'));
+            }
+        })->where(['id' => '[0-9]+']);
+
         SimpleRouter::post('/ads/upload', function() {
             $user = RouteHelper::requireAdmin();
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
