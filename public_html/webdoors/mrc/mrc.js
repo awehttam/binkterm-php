@@ -403,6 +403,7 @@ class MrcClient {
      */
     renderMessages(messages) {
         const chatArea = $('#chat-messages');
+        let maxRenderedId = 0;
 
         messages.forEach(msg => {
             const msgId = msg.id;
@@ -423,7 +424,20 @@ class MrcClient {
             if (msg.from_user === 'SERVER') {
                 this.handleServerNotice(msg.message_body || '');
             }
+
+            if (msgId && msgId > maxRenderedId) {
+                maxRenderedId = msgId;
+            }
         });
+
+        // Keep a watermark so notifier.js can suppress badges for messages
+        // that were already visible while the user was on the MRC page.
+        if (maxRenderedId > 0) {
+            const current = parseInt(UserStorage.getItem('mrc_last_seen_id') || '0', 10);
+            if (maxRenderedId > current) {
+                UserStorage.setItem('mrc_last_seen_id', String(maxRenderedId));
+            }
+        }
 
         // Auto-scroll to bottom
         if (this.autoScroll) {

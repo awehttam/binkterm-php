@@ -370,12 +370,20 @@
                 maybeChatSound();
             });
 
-            window.BinkStream.on('mrc_message', function () {
-                if (!isPathMatch('/games/mrc')) {
-                    mrcUnread = true;
-                    updateMrcIcons();
-                    maybeChatSound();
+            window.BinkStream.on('mrc_message', function (data) {
+                if (isPathMatch('/games/mrc')) {
+                    return;
                 }
+                // Suppress badge for messages already seen in the MRC window.
+                // mrc.js writes the highest rendered mrc_messages.id to UserStorage
+                // so replayed BinkStream events for already-seen messages are ignored.
+                const lastSeen = parseInt(UserStorage.getItem('mrc_last_seen_id') || '0', 10);
+                if (data && data.id && data.id <= lastSeen) {
+                    return;
+                }
+                mrcUnread = true;
+                updateMrcIcons();
+                maybeChatSound();
             });
 
             // Refresh badges when mail changes or when legacy insert-based
