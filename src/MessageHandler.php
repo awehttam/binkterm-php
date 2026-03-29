@@ -5949,8 +5949,10 @@ class MessageHandler
 
         foreach ($rows as $index => &$row) {
             $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
-            $timestamp = (string)($row['date_written'] ?: $row['date_received']);
-            $row['timestamp'] = $timestamp;
+            $row['date_received'] = $this->formatApiTimestamp($row['date_received'] ?? null);
+            $row['date_written'] = $this->formatApiTimestamp($row['date_written'] ?? null);
+            // For AreaFix/FileFix history, prefer the server-side receive time.
+            $row['timestamp'] = $row['date_received'] !== '' ? $row['date_received'] : $row['date_written'];
             $row['excerpt'] = $this->buildLovlyNetExcerpt((string)($row['message_text'] ?? ''));
             $row['status'] = ($row['direction'] ?? '') === 'incoming' ? 'response' : 'pending';
             $row['response_message_id'] = null;
@@ -6011,11 +6013,29 @@ class MessageHandler
                 'message_id' => (string)($row['message_id'] ?? ''),
                 'reply_msgid' => (string)($row['reply_msgid'] ?? ''),
                 'timestamp' => (string)($row['timestamp'] ?? ''),
+                'date_received' => (string)($row['date_received'] ?? ''),
+                'date_written' => (string)($row['date_written'] ?? ''),
                 'is_sent' => (bool)($row['is_sent'] ?? false),
                 'response_message_id' => isset($row['response_message_id']) ? (int)$row['response_message_id'] : null,
                 'linked_request_id' => isset($row['linked_request_id']) ? (int)$row['linked_request_id'] : null,
             ];
         }, $rows);
+    }
+
+    private function formatApiTimestamp($value): string
+    {
+        $raw = trim((string)($value ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+
+        try {
+            return (new \DateTimeImmutable($raw))
+                ->setTimezone(new \DateTimeZone('UTC'))
+                ->format('Y-m-d\TH:i:s\Z');
+        } catch (\Throwable $e) {
+            return $raw;
+        }
     }
 
     private function buildNetmailKludgeText(array $message): string
