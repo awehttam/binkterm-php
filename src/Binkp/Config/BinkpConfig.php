@@ -96,6 +96,7 @@ class BinkpConfig
                 'bind_address' => '0.0.0.0',
                 'inbound_path' => 'data/inbound',
                 'outbound_path' => 'data/outbound',
+                'outbound_queue_timer_minutes' => 30,
                 'preserve_processed_packets' => false,
                 'preserve_sent_packets' => false
             ],
@@ -184,6 +185,12 @@ class BinkpConfig
             mkdir($path, 0755, true);
         }
         return $path;
+    }
+
+    public function getOutboundQueueTimerMinutes(): int
+    {
+        $minutes = (int)($this->config['binkp']['outbound_queue_timer_minutes'] ?? 30);
+        return $minutes > 0 ? $minutes : 30;
     }
     
     public function getPreserveProcessedPackets()
@@ -480,7 +487,7 @@ class BinkpConfig
         $this->saveConfig();
     }
     
-    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null, $preserveSentPackets = null)
+    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null, $preserveSentPackets = null, $outboundQueueTimerMinutes = null)
     {
         if ($port !== null) $this->config['binkp']['port'] = $port;
         if ($timeout !== null) $this->config['binkp']['timeout'] = $timeout;
@@ -488,6 +495,9 @@ class BinkpConfig
         if ($bindAddress !== null) $this->config['binkp']['bind_address'] = $bindAddress;
         if ($preserveProcessedPackets !== null) $this->config['binkp']['preserve_processed_packets'] = (bool)$preserveProcessedPackets;
         if ($preserveSentPackets !== null) $this->config['binkp']['preserve_sent_packets'] = (bool)$preserveSentPackets;
+        if ($outboundQueueTimerMinutes !== null) {
+            $this->config['binkp']['outbound_queue_timer_minutes'] = max(1, (int)$outboundQueueTimerMinutes);
+        }
         
         $this->saveConfig();
     }

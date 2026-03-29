@@ -291,6 +291,7 @@ Minimal example:
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
         "outbound_path": "data/outbound",
+        "outbound_queue_timer_minutes": 30,
         "preserve_processed_packets": false,
         "preserve_sent_packets": false
     },
@@ -327,6 +328,7 @@ When `website` is configured, origin lines include it:
 | `bind_address` | `0.0.0.0` | IP address to bind to (`0.0.0.0` = all interfaces) |
 | `inbound_path` | `data/inbound` | Directory for incoming packets |
 | `outbound_path` | `data/outbound` | Directory for outgoing packets |
+| `outbound_queue_timer_minutes` | 30 | After an immediate outbound delivery attempt, wait this many minutes before retrying while the queue remains non-empty |
 | `preserve_processed_packets` | false | When true, moves processed packets to `data/inbound/keep/<Mon-DD-YYYY>/` instead of deleting them |
 | `preserve_sent_packets` | false | When true, moves successfully sent outbound packets to `data/outbound/keep/<Mon-DD-YYYY>/` instead of deleting them |
 

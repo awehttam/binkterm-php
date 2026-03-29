@@ -688,6 +688,8 @@ return [
     'ui.admin.binkp_config.binkp.title' => 'Binkp',
     'ui.admin.binkp_config.binkp.timeout_seconds' => 'Tiempo de espera (segundos)',
     'ui.admin.binkp_config.binkp.max_connections' => 'Maximas conexiones',
+    'ui.admin.binkp_config.binkp.outbound_queue_timer' => 'Temporizador de cola saliente (minutos)',
+    'ui.admin.binkp_config.binkp.outbound_queue_timer_help' => 'Cuando hay paquetes salientes en cola, el scheduler intenta una vez de inmediato y luego espera este tiempo antes de volver a intentarlo.',
     'ui.admin.binkp_config.binkp.bind_address' => 'Direccion de enlace',
     'ui.admin.binkp_config.binkp.preserve_processed_packets' => 'Preservar paquetes procesados',
     'ui.admin.binkp_config.binkp.preserve_sent_packets' => 'Preservar paquetes enviados',
@@ -757,6 +759,7 @@ return [
     'ui.admin.binkp_config.validation.port_range' => 'El puerto Binkp debe estar entre 1 y 65535.',
     'ui.admin.binkp_config.validation.timeout_positive' => 'El tiempo de espera de Binkp debe ser un numero positivo.',
     'ui.admin.binkp_config.validation.max_connections_positive' => 'Las conexiones maximas deben ser un numero positivo.',
+    'ui.admin.binkp_config.validation.outbound_queue_timer_positive' => 'El temporizador de cola saliente debe ser un numero positivo de minutos.',
     'ui.admin.binkp_config.validation.uplink_hostname_required' => 'El hostname del uplink es obligatorio.',
     'ui.admin.binkp_config.validation.uplink_port_range' => 'El puerto del uplink debe estar entre 1 y 65535.',
 

@@ -16,6 +16,7 @@
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
         "outbound_path": "data/outbound",
+        "outbound_queue_timer_minutes": 30,
         "preserve_processed_packets": false,
         "preserve_sent_packets": false
 

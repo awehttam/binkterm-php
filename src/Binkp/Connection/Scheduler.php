@@ -26,6 +26,8 @@ class Scheduler
 {
     /** @var array<string,int> Unix timestamps of last outbound-triggered polls by uplink */
     private $lastOutboundPollTimes;
+    /** @var array<string,bool> Whether an uplink had outbound work on the previous scan */
+    private $outboundQueueActiveStates;
     private $config;
     private $logger;
     private $client;
@@ -53,6 +55,7 @@ class Scheduler
         $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
         $this->lastOutboundPollTimes = [];
+        $this->outboundQueueActiveStates = [];
         $this->iterationPolledAddresses = [];
         $this->crashmailService = new CrashmailService();
         $this->db = Database::getInstance()->getPdo();
@@ -128,6 +131,7 @@ class Scheduler
                 }
 
                 $this->lastPollTimes[$address] = time();
+                $this->lastOutboundPollTimes[$address] = time();
                 // Record that this uplink was polled in the current iteration so
                 // pollIfOutbound() can skip it and avoid a duplicate connection.
                 // The flag is reset at the top of each runDaemon() iteration.
@@ -223,6 +227,7 @@ class Scheduler
         );
         
         if (empty($files)) {
+            $this->outboundQueueActiveStates = [];
             $this->log("No outbound packets found, skipping outbound poll", 'DEBUG');
             return [];
         }
@@ -236,10 +241,15 @@ class Scheduler
         foreach ($uplinks as $uplink) {
             $address = $uplink['address'];
 
-            if (!$this->hasOutboundFilesForUplink($uplink, $files)) {
+            $hasOutboundFiles = $this->hasOutboundFilesForUplink($uplink, $files);
+            if (!$hasOutboundFiles) {
+                $this->outboundQueueActiveStates[$address] = false;
                 $this->log("No outbound files for uplink {$address}, skipping outbound poll", 'DEBUG');
                 continue;
             }
+
+            $hadOutboundFiles = $this->outboundQueueActiveStates[$address] ?? false;
+            $this->outboundQueueActiveStates[$address] = true;
 
             // A scheduled poll already ran for this uplink in the current iteration.
             // Binkp sessions are bidirectional, so the outbound files should have
@@ -249,16 +259,15 @@ class Scheduler
                 continue;
             }
 
-            $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
-            if (!$this->parseCronExpression($schedule, time())) {
-                $this->log("Outbound files found for {$address} but poll schedule not due, deferring", 'DEBUG');
-                continue;
-            }
-
+            $queueTimerSeconds = $this->config->getOutboundQueueTimerMinutes() * 60;
             $lastOutboundPoll = $this->lastOutboundPollTimes[$address] ?? 0;
-            if ((time() - $lastOutboundPoll) < 60) {
-                $this->log("Recent outbound poll for {$address}, skipping duplicate outbound poll", 'DEBUG');
-                continue;
+            if ($hadOutboundFiles && $lastOutboundPoll > 0) {
+                $elapsed = time() - $lastOutboundPoll;
+                if ($elapsed < $queueTimerSeconds) {
+                    $remaining = $queueTimerSeconds - $elapsed;
+                    $this->log("Outbound files found for {$address} but queue timer has {$remaining}s remaining", 'DEBUG');
+                    continue;
+                }
             }
 
             $uplinksToPoll[] = $uplink;

@@ -77,6 +77,11 @@
                         <input type="number" class="form-control" id="binkpMaxConnections" min="1" max="100">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label" for="binkpOutboundQueueTimer">{{ t('ui.admin.binkp_config.binkp.outbound_queue_timer', {}, locale, ['common']) }}</label>
+                        <input type="number" class="form-control" id="binkpOutboundQueueTimer" min="1">
+                        <div class="form-text">{{ t('ui.admin.binkp_config.binkp.outbound_queue_timer_help', {}, locale, ['common']) }}</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label" for="binkpBindAddress">{{ t('ui.admin.binkp_config.binkp.bind_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="binkpBindAddress">
                     </div>
@@ -394,6 +399,7 @@ function populateForm() {
     document.getElementById('binkpPort').value = binkp.port ?? '';
     document.getElementById('binkpTimeout').value = binkp.timeout ?? '';
     document.getElementById('binkpMaxConnections').value = binkp.max_connections ?? '';
+    document.getElementById('binkpOutboundQueueTimer').value = binkp.outbound_queue_timer_minutes ?? 30;
     document.getElementById('binkpBindAddress').value = binkp.bind_address || '';
     document.getElementById('binkpPreserveProcessed').checked = !!binkp.preserve_processed_packets;
     document.getElementById('binkpPreserveSent').checked = !!binkp.preserve_sent_packets;
@@ -431,6 +437,7 @@ function gatherConfig() {
             port: parseInt(document.getElementById('binkpPort').value, 10),
             timeout: parseInt(document.getElementById('binkpTimeout').value, 10),
             max_connections: parseInt(document.getElementById('binkpMaxConnections').value, 10),
+            outbound_queue_timer_minutes: parseInt(document.getElementById('binkpOutboundQueueTimer').value, 10),
             bind_address: document.getElementById('binkpBindAddress').value.trim(),
             preserve_processed_packets: document.getElementById('binkpPreserveProcessed').checked,
             preserve_sent_packets: document.getElementById('binkpPreserveSent').checked
@@ -466,6 +473,9 @@ function validateConfig(config) {
     }
     if (!Number.isInteger(config.binkp.max_connections) || config.binkp.max_connections < 1) {
         return uiT('ui.admin.binkp_config.validation.max_connections_positive', 'Max connections must be a positive number.');
+    }
+    if (!Number.isInteger(config.binkp.outbound_queue_timer_minutes) || config.binkp.outbound_queue_timer_minutes < 1) {
+        return uiT('ui.admin.binkp_config.validation.outbound_queue_timer_positive', 'Outbound queue timer must be a positive number of minutes.');
     }
     return null;
 }

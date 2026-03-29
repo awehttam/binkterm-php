@@ -837,7 +837,10 @@ class BinkpController
                         isset($data['port']) ? (int) $data['port'] : null,
                         isset($data['timeout']) ? (int) $data['timeout'] : null,
                         isset($data['max_connections']) ? (int) $data['max_connections'] : null,
-                        $data['bind_address'] ?? null
+                        $data['bind_address'] ?? null,
+                        null,
+                        null,
+                        isset($data['outbound_queue_timer_minutes']) ? (int) $data['outbound_queue_timer_minutes'] : null
                     );
                     break;
                     

@@ -688,6 +688,8 @@ return [
     'ui.admin.binkp_config.binkp.title' => 'Binkp',
     'ui.admin.binkp_config.binkp.timeout_seconds' => 'Timeout (seconds)',
     'ui.admin.binkp_config.binkp.max_connections' => 'Max Connections',
+    'ui.admin.binkp_config.binkp.outbound_queue_timer' => 'Outbound Queue Timer (minutes)',
+    'ui.admin.binkp_config.binkp.outbound_queue_timer_help' => 'When outbound packets are queued, the scheduler tries once immediately and then waits this long before trying again.',
     'ui.admin.binkp_config.binkp.bind_address' => 'Bind Address',
     'ui.admin.binkp_config.binkp.preserve_processed_packets' => 'Preserve Processed Packets',
     'ui.admin.binkp_config.binkp.preserve_sent_packets' => 'Preserve Sent Packets',
@@ -757,6 +759,7 @@ return [
     'ui.admin.binkp_config.validation.port_range' => 'Binkp port must be between 1 and 65535.',
     'ui.admin.binkp_config.validation.timeout_positive' => 'Binkp timeout must be a positive number.',
     'ui.admin.binkp_config.validation.max_connections_positive' => 'Max connections must be a positive number.',
+    'ui.admin.binkp_config.validation.outbound_queue_timer_positive' => 'Outbound queue timer must be a positive number of minutes.',
     'ui.admin.binkp_config.validation.uplink_hostname_required' => 'Uplink hostname is required.',
     'ui.admin.binkp_config.validation.uplink_port_range' => 'Uplink port must be between 1 and 65535.',
 

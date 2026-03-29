@@ -373,7 +373,8 @@ class AdminDaemonServer
                         $payload['max_connections'] ?? null,
                         $payload['bind_address'] ?? null,
                         $payload['preserve_processed_packets'] ?? null,
-                        $payload['preserve_sent_packets'] ?? null
+                        $payload['preserve_sent_packets'] ?? null,
+                        $payload['outbound_queue_timer_minutes'] ?? null
                     );
                     $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
                     break;
