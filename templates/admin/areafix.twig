@@ -462,7 +462,7 @@
             // Show latest incoming reply
             var incoming = robotMessages.filter(function (m) { return m.direction === 'incoming'; });
             if (incoming.length > 0) {
-                renderLatestReply(robot, incoming[incoming.length - 1]);
+                renderLatestReply(robot, incoming[0]);
             }
         })
         .catch(function () {
