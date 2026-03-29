@@ -155,7 +155,7 @@
     }
 
     try {
-        const WORKER_BUILD = 3;
+        const WORKER_BUILD = 4;
         const worker = new SharedWorker('/js/binkstream-worker-v2.js?v=' + WORKER_BUILD, { name: 'binkstream-v' + WORKER_BUILD });
         workerPort = worker.port;
         workerPort.onmessage = function (e) {
@@ -167,6 +167,12 @@
                     currentTransportMode = m;
                 }
                 dispatch('transport', { mode: m });
+                return;
+            }
+            if (msg.type === '__cursor' && msg.data && msg.data.cursor) {
+                // Persist the stream cursor so a new worker instance can resume
+                // from the same position rather than replaying old events.
+                try { UserStorage.setItem('binkstream_cursor', String(msg.data.cursor)); } catch (_) {}
                 return;
             }
             if (msg.type === 'command_result' && msg.requestId) {
@@ -196,7 +202,8 @@
                 transportMode: getConfiguredTransportMode(),
                 preferredTransportMode: getPreferredTransportMode(),
                 wsUrl: getWsUrl(),
-                csrfToken: getCsrfToken()
+                csrfToken: getCsrfToken(),
+                cursor: (function () { try { return UserStorage.getItem('binkstream_cursor') || ''; } catch (_) { return ''; } })()
             }
         });
 

@@ -96,13 +96,19 @@ function initializeConfig(config) {
     preferredTransportMode = ['sse', 'ws'].includes(preferred) ? preferred : 'sse';
     wsUrl = typeof config.wsUrl === 'string' ? config.wsUrl : '';
     csrfToken = typeof config.csrfToken === 'string' ? config.csrfToken : '';
+    // Seed the cursor from the client's persisted value if the worker doesn't
+    // already have one (e.g. first tab after a worker restart).
+    if (!lastCursor && typeof config.cursor === 'string' && config.cursor) {
+        lastCursor = config.cursor;
+    }
     if (preferredTransportMode === 'ws') {
         wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
     }
     debugLog('[BinkStream worker] init', {
         configuredTransportMode: transportMode,
         preferredTransportMode: preferredTransportMode,
-        wsUrl: wsUrl || '(default)'
+        wsUrl: wsUrl || '(default)',
+        cursor: lastCursor || '(none)'
     });
 }
 
@@ -250,6 +256,7 @@ function connectSse() {
         backoff = MIN_BACKOFF;
         if (e.lastEventId) {
             lastCursor = e.lastEventId;
+            broadcastCursor(lastCursor);
         }
         debugLog('[BinkStream worker] using SSE transport', {
             cursor: lastCursor || '(none)'
@@ -265,6 +272,7 @@ function connectSse() {
         }
         if (e.lastEventId) {
             lastCursor = e.lastEventId;
+            broadcastCursor(lastCursor);
         }
         current.close();
         es = null;
@@ -300,6 +308,7 @@ function addSseListener(type, targetEs) {
         }
         if (e.lastEventId) {
             lastCursor = e.lastEventId;
+            broadcastCursor(lastCursor);
         }
         broadcast(type, tryParse(e.data));
     });
@@ -371,6 +380,7 @@ function connectWebSocket() {
 
         if (payload.id) {
             lastCursor = String(payload.id);
+            broadcastCursor(lastCursor);
         }
 
         if (payload.type === 'connected') {
@@ -557,6 +567,10 @@ function broadcast(type, data) {
 
 function broadcastTransportMode(mode) {
     broadcast('__transport', { mode: mode });
+}
+
+function broadcastCursor(cursor) {
+    broadcast('__cursor', { cursor: cursor });
 }
 
 function tryParse(str) {

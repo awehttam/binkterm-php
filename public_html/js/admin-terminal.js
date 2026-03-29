@@ -73,6 +73,7 @@
     var history = [];
     var historyIndex = -1;   // -1 = current (unsaved) line
     var historyTemp = '';    // saves typed input while navigating history
+    var cursorPos = 0;       // cursor offset within inputBuffer (0 = before first char)
 
     var searchMode = false;
     var searchBuffer = '';
@@ -207,10 +208,22 @@
         term.write('\r\n' + PROMPT_STR);
     }
 
-    /** Replace the current terminal line with the normal prompt + content. */
-    function replaceCurrentLine(content) {
-        term.write('\r\x1b[2K' + PROMPT_STR + content);
+    /**
+     * Redraw the input line with `content`, leaving the terminal cursor at `pos`
+     * characters into the buffer (0 = immediately after the prompt).
+     */
+    function writeLineAt(content, pos) {
+        var s = '\r\x1b[2K' + PROMPT_STR + content;
+        var moveLeft = content.length - pos;
+        if (moveLeft > 0) { s += '\x1b[' + moveLeft + 'D'; }
+        term.write(s);
         inputBuffer = content;
+        cursorPos = pos;
+    }
+
+    /** Replace the current terminal line with the normal prompt + content, cursor at end. */
+    function replaceCurrentLine(content) {
+        writeLineAt(content, content.length);
     }
 
     /** Rebuild search match list from the current searchBuffer. */
@@ -238,6 +251,7 @@
         searchMode = false;
         searchBuffer = '';
         inputBuffer = '';
+        cursorPos = 0;
         historyIndex = -1;
         if (match !== '') {
             term.write('\r\x1b[2K' + PROMPT_STR + match);
@@ -257,6 +271,8 @@
     function cancelSearch() {
         searchMode = false;
         searchBuffer = '';
+        // inputBuffer was preserved before search started; restore cursor at end
+        cursorPos = inputBuffer.length;
         term.write('\r\x1b[2K' + PROMPT_STR + inputBuffer);
     }
 
@@ -277,6 +293,7 @@
         if (data === '\r') {
             var cmd = inputBuffer.trim();
             inputBuffer = '';
+            cursorPos = 0;
             historyIndex = -1;
             if (cmd !== '') {
                 term.writeln('');
@@ -290,17 +307,38 @@
             }
             writePrompt();
         } else if (data === '\x7f' || data === '\x08') {
-            // Backspace
-            if (inputBuffer.length > 0) {
-                inputBuffer = inputBuffer.slice(0, -1);
-                term.write('\b \b');
+            // Backspace — delete character before cursor
+            if (cursorPos > 0) {
+                var newBuf = inputBuffer.slice(0, cursorPos - 1) + inputBuffer.slice(cursorPos);
+                if (cursorPos === inputBuffer.length) {
+                    // Cursor at end — simple in-place erase
+                    inputBuffer = newBuf;
+                    cursorPos--;
+                    term.write('\b \b');
+                } else {
+                    writeLineAt(newBuf, cursorPos - 1);
+                }
             }
         } else if (data === '\x03') {
             // Ctrl-C
             inputBuffer = '';
+            cursorPos = 0;
             historyIndex = -1;
             term.writeln('^C');
             writePrompt();
+        } else if (data === '\x01') {
+            // Ctrl-A — go to beginning of line
+            if (cursorPos > 0) {
+                term.write('\x1b[' + cursorPos + 'D');
+                cursorPos = 0;
+            }
+        } else if (data === '\x05') {
+            // Ctrl-E — go to end of line
+            var remaining = inputBuffer.length - cursorPos;
+            if (remaining > 0) {
+                term.write('\x1b[' + remaining + 'C');
+                cursorPos = inputBuffer.length;
+            }
         } else if (data === '\x12') {
             // Ctrl-R — enter reverse search
             searchMode = true;
@@ -328,17 +366,37 @@
                 historyIndex = -1;
                 replaceCurrentLine(historyTemp);
             }
+        } else if (data === '\x1b[D') {
+            // Left arrow — move cursor left
+            if (cursorPos > 0) {
+                cursorPos--;
+                term.write('\x1b[D');
+            }
+        } else if (data === '\x1b[C') {
+            // Right arrow — move cursor right
+            if (cursorPos < inputBuffer.length) {
+                cursorPos++;
+                term.write('\x1b[C');
+            }
         } else if (data >= ' ') {
-            inputBuffer += data;
-            term.write(data);
+            // Insert character at cursor position
+            var newBuf = inputBuffer.slice(0, cursorPos) + data + inputBuffer.slice(cursorPos);
+            if (cursorPos === inputBuffer.length) {
+                // Appending at end — just write the character
+                inputBuffer = newBuf;
+                cursorPos++;
+                term.write(data);
+            } else {
+                writeLineAt(newBuf, cursorPos + 1);
+            }
         }
     }
 
     function handleSearchInput(data) {
         if (data === '\r') {
             acceptSearch();
-        } else if (data === '\x1b' || data === '\x07') {
-            // Escape or Ctrl-G — cancel
+        } else if (data === '\x1b' || data === '\x03') {
+            // Escape or Ctrl-C — cancel
             cancelSearch();
         } else if (data === '\x12') {
             // Ctrl-R — cycle to next match
