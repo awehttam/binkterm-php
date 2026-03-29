@@ -366,7 +366,18 @@ In practice, for a typical setup, step 2 handles everything and `uplink_address`
 ### Q: Why does ANSI art render incorrectly?
 **A:**
 - Make sure you're using a monospace font such as Courier new.  Non mono-space fonts will not render ANSI correctly.
-- 
+-
+---
+
+### Q: In Markdown view mode, two lines of text are being joined into one. Why?
+**A:** This is standard Markdown behaviour. A single newline in the source text is treated as a space — not a line break. This matches the [CommonMark spec](https://spec.commonmark.org/0.31.2/#hard-line-breaks).
+
+To produce a line break in Markdown, use one of:
+- **Two spaces** at the end of the first line, followed by a newline
+- **A blank line** between the two lines (produces a paragraph break)
+
+If the message was written in a plain-text mailer or editor that uses single newlines, the lines will be joined when rendered as Markdown. This is expected and correct.
+
 ---
 
 ## Netmail
