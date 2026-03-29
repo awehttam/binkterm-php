@@ -155,13 +155,18 @@
     }
 
     try {
-        const worker = new SharedWorker('/js/binkstream-worker-v2.js', { name: 'binkstream' });
+        const WORKER_BUILD = 3;
+        const worker = new SharedWorker('/js/binkstream-worker-v2.js?v=' + WORKER_BUILD, { name: 'binkstream-v' + WORKER_BUILD });
         workerPort = worker.port;
         workerPort.onmessage = function (e) {
             const msg = e.data || {};
             if (msg.type === '__transport' && msg.data && msg.data.mode) {
-                currentTransportMode = String(msg.data.mode);
-                dispatch('transport', { mode: currentTransportMode });
+                const m = String(msg.data.mode);
+                // Don't overwrite the last known transport mode for transient states
+                if (m !== 'reconnecting' && m !== 'sse-reconnecting') {
+                    currentTransportMode = m;
+                }
+                dispatch('transport', { mode: m });
                 return;
             }
             if (msg.type === 'command_result' && msg.requestId) {

@@ -268,6 +268,7 @@ function connectSse() {
         }
         current.close();
         es = null;
+        broadcastTransportMode('sse-reconnecting');
         scheduleWsRetryProbe();
         clearReconnectTimer();
         reconnectTimer = setTimeout(function () {
@@ -282,6 +283,7 @@ function connectSse() {
         }
         current.close();
         es = null;
+        broadcastTransportMode('sse-reconnecting');
         scheduleWsRetryProbe();
         scheduleReconnect();
     });
@@ -419,6 +421,8 @@ function connectWebSocket() {
             connectSse();
             return;
         }
+        // WS was working (or explicit WS mode) and just closed — signal reconnecting.
+        broadcastTransportMode('reconnecting');
         debugLog('[BinkStream worker] websocket closed, scheduling reconnect');
         scheduleReconnect();
     };

@@ -94,6 +94,7 @@
     panel.innerHTML =
         '<div id="admin-term-header">' +
             '<span><i class="fa fa-terminal" style="margin-right:6px"></i>Admin Terminal</span>' +
+            '<span id="admin-term-status" title="Stream: connecting...">&#9679; --</span>' +
             '<button id="admin-term-close" aria-label="Close">&times;</button>' +
         '</div>' +
         '<div id="admin-term-body"></div>';
@@ -126,6 +127,15 @@
         '    color: #00d4ff; font-size: 12px; font-family: monospace;',
         '    border-bottom: 1px solid #00d4ff22; flex-shrink: 0;',
         '}',
+        '#admin-term-status {',
+        '    font-family: monospace; font-size: 11px; color: #555;',
+        '    cursor: default; user-select: none;',
+        '    margin-left: auto; margin-right: 8px;',
+        '    transition: color 0.3s;',
+        '}',
+        '#admin-term-status.st-ok  { color: #22cc66; }',
+        '#admin-term-status.st-warn { color: #ffd700; }',
+        '#admin-term-status.st-err  { color: #ff5555; }',
         '#admin-term-close {',
         '    background: none; border: none; color: #00d4ff; cursor: pointer;',
         '    font-size: 18px; line-height: 1; padding: 0 2px;',
@@ -661,6 +671,52 @@
         'wall_message',
     ];
 
+    // Delay before showing a reconnecting state — suppresses flicker on fast reconnects
+    // (e.g. dev server SSE window=0 which reconnects every ~2 s).
+    var RECONNECT_WARN_DELAY_MS = 3500;
+    var reconnectWarnTimer = null;
+
+    /** Update the header connection-status indicator. */
+    function updateStreamStatus(mode) {
+        var el = document.getElementById('admin-term-status');
+        if (!el) { return; }
+        var modeLabels = { ws: 'WS', sse: 'SSE', poll: 'POLL' };
+
+        if (mode === 'sse-reconnecting') {
+            // Don't flash yellow immediately — SSE reconnects quickly in normal operation.
+            // Only show the warning state if reconnection takes longer than the threshold.
+            if (!reconnectWarnTimer) {
+                reconnectWarnTimer = setTimeout(function () {
+                    reconnectWarnTimer = null;
+                    el.className = 'st-warn';
+                    el.title = 'Stream: SSE reconnecting';
+                    el.innerHTML = '&#9679; SSE';
+                }, RECONNECT_WARN_DELAY_MS);
+            }
+            return;
+        }
+
+        // Any non-reconnecting mode cancels the pending warn timer.
+        if (reconnectWarnTimer) {
+            clearTimeout(reconnectWarnTimer);
+            reconnectWarnTimer = null;
+        }
+
+        if (mode === 'reconnecting') {
+            el.className = 'st-warn';
+            el.title = 'Stream: WebSocket reconnecting';
+            el.innerHTML = '&#9679; WS';
+        } else if (modeLabels[mode]) {
+            el.className = 'st-ok';
+            el.title = 'Stream: connected via ' + mode.toUpperCase();
+            el.innerHTML = '&#9679; ' + modeLabels[mode];
+        } else {
+            el.className = 'st-err';
+            el.title = 'Stream: disconnected';
+            el.innerHTML = '&#9679; --';
+        }
+    }
+
     function wireEvents() {
         if (typeof window.BinkStream === 'undefined') { return; }
 
@@ -671,8 +727,17 @@
             window.BinkStream.on(type, function () {});
         });
 
-        // Wildcard listener — always tracks stats, only displays when watch is on.
+        // Transport status indicator — updates header icon, never printed to terminal.
+        // Seed with the current known mode so the indicator is correct on open.
+        updateStreamStatus(window.BinkStream.getMode() || '');
+        window.BinkStream.on('transport', function (data) {
+            updateStreamStatus(data && data.mode ? data.mode : '');
+        });
+
+        // Wildcard listener — tracks stats and prints to terminal when watch is on.
+        // Excludes transport/connected events which are handled by the header indicator.
         window.BinkStream.on('*', function (type, data) {
+            if (type === 'transport' || type === 'connected') { return; }
             streamEventCount++;
             streamLastEventType = type;
             streamLastEventAt = new Date();

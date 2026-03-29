@@ -329,6 +329,14 @@ class WebSocketServer implements LoopServiceInterface
                 continue;
             }
 
+            // Do not advance the cursor before the client has registered any
+            // subscriptions. On a fresh page load the WebSocket can connect
+            // before page scripts call BinkStream.on(...); advancing here would
+            // permanently skip early events that the cursor is meant to replay.
+            if (empty($this->clients[$clientId]['subscriptions'])) {
+                continue;
+            }
+
             $highestSeen = $cursor;
             foreach ($this->streamService->fetchEventsSince($this->clients[$clientId]['user'], $cursor) as $event) {
                 $highestSeen = max($highestSeen, (int)$event['id']);

@@ -44,15 +44,70 @@ html, body {
     color: var(--text-color, #e0e0e0);
 }
 
-/* Top-level flex container — fills the iframe viewport */
+/* ------------------------------------------------------------------ */
+/* Connect Screen                                                        */
+/* ------------------------------------------------------------------ */
+
+#mrc-connect-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background-color: var(--bg-primary, #1e2028);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#mrc-connect-box {
+    width: 100%;
+    max-width: 360px;
+    padding: 2rem;
+    background-color: var(--bg-card, #282c35);
+    border: 1px solid var(--border-color, #3a3d4a);
+    border-radius: 6px;
+}
+
+.mrc-connect-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text-color, #e0e0e0);
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.mrc-connect-bbs {
+    font-size: 0.85rem;
+    color: var(--text-color-muted, #9a9a9a);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.mrc-connect-form input.form-control {
+    background-color: var(--bg-secondary, #252830);
+    color: var(--text-color, #e0e0e0);
+    border-color: var(--border-color, #3a3d4a);
+}
+
+.mrc-connect-form input.form-control:focus {
+    background-color: var(--bg-secondary, #252830);
+    color: var(--text-color, #e0e0e0);
+    border-color: var(--fidonet-blue, #4da6ff);
+    box-shadow: 0 0 0 0.2rem rgba(77, 166, 255, 0.2);
+}
+
+/* Top-level flex container — fills the iframe viewport.
+   Override Bootstrap d-none removal: always display as flex, not block. */
+#mrc-app:not(.d-none) {
+    display: flex !important;
+}
+
 #mrc-app {
     display: flex;
     height: 100vh;
     overflow: hidden;
 }
 
-/* Sidebars: fixed-width, scroll internally */
-#mrc-sidebar-left,
+/* Right sidebar: fixed-width, scrolls internally */
 #mrc-sidebar-right {
     flex: 0 0 16.666%;
     max-width: 16.666%;
@@ -64,16 +119,60 @@ html, body {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
+    position: relative;
 }
 
-/* Sidebars */
-#mrc-sidebar-left,
+/* ------------------------------------------------------------------ */
+/* Daemon offline overlay                                               */
+/* ------------------------------------------------------------------ */
+
+#mrc-daemon-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: rgba(14, 16, 22, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+#mrc-daemon-overlay-inner {
+    text-align: center;
+    padding: 2rem;
+}
+
+.mrc-daemon-icon {
+    font-size: 2.5rem;
+    color: #e8a838;
+    margin-bottom: 0.5rem;
+}
+
+.mrc-daemon-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-color, #e0e0e0);
+    margin-bottom: 0.4rem;
+}
+
+.mrc-daemon-msg {
+    font-size: 0.85rem;
+    color: var(--text-color-muted, #9a9a9a);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.mrc-daemon-retry {
+    font-size: 0.8rem;
+    color: var(--text-color-muted, #9a9a9a);
+}
+
+/* Right sidebar */
 #mrc-sidebar-right {
     background-color: var(--bg-secondary, #252830);
     border-color: var(--border-color, #3a3d4a) !important;
 }
 
-#mrc-sidebar-left h5,
 #mrc-sidebar-right h5 {
     color: var(--text-color, #e0e0e0);
 }
@@ -149,15 +248,23 @@ html, body {
     color: var(--text-color-muted, #9a9a9a) !important;
 }
 
-/* Join-room button */
-#join-room-btn {
+/* Room selector dropdown */
+#room-select {
+    background-color: var(--bg-card, #282c35);
+    color: var(--text-color, #e0e0e0);
     border-color: var(--border-color, #3a3d4a);
-    color: var(--fidonet-blue, #4da6ff);
 }
 
-#join-room-btn:hover {
-    background-color: var(--fidonet-blue, #4da6ff);
-    color: #fff;
+#room-select:focus {
+    background-color: var(--bg-card, #282c35);
+    color: var(--text-color, #e0e0e0);
+    border-color: var(--fidonet-blue, #4da6ff);
+    box-shadow: 0 0 0 0.2rem rgba(77, 166, 255, 0.2);
+}
+
+#room-select option {
+    background-color: var(--bg-card, #282c35);
+    color: var(--text-color, #e0e0e0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -386,12 +493,11 @@ html, body {
 /* ------------------------------------------------------------------ */
 
 @media (max-width: 768px) {
-    .col-md-2,
-    .col-md-8 {
-        min-width: 100%;
+    #mrc-sidebar-right {
+        flex: 0 0 30%;
+        max-width: 30%;
     }
 
-    #room-list,
     #user-list {
         height: auto;
         max-height: 200px;
