@@ -2,11 +2,96 @@
 
 {% block title %}{{ t('ui.login.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+{% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+<style>
+.login-ansi-shell {
+    background: #050505;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    box-shadow: 0 1rem 2rem rgba(0,0,0,0.35);
+}
+.login-ansi-shell .ansi-art-container {
+    margin: 0;
+    border-radius: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding: 12px;
+    overflow: auto;
+}
+.login-ansi-shell .ansi-art-container pre,
+.login-ansi-shell .ansi-art {
+    display: inline-block;
+}
+.login-ansi-prompt {
+    background: #050505;
+    color: #d8d8d8;
+    font-family: 'Perfect DOS VGA 437', Consolas, monospace;
+    padding: 1rem;
+}
+.login-ansi-line {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+.login-ansi-label {
+    color: #55ffff;
+    min-width: 10ch;
+    letter-spacing: 0.02em;
+}
+.login-ansi-input {
+    background: #000;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 0;
+    font-family: inherit;
+}
+.login-ansi-input:focus {
+    background: #000;
+    color: #fff;
+    border-color: #55ffff;
+    box-shadow: none;
+}
+.login-ansi-submit {
+    border-radius: 0;
+    font-family: inherit;
+}
+.login-ansi-links {
+    margin-top: 1rem;
+    color: #aaaaaa;
+    font-size: 0.95rem;
+}
+.login-ansi-links a {
+    color: #ffff55;
+    text-decoration: none;
+}
+.login-ansi-links a:hover {
+    text-decoration: underline;
+}
+.login-ansi-wide {
+    max-width: min(100%, 1200px);
+}
+.login-ansi-full {
+    max-width: 100%;
+}
+@media (max-width: 768px) {
+    .login-ansi-label {
+        min-width: 100%;
+    }
+    .login-ansi-line {
+        gap: 0.5rem;
+    }
+}
+</style>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 
     {% include 'custom/login.banner.twig' ignore missing %}
 
-{% if login_splash %}
+{% if login_splash and login_screen.display_mode|default('standard') == 'standard' %}
 <div class="row justify-content-center mb-3">
     <div class="col-md-6 col-lg-6">
         <div class="card">
@@ -19,8 +104,16 @@
 {% endif %}
 
     <div class="row justify-content-center">
-    <div class="col-md-6 col-lg-6">
-        {% if welcome_message %}
+    <div class="{% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+        {% if login_screen.ansi_size|default('80x25') == 'full' %}
+            col-12 login-ansi-full
+        {% elseif login_screen.ansi_size|default('80x25') in ['132x24', '132x43', '132x50'] %}
+            col-12 col-xl-10 login-ansi-wide
+        {% else %}
+            col-md-6 col-lg-6
+        {% endif %}
+    {% else %}col-md-6 col-lg-6{% endif %}">
+        {% if welcome_message and login_screen.display_mode|default('standard') != 'ansi_prompt' %}
         <div class="card mb-3">
             <div class="card-body text-center">
                 {{ welcome_message|raw|nl2br }}
@@ -29,6 +122,56 @@
         {% else %}
 
         {% endif %}
+        {% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+        <div class="login-ansi-shell">
+            {% if welcome_message %}
+            <div class="card mb-0 border-0 border-bottom rounded-0">
+                <div class="card-body text-center">
+                    {{ welcome_message|raw|nl2br }}
+                </div>
+            </div>
+            {% endif %}
+            {% if login_ansi_art %}
+            <div class="ansi-art-container">
+                <pre class="ansi-art" id="loginAnsiArt" data-ansi-size="{{ login_screen.ansi_size|default('80x25')|e('html_attr') }}">{{ login_ansi_art }}</pre>
+            </div>
+            {% endif %}
+            <div class="login-ansi-prompt">
+                <div class="mb-3">
+                    <span class="login-ansi-label">{{ t('ui.login.login_to_system', {'system_name': system_name}, 'common') }}</span>
+                </div>
+                <form id="loginForm">
+                    <div class="login-ansi-line">
+                        <label for="username" class="login-ansi-label">{{ t('ui.login.username', {}, 'common') }}</label>
+                        <input type="text" class="form-control login-ansi-input" id="username" name="username" required autofocus>
+                    </div>
+                    <div class="login-ansi-line">
+                        <label for="password" class="login-ansi-label">{{ t('ui.login.password', {}, 'common') }}</label>
+                        <input type="password" class="form-control login-ansi-input" id="password" name="password" required>
+                    </div>
+                    <div class="login-ansi-line">
+                        <div class="form-check mb-0">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <label class="form-check-label" for="remember">
+                                {{ t('ui.login.remember_me_30_days', {}, 'common') }}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="login-ansi-line mb-0">
+                        <button type="submit" class="btn btn-primary login-ansi-submit">
+                            {{ t('ui.login.title', {}, 'common') }}
+                        </button>
+                    </div>
+                </form>
+                <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
+                <div class="login-ansi-links">
+                    {{ t('ui.login.no_account', {}, 'common') }} <a href="/register">{{ t('ui.login.request_access', {}, 'common') }}</a>
+                    <br>
+                    {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password">{{ t('ui.login.reset_password', {}, 'common') }}</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
         <div class="card">
             <div class="card-header">
                 <h4 class="mb-0">
@@ -62,6 +205,7 @@
                 <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
             </div>
         </div>
+        {% endif %}
         
         {% if pubterm_enabled %}
         <div class="card mt-3">
@@ -74,6 +218,7 @@
         </div>
         {% endif %}
 
+        {% if login_screen.display_mode|default('standard') != 'ansi_prompt' %}
         <div class="text-center mt-3">
             <small class="text-muted">
                 {{ t('ui.login.no_account', {}, 'common') }} <a href="/register" class="text-decoration-none">{{ t('ui.login.request_access', {}, 'common') }}</a>
@@ -81,6 +226,7 @@
                 {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password" class="text-decoration-none">{{ t('ui.login.reset_password', {}, 'common') }}</a>
             </small>
         </div>
+        {% endif %}
         
         {#
         <!-- Account Reminder Section -->
@@ -124,6 +270,29 @@
 {% endblock %}
 
 {% block scripts %}
+{% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+<script src="/js/ansisys.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var pre = document.getElementById('loginAnsiArt');
+    if (!pre || typeof renderAnsiBuffer !== 'function') {
+        return;
+    }
+
+    var size = pre.getAttribute('data-ansi-size') || '80x25';
+    var dims = { cols: 80, rows: 25 };
+    if (size === '132x24') dims = { cols: 132, rows: 24 };
+    else if (size === '132x43') dims = { cols: 132, rows: 43 };
+    else if (size === '132x50') dims = { cols: 132, rows: 50 };
+    else if (size === 'full') dims = { cols: 132, rows: 80 };
+
+    pre.innerHTML = renderAnsiBuffer(pre.textContent, dims.cols, dims.rows, null, {
+        preserveTrailingSpaces: true,
+        trimTrailingSpaces: false
+    });
+});
+</script>
+{% endif %}
 <script>
 $('#loginForm').on('submit', function(e) {
     e.preventDefault();

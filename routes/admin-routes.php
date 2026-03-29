@@ -1639,6 +1639,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $client->setHouseRules((string)$payload['house_rules']);
                 }
 
+                if (array_key_exists('register_splash', $payload) && \BinktermPHP\License::isValid()) {
+                    $text = (string)$payload['register_splash'];
+                    if (mb_strlen($text) > 10000) {
+                        throw new Exception('Splash content must be 10,000 characters or less');
+                    }
+                    $client->setRegisterSplash($text);
+                }
+
                 // Save announcement config
                 if (array_key_exists('announcement', $payload)) {
                     $ann = $payload['announcement'];
@@ -1663,7 +1671,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.content.save_failed', apiLocalizedText('errors.admin.appearance.content.save_failed', 'Failed to save content settings'));
+                if ($e->getMessage() === 'Splash content must be 10,000 characters or less') {
+                    apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+                } else {
+                    apiError('errors.admin.appearance.content.save_failed', apiLocalizedText('errors.admin.appearance.content.save_failed', 'Failed to save content settings'));
+                }
             }
         });
 
@@ -1682,14 +1694,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
 
-                if (array_key_exists('login_splash', $payload)) {
-                    $text = (string)$payload['login_splash'];
-                    if (mb_strlen($text) > 10000) {
-                        throw new Exception('Splash content must be 10,000 characters or less');
-                    }
-                    $client->setLoginSplash($text);
-                }
-
                 if (array_key_exists('register_splash', $payload)) {
                     $text = (string)$payload['register_splash'];
                     if (mb_strlen($text) > 10000) {
@@ -1702,6 +1706,63 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/login', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $login = $payload['login'] ?? [];
+                $ansiContent = (string)($payload['login_ansi'] ?? '');
+                $loginSplash = array_key_exists('login_splash', $payload) ? (string)$payload['login_splash'] : null;
+
+                $displayMode = (string)($login['display_mode'] ?? 'standard');
+                if (!in_array($displayMode, ['standard', 'ansi_prompt'], true)) {
+                    $displayMode = 'standard';
+                }
+
+                $ansiSize = (string)($login['ansi_size'] ?? '80x25');
+                if (!in_array($ansiSize, ['80x25', '132x24', '132x43', '132x50', 'full'], true)) {
+                    $ansiSize = '80x25';
+                }
+
+                if (mb_strlen($ansiContent) > 200000) {
+                    throw new Exception('Login ANSI content must be 200,000 characters or less');
+                }
+                if ($loginSplash !== null && mb_strlen($loginSplash) > 10000) {
+                    throw new Exception('Splash content must be 10,000 characters or less');
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['login'] = [
+                    'display_mode' => $displayMode,
+                    'ansi_size' => $ansiSize,
+                ];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                $client->setLoginAnsi($ansiContent);
+                if ($loginSplash !== null && \BinktermPHP\License::isValid()) {
+                    $client->setLoginSplash($loginSplash);
+                }
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                if ($e->getMessage() === 'Login ANSI content must be 200,000 characters or less') {
+                    apiError('errors.admin.appearance.login.ansi_too_large', apiLocalizedText('errors.admin.appearance.login.ansi_too_large', 'Login ANSI content must be 200,000 characters or less'));
+                } elseif ($e->getMessage() === 'Splash content must be 10,000 characters or less') {
+                    apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+                } else {
+                    apiError('errors.admin.appearance.login.save_failed', apiLocalizedText('errors.admin.appearance.login.save_failed', 'Failed to save login appearance settings'));
+                }
             }
         });
 

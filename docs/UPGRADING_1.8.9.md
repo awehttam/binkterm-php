@@ -68,6 +68,7 @@
   - [Ignored Echomail Management](#ignored-echomail-management)
   - [Markdown Image Load Preference](#markdown-image-load-preference)
 - [Appearance](#appearance)
+  - [Login Screen](#login-screen)
   - [Terminal Server Screens](#terminal-server-screens)
   - [Shared ANSI Editor](#shared-ansi-editor)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
@@ -182,6 +183,7 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - The **Messaging** tab includes an **Image Loading** preference: images in Markdown messages can be set to load automatically or only on tap (default: tap to load).
 
 **Appearance**
+- The Appearance page now includes a dedicated **Login** tab for configuring the shared `/login` experience across all shells. Sysops can choose between the standard form and an ANSI-driven login screen with the prompt appended after the ANSI display.
 - The BBS menu shell's `ansi` variant now supports size presets: `80x25`, `132x24`, `132x43`, `132x50`, and `Full Screen`.
 - `80x25` is the authentic baseline terminal presentation. `Full Screen` instead scales the rendered ANSI art to the available browser viewport below the shell header.
 - A new **Term Server** tab in **Admin -> Appearance** lets sysops edit or upload the supported custom ANSI screens used by the telnet and SSH terminal servers.
@@ -208,6 +210,8 @@ Rounding out the release: a tabbed User Settings layout, notification sound prev
 - New admin tool at `/admin/areafix` for managing echo area subscriptions with the upstream hub's robots. Quick-action buttons send common commands with one click; incoming replies are displayed in a Latest Reply panel.
 - AreaFix/FileFix message subjects are masked to `••••••••` in all views to protect the password.
 - `areafix_password` and `filefix_password` fields added to the BinkP uplink editor.
+
+The Latest Reply panel now follows the newest incoming reply correctly, and the history table timestamps are localized to the viewing user's timezone.
 
 **Advertising**
 - Content commands are now restricted to an approved whitelist; the admin editor uses a dropdown instead of free text.
@@ -598,7 +602,8 @@ Non-`.pkt` files in the queue (e.g. file attachments) remain plain text.
 This feature requires a valid registered license, consistent with the existing kept-packets inspector.
 ### Scheduler
 
-- **Outbound poll scheduling**: The scheduler's outbound poll check (`pollIfOutbound`) now respects each uplink's configured `poll_schedule` cron expression. Previously, outbound packets could trigger a poll as frequently as once per minute; they now only poll when the schedule allows it. This prevents flooding uplinks with connections. The outbound and scheduled poll timers are tracked independently so an outbound poll does not delay the next scheduled inbound poll.
+- **System-wide outbound queue timer**: BinkP now has a configurable **Outbound Queue Timer** setting in minutes on the admin configuration page. The default is `30`. When a new outbound queue appears for an uplink, the scheduler attempts delivery immediately, then backs off until this timer elapses before retrying.
+- **Per-uplink outbound routing check**: Outbound-triggered polls are no longer treated as a global queue event. The scheduler inspects queued `.pkt` and `.tic` files, resolves their FTN destination, and only polls the uplink responsible for that destination.
 - **No duplicate outbound poll after scheduled poll**: When a scheduled inbound poll runs, its bidirectional binkp session already exchanges any outbound packets. The scheduler now tracks which uplinks were polled in the current loop iteration and skips same-iteration outbound polls for those uplinks, while still allowing independent outbound polls in subsequent iterations.
 
 ### Insecure Session Enhancements
@@ -834,6 +839,19 @@ This preference is stored per user and requires no database migration.
 
 ## Appearance
 
+### Login Screen
+
+The **Appearance** page now includes a dedicated **Login** tab for configuring the shared `/login` page used before shell selection comes into play.
+
+This tab supports two modes:
+
+- **Standard Form** - the normal card-based login form
+- **ANSI Screen + Prompt** - a sysop-edited ANSI screen rendered first, with the username/password form and registration links appended after it
+
+The login ANSI content is edited directly in the browser with the shared ANSI editor widget rather than by selecting a shell-art file. The configured `ansi_size` preset now affects the login page layout as well as the ANSI renderer, so wide presets such as `132x50` and `Full Screen` can use a wider container on `/login`.
+
+The **Login Page Splash** editor is now part of the Login tab and only applies when the login display mode is set to **Standard Form**. The **Registration Page Splash** editor moved into the **Content** tab, and the separate **Splash Pages** tab was removed.
+
 ### Terminal Server Screens
 
 The **Appearance** page now includes a **Term Server** tab for managing the built-in ANSI screens used by the telnet and SSH terminal servers.
@@ -989,6 +1007,8 @@ After every sent command the history table and latest reply panel refresh automa
 
 The most recent incoming reply from the hub is displayed in the **Latest Reply** panel as raw pre-formatted text, showing the sender name, date, and full message body.
 
+The panel now correctly follows the newest incoming reply instead of the oldest retained reply.
+
 ### Message History
 
 The message history table shows the last 50 netmail messages to or from AreaFix/FileFix for the selected uplink. Each row is expandable to show the full message body. The table is filtered client-side to the active robot tab (AreaFix or FileFix).
@@ -1009,6 +1029,10 @@ The AreaFix/FileFix message history table now includes two additional columns:
 - **Network** — the domain of the selected uplink (e.g. `fidonet`, `araknet`).
 
 Dates in the history table are now formatted as human-readable local timestamps (e.g. `Mar 25, 2026, 05:51 AM`) instead of raw PostgreSQL timestamp strings.
+
+Those timestamps are localized to the viewing user's timezone rather than shown as raw server or database time.
+
+The **Latest Reply** panel now selects the newest incoming reply instead of the oldest reply still present in the retained history list.
 
 
 ---

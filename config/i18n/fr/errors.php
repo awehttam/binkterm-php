@@ -242,6 +242,8 @@ return [
     'errors.admin.appearance.navigation.save_failed' => 'Échec de l\'enregistrement des paramètres de navigation',
     'errors.admin.appearance.seo.save_failed' => 'Échec de l\'enregistrement des paramètres SEO',
     'errors.admin.appearance.shell.save_failed' => 'Échec de l\'enregistrement des paramètres du shell',
+    'errors.admin.appearance.login.save_failed' => 'Échec de l\'enregistrement des paramètres d\'apparence de connexion',
+    'errors.admin.appearance.login.ansi_too_large' => 'Le contenu ANSI de connexion doit comporter 200000 caractères ou moins',
     'errors.admin.appearance.message_reader.save_failed' => 'Échec de l\'enregistrement des paramètres du lecteur de messages',
     'errors.admin.appearance.markdown_preview.failed' => 'Échec du rendu de l\'aperçu Markdown',
     'errors.admin.shell_art.list_failed' => 'Échec du listage des fichiers d\'art shell',

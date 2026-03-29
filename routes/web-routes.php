@@ -308,11 +308,16 @@ SimpleRouter::get('/login', function() {
         }
     }
 
+    $loginScreen = \BinktermPHP\AppearanceConfig::getLoginScreenConfig();
+    $loginAnsiArt = \BinktermPHP\AppearanceConfig::getLoginScreenAnsi();
+
     $template = new Template();
     $template->renderResponse('login.twig', [
         'welcome_message'  => $welcomeMessage,
         'pubterm_enabled'  => $pubTermEnabled,
         'login_splash'     => $loginSplashHtml,
+        'login_screen'     => $loginScreen,
+        'login_ansi_art'   => $loginAnsiArt,
     ]);
 });
 

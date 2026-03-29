@@ -658,6 +658,15 @@ class AdminDaemonServer
                     $this->writeLoginSplash($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'set_login_ansi':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeLoginAnsi($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'set_register_splash':
                     $text = $data['text'] ?? '';
                     if (!is_string($text)) {
@@ -1872,6 +1881,11 @@ class AdminDaemonServer
         return __DIR__ . '/../../data/register_splash.md';
     }
 
+    private function getLoginScreenPath(): string
+    {
+        return __DIR__ . '/../../data/login_screen.ans';
+    }
+
     private function getAppearanceConfig(): array
     {
         $path = $this->getAppearanceConfigPath();
@@ -1887,6 +1901,7 @@ class AdminDaemonServer
         $systemNewsPath = $this->getSystemNewsPath();
         $houseRulesPath = $this->getHouseRulesPath();
         $loginSplashPath = $this->getLoginSplashPath();
+        $loginScreenPath = $this->getLoginScreenPath();
         $registerSplashPath = $this->getRegisterSplashPath();
 
         return [
@@ -1894,6 +1909,7 @@ class AdminDaemonServer
             'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
             'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
             'login_splash' => file_exists($loginSplashPath) ? (file_get_contents($loginSplashPath) ?: '') : null,
+            'login_ansi' => file_exists($loginScreenPath) ? (file_get_contents($loginScreenPath) ?: '') : null,
             'register_splash' => file_exists($registerSplashPath) ? (file_get_contents($registerSplashPath) ?: '') : null,
         ];
     }
@@ -1939,6 +1955,19 @@ class AdminDaemonServer
 
         if (@file_put_contents($path, $text, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write house rules');
+        }
+    }
+
+    private function writeLoginAnsi(string $text): void
+    {
+        $path = $this->getLoginScreenPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write login ANSI');
         }
     }
 

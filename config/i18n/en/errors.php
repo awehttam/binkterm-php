@@ -333,6 +333,8 @@ return [
     'errors.admin.appearance.navigation.save_failed' => 'Failed to save navigation settings',
     'errors.admin.appearance.seo.save_failed' => 'Failed to save SEO settings',
     'errors.admin.appearance.shell.save_failed' => 'Failed to save shell settings',
+    'errors.admin.appearance.login.save_failed' => 'Failed to save login appearance settings',
+    'errors.admin.appearance.login.ansi_too_large' => 'Login ANSI content must be 200,000 characters or less',
     'errors.admin.appearance.term_server.list_failed' => 'Failed to load terminal screens',
     'errors.admin.appearance.term_server.load_failed' => 'Failed to load terminal screen',
     'errors.admin.appearance.term_server.save_failed' => 'Failed to save terminal screen',

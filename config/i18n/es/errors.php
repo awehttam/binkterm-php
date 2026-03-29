@@ -333,6 +333,8 @@ return [
     'errors.admin.appearance.navigation.save_failed' => 'No se pudo guardar la configuracion de navegacion',
     'errors.admin.appearance.seo.save_failed' => 'No se pudo guardar la configuracion de SEO',
     'errors.admin.appearance.shell.save_failed' => 'No se pudo guardar la configuracion del shell',
+    'errors.admin.appearance.login.save_failed' => 'No se pudo guardar la configuracion de apariencia del inicio de sesion',
+    'errors.admin.appearance.login.ansi_too_large' => 'El contenido ANSI de inicio debe tener 200000 caracteres o menos',
     'errors.admin.appearance.term_server.list_failed' => 'No se pudieron cargar las pantallas del servidor terminal',
     'errors.admin.appearance.term_server.load_failed' => 'No se pudo cargar la pantalla del servidor terminal',
     'errors.admin.appearance.term_server.save_failed' => 'No se pudo guardar la pantalla del servidor terminal',
