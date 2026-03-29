@@ -850,6 +850,8 @@ This tab supports two modes:
 
 The login ANSI content is edited directly in the browser with the shared ANSI editor widget rather than by selecting a shell-art file. The configured `ansi_size` preset now affects the login page layout as well as the ANSI renderer, so wide presets such as `132x50` and `Full Screen` can use a wider container on `/login`.
 
+The login page now also measures the rendered ANSI art against the actual width of its containing element and adjusts the terminal font size to fit that width precisely. This avoids intermittent right-edge overflow while still letting the art scale up to use the available space on larger screens.
+
 The **Login Page Splash** editor is now part of the Login tab and only applies when the login display mode is set to **Standard Form**. The **Registration Page Splash** editor moved into the **Content** tab, and the separate **Splash Pages** tab was removed.
 
 ### Terminal Server Screens

@@ -284,6 +284,12 @@
         }
     }
 
+    function writeRawTerminalOutput(text) {
+        if (!text) { return; }
+        var normalized = String(text).replace(/\r?\n/g, '\r\n');
+        term.write(normalized.endsWith('\r\n') ? normalized : normalized + '\r\n');
+    }
+
     function handleInput(data) {
         if (searchMode) {
             handleSearchInput(data);
@@ -708,6 +714,36 @@
                     });
             }
         },
+        {
+            cmd: 'binktop',
+            desc: 'Show current binktop RAM usage output',
+            run: function () {
+                logLine('\x1b[90mLoading binktop...\x1b[0m');
+                fetch('/admin/api/ram-usage', { credentials: 'same-origin' })
+                    .then(function (response) {
+                        return response.json().then(function (body) {
+                            if (!response.ok || body.success === false) {
+                                throw body;
+                            }
+                            return body;
+                        });
+                    })
+                    .then(function (data) {
+                        term.write('\r\x1b[A\x1b[2K');
+                        if (data.output) {
+                            writeRawTerminalOutput(data.output);
+                        } else {
+                            logLine('\x1b[90mNo binktop output available.\x1b[0m');
+                        }
+                        term.write(PROMPT_STR + inputBuffer);
+                    })
+                    .catch(function (error) {
+                        term.write('\r\x1b[A\x1b[2K');
+                        logLine('\x1b[31m' + escapeForTerminal((error && error.error) || 'Failed to load binktop.') + '\x1b[0m');
+                        term.write(PROMPT_STR + inputBuffer);
+                    });
+            }
+        }
     ];
 
     function runCommand(cmd) {
