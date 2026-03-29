@@ -519,7 +519,7 @@
         if (!panel) return;
 
         var from = escapeHtml(message.from_name || '');
-        var date = escapeHtml(message.date_received || message.date_written || '');
+        var date = escapeHtml(formatTimestamp(message.date_received || message.date_written || ''));
         var body = message.message_text || '';
 
         panel.innerHTML =
