@@ -8165,6 +8165,87 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         readfile($filepath);
     });
 
+    SimpleRouter::get('/binkp/kept-packets/bundle/list', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->listBundleContents($type, $date, $filename));
+    });
+
+    SimpleRouter::get('/binkp/kept-packets/bundle/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $bundle   = $_GET['bundle']   ?? '';
+        $pkt      = $_GET['pkt']      ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($bundle) || empty($pkt)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectBundlePacket($type, $date, $bundle, $pkt));
+    });
+
+    SimpleRouter::get('/binkp/kept-packets/bundle/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->getKeptBundleDownloadPath($type, $date, $filename);
+        if ($filepath === null) {
+            apiError('errors.binkp.kept_packets.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
     SimpleRouter::get('/binkp/kept-packets', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);

@@ -384,15 +384,24 @@ class BinkpController
                 $packets   = [];
 
                 if (is_dir($entryPath)) {
-                    foreach (glob($entryPath . DIRECTORY_SEPARATOR . '*.pkt') ?: [] as $pkt) {
-                        $info      = $analyzer->analyzePacket($pkt);
-                        $packets[] = $this->buildPacketRecord($pkt, $info);
+                    foreach (array_diff(scandir($entryPath), ['.', '..']) as $f) {
+                        $fp = $entryPath . DIRECTORY_SEPARATOR . $f;
+                        if (!is_file($fp)) continue;
+                        if (str_ends_with(strtolower($f), '.pkt')) {
+                            $info      = $analyzer->analyzePacket($fp);
+                            $packets[] = $this->buildPacketRecord($fp, $info);
+                        } elseif ($this->isBundleFile($f)) {
+                            $packets[] = $this->buildBundleRecord($fp);
+                        }
                     }
                     $label = $entry;
                 } elseif (is_file($entryPath) && str_ends_with(strtolower($entry), '.pkt')) {
                     $info      = $analyzer->analyzePacket($entryPath);
                     $packets[] = $this->buildPacketRecord($entryPath, $info);
                     $label     = ''; // loose file — no date group label
+                } elseif (is_file($entryPath) && $this->isBundleFile($entry)) {
+                    $packets[] = $this->buildBundleRecord($entryPath);
+                    $label     = '';
                 } else {
                     continue;
                 }
@@ -430,6 +439,7 @@ class BinkpController
         $modifiedTs = filemtime($path);
 
         return [
+            'file_type'     => 'pkt',
             'filename'      => basename($path),
             'size'          => filesize($path),
             'modified'      => $this->formatUnixTimestamp($modifiedTs),
@@ -438,6 +448,36 @@ class BinkpController
             'dest_address'  => $info['dest_address'],
             'orig_address'  => $info['orig_address'],
         ];
+    }
+
+    /**
+     * Build a normalised record for a bundle (arcmail) file.
+     *
+     * @param string $path Absolute path to the bundle file
+     * @return array
+     */
+    private function buildBundleRecord(string $path): array
+    {
+        $modifiedTs = filemtime($path);
+
+        return [
+            'file_type'   => 'bundle',
+            'filename'    => basename($path),
+            'size'        => filesize($path),
+            'modified'    => $this->formatUnixTimestamp($modifiedTs),
+            'modified_ts' => $modifiedTs,
+        ];
+    }
+
+    /**
+     * Returns true if the filename matches an FTN arcmail bundle extension.
+     */
+    private function isBundleFile(string $filename): bool
+    {
+        return (bool) preg_match(
+            '/^[A-Za-z0-9_\-]+\.((su|mo|tu|we|th|fr|sa)[0-9a-fA-F]|zip|arc|arj|lzh|rar)$/i',
+            $filename
+        );
     }
 
     private function formatUnixTimestamp(int $timestamp): string
@@ -495,6 +535,184 @@ class BinkpController
     public function getKeptPacketDownloadPath(string $type, string $date, string $filename): ?string
     {
         return $this->resolveKeptPacketPath($type, $date, $filename);
+    }
+
+    public function getKeptBundleDownloadPath(string $type, string $date, string $filename): ?string
+    {
+        return $this->resolveKeptBundlePath($type, $date, $filename);
+    }
+
+    /**
+     * Resolve and validate a path to a bundle file in the kept packets directory.
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $date     Date directory name or '' for root
+     * @param string $filename Bundle filename (e.g. "0000ff98.sa0")
+     * @return string|null Absolute path on success, null if invalid or not found
+     */
+    private function resolveKeptBundlePath(string $type, string $date, string $filename): ?string
+    {
+        $date     = basename($date);
+        $filename = basename($filename);
+
+        if (!preg_match('/^[A-Za-z0-9\-]*$/', $date)) {
+            return null;
+        }
+        if (!$this->isBundleFile($filename)) {
+            return null;
+        }
+
+        $basePath = $type === 'inbound'
+            ? $this->config->getInboundPath() . DIRECTORY_SEPARATOR . 'keep'
+            : $this->config->getOutboundPath() . DIRECTORY_SEPARATOR . 'keep';
+
+        $filepath = empty($date)
+            ? $basePath . DIRECTORY_SEPARATOR . $filename
+            : $basePath . DIRECTORY_SEPARATOR . $date . DIRECTORY_SEPARATOR . $filename;
+
+        $realBase = realpath($basePath);
+        $realFile = realpath($filepath);
+        if (!$realFile || !$realBase) {
+            return null;
+        }
+        if ($realFile !== $realBase && !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return is_file($realFile) ? $realFile : null;
+    }
+
+    /**
+     * List the .pkt files contained within a kept bundle (arcmail) file.
+     * Supports ZIP-format bundles (.su0–.sa9, .zip, etc.).
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $date     Date directory name or ''
+     * @param string $filename Bundle filename
+     * @return array
+     */
+    public function listBundleContents(string $type, string $date, string $filename): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing packet files requires registration',
+            ];
+        }
+
+        $date     = basename($date);
+        $filename = basename($filename);
+
+        if (!preg_match('/^[A-Za-z0-9\-]*$/', $date)) {
+            return ['success' => false, 'error' => 'Invalid date parameter'];
+        }
+        if (!$this->isBundleFile($filename)) {
+            return ['success' => false, 'error' => 'Invalid filename parameter'];
+        }
+
+        $bundlePath = $this->resolveKeptBundlePath($type, $date, $filename);
+        if ($bundlePath === null) {
+            return ['success' => false, 'error' => 'File not found'];
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($bundlePath, \ZipArchive::RDONLY) !== true) {
+            return ['success' => false, 'error' => 'Cannot open bundle — format may not be ZIP-compatible'];
+        }
+
+        $packets = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if ($name === false) continue;
+            // Only include .pkt files at the root level of the archive
+            if (!preg_match('/^[A-Za-z0-9_\-]+\.pkt$/i', $name)) continue;
+            $stat = $zip->statIndex($i);
+            $packets[] = [
+                'filename' => $name,
+                'size'     => $stat['size'] ?? 0,
+            ];
+        }
+        $zip->close();
+
+        return [
+            'success'     => true,
+            'bundle'      => $filename,
+            'bundle_size' => filesize($bundlePath),
+            'packets'     => $packets,
+        ];
+    }
+
+    /**
+     * Extract a single .pkt from within a kept bundle and parse its headers.
+     *
+     * @param string $type           'inbound' or 'outbound'
+     * @param string $date           Date directory name or ''
+     * @param string $bundleFilename Bundle filename (e.g. "0000ff98.sa0")
+     * @param string $pktFilename    Packet filename within the bundle (e.g. "ab12cd34.pkt")
+     * @return array
+     */
+    public function inspectBundlePacket(string $type, string $date, string $bundleFilename, string $pktFilename): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing packet files requires registration',
+            ];
+        }
+
+        $date           = basename($date);
+        $bundleFilename = basename($bundleFilename);
+        $pktFilename    = basename($pktFilename);
+
+        if (!preg_match('/^[A-Za-z0-9\-]*$/', $date)) {
+            return ['success' => false, 'error' => 'Invalid date parameter'];
+        }
+        if (!$this->isBundleFile($bundleFilename)) {
+            return ['success' => false, 'error' => 'Invalid bundle filename'];
+        }
+        if (!preg_match('/^[A-Za-z0-9_\-]+\.pkt$/i', $pktFilename)) {
+            return ['success' => false, 'error' => 'Invalid packet filename'];
+        }
+
+        $bundlePath = $this->resolveKeptBundlePath($type, $date, $bundleFilename);
+        if ($bundlePath === null) {
+            return ['success' => false, 'error' => 'Bundle file not found'];
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($bundlePath, \ZipArchive::RDONLY) !== true) {
+            return ['success' => false, 'error' => 'Cannot open bundle'];
+        }
+
+        $stream = $zip->getStream($pktFilename);
+        if ($stream === false) {
+            $zip->close();
+            return ['success' => false, 'error' => 'Packet not found in bundle'];
+        }
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'binkpkt_');
+        try {
+            $fh = fopen($tmpFile, 'wb');
+            if (!$fh) {
+                fclose($stream);
+                $zip->close();
+                return ['success' => false, 'error' => 'Cannot create temp file'];
+            }
+            while (!feof($stream)) {
+                fwrite($fh, fread($stream, 65536));
+            }
+            fclose($fh);
+            fclose($stream);
+            $zip->close();
+
+            return $this->parsePacketFull($tmpFile);
+        } finally {
+            if (file_exists($tmpFile)) {
+                @unlink($tmpFile);
+            }
+        }
     }
 
     /**
