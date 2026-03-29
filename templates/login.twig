@@ -10,6 +10,16 @@
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 8px;
     box-shadow: 0 1rem 2rem rgba(0,0,0,0.35);
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    --login-ansi-cols: 80;
+    --login-ansi-rows: 25;
+    --login-ansi-font-size: min(
+        16px,
+        calc((100vw - 4rem) / var(--login-ansi-cols)),
+        calc((100dvh - 18rem) / var(--login-ansi-rows))
+    );
 }
 .login-ansi-shell .ansi-art-container {
     margin: 0;
@@ -21,12 +31,15 @@
 .login-ansi-shell .ansi-art-container pre,
 .login-ansi-shell .ansi-art {
     display: inline-block;
+    font-size: max(6px, var(--login-ansi-font-size)) !important;
+    line-height: max(6px, var(--login-ansi-font-size)) !important;
 }
 .login-ansi-prompt {
     background: #050505;
     color: #d8d8d8;
     font-family: 'Perfect DOS VGA 437', Consolas, monospace;
-    padding: 1rem;
+    font-size: clamp(11px, calc(var(--login-ansi-font-size) * 1.05), 20px);
+    padding: clamp(0.85rem, 1.5vw, 1.25rem);
 }
 .login-ansi-line {
     display: flex;
@@ -39,6 +52,7 @@
     color: #55ffff;
     min-width: 10ch;
     letter-spacing: 0.02em;
+    font-size: 1em;
 }
 .login-ansi-input {
     background: #000;
@@ -46,6 +60,11 @@
     border: 1px solid #555;
     border-radius: 0;
     font-family: inherit;
+    font-size: 1em;
+    line-height: 1.2;
+    padding: clamp(0.55rem, 1vw, 0.8rem) clamp(0.6rem, 1.2vw, 0.9rem);
+    width: min(100%, 100%);
+    min-height: calc(2.2em + 2px);
 }
 .login-ansi-input:focus {
     background: #000;
@@ -56,11 +75,37 @@
 .login-ansi-submit {
     border-radius: 0;
     font-family: inherit;
+    font-size: 1em;
+    line-height: 1.2;
+    padding: clamp(0.55rem, 1vw, 0.8rem) clamp(1rem, 1.8vw, 1.4rem);
 }
 .login-ansi-links {
     margin-top: 1rem;
     color: #aaaaaa;
-    font-size: 0.95rem;
+    font-size: 1em;
+}
+.login-ansi-prompt .btn,
+.login-ansi-prompt label,
+.login-ansi-prompt input,
+.login-ansi-prompt .form-check-label,
+.login-ansi-prompt .form-check,
+.login-ansi-prompt .alert,
+.login-ansi-prompt .mb-3,
+.login-ansi-prompt .login-ansi-links {
+    font-size: 1em;
+}
+.login-ansi-prompt .form-check {
+    font-size: 1em;
+}
+.login-ansi-prompt .form-check-input {
+    width: 1.1em;
+    height: 1.1em;
+    margin-top: 0.15em;
+    background-color: #000;
+    border-radius: 0;
+}
+.login-ansi-prompt .form-check-label {
+    font-size: 1em;
 }
 .login-ansi-links a {
     color: #ffff55;
@@ -123,7 +168,22 @@
 
         {% endif %}
         {% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
-        <div class="login-ansi-shell">
+        {% set loginAnsiCols = 80 %}
+        {% set loginAnsiRows = 25 %}
+        {% if login_screen.ansi_size|default('80x25') == '132x24' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 24 %}
+        {% elseif login_screen.ansi_size|default('80x25') == '132x43' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 43 %}
+        {% elseif login_screen.ansi_size|default('80x25') == '132x50' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 50 %}
+        {% elseif login_screen.ansi_size|default('80x25') == 'full' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 50 %}
+        {% endif %}
+        <div class="login-ansi-shell" style="--login-ansi-cols: {{ loginAnsiCols }}; --login-ansi-rows: {{ loginAnsiRows }};">
             {% if welcome_message %}
             <div class="card mb-0 border-0 border-bottom rounded-0">
                 <div class="card-body text-center">
