@@ -111,12 +111,6 @@ class MrcClient {
      * Disconnect from MRC, send LOGOFF, and return to the connect screen.
      */
     async disconnect() {
-        // Stop polling
-        if (this.pollTimer) {
-            clearInterval(this.pollTimer);
-            this.pollTimer = null;
-        }
-
         try {
             await $.ajax({
                 url: 'api.php?action=disconnect',
@@ -126,6 +120,21 @@ class MrcClient {
                 dataType: 'json'
             });
         } catch (_) {}
+
+        this.resetSession();
+    }
+
+    /**
+     * Reset the local session state and return to the connect screen.
+     * Does NOT contact the server — call this when the server has already
+     * ended the session (e.g. receiving an mrc_session_ended event from
+     * another tab).
+     */
+    resetSession() {
+        if (this.pollTimer) {
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
+        }
 
         UserStorage.removeItem('mrc_session');
         this.joinedRoom = null;
@@ -1110,6 +1119,7 @@ class MrcClient {
 
         window.BinkStream.on('mrc_message', (data) => this.handleMrcMessageEvent(data));
         window.BinkStream.on('mrc_presence', (data) => this.handleMrcPresenceEvent(data));
+        window.BinkStream.on('mrc_session_ended', () => this.resetSession());
 
         // Slow periodic safety-net poll: refreshes rooms list and catches
         // anything that may have been missed while this tab was not active.

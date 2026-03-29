@@ -1178,5 +1178,11 @@ function handleDisconnect(PDO $db, array $user): void
 
     unset($_SESSION['mrc_username']);
 
+    // Notify all other tabs/windows for this user so they return to the
+    // connect screen instead of running against a terminated session.
+    if ($localUserId > 0) {
+        BinkStream::emit($db, 'mrc_session_ended', [], $localUserId);
+    }
+
     \WebDoorSDK\jsonResponse(['success' => true]);
 }
