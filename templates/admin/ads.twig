@@ -23,7 +23,7 @@
         <div class="card-body">
             <form id="adsUploadForm">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <label class="form-label" for="adFile">{{ t('ui.admin.ads.ansi_file') }}</label>
                         <input class="form-control" type="file" id="adFile" name="ad_file" accept=".ans,.rip,.six,.txt">
                     </div>
@@ -34,10 +34,12 @@
                         </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_upload_help') }}</div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label class="form-label" for="adContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
                         <input class="form-control font-monospace" type="text" id="adContentCommandArgs" placeholder="--flag=value">
-                        <div id="adNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
+                    </div>
+                    <div id="adNewfilesHint" class="col-12 d-none">
+                        <div class="alert alert-info py-2 px-3 mb-0 small">
                             <i class="fas fa-info-circle me-1"></i>
                             Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
                         </div>
@@ -180,7 +182,9 @@
                     <div class="col-md-6">
                         <label class="form-label" for="editAdContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
                         <input class="form-control font-monospace" type="text" id="editAdContentCommandArgs" placeholder="--flag=value">
-                        <div id="editAdNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
+                    </div>
+                    <div id="editAdNewfilesHint" class="col-12 d-none">
+                        <div class="alert alert-info py-2 px-3 mb-0 small">
                             <i class="fas fa-info-circle me-1"></i>
                             Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
                         </div>
