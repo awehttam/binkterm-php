@@ -1268,14 +1268,16 @@ class Advertising
 
     private function syncCampaignSchedules(int $campaignId, array $schedules): void
     {
-        $delete = $this->db->prepare("DELETE FROM advertisement_campaign_schedules WHERE campaign_id = ?");
-        $delete->execute([$campaignId]);
-
         if ($schedules === []) {
+            $this->db->prepare("DELETE FROM advertisement_campaign_schedules WHERE campaign_id = ?")
+                ->execute([$campaignId]);
             return;
         }
 
-        $insert = $this->db->prepare("
+        // Upsert each schedule by its logical identity (campaign + days_mask + time_of_day + timezone)
+        // so that last_triggered_at is preserved on existing rows. This prevents a campaign save
+        // within the 15-minute trigger window from resetting the trigger guard and causing a duplicate run.
+        $upsert = $this->db->prepare("
             INSERT INTO advertisement_campaign_schedules (
                 campaign_id,
                 days_mask,
@@ -1283,16 +1285,38 @@ class Advertising
                 timezone,
                 is_active
             ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (campaign_id, days_mask, time_of_day, timezone)
+            DO UPDATE SET is_active = EXCLUDED.is_active
         ");
 
+        $keys = [];
         foreach ($schedules as $schedule) {
-            $insert->execute([
+            $daysMask = (int)$schedule['days_mask'];
+            $timeOfDay = (string)$schedule['time_of_day'];
+            $timezone  = (string)$schedule['timezone'];
+            $upsert->execute([
                 $campaignId,
-                (int)$schedule['days_mask'],
-                $schedule['time_of_day'],
-                $schedule['timezone'],
+                $daysMask,
+                $timeOfDay,
+                $timezone,
                 $this->asPgBool(!empty($schedule['is_active']))
             ]);
+            $keys[] = $daysMask . '|' . $timeOfDay . '|' . $timezone;
+        }
+
+        // Delete any schedule rows that are no longer in the new set
+        $existing = $this->db->prepare("
+            SELECT id, days_mask, time_of_day, timezone
+            FROM advertisement_campaign_schedules
+            WHERE campaign_id = ?
+        ");
+        $existing->execute([$campaignId]);
+        foreach ($existing->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $rowKey = ((int)$row['days_mask']) . '|' . $row['time_of_day'] . '|' . $row['timezone'];
+            if (!in_array($rowKey, $keys, true)) {
+                $this->db->prepare("DELETE FROM advertisement_campaign_schedules WHERE id = ?")
+                    ->execute([(int)$row['id']]);
+            }
         }
     }
 
