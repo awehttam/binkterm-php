@@ -45,7 +45,7 @@ class Advertising
      *
      * Allowed commands are:
      *  - Any file inside the project's content_commands/ directory
-     *  - scripts/weather_report.php, scripts/report_newfiles.php, and scripts/generate_ad.php (whitelisted scripts)
+     *  - scripts/weather_report.php, scripts/report_newfiles.php, scripts/generate_ad.php, and scripts/echomail_summary.php (whitelisted scripts)
      *
      * Values are repo-relative paths (e.g. "content_commands/my_script.php").
      *
@@ -76,6 +76,7 @@ class Advertising
             'scripts/weather_report.php',
             'scripts/report_newfiles.php',
             'scripts/generate_ad.php',
+            'scripts/echomail_summary.php',
         ];
         foreach ($whitelisted as $rel) {
             if (file_exists($base . '/' . $rel)) {
@@ -96,6 +97,7 @@ class Advertising
             'scripts/weather_report.php',
             'scripts/report_newfiles.php',
             'scripts/generate_ad.php',
+            'scripts/echomail_summary.php',
         ] as $path) {
             $aliases[$path] = $path;
             $aliases[basename($path)] = $path;
