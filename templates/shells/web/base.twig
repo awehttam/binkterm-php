@@ -31,7 +31,8 @@
     <link href="/css/ansisys.css" rel="stylesheet">
     {% block head %}{% endblock %}
     <style>
-        .chat-menu-icon.unread {
+        .chat-menu-icon.unread,
+        .mrc-menu-icon.unread {
             color: #ffc107 !important;
         }
         .messaging-menu-icon.unread {
@@ -203,7 +204,7 @@
                                 {% if webdoors_active and bbs_feature_enabled('webdoors') and mrc_webdoor_enabled %}
                                 <li>
                                     <a class="dropdown-item" href="/games/mrc">
-                                        <i class="fas fa-satellite-dish"></i> {{ t('ui.base.mrc_chat', {}, 'common') }}
+                                        <i class="fas fa-satellite-dish mrc-menu-icon"></i> {{ t('ui.base.mrc_chat', {}, 'common') }}
                                     </a>
                                 </li>
                                 {% endif %}
@@ -474,12 +475,15 @@
         </div>
     </div>
     <script>
-    (function() {
+    // Defer until DOMContentLoaded so window.currentUserId is set before
+    // UserStorage is called — without it UserStorage falls back to sessionStorage
+    // and the dismissal is never found on the next page load.
+    document.addEventListener('DOMContentLoaded', function() {
         var key = 'ann_dismissed_{{ ann._key | e }}';
         if (!UserStorage.getItem(key)) {
             document.getElementById('announcementBanner').style.display = '';
         }
-    })();
+    });
     function dismissAnnouncement(annKey) {
         UserStorage.setItem('ann_dismissed_' + annKey, '1');
         document.getElementById('announcementBanner').style.display = 'none';

@@ -4,6 +4,7 @@
     let filesUnread = false;
     let fileApprovalsUnread = false;
     let chatUnread = false;
+    let mrcUnread = false;
     let mailUnread = { netmail: false, echomail: false };
     let initialized = false;
     let pollInterval = null;
@@ -197,6 +198,15 @@
         updateMessagingIcon();
     }
 
+    function updateMrcIcons() {
+        const menuIcons = document.querySelectorAll('.mrc-menu-icon');
+        if (mrcUnread) {
+            menuIcons.forEach((icon) => icon.classList.add('unread'));
+        } else {
+            menuIcons.forEach((icon) => icon.classList.remove('unread'));
+        }
+    }
+
     function updateCreditBalance(stats) {
         const creditBalanceElement = document.getElementById('headerCreditBalance');
         if (creditBalanceElement && stats?.credit_balance !== undefined) {
@@ -316,6 +326,10 @@
             updateChatIcons();
             await markSeen('chat', stats.chat_max_id ?? 0);
         }
+        if (isPathMatch('/games/mrc')) {
+            mrcUnread = false;
+            updateMrcIcons();
+        }
         if (isPathMatch('/netmail')) {
             await markSeen('netmail', stats.total_netmail);
             await refreshMailState('netmail', true);
@@ -354,6 +368,14 @@
                     updateChatIcons();
                 }
                 maybeChatSound();
+            });
+
+            window.BinkStream.on('mrc_message', function () {
+                if (!isPathMatch('/games/mrc')) {
+                    mrcUnread = true;
+                    updateMrcIcons();
+                    maybeChatSound();
+                }
             });
 
             // Refresh badges when mail changes or when legacy insert-based
