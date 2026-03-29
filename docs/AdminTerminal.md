@@ -71,7 +71,7 @@ The `wall` and `msg` commands use the BinkStream `wall_message` event type to de
 - `wall` — emits with `user_id = NULL`, so all authenticated users receive it
 - `msg` — emits with `user_id = <target>`, so only that user receives it
 
-Recipients see a Bootstrap modal dialog with the sender's username and the message body. The modal is rendered by `chat-notify.js` and is shown as soon as the event is delivered via SSE.
+Recipients see a Bootstrap modal dialog with the sender's username and the message body. The modal is rendered by `notifier.js` and is shown as soon as the event is delivered via SSE.
 
 ---
 

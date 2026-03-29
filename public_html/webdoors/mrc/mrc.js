@@ -456,36 +456,10 @@ class MrcClient {
 
         const body = $('<div>').addClass('message-body');
 
-        if (isSystem) {
-            const line = timeText ? `${timeText} ${msg.message_body}` : msg.message_body;
-            body.html(typeof parsePipeCodes === 'function'
-                ? parsePipeCodes(line)
-                : $('<div>').text(line).html());
-        } else {
-            const parsed = this.extractUserAndMessage(msg.message_body, msg.from_user);
-            if (timeText) {
-                body.append($('<span>').text(`${timeText} `));
-            }
-
-            const userSpan = $('<span>')
-                .addClass('message-user')
-                .attr('title', msg.from_site ? `@${msg.from_site}` : '');
-
-            if (typeof parsePipeCodes === 'function') {
-                userSpan.html(parsePipeCodes(parsed.user));
-            } else {
-                userSpan.text(parsed.user);
-            }
-
-            body.append(userSpan);
-            body.append($('<span>').text(' : '));
-
-            if (typeof parsePipeCodes === 'function') {
-                body.append($('<span>').html(parsePipeCodes(parsed.message)));
-            } else {
-                body.append($('<span>').text(parsed.message));
-            }
-        }
+        const line = timeText ? `${timeText} ${msg.message_body}` : msg.message_body;
+        body.html(typeof parsePipeCodes === 'function'
+            ? parsePipeCodes(line)
+            : $('<div>').text(line).html());
 
         messageDiv.append(body);
 

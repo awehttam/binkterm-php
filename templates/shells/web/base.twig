@@ -107,8 +107,8 @@
     {% if current_user %}
     <script src="/js/binkstream-client.js"></script>
     {% endif %}
-    {% if current_user and bbs_feature_enabled('chat') %}
-    <script src="/js/chat-notify.js"></script>
+    {% if current_user %}
+    <script src="/js/notifier.js"></script>
     {% endif %}
     {% if current_user.is_admin and admin_terminal_enabled %}
     <script src="/js/xterm.js"></script>

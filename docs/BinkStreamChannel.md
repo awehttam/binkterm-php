@@ -317,7 +317,7 @@ The client talks to the SharedWorker and keeps the page API transport-agnostic.
 
 ### Example: chat notifications on every page
 
-`public_html/js/chat-notify.js` can subscribe to `chat_message` without caring whether the underlying transport is WebSocket or SSE:
+`public_html/js/notifier.js` can subscribe to `chat_message` without caring whether the underlying transport is WebSocket or SSE:
 
 ```javascript
 window.BinkStream.on('chat_message', function (payload) {
