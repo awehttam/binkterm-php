@@ -427,75 +427,6 @@ php scripts/upgrade.php
 
 ## Configure Web Server
 
-### Apache
-Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSocket proxies must appear before the PHP handler.
-
-```apache
-<VirtualHost *:443>
-    ServerName yourdomain.com
-    DocumentRoot /path/to/binktest/public_html
-
-    # Realtime WebSocket daemon (scripts/realtime_server.php)
-    ProxyPass        /ws      ws://127.0.0.1:6010/
-    ProxyPassReverse /ws      ws://127.0.0.1:6010/
-
-    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
-    ProxyPass        /dosdoor ws://127.0.0.1:6001/
-    ProxyPassReverse /dosdoor ws://127.0.0.1:6001/
-
-    <Directory /path/to/binktest/public_html>
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
-
-Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
-
-### Nginx
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name yourdomain.com;
-    root /path/to/binktest/public_html;
-    index index.php;
-
-    # Realtime WebSocket daemon (scripts/realtime_server.php)
-    location /ws {
-        proxy_pass         http://127.0.0.1:6010;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection "upgrade";
-        proxy_set_header   Host $host;
-        proxy_read_timeout 3600s;
-    }
-
-    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
-    location /dosdoor {
-        proxy_pass         http://127.0.0.1:6001;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection "upgrade";
-        proxy_set_header   Host $host;
-        proxy_read_timeout 3600s;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
-        fastcgi_index index.php;
-        include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-}
-```
-
-Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
-
 ### Caddy
 Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and requires no extra buffering configuration for SSE.
 
@@ -559,6 +490,75 @@ yourdomain.com {
 ```
 
 Replace `yourdomain.com`, the `bind` address, `root` path, and php-fpm socket path to match your installation. Caddy obtains and renews TLS certificates automatically. Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
+
+### Nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+    root /path/to/binktest/public_html;
+    index index.php;
+
+    # Realtime WebSocket daemon (scripts/realtime_server.php)
+    location /ws {
+        proxy_pass         http://127.0.0.1:6010;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
+    location /dosdoor {
+        proxy_pass         http://127.0.0.1:6001;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+}
+```
+
+Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
+
+### Apache
+Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSocket proxies must appear before the PHP handler.
+
+```apache
+<VirtualHost *:443>
+    ServerName yourdomain.com
+    DocumentRoot /path/to/binktest/public_html
+
+    # Realtime WebSocket daemon (scripts/realtime_server.php)
+    ProxyPass        /ws      ws://127.0.0.1:6010/
+    ProxyPassReverse /ws      ws://127.0.0.1:6010/
+
+    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
+    ProxyPass        /dosdoor ws://127.0.0.1:6001/
+    ProxyPassReverse /dosdoor ws://127.0.0.1:6001/
+
+    <Directory /path/to/binktest/public_html>
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+
+Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
 ### PHP Built-in Server (Development)
 ```bash
