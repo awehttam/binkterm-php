@@ -18,6 +18,7 @@ return [
     'errors.auth.token_and_password_required' => 'Se requieren token y nueva contrasena',
     'errors.auth.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.auth.reset_failed' => 'No se pudo restablecer la contrasena',
+    'errors.auth.forbidden' => 'Prohibido',
 
     // Registration
     'errors.register.invalid_submission' => 'Envio invalido',
@@ -60,6 +61,10 @@ return [
     'errors.messages.body_too_large' => 'El cuerpo del mensaje supera el límite de 16 KB de FidoNet',
     'errors.messages.echomail.edit.nothing_to_update' => 'No hay campos para actualizar',
     'errors.messages.echomail.edit.save_failed' => 'Error al guardar los cambios',
+    'errors.messages.echomail.ignore.invalid_input' => 'Se requiere el nombre del remitente',
+    'errors.messages.echomail.ignore.invalid_rule' => 'No se encontró la regla de ignorar',
+    'errors.messages.echomail.ignore.save_failed' => 'No se pudo guardar la regla de ignorar',
+    'errors.messages.echomail.ignore.message_not_available' => 'No se pudo cargar el mensaje seleccionado',
     'errors.messages.echomail.save_ad.admin_required' => 'Se requieren privilegios de administrador',
     'errors.messages.echomail.save_ad.not_ansi' => 'Solo los mensajes echomail ANSI se pueden guardar en la biblioteca de anuncios',
     'errors.messages.echomail.save_ad.failed' => 'No se pudo guardar el mensaje en la biblioteca de anuncios',
@@ -76,6 +81,8 @@ return [
     'errors.notify.user_id_missing' => 'No se pudo resolver la sesion del usuario',
     'errors.notify.invalid_state' => 'Carga de estado de notificacion invalida',
     'errors.notify.invalid_target' => 'Destino de notificacion invalido',
+    'errors.realtime.invalid_payload' => 'Carga de comando en tiempo real invalida',
+    'errors.realtime.unknown_command' => 'Comando en tiempo real desconocido',
 
     // Polls
     'errors.polls.option_required' => 'Se requiere una opcion de encuesta',
@@ -162,6 +169,11 @@ return [
     'errors.files.upload.virus_detected' => 'Archivo rechazado: virus detectado',
     'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
+    'errors.admin.file_approvals.load_failed' => 'No se pudieron cargar las aprobaciones de archivos pendientes',
+    'errors.admin.file_approvals.not_found' => 'No se encontro el archivo pendiente',
+    'errors.admin.file_approvals.not_pending' => 'El archivo no esta esperando aprobacion',
+    'errors.admin.file_approvals.approve_failed' => 'No se pudo aprobar la subida del archivo',
+    'errors.admin.file_approvals.reject_failed' => 'No se pudo rechazar la subida del archivo',
     'errors.files.download.insufficient_credits' => 'No tiene creditos suficientes para descargar este archivo',
     'errors.files.comments_not_enabled' => 'Los comentarios no están habilitados para esta área de archivos',
     'errors.files.comments_forbidden' => 'No tiene permiso para comentar aquí',
@@ -260,7 +272,13 @@ return [
     'errors.binkp.kept_packets.invalid_type' => 'el tipo debe ser inbound o outbound',
     'errors.binkp.kept_packets.license_required' => 'Ver paquetes guardados requiere una licencia registrada',
     'errors.binkp.kept_packets.inspect_failed' => 'No se pudo inspeccionar el paquete',
+    'errors.binkp.queue.inspect_failed' => 'No se pudo inspeccionar el paquete de la cola',
     'errors.binkp.uplink.address_hostname_required' => 'Se requieren direccion y hostname',
+    'errors.binkp.uplink.address_required' => 'Se requiere la direccion del uplink',
+    'errors.messages.forward_email.email_required' => 'Se requiere una direccion de correo',
+    'errors.messages.forward_email.invalid_type' => 'Tipo de mensaje no valido',
+    'errors.messages.forward_email.mail_disabled' => 'El envio de correo no esta configurado',
+    'errors.messages.forward_email.failed' => 'No se pudo reenviar el mensaje por correo',
     'errors.binkp.uplink.poll_failed' => 'No se pudo consultar el uplink BinkP',
     'errors.binkp.uplink.poll_all_failed' => 'No se pudieron consultar todos los uplinks BinkP',
     'errors.binkp.uplink.add_failed' => 'No se pudo agregar el uplink BinkP',
@@ -315,10 +333,20 @@ return [
     'errors.admin.appearance.navigation.save_failed' => 'No se pudo guardar la configuracion de navegacion',
     'errors.admin.appearance.seo.save_failed' => 'No se pudo guardar la configuracion de SEO',
     'errors.admin.appearance.shell.save_failed' => 'No se pudo guardar la configuracion del shell',
+    'errors.admin.appearance.login.save_failed' => 'No se pudo guardar la configuracion de apariencia del inicio de sesion',
+    'errors.admin.appearance.login.ansi_too_large' => 'El contenido ANSI de inicio debe tener 200000 caracteres o menos',
+    'errors.admin.appearance.term_server.list_failed' => 'No se pudieron cargar las pantallas del servidor terminal',
+    'errors.admin.appearance.term_server.load_failed' => 'No se pudo cargar la pantalla del servidor terminal',
+    'errors.admin.appearance.term_server.save_failed' => 'No se pudo guardar la pantalla del servidor terminal',
+    'errors.admin.appearance.term_server.upload.no_file' => 'No se subio ningun archivo de pantalla del servidor terminal',
+    'errors.admin.appearance.term_server.upload.failed' => 'No se pudo subir la pantalla del servidor terminal',
+    'errors.admin.appearance.term_server.upload.file_too_large' => 'El archivo de pantalla del servidor terminal supera el limite de tamano',
+    'errors.admin.appearance.term_server.delete.failed' => 'No se pudo eliminar la pantalla del servidor terminal',
     'errors.admin.appearance.message_reader.save_failed' => 'No se pudo guardar la configuracion del lector de mensajes',
     'errors.admin.appearance.markdown_preview.failed' => 'No se pudo renderizar la vista previa de markdown',
     'errors.admin.appearance.splash.license_required' => 'Se requiere una licencia valida para configurar las paginas de inicio',
     'errors.admin.appearance.splash.save_failed' => 'No se pudo guardar la configuracion de las paginas de inicio',
+    'errors.admin.dashboard.ram_usage_unavailable' => 'Los detalles del uso de RAM no estan disponibles en este sistema.',
     'errors.admin.shell_art.list_failed' => 'No se pudo listar los archivos de arte de shell',
     'errors.admin.shell_art.upload.no_file' => 'No se subio ningun archivo de arte de shell',
     'errors.admin.shell_art.upload.upload_error' => 'La carga del arte de shell fallo',
@@ -526,6 +554,15 @@ return [
     'errors.files.iso_not_mounted' => 'El área de archivos no está montada',
     'errors.files.iso_readonly' => 'Los archivos ISO no se pueden modificar',
     'errors.fileareas.reindex_failed' => 'No se pudo iniciar la re-indexación ISO',
+    'errors.admin.areafix.invalid_json' => 'Carga de solicitud no válida',
+    'errors.admin.areafix.uplink_required' => 'Se requiere la dirección del uplink',
+    'errors.admin.areafix.invalid_robot' => 'El robot debe ser "areafix" o "filefix"',
+    'errors.admin.areafix.commands_required' => 'Se requiere al menos un comando',
+    'errors.admin.areafix.send_failed' => 'Error al enviar el comando',
+    'errors.admin.areafix.history_failed' => 'Error al cargar el historial de mensajes',
+    'errors.admin.areafix.sync_failed' => 'Error al sincronizar las áreas',
+    'errors.admin.poll.failed' => 'No se pudo consultar el uplink BinkP',
+
     'errors.admin.lovlynet.invalid_json' => 'Carga de solicitud no válida',
     'errors.admin.lovlynet.invalid_area_type' => 'Tipo de área no válido',
     'errors.admin.lovlynet.request_message_required' => 'Se requiere un mensaje de solicitud',
@@ -548,4 +585,42 @@ return [
     'errors.qwk.processing_failed' => 'No se pudo procesar el paquete REP',
     'errors.qwk.status_failed' => 'No se pudo obtener el estado QWK',
     'errors.qwk.invalid_format' => 'El formato debe ser "qwk" o "qwke"',
+    'errors.qwk.invalid_input' => 'Se requiere el arreglo echoarea_ids',
+    'errors.qwk.save_failed' => 'No se pudo guardar la selección de áreas',
+
+    // Interests
+    'errors.interests.not_found' => 'Interés no encontrado.',
+    'errors.interests.name_required' => 'El nombre del interés es obligatorio.',
+    'errors.interests.name_taken' => 'Ya existe un interés con ese nombre.',
+    'errors.interests.slug_taken' => 'Ya existe un interés con ese slug.',
+    'errors.interests.feature_disabled' => 'La función de intereses no está habilitada.',
+    'errors.interests.crosspost_cooldown' => 'Debe esperar {minutes} minuto(s) más antes de volver a hacer cross-post.',
+    'errors.mcp.not_enabled' => 'Los servicios MCP no están habilitados en este sistema.',
+    'errors.mcp.license_required' => 'Se requiere una licencia registrada para la función del servidor MCP.',
+    'errors.mcp.generate_failed' => 'Error al generar la clave MCP.',
+    'errors.mcp.revoke_failed' => 'Error al revocar la clave MCP.',
+    'errors.mcp.load_failed' => 'Error al cargar el estado de la clave MCP.',
+
+    // Ad Analytics
+    'errors.admin.ad_analytics.license_required' => 'Se requiere una licencia válida para ver el análisis de anuncios.',
+    'errors.admin.ad_analytics.load_failed' => 'Error al cargar el análisis de anuncios.',
+
+    // Ads - content command validation
+    'errors.admin.ads.invalid_content_command' => 'El comando de contenido seleccionado no está permitido.',
+    'errors.admin.weather.preview_failed' => 'No se pudo generar la vista previa del reporte del tiempo.',
+
+    // Markdown image upload
+    'errors.markdown_images.upload_failed' => 'Error al subir la imagen. Intentalo de nuevo.',
+    'errors.markdown_images.invalid_type'  => 'Tipo de imagen no compatible. Usa JPEG, PNG, GIF o WebP.',
+    'errors.markdown_images.too_large'     => 'La imagen es demasiado grande. El tamano maximo es 5 MB.',
+
+    // Wall message
+    'errors.admin.wall.empty_message'    => 'El mensaje no puede estar vacio.',
+    'errors.admin.wall.message_too_long' => 'Mensaje demasiado largo (maximo 1000 caracteres).',
+
+    // Msg (private admin message)
+    'errors.admin.msg.no_username'       => 'Se requiere un nombre de usuario.',
+    'errors.admin.msg.empty_message'     => 'El mensaje no puede estar vacio.',
+    'errors.admin.msg.message_too_long'  => 'Mensaje demasiado largo (maximo 1000 caracteres).',
+    'errors.admin.msg.user_not_found'    => 'Usuario no encontrado.',
 ];

@@ -46,17 +46,14 @@ class EchomailHandler
      */
     public function showEchoareas($conn, array &$state, string $session): void
     {
-        $savedState = $this->loadSavedListState($session);
-        $page = $savedState['areas_page'];
-        $perPage = MailUtils::getMessagesPerPage($state);
+        $savedState      = $this->loadSavedListState($session);
+        $page            = $savedState['areas_page'];
+        $perPage         = MailUtils::getMessagesPerPage($state);
+        $showInterestKey = \BinktermPHP\Config::env('ENABLE_INTERESTS') === 'true';
 
         while (true) {
             $response = TelnetUtils::apiRequest(
-                $this->apiBase,
-                'GET',
-                '/api/echoareas?subscribed_only=true',
-                null,
-                $session
+                $this->apiBase, 'GET', '/api/echoareas?subscribed_only=true', null, $session
             );
             $allAreas = $response['data']['echoareas'] ?? [];
 
@@ -65,104 +62,280 @@ class EchomailHandler
                 return;
             }
 
-            $totalPages = (int)ceil(count($allAreas) / $perPage);
-            $page = max(1, min($page, $totalPages));
-            $offset = ($page - 1) * $perPage;
-            $areas = array_slice($allAreas, $offset, $perPage);
+            $result = $this->pickEchoarea(
+                $conn, $state, $allAreas, $page, $perPage,
+                $this->server->t('ui.terminalserver.echomail.areas_header', 'Echoareas (page {page}/{total}):', [], $state['locale']),
+                $showInterestKey,
+                function(int $newPage) use ($session, &$state) {
+                    $this->saveEchoareasPage($session, $newPage, $state['csrf_token'] ?? null);
+                }
+            );
+            $page = $result['page'];
 
-            // Clear screen before displaying
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.areas_header', 'Echoareas (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-            foreach ($areas as $idx => $area) {
-                $num = $idx + 1;
-                $tag = $area['tag'] ?? '';
-                $domain = $area['domain'] ?? '';
-                $desc = $area['description'] ?? '';
-                TelnetUtils::writeLine(
-                    $conn,
-                    $this->renderEchoAreaSelectionLine(
-                        $num,
-                        (string)substr($tag, 0, 20),
-                        (string)substr($domain, 0, 10),
-                        (string)substr($desc, 0, 40)
-                    )
-                );
+            if ($result['action'] === 'quit') {
+                return;
             }
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $state['locale']));
+            if ($result['action'] === 'interests') {
+                $this->browseByInterest($conn, $state, $session);
+                continue;
+            }
+            if ($result['action'] === 'redraw') {
+                continue;
+            }
+            if ($result['action'] === 'select') {
+                $area   = $result['area'];
+                $tag    = $area['tag'] ?? '';
+                $domain = $area['domain'] ?? '';
+                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$tag}@{$domain}");
+                $this->showMessages($conn, $state, $session, $tag, $domain);
+            }
+        }
+    }
 
-            $buffer = '';
-            while (true) {
-                $key = $this->server->readKeyWithIdleCheck($conn, $state);
-                if ($key === null) {
-                    return;
+    /**
+     * Show a numbered interest list, let the user pick one, then display
+     * that interest's echo areas for selection.
+     */
+    private function browseByInterest($conn, array &$state, string $session): void
+    {
+        $locale  = $state['locale'];
+        $perPage = MailUtils::getMessagesPerPage($state);
+
+        // ── Interest picker ───────────────────────────────────────────────────
+        $userId        = (int)($state['user_id'] ?? 0);
+        $interestMgr   = new \BinktermPHP\InterestManager();
+        $interests     = $interestMgr->getInterests(true);
+        $subscribedIds = $userId > 0
+            ? array_flip($interestMgr->getUserSubscribedInterestIds($userId))
+            : [];
+        foreach ($interests as &$_i) {
+            $_i['subscribed'] = isset($subscribedIds[(int)$_i['id']]);
+        }
+        unset($_i);
+
+        if (empty($interests)) {
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.echomail.interests_none', 'No interests available.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.echomail.interests_title', 'Browse by Interest', [], $locale),
+            TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+        ));
+        TelnetUtils::writeLine($conn, '');
+
+        foreach ($interests as $idx => $interest) {
+            $num        = $idx + 1;
+            $name       = (string)($interest['name'] ?? '');
+            $subscribed = !empty($interest['subscribed']);
+            $badge      = $subscribed
+                ? TelnetUtils::colorize('[+]', TelnetUtils::ANSI_GREEN)
+                : TelnetUtils::colorize('[ ]', TelnetUtils::ANSI_DIM);
+            TelnetUtils::writeLine($conn, sprintf(' %2d) %s %s', $num, $badge, $name));
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, $this->server->t(
+            'ui.terminalserver.echomail.interests_prompt', 'Enter # to browse, Q to return:', [], $locale
+        ));
+
+        $choice = $this->server->prompt($conn, $state, '> ', true);
+        if ($choice === null || strtolower(trim($choice)) === 'q' || trim($choice) === '') {
+            return;
+        }
+
+        $idx = (int)trim($choice) - 1;
+        if (!isset($interests[$idx])) {
+            return;
+        }
+
+        $interest   = $interests[$idx];
+        $interestId = (int)($interest['id'] ?? 0);
+        $interestName = (string)($interest['name'] ?? '');
+
+        // ── Area list for chosen interest ─────────────────────────────────────
+        $resp  = TelnetUtils::apiRequest($this->apiBase, 'GET', "/api/interests/{$interestId}/echoareas", null, $session);
+        $areas = $resp['data']['echoareas'] ?? [];
+
+        if (empty($areas)) {
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.interests.no_areas', 'No echo areas assigned to this interest.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        $page  = 1;
+        $title = $this->server->t(
+            'ui.terminalserver.echomail.interest_areas_header',
+            '{name} (page {page}/{total}):',
+            ['name' => $interestName],
+            $locale
+        );
+
+        while (true) {
+            $result = $this->pickEchoarea(
+                $conn, $state, $areas, $page, $perPage, $title, false, null
+            );
+            $page = $result['page'];
+
+            if ($result['action'] === 'quit') {
+                return;
+            }
+            if ($result['action'] === 'redraw') {
+                continue;
+            }
+            if ($result['action'] === 'select') {
+                $area   = $result['area'];
+                $tag    = $area['tag'] ?? '';
+                $domain = $area['domain'] ?? '';
+                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$tag}@{$domain} via interest \"{$interestName}\"");
+                $this->showMessages($conn, $state, $session, $tag, $domain);
+            }
+        }
+    }
+
+    /**
+     * Render a paginated echo area list and read one keypress/selection.
+     *
+     * Returns an array with:
+     *   'action' => 'quit' | 'select' | 'interests'
+     *   'area'   => array (only when action === 'select')
+     *   'page'   => int   (current page after the action)
+     *
+     * @param callable|null $onPageChange Called with the new page number when page changes (for persistence)
+     */
+    private function pickEchoarea(
+        $conn,
+        array &$state,
+        array $allAreas,
+        int $page,
+        int $perPage,
+        string $title,
+        bool $showInterestKey,
+        ?callable $onPageChange
+    ): array {
+        $locale     = $state['locale'];
+        $totalPages = max(1, (int)ceil(count($allAreas) / $perPage));
+        $page       = max(1, min($page, $totalPages));
+        $offset     = ($page - 1) * $perPage;
+        $areas      = array_slice($allAreas, $offset, $perPage);
+
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+
+        // Substitute {page}/{total} into the title
+        $header = str_replace(['{page}', '{total}'], [$page, $totalPages], $title);
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($header, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+
+        foreach ($areas as $idx => $area) {
+            TelnetUtils::writeLine($conn, $this->renderEchoAreaSelectionLine(
+                $idx + 1,
+                (string)substr($area['tag'] ?? '', 0, 20),
+                (string)substr($area['domain'] ?? '', 0, 10),
+                (string)substr($area['description'] ?? '', 0, 40)
+            ));
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        $navKey = $showInterestKey
+            ? $this->server->t('ui.terminalserver.echomail.areas_nav_interests', 'Enter #, n/p (next/prev), i (by interest), q (quit)', [], $locale)
+            : $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $locale);
+        TelnetUtils::writeLine($conn, $navKey);
+
+        $buffer = '';
+        while (true) {
+            $key = $this->server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null) {
+                return ['action' => 'quit', 'page' => $page];
+            }
+
+            $input = null;
+            if ($key === 'ENTER') {
+                $input = strtolower(trim($buffer));
+                $buffer = '';
+            } elseif ($key === 'BACKSPACE') {
+                if ($buffer !== '') {
+                    $buffer = substr($buffer, 0, -1);
+                    TelnetUtils::safeWrite($conn, "\x08 \x08");
                 }
-                if ($key === 'ENTER') {
-                    $input = trim($buffer);
-                    if ($input === '' || $input === 'q') {
-                        return;
-                    }
-                    if ($input === 'n') {
-                        if ($page < $totalPages) {
-                            $page++;
-                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
-                        }
-                        break;
-                    }
-                    if ($input === 'p') {
-                        if ($page > 1) {
-                            $page--;
-                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
-                        }
-                        break;
-                    }
-                    $choice = (int)$input;
-                    if ($choice > 0 && $choice <= count($areas)) {
-                        $area = $areas[$choice - 1];
-                        $tag = $area['tag'] ?? '';
-                        $domain = $area['domain'] ?? '';
-                        $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$tag}@{$domain}");
-                        $this->showMessages($conn, $state, $session, $tag, $domain);
-                    }
-                    break;
+                continue;
+            } elseif (str_starts_with($key, 'CHAR:')) {
+                $char  = substr($key, 5);
+                $lower = strtolower($char);
+                if ($lower === 'q') {
+                    return ['action' => 'quit', 'page' => $page];
                 }
-                if ($key === 'BACKSPACE') {
-                    if ($buffer !== '') {
-                        $buffer = substr($buffer, 0, -1);
-                        TelnetUtils::safeWrite($conn, "\x08 \x08");
-                    }
-                    continue;
+                if ($lower === 'i' && $showInterestKey) {
+                    return ['action' => 'interests', 'page' => $page];
                 }
-                if (str_starts_with($key, 'CHAR:')) {
-                    $char = substr($key, 5);
-                    $lower = strtolower($char);
-                    if ($lower === 'q') {
-                        return;
+                if ($lower === 'n') {
+                    if ($page < $totalPages) {
+                        $page++;
+                        if ($onPageChange) { ($onPageChange)($page); }
                     }
-                    if ($lower === 'n') {
-                        if ($page < $totalPages) {
-                            $page++;
-                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
-                        }
-                        break;
+                    return ['action' => 'redraw', 'page' => $page];
+                }
+                if ($lower === 'p') {
+                    if ($page > 1) {
+                        $page--;
+                        if ($onPageChange) { ($onPageChange)($page); }
                     }
-                    if ($lower === 'p') {
-                        if ($page > 1) {
-                            $page--;
-                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
-                        }
-                        break;
-                    }
-                    if (ctype_digit($char)) {
-                        $buffer .= $char;
-                        TelnetUtils::safeWrite($conn, $char);
-                        continue;
-                    }
+                    return ['action' => 'redraw', 'page' => $page];
+                }
+                if (ctype_digit($char)) {
                     $buffer .= $char;
                     TelnetUtils::safeWrite($conn, $char);
                 }
+                continue;
+            } else {
+                continue;
             }
+
+            // ENTER was pressed — evaluate $input
+            if ($input === '' || $input === 'q') {
+                return ['action' => 'quit', 'page' => $page];
+            }
+            if ($input === 'i' && $showInterestKey) {
+                return ['action' => 'interests', 'page' => $page];
+            }
+            if ($input === 'n') {
+                if ($page < $totalPages) {
+                    $page++;
+                    if ($onPageChange) { ($onPageChange)($page); }
+                }
+                return ['action' => 'redraw', 'page' => $page];
+            }
+            if ($input === 'p') {
+                if ($page > 1) {
+                    $page--;
+                    if ($onPageChange) { ($onPageChange)($page); }
+                }
+                return ['action' => 'redraw', 'page' => $page];
+            }
+            $choice = (int)$input;
+            if ($choice > 0 && $choice <= count($areas)) {
+                return ['action' => 'select', 'area' => $areas[$choice - 1], 'page' => $page];
+            }
+            // Invalid input — redraw
+            return ['action' => 'redraw', 'page' => $page];
         }
     }
 

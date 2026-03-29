@@ -18,6 +18,7 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **System analytics** — activity stats, login source breakdown, and a full activity viewer for monitoring usage
 - **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
 - **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
+- **MCP server** — lets AI assistants (Claude Code, etc.) read echomail and echo areas directly via the Model Context Protocol; each user generates their own personal bearer key
 - **...and more**
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
@@ -304,6 +305,8 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
+- **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
+- **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
 - **Operating User** - It is recommended to run BinktermPHP out of its own user account
 
@@ -311,7 +314,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 ### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
-sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql composer
+sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom postgresql composer 
 sudo apt-get install -y unzip p7zip-full
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
@@ -424,11 +427,129 @@ php scripts/upgrade.php
 
 ## Configure Web Server
 
+### Caddy
+Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and requires no extra buffering configuration for SSE.
+
+```caddyfile
+yourdomain.com {
+    bind 0.0.0.0
+
+    root * /path/to/binkterm-php/public_html
+
+    # Compress normal pages and API responses.
+    # Exclude SSE so the event stream is not buffered or delayed.
+    @compressible {
+        not path /api/stream
+    }
+    encode @compressible zstd gzip
+
+    # Block dotfiles (.env, .git, etc.)
+    @dotfiles {
+        path_regexp (^|/)\..
+    }
+    respond @dotfiles 403
+
+    # Service worker must not be cached
+    @sw path /sw.js
+    header @sw Cache-Control "no-cache"
+
+    # CSS/JS versioned by service worker — revalidate on load
+    @assets path_regexp \.(?:css|js)$
+    header @assets Cache-Control "max-age=0, must-revalidate"
+
+    # Remove trailing slashes for non-existent paths
+    @trailingSlash {
+        path_regexp slash ^(.+)/$
+        not file
+    }
+    redir @trailingSlash {re.slash.1} 301
+
+    # Realtime WebSocket daemon (scripts/realtime_server.php)
+    reverse_proxy /ws 127.0.0.1:6010 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+
+    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
+    reverse_proxy /dosdoor 127.0.0.1:6001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+
+    php_fastcgi unix//run/php/php8.2-fpm.sock {
+        capture_stderr
+    }
+
+    file_server
+
+    log {
+        output file /var/log/caddy/binkterm-access.log
+        format console
+    }
+}
+```
+
+Replace `yourdomain.com`, the `bind` address, `root` path, and php-fpm socket path to match your installation. Caddy obtains and renews TLS certificates automatically. Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
+
+### Nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+    root /path/to/binktest/public_html;
+    index index.php;
+
+    # Realtime WebSocket daemon (scripts/realtime_server.php)
+    location /ws {
+        proxy_pass         http://127.0.0.1:6010;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
+    location /dosdoor {
+        proxy_pass         http://127.0.0.1:6001;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+}
+```
+
+Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
+
 ### Apache
+Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSocket proxies must appear before the PHP handler.
+
 ```apache
-<VirtualHost *:80>
-    ServerName binktest.local
+<VirtualHost *:443>
+    ServerName yourdomain.com
     DocumentRoot /path/to/binktest/public_html
+
+    # Realtime WebSocket daemon (scripts/realtime_server.php)
+    ProxyPass        /ws      ws://127.0.0.1:6010/
+    ProxyPassReverse /ws      ws://127.0.0.1:6010/
+
+    # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
+    ProxyPass        /dosdoor ws://127.0.0.1:6001/
+    ProxyPassReverse /dosdoor ws://127.0.0.1:6001/
 
     <Directory /path/to/binktest/public_html>
         AllowOverride All
@@ -437,26 +558,7 @@ php scripts/upgrade.php
 </VirtualHost>
 ```
 
-### Nginx
-```nginx
-server {
-    listen 80;
-    server_name binktest.local;
-    root /path/to/binktest/public_html;
-    index index.php;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.0-fpm.sock;
-        fastcgi_index index.php;
-        include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-}
-```
+Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
 ### PHP Built-in Server (Development)
 ```bash
@@ -465,7 +567,7 @@ php -S localhost:8080
 ```
 
 ## Set Up Cron Jobs (Recommended)
-Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
+Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as FTP, telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
 
 ```cron
 # Start admin daemon on boot
@@ -476,6 +578,12 @@ Start the core long-running services at boot and keep cron for periodic maintena
 
 # Start binkp server on boot (Linux/macOS)
 @reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
+
+# Start realtime WebSocket server on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/realtime_server.php --daemon
+
+# Optional: start FTP daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/ftp_daemon.php --daemon
 
 # Update nodelists daily at 3am
 #0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
@@ -524,6 +632,9 @@ Database changes are managed through versioned SQL migration files stored in `da
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| Realtime WebSocket daemon | `6010` | WebSocket/TCP | localhost | `.env` `BINKSTREAM_WS_PORT` — must be exposed via reverse proxy |
+| FTP daemon | `2121` | FTP control/TCP | Inbound | `.env` `FTPD_PORT` |
+| FTP passive range | `2122`–`2149` | FTP data/TCP | Inbound | `.env` `FTPD_PASSIVE_PORT_START` / `FTPD_PASSIVE_PORT_END` |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |
 | Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
@@ -589,6 +700,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.8.9](docs/UPGRADING_1.8.9.md)       | Mar 2026    | Interests: admin-defined topic groups that auto-subscribe users to bundled echo areas; interest picker, echomail reader integration, multi-interest source tracking |
 | [1.8.8](docs/UPGRADING_1.8.8.md)       | Mar 2026    | TIC incoming processor `FILE_ID.DIZ` lookup fix for ZIP archives; root-level and single-top-directory handling only |
 | [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | Registration/premium features; ISO-backed file areas; global file search; outbound FREQ; echomail digest emails; netmail forwarding to email; in-browser artwork encoding editor; enhanced message search; nodelist map; page position memory; file preview improvements; QWK/QWKE offline mail |
 | [1.8.6](docs/UPGRADING_1.8.6.md)       | Mar 2026    | i18n/localization, SSH daemon, file areas terminal, ZMODEM, telnet ANSI auto-detect, echomail/netmail reader keyboard shortcuts |
@@ -615,6 +727,8 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | Script | Description |
 |--------|-------------|
 | `binkp_server.php` | BinkP server — accepts inbound FTN connections |
+| `realtime_server.php` | Realtime WebSocket server — provides live updates to the web interface; falls back to SSE if not running |
+| `ftp_daemon.php` | Standalone FTP server for QWK and file-area transfers |
 | `binkp_scheduler.php` | Automated polling scheduler |
 | `admin_daemon.php` | Control socket for backend task management |
 | `telnet/telnet_daemon.php` | Telnet server daemon |
@@ -629,6 +743,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 |--------|-------------|
 | `admin_client.php` | Send commands to the admin daemon from the command line |
 | `backup_database.php` | PostgreSQL database backup via pg_dump |
+| `binktop.php` | Show a top-style snapshot of system, user, daemon, queue, and memory status |
 | `binkp_poll.php` | Manually poll uplinks |
 | `binkp_status.php` | View connection and queue status |
 | `crashmail_poll.php` | Process the crashmail queue for direct delivery |
@@ -652,6 +767,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `who.php` | Show currently active users |
 
 Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for documentation on scripts including usage examples, options, and cron job examples.
+See **[docs/FTPServer.md](docs/FTPServer.md)** for FTP daemon setup, configuration, registered-only anonymous access, and rootless port-21 redirect guidance.
 
 # Operation
 
@@ -661,11 +777,13 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
 3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
-5. **Optional Service Daemons**: start these only if you use the related features:
+5. **Start Realtime Server**: `php scripts/realtime_server.php --daemon` — provides WebSocket-based live updates; falls back gracefully to SSE if not running. The daemon binds to `127.0.0.1:6010` and must be exposed to browsers via a reverse proxy on the `/ws` path — see [docs/BinkStreamChannel.md](docs/BinkStreamChannel.md) for Caddy, Nginx, and Apache proxy configuration.
+6. **Optional Service Daemons**: start these only if you use the related features:
+   - `php scripts/ftp_daemon.php --daemon`
    - `php telnet/telnet_daemon.php --daemon`
    - `php scripts/gemini_daemon.php --daemon`
    - `node scripts/dosbox-bridge/multiplexing-server.js --daemon`
-6. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
+7. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
 ## Daily Operations
 
@@ -676,6 +794,7 @@ Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** 
 4. Send/receive messages via Netmail and Echomail tabs
 
 ### Via Command Line
+- Full system snapshot: `php scripts/binktop.php`
 - Monitor status: `php scripts/binkp_status.php`
 - Manual poll: `php scripts/binkp_poll.php --all`
 - Post messages: `php scripts/post_message.php [options]`
@@ -710,7 +829,7 @@ php scripts/generate_ad.php --stdout
 For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
 
 ## Cron Job Setup
-The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
+The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use FTP, telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
 # Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
@@ -721,6 +840,12 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 
 # Start binkp server on boot (Linux/macOS; pid defaults to data/run/binkp_server.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
+
+# Start realtime WebSocket server on boot (pid defaults to data/run/realtime_server.pid)
+@reboot /usr/bin/php /path/to/binktest/scripts/realtime_server.php --daemon
+
+# Optional: start FTP daemon on boot
+@reboot /usr/bin/php /path/to/binktest/scripts/ftp_daemon.php --daemon
 
 # Optional: start telnet daemon on boot
 @reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon
@@ -738,7 +863,7 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 0 * * * * /usr/bin/php /path/to/binktest/scripts/send_echomail_digest.php
 
 # Rotate logs weekly
-0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
+0 0 * * 0 /usr/bin/php /path/to/binktest/scripts/logrotate.php
 
 # For passive nodes with no binkp_scheduler or binkp_server running (passive node/no incoming connections)
 # */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
@@ -1185,6 +1310,14 @@ A directory page at `gemini://yourdomain.com/` lists all users with published ca
 The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) that operators start only if they want to expose Gemini. It generates a self-signed TLS certificate automatically (Gemini uses a Trust On First Use model), or can be configured to use a CA-signed certificate such as one from Let's Encrypt.
 
 See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
+
+## MCP Server
+
+BinktermPHP includes an optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server (`mcp-server/`) that gives AI assistants read-only access to your echomail database. Each user generates a personal bearer key from **Settings → AI**; the server enforces the same access rules as the web interface. Requires a registered license.
+
+See **[docs/MCPServer.md](docs/MCPServer.md)** for setup, configuration, available tools, and instructions for wiring it into Claude Code.
+
+---
 
 # Developer Guide
 

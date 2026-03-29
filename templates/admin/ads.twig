@@ -23,22 +23,44 @@
         <div class="card-body">
             <form id="adsUploadForm">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <label class="form-label" for="adFile">{{ t('ui.admin.ads.ansi_file') }}</label>
                         <input class="form-control" type="file" id="adFile" name="ad_file" accept=".ans,.rip,.six,.txt">
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label" for="adContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
-                        <input class="form-control font-monospace" type="text" id="adContentCommand" name="content_command" maxlength="1024" placeholder="/usr/local/bin/file-echo-report.php">
+                        <select class="form-select font-monospace" id="adContentCommand" name="content_command">
+                            <option value="">{{ t('ui.admin.ads.content_command_none') }}</option>
+                        </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_upload_help') }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="adContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
+                        <input class="form-control font-monospace" type="text" id="adContentCommandArgs" placeholder="--flag=value">
+                    </div>
+                    <div id="adNewfilesHint" class="col-12 d-none">
+                        <div class="alert alert-info py-2 px-3 mb-0 small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                        </div>
+                    </div>
+                    <div id="adWeatherHint" class="col-12 d-none">
+                        <div class="alert alert-{{ weather_configured ? 'info' : 'warning' }} py-2 px-3 mb-0 small">
+                            <i class="fas fa-{{ weather_configured ? 'info-circle' : 'exclamation-triangle' }} me-1"></i>
+                            {% if weather_configured %}
+                                Weather report is configured and ready.
+                            {% else %}
+                                Weather report requires API configuration. <a href="/admin/weather-config">Configure weather settings</a> before using this command.
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label" for="adTitle">{{ t('ui.common.title') }}</label>
                         <input class="form-control" type="text" id="adTitle" name="title">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label" for="adSlug">{{ t('ui.admin.ads.slug_optional') }}</label>
-                        <input class="form-control" type="text" id="adSlug" name="slug" placeholder="retro-sale">
+                        <label class="form-label" for="contentSlug">{{ t('ui.admin.ads.slug_optional') }}</label>
+                        <input class="form-control" type="text" id="contentSlug" name="slug" placeholder="retro-sale">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label" for="adTags">{{ t('ui.admin.ads.tags') }}</label>
@@ -55,6 +77,11 @@
                     <div class="col-md-4">
                         <label class="form-label" for="adDescription">{{ t('ui.common.description') }}</label>
                         <input class="form-control" type="text" id="adDescription" name="description">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="adClickUrl">{{ t('ui.admin.ads.click_url') }}</label>
+                        <input class="form-control" type="url" id="adClickUrl" name="click_url" placeholder="https://example.com">
+                        <div class="form-text">{{ t('ui.admin.ads.click_url_help') }}</div>
                     </div>
                     <div class="col-12">
                         <div class="form-check form-check-inline">
@@ -98,13 +125,14 @@
                             <th>{{ t('ui.admin.ads.tags') }}</th>
                             <th>{{ t('ui.admin.ads.dashboard') }}</th>
                             <th>{{ t('ui.admin.ads.auto_post') }}</th>
+                            <th>{{ t('ui.admin.ads.stats') }}</th>
                             <th>{{ t('ui.admin.ads.updated') }}</th>
                             <th class="text-end">{{ t('ui.admin.ads.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody id="adsTableBody">
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">{{ t('ui.admin.ads.loading_ads') }}</td>
+                            <td colspan="8" class="text-center text-muted py-4">{{ t('ui.admin.ads.loading_ads') }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -150,41 +178,43 @@
                         <input class="form-control" type="text" id="editAdDescription">
                     </div>
                     <div class="col-12">
+                        <label class="form-label" for="editAdClickUrl">{{ t('ui.admin.ads.click_url') }}</label>
+                        <input class="form-control" type="url" id="editAdClickUrl" placeholder="https://example.com">
+                        <div class="form-text">{{ t('ui.admin.ads.click_url_help') }}</div>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label" for="editAdContentCommand">{{ t('ui.admin.ads.content_command') }}</label>
-                        <input class="form-control font-monospace" type="text" id="editAdContentCommand" maxlength="1024" placeholder="/usr/local/bin/file-echo-report.php">
+                        <select class="form-select font-monospace" id="editAdContentCommand">
+                            <option value="">{{ t('ui.admin.ads.content_command_none') }}</option>
+                        </select>
                         <div class="form-text">{{ t('ui.admin.ads.content_command_help') }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="editAdContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
+                        <input class="form-control font-monospace" type="text" id="editAdContentCommandArgs" placeholder="--flag=value">
+                    </div>
+                    <div id="editAdNewfilesHint" class="col-12 d-none">
+                        <div class="alert alert-info py-2 px-3 mb-0 small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                        </div>
+                    </div>
+                    <div id="editAdWeatherHint" class="col-12 d-none">
+                        <div class="alert alert-{{ weather_configured ? 'info' : 'warning' }} py-2 px-3 mb-0 small">
+                            <i class="fas fa-{{ weather_configured ? 'info-circle' : 'exclamation-triangle' }} me-1"></i>
+                            {% if weather_configured %}
+                                Weather report is configured and ready.
+                            {% else %}
+                                Weather report requires API configuration. <a href="/admin/weather-config">Configure weather settings</a> before using this command.
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="editAdContent">{{ t('ui.admin.ads.ansi_content') }}</label>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-4">
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="insertAnsiEscapePrefix()">
-                                    {{ t('ui.admin.ads.insert_escape_prefix') }}
-                                </button>
-                            </div>
-                            <div class="col-md-5">
-                                <select class="form-select form-select-sm" id="editAdAnsiPreset">
-                                    <option value="">{{ t('ui.admin.ads.select_sequence') }}</option>
-                                    <option value="0m">{{ t('ui.admin.ads.sequence_reset') }}</option>
-                                    <option value="1m">{{ t('ui.admin.ads.sequence_bold') }}</option>
-                                    <option value="31m">{{ t('ui.admin.ads.sequence_red') }}</option>
-                                    <option value="32m">{{ t('ui.admin.ads.sequence_green') }}</option>
-                                    <option value="33m">{{ t('ui.admin.ads.sequence_yellow') }}</option>
-                                    <option value="34m">{{ t('ui.admin.ads.sequence_blue') }}</option>
-                                    <option value="37m">{{ t('ui.admin.ads.sequence_white') }}</option>
-                                    <option value="2J">{{ t('ui.admin.ads.sequence_clear_screen') }}</option>
-                                    <option value="K">{{ t('ui.admin.ads.sequence_clear_line') }}</option>
-                                    <option value="H">{{ t('ui.admin.ads.sequence_cursor_home') }}</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="insertAnsiPreset()">
-                                    {{ t('ui.admin.ads.insert_sequence') }}
-                                </button>
-                            </div>
-                        </div>
                         <div class="form-text mb-2">{{ t('ui.admin.ads.escape_helper_help') }}</div>
-                        <textarea class="form-control font-monospace" id="editAdContent" rows="14"></textarea>
+                        <div id="editAdContentEditor">
+                            <textarea class="form-control font-monospace" id="editAdContent" rows="14"></textarea>
+                        </div>
                     </div>
                     <div class="col-12">
                         <div class="form-check form-check-inline">
@@ -201,29 +231,11 @@
                         </div>
                     </div>
                     <div class="col-12 d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-outline-primary" onclick="previewEditedAd()">{{ t('ui.common.preview') }}</button>
                         <button type="button" class="btn btn-outline-secondary" onclick="closeEditor()">{{ t('ui.common.cancel') }}</button>
                         <button type="submit" class="btn btn-primary">{{ t('ui.common.save') }}</button>
                     </div>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div class="modal fade" id="adPreviewModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="adPreviewModalTitle">{{ t('ui.admin.ads.view') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="adPreviewContainer" class="w-100" style="overflow: hidden;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -233,9 +245,10 @@
 <script src="/js/ansisys.js"></script>
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
+<script src="/js/ansi-editor.js"></script>
 <script>
 let currentAds = [];
-let adPreviewModal = null;
+let adAnsiEditor = null;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -245,8 +258,15 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    adAnsiEditor = window.AnsiEditor ? window.AnsiEditor.create(document.getElementById('editAdContentEditor'), {
+        previewTitleResolver: function() {
+            return document.getElementById('editAdTitle').value.trim() || uiT('ui.common.preview', 'Preview');
+        }
+    }) : null;
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadAds();
+        loadContentCommands();
     });
 
     document.getElementById('adsUploadForm').addEventListener('submit', function(event) {
@@ -269,11 +289,74 @@ document.addEventListener('DOMContentLoaded', function() {
         saveAd();
     });
 
-    const previewElement = document.getElementById('adPreviewModal');
-    if (previewElement) {
-        adPreviewModal = new bootstrap.Modal(previewElement);
-    }
+    window.setTimeout(detectHiddenUploadFields, 50);
 });
+
+function detectHiddenUploadFields() {
+    const slugInput = document.getElementById('contentSlug');
+    if (!slugInput) {
+        return;
+    }
+
+    const style = window.getComputedStyle(slugInput);
+    const hidden = style.display === 'none'
+        || style.visibility === 'hidden'
+        || style.opacity === '0'
+        || slugInput.hidden
+        || slugInput.offsetParent === null;
+
+    if (hidden) {
+        showAdsAlert(
+            uiT(
+                'ui.admin.ads.form_hidden_warning',
+                'A browser extension appears to be hiding parts of this form. If fields are missing, disable content blocking for this admin page.'
+            ),
+            'warning'
+        );
+    }
+}
+
+function updateCommandHints(selId, newfilesHintId, weatherHintId) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const val = sel.value;
+    const newfilesHint = document.getElementById(newfilesHintId);
+    const weatherHint  = document.getElementById(weatherHintId);
+    if (newfilesHint) newfilesHint.classList.toggle('d-none', !val.includes('report_newfiles'));
+    if (weatherHint)  weatherHint.classList.toggle('d-none',  !val.includes('weather_report'));
+}
+
+// Keep the old name as an alias so the edit-modal open path can call it directly.
+function updateNewfilesHint(selId, hintId) {
+    updateCommandHints(selId, hintId, selId === 'adContentCommand' ? 'adWeatherHint' : 'editAdWeatherHint');
+}
+
+function loadContentCommands() {
+    fetch('/admin/api/ads/content-commands')
+        .then(r => r.json())
+        .then(data => {
+            const cmds = Array.isArray(data.commands) ? data.commands : [];
+            [
+                { selId: 'adContentCommand',     newfilesHintId: 'adNewfilesHint',     weatherHintId: 'adWeatherHint' },
+                { selId: 'editAdContentCommand', newfilesHintId: 'editAdNewfilesHint', weatherHintId: 'editAdWeatherHint' },
+            ].forEach(({ selId, newfilesHintId, weatherHintId }) => {
+                const sel = document.getElementById(selId);
+                if (!sel) return;
+                const current = sel.value;
+                while (sel.options.length > 1) sel.remove(1);
+                cmds.forEach(cmd => {
+                    const opt = document.createElement('option');
+                    opt.value = cmd.value;
+                    opt.textContent = cmd.label;
+                    sel.appendChild(opt);
+                });
+                if (current) sel.value = current;
+                updateCommandHints(selId, newfilesHintId, weatherHintId);
+                sel.addEventListener('change', () => updateCommandHints(selId, newfilesHintId, weatherHintId));
+            });
+        })
+        .catch(() => {});
+}
 
 function loadAds() {
     fetch('/admin/api/ads')
@@ -297,7 +380,7 @@ function renderAdsTable(ads) {
     if (!ads.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center text-muted py-4">${uiT('ui.admin.ads.none_uploaded', 'No advertisements uploaded.')}</td>
+                <td colspan="8" class="text-center text-muted py-4">${uiT('ui.admin.ads.none_uploaded', 'No advertisements uploaded.')}</td>
             </tr>
         `;
         return;
@@ -316,16 +399,22 @@ function renderAdsTable(ads) {
         const autoPost = ad.allow_auto_post
             ? `<span class="badge bg-success">${uiT('ui.common.enabled', 'Enabled')}</span>`
             : `<span class="badge bg-secondary">${uiT('ui.common.disabled', 'Disabled')}</span>`;
+        const impressions = ad.impression_count !== null && ad.impression_count !== undefined ? Number(ad.impression_count) : 0;
+        const clicks = ad.click_count !== null && ad.click_count !== undefined ? Number(ad.click_count) : 0;
+        const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(1) + '%' : '-';
+        const stats = `<span class="text-muted small">${impressions.toLocaleString()} ${uiT('ui.admin.ads.impressions', 'imp')} / ${clicks.toLocaleString()} ${uiT('ui.admin.ads.clicks', 'clicks')}</span><br><span class="small">CTR: ${ctr}</span>`;
         return `
             <tr>
                 <td>
                     <div class="fw-semibold">${escapeHtml(title)}</div>
                     <div class="small text-muted">${escapeHtml(ad.legacy_filename || '')}</div>
+                    ${ad.click_url ? `<div class="small"><a href="${escapeHtml(ad.click_url)}" target="_blank" rel="noopener" class="text-truncate d-inline-block" style="max-width:180px">${escapeHtml(ad.click_url)}</a></div>` : ''}
                 </td>
                 <td><code>${escapeHtml(ad.slug || '')}</code></td>
                 <td>${tags}</td>
                 <td>${dashboard}</td>
                 <td>${autoPost}</td>
+                <td>${stats}</td>
                 <td>${escapeHtml(updated)}</td>
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-primary me-2" type="button" onclick="previewAd(${Number(ad.id)})">
@@ -356,13 +445,11 @@ function previewAd(id) {
                 throw new Error(uiT('ui.admin.ads.not_found', 'Advertisement not found'));
             }
 
-            document.getElementById('adPreviewModalTitle').textContent = ad.title || uiT('ui.admin.ads.view', 'View');
-            const container = document.getElementById('adPreviewContainer');
-            if (container && typeof renderAdContent === 'function') {
-                renderAdContent(container, ad.content || '');
-            }
-            if (adPreviewModal) {
-                adPreviewModal.show();
+            if (window.AnsiEditor) {
+                window.AnsiEditor.openPreview({
+                    title: ad.title || uiT('ui.admin.ads.view', 'View'),
+                    content: ad.content || ''
+                });
             }
         })
         .catch(error => {
@@ -371,54 +458,17 @@ function previewAd(id) {
 }
 
 function previewEditedAd() {
-    const title = document.getElementById('editAdTitle').value.trim() || uiT('ui.common.preview', 'Preview');
-    const container = document.getElementById('adPreviewContainer');
-    if (!container) {
+    if (!adAnsiEditor) {
         return;
     }
-
-    document.getElementById('adPreviewModalTitle').textContent = title;
-    if (typeof renderAdContent === 'function') {
-        renderAdContent(container, document.getElementById('editAdContent').value || '');
-    }
-    if (adPreviewModal) {
-        adPreviewModal.show();
-    }
-}
-
-function insertAnsiEscapePrefix() {
-    insertIntoAdEditor('\x1b[');
-}
-
-function insertAnsiPreset() {
-    const select = document.getElementById('editAdAnsiPreset');
-    if (!select || !select.value) {
-        return;
-    }
-
-    insertIntoAdEditor('\x1b[' + select.value);
-    select.value = '';
-}
-
-function insertIntoAdEditor(text) {
-    const textarea = document.getElementById('editAdContent');
-    if (!textarea) {
-        return;
-    }
-
-    const start = textarea.selectionStart ?? textarea.value.length;
-    const end = textarea.selectionEnd ?? textarea.value.length;
-    const before = textarea.value.slice(0, start);
-    const after = textarea.value.slice(end);
-    textarea.value = before + text + after;
-    textarea.focus();
-    const caret = start + text.length;
-    textarea.setSelectionRange(caret, caret);
+    adAnsiEditor.openPreview();
 }
 
 function uploadAd() {
     const fileInput = document.getElementById('adFile');
-    const contentCommand = document.getElementById('adContentCommand').value.trim();
+    const cmdScript = document.getElementById('adContentCommand').value.trim();
+    const cmdArgs   = document.getElementById('adContentCommandArgs').value.trim();
+    const contentCommand = cmdScript ? (cmdArgs ? cmdScript + ' ' + cmdArgs : cmdScript) : '';
     const hasFile = fileInput.files && fileInput.files.length > 0;
 
     if (!hasFile && contentCommand === '') {
@@ -434,11 +484,12 @@ function uploadAd() {
         formData.append('content_command', contentCommand);
     }
     formData.append('title', document.getElementById('adTitle').value.trim());
-    formData.append('slug', document.getElementById('adSlug').value.trim());
+    formData.append('slug', document.getElementById('contentSlug').value.trim());
     formData.append('description', document.getElementById('adDescription').value.trim());
     formData.append('tags', document.getElementById('adTags').value.trim());
     formData.append('dashboard_weight', document.getElementById('adWeight').value || '1');
     formData.append('dashboard_priority', document.getElementById('adPriority').value || '0');
+    formData.append('click_url', document.getElementById('adClickUrl').value.trim());
     formData.append('is_active', document.getElementById('adIsActive').checked ? '1' : '0');
     if (document.getElementById('adShowOnDashboard').checked) {
         formData.append('show_on_dashboard', '1');
@@ -490,8 +541,21 @@ function openEditor(id) {
             document.getElementById('editAdWeight').value = String(ad.dashboard_weight || 1);
             document.getElementById('editAdPriority').value = String(ad.dashboard_priority || 0);
             document.getElementById('editAdDescription').value = ad.description || '';
-            document.getElementById('editAdContentCommand').value = ad.content_command || '';
-            document.getElementById('editAdContent').value = ad.content || '';
+            document.getElementById('editAdClickUrl').value = ad.click_url || '';
+            const editCmdSel  = document.getElementById('editAdContentCommand');
+            const editCmdArgs = document.getElementById('editAdContentCommandArgs');
+            const storedCmd = (ad.content_command || '').trim();
+            const cmdParts  = storedCmd.split(/\s+/);
+            const storedScript = cmdParts[0] || '';
+            editCmdSel.value  = storedScript;
+            editCmdArgs.value = cmdParts.slice(1).join(' ');
+            updateCommandHints('editAdContentCommand', 'editAdNewfilesHint', 'editAdWeatherHint');
+            // If the stored script isn't in the list (e.g. legacy entry), show a warning
+            if (storedScript && editCmdSel.value !== storedScript) {
+                showAdsAlert(uiT('ui.admin.ads.content_command_invalid_stored', 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.'), 'warning');
+            }
+            document.getElementById('editAdContent').value = ad.stored_content || '';
+            adAnsiEditor?.refreshPreview();
             document.getElementById('editAdIsActive').checked = !!ad.is_active;
             document.getElementById('editAdShowOnDashboard').checked = !!ad.show_on_dashboard;
             document.getElementById('editAdAllowAutoPost').checked = !!ad.allow_auto_post;
@@ -509,6 +573,7 @@ function closeEditor() {
     document.getElementById('adEditorCard').classList.add('d-none');
     document.getElementById('adEditorForm').reset();
     document.getElementById('editAdId').value = '';
+    adAnsiEditor?.refreshPreview();
 }
 
 function saveAd() {
@@ -523,7 +588,12 @@ function saveAd() {
         legacy_filename: document.getElementById('editAdLegacyFilename').value.trim(),
         tags: document.getElementById('editAdTags').value.trim(),
         description: document.getElementById('editAdDescription').value.trim(),
-        content_command: document.getElementById('editAdContentCommand').value.trim(),
+        click_url: document.getElementById('editAdClickUrl').value.trim(),
+        content_command: (() => {
+            const s = document.getElementById('editAdContentCommand').value.trim();
+            const a = document.getElementById('editAdContentCommandArgs').value.trim();
+            return s ? (a ? s + ' ' + a : s) : '';
+        })(),
         content: document.getElementById('editAdContent').value,
         is_active: document.getElementById('editAdIsActive').checked,
         show_on_dashboard: document.getElementById('editAdShowOnDashboard').checked,

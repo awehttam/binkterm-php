@@ -25,6 +25,15 @@ let isSearchActive = false;
 let currentPagination = null;
 let _messageRiptermLoaderPromise = null;
 let requestedMessageId = null;
+let currentInterestId = null;
+let currentInterestName = '';
+let currentInterestSlug = '';
+let areaListInterestFilter = null;
+let loadedInterests = [];
+let currentConversationMessageId = null;
+let currentConversationSubject = '';
+let currentContextMenuMessageId = null;
+let currentContextMenuMessageSaved = false;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -72,7 +81,6 @@ $(document).ready(function() {
             });
         }
     });
-    loadStats();
 
     // Initialize history state
     if (!history.state) {
@@ -96,6 +104,8 @@ $(document).ready(function() {
         modalClosedByBackButton = false;
         hideKeyboardHelp();
     });
+
+    $('#ignoreMessageForm').on('submit', saveIgnoreMessageRule);
 
     // Add keyboard navigation for message modal
     $(document).on('keydown', function(e) {
@@ -151,11 +161,36 @@ $(document).ready(function() {
         }
     });
 
-    // Auto refresh every 5 minutes
-    startAutoRefresh(function() {
-        loadMessages();
-        loadStats();
-    }, 300000);
+    // Polling disabled — BinkStream delivers dashboard_stats on new echomail.
+    // Re-enable by uncommenting if BinkStream is unavailable.
+    // startAutoRefresh(function() { loadMessages(); loadStats(); }, 300000);
+
+    if (window.BinkStream) {
+        // Reload the message list when new echomail arrives.
+        // Debounced to absorb bursts from concurrent imports.
+        let _dashboardRefreshTimer = null;
+        window.BinkStream.on('dashboard_stats', function() {
+            clearTimeout(_dashboardRefreshTimer);
+            _dashboardRefreshTimer = setTimeout(function() {
+                loadMessages(null, true);
+                loadStats();
+            }, 2000);
+        });
+
+        // Cross-tab read sync — apply read styling immediately when another tab
+        // marks a message as read without requiring a full list reload.
+        window.BinkStream.on('message_read', function(data) {
+            if (data.message_type !== 'echomail') return;
+            (data.message_ids || []).forEach(function(id) {
+                applyEchomailReadStyle(id);
+            });
+        });
+    }
+
+    document.addEventListener('click', hideMessageContextMenu);
+    document.addEventListener('scroll', hideMessageContextMenu, true);
+    window.addEventListener('resize', hideMessageContextMenu);
+    bindMessageListTouchContextMenu();
 });
 
 function loadEchoareas() {
@@ -177,7 +212,11 @@ function loadEchoareas() {
  */
 function updateEchoInfoBar() {
     if (!currentEchoarea) {
-        $('#echoInfoBar').addClass('d-none');
+        // No specific area selected — show a generic "All Messages" bar with compose button
+        $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
+        $('#echoDescription').text('');
+        $('#echoSubscribeBtn').addClass('d-none');
+        $('#echoInfoBar').removeClass('d-none');
         currentEchoareaData = null;
         return;
     }
@@ -252,6 +291,18 @@ function renderEchoInfoBar(area, subscribed) {
 }
 
 /**
+ * Show the info bar for an interest view.
+ * Hides the subscribe button (not applicable here) and exposes the compose button.
+ * @param {string} name  Interest name
+ */
+function renderInterestInfoBar(name) {
+    $('#echoTitle').text(name);
+    $('#echoDescription').text('');
+    $('#echoSubscribeBtn').addClass('d-none');
+    $('#echoInfoBar').removeClass('d-none');
+}
+
+/**
  * Toggle subscription for the currently viewed echo area.
  */
 function toggleSubscription() {
@@ -294,8 +345,14 @@ function searchEchoareas(query) {
 function applyEchoareaFilter() {
     let filtered = allEchoareas;
 
+    if (areaListInterestFilter !== null) {
+        filtered = filtered.filter(area =>
+            (area.interest_ids || []).includes(areaListInterestFilter)
+        );
+    }
+
     if (echoareaSearchQuery.length > 0) {
-        filtered = allEchoareas.filter(area =>
+        filtered = filtered.filter(area =>
             area.tag.toLowerCase().includes(echoareaSearchQuery) ||
             (area.description && area.description.toLowerCase().includes(echoareaSearchQuery))
         );
@@ -303,6 +360,70 @@ function applyEchoareaFilter() {
 
     displayEchoareas(filtered);
     displayMobileEchoareas(filtered);
+}
+
+/**
+ * Populate the interest filter dropdowns in the area list tab.
+ * Called once after interests are loaded from the API.
+ * @param {Array} interests
+ */
+function populateAreaListInterestDropdowns(interests) {
+    loadedInterests = interests;
+    const allOption = `<option value="">${uiT('ui.echomail.all_subscribed_areas', 'All Subscribed Areas')}</option>`;
+    let options = allOption;
+    interests.forEach(function(interest) {
+        options += `<option value="${interest.id}">${escapeHtml(interest.name)}</option>`;
+    });
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').html(options);
+}
+
+/**
+ * Set the interest filter on the area list tab, re-render the list,
+ * and snap to "All Messages" scoped to that interest.
+ * @param {number|null} id  Interest ID, or null for all subscribed areas.
+ */
+function setAreaListInterestFilter(id) {
+    areaListInterestFilter = id;
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').val(id === null ? '' : String(id));
+    applyEchoareaFilter();
+
+    // Always snap to "All Messages" and reload messages scoped to the new filter
+    currentEchoarea = null;
+    _applyInterestFilterToAllMessages(id);
+
+    // Update active state in sidebar to highlight "All Messages"
+    $('.node-item, .list-group-item-action').removeClass('bg-primary text-white active');
+    $('.node-item .badge, .list-group-item-action .badge').removeClass('bg-light text-dark').addClass('bg-secondary');
+    $(".node-item[onclick*=\"selectEchoarea(null)\"]").addClass('bg-primary text-white');
+    $(".node-item[onclick*=\"selectEchoarea(null)\"] .badge").removeClass('bg-secondary').addClass('bg-light text-dark');
+    $(".list-group-item-action[onclick*=\"selectEchoarea(null)\"]").addClass('active');
+    $('#mobileInterestsList .list-group-item-action, #desktopInterestsList .list-group-item-action').removeClass('active');
+    if (id !== null) {
+        $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"], #desktopInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
+    }
+
+    history.pushState({echoarea: null}, '', '/echomail');
+    updateEchoInfoBar();
+    loadMessages();
+}
+
+/**
+ * Apply an interest filter to the "All Messages" view by updating currentInterestId.
+ * @param {number|null} id
+ */
+function _applyInterestFilterToAllMessages(id) {
+    if (id !== null) {
+        const interest = loadedInterests.find(function(i) { return i.id === id; });
+        if (interest) {
+            currentInterestId   = interest.id;
+            currentInterestName = interest.name;
+            currentInterestSlug = interest.slug || '';
+            return;
+        }
+    }
+    currentInterestId   = null;
+    currentInterestName = '';
+    currentInterestSlug = '';
 }
 
 function displayEchoareas(echoareas) {
@@ -412,8 +533,98 @@ function displayMobileEchoareas(echoareas) {
     container.html(html);
 }
 
+function displayMobileInterests(interests) {
+    let html = '';
+
+    if (interests && interests.length > 0) {
+        interests.forEach(function(interest) {
+            const isActive = currentInterestId === interest.id;
+            const icon  = escapeHtml(interest.icon || 'fa-layer-group');
+            const color = escapeHtml(interest.color || '#6c757d');
+            const encodedName = encodeURIComponent(interest.name);
+            const iconStyle = isActive ? '' : ` style="color:${color}"`;
+            html += `
+                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}"
+                     data-interest-id="${interest.id}"
+                     data-interest-name="${encodedName}"
+                     data-interest-slug="${escapeHtml(interest.slug || '')}"
+                     style="border-left: 3px solid ${color}; cursor: pointer;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas ${icon} flex-shrink-0"${iconStyle}></i>
+                        <span class="fw-bold">${escapeHtml(interest.name)}</span>
+                    </div>
+                </div>
+            `;
+        });
+        html = '<div class="list-group list-group-flush">' + html + '</div>';
+    } else {
+        html = `<div class="text-center text-muted p-3">${uiT('ui.interests.no_interests', 'No interests available')}</div>`;
+    }
+
+    // Populate both mobile and desktop containers
+    ['#mobileInterestsList', '#desktopInterestsList'].forEach(function(selector) {
+        const c = $(selector);
+        if (c.length === 0) return;
+        c.html(html);
+        c.off('click', '.list-group-item-action').on('click', '.list-group-item-action', function() {
+            const id   = parseInt($(this).data('interest-id'), 10);
+            const name = decodeURIComponent($(this).data('interest-name') || '');
+            const slug = $(this).data('interest-slug') || '';
+            selectInterest(id, name, slug);
+        });
+    });
+}
+
+function selectInterest(id, name, slug) {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
+    currentInterestId   = id;
+    currentInterestName = name;
+    currentInterestSlug = slug || '';
+    currentEchoarea     = null;
+    currentPage         = 1;
+    areaListInterestFilter = id;
+
+    // Keep the Area List tab's dropdown in sync with the currently selected interest
+    // without invoking the Area List tab's own message-loading flow.
+    $('#areaListInterestFilter, #mobileAreaListInterestFilter').val(String(id));
+    applyEchoareaFilter();
+
+    // Encode slug in URL so the interest is restored if the user navigates back
+    const urlSlug = currentInterestSlug || id;
+    history.pushState({ interestId: id }, '', '/echomail?interest=' + encodeURIComponent(urlSlug));
+
+    // Update mobile accordion text
+    updateMobileAccordionText(null, name);
+
+    // Collapse mobile accordion after selection
+    $('#echoAreasCollapse').collapse('hide');
+
+    // Update active state in interest lists (mobile + desktop) and clear area list selection
+    $('#mobileInterestsList .list-group-item-action, #desktopInterestsList .list-group-item-action').removeClass('active');
+    $(`#mobileInterestsList .list-group-item-action[data-interest-id="${id}"], #desktopInterestsList .list-group-item-action[data-interest-id="${id}"]`).addClass('active');
+    $('#mobileEchoareasList .list-group-item-action, #echoareasList .list-group-item-action').removeClass('active');
+
+    // Show info bar in interest mode: hide subscribe (not applicable), keep compose visible
+    renderInterestInfoBar(name);
+
+    loadMessages();
+}
+
 function selectEchoarea(tag) {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
+    // When "All Messages" is selected, scope to the active interest filter if one is set
+    if (!tag) {
+        _applyInterestFilterToAllMessages(areaListInterestFilter);
+    } else {
+        currentInterestId   = null;
+        currentInterestName = '';
+        currentInterestSlug = '';
+    }
     currentEchoarea = tag;
+    // Restore subscribe button visibility in case we're coming from interest mode
+    $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
     const memKey = tag || '__all__';
     currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
@@ -450,8 +661,8 @@ function selectEchoarea(tag) {
     loadMessages();
 }
 
-function loadMessages(callback) {
-    showLoading('#messagesContainer');
+function loadMessages(callback, silent = false) {
+    if (!silent) showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
     currentSearchTerms = [];
@@ -462,9 +673,30 @@ function loadMessages(callback) {
         return;
     }
 
-    let url = '/api/messages/echomail';
-    if (currentEchoarea) {
-        url += `/${encodeURIComponent(currentEchoarea)}`;
+    if (currentConversationMessageId) {
+        $.get(`/api/messages/echomail/message/${currentConversationMessageId}/conversation`)
+            .done(function(data) {
+                displayMessages(data.messages, true);
+                updatePagination(data.pagination);
+                updateUnreadCount(data.unreadCount || 0);
+                if (typeof callback === 'function') {
+                    callback(data);
+                }
+            })
+            .fail(function() {
+                $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
+            });
+        return;
+    }
+
+    let url;
+    if (currentInterestId) {
+        url = `/api/interests/${currentInterestId}/messages`;
+    } else {
+        url = '/api/messages/echomail';
+        if (currentEchoarea) {
+            url += `/${encodeURIComponent(currentEchoarea)}`;
+        }
     }
     url += `?page=${currentPage}&sort=${currentSort}&filter=${currentFilter}`;
     if (threadedView) {
@@ -579,8 +811,20 @@ function displayMessages(messages, isThreaded = false) {
     if (messages.length === 0) {
         html = `<div class="text-center text-muted py-4">${uiT('messages.none_found', 'No messages found')}</div>`;
     } else {
+        if (currentConversationMessageId) {
+            html += `
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <strong>${uiT('ui.common.showing_entire_conversation', 'Showing Entire Conversation')}</strong>
+                        ${currentConversationSubject ? `<div class="small mt-1">${escapeHtml(currentConversationSubject)}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="clearConversationView()">${uiT('ui.common.back_to_message_list', 'Back to Message List')}</button>
+                </div>
+            `;
+        }
+
         // Create table structure
-        html = `
+        html += `
             <div class="table-responsive">
                 <table class="table table-hover message-table mb-0">
                     <thead>
@@ -592,7 +836,7 @@ function displayMessages(messages, isThreaded = false) {
                             </th>
                             <th style="width: 25%">${uiT('ui.common.from', 'From')}</th>
                             <th style="width: 60%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
-                            <th colspan="2" style="width: 15%">${uiT('ui.netmail.received', 'Received')}</th>
+                            <th colspan="2" style="width: 15%">${USE_DATE_FIELD === 'written' ? uiT('ui.echomail.written', 'Written') : uiT('ui.netmail.received', 'Received')}</th>
 
                         </tr>
                     </thead>
@@ -600,6 +844,30 @@ function displayMessages(messages, isThreaded = false) {
         `;
 
         messages.forEach(function(msg) {
+            // File item (from interest file areas)
+            if (msg.type === 'file') {
+                const sizeStr = msg.filesize ? formatFileSize(msg.filesize) : '';
+                const dateStr = formatDate(msg.date_received);
+                html += `
+                    <tr class="message-row interest-file-row" data-file-id="${msg.id}" onclick="viewFile(${msg.id})" style="cursor:pointer;">
+                        <td class="message-checkbox d-none"></td>
+                        <td class="message-from">
+                            <i class="fas fa-file-archive text-secondary me-1"></i>
+                            <span class="badge bg-secondary" style="font-size:0.75em;">${escapeHtml(msg.file_area_tag || '')}</span>
+                            ${msg.uploader_name ? `<br><small class="text-muted">${escapeHtml(msg.uploader_name)}</small>` : ''}
+                        </td>
+                        <td class="message-subject">
+                            <strong>${escapeHtml(msg.filename || '')}</strong>
+                            ${msg.short_description ? `<br><small class="text-muted">${escapeHtml(msg.short_description)}</small>` : ''}
+                            ${sizeStr ? `<small class="text-muted ms-2">(${escapeHtml(sizeStr)})</small>` : ''}
+                        </td>
+                        <td class="message-date" title="${escapeHtml(msg.date_received || '')}">${dateStr}</td>
+                        <td></td>
+                    </tr>
+                `;
+                return; // skip message rendering for file items
+            }
+
             // Check if message is addressed to current user
             const isToCurrentUser = msg.to_name && window.currentUserRealName && msg.to_name === window.currentUserRealName;
             const toInfo = msg.to_name && msg.to_name !== uiT('ui.common.all', 'All') ?
@@ -622,7 +890,9 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
+            const threadIcon = (threadLevel > 0 || replyCount > 0)
+                ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.show_entire_conversation', 'Show Entire Conversation')}" style="cursor: pointer;" onclick="event.stopPropagation(); showConversation(${msg.id})"></i>`
+                : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
 
             // Add thread-specific CSS classes; indent up to 2 levels (0.5rem each)
@@ -631,7 +901,7 @@ function displayMessages(messages, isThreaded = false) {
             const threadIndent = indentRem > 0 ? `padding-left: ${indentRem}rem;` : '';
 
             html += `
-                <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}">
+                <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}" oncontextmenu="openMessageContextMenu(event, ${msg.id})">
                     <td class="message-checkbox d-none">
                         <div class="form-check">
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
@@ -648,7 +918,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${USE_DATE_FIELD === 'written' ? uiT('ui.common.received_prefix', 'Received:') + ' ' + formatFullDate(msg.date_received) : uiT('ui.common.written_prefix', 'Written:') + ' ' + formatFullDate(msg.date_written)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${uiT('ui.common.written_prefix', 'Written:')} ${formatFullDate(msg.date_written)}&#10;${uiT('ui.common.received_prefix', 'Received:')} ${formatFullDate(msg.date_received)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
                 </tr>
             `;
         });
@@ -668,6 +938,11 @@ function updatePagination(pagination) {
     currentPagination = pagination;
     const container = $('#pagination');
     let html = '';
+
+    if (currentConversationMessageId) {
+        container.empty();
+        return;
+    }
 
     if (pagination.pages > 1) {
         html = '<ul class="pagination pagination-sm mb-0">';
@@ -709,6 +984,239 @@ function updatePagination(pagination) {
 function changePage(page) {
     currentPage = page;
     loadMessages();
+}
+
+function showConversation(messageId) {
+    currentConversationMessageId = messageId;
+    const selected = getCurrentMessageById(messageId);
+    currentConversationSubject = selected && selected.subject ? selected.subject : '';
+    loadMessages();
+}
+
+function clearConversationView() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
+    loadMessages();
+}
+
+function getCurrentMessageById(messageId) {
+    return currentMessages.find(msg => Number(msg.id) === Number(messageId)) || null;
+}
+
+function openMessageContextMenu(event, messageId) {
+    if (event.shiftKey) {
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    openMessageContextMenuAtPosition(event.pageX, event.pageY, messageId);
+}
+
+function openMessageContextMenuAtPosition(pageX, pageY, messageId) {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+
+    currentContextMenuMessageId = messageId;
+    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    currentContextMenuMessageSaved = !!(selected && Number(selected.is_saved) === 1);
+    const saveLabel = document.getElementById('messageContextMenuSaveLabel');
+    if (saveLabel) {
+        saveLabel.textContent = currentContextMenuMessageSaved
+            ? uiT('ui.common.remove_from_saved', 'Remove from saved')
+            : uiT('ui.common.save_for_later', 'Save for later');
+    }
+    menu.style.left = `${pageX}px`;
+    menu.style.top = `${pageY}px`;
+    menu.style.display = 'block';
+}
+
+function hideMessageContextMenu() {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+    menu.style.display = 'none';
+    currentContextMenuMessageId = null;
+    currentContextMenuMessageSaved = false;
+}
+
+function bindMessageListTouchContextMenu() {
+    if (!window.MessageListContextMenu) {
+        return;
+    }
+    window.MessageListContextMenu.bindLongPress({
+        containerId: 'messagesContainer',
+        rowSelector: '.message-row[data-message-id]',
+        isInteractiveTarget: isMessageRowInteractiveTarget,
+        onLongPress: function(details) {
+            openMessageContextMenuAtPosition(details.pageX, details.pageY, details.messageId);
+        }
+    });
+}
+
+function isMessageRowInteractiveTarget(target) {
+    return !!target.closest(
+        'button, a, input, select, textarea, label, .save-btn, .echo-from-popover, .node-addr-popover, .message-select'
+    );
+}
+
+function replyFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    composeMessage('echomail', messageId);
+}
+
+function viewConversationFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    showConversation(messageId);
+}
+
+function toggleSaveFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    const isSaved = currentContextMenuMessageSaved;
+    hideMessageContextMenu();
+    toggleSaveMessage(messageId, 'echomail', isSaved);
+}
+
+function downloadMessageFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    window.location.href = `/api/messages/echomail/${messageId}/download`;
+}
+
+function openIgnoreMessageModalFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+
+    const messageId = currentContextMenuMessageId;
+    const message = getCurrentMessageById(messageId);
+    hideMessageContextMenu();
+
+    if (!message || message.type === 'file') {
+        showError(uiT('errors.messages.echomail.ignore.message_not_available', 'Unable to load the selected message'));
+        return;
+    }
+
+    const senderName = message.from_name || '';
+    const senderAddress = message.from_address || '';
+    const senderDisplay = senderAddress ? `${senderName} <${senderAddress}>` : senderName;
+
+    $('#ignoreMessageSender').val(senderName);
+    $('#ignoreMessageSenderAddress').val(senderAddress);
+    $('#ignoreMessageSenderDisplay').val(senderDisplay);
+    $('#ignoreMessageSubjectContains').val(message.subject || '');
+    $('#ignoreMessageModal').data('message-id', messageId).modal('show');
+}
+
+function saveIgnoreMessageRule(event) {
+    event.preventDefault();
+
+    const senderName = String($('#ignoreMessageSender').val() || '').trim();
+    const senderAddress = String($('#ignoreMessageSenderAddress').val() || '').trim();
+    const subjectContains = String($('#ignoreMessageSubjectContains').val() || '').trim();
+    const submitButton = $('#ignoreMessageSubmitButton');
+
+    if (!senderName) {
+        showError(uiT('errors.messages.echomail.ignore.invalid_input', 'Sender name is required'));
+        return;
+    }
+
+    submitButton.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.common.saving', 'Saving...')}`);
+
+    $.ajax({
+        url: '/api/messages/echomail/ignore-rules',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            sender_name: senderName,
+            sender_address: senderAddress,
+            subject_contains: subjectContains
+        }),
+        success: function(response) {
+            submitButton.prop('disabled', false).html(`<i class="fas fa-eye-slash me-1"></i>${uiT('ui.echomail.ignore.save_button', 'Ignore message')}`);
+
+            if (!response || !response.success) {
+                showError(apiError(response, uiT('errors.messages.echomail.ignore.save_failed', 'Failed to save ignore rule')));
+                return;
+            }
+
+            $('#ignoreMessageModal').modal('hide');
+            showSuccess(
+                window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.echomail.ignore.saved', 'Messages from {sender} with matching subject text will now be hidden', { sender: senderName }))
+                    : uiT('ui.echomail.ignore.saved', 'Messages from {sender} with matching subject text will now be hidden', { sender: senderName })
+            );
+            loadMessages();
+        },
+        error: function(xhr) {
+            submitButton.prop('disabled', false).html(`<i class="fas fa-eye-slash me-1"></i>${uiT('ui.echomail.ignore.save_button', 'Ignore message')}`);
+            showError(apiError(xhr.responseJSON || {}, uiT('errors.messages.echomail.ignore.save_failed', 'Failed to save ignore rule')));
+        }
+    });
+}
+
+function shareMessageFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    showShareDialog(messageId);
+}
+
+function forwardMessageToEmailFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+
+    $.post(`/api/messages/echomail/${messageId}/forward-email`)
+        .done(function(response) {
+            if (response && response.success) {
+                showForwardEmailFeedback(
+                    true,
+                    (window.getApiMessage
+                        ? window.getApiMessage(response, uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                        : uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                );
+            } else {
+                showForwardEmailFeedback(
+                    false,
+                    apiError(response, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+                );
+            }
+        })
+        .fail(function(xhr) {
+            showForwardEmailFeedback(
+                false,
+                apiError(xhr.responseJSON || {}, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+            );
+        });
+}
+
+function showForwardEmailFeedback(success, message) {
+    if (window.MessageListContextMenu) {
+        window.MessageListContextMenu.showActionNotice(success, message);
+        return;
+    }
+    window.alert(message);
 }
 
 function sortMessages(sortBy) {
@@ -795,20 +1303,20 @@ function updateFilterCounts(counts) {
     $('#draftsCount').text(counts.drafts || 0);
 }
 
+function applyEchomailReadStyle(messageId) {
+    const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+    if (!messageRow.length) return;
+    messageRow.removeClass('unread').addClass('read');
+    messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
+    messageRow.find('.message-subject strong').contents().unwrap();
+    messageRow.find('.fa-envelope-open').attr('title', 'Read');
+    messageRow.css('opacity', '0.85');
+}
+
 function markEchomailAsRead(messageId) {
     $.post(`/api/messages/echomail/${messageId}/read`)
         .done(function() {
-            // Update the UI to show message as read
-            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
-            if (messageRow.length) {
-                messageRow.removeClass('unread').addClass('read');
-                // Change envelope icon from closed to open
-                messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
-                // Remove bold formatting from subject
-                messageRow.find('strong').contents().unwrap();
-                // Update title attribute
-                messageRow.find('.fa-envelope-open').attr('title', 'Read');
-            }
+            applyEchomailReadStyle(messageId);
         })
         .fail(function() {
             console.log('Failed to mark echomail as read');
@@ -825,18 +1333,18 @@ function toggleModalFullscreen() {
         dialog.classList.add('modal-lg');
         icon.classList.remove('fa-compress');
         icon.classList.add('fa-expand');
-        localStorage.setItem('modalFullscreen', 'false');
+        UserStorage.setItem('modalFullscreen', 'false');
     } else {
         dialog.classList.remove('modal-lg');
         dialog.classList.add('modal-fullscreen');
         icon.classList.remove('fa-expand');
         icon.classList.add('fa-compress');
-        localStorage.setItem('modalFullscreen', 'true');
+        UserStorage.setItem('modalFullscreen', 'true');
     }
 }
 
 function applyModalFullscreenPreference() {
-    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const isFullscreen = UserStorage.getItem('modalFullscreen') === 'true';
     const modal = document.getElementById('messageModal');
     const dialog = modal.querySelector('.modal-dialog');
     const icon = document.querySelector('#fullscreenToggle i');
@@ -852,8 +1360,8 @@ function applyModalFullscreenPreference() {
 function viewMessage(messageId) {
     currentMessageId = messageId;
 
-    // Find the current message index in the messages array
-    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId);
+    // Find the current message index in the messages array (exclude file items)
+    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId && msg.type !== 'file');
 
     // Update navigation button states
     updateNavigationButtons();
@@ -923,7 +1431,7 @@ function getNextRenderMode(mode) {
     if (window.getNextViewerRenderMode) {
         return window.getNextViewerRenderMode(mode);
     }
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain', 'raw'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -1082,6 +1590,7 @@ function renderCurrentMessageBody() {
     }
 
     if (currentRenderMode !== 'plain'
+            && currentRenderMode !== 'raw'
             && typeof looksLikeSixel === 'function'
             && looksLikeSixel(body)) {
         renderSixelChunks(container, body, function (textChunk) {
@@ -1122,7 +1631,7 @@ function isAnsiAdCandidate(message, bodyText) {
     if (format === 'ansi' || format === 'amiga_ansi') {
         return true;
     }
-    if (format === 'rip' || format === 'plain') {
+    if (format === 'rip' || format === 'plain' || format === 'plain_text' || format === 'text') {
         return false;
     }
 
@@ -1159,6 +1668,7 @@ function updateSaveToAdLibraryButton() {
 function cycleRenderMode() {
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
+    showRenderModeToast();
 }
 
 function printMessage() {
@@ -1351,7 +1861,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
             <div class="row mt-2">
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> ${formatFullDate(message.date_written)}
+                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.received_prefix', 'Received:')} ${formatFullDate(message.date_received)}">${formatFullDate(message.date_written)}</span>
                 </div>
                 <div class="col-md-8">
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
@@ -1424,11 +1934,17 @@ function composeMessage(type, replyToId = null) {
     if (replyToId) {
         params.append('reply', replyToId);
     }
-    if (currentEchoarea) {
-        params.append('echoarea', currentEchoarea);
-    }
-    if(domain){
-        params.append('domain', domain);
+
+    if (currentInterestId && currentInterestSlug) {
+        // Interest mode: let the compose page filter areas to this interest
+        params.append('interest', currentInterestSlug);
+    } else {
+        if (currentEchoarea) {
+            params.append('echoarea', currentEchoarea);
+        }
+        if (typeof domain !== 'undefined' && domain) {
+            params.append('domain', domain);
+        }
     }
 
     if (params.toString()) {
@@ -1439,6 +1955,8 @@ function composeMessage(type, replyToId = null) {
 }
 
 function searchMessages() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
     // Get query from both desktop and mobile search inputs
     let query = $('#searchInput').val().trim();
     if (!query) {
@@ -1521,10 +2039,11 @@ function runAdvancedSearch() {
     const fromName = $('#advSearchFromName').val().trim();
     const subject = $('#advSearchSubject').val().trim();
     const body = $('#advSearchBody').val().trim();
+    const messageId = $('#advSearchMessageId').val().trim();
     const dateFrom = $('#advSearchDateFrom').val();
     const dateTo = $('#advSearchDateTo').val();
 
-    const textFields = [fromName, subject, body].filter(v => v.length > 0);
+    const textFields = [fromName, subject, body, messageId].filter(v => v.length > 0);
     const hasDate = dateFrom || dateTo;
 
     // Validate: at least one field filled, and text fields must be 2+ chars each
@@ -1546,7 +2065,7 @@ function runAdvancedSearch() {
     showLoading('#messagesContainer');
 
     // Collect text search terms for highlighting
-    currentSearchTerms = [fromName, subject, body]
+    currentSearchTerms = [fromName, subject, body, messageId]
         .filter(v => v.length > 0)
         .join(' ')
         .toLowerCase()
@@ -1557,6 +2076,7 @@ function runAdvancedSearch() {
     if (fromName) params.set('from_name', fromName);
     if (subject) params.set('subject', subject);
     if (body) params.set('body', body);
+    if (messageId) params.set('message_id', messageId);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
     if (currentEchoarea) params.set('echoarea', currentEchoarea);
@@ -1674,7 +2194,9 @@ function clearSearch() {
 
 // Toggle save status of a message
 function toggleSaveMessage(messageId, messageType, isSaved) {
-    event.stopPropagation(); // Prevent triggering the row click
+    if (typeof event !== 'undefined' && event && typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+    }
 
     const method = isSaved ? 'DELETE' : 'POST';
     const url = `/api/messages/${messageType}/${messageId}/save`;
@@ -1877,9 +2399,14 @@ window.addEventListener('popstate', function(event) {
 
 function loadStats() {
     console.log('Loading echomail statistics...');
-    let url = '/api/messages/echomail/stats';
-    if (currentEchoarea) {
-        url += '/' + encodeURIComponent(currentEchoarea);
+    let url;
+    if (currentInterestId) {
+        url = '/api/interests/' + encodeURIComponent(currentInterestId) + '/stats';
+    } else {
+        url = '/api/messages/echomail/stats';
+        if (currentEchoarea) {
+            url += '/' + encodeURIComponent(currentEchoarea);
+        }
     }
 
     $.get(url)
@@ -2075,6 +2602,16 @@ function deleteSelectedMessages() {
     // Convert Set to Array for API call
     const messageIds = Array.from(selectedMessages);
 
+    const savedCount = messageIds.filter(id => {
+        const msg = currentMessages.find(m => Number(m.id) === Number(id));
+        return msg && Number(msg.is_saved) === 1;
+    }).length;
+    if (savedCount > 0) {
+        if (!confirm(uiT('ui.echomail.bulk_delete.saved_confirm', '{count} of the selected messages are saved. Are you sure you want to delete them?', { count: savedCount }))) {
+            return;
+        }
+    }
+
     // Show loading state
     const deleteBtn = $('#bulkActions .btn-outline-danger');
     const originalText = deleteBtn.html();
@@ -2118,28 +2655,24 @@ function deleteSelectedMessages() {
 function markMessageAsRead(messageId) {
     $.post(`/api/messages/echomail/${messageId}/read`)
         .done(function() {
-            // Update the UI to show message as read
-            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
-            messageRow.removeClass('unread').addClass('read');
-            messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
-            messageRow.find('.message-subject strong').contents().unwrap();
-            messageRow.css('opacity', '0.85');
+            applyEchomailReadStyle(messageId);
         })
         .fail(function() {
             console.log('Failed to mark message as read');
         });
 }
 
-function updateMobileAccordionText(selectedArea) {
+function updateMobileAccordionText(selectedArea, interestName) {
     const textSpan = $('#mobileAccordionText');
-    if (textSpan.length) {
-        if (selectedArea) {
-            // Strip domain from display (show just the tag)
-            const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
-            textSpan.text(`Viewing: ${displayTag}`);
-        } else {
-            textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
-        }
+    if (!textSpan.length) return;
+    if (interestName) {
+        textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${interestName}`);
+    } else if (selectedArea) {
+        // Strip domain from display (show just the tag)
+        const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
+        textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${displayTag}`);
+    } else {
+        textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
     }
 }
 
@@ -2445,6 +2978,13 @@ function navigateMessage(direction) {
     const newMessage = currentMessages[newIndex];
     if (!newMessage) return;
 
+    // Skip file items during message navigation
+    if (newMessage.type === 'file') {
+        currentMessageIndex = newIndex;
+        navigateMessage(direction); // continue in the same direction
+        return;
+    }
+
     // Update current message info
     currentMessageId = newMessage.id;
     currentMessageIndex = newIndex;
@@ -2535,6 +3075,7 @@ function saveEditMessage() {
         }
         // Refresh the list row
         displayMessages(currentMessages, currentMessages.some(m => m.thread_level > 0));
+        renderCurrentMessageBody();
         $('#editMessageSuccess').removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     }).fail(function(xhr) {
@@ -2542,6 +3083,30 @@ function saveEditMessage() {
         $('#editMessageError').text(window.getApiErrorMessage ? window.getApiErrorMessage(payload, uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes')) : (payload.error || uiT('errors.messages.echomail.edit.save_failed', 'Failed to save changes'))).removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     });
+}
+
+/**
+ * Format a file size in bytes to a human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let v = parseInt(bytes);
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? v : v.toFixed(1)) + ' ' + units[i];
+}
+
+/**
+ * Open the file info modal and load details from the API.
+ *
+ * @param {number} fileId
+ */
+function viewFile(fileId) {
+    openFileInfoModal(fileId);
 }
 
 // Sharing functionality

@@ -33,6 +33,157 @@ class Advertising
     }
 
     /**
+     * Return the project base directory.
+     */
+    public static function getBaseDir(): string
+    {
+        return dirname(__DIR__);
+    }
+
+    /**
+     * Return the list of allowed content commands as [{label, value}] pairs.
+     *
+     * Allowed commands are:
+     *  - Any file inside the project's content_commands/ directory
+     *  - scripts/weather_report.php, scripts/report_newfiles.php, and scripts/generate_ad.php (whitelisted scripts)
+     *
+     * Values are repo-relative paths (e.g. "content_commands/my_script.php").
+     *
+     * @return array<int, array{label: string, value: string}>
+     */
+    public static function getAvailableContentCommands(): array
+    {
+        $base = self::getBaseDir();
+        $commands = [];
+
+        // Scan content_commands/ directory for any files
+        $contentCommandsDir = $base . '/content_commands';
+        if (is_dir($contentCommandsDir)) {
+            $files = glob($contentCommandsDir . '/*') ?: [];
+            sort($files);
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    $commands[] = [
+                        'label' => basename($file),
+                        'value' => 'content_commands/' . basename($file),
+                    ];
+                }
+            }
+        }
+
+        // Whitelisted scripts in scripts/
+        $whitelisted = [
+            'scripts/weather_report.php',
+            'scripts/report_newfiles.php',
+            'scripts/generate_ad.php',
+        ];
+        foreach ($whitelisted as $rel) {
+            if (file_exists($base . '/' . $rel)) {
+                $commands[] = ['label' => basename($rel), 'value' => $rel];
+            }
+        }
+
+        return $commands;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function getWhitelistedContentCommandAliases(): array
+    {
+        $aliases = [];
+        foreach ([
+            'scripts/weather_report.php',
+            'scripts/report_newfiles.php',
+            'scripts/generate_ad.php',
+        ] as $path) {
+            $aliases[$path] = $path;
+            $aliases[basename($path)] = $path;
+        }
+
+        return $aliases;
+    }
+
+    private static function normalizeContentCommandScript(string $script): string
+    {
+        $script = trim($script);
+        if ($script === '') {
+            return '';
+        }
+
+        $aliases = self::getWhitelistedContentCommandAliases();
+        return $aliases[$script] ?? $script;
+    }
+
+    /**
+     * Return true if the given content command value is allowed.
+     *
+     * The value may include arguments after the script path, e.g.:
+     *   "scripts/weather_report.php --city=Seattle"
+     *   "content_commands/my_script.php --format=ansi"
+     *
+     * Validation checks only the script path (first whitespace-delimited token).
+     * A script is allowed if it is one of the whitelisted scripts or a file
+     * within the content_commands/ directory.
+     *
+     * Absolute paths, directory traversal, and null bytes are always rejected.
+     * Shell metacharacters (;|!&><`$\(){}*?"'~#) are rejected at storage time
+     * in addition to being neutralised at execution time via escapeshellarg().
+     *
+     * @param string $cmd Repo-relative path with optional args
+     *                    (e.g. "content_commands/my_script.php --flag=value")
+     */
+    public static function validateContentCommand(string $cmd): bool
+    {
+        if ($cmd === '') {
+            return true;
+        }
+
+        // Reject null bytes and ASCII control characters anywhere in the value
+        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $cmd)) {
+            return false;
+        }
+
+        // Reject shell metacharacters anywhere in the value (script path or args)
+        if (preg_match('/[;|!&><`$\\\\(){}\*\?"\'~#]/', $cmd)) {
+            return false;
+        }
+
+        // Extract the script path — the first whitespace-delimited token
+        $script = preg_split('/\s+/', trim($cmd), 2)[0];
+        $script = self::normalizeContentCommandScript($script);
+
+        // Reject absolute paths and directory traversal in the script portion
+        if (str_starts_with($script, '/') || str_contains($script, '..')) {
+            return false;
+        }
+
+        // Whitelisted exact relative paths
+        $whitelist = array_values(array_unique(self::getWhitelistedContentCommandAliases()));
+        if (in_array($script, $whitelist, true)) {
+            return true;
+        }
+
+        // Must be within content_commands/
+        if (!str_starts_with($script, 'content_commands/')) {
+            return false;
+        }
+
+        $base = self::getBaseDir();
+        $contentCommandsDir = realpath($base . '/content_commands');
+        if ($contentCommandsDir === false) {
+            return false; // directory does not exist
+        }
+
+        $resolved = realpath($base . '/' . $script);
+        if ($resolved === false) {
+            return false; // file does not exist
+        }
+
+        return str_starts_with($resolved, $contentCommandsDir . DIRECTORY_SEPARATOR);
+    }
+
+    /**
      * Convert legacy ANSI payloads to valid UTF-8 before storing or rendering.
      */
     public static function ensureUtf8(string $text): string
@@ -172,7 +323,7 @@ class Advertising
             $_SESSION['dashboard_ad_last_id'] = (int)$selected[0]['id'];
         }
 
-        return $selected;
+        return array_map([$this, 'resolveAdContent'], $selected);
     }
 
     public function listAds(bool $includeInactive = true): array
@@ -192,12 +343,15 @@ class Advertising
                    a.allow_auto_post,
                    a.dashboard_weight,
                    a.dashboard_priority,
+                   a.click_url,
                    a.start_at,
                    a.end_at,
                    a.created_at,
                    a.updated_at,
                    COALESCE(STRING_AGG(t.name, ', ' ORDER BY LOWER(t.name)), '') AS tags_csv,
-                   OCTET_LENGTH(COALESCE(a.content, '')) AS size_bytes
+                   OCTET_LENGTH(COALESCE(a.content, '')) AS size_bytes,
+                   (SELECT COUNT(*) FROM advertisement_impressions ai WHERE ai.advertisement_id = a.id) AS impression_count,
+                   (SELECT COUNT(*) FROM advertisement_clicks ac WHERE ac.advertisement_id = a.id) AS click_count
             FROM advertisements a
             LEFT JOIN advertisement_tag_map atm ON atm.advertisement_id = a.id
             LEFT JOIN advertisement_tags t ON t.id = atm.tag_id
@@ -214,7 +368,9 @@ class Advertising
 
         $stmt = $this->db->query($sql);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return array_map([$this, 'hydrateAd'], $rows);
+        return array_map(function (array $row): array {
+            return $this->resolveAdContent($this->hydrateAd($row));
+        }, $rows);
     }
 
     public function listTags(): array
@@ -247,7 +403,7 @@ class Advertising
         ");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->hydrateAd($row) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
     }
 
     public function getAdBySlug(string $slug): ?array
@@ -264,7 +420,7 @@ class Advertising
         ");
         $stmt->execute([$slug]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->hydrateAd($row) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
     }
 
     public function getAdByName(string $name): ?array
@@ -298,7 +454,7 @@ class Advertising
         ");
         $stmt->execute([$name, $normalized, $name]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->hydrateAd($row) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
     }
 
     public function createAd(array $data, ?int $userId = null): array
@@ -322,6 +478,8 @@ class Advertising
         $dashboardPriority = (int)($data['dashboard_priority'] ?? 0);
         $sourceType = trim((string)($data['source_type'] ?? 'upload')) ?: 'upload';
 
+        $clickUrl = trim((string)($data['click_url'] ?? ''));
+
         $stmt = $this->db->prepare("
             INSERT INTO advertisements (
                 slug,
@@ -339,9 +497,10 @@ class Advertising
                 allow_auto_post,
                 dashboard_weight,
                 dashboard_priority,
+                click_url,
                 start_at,
                 end_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
 
@@ -361,6 +520,7 @@ class Advertising
             $this->asPgBool(!empty($data['allow_auto_post'])),
             $dashboardWeight,
             $dashboardPriority,
+            $clickUrl !== '' ? $clickUrl : null,
             $this->normalizeTimestamp($data['start_at'] ?? null),
             $this->normalizeTimestamp($data['end_at'] ?? null)
         ]);
@@ -392,6 +552,10 @@ class Advertising
             throw new \InvalidArgumentException('Advertisement content or a content command is required');
         }
 
+        $clickUrl = array_key_exists('click_url', $data)
+            ? trim((string)$data['click_url'])
+            : trim((string)($existing['click_url'] ?? ''));
+
         $stmt = $this->db->prepare("
             UPDATE advertisements
             SET slug = ?,
@@ -407,6 +571,7 @@ class Advertising
                 allow_auto_post = ?,
                 dashboard_weight = ?,
                 dashboard_priority = ?,
+                click_url = ?,
                 start_at = ?,
                 end_at = ?,
                 updated_at = NOW()
@@ -427,6 +592,7 @@ class Advertising
             $this->asPgBool(!empty($data['allow_auto_post'] ?? $existing['allow_auto_post'])),
             max(1, (int)($data['dashboard_weight'] ?? $existing['dashboard_weight'] ?? 1)),
             (int)($data['dashboard_priority'] ?? $existing['dashboard_priority'] ?? 0),
+            $clickUrl !== '' ? $clickUrl : null,
             $this->normalizeTimestamp($data['start_at'] ?? ($existing['start_at'] ?? null)),
             $this->normalizeTimestamp($data['end_at'] ?? ($existing['end_at'] ?? null)),
             $id
@@ -686,6 +852,7 @@ class Advertising
             : array_filter($this->listCampaigns(), static fn(array $campaign): bool => !empty($campaign['is_active']));
 
         $nowUtc = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $handler = new MessageHandler();
         $results = [];
         foreach ($campaigns as $campaign) {
             // Auto-deactivate campaigns that have passed their end_at
@@ -714,26 +881,30 @@ class Advertising
             }
 
             foreach ($dueSchedules as $schedule) {
-                $markScheduleTriggered = false;
+                if (!$dryRun && !empty($schedule['id']) && empty($schedule['legacy'])) {
+                    $slotAt = (string)($schedule['slot_at'] ?? '');
+                    if ($slotAt === '' || !$this->claimScheduleTriggerSlot((int)$schedule['id'], $slotAt)) {
+                        continue;
+                    }
+                }
+
                 foreach ($this->getCampaignTargets((int)$campaign['id']) as $target) {
                     if (empty($target['is_active'])) {
                         continue;
                     }
-                    $result = $this->runCampaignTarget($campaign, $target, $dryRun);
+                    $result = $this->runCampaignTarget($campaign, $target, $dryRun, $handler);
                     $result['schedule_slot_at'] = $schedule['slot_at'] ?? null;
                     $result['schedule_time_of_day'] = $schedule['time_of_day'] ?? null;
                     $result['schedule_timezone'] = $schedule['timezone'] ?? null;
                     $result['schedule_days_mask'] = $schedule['days_mask'] ?? null;
-                    if (!$dryRun && ($result['status'] ?? '') === 'success') {
-                        $markScheduleTriggered = true;
-                    }
                     $results[] = $result;
                 }
-
-                if (!$dryRun && $markScheduleTriggered && !empty($schedule['id'])) {
-                    $this->updateScheduleTriggerState((int)$schedule['id']);
-                }
             }
+        }
+
+        $anySpooled = !$dryRun && array_filter($results, static fn(array $r): bool => ($r['status'] ?? '') === 'success');
+        if ($anySpooled) {
+            $handler->flushImmediateOutboundPolls();
         }
 
         return $results;
@@ -868,6 +1039,26 @@ class Advertising
         }
 
         return $deduped;
+    }
+
+    private function resolveAdContent(array $ad): array
+    {
+        $contentCommand = trim((string)($ad['content_command'] ?? ''));
+        if ($contentCommand === '') {
+            return $ad;
+        }
+
+        [$dynamicBody, $commandError] = $this->runContentCommand($contentCommand);
+        if ($commandError !== null) {
+            $fallback = trim((string)($ad['content'] ?? ''));
+            $ad['content'] = $fallback !== '' ? $fallback : $commandError;
+            $ad['content_command_error'] = $commandError;
+            return $ad;
+        }
+
+        $ad['content'] = $dynamicBody;
+        $ad['content_command_error'] = null;
+        return $ad;
     }
 
     private function pickWeightedIndex(array $ads): int
@@ -1298,7 +1489,7 @@ class Advertising
         return $due;
     }
 
-    private function runCampaignTarget(array $campaign, array $target, bool $dryRun): array
+    private function runCampaignTarget(array $campaign, array $target, bool $dryRun, ?MessageHandler $handler = null): array
     {
         $ad = $this->selectCampaignAdvertisement((int)$campaign['id'], (int)($campaign['last_posted_ad_id'] ?? 0));
         if (!$ad) {
@@ -1348,7 +1539,7 @@ class Advertising
         }
 
         try {
-            $handler = new MessageHandler();
+            $handler = $handler ?? new MessageHandler();
             $posted = $handler->postEchomail(
                 (int)$campaign['from_user_id'],
                 (string)$target['echoarea_tag'],
@@ -1517,14 +1708,19 @@ class Advertising
         $stmt->execute([$advertisementId, $campaignId]);
     }
 
-    private function updateScheduleTriggerState(int $scheduleId): void
+    private function claimScheduleTriggerSlot(int $scheduleId, string $slotAt): bool
     {
         $stmt = $this->db->prepare("
             UPDATE advertisement_campaign_schedules
             SET last_triggered_at = NOW()
             WHERE id = ?
+              AND (
+                    last_triggered_at IS NULL
+                 OR last_triggered_at < ?
+              )
         ");
-        $stmt->execute([$scheduleId]);
+        $stmt->execute([$scheduleId, $slotAt]);
+        return $stmt->rowCount() > 0;
     }
 
     private function summarizeCampaignSchedules(array $schedules): string
@@ -1748,34 +1944,101 @@ class Advertising
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
+    /**
+     * Record a dashboard impression for an advertisement.
+     *
+     * @param int $adId  Advertisement ID
+     * @param int $userId User who saw the ad
+     */
+    public function recordImpression(int $adId, int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO advertisement_impressions (advertisement_id, user_id) VALUES (?, ?)"
+        );
+        $stmt->execute([$adId, $userId]);
+    }
+
+    /**
+     * Record a click-through for an advertisement.
+     *
+     * @param int $adId  Advertisement ID
+     * @param int $userId User who clicked
+     */
+    public function recordClick(int $adId, int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO advertisement_clicks (advertisement_id, user_id) VALUES (?, ?)"
+        );
+        $stmt->execute([$adId, $userId]);
+    }
+
     private function hydrateAd(array $row): array
     {
         $row['id'] = (int)$row['id'];
         $row['dashboard_weight'] = (int)($row['dashboard_weight'] ?? 1);
         $row['dashboard_priority'] = (int)($row['dashboard_priority'] ?? 0);
         $row['size'] = (int)($row['size_bytes'] ?? strlen((string)($row['content'] ?? '')));
+        $row['stored_content'] = (string)($row['content'] ?? '');
         $row['is_active'] = $this->dbBool($row['is_active'] ?? false);
         $row['show_on_dashboard'] = $this->dbBool($row['show_on_dashboard'] ?? false);
         $row['allow_auto_post'] = $this->dbBool($row['allow_auto_post'] ?? false);
         $row['tags'] = self::normalizeTags((string)($row['tags_csv'] ?? ''));
         $row['name'] = (string)($row['legacy_filename'] ?? $row['slug']);
         $row['content_command'] = isset($row['content_command']) && $row['content_command'] !== '' ? $row['content_command'] : null;
+        $row['click_url'] = isset($row['click_url']) && $row['click_url'] !== '' ? $row['click_url'] : null;
+        $row['impression_count'] = isset($row['impression_count']) ? (int)$row['impression_count'] : null;
+        $row['click_count'] = isset($row['click_count']) ? (int)$row['click_count'] : null;
         return $row;
     }
 
     /**
      * Execute a content_command and return [string $output, ?string $errorReason].
      * Returns a non-null error reason if the command should cause the post to be skipped.
+     *
+     * The command must be a repo-relative path validated by validateContentCommand().
+     * Relative paths are resolved to absolute paths before execution. PHP scripts are
+     * run through a CLI PHP binary, not the current web SAPI binary.
      */
     private function runContentCommand(string $command): array
     {
+        if (!self::validateContentCommand($command)) {
+            return ['', 'content_command is not in the allowed list'];
+        }
+
+        // Split into script path and optional arguments
+        $parts = preg_split('/\s+/', trim($command), 2);
+        $script  = self::normalizeContentCommandScript((string)$parts[0]);
+        $rawArgs = isset($parts[1]) ? trim($parts[1]) : '';
+
+        // Resolve the script to an absolute path
+        $baseDir = self::getBaseDir();
+        $absPath = $baseDir . '/' . $script;
+        $argv = [];
+
+        // PHP scripts must run under a CLI binary. PHP_BINARY may point to php-fpm/mod_php.
+        if (str_ends_with($script, '.php')) {
+            $argv[] = self::getPhpCliBinary();
+            $argv[] = $absPath;
+        } else {
+            $argv[] = $absPath;
+        }
+
+        // Append each argument individually.
+        if ($rawArgs !== '') {
+            foreach (preg_split('/\s+/', $rawArgs) as $arg) {
+                if ($arg !== '') {
+                    $argv[] = $arg;
+                }
+            }
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
 
-        $process = proc_open($command, $descriptors, $pipes, null, null);
+        $process = proc_open($argv, $descriptors, $pipes, $baseDir, null);
         if (!is_resource($process)) {
             return ['', 'Failed to launch content_command process'];
         }
@@ -1783,10 +2046,15 @@ class Advertising
         fclose($pipes[0]);
         $output = (string)stream_get_contents($pipes[1]);
         fclose($pipes[1]);
+        $stderr = (string)stream_get_contents($pipes[2]);
         fclose($pipes[2]);
         $exitCode = proc_close($process);
 
         if ($exitCode !== 0) {
+            $stderr = trim($stderr);
+            if ($stderr !== '') {
+                return ['', "content_command exited with code {$exitCode}: {$stderr}"];
+            }
             return ['', "content_command exited with code {$exitCode}"];
         }
 
@@ -1795,6 +2063,22 @@ class Advertising
         }
 
         return [$output, null];
+    }
+
+    private static function getPhpCliBinary(): string
+    {
+        $configured = trim((string)Config::env('PHP_CLI_BINARY', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $suffix = DIRECTORY_SEPARATOR === '\\' ? 'php.exe' : 'php';
+        $candidate = rtrim(PHP_BINDIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $suffix;
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+
+        return $suffix;
     }
 
     private function dbBool($value): bool

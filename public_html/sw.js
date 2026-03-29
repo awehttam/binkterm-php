@@ -1,14 +1,20 @@
-const CACHE_NAME = 'binkcache-v499';
+const CACHE_NAME = 'binkcache-v718';
 
 // Static assets to precache
 const staticAssets = [
     '/favicon.svg',
+    '/js/user-storage.js',
     '/js/app.js',
+    '/js/interest-picker.js',
     '/js/netmail.js',
     '/js/echomail.js',
+    '/js/message-list-context-menu.js',
     '/js/chat-page.js',
-    '/js/chat-notify.js',
+    '/js/notifier.js',
+    '/js/binkstream-client.js',
+    '/js/binkstream-worker-v2.js',
     '/js/ansisys.js',
+    '/js/ansi-editor.js',
     '/js/file-preview.js',
     '/js/pcboard.js',
     '/css/ansisys.css',
@@ -51,6 +57,17 @@ function getCache() {
     ]);
 }
 
+async function precacheStaticAssets(cache) {
+    for (const asset of staticAssets) {
+        const request = new Request(asset, { cache: 'reload' });
+        const response = await fetch(request);
+        if (!response.ok) {
+            throw new Error(`precache-failed:${asset}:${response.status}`);
+        }
+        await cache.put(request, response);
+    }
+}
+
 // Install event - cache static assets and activate immediately.
 // Always delete and re-create the cache on install so that a version bump
 // guarantees fresh assets even if the same cache name was previously populated
@@ -63,7 +80,7 @@ self.addEventListener('install', (event) => {
             .then(async (cache) => {
                 _cache = cache;
                 console.log('[SW] Caching', staticAssets.length, 'static assets');
-                await cache.addAll(staticAssets);
+                await precacheStaticAssets(cache);
             })
             .then(() => {
                 console.log('[SW] New version installed, skipping wait');
@@ -125,6 +142,13 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Admin-only files are excluded from caching — they change frequently during
+    // development and are only loaded for admins, so per-user caching isn't worth it.
+    const adminPaths = ['/js/admin-terminal.js', '/js/xterm.js', '/js/xterm-addon-fit.js', '/css/xterm.css'];
+    if (adminPaths.includes(url.pathname)) {
+        return;
+    }
+
     // Handle CSS/JS/font files with cache-first strategy.
     // Version bumps to CACHE_NAME purge and repopulate the cache at install time,
     // so there is no need to re-fetch on every request.
@@ -135,9 +159,13 @@ self.addEventListener('fetch', (event) => {
                     if (cachedResponse) {
                         return cachedResponse;
                     }
-                    // Not in cache yet — fetch, store, and return
+                    // Not in cache yet — fetch, store, and return.
+                    // Do not cache partial responses (206) — the Cache API
+                    // rejects them and audio range requests can trigger this.
                     return fetch(request).then((networkResponse) => {
-                        cache.put(request, networkResponse.clone());
+                        if (networkResponse.ok && networkResponse.status === 200) {
+                            cache.put(request, networkResponse.clone());
+                        }
                         return networkResponse;
                     });
                 });
@@ -158,7 +186,7 @@ self.addEventListener('fetch', (event) => {
                         return cachedResponse;
                     }
                     return fetch(request).then((networkResponse) => {
-                        if (networkResponse.ok) {
+                        if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }
                         return networkResponse;

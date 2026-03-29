@@ -55,6 +55,21 @@ function formatBytes($bytes)
     return number_format($bytes, 2) . ' ' . $units[$i];
 }
 
+function formatStatusTimestamp($value)
+{
+    if (!is_string($value) || $value === '' || $value === 'Never' || $value === 'Unknown') {
+        return $value;
+    }
+
+    try {
+        return (new DateTimeImmutable($value))
+            ->setTimezone(new DateTimeZone(date_default_timezone_get()))
+            ->format('Y-m-d H:i:s T');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
 function showUplinkStatus($config, $client, $json = false)
 {
     $status = $client->getUplinkStatus();
@@ -118,8 +133,8 @@ function showScheduleStatus($config, $scheduler, $json = false)
         echo "\n{$address}:\n";
         echo "  Schedule: {$info['schedule']}\n";
         echo "  Status: {$enabledStatus} / {$dueStatus}\n";
-        echo "  Last poll: {$info['last_poll']}\n";
-        echo "  Next poll: {$info['next_poll']}\n";
+        echo "  Last poll: " . formatStatusTimestamp($info['last_poll']) . "\n";
+        echo "  Next poll: " . formatStatusTimestamp($info['next_poll']) . "\n";
     }
     
     return ['schedule' => $status];

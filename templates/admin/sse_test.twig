@@ -1,0 +1,442 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.sse_test.page_title') }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+        <h4 class="mb-0"><i class="fas fa-satellite-dish me-2"></i>{{ t('ui.admin.sse_test.heading') }}</h4>
+        <span id="connBadge" class="badge bg-secondary ms-2">{{ t('ui.admin.sse_test.status_idle') }}</span>
+    </div>
+
+    {# Controls #}
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-sm-auto">
+                    <label class="form-label mb-1">Mode</label>
+                    <select class="form-select form-select-sm" id="ctrlMode">
+                        <option value="direct">Direct stream</option>
+                        <option value="realpath">Real path (via sse_events)</option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
+                    <label class="form-label mb-1">{{ t('ui.admin.sse_test.interval') }}</label>
+                    <select class="form-select form-select-sm" id="ctrlInterval">
+                        <option value="100">100 ms</option>
+                        <option value="250">250 ms</option>
+                        <option value="500" selected>500 ms</option>
+                        <option value="1000">1 s</option>
+                        <option value="2000">2 s</option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
+                    <label class="form-label mb-1">{{ t('ui.admin.sse_test.duration') }}</label>
+                    <select class="form-select form-select-sm" id="ctrlDuration">
+                        <option value="10">10 s</option>
+                        <option value="30" selected>30 s</option>
+                        <option value="60">60 s</option>
+                        <option value="120">120 s</option>
+                    </select>
+                </div>
+                <div class="col-sm-auto" id="payloadWrap">
+                    <label class="form-label mb-1">{{ t('ui.admin.sse_test.payload') }}</label>
+                    <select class="form-select form-select-sm" id="ctrlPayload">
+                        <option value="0" selected>{{ t('ui.admin.sse_test.payload_none') }}</option>
+                        <option value="256">256 B</option>
+                        <option value="1024">1 KB</option>
+                        <option value="8192">8 KB</option>
+                        <option value="65536">64 KB</option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
+                    <button class="btn btn-primary btn-sm" id="btnStart"><i class="fas fa-play me-1"></i>{{ t('ui.admin.sse_test.start') }}</button>
+                    <button class="btn btn-danger btn-sm d-none ms-1" id="btnStop"><i class="fas fa-stop me-1"></i>{{ t('ui.admin.sse_test.stop') }}</button>
+                </div>
+                <div class="col-sm-auto ms-auto">
+                    <button class="btn btn-outline-secondary btn-sm" id="btnClear"><i class="fas fa-trash me-1"></i>{{ t('ui.admin.sse_test.clear') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Summary cards #}
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0" id="statEvents">—</div>
+                    <div class="small text-muted">{{ t('ui.admin.sse_test.stat_events') }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0" id="statMissed"><span class="text-muted">—</span></div>
+                    <div class="small text-muted">{{ t('ui.admin.sse_test.stat_missed') }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0" id="statLatency">—</div>
+                    <div class="small text-muted">{{ t('ui.admin.sse_test.stat_latency') }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0" id="statGapDev">—</div>
+                    <div class="small text-muted">{{ t('ui.admin.sse_test.stat_gap_dev') }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        {# Latency sparkline #}
+        <div class="col-12">
+            <div class="card mb-0">
+                <div class="card-header py-1 d-flex align-items-center justify-content-between">
+                    <span class="small fw-semibold">{{ t('ui.admin.sse_test.latency_chart') }}</span>
+                    <span class="small text-muted" id="chartNote">{{ t('ui.admin.sse_test.chart_note') }}</span>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="latencyCanvas" height="80" style="width:100%;display:block;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {# Event log #}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header py-1 d-flex align-items-center justify-content-between">
+                    <span class="small fw-semibold">{{ t('ui.admin.sse_test.event_log') }}</span>
+                    <span class="small text-muted" id="logNote">{{ t('ui.admin.sse_test.log_note') }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height:280px;overflow-y:auto;" id="logScroll">
+                        <table class="table table-sm table-hover mb-0 font-monospace small">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>{{ t('ui.admin.sse_test.col_seq') }}</th>
+                                    <th>{{ t('ui.admin.sse_test.col_server_ts') }}</th>
+                                    <th>{{ t('ui.admin.sse_test.col_client_ts') }}</th>
+                                    <th>{{ t('ui.admin.sse_test.col_latency') }}</th>
+                                    <th>{{ t('ui.admin.sse_test.col_gap') }}</th>
+                                    <th>{{ t('ui.admin.sse_test.col_gap_dev') }}</th>
+                                    <th>{{ t('ui.admin.sse_test.col_note') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    let es = null;
+    let injectTimer = null;
+    let durationTimer = null;
+    let rows = [];
+    let latencies = [];
+    let gapDeviations = [];
+    let lastClientTs = null;
+    let lastSeq = -1;
+    let totalMissed = 0;
+    let intervalMs = 500;
+    // Real-path mode: track injected events awaiting SSE delivery {seq -> server_ts}
+    let pendingInjections = new Map();
+    let injectSeq = 0;
+
+    const MAX_ROWS = 200;
+    const MAX_CHART_PTS = 120;
+
+    const btnStart   = document.getElementById('btnStart');
+    const btnStop    = document.getElementById('btnStop');
+    const btnClear   = document.getElementById('btnClear');
+    const badge      = document.getElementById('connBadge');
+    const logBody    = document.getElementById('logBody');
+    const canvas     = document.getElementById('latencyCanvas');
+    const ctx        = canvas.getContext('2d');
+    const modeSelect = document.getElementById('ctrlMode');
+
+    // Hide payload picker in real-path mode (not relevant)
+    modeSelect.addEventListener('change', function() {
+        document.getElementById('payloadWrap').style.display =
+            this.value === 'realpath' ? 'none' : '';
+    });
+
+    function setStatus(text, cls) {
+        badge.textContent = text;
+        badge.className = 'badge ms-2 ' + cls;
+    }
+
+    function fmtMs(v) {
+        return v === null ? '—' : v.toFixed(1) + ' ms';
+    }
+
+    function mean(arr) {
+        if (!arr.length) return null;
+        return arr.reduce((a, b) => a + b, 0) / arr.length;
+    }
+
+    function p95(arr) {
+        if (!arr.length) return null;
+        const s = [...arr].sort((a, b) => a - b);
+        return s[Math.floor(s.length * 0.95)];
+    }
+
+    function updateStats() {
+        document.getElementById('statEvents').textContent = rows.length;
+
+        const missedEl = document.getElementById('statMissed');
+        missedEl.innerHTML = totalMissed > 0
+            ? `<span class="text-danger">${totalMissed}</span>`
+            : `<span class="text-success">0</span>`;
+
+        const avgLat = mean(latencies);
+        const p95Lat = p95(latencies);
+        document.getElementById('statLatency').innerHTML = avgLat === null ? '—'
+            : `${fmtMs(avgLat)} <span class="small text-muted">p95 ${fmtMs(p95Lat)}</span>`;
+
+        const avgDev = mean(gapDeviations.map(Math.abs));
+        const maxDev = gapDeviations.length ? Math.max(...gapDeviations.map(Math.abs)) : null;
+        document.getElementById('statGapDev').innerHTML = avgDev === null ? '—'
+            : `${fmtMs(avgDev)} <span class="small text-muted">max ${fmtMs(maxDev)}</span>`;
+    }
+
+    function drawChart() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.parentElement.clientWidth;
+        const h = 80;
+        canvas.width  = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width  = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h);
+
+        const pts = latencies.slice(-MAX_CHART_PTS);
+        if (pts.length < 2) return;
+
+        const maxVal = Math.max(...pts, 1);
+        const minVal = Math.min(...pts, 0);
+        const range  = maxVal - minVal || 1;
+        const pad = 4;
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#0d6efd';
+        ctx.lineWidth = 1.5;
+        pts.forEach((v, i) => {
+            const x = pad + (i / (pts.length - 1)) * (w - pad * 2);
+            const y = h - pad - ((v - minVal) / range) * (h - pad * 2);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        if (intervalMs >= minVal && intervalMs <= maxVal) {
+            const y = h - pad - ((intervalMs - minVal) / range) * (h - pad * 2);
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(25,135,84,0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.moveTo(pad, y); ctx.lineTo(w - pad, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        ctx.fillStyle = '#6c757d';
+        ctx.font = '10px monospace';
+        ctx.fillText(fmtMs(maxVal), pad + 2, pad + 10);
+        ctx.fillText(fmtMs(minVal), pad + 2, h - pad - 2);
+    }
+
+    function addRow(data, clientTs, note) {
+        const latency  = clientTs - data.server_ts;
+        const gap      = lastClientTs !== null ? clientTs - lastClientTs : null;
+        const gapDev   = gap !== null ? gap - intervalMs : null;
+
+        latencies.push(latency);
+        if (gapDev !== null) gapDeviations.push(gapDev);
+        if (latencies.length > MAX_CHART_PTS * 2) latencies.shift();
+        if (gapDeviations.length > MAX_CHART_PTS * 2) gapDeviations.shift();
+
+        lastClientTs = clientTs;
+
+        const tr = document.createElement('tr');
+        const latClass = latency > 500 ? 'text-danger' : latency > 200 ? 'text-warning' : '';
+        const gapDevClass = gapDev !== null && Math.abs(gapDev) > intervalMs * 0.5 ? 'text-danger'
+                          : gapDev !== null && Math.abs(gapDev) > intervalMs * 0.2 ? 'text-warning' : '';
+        tr.innerHTML = `
+            <td>${data.seq}</td>
+            <td>${data.server_ts}</td>
+            <td>${clientTs}</td>
+            <td class="${latClass}">${fmtMs(latency)}</td>
+            <td>${gap !== null ? fmtMs(gap) : '—'}</td>
+            <td class="${gapDevClass}">${gapDev !== null ? fmtMs(gapDev) : '—'}</td>
+            <td class="text-muted">${note || ''}</td>
+        `;
+        logBody.prepend(tr);
+        rows.push(tr);
+        if (rows.length > MAX_ROWS) rows.shift().remove();
+
+        updateStats();
+        drawChart();
+    }
+
+    // ── Direct stream mode ────────────────────────────────────────────────────
+
+    function startDirect(interval, duration, payload) {
+        const url = `/admin/sse-test/stream?interval=${interval}&duration=${duration}&payload=${payload}`;
+        es = new EventSource(url);
+        setStatus('{{ t('ui.admin.sse_test.status_connecting') }}', 'bg-warning text-dark');
+
+        es.addEventListener('open', function(e) {
+            // The native EventSource connection event also fires here with e.data === undefined.
+            // Guard against it — only process the server-sent 'open' event that carries JSON.
+            if (!e.data) return;
+            const data = JSON.parse(e.data);
+            setStatus('{{ t('ui.admin.sse_test.status_connected') }}', 'bg-success');
+            addRow({ seq: -1, server_ts: data.server_ts }, Date.now(), 'open');
+            lastSeq = -1;
+        });
+
+        es.onmessage = function(e) {
+            const clientTs = Date.now();
+            const data = JSON.parse(e.data);
+            const expectedSeq = lastSeq + 1;
+            let note = '';
+            if (lastSeq >= 0 && data.seq !== expectedSeq) {
+                totalMissed += data.seq - expectedSeq;
+                note = `⚠ gap (missed ${data.seq - expectedSeq})`;
+            }
+            lastSeq = data.seq;
+            addRow(data, clientTs, note);
+        };
+
+        es.addEventListener('done', function() {
+            setStatus('{{ t('ui.admin.sse_test.status_done') }}', 'bg-secondary');
+            stop(false);
+        });
+
+        es.onerror = function() {
+            if (es && es.readyState === EventSource.CLOSED) {
+                setStatus('{{ t('ui.admin.sse_test.status_error') }}', 'bg-danger');
+                stop(false);
+            }
+        };
+    }
+
+    // ── Real path mode ────────────────────────────────────────────────────────
+    // Injects events into sse_events via POST and receives them through the
+    // real /api/stream polling path via the SharedWorker (window.BinkStream).
+    // Latency = client receipt time − server insert time.
+
+    function startRealPath(interval, duration) {
+        setStatus('{{ t('ui.admin.sse_test.status_connecting') }}', 'bg-warning text-dark');
+
+        window.BinkStream.on('sse_test', handleRealPathEvent);
+        setStatus('{{ t('ui.admin.sse_test.status_connected') }}', 'bg-success');
+        lastSeq = -1;
+        injectSeq = 0;
+        pendingInjections.clear();
+
+        injectTimer = setInterval(function() {
+            const seq = injectSeq++;
+            fetch('/admin/sse-test/inject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seq })
+            })
+            .then(r => r.json())
+            .then(function(data) {
+                if (data.ok) {
+                    // Store server_ts from the inject response as the reference time
+                    pendingInjections.set(seq, data.server_ts);
+                }
+            })
+            .catch(function() {
+                // Inject failed — count as missed when we notice the gap
+            });
+        }, interval);
+
+        durationTimer = setTimeout(function() {
+            setStatus('{{ t('ui.admin.sse_test.status_done') }}', 'bg-secondary');
+            stop(false);
+        }, duration * 1000);
+    }
+
+    function handleRealPathEvent(payload) {
+        if (!payload || payload.seq === undefined) return;
+        const clientTs = Date.now();
+        const seq = payload.seq;
+        const serverTs = pendingInjections.has(seq)
+            ? pendingInjections.get(seq)
+            : payload.server_ts;
+        pendingInjections.delete(seq);
+
+        const expectedSeq = lastSeq + 1;
+        let note = '';
+        if (lastSeq >= 0 && seq !== expectedSeq) {
+            totalMissed += seq - expectedSeq;
+            note = `⚠ gap (missed ${seq - expectedSeq})`;
+        }
+        lastSeq = seq;
+        addRow({ seq, server_ts: serverTs }, clientTs, note);
+    }
+
+    // ── Common ────────────────────────────────────────────────────────────────
+
+    function start() {
+        const mode     = modeSelect.value;
+        const interval = parseInt(document.getElementById('ctrlInterval').value, 10);
+        const duration = parseInt(document.getElementById('ctrlDuration').value, 10);
+        const payload  = parseInt(document.getElementById('ctrlPayload').value, 10);
+        intervalMs = interval;
+
+        btnStart.classList.add('d-none');
+        btnStop.classList.remove('d-none');
+
+        if (mode === 'realpath') {
+            startRealPath(interval, duration);
+        } else {
+            startDirect(interval, duration, payload);
+        }
+    }
+
+    function stop(closeEs = true) {
+        if (closeEs && es) { es.close(); }
+        es = null;
+        if (injectTimer) { clearInterval(injectTimer); injectTimer = null; }
+        if (durationTimer) { clearTimeout(durationTimer); durationTimer = null; }
+        window.BinkStream.off('sse_test', handleRealPathEvent);
+        pendingInjections.clear();
+        btnStart.classList.remove('d-none');
+        btnStop.classList.add('d-none');
+    }
+
+    function clear() {
+        rows.forEach(r => r.remove());
+        rows = []; latencies = []; gapDeviations = [];
+        lastClientTs = null; lastSeq = -1; totalMissed = 0;
+        ['statEvents','statMissed','statLatency','statGapDev'].forEach(id => {
+            document.getElementById(id).innerHTML = '—';
+        });
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    btnStart.addEventListener('click', start);
+    btnStop.addEventListener('click', () => stop(true));
+    btnClear.addEventListener('click', clear);
+    window.addEventListener('resize', drawChart);
+})();
+</script>
+{% endblock %}

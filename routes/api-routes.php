@@ -640,9 +640,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $target = strtolower((string)($input['target'] ?? ''));
-        if (!in_array($target, ['netmail', 'echomail', 'chat', 'files'], true)) {
+        if (!in_array($target, ['netmail', 'echomail', 'chat', 'files', 'file-approvals'], true)) {
             http_response_code(400);
             apiError('errors.notify.invalid_target', apiLocalizedText('errors.notify.invalid_target', 'Invalid notification target', $user));
+            return;
+        }
+
+        // file-approvals target is admin-only
+        if ($target === 'file-approvals' && !$isAdmin) {
+            http_response_code(403);
+            apiError('errors.auth.forbidden', 'Forbidden');
             return;
         }
 
@@ -654,6 +661,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
         } elseif ($target === 'files') {
             $meta->setValue((int)$userId, 'last_files_max_id', (string)$currentCount);
+        } elseif ($target === 'file-approvals') {
+            $meta->setValue((int)$userId, 'last_pending_files_max_id', (string)$currentCount);
         } else {
             $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
         }
@@ -665,167 +674,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
-
         $db = Database::getInstance()->getPdo();
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $isAdmin = !empty($user['is_admin']);
-        $meta = new UserMeta();
-
-        // Get last seen counts (not timestamps - we compare counts, not dates)
-        $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
-        $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
-        $lastChatMaxId = $meta->getValue((int)$userId, 'last_chat_max_id');
-        $lastFilesMaxId = $meta->getValue((int)$userId, 'last_files_max_id');
-
-        // Get address list for netmail queries
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $myAddresses = $binkpConfig->getMyAddresses();
-            $myAddresses[] = $binkpConfig->getSystemAddress();
-        } catch (\Exception $e) {
-            $myAddresses = [];
-        }
-
-        // Total unread netmail
-        if (!empty($myAddresses)) {
-            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count
-                FROM netmail n
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE mrs.read_at IS NULL
-                  AND (
-                    n.user_id = ?
-                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                  )
-            ");
-            $params = [$userId, $userId, $user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses);
-            $unreadStmt->execute($params);
-        } else {
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count
-                FROM netmail n
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL
-            ");
-            $unreadStmt->execute([$userId, $userId]);
-        }
-        $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
-
-        // Total unread echomail
-        $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
-        $unreadEchomailStmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM echomail em
-            INNER JOIN echoareas e ON em.echoarea_id = e.id
-            INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND ues.is_active = TRUE{$sysopUnreadFilter}
-        ");
-        $unreadEchomailStmt->execute([$userId, $userId]);
-        $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
-
-        // New chat messages since last seen max ID (avoids full table scan)
-        if ($lastChatMaxId === null) {
-            // Not yet initialized — baseline to current max so no false badge on first load
-            $maxStmt = $db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM chat_messages");
-            $chatMaxId = (int)($maxStmt->fetch()['max_id'] ?? 0);
-            $meta->setValue((int)$userId, 'last_chat_max_id', (string)$chatMaxId);
-            $chatBadge = 0;
-        } else {
-            $lastChatMaxId = (int)$lastChatMaxId;
-            $chatStmt = $db->prepare("
-                SELECT COUNT(*) as new_count, COALESCE(MAX(m.id), ?) as max_id
-                FROM chat_messages m
-                LEFT JOIN chat_rooms r ON m.room_id = r.id
-                WHERE m.id > ?
-                  AND (
-                      (m.room_id IS NOT NULL AND r.is_active = TRUE)
-                      OR m.to_user_id = ?
-                      OR m.from_user_id = ?
-                  )
-            ");
-            $chatStmt->execute([$lastChatMaxId, $lastChatMaxId, $userId, $userId]);
-            $chatRow = $chatStmt->fetch();
-            $chatBadge = (int)$chatRow['new_count'];
-            $chatMaxId = (int)$chatRow['max_id'];
-        }
-
-        // New files visible to this user since last seen max file ID
-        $fileAreaConditions = "fa.is_active = TRUE AND (fa.is_private = FALSE OR fa.is_private IS NULL";
-        if ((int)$userId > 0) {
-            $privateTag = 'PRIVATE_USER_' . (int)$userId;
-            $fileAreaConditions .= " OR fa.tag = " . $db->quote($privateTag);
-        }
-        $fileAreaConditions .= ")";
-
-        if ($lastFilesMaxId === null) {
-            $filesMaxStmt = $db->query("
-                SELECT COALESCE(MAX(f.id), 0) AS max_id
-                FROM files f
-                JOIN file_areas fa ON fa.id = f.file_area_id
-                WHERE {$fileAreaConditions}
-                  AND f.status = 'approved'
-                  AND f.source_type <> 'iso_subdir'
-            ");
-            $filesMaxId = (int)($filesMaxStmt->fetch()['max_id'] ?? 0);
-            $meta->setValue((int)$userId, 'last_files_max_id', (string)$filesMaxId);
-            $filesBadge = 0;
-            $totalFiles = 0;
-        } else {
-            $lastFilesMaxId = (int)$lastFilesMaxId;
-            $filesStmt = $db->prepare("
-                SELECT COUNT(*) AS new_count, COALESCE(MAX(f.id), ?) AS max_id
-                FROM files f
-                JOIN file_areas fa ON fa.id = f.file_area_id
-                WHERE {$fileAreaConditions}
-                  AND f.status = 'approved'
-                  AND f.source_type <> 'iso_subdir'
-                  AND f.id > ?
-            ");
-            $filesStmt->execute([$lastFilesMaxId, $lastFilesMaxId]);
-            $filesRow = $filesStmt->fetch();
-            $filesBadge = (int)($filesRow['new_count'] ?? 0);
-            $filesMaxId = (int)($filesRow['max_id'] ?? $lastFilesMaxId);
-
-            $totalFilesStmt = $db->query("
-                SELECT COUNT(*) AS count
-                FROM files f
-                JOIN file_areas fa ON fa.id = f.file_area_id
-                WHERE {$fileAreaConditions}
-                  AND f.status = 'approved'
-                  AND f.source_type <> 'iso_subdir'
-            ");
-            $totalFiles = (int)($totalFilesStmt->fetch()['count'] ?? 0);
-        }
-
-        // Notification badge shows ONLY if count increased
-        $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
-        $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
-
-        // Get user's credit balance
-        $creditBalance = 0;
-        if (\BinktermPHP\UserCredit::isEnabled()) {
-            try {
-                $creditBalance = \BinktermPHP\UserCredit::getBalance($userId);
-            } catch (\Exception $e) {
-                $creditBalance = 0;
-            }
-        }
-
-        echo json_encode([
-            'unread_netmail' => $netmailBadge,
-            'new_echomail' => $echomailBadge,
-            'chat_total' => $chatBadge,
-            'new_files' => $filesBadge,
-            'total_netmail' => $unreadNetmail,
-            'total_echomail' => $unreadEchomail,
-            'chat_max_id' => $chatMaxId,
-            'files_max_id' => $filesMaxId,
-            'total_files' => $totalFiles,
-            'credit_balance' => $creditBalance
-        ]);
+        echo json_encode((new \BinktermPHP\DashboardStatsService($db))->getStats($user));
     });
 
     SimpleRouter::get('/polls/active', function() {
@@ -1563,9 +1413,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ActivityTracker::track((int)$userId, ActivityTracker::TYPE_CHAT_SEND, $roomId);
 
         echo json_encode([
-            'success' => true,
-            'message_id' => (int)$result['id'],
-            'created_at' => $result['created_at']
+            'success'       => true,
+            'message_id'    => (int)$result['id'],
+            'created_at'    => $result['created_at'],
+            'local_message' => [
+                'id'            => (int)$result['id'],
+                'type'          => $roomId ? 'room' : 'dm',
+                'room_id'       => $roomId,
+                'from_user_id'  => (int)$userId,
+                'from_username' => $user['username'],
+                'to_user_id'    => $toUserId,
+                'body'          => $body,
+                'created_at'    => $result['created_at'],
+            ],
         ]);
     });
 
@@ -1676,10 +1536,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             LEFT JOIN chat_rooms r ON m.room_id = r.id
             JOIN users u ON m.from_user_id = u.id
             WHERE m.id > ?
+              AND m.from_user_id != ?
               AND (
                 (m.room_id IS NOT NULL AND r.is_active = TRUE)
                 OR m.to_user_id = ?
-                OR m.from_user_id = ?
               )
             ORDER BY m.id ASC
             LIMIT 200
@@ -1705,6 +1565,213 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['messages' => $messages]);
     });
 
+    /**
+     * GET /api/stream
+     *
+     * Server-Sent Events back-channel. Authenticated users connect here and
+     * receive real-time events (chat messages, future: notifications, etc.)
+     * via Postgres LISTEN/NOTIFY on the 'binkstream' channel.
+     *
+     * On PHP's built-in development server (single-threaded) we skip the
+     * blocking listen loop and just send a keepalive every few seconds so
+     * the server stays available for other requests. The SharedWorker
+     * reconnects automatically, giving reasonable dev behaviour.
+     */
+    /**
+     * GET /api/stream
+     *
+     * Server-Sent Events back-channel. Each request is intentionally short-lived:
+     *
+     *  1. Read the client's Last-Event-ID / cursor.
+     *  2. Query `sse_events` directly for any rows newer than that cursor and
+     *     push them as SSE events.
+     *  3. Send `event: reconnect` and close — the SharedWorker reconnects
+     *     after a short pause so window expiry does not hammer the server.
+     *
+     * PHP is only blocked for the direct DB query plus the configured polling
+     * window, and no admin-daemon round-trip is required for delivery.
+     */
+    SimpleRouter::get('/stream', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        // Release the session lock immediately. index.php calls session_start()
+        // for every request; holding it open for the duration of a long-polling
+        // SSE connection blocks all subsequent requests from the same browser
+        // (they all queue on session_start() waiting for the lock).
+        session_write_close();
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache, no-transform');
+        header('X-Accel-Buffering: no'); // nginx: disable proxy buffering
+
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        ob_implicit_flush(true);
+        ignore_user_abort(true);
+
+        // Prefer the standard Last-Event-ID header; fall back to the cursor
+        // query param sent by the SharedWorker when it creates a new EventSource
+        // instance (new instances always start with lastEventId="" so the header
+        // is never sent — the worker captures the old id and passes it in the URL).
+        $lastEventId = (int)($_SERVER['HTTP_LAST_EVENT_ID'] ?? $_GET['cursor'] ?? 0);
+        $isDevServer = (php_sapi_name() === 'cli-server');
+        $isAdmin     = !empty($user['is_admin']);
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $streamService = new \BinktermPHP\Realtime\StreamService($db);
+
+        // Prime proxy/filter buffers so the first real SSE event is not held
+        // waiting for Apache to accumulate a larger brigade.
+        echo ':' . str_repeat(' ', 2048) . "\n\n";
+        flush();
+
+        // Tell the client how long to wait before reconnecting after a close.
+        // On the built-in dev server (window=0) we close immediately, so use a
+        // longer retry to reduce reconnect churn on the single-threaded server.
+        // On production the long-lived window keeps the connection open so the
+        // retry value is only used after an unexpected disconnect.
+        echo "retry: 2500\n\n";
+
+        // Only first-connect (cursor=0) should anchor to the current max id.
+        // On reconnect, advancing lastEventId before catch-up delivery risks
+        // skipping backlog if the connection dies mid-batch.
+        $anchorId = $streamService->getAnchorCursor($lastEventId);
+        echo "id: {$anchorId}\n";
+        echo "event: connected\n";
+        echo "data: " . json_encode($streamService->getConnectedPayload($user, $anchorId)) . "\n\n";
+
+        /**
+         * Fetch and emit sse_events with id > $fromId for this user.
+         * Updates $lastEventId (passed by reference) to the highest id emitted.
+         *
+         * Targeting rules (enforced by columns on sse_events, not by JOINs):
+         *   user_id IS NULL  → broadcast to all authenticated users
+         *   user_id = X      → deliver only to user X
+         *   admin_only = TRUE → deliver only to admins
+         *
+         * The payload is stored fat (all display fields included at insert time)
+         * so new event types are delivered automatically without modifying this
+         * query — just insert a row with the correct user_id/admin_only flags.
+         */
+        $deliverEvents = function(int $fromId) use ($streamService, $user, &$lastEventId): void {
+            $emitted = 0;
+            foreach ($streamService->fetchEventsSince($user, $fromId) as $event) {
+                echo "id: " . $event['id'] . "\n";
+                echo "event: " . $event['event'] . "\n";
+                echo "data: " . $event['data'] . "\n\n";
+                $lastEventId = (int)$event['id'];
+                $emitted++;
+
+                // Large catch-up bursts are where Apache most often coalesces
+                // output. Flush progressively instead of waiting for the full
+                // LIMIT 200 batch to finish.
+                if (($emitted % 10) === 0) {
+                    flush();
+                }
+            }
+
+            if ($emitted > 0) {
+                flush();
+            }
+        };
+
+        // On reconnect, deliver any events missed since the client's last cursor.
+        // On first connect ($lastEventId=0) skip delivery — the connected event
+        // already anchored the cursor at the current max and loadMessages()
+        // handles the initial message load.
+        if ($lastEventId > 0) {
+            $deliverEvents($lastEventId);
+        }
+
+        // ── Long-lived window loop ────────────────────────────────────────────
+        //
+        // Hold the PHP-FPM worker for SSE_WINDOW_SECONDS, polling
+        // sse_events every 200 ms. Events are delivered as they arrive; the
+        // connection stays open for the full window rather than closing after
+        // the first batch. A keepalive comment is sent every 15 seconds so that
+        // reverse proxies do not timeout the idle connection and so that client
+        // disconnects are detected within ~15 seconds via connection_aborted().
+        //
+        // On the PHP built-in dev server (single-threaded) the window is 0 so
+        // the loop body never runs and the worker is released immediately.
+        //
+        // Interim Apache mitigation: unless the sysop explicitly sets
+        // SSE_WINDOW_SECONDS, default to a short 2-second window only when
+        // the app is running behind Apache and BINKSTREAM_TRANSPORT_MODE=auto.
+        // This preserves the SSE interface while reducing how long Apache can
+        // buffer a single response before the connection closes.
+        $windowSeconds     = $streamService->resolveWindowSeconds($isDevServer);
+        $pollSleep         = 200000; // 200 ms
+        $deadline          = microtime(true) + $windowSeconds;
+        $lastHeartbeat     = microtime(true);
+        $heartbeatInterval = 15; // seconds between keepalive comments
+
+        while (microtime(true) < $deadline && !connection_aborted()) {
+            $maxId = $streamService->getMaxSseId();
+            if ($maxId > $lastEventId) {
+                $deliverEvents($lastEventId);
+                flush();
+            }
+
+            if (microtime(true) - $lastHeartbeat >= $heartbeatInterval) {
+                echo ": keepalive\n\n";
+                flush();
+                $lastHeartbeat = microtime(true);
+            }
+
+            usleep($pollSleep);
+        }
+
+        // On the dev server the window is 0 so we close immediately. Don't send
+        // the reconnect event — let the worker hit the error/CLOSED path, which
+        // uses scheduleReconnect() and respects MIN_BACKOFF (1 s). Sending
+        // reconnect here would trigger an immediate no-delay reconnect loop.
+        if (!$isDevServer) {
+            echo "event: reconnect\ndata: {}\n\n";
+        }
+    });
+
+    SimpleRouter::post('/stream', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            apiError(
+                'errors.realtime.invalid_payload',
+                apiLocalizedText('errors.realtime.invalid_payload', 'Invalid realtime command payload', $user),
+                400
+            );
+            return;
+        }
+
+        $command = strtolower(trim((string)($input['command'] ?? '')));
+        $payload = $input['payload'] ?? [];
+        if ($command === '' || !is_array($payload)) {
+            apiError(
+                'errors.realtime.invalid_payload',
+                apiLocalizedText('errors.realtime.invalid_payload', 'Invalid realtime command payload', $user),
+                400
+            );
+            return;
+        }
+
+        try {
+            $db = Database::getInstance()->getPdo();
+            $result = (new \BinktermPHP\Realtime\CommandDispatcher($db))->dispatch($user, $command, $payload);
+            echo json_encode($result);
+        } catch (\RuntimeException $e) {
+            apiError(
+                'errors.realtime.unknown_command',
+                apiLocalizedText('errors.realtime.unknown_command', 'Unknown realtime command', $user),
+                400
+            );
+        }
+    });
+
     SimpleRouter::get('/echoareas', function() {
         $user = RouteHelper::requireAuth();
 
@@ -1717,6 +1784,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $db = Database::getInstance()->getPdo();
+        $messageHandler = new MessageHandler();
+        $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
 
         // Query with separate subqueries for total and unread counts, plus last post info
         $sql = "SELECT
@@ -1743,15 +1812,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Add subscription filtering if requested
         if ($subscribedOnly === 'true') {
             $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ? AND ues.is_active = TRUE";
-            $params = [$userId, $userId];
-        } else {
             $params = [$userId];
+        } else {
+            $params = [];
         }
 
         $sql .= " LEFT JOIN (
-                    SELECT echoarea_id, COUNT(*) as message_count
-                    FROM echomail
-                    GROUP BY echoarea_id
+                    SELECT em.echoarea_id, COUNT(*) as message_count
+                    FROM echomail em
+                    WHERE 1=1{$ignoreFilter['sql']}
+                    GROUP BY em.echoarea_id
                 ) total_counts ON e.id = total_counts.echoarea_id
                 LEFT JOIN (
                     SELECT
@@ -1759,17 +1829,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                         COUNT(*) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE mrs.read_at IS NULL
+                    WHERE mrs.read_at IS NULL{$ignoreFilter['sql']}
                     GROUP BY em.echoarea_id
                 ) unread_counts ON e.id = unread_counts.echoarea_id
                 LEFT JOIN (
-                    SELECT DISTINCT ON (echoarea_id)
-                        echoarea_id,
-                        subject as last_subject,
-                        from_name as last_author,
-                        date_received as last_date
-                    FROM echomail
-                    ORDER BY echoarea_id, date_received DESC
+                    SELECT DISTINCT ON (em.echoarea_id)
+                        em.echoarea_id,
+                        em.subject as last_subject,
+                        em.from_name as last_author,
+                        em.date_received as last_date
+                    FROM echomail em
+                    WHERE 1=1{$ignoreFilter['sql']}
+                    ORDER BY em.echoarea_id, em.date_received DESC
                 ) last_posts ON e.id = last_posts.echoarea_id
                 LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as subscriber_count
@@ -1777,6 +1848,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     WHERE is_active = TRUE
                     GROUP BY echoarea_id
                 ) sub_counts ON e.id = sub_counts.echoarea_id";
+
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
+        $params[] = $userId;
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
@@ -1917,6 +1999,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea['lovlynet_has_setting_issues'] = $issues !== [];
         }
         unset($echoarea);
+
+        // Annotate each echoarea with the interest IDs it belongs to (when feature is enabled).
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+            $im  = new \BinktermPHP\InterestManager();
+            $map = $im->getEchoareaInterestMap();
+            foreach ($echoareas as &$echoarea) {
+                $echoarea['interest_ids'] = $map[(int)$echoarea['id']] ?? [];
+            }
+            unset($echoarea);
+        }
 
         echo json_encode(['echoareas' => $echoareas]);
     });
@@ -2242,7 +2334,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // File Areas API routes
     SimpleRouter::get('/fileareas', function() {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         header('Content-Type: application/json');
 
@@ -2250,7 +2343,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filter = $_GET['filter'] ?? 'active';
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
-        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
+        $publicOnly = !$user;
+        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin, $publicOnly);
         foreach ($fileareas as &$fa) {
             if (($fa['area_type'] ?? '') === 'iso') {
                 $mp = $fa['iso_mount_point'] ?? '';
@@ -2327,11 +2421,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         unset($filearea);
 
         $privateArea = $userId ? $manager->getPrivateFileArea((int)$userId) : null;
+        $myUploadsSummary = $userId ? $manager->getUserUploadsSummary((int)$userId) : null;
         if ($privateArea) {
             $privateArea['_username'] = $user['username'] ?? '';
         }
 
-        echo json_encode(['fileareas' => $fileareas, 'private_area' => $privateArea]);
+        echo json_encode([
+            'fileareas' => $fileareas,
+            'private_area' => $privateArea,
+            'my_uploads_summary' => $myUploadsSummary,
+        ]);
     });
 
     SimpleRouter::get('/fileareas/{id}', function($id) {
@@ -2419,12 +2518,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/fileareas/stats', function() {
-        RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         header('Content-Type: application/json');
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $stats = $manager->getStats();
+        $stats = $manager->getStats(!$user);
 
         echo json_encode($stats);
     });
@@ -2582,7 +2682,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/files/recent', function() {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -2594,9 +2695,31 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $limit = min((int)($_GET['limit'] ?? 25), 50);
         $manager = new \BinktermPHP\FileAreaManager();
-        $files = $manager->getRecentFiles($limit);
+        $files = $manager->getRecentFiles($limit, !$user);
 
         echo json_encode(['files' => $files]);
+    });
+
+    SimpleRouter::get('/files/my-uploads', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $manager = new \BinktermPHP\FileAreaManager();
+        $files = $manager->listUserUploads($userId);
+        $summary = $manager->getUserUploadsSummary($userId);
+
+        echo json_encode([
+            'files' => $files,
+            'summary' => $summary,
+        ]);
     });
 
     /**
@@ -2605,7 +2728,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * Requires authentication. Returns up to 100 results ordered by area tag and filename.
      */
     SimpleRouter::get('/files/search', function() {
-        $user = RouteHelper::requireAuth();
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -2624,6 +2748,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db      = \BinktermPHP\Database::getInstance()->getPdo();
         $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
         $isAdmin = !empty($user['is_admin']);
+        $isGuest = !$user;
 
         // Build accessible-area conditions:
         // - Area must be active
@@ -2635,6 +2760,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $areaConditions .= " OR fa.tag = " . $db->quote($privateTag);
         }
         $areaConditions .= ")";
+        if ($isGuest) {
+            $areaConditions .= " AND fa.is_public = TRUE";
+        }
 
         $sql = "
             SELECT
@@ -2679,11 +2807,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->getCurrentUser();
 
         $manager = new \BinktermPHP\FileAreaManager();
+        $viaPublicArea = false;
 
         // Allow guests on public areas
         if (!$user) {
             $checkFile = $manager->getFileById((int)$id);
-            $viaPublicArea = false;
             if ($checkFile) {
                 $checkArea = $manager->getFileAreaById($checkFile['file_area_id']);
                 if (!empty($checkArea['is_public']) && empty($checkArea['is_private'])) {
@@ -2706,12 +2834,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $file = $manager->getFileById((int)$id);
 
-        if ($file) {
-            echo json_encode(['file' => $file]);
-        } else {
+        if (!$file) {
             http_response_code(404);
             apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
         }
+
+        $userId = $user ? (int)($user['user_id'] ?? $user['id'] ?? 0) : null;
+        $isAdmin = !empty($user['is_admin']);
+        $isOwnPendingUpload = $userId
+            && ($file['source_type'] ?? '') === 'user_upload'
+            && in_array(($file['status'] ?? ''), ['pending', 'rejected'], true)
+            && (int)($file['owner_id'] ?? 0) === (int)$userId;
+
+        if (($file['status'] ?? '') !== 'approved' && !$isOwnPendingUpload && !$isAdmin) {
+            http_response_code(404);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
+        }
+
+        if (($file['status'] ?? '') === 'approved' && !$viaPublicArea) {
+            if (!$manager->canAccessFileArea((int)$file['file_area_id'], $userId, $isAdmin)) {
+                http_response_code(403);
+                apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user));
+                return;
+            }
+        }
+
+        echo json_encode(['file' => $file]);
     })->where(['id' => '[0-9]+']);
 
     /**
@@ -2772,7 +2922,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $manager = new \BinktermPHP\FileAreaManager();
         $file    = $manager->getFileById((int)$id);
 
-        if (!$file || $file['status'] !== 'approved') {
+        if (!$file) {
             http_response_code(404);
             echo 'File not found';
             return;
@@ -2790,11 +2940,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if (!$user) return; // requireAuth already responded
         }
 
-        // Check if user has access to this file's area
         $userId  = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
         $isAdmin = !empty($user['is_admin']);
 
-        $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+        $isOwnUnapprovedUpload = $userId
+            && ($file['source_type'] ?? '') === 'user_upload'
+            && ($file['status'] ?? '') !== 'approved'
+            && ((int)($file['owner_id'] ?? 0) === (int)$userId || $isAdmin);
+
+        if (($file['status'] ?? '') !== 'approved' && !$isOwnUnapprovedUpload) {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        // Check if user has access to this file's area
+        $hasAccess = $isOwnUnapprovedUpload
+            ? true
+            : $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
 
         // Senders of netmail attachments can always download what they sent, even though
         // the file lives in the recipient's private area.
@@ -2833,7 +2996,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $encodedFilename = rawurlencode($filename);
 
         // Credits only apply to authenticated users
-        if ($userId) {
+        if ($userId && ($file['status'] ?? '') === 'approved') {
             $downloadCost   = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_download', 0) : 0;
             $downloadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_download', 0) : 0;
 
@@ -3984,6 +4147,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
             $isAdmin = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
 
+            if (!$manager->canAccessFileArea($fileAreaId, $ownerId, $isAdmin)) {
+                throw new \Exception('Access denied to this file area');
+            }
+
             // Check upload permission
             if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
                 throw new \Exception('This file area is read-only. Uploads are not permitted.');
@@ -3996,6 +4163,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $ownerId = (int)($user['user_id'] ?? $user['id'] ?? 0);
             $uploadCost = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
             $uploadReward = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+            $isOwnPrivateArea = !empty($fileArea['is_private']) && (string)($fileArea['tag'] ?? '') === ('PRIVATE_USER_' . $ownerId);
+            $initialStatus = ($isAdmin || $isOwnPrivateArea) ? 'approved' : 'pending';
 
             if ($uploadCost > 0) {
                 $uploadCostCharged = UserCredit::debit(
@@ -4016,10 +4185,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $shortDescription,
                 $longDescription,
                 $uploadedBy,
-                $ownerId
+                $ownerId,
+                $initialStatus
             );
 
-            if ($uploadReward > 0) {
+            if ($uploadReward > 0 && $initialStatus === 'approved') {
                 $creditSuccess = UserCredit::credit(
                     $ownerId,
                     $uploadReward,
@@ -4037,7 +4207,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'file_id' => $fileId,
-                'message_code' => 'ui.api.files.uploaded'
+                'status' => $initialStatus,
+                'approval_required' => $initialStatus === 'pending',
+                'message_code' => $initialStatus === 'pending'
+                    ? 'ui.files.upload_pending_approval'
+                    : 'ui.api.files.uploaded'
             ]);
 
         } catch (\Exception $e) {
@@ -4065,6 +4239,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
             } elseif ($message === 'Only administrators can upload files to this area.') {
                 apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Access denied to this file area') {
+                apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user), 403);
             } elseif ($message === 'Insufficient credits for file upload') {
                 apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
             } elseif ($message === 'File rejected: virus detected.') {
@@ -4834,10 +5010,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $sent = 0;
         }
 
+        // Saved messages — exclude soft-deleted rows
+        $savedStmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM saved_messages sav
+            JOIN netmail n ON n.id = sav.message_id
+            WHERE sav.user_id = ? AND sav.message_type = 'netmail'
+              AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                       ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
+        ");
+        $savedStmt->execute([$userId, $userId, $user['username'], $user['real_name']]);
+        $saved = $savedStmt->fetch()['count'];
+
         echo json_encode([
             'total' => $total,
             'unread' => $unread,
-            'sent' => $sent
+            'sent' => $sent,
+            'saved' => $saved,
         ]);
     });
 
@@ -4889,6 +5078,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
         }
     });
+
+    SimpleRouter::get('/messages/netmail/{id}/conversation', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $handler = new MessageHandler();
+        $result = $handler->getNetmailConversation((int)$id, (int)($user['user_id'] ?? $user['id']));
+
+        if (empty($result['messages'])) {
+            http_response_code(404);
+            apiError('errors.messages.netmail.not_found', apiLocalizedText('errors.messages.netmail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
 
     SimpleRouter::delete('/messages/netmail/{id}', function($id) {
         $user = RouteHelper::requireAuth();
@@ -5109,13 +5315,25 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
             $db->commit();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
+            error_log('[echomail bulk read] Failed to persist read status: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.echomail.bulk_read.failed', apiLocalizedText('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read', $user));
             return;
+        }
+
+        try {
+            // Notify other tabs of the same user via BinkStream.
+            // Notification delivery is best-effort and should not fail the read action.
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'message_ids' => array_map('intval', $messageIds),
+                'message_type' => 'echomail',
+            ], $userId);
+        } catch (\Throwable $e) {
+            error_log('[echomail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
         }
 
         echo json_encode([
@@ -5151,6 +5369,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $deleted = 0;
 
+        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+        $db->prepare("UPDATE echomail SET reply_to_id = NULL WHERE reply_to_id IN ($placeholders)")
+           ->execute(array_values($messageIds));
+
         foreach ($messageIds as $id) {
             $stmt = $db->prepare("DELETE FROM echomail WHERE id = ?");
             if ($stmt->execute([$id])) {
@@ -5167,6 +5389,106 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::post('/messages/echomail/ignore-rules', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $senderName = trim((string)($input['sender_name'] ?? ''));
+        $senderAddress = trim((string)($input['sender_address'] ?? ''));
+        $subjectContains = trim((string)($input['subject_contains'] ?? ''));
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        if ($senderName === '') {
+            http_response_code(400);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_input',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_input', 'Sender name is required', $user)
+            );
+            return;
+        }
+
+        if (mb_strlen($senderName) > 255 || mb_strlen($subjectContains) > 255) {
+            http_response_code(400);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_input',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_input', 'Sender name is required', $user)
+            );
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $saved = $handler->createEchomailIgnoreRule($userId, $senderName, $senderAddress, $subjectContains);
+
+        if (!$saved) {
+            http_response_code(500);
+            apiError(
+                'errors.messages.echomail.ignore.save_failed',
+                apiLocalizedText('errors.messages.echomail.ignore.save_failed', 'Failed to save ignore rule', $user)
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.echomail.ignore.saved',
+            'message_params' => [
+                'sender' => $senderName
+            ]
+        ]);
+    });
+
+    SimpleRouter::get('/user/echomail-ignore-rules', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $handler = new MessageHandler();
+        $rules = $handler->getEchomailIgnoreRules($userId);
+
+        echo json_encode([
+            'success' => true,
+            'rules' => $rules
+        ]);
+    });
+
+    SimpleRouter::delete('/user/echomail-ignore-rules/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $ruleId = (int)$id;
+
+        if ($ruleId <= 0) {
+            http_response_code(400);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_rule',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found', $user)
+            );
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $deleted = $handler->deleteEchomailIgnoreRule($userId, $ruleId);
+
+        if (!$deleted) {
+            http_response_code(404);
+            apiError(
+                'errors.messages.echomail.ignore.invalid_rule',
+                apiLocalizedText('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found', $user)
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.echomail.ignore.removed'
+        ]);
+    })->where(['id' => '[0-9]+']);
+
     // Echomail statistics endpoints - must come before parameterized routes
     SimpleRouter::get('/messages/echomail/stats', function() {
         $user = RouteHelper::requireAuth();
@@ -5177,14 +5499,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
+        $handler = new MessageHandler();
+        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
         // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
-        $totalStmt->execute([$userId]);
+        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}{$ignoreFilter['sql']}");
+        $totalParams = [$userId];
+        foreach ($ignoreFilter['params'] as $param) {
+            $totalParams[] = $param;
+        }
+        $totalStmt->execute($totalParams);
         $total = $totalStmt->fetch()['count'];
 
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
-        $recentStmt->execute([$userId]);
+        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}{$ignoreFilter['sql']}");
+        $recentParams = [$userId];
+        foreach ($ignoreFilter['params'] as $param) {
+            $recentParams[] = $param;
+        }
+        $recentStmt->execute($recentParams);
         $recent = $recentStmt->fetch()['count'];
 
         $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
@@ -5210,9 +5542,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}{$ignoreFilter['sql']}
             ");
-            $unreadStmt->execute([$userId, $userId]);
+            $unreadParams = [$userId, $userId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $unreadParams[] = $param;
+            }
+            $unreadStmt->execute($unreadParams);
             $unreadCount = $unreadStmt->fetch()['count'];
 
             // Read count
@@ -5221,9 +5557,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
             ");
-            $readStmt->execute([$userId, $userId]);
+            $readParams = [$userId, $userId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $readParams[] = $param;
+            }
+            $readStmt->execute($readParams);
             $readCount = $readStmt->fetch()['count'];
 
             // To Me count
@@ -5232,9 +5572,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
+                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}{$ignoreFilter['sql']}
                 ");
-                $toMeStmt->execute([$userId, $userInfo['username'], $userInfo['real_name']]);
+                $toMeParams = [$userId, $userInfo['username'], $userInfo['real_name']];
+                foreach ($ignoreFilter['params'] as $param) {
+                    $toMeParams[] = $param;
+                }
+                $toMeStmt->execute($toMeParams);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
 
@@ -5244,9 +5588,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
             ");
-            $savedStmt->execute([$userId, $userId]);
+            $savedParams = [$userId, $userId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $savedParams[] = $param;
+            }
+            $savedStmt->execute($savedParams);
             $savedCount = $savedStmt->fetch()['count'];
         }
 
@@ -5287,6 +5635,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
+        $handler = new MessageHandler();
+        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
         if (!$isAdmin && $userId) {
             $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
@@ -5313,11 +5663,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                    COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ? AND {$domainCondition}
+            WHERE ea.tag = ? AND {$domainCondition}{$ignoreFilter['sql']}
         ");
         $params = [$echoarea];
         if (!empty($domain)) {
             $params[] = $domain;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
         }
         $stmt->execute($params);
         $stats = $stmt->fetch();
@@ -5340,10 +5693,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL{$ignoreFilter['sql']}
             ");
             $unreadParams = [$userId, $echoarea];
             if (!empty($domain)) $unreadParams[] = $domain;
+            foreach ($ignoreFilter['params'] as $param) {
+                $unreadParams[] = $param;
+            }
             $unreadStmt->execute($unreadParams);
             $unreadCount = $unreadStmt->fetch()['count'];
 
@@ -5352,10 +5708,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL{$ignoreFilter['sql']}
             ");
             $readParams = [$userId, $echoarea];
             if (!empty($domain)) $readParams[] = $domain;
+            foreach ($ignoreFilter['params'] as $param) {
+                $readParams[] = $param;
+            }
             $readStmt->execute($readParams);
             $readCount = $readStmt->fetch()['count'];
 
@@ -5364,12 +5723,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $toMeStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$ignoreFilter['sql']}
                 ");
                 $toMeParams = [$echoarea];
                 if (!empty($domain)) $toMeParams[] = $domain;
                 $toMeParams[] = $userInfo['username'];
                 $toMeParams[] = $userInfo['real_name'];
+                foreach ($ignoreFilter['params'] as $param) {
+                    $toMeParams[] = $param;
+                }
                 $toMeStmt->execute($toMeParams);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
@@ -5379,10 +5741,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL{$ignoreFilter['sql']}
             ");
             $savedParams = [$userId, $echoarea];
             if (!empty($domain)) $savedParams[] = $domain;
+            foreach ($ignoreFilter['params'] as $param) {
+                $savedParams[] = $param;
+            }
             $savedStmt->execute($savedParams);
             $savedCount = $savedStmt->fetch()['count'];
         }
@@ -5403,7 +5768,25 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
-        $body = \BinktermPHP\Advertising::stripSauce((string)($message['message_text'] ?? ''));
+        $body = '';
+
+        $rawBytesB64 = (string)($message['message_bytes_b64'] ?? '');
+        if ($rawBytesB64 !== '') {
+            $decodedBytes = base64_decode($rawBytesB64, true);
+            if ($decodedBytes !== false && $decodedBytes !== '') {
+                $charset = \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset((string)($message['message_charset'] ?? 'UTF-8'));
+                $converted = @iconv($charset, 'UTF-8//IGNORE', $decodedBytes);
+                if ($converted !== false && $converted !== '') {
+                    $body = $converted;
+                }
+            }
+        }
+
+        if ($body === '') {
+            $body = (string)($message['message_text'] ?? '');
+        }
+
+        $body = \BinktermPHP\Advertising::stripSauce($body);
         $bodyLines = preg_split('/\r\n|\r|\n/', $body) ?: [];
         $trimmedBodyLines = [];
         foreach ($bodyLines as $line) {
@@ -5510,6 +5893,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             apiError('', apiLocalizedText('', ''));
         }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/messages/echomail/message/{id}/conversation', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $result = $handler->getEchomailConversation((int)$id, $userId ? (int)$userId : null);
+
+        if (empty($result['messages'])) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
+        echo json_encode($result);
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/echomail/{id}/save-ad', function($id) use ($prepareEchomailAdBodyForSave, $isEchomailAnsiAdCapable, $buildEchomailAdSaveMetadata) {
@@ -6396,6 +6797,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (!empty($_GET['body'])) {
             $searchParams['body'] = $_GET['body'];
         }
+        if (!empty($_GET['message_id'])) {
+            $searchParams['message_id'] = $_GET['message_id'];
+        }
         // Date range params — validate YYYY-MM-DD format
         foreach (['date_from', 'date_to'] as $dateKey) {
             if (!empty($_GET[$dateKey])) {
@@ -6406,13 +6810,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasTextParams = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']) || !empty($searchParams['message_id']);
         $hasDateParams = !empty($searchParams['date_from']) || !empty($searchParams['date_to']);
         $hasAdvancedParams = $hasTextParams || $hasDateParams;
 
         // Validate: need a general query of 2+ chars, or at least one valid text/date field
         if ($hasTextParams) {
-            foreach (['from_name', 'subject', 'body'] as $textKey) {
+            foreach (['from_name', 'subject', 'body', 'message_id'] as $textKey) {
                 if (isset($searchParams[$textKey]) && strlen($searchParams[$textKey]) < 2) {
                     http_response_code(400);
                     apiError('errors.messages.search.query_too_short', apiLocalizedText('errors.messages.search.query_too_short', 'Search query must be at least 2 characters', $user));
@@ -6505,18 +6909,31 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
 
             $result = $stmt->execute([$userId, (int)$id, $type]);
-
-            if ($result) {
-                echo json_encode(['success' => true]);
-            } else {
-                http_response_code(500);
-                apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
-            }
-
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            error_log('[message read] Failed to persist read status for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
+            return;
         }
+
+        if (!$result) {
+            http_response_code(500);
+            apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
+            return;
+        }
+
+        try {
+            // Notify other tabs of the same user via BinkStream.
+            // Notification delivery is best-effort and should not fail the read action.
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'message_ids' => [(int)$id],
+                'message_type' => $type,
+            ], (int)$userId);
+        } catch (\Throwable $e) {
+            error_log('[message read] SSE notification failed after read status persisted for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
+        }
+
+        echo json_encode(['success' => true]);
     });
 
     // Save message for later viewing
@@ -6638,12 +7055,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $realName = trim($input['real_name'] ?? '');
             $email = trim($input['email'] ?? '');
             $location = trim($input['location'] ?? '');
+            $aboutMe = trim($input['about_me'] ?? '');
             $currentPassword = $input['current_password'] ?? '';
             $newPassword = $input['new_password'] ?? '';
 
             // Update profile information (users cannot change their name)
-            $stmt = $db->prepare("UPDATE users SET email = ?, location = ? WHERE id = ?");
-            $stmt->execute([$email, $location ?: null, $user['user_id']]);
+            $stmt = $db->prepare("UPDATE users SET email = ?, location = ?, about_me = ? WHERE id = ?");
+            $stmt->execute([$email, $location ?: null, $aboutMe ?: null, $user['user_id']]);
 
             // Handle password change if provided
             if (!empty($currentPassword) && !empty($newPassword)) {
@@ -7208,7 +7626,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
-        $onlineUsers = $auth->getOnlineUsers(15);
+        $onlineUsers = $auth->getOnlineSessions(15);
+        $onlineUserCount = $auth->getOnlineUserCount(15);
         $isAdmin = !empty($user['is_admin']);
 
         $responseUsers = array_map(function($onlineUser) use ($isAdmin) {
@@ -7227,6 +7646,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'users' => $responseUsers,
+            'online_user_count' => $onlineUserCount,
             'online_minutes' => 15
         ]);
     });
@@ -7402,6 +7822,114 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::post('/messages/{type}/{id}/forward-email', function($type, $id) {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $toEmail = trim((string)($user['email'] ?? ''));
+        if (!$userId || $toEmail === '') {
+            http_response_code(400);
+            apiError('errors.messages.forward_email.email_required', apiLocalizedText('errors.messages.forward_email.email_required', 'An email address is required', $user), 400);
+            return;
+        }
+
+        if (!in_array($type, ['echomail', 'netmail'], true)) {
+            http_response_code(400);
+            apiError('errors.messages.forward_email.invalid_type', apiLocalizedText('errors.messages.forward_email.invalid_type', 'Invalid message type', $user), 400);
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $message = $handler->getMessage((int)$id, $type, $userId);
+        if (!$message) {
+            http_response_code(404);
+            $errorKey = $type === 'echomail' ? 'errors.messages.echomail.not_found' : 'errors.messages.netmail.not_found';
+            apiError($errorKey, apiLocalizedText($errorKey, 'Message not found', $user), 404);
+            return;
+        }
+
+        try {
+            $systemName = 'BinktermPHP System';
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $systemName = $binkpConfig->getSystemName();
+            } catch (\Throwable $e) {
+            }
+
+            $area = '';
+            if ($type === 'echomail') {
+                $echoarea = trim((string)($message['echoarea'] ?? ''));
+                $domain = trim((string)($message['domain'] ?? ''));
+                $area = $echoarea !== '' ? $echoarea . ($domain !== '' ? '@' . $domain : '') : '';
+            }
+
+            $mail = new \BinktermPHP\Mail();
+            if (!$mail->isEnabled()) {
+                http_response_code(503);
+                apiError('errors.messages.forward_email.mail_disabled', apiLocalizedText('errors.messages.forward_email.mail_disabled', 'Email sending is not configured', $user), 503);
+                return;
+            }
+
+            $sent = $mail->sendMessageForward(
+                $toEmail,
+                $type,
+                [
+                    'subject' => (string)($message['subject'] ?? ''),
+                    'from_name' => (string)($message['from_name'] ?? ''),
+                    'from_address' => (string)($message['from_address'] ?? ''),
+                    'to_name' => (string)($message['to_name'] ?? ''),
+                    'to_address' => (string)($message['to_address'] ?? ''),
+                    'area' => $area,
+                    'date' => (string)($message['date_written'] ?? $message['date_received'] ?? ''),
+                ],
+                (string)($message['message_text'] ?? ''),
+                $systemName
+            );
+
+            if (!$sent) {
+                http_response_code(500);
+                apiError('errors.messages.forward_email.failed', apiLocalizedText('errors.messages.forward_email.failed', 'Failed to forward message by email', $user), 500);
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.common.forwarded_to_email'
+            ]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            apiError('errors.messages.forward_email.failed', apiLocalizedText('errors.messages.forward_email.failed', 'Failed to forward message by email', $user), 500);
+        }
+    });
+
+    SimpleRouter::get('/binkp/uplink-status', function() {
+        ob_start();
+
+        requireBinkpAdmin();
+        header('Content-Type: application/json');
+
+        $address = trim((string)($_GET['address'] ?? ''));
+        if ($address === '') {
+            ob_clean();
+            apiError('errors.binkp.uplink.address_required', apiLocalizedText('errors.binkp.uplink.address_required', 'Uplink address is required'), 400);
+            return;
+        }
+
+        try {
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+            $result = $controller->testUplinkAuthentication($address);
+
+            ob_clean();
+            echo json_encode($result);
+        } catch (\Exception $e) {
+            ob_clean();
+            http_response_code(500);
+            apiError('errors.binkp.status_failed', apiLocalizedText('errors.binkp.status_failed', 'Failed to load BinkP status'), 500);
+        }
+    });
+
     SimpleRouter::post('/binkp/uplinks', function() {
         $user = requireBinkpAdmin();
 
@@ -7528,7 +8056,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         if (!\BinktermPHP\License::isValid()) {
-            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
             return;
         }
 
@@ -7552,7 +8080,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         if (!\BinktermPHP\License::isValid()) {
-            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
             return;
         }
 
@@ -7579,12 +8107,70 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         readfile($filepath);
     });
 
+    SimpleRouter::get('/binkp/queue/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectQueuePacket($type, $filename));
+    });
+
+    SimpleRouter::get('/binkp/queue/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->resolveQueuePacketPath($type, $filename);
+        if ($filepath === null) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.queue.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
     SimpleRouter::get('/binkp/kept-packets', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         if (!\BinktermPHP\License::isValid()) {
-            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing kept packets requires a registered license', $user), 403);
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
             return;
         }
 
@@ -7902,6 +8488,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
                 $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
+                $settings['image_load_mode'] = $meta->getValue((int)$userId, 'image_load_mode') ?? 'click';
             }
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -7988,6 +8575,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $meta->setValue((int)$userId, 'compose_hard_wrap', (string)$wrapVal);
                     $metaSettingsUpdated = true;
                 }
+
+                if (isset($settings['image_load_mode'])) {
+                    $modeVal = (string)$settings['image_load_mode'];
+                    if (!in_array($modeVal, ['click', 'auto'], true)) {
+                        $modeVal = 'click';
+                    }
+                    $meta->setValue((int)$userId, 'image_load_mode', $modeVal);
+                    $metaSettingsUpdated = true;
+                }
             }
 
             unset(
@@ -7997,7 +8593,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['netmail_notification_sound'],
                 $settings['file_notification_sound'],
                 $settings['compose_advanced_open'],
-                $settings['compose_hard_wrap']
+                $settings['compose_hard_wrap'],
+                $settings['image_load_mode']
             );
 
             $handler = new MessageHandler();
@@ -8014,6 +8611,116 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (Exception $e) {
             http_response_code(500);
             apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to update settings'), 500);
+        }
+    });
+
+    // Reset echomail onboarding flag so the user is sent through the guide again
+    SimpleRouter::post('/user/reset-onboarding', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'interests_onboarded', null);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError('errors.settings.update_failed', apiLocalizedText('errors.settings.update_failed', 'Failed to reset onboarding'), 500);
+        }
+    });
+
+    // MCP client help docs (rendered markdown, auth required)
+    SimpleRouter::get('/docs/mcp-client-help/claude', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        $mdPath = __DIR__ . '/../docs/MCPClientHelp.md';
+        if (!file_exists($mdPath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Help file not found']);
+            return;
+        }
+        $markdown = file_get_contents($mdPath);
+        $html     = \BinktermPHP\MarkdownRenderer::toHtml($markdown);
+        echo json_encode(['success' => true, 'html' => $html]);
+    });
+
+    // MCP Server key management (requires MCP_SERVER_URL env + registered license)
+    SimpleRouter::get('/user/mcp-key', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('MCP_SERVER_URL', '')) {
+            apiError('errors.mcp.not_enabled', apiLocalizedText('errors.mcp.not_enabled', 'MCP services are not enabled on this system'), 403);
+            return;
+        }
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
+            return;
+        }
+
+        $meta = new \BinktermPHP\UserMeta();
+        $key  = $meta->getValue($userId, 'mcp_serverkey');
+
+        if ($key === null) {
+            echo json_encode(['success' => true, 'has_key' => false]);
+        } else {
+            // Return only a preview — first 8 chars + asterisks
+            $preview = substr($key, 0, 8) . str_repeat('*', 24);
+            echo json_encode(['success' => true, 'has_key' => true, 'key_preview' => $preview]);
+        }
+    });
+
+    SimpleRouter::post('/user/mcp-key/generate', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('MCP_SERVER_URL', '')) {
+            apiError('errors.mcp.not_enabled', apiLocalizedText('errors.mcp.not_enabled', 'MCP services are not enabled on this system'), 403);
+            return;
+        }
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
+            return;
+        }
+
+        try {
+            $key  = bin2hex(random_bytes(32));
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'mcp_serverkey', $key);
+            // Return the full key only at generation time
+            echo json_encode(['success' => true, 'key' => $key]);
+        } catch (Exception $e) {
+            apiError('errors.mcp.generate_failed', apiLocalizedText('errors.mcp.generate_failed', 'Failed to generate MCP key'), 500);
+        }
+    });
+
+    SimpleRouter::delete('/user/mcp-key', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('MCP_SERVER_URL', '')) {
+            apiError('errors.mcp.not_enabled', apiLocalizedText('errors.mcp.not_enabled', 'MCP services are not enabled on this system'), 403);
+            return;
+        }
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.mcp.license_required', apiLocalizedText('errors.mcp.license_required', 'A registered license is required for the MCP server feature'), 403);
+            return;
+        }
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'mcp_serverkey', null);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            apiError('errors.mcp.revoke_failed', apiLocalizedText('errors.mcp.revoke_failed', 'Failed to revoke MCP key'), 500);
         }
     });
 
@@ -8392,7 +9099,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, is_active, is_admin, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, is_active, is_admin, is_system, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -8437,6 +9144,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $email = $_POST['email'] ?? '';
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
             $password = $_POST['password'] ?? '';
 
             if (empty($realName)) {
@@ -8450,9 +9158,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'real_name = ?',
                 'email = ?',
                 'is_active = ?',
-                'is_admin = ?'
+                'is_admin = ?',
+                'is_system = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem];
 
             // Add password if provided
             if ($password) {
@@ -8545,6 +9254,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $password = $_POST['password'] ?? '';
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
 
             // Validate required fields
             if (empty($username) || empty($realName) || empty($password)) {
@@ -8591,8 +9301,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Create user
             $insertStmt = $db->prepare("
-                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, is_system, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $insertStmt->execute([
@@ -8601,7 +9311,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $realName,
                 $email ?: null,
                 $isActive,
-                $isAdmin
+                $isAdmin,
+                $isSystem
             ]);
 
             $newUserId = $db->lastInsertId();
@@ -9283,44 +9994,38 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
      * binary ZIP download.  No JSON is returned — the response body IS the
      * ZIP file.
      */
-    SimpleRouter::get('/download', function() {
+    SimpleRouter::match([\Pecee\Http\Request::REQUEST_TYPE_GET, \Pecee\Http\Request::REQUEST_TYPE_HEAD], '/download', function() {
         $user   = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
 
-        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
-            http_response_code(403);
-            echo 'QWK offline mail is not enabled on this system.';
-            return;
-        }
-
         try {
-            $meta   = new \BinktermPHP\UserMeta();
-            $format = $_GET['format'] ?? $meta->getValue($userId, 'qwk_format') ?? 'qwk';
-            $qwke   = ($format === 'qwke');
-            $meta->setValue($userId, 'qwk_format', $qwke ? 'qwke' : 'qwk');
+            $controller = new \BinktermPHP\Qwk\QwkHttpController();
+            $metadata = $controller->getDownloadMetadata($userId);
 
-            $hardCap     = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
-            $savedLimit  = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
-            $requestedLimit = isset($_GET['limit']) ? (int)$_GET['limit'] : $savedLimit;
-            $limit = max(1, min($hardCap, $requestedLimit));
-            $meta->setValue($userId, 'qwk_limit', $limit);
-
-            $builder  = new \BinktermPHP\Qwk\QwkBuilder();
-            $zipPath  = $builder->buildPacket($userId, $qwke, $limit);
-            $bbsId    = $builder->getBbsId();
-            $filename = $bbsId . '.QWK';
-
-            $filesize = filesize($zipPath);
+            $filename = (string)$metadata['filename'];
+            $safeFilename = str_replace(['\\', '"', "\r", "\n"], ['_', '_', '', ''], $filename);
+            $encodedFilename = rawurlencode($filename);
 
             header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Content-Length: ' . $filesize);
+            header('Content-Disposition: attachment; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('X-QWK-BBS-ID: ' . $metadata['bbs_id']);
+            header('X-QWK-Reply-Filename: ' . $metadata['reply_filename']);
             header('Cache-Control: no-store, no-cache, must-revalidate');
             header('Pragma: no-cache');
 
-            readfile($zipPath);
-            @unlink($zipPath);
+            if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+                exit;
+            }
+
+            $download = $controller->buildDownloadPacket($userId);
+            header('Content-Length: ' . $download['filesize']);
+
+            readfile($download['path']);
+            @unlink($download['path']);
             exit;
+        } catch (\DomainException $e) {
+            http_response_code(403);
+            echo htmlspecialchars($e->getMessage());
         } catch (\Exception $e) {
             error_log('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
@@ -9346,38 +10051,25 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             return;
         }
 
-        if (empty($_FILES['rep'])) {
-            http_response_code(400);
-            apiError('errors.qwk.no_file', 'No REP file received. Send the file in the "rep" field.');
-            return;
-        }
-
-        $file = $_FILES['rep'];
-
-        if ($file['error'] !== UPLOAD_ERR_OK) {
-            http_response_code(400);
-            apiError('errors.qwk.upload_error', 'File upload error code: ' . $file['error']);
-            return;
-        }
-
-        // Basic extension check — accept .rep and .zip
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        if (!in_array($ext, ['rep', 'zip'], true)) {
-            http_response_code(400);
-            apiError('errors.qwk.invalid_extension', 'Please upload a .REP or .ZIP file.');
-            return;
-        }
-
         try {
-            $processor = new \BinktermPHP\Qwk\RepProcessor();
-            $result    = $processor->processRepPacket($file['tmp_name'], $userId);
-
-            echo json_encode([
-                'success'  => $result['imported'] > 0 || count($result['errors']) === 0,
-                'imported' => $result['imported'],
-                'skipped'  => $result['skipped'],
-                'errors'   => $result['errors'],
-            ]);
+            $controller = new \BinktermPHP\Qwk\QwkHttpController();
+            $file = $controller->getUploadedRepFromRequest();
+            echo json_encode($controller->processUploadedRep($file, $userId));
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            $message = $e->getMessage();
+            if (str_starts_with($message, 'No REP file received')) {
+                apiError('errors.qwk.no_file', $message);
+            } elseif (str_starts_with($message, 'File upload error code')) {
+                apiError('errors.qwk.upload_error', $message);
+            } elseif (str_starts_with($message, 'Please upload')) {
+                apiError('errors.qwk.invalid_extension', $message);
+            } else {
+                apiError('errors.qwk.upload_error', $message);
+            }
+        } catch (\DomainException $e) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', $e->getMessage());
         } catch (\Exception $e) {
             error_log('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
@@ -9404,9 +10096,27 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         }
 
         try {
-            $db     = \BinktermPHP\Database::getInstance()->getPdo();
-            $subMgr = new \BinktermPHP\EchoareaSubscriptionManager();
-            $areas  = $subMgr->getUserSubscribedEchoareas($userId);
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $messageHandler = new \BinktermPHP\MessageHandler();
+
+            // Use custom QWK area selections when active flag is set, otherwise all subscribed.
+            $meta          = new \BinktermPHP\UserMeta();
+            $customActive  = $meta->getValue($userId, 'qwk_custom_areas_active') === 'true';
+
+            if ($customActive) {
+                $selStmt = $db->prepare("
+                    SELECT e.id, e.tag, e.domain, e.description, e.is_active
+                    FROM qwk_area_selections s
+                    JOIN echoareas e ON e.id = s.echoarea_id
+                    WHERE s.user_id = ? AND e.is_active = TRUE
+                    ORDER BY e.tag
+                ");
+                $selStmt->execute([$userId]);
+                $areas = $selStmt->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                $subMgr = new \BinktermPHP\EchoareaSubscriptionManager();
+                $areas  = $subMgr->getUserSubscribedEchoareas($userId);
+            }
 
             // Retrieve last-seen IDs for all subscribed areas.
             $stateStmt = $db->prepare("
@@ -9472,8 +10182,19 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
 
             foreach ($areas as $area) {
                 $lastId  = $stateByArea[(int)$area['id']] ?? 0;
-                $emStmt  = $db->prepare("SELECT COUNT(*) AS cnt FROM echomail WHERE echoarea_id = ? AND id > ?");
-                $emStmt->execute([(int)$area['id'], $lastId]);
+                $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+                $emStmt  = $db->prepare("
+                    SELECT COUNT(*) AS cnt
+                    FROM echomail em
+                    WHERE em.echoarea_id = ?
+                      AND em.id > ?
+                      {$ignoreFilter['sql']}
+                ");
+                $emParams = [(int)$area['id'], $lastId];
+                if (!empty($ignoreFilter['params'])) {
+                    $emParams = array_merge($emParams, $ignoreFilter['params']);
+                }
+                $emStmt->execute($emParams);
                 $newCount = (int)$emStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
 
                 $conferences[] = [
@@ -9496,14 +10217,17 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             $limit   = (int)($meta->getValue($userId, 'qwk_limit') ?? 2500);
             $hardCap = \BinktermPHP\Qwk\QwkBuilder::MAX_MESSAGES_HARD_CAP;
 
+            $hasCustomSelection = $customActive;
+
             echo json_encode([
-                'total_new_messages' => $totalNew,
-                'last_download'      => $lastDl ?: null,
-                'conferences'        => $conferences,
-                'format'             => $format,
-                'limit'              => $limit,
-                'hard_cap'           => $hardCap,
-                'is_dev'             => \BinktermPHP\Config::env('IS_DEV') === 'true',
+                'total_new_messages'   => $totalNew,
+                'last_download'        => $lastDl ?: null,
+                'conferences'          => $conferences,
+                'format'               => $format,
+                'limit'                => $limit,
+                'hard_cap'             => $hardCap,
+                'is_dev'               => \BinktermPHP\Config::env('IS_DEV') === 'true',
+                'has_custom_selection' => $hasCustomSelection,
             ]);
         } catch (\Exception $e) {
             error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
@@ -9577,5 +10301,624 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
         }
     });
 
+    /**
+     * GET /api/qwk/area-selections
+     *
+     * Returns the current QWK area selection for this user plus the full list
+     * of subscribed areas so the UI can render the picker.
+     *
+     * Response:
+     *   {
+     *     has_custom: bool,           // true when user has an explicit selection
+     *     selections: [{id, tag, domain, description}],  // currently selected (empty = all subscribed)
+     *     subscribed: [{id, tag, domain, description}],  // user's echo subscriptions
+     *   }
+     */
+    SimpleRouter::get('/area-selections', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        $meta        = new \BinktermPHP\UserMeta();
+        $customActive = $meta->getValue($userId, 'qwk_custom_areas_active') === 'true';
+
+        // Current selections.
+        $selStmt = $db->prepare("
+            SELECT e.id, e.tag, e.domain, e.description
+            FROM qwk_area_selections s
+            JOIN echoareas e ON e.id = s.echoarea_id
+            WHERE s.user_id = ?
+            ORDER BY e.tag
+        ");
+        $selStmt->execute([$userId]);
+        $selections = $selStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Subscribed areas.
+        $subMgr     = new \BinktermPHP\EchoareaSubscriptionManager();
+        $subscribed = array_map(function($a) {
+            return [
+                'id'          => (int)$a['id'],
+                'tag'         => $a['tag'],
+                'domain'      => $a['domain'] ?? '',
+                'description' => $a['description'] ?? '',
+            ];
+        }, $subMgr->getUserSubscribedEchoareas($userId));
+
+        echo json_encode([
+            'has_custom'  => $customActive,
+            'selections'  => $customActive ? $selections : [],
+            'subscribed'  => $subscribed,
+        ]);
+    });
+
+    /**
+     * POST /api/qwk/area-selections
+     *
+     * Saves the user's QWK area selection.
+     *
+     * Body: {"echoarea_ids": [1, 5, 12]}
+     *   — Replaces the user's selection with the given list.
+     *   — An empty array clears custom selection (reverts to all subscribed).
+     */
+    SimpleRouter::post('/area-selections', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input) || !array_key_exists('echoarea_ids', $input)) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_input', 'echoarea_ids array is required.');
+            return;
+        }
+
+        // reset:true clears custom mode and reverts to all-subscribed behaviour.
+        $reset = !empty($input['reset']);
+        $ids   = array_values(array_unique(array_filter(array_map('intval', (array)$input['echoarea_ids']))));
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Validate that each id refers to a real, active, accessible area.
+        if (!empty($ids)) {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $isAdmin = !empty($user['is_admin']);
+            $sysopClause = $isAdmin ? '' : 'AND e.is_sysop_only = FALSE';
+            $validStmt = $db->prepare("
+                SELECT id FROM echoareas e
+                WHERE id IN ({$placeholders}) AND e.is_active = TRUE {$sysopClause}
+            ");
+            $validStmt->execute($ids);
+            $ids = array_map('intval', $validStmt->fetchAll(PDO::FETCH_COLUMN));
+        }
+
+        $meta = new \BinktermPHP\UserMeta();
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("DELETE FROM qwk_area_selections WHERE user_id = ?")->execute([$userId]);
+            if ($reset) {
+                // Revert to default (all subscribed) — clear the flag and leave rows empty.
+                $meta->setValue($userId, 'qwk_custom_areas_active', 'false');
+            } else {
+                // Activate custom mode and save the selected ids (may be empty = personal mail only).
+                $meta->setValue($userId, 'qwk_custom_areas_active', 'true');
+                if (!empty($ids)) {
+                    $insertStmt = $db->prepare(
+                        "INSERT INTO qwk_area_selections (user_id, echoarea_id) VALUES (?, ?)"
+                    );
+                    foreach ($ids as $id) {
+                        $insertStmt->execute([$userId, $id]);
+                    }
+                }
+            }
+            $db->commit();
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log('[QWK] area-selections save failed: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.qwk.save_failed', 'Failed to save area selections.');
+            return;
+        }
+
+        echo json_encode(['success' => true, 'count' => $reset ? null : count($ids)]);
+    });
+
+    /**
+     * GET /api/qwk/area-search?q=<term>
+     *
+     * Search echo areas by tag or description.  Used by the area picker to let
+     * users add areas that are not in their subscription list.
+     * Returns up to 20 results.
+     */
+    SimpleRouter::get('/area-search', function() {
+        $user   = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('qwk')) {
+            http_response_code(403);
+            apiError('errors.qwk.disabled', 'QWK offline mail is not enabled on this system.');
+            return;
+        }
+
+        $q = trim((string)($_GET['q'] ?? ''));
+        if (strlen($q) < 2) {
+            echo json_encode(['areas' => []]);
+            return;
+        }
+
+        $isAdmin = !empty($user['is_admin']);
+        $sysopClause = $isAdmin ? '' : 'AND is_sysop_only = FALSE';
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT id, tag, domain, description
+            FROM echoareas
+            WHERE is_active = TRUE {$sysopClause}
+              AND (tag ILIKE ? OR description ILIKE ?)
+            ORDER BY tag
+            LIMIT 20
+        ");
+        $like = '%' . $q . '%';
+        $stmt->execute([$like, $like]);
+        $areas = array_map(function($a) {
+            return [
+                'id'          => (int)$a['id'],
+                'tag'         => $a['tag'],
+                'domain'      => $a['domain'] ?? '',
+                'description' => $a['description'] ?? '',
+            ];
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+        echo json_encode(['areas' => $areas]);
+    });
+
+
+});
+
+// ---------------------------------------------------------------------------
+// Interests — user-facing
+// GET  /api/interests                 — active interests with subscription status
+// POST /api/interests/{id}/subscribe
+// POST /api/interests/{id}/unsubscribe
+// ---------------------------------------------------------------------------
+SimpleRouter::group(['prefix' => '/api/interests'], function() {
+
+    /**
+     * GET /api/interests
+     * Returns all active interests. When authenticated, each interest includes
+     * a `subscribed` boolean for the current user.
+     */
+    SimpleRouter::get('/', function() {
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $user   = RouteHelper::getUser();
+        $userId = $user ? (int)($user['user_id'] ?? $user['id']) : null;
+
+        $manager  = new \BinktermPHP\InterestManager();
+        $interests = $manager->getInterests(true);
+
+        $subscribedIds = $userId ? array_flip($manager->getUserSubscribedInterestIds($userId)) : [];
+
+        foreach ($interests as &$i) {
+            $i['subscribed'] = isset($subscribedIds[$i['id']]);
+        }
+        unset($i);
+
+        echo json_encode(['interests' => $interests]);
+    });
+
+    /**
+     * POST /api/interests/{id}/subscribe
+     */
+    SimpleRouter::post('/{id}/subscribe', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+        $echoareaIds = isset($body['echoarea_ids']) && is_array($body['echoarea_ids'])
+            ? array_map('intval', $body['echoarea_ids'])
+            : null;
+
+        if ($echoareaIds !== null) {
+            $manager->subscribeUserToSelectedEchoareas($userId, (int)$id, $echoareaIds);
+        } else {
+            $manager->subscribeUser($userId, (int)$id);
+        }
+        echo json_encode(['success' => true, 'subscribed' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/interests/{id}/unsubscribe
+     */
+    SimpleRouter::post('/{id}/unsubscribe', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+        $echoareaIds = isset($body['echoarea_ids']) && is_array($body['echoarea_ids'])
+            ? array_map('intval', $body['echoarea_ids'])
+            : null;
+
+        if ($echoareaIds !== null) {
+            $manager->unsubscribeUserFromSelectedEchoareas($userId, (int)$id, $echoareaIds);
+        } else {
+            $manager->unsubscribeUser($userId, (int)$id);
+        }
+        $stillSubscribed = $manager->isUserSubscribed($userId, (int)$id);
+        echo json_encode(['success' => true, 'subscribed' => $stillSubscribed]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/echoareas
+     * Returns the echo areas belonging to an interest (tag, domain, description).
+     * Public (no auth required) — respects feature flag.
+     * If authenticated, each area includes a `subscribed` boolean.
+     */
+    SimpleRouter::get('/{id}/echoareas', function($id) {
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $user   = \BinktermPHP\RouteHelper::getUser();
+        $userId = $user ? (int)$user['user_id'] : null;
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT e.id AS echoarea_id, e.tag, e.domain, e.description,
+                   COUNT(em.id) AS message_count
+                   " . ($userId ? ", (ues.is_active IS TRUE) AS subscribed" : "") . "
+            FROM echoareas e
+            INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+            LEFT JOIN echomail em ON em.echoarea_id = e.id
+            " . ($userId ? "LEFT JOIN user_echoarea_subscriptions ues ON ues.echoarea_id = e.id AND ues.user_id = ?" : "") . "
+            WHERE ie.interest_id = ?
+            GROUP BY e.id, e.tag, e.domain, e.description" .
+            ($userId ? ", ues.is_active" : "") . "
+            ORDER BY message_count DESC, e.tag ASC
+        ");
+        $params = $userId ? [$userId, (int)$id] : [(int)$id];
+        $stmt->execute($params);
+        $echoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($echoareas as &$row) {
+            $row['echoarea_id']   = (int)$row['echoarea_id'];
+            $row['message_count'] = (int)$row['message_count'];
+            if ($userId) {
+                $row['subscribed'] = (bool)$row['subscribed'];
+            }
+        }
+        unset($row);
+
+        echo json_encode(['echoareas' => $echoareas]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/stats
+     * Returns message counts scoped to an interest's echo areas (same shape as echomail stats).
+     */
+    SimpleRouter::get('/{id}/stats', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $isAdmin = !empty($user['is_admin']);
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest || !$interest['is_active']) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $echoareaIds = $manager->getUserSubscribedInterestEchoareaIds((int)$id, $userId);
+        if (empty($echoareaIds)) {
+            echo json_encode([
+                'total'  => 0, 'recent' => 0, 'unread' => 0,
+                'areas'  => 0,
+                'filter_counts' => ['all' => 0, 'unread' => 0, 'read' => 0, 'tome' => 0, 'saved' => 0, 'drafts' => 0],
+            ]);
+            return;
+        }
+
+        $db          = \BinktermPHP\Database::getInstance()->getPdo();
+        $ph          = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $sysopClause = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
+
+        $totalStmt = $db->prepare("
+            SELECT COUNT(*) AS total,
+                   COUNT(CASE WHEN em.date_received > NOW() - INTERVAL '1 day' THEN 1 END) AS recent
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause}
+        ");
+        $totalStmt->execute($echoareaIds);
+        $totals = $totalStmt->fetch(\PDO::FETCH_ASSOC);
+        $total  = (int)$totals['total'];
+        $recent = (int)$totals['recent'];
+
+        $userInfo    = null;
+        $unreadCount = 0;
+        $readCount   = 0;
+        $toMeCount   = 0;
+        $savedCount  = 0;
+
+        if ($userId) {
+            $uStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+            $uStmt->execute([$userId]);
+            $userInfo = $uStmt->fetch(\PDO::FETCH_ASSOC);
+
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute(array_merge([$userId], $echoareaIds));
+            $unreadCount = (int)$unreadStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+            $readStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NOT NULL
+            ");
+            $readStmt->execute(array_merge([$userId], $echoareaIds));
+            $readCount = (int)$readStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+            if ($userInfo) {
+                $toMeStmt = $db->prepare("
+                    SELECT COUNT(*) AS count FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause}
+                      AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                ");
+                $toMeStmt->execute(array_merge($echoareaIds, [$userInfo['username'], $userInfo['real_name']]));
+                $toMeCount = (int)$toMeStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+            }
+
+            $savedStmt = $db->prepare("
+                SELECT COUNT(*) AS count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($ph) AND ea.is_active = TRUE{$sysopClause} AND sav.id IS NOT NULL
+            ");
+            $savedStmt->execute(array_merge([$userId], $echoareaIds));
+            $savedCount = (int)$savedStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+        }
+
+        $draftsCount = 0;
+        if ($userId) {
+            $draftsStmt = $db->prepare("SELECT COUNT(*) AS count FROM drafts WHERE user_id = ? AND type = 'echomail'");
+            $draftsStmt->execute([$userId]);
+            $draftsCount = (int)$draftsStmt->fetch(\PDO::FETCH_ASSOC)['count'];
+        }
+
+        echo json_encode([
+            'total'  => $total,
+            'recent' => $recent,
+            'unread' => $unreadCount,
+            'areas'  => count($echoareaIds),
+            'filter_counts' => [
+                'all'    => $total,
+                'unread' => $unreadCount,
+                'read'   => $readCount,
+                'tome'   => $toMeCount,
+                'saved'  => $savedCount,
+                'drafts' => $draftsCount,
+            ],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/interests/{id}/messages
+     * Returns paginated echomail from all echo areas belonging to this interest.
+     */
+    SimpleRouter::get('/{id}/messages', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+            http_response_code(404);
+            apiError('errors.interests.feature_disabled', 'Interests feature is not enabled.');
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest || !$interest['is_active']) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $handler      = new \BinktermPHP\MessageHandler();
+        $page         = max(1, (int)($_GET['page'] ?? 1));
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort         = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
+        $filter       = $_GET['filter'] ?? 'all';
+
+        $result = $handler->getEchomailFromInterest($userId, (int)$id, $page, null, $filter, $sort);
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
+
+});
+
+// Advertisement tracking
+SimpleRouter::group(['prefix' => '/api'], function() {
+
+    SimpleRouter::post('/ads/{id}/impression', function(string $id) {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        try {
+            $ads = new \BinktermPHP\Advertising();
+            $ads->recordImpression((int)$id, $userId);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to record impression']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/ads/{id}/click', function(string $id) {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        try {
+            $ads = new \BinktermPHP\Advertising();
+            $ad  = $ads->getAdById((int)$id);
+            if (!$ad) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Advertisement not found']);
+                return;
+            }
+            $ads->recordClick((int)$id, $userId);
+            echo json_encode(['success' => true, 'click_url' => $ad['click_url']]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to record click']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    // -----------------------------------------------------------------
+    // Markdown post image upload
+    // POST /api/markdown-images  (multipart, field: image)
+    // Returns { success, url, filename }
+    // -----------------------------------------------------------------
+    SimpleRouter::get('/markdown-images', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $images  = $manager->listMarkdownImages($userId);
+
+            $result = array_map(function(array $img): array {
+                return [
+                    'hash'       => $img['file_hash'],
+                    'filename'   => $img['filename'],
+                    'url'        => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $img['file_hash'],
+                    'created_at' => $img['created_at'],
+                ];
+            }, $images);
+
+            echo json_encode(['success' => true, 'images' => $result]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.settings.load_failed', apiLocalizedText('errors.settings.load_failed', 'Failed to load images'), 500);
+        }
+    });
+
+    SimpleRouter::post('/markdown-images', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $uploadError = $_FILES['image']['error'] ?? -1;
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            apiError('errors.markdown_images.upload_failed', apiLocalizedText('errors.markdown_images.upload_failed', 'Upload failed'), 400);
+            return;
+        }
+
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $mimeType     = mime_content_type($_FILES['image']['tmp_name']);
+        if (!in_array($mimeType, $allowedMimes, true)) {
+            apiError('errors.markdown_images.invalid_type', apiLocalizedText('errors.markdown_images.invalid_type', 'Unsupported image type'), 400);
+            return;
+        }
+
+        $maxBytes = (int)\BinktermPHP\Config::env('MARKDOWN_IMAGE_MAX_BYTES', (string)(5 * 1024 * 1024));
+        if ($_FILES['image']['size'] > $maxBytes) {
+            apiError('errors.markdown_images.too_large', apiLocalizedText('errors.markdown_images.too_large', 'Image exceeds maximum size'), 400);
+            return;
+        }
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $result  = $manager->storeMarkdownImage(
+                $userId,
+                $_FILES['image']['tmp_name'],
+                basename($_FILES['image']['name'])
+            );
+
+            echo json_encode([
+                'success'  => true,
+                'url'      => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $result['hash'],
+                'filename' => basename($_FILES['image']['name']),
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.markdown_images.upload_failed', apiLocalizedText('errors.markdown_images.upload_failed', 'Failed to store image'), 500);
+        }
+    });
 
 });

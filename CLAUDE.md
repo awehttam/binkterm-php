@@ -4,6 +4,10 @@
 
 A modern web interface and mailer tool that receives and sends Fidonet message packets using its own binkp Fidonet mailer. The project provides users with a delightful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of binkp.
 
+ - **Product website**: https://lovelybits.org/binktermphp
+ - **GitHub repo**: https://github.com/awehttam/binkterm-php
+ - **Support BBS**: https://claudes.lovelybits.org
+
 ## Tech Stack
 
  - Frontend: jQuery, Bootstrap 5
@@ -17,6 +21,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - PascalCase for components and classes
  - 4 space indents
  - **Environment Variables**: Always use `Config::env('VAR_NAME', 'default')` to read from .env file. Do NOT use `getenv()` or `$_ENV` directly.
+ - **Client-side storage**: Always use `UserStorage` (from `public_html/js/user-storage.js`) instead of `localStorage` directly. `UserStorage` automatically scopes keys by the logged-in user's ID so that different accounts on the same browser cannot share state. When not logged in it falls back to `sessionStorage` to avoid persisting anonymous state.
 
 ## Project Structure
 
@@ -24,14 +29,17 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.)
    - **IMPORTANT**: All PHP scripts in scripts/ directory must include shebang line `#!/usr/bin/env php` at the top
    - **IMPORTANT**: CLI scripts must include `src/functions.php` after autoload to access global functions like `generateTzutc()`: `require_once __DIR__ . '/../src/functions.php';`
+   - **IMPORTANT**: Do not use `PHP_BINARY` from web requests to launch CLI scripts. Under php-fpm it points at the FPM SAPI, not the CLI interpreter. Invoke executable scripts directly via their shebang, or use a real CLI `php` path when you explicitly need the interpreter.
    - Scripts should be made executable with `chmod +x` and marked as executable in git with `git update-index --chmod=+x scripts/filename.php`
  - templates/ - html templates
    - **IMPORTANT**: Template resolution order is `templates/custom/` → `templates/shells/<activeShell>/` → `templates/`. The active shell (`web` or `bbs-menu`) has its own `base.twig` at `templates/shells/web/base.twig` and `templates/shells/bbs-menu/base.twig` which take priority over `templates/base.twig`. When adding nav links or modifying shared layout, you must update **both** `templates/base.twig` AND `templates/shells/web/base.twig` (and `bbs-menu` if applicable).
+ - docs/ - system documentation; often contains historical programming notes that give insight into how specific subsystems were designed and why. Read relevant docs/ files before working on a subsystem — they frequently contain architectural context not obvious from the code alone.
  - public_html/ - the web site files, static assets
  - tests/ - test scripts used in debugging and troubleshooting
  - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude
  - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
  - telnet/ - the telnet BBS server (separate from the web interface)
+   - **IMPORTANT**: `telnet/telnet_daemon.php` and `ssh/ssh_daemon.php` manually `require_once` telnet-side classes from `telnet/src/`. New classes under `telnet/src/` are **not** Composer-autoloaded for those daemons. When adding a class there, update the `require_once` lists in both daemon entrypoints as needed.
 
 ## Credits
 
@@ -44,11 +52,12 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - This is for FTN style networks and forums
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.7.5_description.sql
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
- - **Premium features**: When implementing a feature that requires a valid license (`License::isValid()` or `License::hasFeature()`), update the "Currently Implemented Premium Features" table in `docs/proposals/PremiumFeatures.md` and remove it from the future ideas list if it was listed there.
+ - **Premium features**: When adding, changing, or removing any registered-only / premium feature gated by `License::isValid()` or `License::hasFeature()`, update the "Currently Implemented Premium Features" table in `docs/proposals/PremiumFeatures.md` and remove it from the future ideas list if it was listed there.
  - Leave the vendor directory alone. It's managed by composer only
  - **Composer Dependencies**: When adding a new required package to composer.json, the UPGRADING_x.x.x.md document for that version MUST include instructions to run `composer install` before `php scripts/setup.php`. Without this, the upgrade will fail because `vendor/autoload.php` is loaded before setup.php runs.
  - **Upgrade docs TOC**: When creating or maintaining an `UPGRADING_x.y.z.md` document, always add or update its table of contents so the headings in that file remain navigable and in sync with the document.
  - **Upgrade doc format**: `UPGRADING_x.y.z.md` documents must start with a table of contents. The first table of contents entry must be a summary of changes section. That summary section must group changes by major feature area. After the summary of changes, include fuller descriptions of the changes, also grouped by major feature area.
+ - **Upgrade doc voice**: Write UPGRADING documents as if the reader has no prior exposure to the development work, branch discussions, or the problems being fixed. Every change must be described self-contained — no phrases like "the previous issue with X", "as discussed", or "the fix for the problem where...". State what changed, why it matters, and what action the upgrader needs to take.
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
  - **Theme-safe background colors**: Never use Bootstrap 5.3+ utility classes like `bg-body-tertiary` or `bg-body-secondary` — they have no theme overrides and will render incorrectly on dark/amber/greenterm/cyberpunk themes. Use `bg-light` instead, which all themes override via `.bg-light { background-color: var(--theme-var) !important; }`.
  - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks.
@@ -142,9 +151,17 @@ return function($db) {
  - When writing proposal or other documentation files, use repo-relative paths like `src/Foo.php` or `docs/Bar.md` in the document text; do not use full filesystem paths.
  - **Documentation index**: When adding a new documentation file to `docs/` (excluding `docs/proposals/`), update `docs/index.md` to include it in the appropriate section in operational priority order. When creating a new `UPGRADING_x.y.z.md` file, also add it to the **Upgrading** section at the bottom of `docs/index.md`, newest-first.
  - **Service Worker Cache**: When making changes to CSS or JavaScript files, or when updating i18n language strings in `config/i18n/`, increment the CACHE_NAME version in public_html/sw.js (e.g., 'binkcache-v2' to 'binkcache-v3') to force clients to download fresh copies. The service worker caches static assets and the i18n catalog (`/api/i18n/catalog`) to bypass aggressive browser caching on mobile devices.
+ - **BinkStream SharedWorker Build**: When making changes to `public_html/js/binkstream-worker-v2.js`, increment `WORKER_BUILD` in `public_html/js/binkstream-client.js`. This constant is embedded in both the worker URL (`?v=N`) and the worker name (`binkstream-vN`). Because SharedWorkers are shared across tabs and survive page reloads, the browser will keep running the old worker code until all tabs are closed — bumping `WORKER_BUILD` forces a new worker instance immediately without requiring users to close every tab.
  - **Timezone Display**: Dates and times are generally stored as UTC in the database. When presenting them to users, translate them to the user's own timezone unless there is a specific reason to show raw UTC.
+ - **date_written vs date_received**: On `echomail` and `netmail`, `date_written` is derived from the FTN packet header (local time converted to UTC via the TZUTC kludge) and reflects when the sender composed the message — it can be wrong or in the future if the remote sysop's clock is incorrect. `date_received` is set server-side via `NOW() AT TIME ZONE 'UTC'` and is always reliable. Future-dated `date_written` values are hidden from message list queries until they are no longer in the future. When displaying dates to users, prefer `date_received` for ordering/display by default; show `date_written` with a tooltip that also includes `date_received` so discrepancies are visible.
  - **Charset columns**: The `message_charset` column on `echomail` and `netmail` stores the canonical iconv-compatible charset name (e.g. `CP437`, `UTF-8`) as normalized by `BinkpConfig::normalizeCharset()`. The raw `CHRS` value from the original FTN packet is preserved as-is in the `kludge_lines` column and may differ (e.g. `IBMPC`, `ASCII`). Always use `message_charset` for encoding/decoding operations and pre-selecting the charset UI; read `kludge_lines` only when you need the original wire value.
  - Write phpDoc blocks when possible
+
+## Internationalization (i18n) & Encoding Policy
+- **Strict UTF-8 (No BOM):** All i18n catalogs and source files must be saved as UTF-8 without a Byte Order Mark.
+- **Accent Handling:** When editing French or other accented catalogs, use literal characters (e.g., 'é', 'à') only. Never use HTML entities (e.g., &eacute;) or Unicode escape sequences unless explicitly requested.
+- **No Emojis/4-Byte Characters:** Strictly prohibit the use of Emojis or any character outside the Basic Multilingual Plane (U+0000 to U+FFFF). These break legacy FTN/BBS terminal rendering.
+- **Verification Step:** Before completing a translation task, verify that you haven't "double-encoded" characters (e.g., ensuring 'é' doesn't become 'Ã©').
 
 ## Localization (i18n) Workflow
 
@@ -461,6 +478,18 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
  - **PostgreSQL boolean handling:** PostgreSQL is strict about boolean types. When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
+ - **PostgreSQL insert IDs:** Treat `PDO::lastInsertId()` as unsafe in this project. On PostgreSQL, `lastInsertId()` without a sequence name calls `lastval()`, which returns the last sequence value used in the **current session** — from *any* sequence, not necessarily the row you just inserted. Triggers are the common way this breaks (for example, an INSERT trigger writing to `sse_events`), but the rule should be simpler: **do not use `lastInsertId()` for application inserts. Always use `RETURNING id` and fetch the returned row directly.** Do this even if there are no known triggers on the table today, because triggers or other sequence-using side effects may be added later.
+   ```php
+   // WRONG — do not rely on session-wide lastval()/lastInsertId()
+   $stmt->execute();
+   $id = $this->db->lastInsertId();
+
+   // CORRECT — fetch the inserted row's id directly
+   // Add RETURNING id to the INSERT SQL, then:
+   $stmt->execute();
+   $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+   $id = $row ? (int)$row['id'] : 0;
+   ```
 
 ## Future Plans
  - More BBS-like features such as multi-user interaction, messaging, games, etc.

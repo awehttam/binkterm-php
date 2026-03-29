@@ -37,15 +37,14 @@ class BinkpController
     
     public function getStatus()
     {
-        $client = new BinkpClient($this->config, $this->logger);
         $scheduler = new Scheduler($this->config, $this->logger);
         $inboundQueue = new InboundQueue($this->config, $this->logger);
         $outboundQueue = new OutboundQueue($this->config, $this->logger);
         
-        $uplinkStatus = $client->getUplinkStatus();
         $scheduleStatus = $scheduler->getScheduleStatus();
         $inboundStats = $inboundQueue->getStats();
         $outboundStats = $outboundQueue->getStats();
+        unset($inboundStats['inbound_path'], $outboundStats['outbound_path']);
         
         return [
             'system' => [
@@ -55,14 +54,58 @@ class BinkpController
                 'hostname' => $this->config->getSystemHostname(),
                 'port' => $this->config->getBinkpPort()
             ],
-            'uplinks' => $uplinkStatus,
             'schedule' => $scheduleStatus,
             'queues' => [
                 'inbound' => $inboundStats,
                 'outbound' => $outboundStats
             ],
-            'timestamp' => date('Y-m-d H:i:s')
+            'timestamp' => $this->formatUnixTimestamp(time())
         ];
+    }
+
+    public function testUplinkAuthentication(string $address): array
+    {
+        $uplink = $this->config->getUplinkByAddress($address);
+        if (!$uplink) {
+            return [
+                'success' => false,
+                'error_code' => 'errors.binkp.uplink.not_found',
+                'error' => 'Uplink not found',
+            ];
+        }
+
+        if (!($uplink['enabled'] ?? true)) {
+            return [
+                'success' => false,
+                'error_code' => 'errors.binkp.uplink.disabled',
+                'error' => 'Uplink is disabled',
+                'disabled' => true,
+            ];
+        }
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->binkpAuthTestAddress($address);
+
+            return [
+                'success' => true,
+                'auth_method' => $result['auth_method'] ?? null,
+                'remote_address' => $result['remote_address'] ?? null,
+            ];
+        } catch (\RuntimeException $e) {
+            $message = $e->getMessage();
+            $daemonError = str_starts_with($message, 'Failed to connect to admin daemon');
+            if (!$daemonError) {
+                $message = (string)preg_replace('/^Admin daemon error:\s*/', '', $message);
+            }
+
+            return [
+                'success' => false,
+                'error_code' => 'errors.binkp.connection_test_failed',
+                'error' => $message,
+                'daemon_error' => $daemonError,
+            ];
+        }
     }
     
     public function pollUplink($address)
@@ -312,7 +355,7 @@ class BinkpController
             return [
                 'success'    => false,
                 'error_code' => 'errors.binkp.kept_packets.license_required',
-                'error'      => 'Viewing kept packets requires a registered license',
+                'error'      => 'Viewing packet files requires registration',
             ];
         }
 
@@ -389,12 +432,19 @@ class BinkpController
         return [
             'filename'      => basename($path),
             'size'          => filesize($path),
-            'modified'      => date('Y-m-d H:i:s', $modifiedTs),
+            'modified'      => $this->formatUnixTimestamp($modifiedTs),
             'modified_ts'   => $modifiedTs,
             'message_count' => $info['message_count'],
             'dest_address'  => $info['dest_address'],
             'orig_address'  => $info['orig_address'],
         ];
+    }
+
+    private function formatUnixTimestamp(int $timestamp): string
+    {
+        return (new \DateTimeImmutable('@' . $timestamp))
+            ->setTimezone(new \DateTimeZone('UTC'))
+            ->format('Y-m-d\TH:i:s\Z');
     }
 
     /**
@@ -412,7 +462,7 @@ class BinkpController
             return [
                 'success'    => false,
                 'error_code' => 'errors.binkp.kept_packets.license_required',
-                'error'      => 'Viewing kept packets requires a registered license',
+                'error'      => 'Viewing packet files requires registration',
             ];
         }
 
@@ -445,6 +495,68 @@ class BinkpController
     public function getKeptPacketDownloadPath(string $type, string $date, string $filename): ?string
     {
         return $this->resolveKeptPacketPath($type, $date, $filename);
+    }
+
+    /**
+     * Parse a live queue packet (inbound or outbound root directory) and return
+     * full header info plus per-message headers.  Requires a valid license.
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $filename Packet filename (e.g. "69ba4f19.pkt")
+     * @return array
+     */
+    public function inspectQueuePacket(string $type, string $filename): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing packets requires a registered license',
+            ];
+        }
+
+        $filepath = $this->resolveQueuePacketPath($type, $filename);
+        if ($filepath === null) {
+            return ['success' => false, 'error' => 'File not found'];
+        }
+
+        try {
+            return $this->parsePacketFull($filepath);
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.queue.inspect_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve and validate a path to a file in the live inbound or outbound queue directory.
+     *
+     * @param string $type     'inbound' or 'outbound'
+     * @param string $filename Packet filename
+     * @return string|null Absolute path on success, null if invalid or not found
+     */
+    public function resolveQueuePacketPath(string $type, string $filename): ?string
+    {
+        $filename = basename($filename);
+        if (!preg_match('/^[A-Za-z0-9_\-]+\.pkt$/i', $filename)) {
+            return null;
+        }
+
+        $basePath = $type === 'inbound'
+            ? $this->config->getInboundPath()
+            : $this->config->getOutboundPath();
+
+        $filepath = $basePath . DIRECTORY_SEPARATOR . $filename;
+
+        $realBase = realpath($basePath);
+        $realFile = realpath($filepath);
+        if (!$realFile || !$realBase) {
+            return null;
+        }
+        if ($realFile !== $realBase && !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return $realFile;
     }
 
     private function resolveKeptPacketPath(string $type, string $date, string $filename): ?string
@@ -642,19 +754,59 @@ class BinkpController
     public function searchLogs(string $query): array
     {
         try {
-            $logFiles = [
-                'binkp_poll.log'      => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
-                'binkp_server.log'    => \BinktermPHP\Config::getLogPath('binkp_server.log'),
-                'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
-                'admin_daemon.log'    => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
-                'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
-                'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),
-            ];
+            $logFiles = $this->getBinkpLogFiles();
             $result = $this->logger->searchLogs($query, $logFiles);
             return array_merge(['success' => true], $result);
         } catch (\Exception $e) {
             return $this->apiErrorResponse('errors.binkp.logs.search_failed', $e->getMessage());
         }
+    }
+
+    public function getLogsForPid(int $pid, ?string $preferredLogFile = null): array
+    {
+        try {
+            $logFiles = $this->getBinkpLogFiles($preferredLogFile);
+            $result = $this->logger->getLogsByPid($pid, $logFiles);
+            return array_merge(['success' => true], $result);
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.logs.search_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function getBinkpLogFiles(?string $preferredLogFile = null): array
+    {
+        $allLogFiles = [
+            'binkp_poll.log'      => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
+            'binkp_server.log'    => \BinktermPHP\Config::getLogPath('binkp_server.log'),
+            'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
+            'admin_daemon.log'    => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
+            'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
+            'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),
+            'crashmail.log'       => \BinktermPHP\Config::getLogPath('crashmail.log'),
+        ];
+
+        if ($preferredLogFile !== null && isset($allLogFiles[$preferredLogFile])) {
+            $preferredPath = $allLogFiles[$preferredLogFile];
+            $matches = glob($preferredPath . '*') ?: [];
+            if ($matches) {
+                $resolved = [];
+                foreach ($matches as $match) {
+                    if (is_file($match)) {
+                        $resolved[basename($match)] = $match;
+                    }
+                }
+                if ($resolved) {
+                    return $resolved;
+                }
+            }
+
+            return [$preferredLogFile => $preferredPath];
+        }
+
+        return $allLogFiles;
     }
 
     public function getConfig()
@@ -685,7 +837,10 @@ class BinkpController
                         isset($data['port']) ? (int) $data['port'] : null,
                         isset($data['timeout']) ? (int) $data['timeout'] : null,
                         isset($data['max_connections']) ? (int) $data['max_connections'] : null,
-                        $data['bind_address'] ?? null
+                        $data['bind_address'] ?? null,
+                        null,
+                        null,
+                        isset($data['outbound_queue_timer_minutes']) ? (int) $data['outbound_queue_timer_minutes'] : null
                     );
                     break;
                     

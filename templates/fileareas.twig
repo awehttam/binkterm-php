@@ -223,7 +223,7 @@
                             <div id="isoFieldsGroup" style="display:none;">
                                 <div class="mb-3">
                                     <label for="fileareaIsoMountPoint" class="form-label">{{ t('ui.fileareas.iso_mount_point', {}, locale, ['common']) }}</label>
-                                    <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="/srv/isos/mounts/1  or  D:\">
+                                    <input type="text" class="form-control" id="fileareaIsoMountPoint" name="iso_mount_point" placeholder="{{ is_windows_host ? 'D:\\' : iso_mounts_path }}">
                                     <div class="form-text">{{ t('ui.fileareas.iso_mount_point_help', {}, locale, ['common']) }}</div>
                                 </div>
                                 <div id="isoMountControls" style="display:none;" class="mb-3">
@@ -615,6 +615,18 @@ function displayFileareas(fileareas) {
             ? `<span class="badge bg-warning ms-1">${uiT('ui.fileareas.replace', 'Replace')}</span>`
             : '';
 
+        const geminiPublicBadge = area.gemini_public
+            ? `<span class="badge bg-primary ms-1">${uiT('ui.fileareas.gemini_public', 'Gemini Public')}</span>`
+            : '';
+
+        const publicBadge = area.is_public
+            ? `<span class="badge bg-dark ms-1">${uiT('ui.fileareas.is_public', 'Public File Area')}</span>`
+            : '';
+
+        const freqBadge = area.freq_enabled
+            ? `<span class="badge bg-warning text-dark ms-1">FREQ</span>`
+            : '';
+
         let isoBadge = '';
         if (area.area_type === 'iso') {
             const mountDot = area.iso_accessible
@@ -632,7 +644,7 @@ function displayFileareas(fileareas) {
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
-                <td>${statusBadge}${localBadge}${replaceBadge}${isoBadge}</td>
+                <td>${statusBadge}${localBadge}${replaceBadge}${geminiPublicBadge}${publicBadge}${freqBadge}${isoBadge}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="editFilearea(${area.id})">
                         <i class="fas fa-edit"></i>

@@ -46,6 +46,10 @@ These features are live and gated behind `License::isValid()`.
 | Netmail forwarding to email | Forward incoming netmail (including FTN attachments) to the user's email address; opt-in per-user setting | `License::isValid()` |
 | Echomail digest | Periodic email digest (daily or weekly) summarising new messages across subscribed echo areas; per-user opt-in | `License::isValid()` |
 | Public file areas | Per-area `is_public` flag allowing unauthenticated visitors to browse and download files; optional `/public-files` index page controlled by `features.public_files_index` BBS setting | `License::isValid()` |
+| Anonymous FTP | Allow `anonymous` / `ftp` logins to the FTP daemon for browsing and downloading files from public file areas without a BBS account | `License::isValid()` |
+| MCP server access | User MCP key management and AI-assistant access to the MCP server when `MCP_SERVER_URL` is configured | `License::isValid()` |
+| BinkP packet inspector | Admin tools to browse, inspect, and download kept packets and live queue packets from the BinkP session pages | `License::isValid()` |
+| Ad analytics | Admin page showing advertisement impression/click performance, daily activity chart, per-ad CTR breakdown, and period filtering | `License::isValid()` |
 
 ---
 
@@ -74,7 +78,6 @@ The following are candidate features for future consideration. None are implemen
 
 ### Admin Convenience and Diagnostics
 
-- Packet inspector UI — browse and inspect inbound/outbound FTN packet contents
 - Undeliverable packet browser
 - Filterable web UI over `data/logs/packets.log`
 - Configuration export/import via admin UI

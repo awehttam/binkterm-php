@@ -96,6 +96,7 @@ class BinkpConfig
                 'bind_address' => '0.0.0.0',
                 'inbound_path' => 'data/inbound',
                 'outbound_path' => 'data/outbound',
+                'outbound_queue_timer_minutes' => 30,
                 'preserve_processed_packets' => false,
                 'preserve_sent_packets' => false
             ],
@@ -184,6 +185,12 @@ class BinkpConfig
             mkdir($path, 0755, true);
         }
         return $path;
+    }
+
+    public function getOutboundQueueTimerMinutes(): int
+    {
+        $minutes = (int)($this->config['binkp']['outbound_queue_timer_minutes'] ?? 30);
+        return $minutes > 0 ? $minutes : 30;
     }
     
     public function getPreserveProcessedPackets()
@@ -405,6 +412,30 @@ class BinkpConfig
         $uplink = $this->getUplinkByAddress($address);
         return $uplink['tic_password'] ?? '';
     }
+
+    /**
+     * Get the AreaFix password for a specific uplink address.
+     *
+     * @param string $uplinkAddress FTN address of the uplink (e.g. "1:1/23")
+     * @return string The areafix_password value, or empty string if not configured
+     */
+    public function getAreafixPassword(string $uplinkAddress): string
+    {
+        $uplink = $this->getUplinkByAddress($uplinkAddress);
+        return (string)($uplink['areafix_password'] ?? '');
+    }
+
+    /**
+     * Get the FileFix password for a specific uplink address.
+     *
+     * @param string $uplinkAddress FTN address of the uplink (e.g. "1:1/23")
+     * @return string The filefix_password value, or empty string if not configured
+     */
+    public function getFilefixPassword(string $uplinkAddress): string
+    {
+        $uplink = $this->getUplinkByAddress($uplinkAddress);
+        return (string)($uplink['filefix_password'] ?? '');
+    }
     
     public function addUplink($address, $hostname, $port = 24554, $password = '', $options = [])
     {
@@ -456,7 +487,7 @@ class BinkpConfig
         $this->saveConfig();
     }
     
-    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null, $preserveSentPackets = null)
+    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null, $preserveSentPackets = null, $outboundQueueTimerMinutes = null)
     {
         if ($port !== null) $this->config['binkp']['port'] = $port;
         if ($timeout !== null) $this->config['binkp']['timeout'] = $timeout;
@@ -464,6 +495,9 @@ class BinkpConfig
         if ($bindAddress !== null) $this->config['binkp']['bind_address'] = $bindAddress;
         if ($preserveProcessedPackets !== null) $this->config['binkp']['preserve_processed_packets'] = (bool)$preserveProcessedPackets;
         if ($preserveSentPackets !== null) $this->config['binkp']['preserve_sent_packets'] = (bool)$preserveSentPackets;
+        if ($outboundQueueTimerMinutes !== null) {
+            $this->config['binkp']['outbound_queue_timer_minutes'] = max(1, (int)$outboundQueueTimerMinutes);
+        }
         
         $this->saveConfig();
     }
@@ -695,6 +729,19 @@ class BinkpConfig
     public function getAllowInsecureInbound(): bool
     {
         return $this->config['security']['allow_insecure_inbound'] ?? false;
+    }
+
+    /**
+     * Check whether a specific uplink is permitted to deliver echomail via an
+     * insecure (unauthenticated) session.  The node's claimed FTN address is
+     * taken from the .meta file written by BinkpSession at receive time.
+     *
+     * @param string $nodeAddress FTN address as recorded in the .meta file
+     */
+    public function uplinkAllowsInsecureEchomail(string $nodeAddress): bool
+    {
+        $uplink = $this->getUplinkByAddress($nodeAddress);
+        return (bool)($uplink['allow_insecure_echomail'] ?? false);
     }
 
     /**

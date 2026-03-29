@@ -1,0 +1,240 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.ad_analytics.page_title') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="fas fa-ad me-2"></i>{{ t('ui.admin.ad_analytics.heading') }}</h1>
+        <div class="d-flex align-items-center gap-2">
+            <label class="me-1 mb-0 text-muted small">{{ t('ui.admin.ad_analytics.period') }}:</label>
+            <select id="periodSelect" class="form-select form-select-sm" style="width:auto" onchange="loadAnalytics()">
+                <option value="7d">{{ t('ui.admin.ad_analytics.period_7d') }}</option>
+                <option value="30d" selected>{{ t('ui.admin.ad_analytics.period_30d') }}</option>
+                <option value="90d">{{ t('ui.admin.ad_analytics.period_90d') }}</option>
+                <option value="all">{{ t('ui.admin.ad_analytics.period_all') }}</option>
+            </select>
+            <a href="/admin/ads" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.ad_analytics.content_library') }}
+            </a>
+        </div>
+    </div>
+
+    <div id="loadingIndicator" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">{{ t('ui.common.loading') }}</span>
+        </div>
+    </div>
+
+    <div id="analyticsContent" style="display:none">
+
+        <!-- Summary cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="display-6 fw-bold text-primary" id="totalImpressions">-</div>
+                        <div class="text-muted small">{{ t('ui.admin.ad_analytics.total_impressions') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="display-6 fw-bold text-success" id="totalClicks">-</div>
+                        <div class="text-muted small">{{ t('ui.admin.ad_analytics.total_clicks') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="display-6 fw-bold text-info" id="overallCtr">-</div>
+                        <div class="text-muted small">{{ t('ui.admin.ad_analytics.overall_ctr') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="display-6 fw-bold text-secondary" id="activeAds">-</div>
+                        <div class="text-muted small">{{ t('ui.admin.ad_analytics.active_ads') }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily activity -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.ad_analytics.daily_activity') }}</h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="dailyChart" class="p-3"></div>
+            </div>
+        </div>
+
+        <!-- Per-ad table -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.ad_analytics.per_ad_breakdown') }}</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>{{ t('ui.common.title') }}</th>
+                                <th class="text-end">{{ t('ui.admin.ad_analytics.impressions') }}</th>
+                                <th class="text-end">{{ t('ui.admin.ad_analytics.clicks') }}</th>
+                                <th class="text-end">{{ t('ui.admin.ad_analytics.ctr') }}</th>
+                                <th>{{ t('ui.admin.ad_analytics.ctr_bar') }}</th>
+                                <th>{{ t('ui.admin.ad_analytics.last_impression') }}</th>
+                                <th>{{ t('ui.admin.ad_analytics.last_click') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perAdBody">
+                            <tr><td colspan="7" class="text-center text-muted py-3">{{ t('ui.common.loading') }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>{# /analyticsContent #}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(s)));
+    return d.innerHTML;
+}
+
+function fmtNum(n) {
+    return Number(n).toLocaleString();
+}
+
+function fmtDate(iso) {
+    if (!iso) return '-';
+    return new Date(iso).toLocaleString();
+}
+
+function loadAnalytics() {
+    const period = document.getElementById('periodSelect').value;
+    document.getElementById('loadingIndicator').style.display = '';
+    document.getElementById('analyticsContent').style.display = 'none';
+
+    fetch(`/admin/api/ad-analytics?period=${encodeURIComponent(period)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error_code || data.error) {
+                throw new Error(data.error || 'Failed to load analytics');
+            }
+            renderSummary(data.summary);
+            renderDailyChart(data.daily);
+            renderPerAd(data.per_ad);
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('analyticsContent').style.display = '';
+        })
+        .catch(err => {
+            document.getElementById('loadingIndicator').innerHTML =
+                `<div class="alert alert-danger">${escHtml(err.message || 'Failed to load analytics')}</div>`;
+        });
+}
+
+function renderSummary(s) {
+    document.getElementById('totalImpressions').textContent = fmtNum(s.total_impressions);
+    document.getElementById('totalClicks').textContent      = fmtNum(s.total_clicks);
+    document.getElementById('overallCtr').textContent       = s.overall_ctr + '%';
+    document.getElementById('activeAds').textContent        = fmtNum(s.active_ads) + ' / ' + fmtNum(s.total_ads);
+}
+
+function renderDailyChart(daily) {
+    const container = document.getElementById('dailyChart');
+    if (!daily || daily.length === 0) {
+        container.innerHTML = `<p class="text-muted text-center py-3">${uiT('ui.admin.ad_analytics.no_data', 'No activity in this period.')}</p>`;
+        return;
+    }
+
+    const maxVal = Math.max(...daily.map(d => Math.max(d.impressions, d.clicks)), 1);
+
+    const rows = daily.map(d => {
+        const impPct = Math.round((d.impressions / maxVal) * 100);
+        const clkPct = Math.round((d.clicks      / maxVal) * 100);
+        return `
+            <tr>
+                <td class="text-muted small" style="white-space:nowrap;width:90px">${escHtml(d.day)}</td>
+                <td style="width:50%">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="flex-grow-1">
+                            <div class="progress mb-1" style="height:10px" title="${uiT('ui.admin.ad_analytics.impressions','Impressions')}: ${fmtNum(d.impressions)}">
+                                <div class="progress-bar bg-primary" style="width:${impPct}%"></div>
+                            </div>
+                            <div class="progress" style="height:10px" title="${uiT('ui.admin.ad_analytics.clicks','Clicks')}: ${fmtNum(d.clicks)}">
+                                <div class="progress-bar bg-success" style="width:${clkPct}%"></div>
+                            </div>
+                        </div>
+                        <div class="text-muted small text-end" style="min-width:90px">
+                            ${fmtNum(d.impressions)} / ${fmtNum(d.clicks)}
+                        </div>
+                    </div>
+                </td>
+            </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="small text-muted mb-2">
+            <span class="me-3"><span class="badge bg-primary">&nbsp;</span> ${uiT('ui.admin.ad_analytics.impressions','Impressions')}</span>
+            <span><span class="badge bg-success">&nbsp;</span> ${uiT('ui.admin.ad_analytics.clicks','Clicks')}</span>
+        </div>
+        <table class="table table-sm table-borderless mb-0"><tbody>${rows}</tbody></table>`;
+}
+
+function renderPerAd(ads) {
+    const tbody = document.getElementById('perAdBody');
+    if (!ads || ads.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">${uiT('ui.admin.ad_analytics.no_ads', 'No ads found.')}</td></tr>`;
+        return;
+    }
+
+    const maxImp = Math.max(...ads.map(a => a.impressions), 1);
+
+    tbody.innerHTML = ads.map(ad => {
+        const pct     = Math.round((ad.impressions / maxImp) * 100);
+        const active  = ad.is_active
+            ? `<span class="badge bg-success me-1">${uiT('ui.common.enabled','On')}</span>`
+            : `<span class="badge bg-secondary me-1">${uiT('ui.common.disabled','Off')}</span>`;
+        const link    = ad.click_url
+            ? `<br><a href="${escHtml(ad.click_url)}" target="_blank" rel="noopener" class="small text-truncate d-inline-block" style="max-width:200px">${escHtml(ad.click_url)}</a>`
+            : '';
+        return `
+            <tr>
+                <td>
+                    ${active}<span class="fw-semibold">${escHtml(ad.title)}</span>${link}
+                </td>
+                <td class="text-end">${fmtNum(ad.impressions)}</td>
+                <td class="text-end">${fmtNum(ad.clicks)}</td>
+                <td class="text-end">${ad.ctr}%</td>
+                <td style="min-width:120px">
+                    <div class="progress" style="height:10px">
+                        <div class="progress-bar bg-primary" style="width:${pct}%" title="${fmtNum(ad.impressions)} ${uiT('ui.admin.ad_analytics.impressions','impressions')}"></div>
+                    </div>
+                </td>
+                <td class="small text-muted">${fmtDate(ad.last_impression)}</td>
+                <td class="small text-muted">${fmtDate(ad.last_click)}</td>
+            </tr>`;
+    }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(loadAnalytics);
+});
+</script>
+{% endblock %}

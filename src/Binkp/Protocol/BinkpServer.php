@@ -186,11 +186,15 @@ class BinkpServer
             $stream = $this->socketToStream($clientSocket);
             $session = new BinkpSession($stream, false, $this->config);
             $session->setLogger($this->logger);
+            $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
+            $sessionLogger->startSession(null, $clientIP, 'secure', true, getmypid(), basename((string)$this->logger->getLogFile()));
+            $session->setSessionLogger($sessionLogger);
 
             if ($session->handshake()) {
                 $this->log("Handshake completed for {$clientIP} ({$connectionId})");
 
                 if ($session->processSession()) {
+                    $sessionLogger->endSession('success');
                     $this->log("Session completed for {$clientIP} ({$connectionId})");
 
                     // Route any FREQ response files to the requesting user's private area
@@ -213,14 +217,19 @@ class BinkpServer
                         $this->log("Failed to trigger packet processing: " . $e->getMessage(), 'ERROR');
                     }
                 } else {
+                    $sessionLogger->endSession('failed', 'Session processing failed');
                     $this->log("Session failed for {$clientIP} ({$connectionId})", 'ERROR');
                 }
             } else {
+                $sessionLogger->endSession('failed', 'Handshake failed');
                 $this->log("Handshake failed for {$clientIP} ({$connectionId})", 'ERROR');
             }
 
             $session->close();
         } catch (\Exception $e) {
+            if (isset($sessionLogger)) {
+                $sessionLogger->endSession('failed', $e->getMessage());
+            }
             $this->log("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
         }
 

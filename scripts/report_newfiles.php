@@ -8,6 +8,9 @@
  *   php scripts/report_newfiles.php --since=14d
  *   php scripts/report_newfiles.php --days=30
  *   php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
+ *   php scripts/report_newfiles.php --public
+ *   php scripts/report_newfiles.php --freq
+ *   php scripts/report_newfiles.php --domain=lovlynet
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -25,6 +28,9 @@ function printUsage(): void
     echo "  --days=N            Shortcut for --since=Nd\n";
     echo "  --from=YYYY-MM-DD   Start date (overrides --since/--days)\n";
     echo "  --to=YYYY-MM-DD     End date (used with --from, defaults to now)\n";
+    echo "  --public            Only include file areas where is_public is true\n";
+    echo "  --freq              Only include file areas where freq_enabled is true\n";
+    echo "  --domain=NAME       Only include file areas in the specified domain\n";
     echo "  --help              Show this help message\n";
 }
 
@@ -125,10 +131,10 @@ function buildWindow(array $args): array
     return [$from, $to];
 }
 
-function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to): array
+function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to, bool $publicOnly = false, bool $freqOnly = false, ?string $domain = null): array
 {
     $db = Database::getInstance()->getPdo();
-    $stmt = $db->prepare("
+    $sql = "
         SELECT
             f.id,
             f.filename,
@@ -148,12 +154,33 @@ function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to): array
           AND f.created_at < ?
           AND fa.is_private = FALSE
           AND f.source_type IN ('fidonet', 'user_upload')
+    ";
+
+    if ($publicOnly) {
+        $sql .= " AND fa.is_public = TRUE";
+    }
+
+    if ($freqOnly) {
+        $sql .= " AND fa.freq_enabled = TRUE";
+    }
+
+    if ($domain !== null && $domain !== '') {
+        $sql .= " AND LOWER(COALESCE(fa.domain, '')) = LOWER(?)";
+    }
+
+    $sql .= "
         ORDER BY f.created_at DESC, f.id DESC
-    ");
-    $stmt->execute([
+    ";
+
+    $stmt = $db->prepare($sql);
+    $params = [
         $from->format('Y-m-d H:i:sP'),
         $to->format('Y-m-d H:i:sP'),
-    ]);
+    ];
+    if ($domain !== null && $domain !== '') {
+        $params[] = $domain;
+    }
+    $stmt->execute($params);
 
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -286,7 +313,11 @@ if (isset($args['help'])) {
 
 try {
     [$from, $to] = buildWindow($args);
-    $rows = fetchNewFiles($from, $to);
+    $domain = isset($args['domain']) ? trim((string)$args['domain']) : null;
+    if ($domain === '') {
+        throw new RuntimeException('--domain must not be empty');
+    }
+    $rows = fetchNewFiles($from, $to, isset($args['public']), isset($args['freq']), $domain);
     printReport($rows, $from, $to);
     exit(0);
 } catch (Throwable $e) {

@@ -412,8 +412,9 @@ function renderCampaignTable(campaigns) {
             <td class="text-nowrap small" data-label="${escapeHtml(uiT('ui.admin.ad_campaigns.next_run', 'Next Run'))}">${escapeHtml(formatNextRun(campaign.next_run || null))}</td>
             <td class="text-end" data-label="${escapeHtml(uiT('ui.common.actions', 'Actions'))}">
                 <div class="d-flex flex-wrap justify-content-end gap-2 campaign-actions">
-                <button class="btn btn-sm btn-outline-primary" type="button" onclick="runCampaign(${Number(campaign.id)})">${uiT('ui.admin.ad_campaigns.run_now', 'Run Now')}</button>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="runCampaign(${Number(campaign.id)}, '${escapeJs(campaign.name || '')}')">${uiT('ui.admin.ad_campaigns.run_now', 'Run Now')}</button>
                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="editCampaign(${Number(campaign.id)})">${uiT('ui.common.edit', 'Edit')}</button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="cloneCampaign(${Number(campaign.id)})">${uiT('ui.common.clone', 'Clone')}</button>
                 <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCampaign(${Number(campaign.id)}, '${escapeJs(campaign.name || '')}')">${uiT('ui.common.delete', 'Delete')}</button>
                 </div>
             </td>
@@ -645,35 +646,75 @@ function showCampaignModal() {
 function editCampaign(id) {
     fetch(`/admin/api/ad-campaigns/${id}`).then(readJsonResponse).then(({ response, data }) => {
         if (!response.ok || data.error_code) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign')));
-        const campaign = data.campaign;
-        document.getElementById('campaignModalAlert').innerHTML = '';
-        document.getElementById('campaignModalTitle').textContent = uiT('ui.admin.ad_campaigns.edit_campaign', 'Edit Campaign');
-        document.getElementById('campaignId').value = String(campaign.id || '');
-        document.getElementById('campaignName').value = campaign.name || '';
-        document.getElementById('campaignDescription').value = campaign.description || '';
-        document.getElementById('campaignEndAt').value = campaign.end_at ? campaign.end_at.slice(0, 10) : '';
-        document.getElementById('campaignToName').value = campaign.to_name || 'All';
-        document.getElementById('campaignSelectionMode').value = campaign.selection_mode || 'weighted_random';
-        document.getElementById('campaignIsActive').checked = !!campaign.is_active;
-        document.getElementById('campaignNextRunDisplay').textContent = formatNextRun(campaign.next_run || null);
-        populateCampaignMeta(campaign.from_user_id || '');
-        renderScheduleRows(Array.isArray(campaign.schedules) ? campaign.schedules : []);
-        renderTargetRows(Array.isArray(campaign.targets) ? campaign.targets : []);
-        renderCampaignTagFilters(campaign.tag_filters || { include: [], exclude: [] });
-        renderCampaignAds(Array.isArray(campaign.ads) ? campaign.ads : []);
+        populateCampaignForm(data.campaign, false);
         adCampaignModal.show();
     }).catch(error => {
         showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'), 'danger');
     });
 }
 
+function cloneCampaign(id) {
+    fetch(`/admin/api/ad-campaigns/${id}`).then(readJsonResponse).then(({ response, data }) => {
+        if (!response.ok || data.error_code) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign')));
+        populateCampaignForm(data.campaign, true);
+        adCampaignModal.show();
+    }).catch(error => {
+        showCampaignAlert(error.message || uiT('ui.admin.ad_campaigns.load_one_failed', 'Failed to load ad campaign'), 'danger');
+    });
+}
+
+function populateCampaignForm(campaign, cloneMode = false) {
+    const sourceCampaign = campaign || {};
+    document.getElementById('campaignModalAlert').innerHTML = '';
+    document.getElementById('campaignModalTitle').textContent = cloneMode
+        ? uiT('ui.admin.ad_campaigns.clone_campaign', 'Clone Campaign')
+        : uiT('ui.admin.ad_campaigns.edit_campaign', 'Edit Campaign');
+    document.getElementById('campaignId').value = cloneMode ? '' : String(sourceCampaign.id || '');
+    document.getElementById('campaignName').value = cloneMode
+        ? `${sourceCampaign.name || ''}${uiT('ui.admin.ad_campaigns.copy_suffix', ' (Copy)')}`
+        : (sourceCampaign.name || '');
+    document.getElementById('campaignDescription').value = sourceCampaign.description || '';
+    document.getElementById('campaignEndAt').value = sourceCampaign.end_at ? sourceCampaign.end_at.slice(0, 10) : '';
+    document.getElementById('campaignToName').value = sourceCampaign.to_name || 'All';
+    document.getElementById('campaignSelectionMode').value = sourceCampaign.selection_mode || 'weighted_random';
+    document.getElementById('campaignIsActive').checked = cloneMode ? false : !!sourceCampaign.is_active;
+    document.getElementById('campaignNextRunDisplay').textContent = cloneMode
+        ? uiT('ui.admin.ad_campaigns.not_scheduled', 'Not scheduled')
+        : formatNextRun(sourceCampaign.next_run || null);
+    populateCampaignMeta(sourceCampaign.from_user_id || '');
+    renderScheduleRows(Array.isArray(sourceCampaign.schedules) ? sourceCampaign.schedules : []);
+    renderTargetRows(Array.isArray(sourceCampaign.targets) ? sourceCampaign.targets : []);
+    renderCampaignTagFilters(sourceCampaign.tag_filters || { include: [], exclude: [] });
+    renderCampaignAds(Array.isArray(sourceCampaign.ads) ? sourceCampaign.ads : []);
+}
+
 function populateCampaignMeta(selectedUserId = '') {
     const userSelect = document.getElementById('campaignUser');
-    userSelect.innerHTML = `<option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>` + (campaignMeta.users || []).map(user => {
+    userSelect.innerHTML = buildCampaignUserOptions();
+    userSelect.value = selectedUserId ? String(selectedUserId) : '';
+}
+
+function buildCampaignUserOptions() {
+    const users = Array.isArray(campaignMeta.users) ? campaignMeta.users : [];
+    const systemUsers = [];
+    const regularUsers = [];
+
+    users.forEach(user => {
+        (user.is_system ? systemUsers : regularUsers).push(user);
+    });
+
+    const buildOption = user => {
         const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
         return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
-    }).join('');
-    userSelect.value = selectedUserId ? String(selectedUserId) : '';
+    };
+
+    const parts = [`<option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>`];
+    systemUsers.forEach(user => parts.push(buildOption(user)));
+    if (systemUsers.length > 0 && regularUsers.length > 0) {
+        parts.push('<option value="" disabled>----</option>');
+    }
+    regularUsers.forEach(user => parts.push(buildOption(user)));
+    return parts.join('');
 }
 
 function renderCampaignTagFilters(tagFilters) {
@@ -1003,7 +1044,11 @@ function deleteCampaign(id, name) {
     });
 }
 
-function runCampaign(id) {
+function runCampaign(id, name) {
+    const campaignName = String(name || '').trim() || uiT('ui.admin.ad_campaigns.this_campaign', 'this campaign');
+    if (!confirm(uiT('ui.admin.ad_campaigns.run_now_confirm', 'Run {name} right now?', { name: campaignName }))) {
+        return;
+    }
     fetch(`/admin/api/ad-campaigns/run/${encodeURIComponent(id)}`, { method: 'POST' }).then(readJsonResponse).then(({ response, data }) => {
         if (!response.ok || !data.success) throw new Error(apiError(data, uiT('ui.admin.ad_campaigns.run_failed', 'Failed to run ad campaign')));
         showCampaignAlert(window.getApiMessage ? window.getApiMessage(data, uiT('ui.admin.ad_campaigns.run_complete', 'Campaign run complete.')) : uiT('ui.admin.ad_campaigns.run_complete', 'Campaign run complete.'), 'success');
@@ -1116,7 +1161,7 @@ const WIZARD_PRESETS = {
         min_repeat_gap_minutes: 10080,
         subject_template: 'FILES: {title}',
         has_end_date: false,
-        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/report_newfiles.php')|json_encode|raw }},
+        default_content_command: 'scripts/report_newfiles.php',
     },
     league_recruit: {
         label: 'Inter-BBS League Recruitment',
@@ -1153,7 +1198,7 @@ const WIZARD_PRESETS = {
         min_repeat_gap_minutes: 1440,
         subject_template: 'Daily Weather Report',
         has_end_date: false,
-        default_content_command: {{ (constant('PHP_BINDIR') ~ '/php ' ~ app_base_dir ~ '/scripts/weather_report.php')|json_encode|raw }},
+        default_content_command: 'scripts/weather_report.php',
         disabled: {{ weather_configured ? 'false' : 'true' }},
         disabled_reason: {{ weather_configured ? 'null' : '"Weather report must be configured first"'|raw }},
     },
@@ -1233,9 +1278,46 @@ function wizardGoTo(step) {
         body.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
     } else if (step === 2) {
         body.innerHTML = renderWizardStep2();
+        populateWizardContentCommandSelect();
     } else {
         body.innerHTML = renderWizardStep3();
     }
+}
+
+/**
+ * Populate the wizard content command select (step 2) from the allowed commands API.
+ * Uses the select's data-default attribute to pre-select the preset's default command.
+ */
+function updateCommandHints(selId, newfilesHintId, weatherHintId) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const val = sel.value;
+    const newfilesHint = document.getElementById(newfilesHintId);
+    const weatherHint  = document.getElementById(weatherHintId);
+    if (newfilesHint) newfilesHint.classList.toggle('d-none', !val.includes('report_newfiles'));
+    if (weatherHint)  weatherHint.classList.toggle('d-none',  !val.includes('weather_report'));
+}
+
+function populateWizardContentCommandSelect() {
+    const sel = document.getElementById('wizardContentCommand');
+    if (!sel) return;
+    const defaultVal = sel.dataset.default || '';
+    fetch('/admin/api/ads/content-commands')
+        .then(r => r.json())
+        .then(data => {
+            const cmds = Array.isArray(data.commands) ? data.commands : [];
+            while (sel.options.length > 1) sel.remove(1);
+            cmds.forEach(cmd => {
+                const opt = document.createElement('option');
+                opt.value = cmd.value;
+                opt.textContent = cmd.label;
+                sel.appendChild(opt);
+            });
+            if (defaultVal) sel.value = defaultVal;
+            updateCommandHints('wizardContentCommand', 'wizardNewfilesHint', 'wizardWeatherHint');
+        })
+        .catch(() => {});
+    sel.addEventListener('change', () => updateCommandHints('wizardContentCommand', 'wizardNewfilesHint', 'wizardWeatherHint'));
 }
 
 /**
@@ -1334,10 +1416,7 @@ function renderWizardStep2() {
     const systemName = {{ system_name|json_encode|raw }};
     const defaultName = `${preset.label}: ${systemName}`;
 
-    const userOptions = (campaignMeta.users || []).map(user => {
-        const label = user.real_name ? `${user.username} (${user.real_name})` : user.username;
-        return `<option value="${Number(user.id)}">${escapeHtml(label)}</option>`;
-    }).join('');
+    const userOptions = buildCampaignUserOptions();
 
     const echoareas = Array.isArray(campaignMeta.echoareas) ? campaignMeta.echoareas : [];
     const prioritized = [];
@@ -1398,7 +1477,6 @@ function renderWizardStep2() {
             <div class="col-md-6">
                 <label class="form-label" for="wizardUser">${uiT('ui.admin.ad_campaigns.post_as_user', 'Post As User')}</label>
                 <select class="form-select" id="wizardUser">
-                    <option value="">${uiT('ui.admin.ad_campaigns.select_user', 'Select user...')}</option>
                     ${userOptions}
                 </select>
             </div>
@@ -1416,10 +1494,28 @@ function renderWizardStep2() {
                 <div class="form-text"><strong>{title}</strong> = ad title &middot; <strong>{campaign}</strong> = this campaign&rsquo;s name &middot; <strong>{echoarea}</strong> / <strong>{domain}</strong> = posting destination</div>
             </div>
             ${preset.default_content_command != null ? `
-            <div class="col-12">
+            <div class="col-md-6">
                 <label class="form-label" for="wizardContentCommand">${uiT('ui.admin.ads.content_command', 'Content Command')}</label>
-                <input class="form-control font-monospace" type="text" id="wizardContentCommand" maxlength="1024" value="${escapeHtml(preset.default_content_command)}">
+                <select class="form-select font-monospace" id="wizardContentCommand" data-default="${escapeHtml(preset.default_content_command)}">
+                    <option value="">${uiT('ui.admin.ads.content_command_none', 'None (static content only)')}</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="wizardContentCommandArgs">${uiT('ui.admin.ads.content_command_args', 'Arguments')}</label>
+                <input class="form-control font-monospace" type="text" id="wizardContentCommandArgs" placeholder="--flag=value">
                 <div class="form-text">${uiT('ui.admin.ads.content_command_help', 'An executable that writes the post body to stdout. A dynamic ad will be created automatically.')}</div>
+                <div id="wizardNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                </div>
+                <div id="wizardWeatherHint" class="alert alert-{{ weather_configured ? 'info' : 'warning' }} py-2 px-3 mt-2 small d-none">
+                    <i class="fas fa-{{ weather_configured ? 'info-circle' : 'exclamation-triangle' }} me-1"></i>
+                    {% if weather_configured %}
+                        Weather report is configured and ready.
+                    {% else %}
+                        Weather report requires API configuration. <a href="/admin/weather-config">Configure weather settings</a> before using this command.
+                    {% endif %}
+                </div>
             </div>
             ` : `
             <div class="col-12">
@@ -1565,7 +1661,11 @@ function wizardBuildPayload() {
         weight: 1,
     }));
 
-    const contentCommand = document.getElementById('wizardContentCommand')?.value?.trim() || null;
+    const wizCmdScript = document.getElementById('wizardContentCommand')?.value?.trim() || '';
+    const wizCmdArgs   = document.getElementById('wizardContentCommandArgs')?.value?.trim() || '';
+    const contentCommand = wizCmdScript
+        ? (wizCmdArgs ? wizCmdScript + ' ' + wizCmdArgs : wizCmdScript)
+        : null;
     const endDate = document.getElementById('wizardEndDate')?.value || null;
     const campaignName = document.getElementById('wizardCampaignName')?.value?.trim() || preset.label;
 

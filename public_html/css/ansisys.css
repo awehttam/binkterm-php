@@ -79,7 +79,7 @@
 
 /* Ensure pre elements inside container don't wrap */
 .ansi-art-container pre {
-    font-family: 'Perfect DOS VGA 437', 'Fixedsys Excelsior', 'Courier New', monospace;
+    font-family: monospace;
     font-size: 16px;
     line-height: 16px;
     white-space: pre;
@@ -108,7 +108,7 @@
 }
 
 .ansi-art {
-    font-family: 'Perfect DOS VGA 437', 'Fixedsys Excelsior', 'Courier New', monospace;
+    font-family: monospace;
     font-size: 16px !important;
     line-height: 16px !important;
     letter-spacing: 0;

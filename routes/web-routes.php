@@ -42,6 +42,71 @@ if (!function_exists('webLocalizedText')) {
     }
 }
 
+if (!function_exists('getHttpBasicCredentials')) {
+    /**
+     * Return HTTP Basic credentials from the current request when present.
+     *
+     * @return array{username:string,password:string}|null
+     */
+    function getHttpBasicCredentials(): ?array
+    {
+        $username = $_SERVER['PHP_AUTH_USER'] ?? null;
+        $password = $_SERVER['PHP_AUTH_PW'] ?? null;
+
+        if ($username !== null) {
+            return [
+                'username' => (string)$username,
+                'password' => (string)($password ?? ''),
+            ];
+        }
+
+        $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
+        if (!is_string($header) || stripos($header, 'Basic ') !== 0) {
+            return null;
+        }
+
+        $decoded = base64_decode(substr($header, 6), true);
+        if ($decoded === false || !str_contains($decoded, ':')) {
+            return null;
+        }
+
+        [$basicUser, $basicPass] = explode(':', $decoded, 2);
+        return [
+            'username' => $basicUser,
+            'password' => $basicPass,
+        ];
+    }
+}
+
+if (!function_exists('requireBasicAuthUser')) {
+    /**
+     * Require HTTP Basic auth and return the authenticated user.
+     *
+     * @return array
+     */
+    function requireBasicAuthUser(string $realm = 'BinktermPHP QWK'): array
+    {
+        $credentials = getHttpBasicCredentials();
+        if ($credentials === null) {
+            header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
+            http_response_code(401);
+            echo 'HTTP Basic authentication required.';
+            exit;
+        }
+
+        $auth = new Auth();
+        $user = $auth->authenticateCredentials($credentials['username'], $credentials['password']);
+        if ($user === false) {
+            header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
+            http_response_code(401);
+            echo 'Invalid username or password.';
+            exit;
+        }
+
+        return $user;
+    }
+}
+
 SimpleRouter::get('/', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -243,11 +308,16 @@ SimpleRouter::get('/login', function() {
         }
     }
 
+    $loginScreen = \BinktermPHP\AppearanceConfig::getLoginScreenConfig();
+    $loginAnsiArt = \BinktermPHP\AppearanceConfig::getLoginScreenAnsi();
+
     $template = new Template();
     $template->renderResponse('login.twig', [
         'welcome_message'  => $welcomeMessage,
         'pubterm_enabled'  => $pubTermEnabled,
         'login_splash'     => $loginSplashHtml,
+        'login_screen'     => $loginScreen,
+        'login_ansi_art'   => $loginAnsiArt,
     ]);
 });
 
@@ -361,13 +431,33 @@ SimpleRouter::get('/echomail', function() {
     }
 
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+    $isAdmin = !empty($user['is_admin']);
+    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+
+    $hasInterests = false;
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $activeInterests = $im->getInterests(true);
+        $hasInterests = count($activeInterests) > 0;
+
+        // First-visit onboarding: redirect to the guide the first time a user
+        // visits echomail, regardless of their subscription state.
+        if ($hasInterests && !$echoarea) {
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta = new \BinktermPHP\UserMeta();
+            if (!$meta->getValue($userId, 'interests_onboarded')) {
+                $meta->setValue($userId, 'interests_onboarded', '1');
+                return SimpleRouter::response()->redirect('/echo-onboarding?from=echomail');
+            }
+        }
+    }
 
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
         'domain' => $domainParam,
         'echomail_date_field' => $echoDateOrder,
+        'has_interests' => $hasInterests,
     ]);
 });
 
@@ -382,11 +472,20 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     // URL decode the echoarea parameter to handle dots and special characters
     $echoarea = urldecode($echoarea);
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+    $isAdmin = !empty($user['is_admin']);
+    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+
+    $hasInterests = false;
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $hasInterests = count($im->getInterests(true)) > 0;
+    }
+
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
         'echomail_date_field' => $echoDateOrder,
+        'has_interests' => $hasInterests,
     ]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
@@ -556,6 +655,7 @@ SimpleRouter::get('/profile', function() {
         'user_real_name' => $user['real_name'] ?? '',
         'user_email' => $user['email'] ?? '',
         'user_location' => $user['location'] ?? '',
+        'user_about_me' => $user['about_me'] ?? '',
         'user_created_at' => $user['created_at'],
         'user_last_login' => $user['last_login'],
         'user_is_admin' => (bool)$user['is_admin'],
@@ -583,7 +683,7 @@ SimpleRouter::get('/profile/{username}', function($username) {
     // Get the target user's information
     $db = \BinktermPHP\Database::getInstance()->getPdo();
     $stmt = $db->prepare('
-        SELECT id, username, real_name, location, fidonet_address, created_at, last_login, is_admin, is_active
+        SELECT id, username, real_name, location, about_me, fidonet_address, created_at, last_login, is_admin, is_active
         FROM users
         WHERE username = ? AND is_active = TRUE
     ');
@@ -664,6 +764,9 @@ SimpleRouter::get('/profile/{username}', function($username) {
         'profile_username' => $targetUser['username'],
         'profile_real_name' => $targetUser['real_name'] ?? '',
         'profile_location' => $targetUser['location'] ?? '',
+        'profile_about_me_html' => $targetUser['about_me']
+            ? \BinktermPHP\MarkdownRenderer::toHtml($targetUser['about_me'])
+            : '',
         'profile_fidonet_address' => $targetUser['fidonet_address'] ?? '',
         'profile_created_at' => $targetUser['created_at'],
         'profile_last_login' => $targetUser['last_login'],
@@ -756,6 +859,8 @@ SimpleRouter::get('/settings', function() {
         'default_tagline' => $defaultTagline,
         'notification_sounds' => $notificationSounds,
         'license_valid' => \BinktermPHP\License::isValid(),
+        'mcp_server_url' => \BinktermPHP\Config::env('MCP_SERVER_URL', ''),
+        'mcp_service_running' => (bool)((\BinktermPHP\SystemStatus::getDaemonStatus()['mcp_server']['running'] ?? false)),
     ];
 
     $template = new Template();
@@ -790,11 +895,13 @@ SimpleRouter::get('/whosonline', function() {
         return SimpleRouter::response()->redirect('/login');
     }
 
-    $onlineUsers = $auth->getOnlineUsers(15);
+    $onlineUsers = $auth->getOnlineSessions(15);
+    $onlineUserCount = $auth->getOnlineUserCount(15);
 
     $template = new Template();
     $template->renderResponse('whos_online.twig', [
         'online_users' => $onlineUsers,
+        'online_user_count' => $onlineUserCount,
         'online_minutes' => 15
     ]);
 });
@@ -924,6 +1031,19 @@ SimpleRouter::post('/echoareas/import', function() {
 SimpleRouter::get('/echolist', function() {
     $user = RouteHelper::requireAuth();
 
+    // First-visit onboarding: same guard as /echomail
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        if (count($im->getInterests(true)) > 0) {
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta = new \BinktermPHP\UserMeta();
+            if (!$meta->getValue($userId, 'interests_onboarded')) {
+                $meta->setValue($userId, 'interests_onboarded', '1');
+                return SimpleRouter::response()->redirect('/echo-onboarding?from=echolist');
+            }
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('echolist.twig');
 });
@@ -1014,19 +1134,10 @@ SimpleRouter::get('/public-files', function() {
         return;
     }
 
-    $db   = \BinktermPHP\Database::getInstance()->getPdo();
-    $stmt = $db->query("
-        SELECT id, tag, description, domain, is_active,
-               (SELECT COUNT(*) FROM files f WHERE f.file_area_id = fa.id AND f.status = 'approved') AS file_count
-        FROM file_areas fa
-        WHERE is_public = TRUE AND is_private = FALSE AND is_active = TRUE
-        ORDER BY tag ASC
-    ");
-    $publicAreas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
     $template = new Template();
-    $template->renderResponse('public_files.twig', [
-        'public_areas' => $publicAreas,
+    $template->renderResponse('files.twig', [
+        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'is_public_index'     => true,
     ]);
 });
 
@@ -1053,6 +1164,37 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
 
+    // Interest context: restrict echo area list and cross-post list to interest areas
+    $interestSlug = $_GET['interest'] ?? null;
+    $interestData = null;
+    $interestEchoareas = [];
+    if ($interestSlug && \BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
+        $im = new \BinktermPHP\InterestManager();
+        $interestData = $im->getInterestBySlug($interestSlug);
+        if ($interestData) {
+            // Fetch the interest's echo areas with tag/domain for the compose selects
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT e.tag, e.domain, e.description, e.color,
+                       COUNT(em.id) AS message_count
+                FROM echoareas e
+                INNER JOIN interest_echoareas ie ON ie.echoarea_id = e.id
+                LEFT JOIN echomail em ON em.echoarea_id = e.id
+                WHERE ie.interest_id = ? AND e.is_active = TRUE
+                GROUP BY e.id, e.tag, e.domain, e.description, e.color
+                ORDER BY message_count DESC, e.tag ASC
+            ");
+            $stmt->execute([(int)$interestData['id']]);
+            $interestEchoareas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($interestEchoareas as &$row) {
+                $row['message_count'] = (int)$row['message_count'];
+            }
+            unset($row);
+        } else {
+            $interestSlug = null; // slug not found — fall back to normal compose
+        }
+    }
+
     // Handle new message parameters (from nodelist or address book)
     $toAddress = $_GET['to'] ?? null;
     $toName = $_GET['to_name'] ?? null;
@@ -1064,10 +1206,12 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
         $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
+        $sysopName = $binkpConfig->getSystemSysop();
     } catch (\Exception $e) {
         $systemName = webLocalizedText('ui.web.fallback.system_name', 'BinktermPHP System', $user);
         $systemAddress = webLocalizedText('ui.common.not_configured', 'Not configured', $user);
         $crashmailEnabled = false;
+        $sysopName = '';
     }
 
     // Get credit costs for display
@@ -1101,6 +1245,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'user_name' => $user['real_name'] ?: $user['username'],
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
+        'system_sysop' => $sysopName,
         'crashmail_enabled' => $crashmailEnabled,
         'netmail_cost' => $netmailCost,
         'crashmail_cost' => $crashmailCost,
@@ -1110,6 +1255,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'default_tagline' => $defaultTagline,
         'max_cross_post_areas' => $maxCrossPost,
         'prefill_crashmail' => $prefillCrashmail,
+        'interest_slug' => $interestSlug,
+        'interest_name' => $interestData ? $interestData['name'] : null,
+        'interest_echoareas' => $interestEchoareas,
     ];
 
       if ($replyId) {
@@ -1168,8 +1316,12 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Remove "Re: " prefix if it exists (case insensitive)
                 $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
                 $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
-                // Set echoarea with domain for proper select matching (format: tag@domain)
-                $echoarea = $originalMessage['echoarea'] . '@' . $originalMessage['domain'];
+                // Set echoarea for proper select matching — only append @domain when
+                // domain is non-empty, matching the JS option format: tag@domain or tag
+                $echoarea = $originalMessage['echoarea'];
+                if (!empty($originalMessage['domain'])) {
+                    $echoarea .= '@' . $originalMessage['domain'];
+                }
                 $templateVars['domain'] = $originalMessage['domain'];
                 // Filter out kludge lines but preserve blank lines so quoted structure is intact
                 $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
@@ -1434,6 +1586,52 @@ SimpleRouter::get('/about', function() {
     $template->renderResponse('about.twig');
 });
 
+// Echomail onboarding guide
+SimpleRouter::get('/echo-onboarding', function() {
+    RouteHelper::requireAuth();
+    $from = $_GET['from'] ?? 'echomail';
+    // Only allow known destinations
+    $skipUrl = $from === 'echolist' ? '/echolist' : '/echomail';
+
+    // Count distinct domains across enabled uplinks so the template can
+    // provide multi-network context when more than one network is connected.
+    $networkCount = 0;
+    try {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $domains = [];
+        foreach ($binkpConfig->getEnabledUplinks() as $uplink) {
+            $domain = trim((string)($uplink['domain'] ?? ''));
+            if ($domain !== '') {
+                $domains[$domain] = true;
+            }
+        }
+        $networkCount = count($domains);
+    } catch (\Throwable $e) {
+        // Config unavailable — leave count at 0; template falls back gracefully
+    }
+
+    $template = new Template();
+    $template->renderResponse('echo-onboarding.twig', [
+        'skip_url'      => $skipUrl,
+        'network_count' => $networkCount,
+    ]);
+});
+
+// Interests page
+SimpleRouter::get('/interests', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('interests.twig');
+});
+
 // QWK Offline Mail page
 SimpleRouter::get('/qwk', function() {
     $user = RouteHelper::requireAuth();
@@ -1447,6 +1645,110 @@ SimpleRouter::get('/qwk', function() {
 
     $template = new Template();
     $template->renderResponse('qwk.twig');
+});
+
+SimpleRouter::match([\Pecee\Http\Request::REQUEST_TYPE_GET, \Pecee\Http\Request::REQUEST_TYPE_HEAD], '/qwk/download', function() {
+    $user   = requireBasicAuthUser();
+    $userId = (int)($user['user_id'] ?? $user['id']);
+
+    try {
+        $controller = new \BinktermPHP\Qwk\QwkHttpController();
+        $metadata = $controller->getDownloadMetadata($userId);
+
+        $filename = (string)$metadata['filename'];
+        $safeFilename = str_replace(['\\', '"', "\r", "\n"], ['_', '_', '', ''], $filename);
+        $encodedFilename = rawurlencode($filename);
+
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+        header('X-QWK-BBS-ID: ' . $metadata['bbs_id']);
+        header('X-QWK-Reply-Filename: ' . $metadata['reply_filename']);
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+            exit;
+        }
+
+        $download = $controller->buildDownloadPacket($userId);
+        header('Content-Length: ' . $download['filesize']);
+
+        readfile($download['path']);
+        @unlink($download['path']);
+        exit;
+    } catch (\DomainException $e) {
+        http_response_code(403);
+        echo htmlspecialchars($e->getMessage());
+    } catch (\Throwable $e) {
+        error_log('[QWK] basic-auth download failed for user ' . $userId . ': ' . $e->getMessage());
+        http_response_code(500);
+        echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
+    }
+});
+
+SimpleRouter::post('/qwk/upload', function() {
+    $user   = requireBasicAuthUser();
+    $userId = (int)($user['user_id'] ?? $user['id']);
+
+    header('Content-Type: application/json');
+
+    try {
+        $controller = new \BinktermPHP\Qwk\QwkHttpController();
+        $file = $controller->getUploadedRepFromRequest();
+        echo json_encode($controller->processUploadedRep($file, $userId));
+    } catch (\InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    } catch (\DomainException $e) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[QWK] basic-auth upload failed for user ' . $userId . ': ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Failed to process REP packet: ' . $e->getMessage(),
+        ]);
+    }
+});
+
+// Serve a markdown post image inline by its SHA-256 hash token.
+// No authentication required — images are embedded in public posts.
+SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
+    $manager = new \BinktermPHP\FileAreaManager();
+    $file    = $manager->getMarkdownImageByHash($hash);
+
+    if (!$file || !file_exists($file['storage_path'])) {
+        http_response_code(404);
+        echo 'Image not found';
+        return;
+    }
+
+    $ext   = strtolower(pathinfo((string)$file['filename'], PATHINFO_EXTENSION));
+    $mimes = [
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'gif'  => 'image/gif',
+        'webp' => 'image/webp',
+    ];
+    $contentType = $mimes[$ext] ?? (mime_content_type($file['storage_path']) ?: 'application/octet-stream');
+
+    $fileSize = filesize($file['storage_path']);
+    $safeName = addslashes(basename((string)$file['filename']));
+    header('Content-Type: ' . $contentType);
+    header('Content-Length: ' . $fileSize);
+    header('Content-Disposition: inline; filename="' . $safeName . '"');
+    header('Cache-Control: public, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
+    readfile($file['storage_path']);
+    exit;
 });
 
 // Include local/custom routes if they exist

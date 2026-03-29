@@ -10,8 +10,10 @@ return [
     'ui.terminalserver.server.login_menu.prompt'       => '¿Qué desea hacer?',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Iniciar sesión en cuenta existente',
     'ui.terminalserver.server.login_menu.register'     => '  (R) Registrar nueva cuenta',
+    'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) Transferencia QWK',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Salir',
     'ui.terminalserver.server.login_menu.choice'       => 'Su elección: ',
+    'ui.terminalserver.server.login_menu.invalid_choice' => 'Selección no válida.',
     'ui.terminalserver.server.goodbye'                 => '¡Adiós!',
     'ui.terminalserver.server.press_enter_disconnect'  => 'Presione Enter para desconectarse.',
 
@@ -68,6 +70,7 @@ return [
 
     // --- Farewell ---
     'ui.terminalserver.server.farewell'                => '¡Gracias por visitarnos, que tenga un excelente día!',
+    'ui.terminalserver.qwk.action_logout'              => 'Q) Cerrar sesión',
     'ui.terminalserver.server.visit_web'               => 'Vuelva a visitarnos en la web en {url}',
 
     // --- Who's Online ---
@@ -119,6 +122,11 @@ return [
     'ui.terminalserver.echomail.no_areas'              => 'No hay áreas de echomail disponibles.',
     'ui.terminalserver.echomail.areas_header'          => 'Áreas de echomail (página {page}/{total}):',
     'ui.terminalserver.echomail.areas_nav'             => 'Ingrese #, n/p (siguiente/anterior), q (salir)',
+    'ui.terminalserver.echomail.areas_nav_interests'   => 'Ingrese #, n/p (siguiente/anterior), i (por interés), q (salir)',
+    'ui.terminalserver.echomail.interests_title'       => 'Explorar por interés',
+    'ui.terminalserver.echomail.interests_none'        => 'No hay intereses disponibles.',
+    'ui.terminalserver.echomail.interests_prompt'      => 'Ingrese # para explorar, Q para volver:',
+    'ui.terminalserver.echomail.interest_areas_header' => '{name} (página {page}/{total}):',
     'ui.terminalserver.echomail.no_messages'           => 'No hay mensajes de echomail.',
     'ui.terminalserver.echomail.messages_header'       => 'Echomail: {area} (página {page}/{total})',
     'ui.terminalserver.echomail.compose_title'         => '=== Redactar Echomail ===',

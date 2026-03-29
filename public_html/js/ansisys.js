@@ -236,6 +236,12 @@ class AnsiTerminal {
                 // CSI sequence
                 i += 2;
                 let params = '';
+                let privatePrefix = '';
+
+                if (i < text.length && text[i] === '?') {
+                    privatePrefix = '?';
+                    i++;
+                }
 
                 // Collect parameters
                 while (i < text.length && /[0-9;]/.test(text[i])) {
@@ -318,6 +324,13 @@ class AnsiTerminal {
                             this.buffer.pop();
                             this.buffer.unshift(this.createEmptyRow());
                         }
+                        break;
+                    case 'h': // Set mode
+                    case 'l': // Reset mode
+                        // DEC private modes such as ESC[?7h (autowrap) are common in
+                        // ANSI ads. We do not emulate those modes yet, but we must
+                        // consume the sequence cleanly instead of leaking trailing
+                        // characters into the rendered output.
                         break;
                     // Ignore other sequences
                 }
@@ -608,17 +621,31 @@ class ArtHtmlRenderer {
         return classes;
     }
 
-    render(buffer) {
+    render(buffer, options = {}) {
         let html = '';
-        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const preserveFullWidth = options.preserveFullWidth === true;
+        const preserveFullHeight = options.preserveFullHeight === true;
+        const requestedRowCount = Number.isInteger(options.rowCount) && options.rowCount > 0
+            ? options.rowCount
+            : buffer.rows;
+        const usedRows = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const rowsToRender = preserveFullHeight
+            ? Math.min(buffer.buffer.length, Math.max(usedRows, requestedRowCount))
+            : usedRows;
 
         for (let r = 0; r < rowsToRender; r++) {
             const row = buffer.buffer[r];
-            let lastNonSpace = -1;
-            for (let c = row.length - 1; c >= 0; c--) {
-                if (row[c].char !== ' ' || row[c].bg !== 0) {
-                    lastNonSpace = c;
-                    break;
+            let lastNonSpace;
+
+            if (preserveFullWidth) {
+                lastNonSpace = Math.max(0, buffer.cols - 1);
+            } else {
+                lastNonSpace = -1;
+                for (let c = row.length - 1; c >= 0; c--) {
+                    if (row[c].char !== ' ' || row[c].bg !== 0) {
+                        lastNonSpace = c;
+                        break;
+                    }
                 }
             }
 
@@ -664,17 +691,30 @@ class ArtHtmlRenderer {
  * across individual spans.
  */
 class ArtHtmlRendererPerChar extends ArtHtmlRenderer {
-    render(buffer) {
+    render(buffer, options = {}) {
         let html = '';
-        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const preserveFullWidth = options.preserveFullWidth === true;
+        const preserveFullHeight = options.preserveFullHeight === true;
+        const requestedRowCount = Number.isInteger(options.rowCount) && options.rowCount > 0
+            ? options.rowCount
+            : buffer.rows;
+        const usedRows = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+        const rowsToRender = preserveFullHeight
+            ? Math.min(buffer.buffer.length, Math.max(usedRows, requestedRowCount))
+            : usedRows;
 
         for (let r = 0; r < rowsToRender; r++) {
             const row = buffer.buffer[r];
-            let lastNonSpace = -1;
-            for (let c = row.length - 1; c >= 0; c--) {
-                if (row[c].char !== ' ' || row[c].bg !== 0) {
-                    lastNonSpace = c;
-                    break;
+            let lastNonSpace;
+            if (preserveFullWidth) {
+                lastNonSpace = Math.max(0, buffer.cols - 1);
+            } else {
+                lastNonSpace = -1;
+                for (let c = row.length - 1; c >= 0; c--) {
+                    if (row[c].char !== ' ' || row[c].bg !== 0) {
+                        lastNonSpace = c;
+                        break;
+                    }
                 }
             }
 
@@ -821,6 +861,13 @@ class ArtAnsiDecoder {
             if (char === '\x1b' && text[i + 1] === '[') {
                 i += 2;
                 let params = '';
+                let privatePrefix = '';
+
+                if (i < text.length && text[i] === '?') {
+                    privatePrefix = '?';
+                    i++;
+                }
+
                 while (i < text.length && /[0-9;]/.test(text[i])) {
                     params += text[i];
                     i++;
@@ -891,6 +938,11 @@ class ArtAnsiDecoder {
                         break;
                     case 'T':
                         this.buffer.scrollDown(n);
+                        break;
+                    case 'h':
+                    case 'l':
+                        // Ignore mode set/reset sequences, including DEC private modes
+                        // like ESC[?7h, after consuming them fully.
                         break;
                 }
             } else if (char === '\x1b') {
@@ -1292,14 +1344,15 @@ function findScreenRamOffset(bytes) {
     return -1;
 }
 
-function renderAnsiBuffer(text, cols = 80, rows = 500) {
+function renderAnsiBuffer(text, cols = 80, rows = 500, rendererMode = null, renderOptions = null) {
     const buffer = new ArtScreenBuffer(cols, rows);
     const decoder = new ArtAnsiDecoder(buffer);
-    const renderer = (window.siteConfig?.ansiRendererMode === 'perchar')
+    const effectiveRendererMode = rendererMode || window.siteConfig?.ansiRendererMode || 'grouped';
+    const renderer = (effectiveRendererMode === 'perchar')
         ? new ArtHtmlRendererPerChar()
         : new ArtHtmlRenderer();
     decoder.decode(text);
-    return renderer.render(buffer);
+    return renderer.render(buffer, renderOptions || {});
 }
 
 
@@ -1376,6 +1429,7 @@ function getArtProfileClass(format) {
 function renderArtMessage(text, options = {}) {
     const format = normalizeArtFormat(options.format || 'auto');
     let sourceText = options.byteString || text || '';
+    const rendererMode = options.rendererMode || null;
 
     if (format !== 'petscii' && hasPipeCodes(sourceText)) {
         sourceText = convertPipeCodesToAnsi(sourceText);
@@ -1391,10 +1445,10 @@ function renderArtMessage(text, options = {}) {
     }
 
     if (format === 'ansi' || format === 'auto' || !format) {
-        return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+        return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500, rendererMode);
     }
 
-    return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+    return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500, rendererMode);
 }
 
 function stripNonSgrAnsi(text) {
@@ -1542,9 +1596,17 @@ function hasAnsiCodes(text) {
  * Check if text contains pipe codes (BBS color codes like |15, |04, etc. or special codes like |CL)
  */
 function hasPipeCodes(text) {
+    if (!text) {
+        return false;
+    }
+
+    const normalized = String(text).replace(/\|\|/g, '');
     // Match single-digit shorthand (|1), two-digit color codes (|01, |0A, |1F),
     // or special letter codes (|CL, |PA, etc.).
-    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2}|[A-Z]{2})/i.test(text);
+    // Requires uppercase letters for both hex and letter codes — all real BBS software
+    // produces uppercase pipe codes, and the case-insensitive version causes false positives
+    // on natural English text (e.g. |Advertise → |Ad matches as a Mystic hex color code).
+    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-F]{2}(?![0-9A-Fa-f])|[A-Z]{2}(?![A-Z]))/.test(normalized);
 }
 
 /**
@@ -1554,6 +1616,8 @@ function hasPipeCodes(text) {
  */
 function convertPipeCodesToAnsi(text) {
     if (!text) return text;
+
+    text = text.replace(/\|\|/g, '\x00DOUBLEPIPE\x00');
 
     // Handle |PI first: Mystic BBS escape for a literal pipe character
     text = text.replace(/\|PI/gi, '\x00PIPE\x00');
@@ -1579,8 +1643,8 @@ function convertPipeCodesToAnsi(text) {
         'KP', 'KR', 'KS', 'KT', 'KU', 'KD',
         'GE', 'GV', 'GL', 'GR', 'GN', 'GO'
     ];
-    text = text.replace(/\|([A-Z]{2})/gi, (match, code) => {
-        return knownPipeCodes.includes(code.toUpperCase()) ? '' : match;
+    text = text.replace(/\|([A-Z]{2})/g, (match, code) => {
+        return knownPipeCodes.includes(code) ? '' : match;
     });
 
     // Pipe code to ANSI color mapping
@@ -1626,7 +1690,7 @@ function convertPipeCodesToAnsi(text) {
     // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background.
     // Mystic-style hex codes (|0A = bright green, |1F = blue bg + white fg, etc.) are also
     // handled: codes with letters A-F are parsed as hex nibbles.
-    text = text.replace(/\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/g, (match, codeStr) => {
+    text = text.replace(/\|([0-9](?![0-9A-Fa-f])|[0-9A-F]{2}(?![0-9A-Fa-f]))/g, (match, codeStr) => {
         if (codeStr.length === 1) {
             const ansiFg = pipeToAnsiFg[parseInt(codeStr, 10)] || 37;
             return `\x1b[${ansiFg}m`;
@@ -1666,6 +1730,7 @@ function convertPipeCodesToAnsi(text) {
     text = text.replace(/\|T[0-9]/gi, '');
 
     // Restore escaped pipe characters
+    text = text.replace(/\x00DOUBLEPIPE\x00/g, '||');
     text = text.replace(/\x00PIPE\x00/g, '|');
 
     return text;
@@ -1694,6 +1759,8 @@ function parsePipeCodes(text) {
         return escapeHtml(text);
     }
 
+    text = text.replace(/\|\|/g, '\x00DOUBLEPIPE\x00');
+
     // Pipe code color mapping (0-15 standard colors)
     const pipeColors = [
         'black',        // 0
@@ -1720,8 +1787,9 @@ function parsePipeCodes(text) {
     let result = '';
     let spanOpen = false;
 
-    // Pipe code pattern: |XX where XX is hex digits
-    const pipePattern = /\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/g;
+    // Pipe code pattern: |XX where XX is exactly two decimal digits (00-99).
+    // Greedy 2-digit match so |152 is parsed as color code |15 followed by literal "2".
+    const pipePattern = /\|([0-9]{2})/g;
     let lastIndex = 0;
     let match;
 
@@ -1786,7 +1854,9 @@ function parsePipeCodes(text) {
         result += '</span>';
     }
 
-    return result;
+    return result
+        .replace(/\x00DOUBLEPIPE\x00/g, '||')
+        .replace(/\x00PIPE\x00/g, '|');
 }
 
 /**

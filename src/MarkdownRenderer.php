@@ -16,9 +16,11 @@ class MarkdownRenderer
      *
      * @param string $markdown Raw Markdown content
      * @param int $blockquoteDepth Current recursive blockquote depth
+     * @param bool $allowHtml When true, raw HTML blocks and inline tags are passed through
+     *                        unescaped. Must only be enabled for trusted content (e.g. README.md).
      * @return string HTML output
      */
-    public static function toHtml(string $markdown, int $blockquoteDepth = 0): string
+    public static function toHtml(string $markdown, int $blockquoteDepth = 0, bool $allowHtml = false): string
     {
         // Normalise line endings
         $text = str_replace(["\r\n", "\r"], "\n", $markdown);
@@ -31,10 +33,21 @@ class MarkdownRenderer
         while ($i < $total) {
             $line = $lines[$i];
 
+            // --- Raw HTML block (only when allowHtml is explicitly enabled) ---
+            if ($allowHtml && preg_match('/^<[a-zA-Z\/!]/', $line)) {
+                $htmlBlock = [];
+                while ($i < $total && trim($lines[$i]) !== '') {
+                    $htmlBlock[] = $lines[$i];
+                    $i++;
+                }
+                $output[] = implode("\n", $htmlBlock);
+                continue;
+            }
+
             // --- Fenced code block ---
             if (preg_match('/^```(.*)$/', $line, $m)) {
                 if (!self::hasClosingFenceAhead($lines, $i + 1, $total)) {
-                    $output[] = '<p>' . self::inlineHtml($line) . '</p>';
+                    $output[] = '<p>' . self::inlineHtml($line, $allowHtml) . '</p>';
                     $i++;
                     continue;
                 }
@@ -62,7 +75,7 @@ class MarkdownRenderer
             // --- ATX Headings ---
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $level    = strlen($m[1]);
-                $content  = self::inlineHtml($m[2]);
+                $content  = self::inlineHtml($m[2], $allowHtml);
                 $slug     = self::slugify($m[2]);
                 $output[] = "<h{$level} id=\"{$slug}\">{$content}</h{$level}>";
                 $i++;
@@ -78,13 +91,13 @@ class MarkdownRenderer
                 $headers  = self::parseTableRow($line);
                 $i += 2; // skip separator
                 $thead    = '<thead><tr>' .
-                    implode('', array_map(fn($h) => '<th>' . self::inlineHtml($h) . '</th>', $headers)) .
+                    implode('', array_map(fn($h) => '<th>' . self::inlineHtml($h, $allowHtml) . '</th>', $headers)) .
                     '</tr></thead>';
                 $tbody    = '<tbody>';
                 while ($i < $total && preg_match('/^\|.+\|/', $lines[$i])) {
                     $cells  = self::parseTableRow($lines[$i]);
                     $tbody .= '<tr>' .
-                        implode('', array_map(fn($c) => '<td>' . self::inlineHtml($c) . '</td>', $cells)) .
+                        implode('', array_map(fn($c) => '<td>' . self::inlineHtml($c, $allowHtml) . '</td>', $cells)) .
                         '</tr>';
                     $i++;
                 }
@@ -96,7 +109,7 @@ class MarkdownRenderer
             // --- Pipe-delimited text that is not a valid table ---
             // Treat it as plain text so malformed tables cannot stall the parser.
             if (preg_match('/^\|.+\|/', $line)) {
-                $output[] = '<p>' . self::inlineHtml($line) . '</p>';
+                $output[] = '<p>' . self::inlineHtml($line, $allowHtml) . '</p>';
                 $i++;
                 continue;
             }
@@ -117,16 +130,22 @@ class MarkdownRenderer
                     );
                     $inner = '<p>' . implode('<br>', $escapedLines) . '</p>';
                 } else {
-                    $inner = self::toHtml(implode("\n", $quoteLines), $blockquoteDepth + 1);
+                    $inner = self::toHtml(implode("\n", $quoteLines), $blockquoteDepth + 1, $allowHtml);
                 }
 
                 $output[] = '<blockquote class="border-start border-3 ps-3 text-muted">' . $inner . '</blockquote>';
                 continue;
             }
 
+            // --- Ordered list ---
+            if (preg_match('/^(\s*)\d+[.)]\s+(.*)$/', $line, $m)) {
+                $output[] = self::parseOrderedList($lines, $i, $total, strlen($m[1]), $allowHtml);
+                continue;
+            }
+
             // --- Unordered list (supports nested indented sub-lists) ---
-            if (preg_match('/^(\s*)[-*]\s+(.+)$/', $line, $m)) {
-                $output[] = self::parseUnorderedList($lines, $i, $total, strlen($m[1]));
+            if (preg_match('/^(\s*)[-*]\s+(.*)$/', $line, $m)) {
+                $output[] = self::parseUnorderedList($lines, $i, $total, strlen($m[1]), $allowHtml);
                 continue;
             }
 
@@ -141,7 +160,7 @@ class MarkdownRenderer
             while (
                 $i < $total &&
                 trim($lines[$i]) !== '' &&
-                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\||>)/', $lines[$i])
+                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\d+[.)]\s|\||>)/', $lines[$i])
             ) {
                 $para[] = $lines[$i];
                 $i++;
@@ -149,8 +168,14 @@ class MarkdownRenderer
             if ($para) {
                 // Join lines first so inline links that span a soft wrap are
                 // processed as a single string rather than split across calls.
-                $output[] = '<p>' . self::inlineHtml(implode(' ', $para)) . '</p>';
+                $output[] = '<p>' . self::inlineHtml(implode(' ', $para), $allowHtml) . '</p>';
+                continue;
             }
+
+            // Fallback: consume any otherwise-unhandled line so malformed
+            // markdown cannot trap the parser in a non-advancing loop.
+            $output[] = '<p>' . self::inlineHtml($line, $allowHtml) . '</p>';
+            $i++;
         }
 
         return implode("\n", $output);
@@ -176,10 +201,26 @@ class MarkdownRenderer
      * Apply inline Markdown transformations: bold, inline code, links.
      *
      * @param string $text Raw inline Markdown
+     * @param bool $allowHtml When true, inline HTML tags are passed through unescaped
      * @return string HTML string
      */
-    private static function inlineHtml(string $text): string
+    private static function inlineHtml(string $text, bool $allowHtml = false): string
     {
+        // When HTML is allowed, extract and protect inline tags before escaping so
+        // they survive htmlspecialchars() and are restored verbatim at the end.
+        $htmlTags = [];
+        if ($allowHtml) {
+            $text = preg_replace_callback(
+                '/<(?:[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?\/?>|\/[a-zA-Z][a-zA-Z0-9]*>|!--.*?-->)/',
+                function (array $m) use (&$htmlTags): string {
+                    $token = '%%HTAG' . count($htmlTags) . '%%';
+                    $htmlTags[$token] = $m[0];
+                    return $token;
+                },
+                $text
+            );
+        }
+
         // Escape HTML first (except we handle < > carefully)
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
 
@@ -195,18 +236,33 @@ class MarkdownRenderer
             $text
         );
 
-        // Protect markdown links before emphasis parsing so underscores in URLs
-        // are not interpreted as italics.
+        // Protect markdown links and images before emphasis parsing so underscores
+        // in URLs are not interpreted as italics.
+        // Image syntax ![alt](url) is matched by the optional leading `!`.
         $links = [];
         $text = preg_replace_callback(
-            '/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
-            function ($m) use (&$links) {
-                $label = $m[1]; // already htmlspecialchars-encoded
-                $url   = $m[2];
-                $isExternal = str_starts_with($url, 'http');
-                $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+            '/(!?)\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
+            function ($m) use (&$links, &$codeSpans) {
+                $isImage = $m[1] === '!';
+                // Restore any inline-code tokens that appear inside the label
+                // (e.g. [The `foo` Table](#anchor)) so they render as <code> not %%CODE0%%.
+                $label = !empty($codeSpans) ? strtr($m[2], $codeSpans) : $m[2];
+                $url   = $m[3];
                 $token = '%%LINK' . count($links) . '%%';
-                $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+
+                if ($isImage) {
+                    // Render as a click-to-load placeholder. The user's browser will
+                    // not auto-fetch the remote image; clicking reveals it inline.
+                    $links[$token] = '<span class="md-image-placeholder" data-src="' . $url . '" data-alt="' . $label . '">'
+                        . '<a href="' . $url . '" class="md-image-load" target="_blank" rel="noopener noreferrer">'
+                        . '<i class="fas fa-image"></i> ' . $label
+                        . '</a></span>';
+                } else {
+                    $isExternal = str_starts_with($url, 'http');
+                    $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+                    $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+                }
+
                 return $token;
             },
             $text
@@ -255,6 +311,9 @@ class MarkdownRenderer
         if (!empty($links)) {
             $text = strtr($text, $links);
         }
+        if (!empty($htmlTags)) {
+            $text = strtr($text, $htmlTags);
+        }
 
         return $text;
     }
@@ -292,20 +351,79 @@ class MarkdownRenderer
     }
 
     /**
+     * Parse an ordered list block at the given indentation level.
+     *
+     * @param string[] $lines
+     * @param int      $i Current line index (advanced by reference)
+     * @param int      $total Total line count
+     * @param int      $baseIndent Indentation level for this list
+     * @param bool     $allowHtml Passed through to inlineHtml()
+     * @return string
+     */
+    private static function parseOrderedList(array $lines, int &$i, int $total, int $baseIndent, bool $allowHtml = false): string
+    {
+        $items = [];
+
+        while ($i < $total) {
+            if (!preg_match('/^(\s*)\d+[.)]\s+(.*)$/', $lines[$i], $itemMatch)) {
+                break;
+            }
+
+            $itemIndent = strlen($itemMatch[1]);
+            if ($itemIndent < $baseIndent) {
+                break;
+            }
+            if ($itemIndent > $baseIndent) {
+                break;
+            }
+
+            $itemText = [$itemMatch[2]];
+            $i++;
+
+            // Collect continuation lines
+            while ($i < $total) {
+                $current = $lines[$i];
+                if (trim($current) === '') {
+                    break;
+                }
+                if (preg_match('/^(\s*)\d+[.)]\s/', $current, $nextMatch)) {
+                    if (strlen($nextMatch[1]) === $baseIndent) {
+                        break;
+                    }
+                }
+                if (preg_match('/^(\s*)[-*]\s/', $current) || preg_match('/^#{1,6}\s/', $current)) {
+                    break;
+                }
+                if (preg_match('/^\s+(.+)$/', $current, $cont)) {
+                    $itemText[] = trim($cont[1]);
+                    $i++;
+                    continue;
+                }
+                break;
+            }
+
+            $items[] = '<li>' . self::inlineHtml(implode(' ', $itemText), $allowHtml) . '</li>';
+        }
+
+        return '<ol>' . implode('', $items) . '</ol>';
+    }
+
+    /**
      * Parse an unordered list block at the given indentation level.
      *
      * @param string[] $lines
      * @param int      $i Current line index (advanced by reference)
      * @param int      $total Total line count
      * @param int      $baseIndent Indentation level for this list
+     * @param bool     $allowHtml Passed through to inlineHtml()
      * @return string
      */
-    private static function parseUnorderedList(array $lines, int &$i, int $total, int $baseIndent): string
+    private static function parseUnorderedList(array $lines, int &$i, int $total, int $baseIndent, bool $allowHtml = false): string
     {
         $items = [];
 
         while ($i < $total) {
-            if (!preg_match('/^(\s*)[-*]\s+(.+)$/', $lines[$i], $itemMatch)) {
+            if (!preg_match('/^(\s*)[-*]\s+(.*)$/', $lines[$i], $itemMatch)) {
                 break;
             }
 
@@ -328,10 +446,10 @@ class MarkdownRenderer
                     break;
                 }
 
-                if (preg_match('/^(\s*)[-*]\s+(.+)$/', $current, $nestedMatch)) {
+                if (preg_match('/^(\s*)[-*]\s+(.*)$/', $current, $nestedMatch)) {
                     $nestedIndent = strlen($nestedMatch[1]);
                     if ($nestedIndent > $baseIndent) {
-                        $itemInner .= self::parseUnorderedList($lines, $i, $total, $nestedIndent);
+                        $itemInner .= self::parseUnorderedList($lines, $i, $total, $nestedIndent, $allowHtml);
                         continue;
                     }
                     if ($nestedIndent === $baseIndent) {
@@ -349,7 +467,7 @@ class MarkdownRenderer
                 break;
             }
 
-            $li = '<li>' . self::inlineHtml(implode(' ', $itemText)) . $itemInner . '</li>';
+            $li = '<li>' . self::inlineHtml(implode(' ', $itemText), $allowHtml) . $itemInner . '</li>';
             $items[] = $li;
         }
 

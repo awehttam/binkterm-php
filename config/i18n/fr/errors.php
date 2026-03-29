@@ -15,6 +15,7 @@ return [
     'errors.auth.token_and_password_required' => 'Le jeton et le nouveau mot de passe sont requis',
     'errors.auth.weak_password' => 'Le mot de passe doit comporter au moins 8 caractères',
     'errors.auth.reset_failed' => 'Échec de la réinitialisation du mot de passe',
+    'errors.auth.forbidden' => 'Interdit',
     'errors.register.invalid_submission' => 'Soumission invalide',
     'errors.register.too_fast' => 'Veuillez prendre le temps de remplir le formulaire.',
     'errors.register.session_expired' => 'Session expirée. Veuillez actualiser la page et réessayer.',
@@ -54,6 +55,8 @@ return [
     'errors.notify.user_id_missing' => 'Impossible de résoudre la session utilisateur',
     'errors.notify.invalid_state' => 'Charge utile d\'état de notification invalide',
     'errors.notify.invalid_target' => 'Cible de notification invalide',
+    'errors.realtime.invalid_payload' => 'Charge utile de commande temps reel invalide',
+    'errors.realtime.unknown_command' => 'Commande temps reel inconnue',
     'errors.polls.option_required' => 'Une option de sondage est requise',
     'errors.polls.not_found' => 'Sondage introuvable',
     'errors.polls.invalid_option' => 'Option de sondage invalide',
@@ -118,6 +121,11 @@ return [
     'errors.files.upload.virus_detected' => 'Fichier rejeté : virus détecté',
     'errors.files.upload.insufficient_credits' => 'Crédits insuffisants pour téléverser ce fichier',
     'errors.files.upload.failed' => 'Échec du téléversement du fichier',
+    'errors.admin.file_approvals.load_failed' => 'Échec du chargement des approbations de fichiers en attente',
+    'errors.admin.file_approvals.not_found' => 'Fichier en attente introuvable',
+    'errors.admin.file_approvals.not_pending' => 'Le fichier n\'est pas en attente d\'approbation',
+    'errors.admin.file_approvals.approve_failed' => 'Échec de l\'approbation du téléversement',
+    'errors.admin.file_approvals.reject_failed' => 'Échec du rejet du téléversement',
     'errors.files.download.insufficient_credits' => 'Crédits insuffisants pour télécharger ce fichier',
     'errors.admin.users.not_found' => 'Utilisateur introuvable',
     'errors.admin.users.create_failed' => 'Échec de la création de l\'utilisateur',
@@ -183,6 +191,11 @@ return [
     'errors.binkp.connection_test_failed' => 'Échec du test de connexion BinkP',
     'errors.binkp.logs.failed' => 'Échec du chargement des journaux BinkP',
     'errors.binkp.uplink.address_hostname_required' => 'L\'adresse et le nom d\'hôte sont requis',
+    'errors.binkp.uplink.address_required' => 'L\'adresse du lien montant est requise',
+    'errors.messages.forward_email.email_required' => 'Une adresse email est requise',
+    'errors.messages.forward_email.invalid_type' => 'Type de message invalide',
+    'errors.messages.forward_email.mail_disabled' => 'L\'envoi d\'email n\'est pas configure',
+    'errors.messages.forward_email.failed' => 'Echec du transfert du message par email',
     'errors.binkp.uplink.poll_failed' => 'Échec de l\'interrogation du lien montant BinkP',
     'errors.binkp.uplink.poll_all_failed' => 'Échec de l\'interrogation de tous les liens montants BinkP',
     'errors.binkp.uplink.add_failed' => 'Échec de l\'ajout du lien montant BinkP',
@@ -229,6 +242,8 @@ return [
     'errors.admin.appearance.navigation.save_failed' => 'Échec de l\'enregistrement des paramètres de navigation',
     'errors.admin.appearance.seo.save_failed' => 'Échec de l\'enregistrement des paramètres SEO',
     'errors.admin.appearance.shell.save_failed' => 'Échec de l\'enregistrement des paramètres du shell',
+    'errors.admin.appearance.login.save_failed' => 'Échec de l\'enregistrement des paramètres d\'apparence de connexion',
+    'errors.admin.appearance.login.ansi_too_large' => 'Le contenu ANSI de connexion doit comporter 200000 caractères ou moins',
     'errors.admin.appearance.message_reader.save_failed' => 'Échec de l\'enregistrement des paramètres du lecteur de messages',
     'errors.admin.appearance.markdown_preview.failed' => 'Échec du rendu de l\'aperçu Markdown',
     'errors.admin.shell_art.list_failed' => 'Échec du listage des fichiers d\'art shell',
@@ -421,6 +436,15 @@ return [
     'errors.admin.lovlynet.help_fetch_failed' => 'Échec du chargement du texte d\'aide',
     'errors.admin.lovlynet.invalid_area_type' => 'Type de zone invalide',
     'errors.admin.lovlynet.invalid_file_id' => 'Identifiant de fichier invalide',
+    'errors.admin.areafix.invalid_json' => 'Charge utile de demande invalide',
+    'errors.admin.areafix.uplink_required' => 'L\'adresse uplink est requise',
+    'errors.admin.areafix.invalid_robot' => 'Le robot doit être "areafix" ou "filefix"',
+    'errors.admin.areafix.commands_required' => 'Au moins une commande est requise',
+    'errors.admin.areafix.send_failed' => 'Échec de l\'envoi de la commande',
+    'errors.admin.areafix.history_failed' => 'Échec du chargement de l\'historique des messages',
+    'errors.admin.areafix.sync_failed' => 'Échec de la synchronisation des zones',
+    'errors.admin.poll.failed' => 'Échec de l\'interrogation du lien montant BinkP',
+
     'errors.admin.lovlynet.invalid_json' => 'Charge utile de demande invalide',
     'errors.admin.lovlynet.not_configured' => 'LovlyNet n\'est pas configuré',
     'errors.admin.lovlynet.request_config_missing' => 'Les paramètres de demande LovlyNet sont incomplets',
@@ -435,6 +459,7 @@ return [
     // BinkP - Kept Packets
     'errors.binkp.kept_packets.failed' => 'Échec du chargement des paquets conservés',
     'errors.binkp.kept_packets.inspect_failed' => 'Échec de l\'inspection du paquet',
+    'errors.binkp.queue.inspect_failed' => 'Échec de l\'inspection du paquet en file d\'attente',
     'errors.binkp.kept_packets.invalid_type' => 'Le type doit être inbound ou outbound',
     'errors.binkp.kept_packets.license_required' => 'La consultation des paquets conservés nécessite une licence enregistrée',
 
@@ -474,6 +499,10 @@ return [
     'errors.messages.body_too_large' => 'Le corps du message dépasse la limite FidoNet de 16 Ko',
     'errors.messages.echomail.edit.nothing_to_update' => 'Aucun champ à mettre à jour',
     'errors.messages.echomail.edit.save_failed' => 'Échec de l\'enregistrement des modifications',
+    'errors.messages.echomail.ignore.invalid_input' => 'Le nom de l’expéditeur est requis',
+    'errors.messages.echomail.ignore.invalid_rule' => 'Règle d’ignorance introuvable',
+    'errors.messages.echomail.ignore.save_failed' => 'Échec de l’enregistrement de la règle d’ignorance',
+    'errors.messages.echomail.ignore.message_not_available' => 'Impossible de charger le message sélectionné',
     'errors.messages.echomail.save_ad.admin_required' => 'Des privilèges administrateur sont requis',
     'errors.messages.echomail.save_ad.failed' => 'Échec de l\'enregistrement du message dans la bibliothèque d\'annonces',
     'errors.messages.echomail.save_ad.not_ansi' => 'Seuls les messages echomail ANSI peuvent être enregistrés dans la bibliothèque d\'annonces',
@@ -495,6 +524,8 @@ return [
     'errors.qwk.processing_failed' => 'Échec du traitement du paquet REP',
     'errors.qwk.status_failed' => 'Échec de la récupération du statut QWK',
     'errors.qwk.upload_error' => 'Erreur lors du téléversement du fichier',
+    'errors.qwk.invalid_input' => 'Le tableau echoarea_ids est requis',
+    'errors.qwk.save_failed' => 'Échec de la sauvegarde de la sélection des zones',
 
     // Referrals
     'errors.referrals.not_licensed' => 'Les analytiques de parrainage nécessitent une licence enregistrée',
@@ -505,4 +536,50 @@ return [
     'errors.virustotal.file_too_large' => 'Fichier trop volumineux pour le téléversement VirusTotal (max 32 Mo)',
     'errors.virustotal.not_configured' => 'Clé API VirusTotal non configurée',
     'errors.virustotal.upload_failed' => 'Échec du téléversement du fichier vers VirusTotal',
+
+    // Interests
+    'errors.interests.not_found' => 'Intérêt introuvable.',
+    'errors.interests.name_required' => 'Le nom de l\'intérêt est obligatoire.',
+    'errors.interests.name_taken' => 'Un intérêt avec ce nom existe déjà.',
+    'errors.interests.slug_taken' => 'Un intérêt avec ce slug existe déjà.',
+    'errors.interests.feature_disabled' => 'La fonctionnalité des intérêts n\'est pas activée.',
+    'errors.interests.crosspost_cooldown' => 'Vous devez attendre encore {minutes} minute(s) avant de faire un cross-post.',
+    'errors.mcp.not_enabled' => 'Les services MCP ne sont pas activés sur ce système.',
+    'errors.mcp.license_required' => 'Une licence enregistrée est requise pour la fonctionnalité du serveur MCP.',
+    'errors.mcp.generate_failed' => 'Échec de la génération de la clé MCP.',
+    'errors.mcp.revoke_failed' => 'Échec de la révocation de la clé MCP.',
+    'errors.mcp.load_failed' => 'Échec du chargement du statut de la clé MCP.',
+
+    // Ad Analytics
+    'errors.admin.ad_analytics.license_required' => 'Une licence valide est requise pour consulter les analyses d\'annonces.',
+    'errors.admin.ad_analytics.load_failed' => 'Échec du chargement des analyses d\'annonces.',
+
+    // Ads - content command validation
+    'errors.admin.ads.invalid_content_command' => 'La commande de contenu sélectionnée n\'est pas autorisée.',
+    'errors.admin.dashboard.ram_usage_unavailable' => 'Les details d\'utilisation RAM ne sont pas disponibles sur ce systeme.',
+    'errors.admin.weather.preview_failed' => 'Impossible de générer l\'aperçu du rapport météo.',
+    'errors.admin.appearance.term_server.list_failed' => 'Impossible de charger les écrans du serveur terminal',
+    'errors.admin.appearance.term_server.load_failed' => 'Impossible de charger l\'écran du serveur terminal',
+    'errors.admin.appearance.term_server.save_failed' => 'Impossible d\'enregistrer l\'écran du serveur terminal',
+    'errors.admin.appearance.term_server.upload.no_file' => 'Aucun fichier d\'écran du serveur terminal n\'a été téléversé',
+    'errors.admin.appearance.term_server.upload.failed' => 'Impossible de téléverser l\'écran du serveur terminal',
+    'errors.admin.appearance.term_server.upload.file_too_large' => 'Le fichier d\'écran du serveur terminal dépasse la limite de taille',
+    'errors.admin.appearance.term_server.delete.failed' => 'Impossible de supprimer l\'écran du serveur terminal',
+
+    // Markdown image upload
+    'errors.markdown_images.upload_failed' => 'Echec du telechargement de l\'image. Veuillez reessayer.',
+    'errors.markdown_images.invalid_type'  => 'Type d\'image non pris en charge. Utilisez JPEG, PNG, GIF ou WebP.',
+    'errors.markdown_images.too_large'     => 'Image trop volumineuse. Taille maximale : 5 Mo.',
+
+    // Wall message
+    'errors.admin.wall.empty_message'    => 'Le message ne peut pas etre vide.',
+    'errors.admin.wall.message_too_long' => 'Message trop long (maximum 1000 caracteres).',
+
+    // Msg (private admin message)
+    'errors.admin.msg.no_username'       => 'Le nom d\'utilisateur est requis.',
+    'errors.admin.msg.empty_message'     => 'Le message ne peut pas etre vide.',
+    'errors.admin.msg.message_too_long'  => 'Message trop long (maximum 1000 caracteres).',
+    'errors.admin.msg.user_not_found'    => 'Utilisateur introuvable.',
 ];
+
+

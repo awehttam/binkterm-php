@@ -176,6 +176,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         echo json_encode(['html' => $html]);
     });
 
+    SimpleRouter::get('/api/ram-usage', function() {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $adminController = new AdminController();
+        $output = $adminController->getRamUsageDetails();
+        if ($output === null) {
+            http_response_code(404);
+            apiError(
+                'errors.admin.dashboard.ram_usage_unavailable',
+                apiLocalizedText('errors.admin.dashboard.ram_usage_unavailable', 'RAM usage details are not available on this system.', $user)
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'output' => $output,
+        ]);
+    });
+
     // License API — GET: current status
     SimpleRouter::get('/api/license', function() {
         RouteHelper::requireAdmin();
@@ -372,8 +393,41 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/filearea-rules', function() {
         $user = RouteHelper::requireAdmin();
 
+        $fileAreaManager = new \BinktermPHP\FileAreaManager();
+        $fileAreas = $fileAreaManager->getFileAreas('all', (int)($user['user_id'] ?? $user['id'] ?? 0), true);
+        $fileAreaOptions = [];
+        foreach ($fileAreas as $area) {
+            $tag = strtoupper(trim((string)($area['tag'] ?? '')));
+            $domain = trim((string)($area['domain'] ?? ''));
+            if ($tag === '') {
+                continue;
+            }
+
+            $value = $domain !== ''
+                ? $tag . '@' . $domain
+                : $tag;
+
+            $fileAreaOptions[$value] = [
+                'value' => $value,
+                'label' => $value,
+            ];
+        }
+        ksort($fileAreaOptions, SORT_NATURAL | SORT_FLAG_CASE);
+
         $template = new Template();
-        $template->renderResponse('admin/filearea_rules.twig');
+        $template->renderResponse('admin/filearea_rules.twig', [
+            'filearea_rule_options' => array_values($fileAreaOptions),
+        ]);
+    });
+
+    // File upload approval queue
+    SimpleRouter::get('/file-approvals', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/file_approvals.twig', [
+            'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        ]);
     });
 
     // Advertisements management page
@@ -381,7 +435,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $user = RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/ads.twig');
+        $template->renderResponse('admin/ads.twig', [
+            'weather_configured' => file_exists(__DIR__ . '/../config/weather.json'),
+        ]);
     });
 
     SimpleRouter::get('/ad-campaigns', function() {
@@ -490,6 +546,166 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $controller->view($name);
     })->where(['name' => '[A-Za-z0-9_.\-]+']);
 
+    SimpleRouter::get('/docs/asset/{path}', function(string $path) {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->asset($path);
+    })->where(['path' => '[A-Za-z0-9_.\-\/]+']);
+
+    // Ad analytics page (license required)
+    SimpleRouter::get('/ad-analytics', function() {
+        RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('errors/403.twig');
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('admin/ad_analytics.twig');
+    });
+
+    // SSE diagnostics page
+    SimpleRouter::get('/sse-test', function() {
+        RouteHelper::requireAdmin();
+        $template = new Template();
+        $template->renderResponse('admin/sse_test.twig');
+    });
+
+    // SSE diagnostics stream — emits events at a configurable interval
+    SimpleRouter::get('/sse-test/stream', function() {
+        RouteHelper::requireAdmin();
+
+        $intervalMs  = max(50,  min(5000, (int)($_GET['interval']  ?? 500)));
+        $durationSec = max(5,   min(120,  (int)($_GET['duration']  ?? 30)));
+        $payloadSize = max(0,   min(65536, (int)($_GET['payload']  ?? 0)));
+
+        // Disable all output buffering
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_implicit_flush(true);
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');  // tell nginx not to buffer
+        header('Connection: keep-alive');
+
+        set_time_limit(0);
+        ignore_user_abort(true);
+
+        $padding  = $payloadSize > 0 ? str_repeat('x', $payloadSize) : '';
+        $seq      = 0;
+        $start    = microtime(true);
+        $intervalSec = $intervalMs / 1000.0;
+
+        // Send an initial event so the client knows the stream is open
+        $initTs = round(microtime(true) * 1000);
+        echo "event: open\n";
+        echo "data: " . json_encode(['server_ts' => $initTs, 'interval_ms' => $intervalMs, 'duration_sec' => $durationSec, 'payload_size' => $payloadSize]) . "\n\n";
+        flush();
+
+        while (!connection_aborted() && (microtime(true) - $start) < $durationSec) {
+            $serverTs = round(microtime(true) * 1000);
+            $data = json_encode(['seq' => $seq, 'server_ts' => $serverTs, 'padding' => $padding]);
+            echo "id: {$seq}\n";
+            echo "data: {$data}\n\n";
+            flush();
+            $seq++;
+
+            // Sleep until the next scheduled event time, accounting for drift
+            $nextEvent = $start + ($seq * $intervalSec);
+            $sleepSec  = $nextEvent - microtime(true);
+            if ($sleepSec > 0) {
+                usleep((int)($sleepSec * 1_000_000));
+            }
+        }
+
+        $finalTs = round(microtime(true) * 1000);
+        echo "event: done\n";
+        echo "data: " . json_encode(['seq' => $seq, 'total' => $seq, 'server_ts' => $finalTs]) . "\n\n";
+        flush();
+    });
+
+    // SSE real-path inject — inserts a single sse_test event into sse_events
+    // so the real /api/stream polling path can be benchmarked end-to-end.
+    SimpleRouter::post('/sse-test/inject', function() {
+        $user   = RouteHelper::requireAdmin();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        $input    = json_decode(file_get_contents('php://input'), true);
+        $seq      = (int)($input['seq'] ?? 0);
+        $serverTs = (int)round(microtime(true) * 1000);
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $eventId = \BinktermPHP\Realtime\BinkStream::emit($db, 'sse_test', [
+            'seq' => $seq,
+            'server_ts' => $serverTs,
+        ], $userId);
+
+        echo json_encode(['ok' => true, 'seq' => $seq, 'server_ts' => $serverTs, 'sse_id' => (int)$eventId]);
+    });
+
+    // Buffering diagnostics page
+    SimpleRouter::get('/buffer-test', function() {
+        RouteHelper::requireAdmin();
+        $template = new Template();
+        $template->renderResponse('admin/buffer_test.twig');
+    });
+
+    // Buffering diagnostics stream — sends one event per second for N seconds.
+    // No SharedWorker, no sse_events — raw EventSource to the browser.
+    // If events arrive one-by-one the chain is not buffering; if they all arrive
+    // at the end something upstream is holding the response body.
+    SimpleRouter::get('/buffer-test/stream', function() {
+        RouteHelper::requireAdmin();
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_implicit_flush(true);
+        // Do NOT set ignore_user_abort — we want the loop to exit when the
+        // client closes the connection so Stop actually stops the stream.
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');
+        header('Connection: keep-alive');
+
+        $count = max(3, min(20, (int)($_GET['count'] ?? 8)));
+
+        // Padding comment: force upstream proxy buffers to flush immediately.
+        // Some proxies hold the first chunk until they accumulate enough bytes
+        // to decide on Transfer-Encoding; 2 KB of SSE comment fills those buffers.
+        echo ':' . str_repeat(' ', 2048) . "\n\n";
+        flush();
+
+        for ($i = 0; $i < $count; $i++) {
+            if (connection_aborted()) {
+                break;
+            }
+            $ts = (int)round(microtime(true) * 1000);
+            echo "event: tick\n";
+            echo "data: " . json_encode(['seq' => $i, 'total' => $count, 'server_ts' => $ts]) . "\n\n";
+            flush();
+            if ($i < $count - 1) {
+                sleep(1);
+                if (connection_aborted()) {
+                    break;
+                }
+            }
+        }
+
+        if (!connection_aborted()) {
+            echo "event: done\ndata: {}\n\n";
+            flush();
+        }
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();
@@ -504,6 +720,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
+    });
+
+    SimpleRouter::get('/ai-usage', function() {
+        $user = RouteHelper::requireAdmin();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $timezone = 'UTC';
+        if ($userId) {
+            $handler = new \BinktermPHP\MessageHandler();
+            $settings = $handler->getUserSettings((int)$userId);
+            $timezone = $settings['timezone'] ?? 'UTC';
+        }
+
+        $period = (string)($_GET['period'] ?? '7d');
+        $report = (new \BinktermPHP\AI\AiUsageReport())->getReport($period, $timezone);
+
+        $template = new Template();
+        $template->renderResponse('admin/ai_usage.twig', [
+            'report' => $report,
+            'user_timezone' => $timezone,
+        ]);
     });
 
     SimpleRouter::get('/sharing', function() {
@@ -597,6 +834,61 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(404);
                 apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found'));
             }
+        });
+
+        // Finger a user by username — used by the admin terminal
+        SimpleRouter::get('/finger/{username}', function($username) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT id, username, real_name, location, fidonet_address,
+                       is_active, is_admin, created_at, last_login
+                FROM users
+                WHERE LOWER(username) = LOWER(?)
+                LIMIT 1
+            ");
+            $stmt->execute([$username]);
+            $target = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$target) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+
+            // Fetch any active sessions for this user
+            $sessions = $auth->getOnlineSessions(15);
+            $userSessions = array_values(array_filter($sessions, function($s) use ($target) {
+                return (int)$s['user_id'] === (int)$target['id'];
+            }));
+
+            $online = array_map(function($s) {
+                return [
+                    'service'       => $s['service'] ?? 'web',
+                    'activity'      => $s['activity'] ?? '',
+                    'last_activity' => $s['last_activity'] ?? null,
+                    'ip_address'    => $s['ip_address'] ?? null,
+                ];
+            }, $userSessions);
+
+            echo json_encode([
+                'username'       => $target['username'],
+                'real_name'      => $target['real_name'],
+                'location'       => $target['location'],
+                'fidonet_address'=> $target['fidonet_address'],
+                'is_active'      => (bool)$target['is_active'],
+                'is_admin'       => (bool)$target['is_admin'],
+                'created_at'     => $target['created_at'],
+                'last_login'     => $target['last_login'],
+                'online'         => $online,
+            ]);
         });
 
         // Create new user
@@ -1347,6 +1639,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $client->setHouseRules((string)$payload['house_rules']);
                 }
 
+                if (array_key_exists('register_splash', $payload) && \BinktermPHP\License::isValid()) {
+                    $text = (string)$payload['register_splash'];
+                    if (mb_strlen($text) > 10000) {
+                        throw new Exception('Splash content must be 10,000 characters or less');
+                    }
+                    $client->setRegisterSplash($text);
+                }
+
                 // Save announcement config
                 if (array_key_exists('announcement', $payload)) {
                     $ann = $payload['announcement'];
@@ -1371,7 +1671,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.content.save_failed', apiLocalizedText('errors.admin.appearance.content.save_failed', 'Failed to save content settings'));
+                if ($e->getMessage() === 'Splash content must be 10,000 characters or less') {
+                    apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+                } else {
+                    apiError('errors.admin.appearance.content.save_failed', apiLocalizedText('errors.admin.appearance.content.save_failed', 'Failed to save content settings'));
+                }
             }
         });
 
@@ -1390,14 +1694,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
 
-                if (array_key_exists('login_splash', $payload)) {
-                    $text = (string)$payload['login_splash'];
-                    if (mb_strlen($text) > 10000) {
-                        throw new Exception('Splash content must be 10,000 characters or less');
-                    }
-                    $client->setLoginSplash($text);
-                }
-
                 if (array_key_exists('register_splash', $payload)) {
                     $text = (string)$payload['register_splash'];
                     if (mb_strlen($text) > 10000) {
@@ -1410,6 +1706,63 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/login', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $login = $payload['login'] ?? [];
+                $ansiContent = (string)($payload['login_ansi'] ?? '');
+                $loginSplash = array_key_exists('login_splash', $payload) ? (string)$payload['login_splash'] : null;
+
+                $displayMode = (string)($login['display_mode'] ?? 'standard');
+                if (!in_array($displayMode, ['standard', 'ansi_prompt'], true)) {
+                    $displayMode = 'standard';
+                }
+
+                $ansiSize = (string)($login['ansi_size'] ?? '80x25');
+                if (!in_array($ansiSize, ['80x25', '132x24', '132x43', '132x50', 'full'], true)) {
+                    $ansiSize = '80x25';
+                }
+
+                if (mb_strlen($ansiContent) > 200000) {
+                    throw new Exception('Login ANSI content must be 200,000 characters or less');
+                }
+                if ($loginSplash !== null && mb_strlen($loginSplash) > 10000) {
+                    throw new Exception('Splash content must be 10,000 characters or less');
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['login'] = [
+                    'display_mode' => $displayMode,
+                    'ansi_size' => $ansiSize,
+                ];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                $client->setLoginAnsi($ansiContent);
+                if ($loginSplash !== null && \BinktermPHP\License::isValid()) {
+                    $client->setLoginSplash($loginSplash);
+                }
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                if ($e->getMessage() === 'Login ANSI content must be 200,000 characters or less') {
+                    apiError('errors.admin.appearance.login.ansi_too_large', apiLocalizedText('errors.admin.appearance.login.ansi_too_large', 'Login ANSI content must be 200,000 characters or less'));
+                } elseif ($e->getMessage() === 'Splash content must be 10,000 characters or less') {
+                    apiError('errors.admin.appearance.splash.save_failed', apiLocalizedText('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'));
+                } else {
+                    apiError('errors.admin.appearance.login.save_failed', apiLocalizedText('errors.admin.appearance.login.save_failed', 'Failed to save login appearance settings'));
+                }
             }
         });
 
@@ -1507,6 +1860,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (!in_array($variant, ['cards', 'ansi', 'text'], true)) {
                     $variant = 'cards';
                 }
+                $ansiSize = (string)($bbsMenu['ansi_size'] ?? '80x25');
+                if (!in_array($ansiSize, ['80x25', '132x24', '132x43', '132x50', 'full'], true)) {
+                    $ansiSize = '80x25';
+                }
 
                 $menuItems = $bbsMenu['menu_items'] ?? [];
                 $sanitizedItems = [];
@@ -1533,6 +1890,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config['shell']['lock_shell'] = !empty($shell['lock_shell']);
                 $config['shell']['bbs_menu']['variant'] = $variant;
                 $config['shell']['bbs_menu']['ansi_file'] = basename(trim((string)($bbsMenu['ansi_file'] ?? '')));
+                $config['shell']['bbs_menu']['ansi_size'] = $ansiSize;
                 if (!empty($sanitizedItems)) {
                     $config['shell']['bbs_menu']['menu_items'] = $sanitizedItems;
                 }
@@ -1668,6 +2026,102 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.shell_art.delete.failed', apiLocalizedText('errors.admin.shell_art.delete.failed', 'Failed to delete shell art'));
+            }
+        });
+
+        SimpleRouter::get('/appearance/terminal-screens', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screens = $client->listTerminalScreens();
+                echo json_encode(['success' => true, 'screens' => $screens]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.list_failed', apiLocalizedText('errors.admin.appearance.term_server.list_failed', 'Failed to load terminal screens'));
+            }
+        });
+
+        SimpleRouter::get('/appearance/terminal-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->getTerminalScreen($key);
+                echo json_encode(['success' => true, 'screen' => $screen]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.load_failed', apiLocalizedText('errors.admin.appearance.term_server.load_failed', 'Failed to load terminal screen'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/terminal-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $content = (string)($payload['content'] ?? '');
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->saveTerminalScreen($key, $content);
+                echo json_encode([
+                    'success' => true,
+                    'screen' => $screen,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.save_failed', apiLocalizedText('errors.admin.appearance.term_server.save_failed', 'Failed to save terminal screen'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/terminal-screens/{key}/upload', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                if (empty($_FILES['file'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_server.upload.no_file', apiLocalizedText('errors.admin.appearance.term_server.upload.no_file', 'No terminal screen file uploaded'));
+                    return;
+                }
+                $file = $_FILES['file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_server.upload.failed', apiLocalizedText('errors.admin.appearance.term_server.upload.failed', 'Terminal screen upload failed'));
+                    return;
+                }
+                if ($file['size'] > 1048576) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_server.upload.file_too_large', apiLocalizedText('errors.admin.appearance.term_server.upload.file_too_large', 'Terminal screen file exceeds size limit'));
+                    return;
+                }
+
+                $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->uploadTerminalScreen($key, $contentBase64, basename((string)$file['name']));
+                echo json_encode([
+                    'success' => true,
+                    'screen' => $screen,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.upload.failed', apiLocalizedText('errors.admin.appearance.term_server.upload.failed', 'Failed to upload terminal screen'));
+            }
+        });
+
+        SimpleRouter::delete('/appearance/terminal-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteTerminalScreen($key);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_server.delete.failed', apiLocalizedText('errors.admin.appearance.term_server.delete.failed', 'Failed to delete terminal screen'));
             }
         });
 
@@ -2281,6 +2735,138 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/files/pending', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                echo json_encode([
+                    'success' => true,
+                    'files' => $manager->listPendingUploads(),
+                    'count' => $manager->countPendingUploads(),
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.file_approvals.load_failed', apiLocalizedText('errors.admin.file_approvals.load_failed', 'Failed to load pending file approvals'));
+            }
+        });
+
+        SimpleRouter::post('/files/{id}/approve', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                $manager->approveFileUpload((int)$id, (int)($user['user_id'] ?? $user['id'] ?? 0));
+                AdminActionLogger::logAction(
+                    (int)($user['user_id'] ?? $user['id'] ?? 0),
+                    'file_upload_approved',
+                    ['file_id' => (int)$id]
+                );
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.file_approvals.approved'
+                ]);
+            } catch (Exception $e) {
+                $message = $e->getMessage();
+                if ($message === 'File not found') {
+                    http_response_code(404);
+                    apiError('errors.admin.file_approvals.not_found', apiLocalizedText('errors.admin.file_approvals.not_found', 'Pending file not found'), 404);
+                    return;
+                }
+                if ($message === 'File is not awaiting approval') {
+                    http_response_code(400);
+                    apiError('errors.admin.file_approvals.not_pending', apiLocalizedText('errors.admin.file_approvals.not_pending', 'File is not awaiting approval'));
+                    return;
+                }
+
+                error_log('File approval failed: ' . $message);
+                http_response_code(500);
+                apiError('errors.admin.file_approvals.approve_failed', apiLocalizedText('errors.admin.file_approvals.approve_failed', 'Failed to approve file upload'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/files/{id}/reject', function($id) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+                $reason = trim((string)($payload['reason'] ?? ''));
+                $manager = new \BinktermPHP\FileAreaManager();
+                $manager->rejectFileUpload(
+                    (int)$id,
+                    (int)($user['user_id'] ?? $user['id'] ?? 0),
+                    $reason !== '' ? $reason : null
+                );
+
+                AdminActionLogger::logAction(
+                    (int)($user['user_id'] ?? $user['id'] ?? 0),
+                    'file_upload_rejected',
+                    ['file_id' => (int)$id, 'reason' => $reason !== '' ? $reason : null]
+                );
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.file_approvals.rejected'
+                ]);
+            } catch (Exception $e) {
+                $message = $e->getMessage();
+                if ($message === 'File not found') {
+                    http_response_code(404);
+                    apiError('errors.admin.file_approvals.not_found', apiLocalizedText('errors.admin.file_approvals.not_found', 'Pending file not found'), 404);
+                    return;
+                }
+                if ($message === 'File is not awaiting approval') {
+                    http_response_code(400);
+                    apiError('errors.admin.file_approvals.not_pending', apiLocalizedText('errors.admin.file_approvals.not_pending', 'File is not awaiting approval'));
+                    return;
+                }
+
+                error_log('File rejection failed: ' . $message);
+                http_response_code(500);
+                apiError('errors.admin.file_approvals.reject_failed', apiLocalizedText('errors.admin.file_approvals.reject_failed', 'Failed to reject file upload'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::get('/files/{id}/download', function($id) {
+            RouteHelper::requireAdmin();
+
+            try {
+                $manager = new \BinktermPHP\FileAreaManager();
+                $file = $manager->getFileById((int)$id);
+                if (!$file || ($file['source_type'] ?? '') !== 'user_upload' || !in_array(($file['status'] ?? ''), ['pending', 'rejected', 'approved'], true)) {
+                    http_response_code(404);
+                    echo 'File not found';
+                    return;
+                }
+
+                $storagePath = $manager->resolveFilePath($file);
+                if (!file_exists($storagePath)) {
+                    http_response_code(404);
+                    echo 'File not found on disk';
+                    return;
+                }
+
+                $filename = basename((string)$file['filename']);
+                $encodedFilename = rawurlencode($filename);
+
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
+                header('Content-Length: ' . filesize($storagePath));
+                header('Cache-Control: no-cache, must-revalidate');
+                header('Pragma: public');
+
+                readfile($storagePath);
+                exit;
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo 'Failed to download file';
+            }
+        })->where(['id' => '[0-9]+']);
+
         // Advertisements
         SimpleRouter::get('/ads', function() {
             $user = RouteHelper::requireAdmin();
@@ -2295,6 +2881,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 apiError('errors.admin.ads.list_failed', apiLocalizedText('errors.admin.ads.list_failed', 'Failed to load advertisements'));
             }
+        });
+
+        SimpleRouter::get('/ads/content-commands', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            echo json_encode(['commands' => \BinktermPHP\Advertising::getAvailableContentCommands()]);
         });
 
         SimpleRouter::get('/ads/{id}', function($id) {
@@ -2333,6 +2925,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 return;
             }
 
+            if ($contentCommand !== '' && !\BinktermPHP\Advertising::validateContentCommand($contentCommand)) {
+                http_response_code(400);
+                apiError('errors.admin.ads.invalid_content_command', apiLocalizedText('errors.admin.ads.invalid_content_command', 'The selected content command is not allowed'));
+                return;
+            }
+
             $content = '';
             $legacyFilename = trim((string)($_POST['legacy_filename'] ?? ''));
             $defaultTitle = 'Advertisement';
@@ -2356,14 +2954,31 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if ($legacyFilename === '') {
                     $legacyFilename = (string)($file['name'] ?? '');
                 }
-                $defaultTitle = pathinfo((string)($file['name'] ?? 'Advertisement'), PATHINFO_FILENAME);
+                $filename = (string)($file['name'] ?? 'Advertisement');
+                $defaultTitle = pathinfo($filename, PATHINFO_FILENAME);
+            }
+
+            $adFilePrefixes = ['ans' => '[ANSI]', 'rip' => '[RIP]', 'six' => '[SIXEL]', 'sixel' => '[SIXEL]'];
+            $getAdFilePrefix = static function(string $fname) use ($adFilePrefixes): string {
+                return $adFilePrefixes[strtolower(pathinfo($fname, PATHINFO_EXTENSION))] ?? '';
+            };
+
+            if ($hasFile && ($prefix = $getAdFilePrefix($filename)) !== '') {
+                $defaultTitle = $prefix . ' ' . $defaultTitle;
             }
 
             try {
                 $ads = new \BinktermPHP\Advertising();
                 $duplicates = $content !== '' ? $ads->findDuplicatesByContent($content) : [];
+                $resolvedTitle = trim((string)($_POST['title'] ?? $defaultTitle));
+                if ($hasFile) {
+                    $prefix = $getAdFilePrefix((string)($_FILES['ad_file']['name'] ?? ''));
+                    if ($prefix !== '' && !str_starts_with($resolvedTitle, $prefix)) {
+                        $resolvedTitle = $prefix . ' ' . $resolvedTitle;
+                    }
+                }
                 $created = $ads->createAd([
-                    'title' => trim((string)($_POST['title'] ?? $defaultTitle)),
+                    'title' => $resolvedTitle,
                     'slug' => trim((string)($_POST['slug'] ?? '')),
                     'description' => trim((string)($_POST['description'] ?? '')),
                     'tags' => trim((string)($_POST['tags'] ?? '')),
@@ -2375,7 +2990,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'show_on_dashboard' => !empty($_POST['show_on_dashboard']),
                     'allow_auto_post' => !empty($_POST['allow_auto_post']),
                     'dashboard_weight' => max(1, (int)($_POST['dashboard_weight'] ?? 1)),
-                    'dashboard_priority' => (int)($_POST['dashboard_priority'] ?? 0)
+                    'dashboard_priority' => (int)($_POST['dashboard_priority'] ?? 0),
+                    'click_url' => trim((string)($_POST['click_url'] ?? '')),
                 ], $userId > 0 ? $userId : null);
                 echo json_encode([
                     'success' => true,
@@ -2410,6 +3026,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     http_response_code(404);
                     apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
                     return;
+                }
+
+                if (array_key_exists('content_command', $payload)) {
+                    $cmd = trim((string)($payload['content_command'] ?? ''));
+                    if ($cmd !== '' && !\BinktermPHP\Advertising::validateContentCommand($cmd)) {
+                        http_response_code(400);
+                        apiError('errors.admin.ads.invalid_content_command', apiLocalizedText('errors.admin.ads.invalid_content_command', 'The selected content command is not allowed'), 400);
+                        return;
+                    }
                 }
 
                 $duplicates = [];
@@ -2494,7 +3119,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $ads = new \BinktermPHP\Advertising();
-                $users = $db->query("SELECT id, username, real_name FROM users ORDER BY LOWER(username)")->fetchAll(PDO::FETCH_ASSOC);
+                $users = $db->query("SELECT id, username, real_name, is_system FROM users ORDER BY is_system DESC, LOWER(username)")->fetchAll(PDO::FETCH_ASSOC);
                 $echoareas = $db->query("SELECT id, tag, domain, is_local FROM echoareas WHERE is_active = TRUE ORDER BY LOWER(tag), LOWER(domain)")->fetchAll(PDO::FETCH_ASSOC);
 
                 echo json_encode([
@@ -3006,6 +3631,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'status' => $_GET['status'] ?? null,
                 'remote_address' => $_GET['remote_address'] ?? null,
                 'is_inbound' => $_GET['is_inbound'] ?? null,
+                'process_id' => $_GET['process_id'] ?? null,
             ];
             $limit = intval($_GET['limit'] ?? 50);
             $sessions = $adminController->getBinkpSessions($filters, $limit);
@@ -3024,6 +3650,41 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $period = $_GET['period'] ?? 'day';
             $stats = $adminController->getBinkpSessionStats($period);
             echo json_encode($stats);
+        });
+
+        SimpleRouter::get('/binkp-sessions/{id}/logs', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $session = $adminController->getBinkpSession((int)$id);
+            if (!$session) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Session not found']);
+                return;
+            }
+
+            $processId = (int)($session['process_id'] ?? 0);
+            if ($processId <= 0) {
+                echo json_encode([
+                    'success' => true,
+                    'session' => $session,
+                    'logs' => ['lines' => [], 'line_count' => 0],
+                ]);
+                return;
+            }
+
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+            $logs = $controller->getLogsForPid($processId, !empty($session['log_file']) ? (string)$session['log_file'] : null);
+            echo json_encode([
+                'success' => true,
+                'session' => $session,
+                'logs' => $logs,
+            ], JSON_INVALID_UTF8_SUBSTITUTE);
         });
 
         // ========================================
@@ -3518,6 +4179,123 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         echo json_encode($stats);
     });
 
+    // Ad analytics API (license required)
+    SimpleRouter::get('/api/ad-analytics', function() {
+        RouteHelper::requireAdmin();
+
+        if (!\BinktermPHP\License::isValid()) {
+            http_response_code(403);
+            apiError('errors.admin.ad_analytics.license_required', apiLocalizedText('errors.admin.ad_analytics.license_required', 'License required'));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db     = \BinktermPHP\Database::getInstance()->getPdo();
+        $period = $_GET['period'] ?? '30d';
+
+        switch ($period) {
+            case '7d':  $interval = "7 days";  break;
+            case '90d': $interval = "90 days"; break;
+            case 'all': $interval = null;       break;
+            default:    $interval = "30 days";  break;
+        }
+
+        $dateFilterImp = $interval ? "AND ai.shown_at    >= NOW() - INTERVAL '{$interval}'" : '';
+        $dateFilterClk = $interval ? "AND ac.clicked_at  >= NOW() - INTERVAL '{$interval}'" : '';
+        $dateFilterDay = $interval ? "WHERE ts >= NOW() - INTERVAL '{$interval}'" : '';
+
+        try {
+            // Summary totals
+            $totals = $db->query("
+                SELECT
+                    (SELECT COUNT(*) FROM advertisement_impressions " . ($interval ? "WHERE shown_at   >= NOW() - INTERVAL '{$interval}'" : '') . ") AS total_impressions,
+                    (SELECT COUNT(*) FROM advertisement_clicks       " . ($interval ? "WHERE clicked_at >= NOW() - INTERVAL '{$interval}'" : '') . ") AS total_clicks,
+                    (SELECT COUNT(*) FROM advertisements WHERE is_active = TRUE) AS active_ads,
+                    (SELECT COUNT(*) FROM advertisements) AS total_ads
+            ")->fetch(\PDO::FETCH_ASSOC);
+
+            // Per-ad stats
+            $perAdStmt = $db->prepare("
+                SELECT a.id,
+                       a.title,
+                       a.slug,
+                       a.click_url,
+                       a.is_active,
+                       COUNT(DISTINCT ai.id) AS impressions,
+                       COUNT(DISTINCT ac.id) AS clicks,
+                       MAX(ai.shown_at)      AS last_impression,
+                       MAX(ac.clicked_at)    AS last_click
+                FROM advertisements a
+                LEFT JOIN advertisement_impressions ai ON ai.advertisement_id = a.id {$dateFilterImp}
+                LEFT JOIN advertisement_clicks       ac ON ac.advertisement_id = a.id {$dateFilterClk}
+                GROUP BY a.id
+                ORDER BY impressions DESC, clicks DESC, LOWER(a.title)
+            ");
+            $perAdStmt->execute();
+            $perAd = $perAdStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            foreach ($perAd as &$row) {
+                $row['id']          = (int)$row['id'];
+                $row['impressions'] = (int)$row['impressions'];
+                $row['clicks']      = (int)$row['clicks'];
+                $row['is_active']   = $row['is_active'] === 't' || $row['is_active'] === true || $row['is_active'] === '1';
+                $row['ctr']         = $row['impressions'] > 0
+                    ? round(($row['clicks'] / $row['impressions']) * 100, 1)
+                    : 0.0;
+            }
+            unset($row);
+
+            // Daily time-series (impressions + clicks per day)
+            $dailyImpStmt = $db->query("
+                SELECT DATE(shown_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
+                FROM advertisement_impressions
+                " . ($interval ? "WHERE shown_at >= NOW() - INTERVAL '{$interval}'" : '') . "
+                GROUP BY day ORDER BY day
+            ");
+            $dailyClkStmt = $db->query("
+                SELECT DATE(clicked_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
+                FROM advertisement_clicks
+                " . ($interval ? "WHERE clicked_at >= NOW() - INTERVAL '{$interval}'" : '') . "
+                GROUP BY day ORDER BY day
+            ");
+
+            $impByDay = [];
+            foreach ($dailyImpStmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
+                $impByDay[$r['day']] = (int)$r['cnt'];
+            }
+            $clkByDay = [];
+            foreach ($dailyClkStmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
+                $clkByDay[$r['day']] = (int)$r['cnt'];
+            }
+
+            $allDays = array_unique(array_merge(array_keys($impByDay), array_keys($clkByDay)));
+            sort($allDays);
+            $daily = array_map(fn($d) => [
+                'day'         => $d,
+                'impressions' => $impByDay[$d] ?? 0,
+                'clicks'      => $clkByDay[$d] ?? 0,
+            ], $allDays);
+
+            echo json_encode([
+                'summary' => [
+                    'total_impressions' => (int)$totals['total_impressions'],
+                    'total_clicks'      => (int)$totals['total_clicks'],
+                    'active_ads'        => (int)$totals['active_ads'],
+                    'total_ads'         => (int)$totals['total_ads'],
+                    'overall_ctr'       => (int)$totals['total_impressions'] > 0
+                        ? round(((int)$totals['total_clicks'] / (int)$totals['total_impressions']) * 100, 1)
+                        : 0.0,
+                ],
+                'per_ad' => $perAd,
+                'daily'  => $daily,
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.admin.ad_analytics.load_failed', apiLocalizedText('errors.admin.ad_analytics.load_failed', 'Failed to load analytics'));
+        }
+    });
+
     // Activity statistics API
     SimpleRouter::get('/api/activity-stats', function() {
         RouteHelper::requireAdmin();
@@ -3658,11 +4436,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         // Top downloaded files
         $topFilesStmt = $db->query("
-            SELECT object_name AS name, COUNT(*) AS count
+            SELECT COALESCE(f.filename, ual.object_name) AS name, COUNT(*) AS count
             FROM user_activity_log ual
+            JOIN files f ON f.id = ual.object_id
+            JOIN file_areas fa ON fa.id = f.file_area_id
             WHERE activity_type_id = 6 {$dateFilter}{$adminFilter}
-              AND object_name IS NOT NULL
-            GROUP BY object_name
+              AND COALESCE(fa.is_private, FALSE) = FALSE
+              AND COALESCE(f.filename, ual.object_name) IS NOT NULL
+            GROUP BY COALESCE(f.filename, ual.object_name)
             ORDER BY count DESC
             LIMIT 15
         ");
@@ -3674,9 +4455,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $fileAreasStmt = $db->query("
             SELECT ual.object_id AS area_id, fa.tag AS area_name, COUNT(*) AS count
             FROM user_activity_log ual
-            LEFT JOIN file_areas fa ON fa.id = ual.object_id
+            JOIN file_areas fa ON fa.id = ual.object_id
             WHERE ual.activity_type_id = 5 {$dateFilter}{$adminFilter}
               AND ual.object_id IS NOT NULL
+              AND COALESCE(fa.is_private, FALSE) = FALSE
             GROUP BY ual.object_id, fa.tag
             ORDER BY count DESC
             LIMIT 10
@@ -3753,6 +4535,30 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $hourly[] = ['hour' => $h, 'count' => $hourlyByHour[$h] ?? 0];
         }
 
+        // Popular interests by subscriber count
+        $popularInterests = [];
+        $interestsEnabled = \BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true';
+        if ($interestsEnabled) {
+            try {
+                $popularInterestsStmt = $db->query("
+                    SELECT i.name, i.icon, i.color, COUNT(uis.user_id) AS subscribers
+                    FROM interests i
+                    LEFT JOIN user_interest_subscriptions uis ON uis.interest_id = i.id
+                    WHERE i.is_active = TRUE
+                    GROUP BY i.id, i.name, i.icon, i.color
+                    ORDER BY subscribers DESC
+                    LIMIT 15
+                ");
+                $popularInterests = $popularInterestsStmt->fetchAll(\PDO::FETCH_ASSOC);
+                foreach ($popularInterests as &$row) {
+                    $row['subscribers'] = (int)$row['subscribers'];
+                }
+                unset($row);
+            } catch (\Exception $e) {
+                $popularInterests = [];
+            }
+        }
+
         // Daily activity (last 30 days always, regardless of period for the overview chart)
         $dailyAdminFilter = $excludeAdmins
             ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
@@ -3792,6 +4598,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'top_nodelist_searches' => $topNodelistSearches,
             'top_nodes'             => $topNodes,
             'top_users'             => $topUsers,
+            'popular_interests'     => $popularInterests,
             'hourly'                => $hourly,
             'daily'                 => $daily,
         ]);
@@ -3978,6 +4785,54 @@ SimpleRouter::get('/admin/weather-config', function() {
     $template->renderResponse('admin/weather_config.twig');
 });
 
+if (!function_exists('buildWeatherConfigFromRequestBody')) {
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    function buildWeatherConfigFromRequestBody($body): array
+    {
+        if (!is_array($body)) {
+            return [null, 'invalid_json'];
+        }
+
+        $title = trim((string)($body['title'] ?? ''));
+        $coverageArea = trim((string)($body['coverage_area'] ?? ''));
+        $apiKey = trim((string)($body['api_key'] ?? ''));
+        $locations = $body['locations'] ?? [];
+        $settings = $body['settings'] ?? [];
+
+        if ($title === '') {
+            return [null, 'errors.admin.weather.title_required'];
+        }
+        if ($apiKey === '') {
+            return [null, 'errors.admin.weather.api_key_required'];
+        }
+        if (!is_array($locations) || count($locations) === 0) {
+            return [null, 'errors.admin.weather.locations_required'];
+        }
+
+        return [[
+            'title' => $title,
+            'coverage_area' => $coverageArea,
+            'api_key' => $apiKey,
+            'locations' => array_values(array_map(function($loc) {
+                return [
+                    'name' => trim((string)($loc['name'] ?? '')),
+                    'lat' => (float)($loc['lat'] ?? 0),
+                    'lon' => (float)($loc['lon'] ?? 0),
+                ];
+            }, $locations)),
+            'settings' => [
+                'api_timeout' => max(1, (int)($settings['api_timeout'] ?? 10)),
+                'max_locations' => max(1, (int)($settings['max_locations'] ?? 10)),
+                'units' => in_array($settings['units'] ?? '', ['metric', 'imperial', 'standard'], true)
+                    ? $settings['units']
+                    : 'metric',
+            ],
+        ], null];
+    }
+}
+
 // GET current weather config
 SimpleRouter::get('/admin/api/weather-config', function() {
     RouteHelper::requireAdmin();
@@ -3993,60 +4848,68 @@ SimpleRouter::get('/admin/api/weather-config', function() {
     }
 });
 
+// POST weather config preview
+SimpleRouter::post('/admin/api/weather-config/preview', function() {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    [$config, $error] = buildWeatherConfigFromRequestBody(json_decode(file_get_contents('php://input'), true));
+    if ($config === null) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $error]);
+        return;
+    }
+
+    ob_start();
+    require_once __DIR__ . '/../scripts/weather_report.php';
+    ob_end_clean();
+
+    $tmpPath = tempnam(sys_get_temp_dir(), 'binkweather_');
+    if ($tmpPath === false) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.preview_failed']);
+        return;
+    }
+
+    try {
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false || file_put_contents($tmpPath, $json) === false) {
+            throw new \RuntimeException('Failed to write temporary weather configuration');
+        }
+
+        $generator = new \WeatherReportGenerator($tmpPath);
+        $report = $generator->generateReport(false);
+        if (strpos($report, 'ERROR:') === 0) {
+            throw new \RuntimeException(trim($report));
+        }
+
+        echo json_encode([
+            'success' => true,
+            'report' => $report,
+        ]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'errors.admin.weather.preview_failed',
+            'message' => $e->getMessage(),
+        ]);
+    } finally {
+        @unlink($tmpPath);
+    }
+});
+
 // POST save weather config
 SimpleRouter::post('/admin/api/weather-config', function() {
     $user = RouteHelper::requireAdmin();
     header('Content-Type: application/json');
 
-    $body = json_decode(file_get_contents('php://input'), true);
-    if (!is_array($body)) {
+    [$config, $error] = buildWeatherConfigFromRequestBody(json_decode(file_get_contents('php://input'), true));
+    if ($config === null) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        echo json_encode(['success' => false, 'error' => $error]);
         return;
     }
-
-    // Validate required fields
-    $title        = trim((string)($body['title'] ?? ''));
-    $coverageArea = trim((string)($body['coverage_area'] ?? ''));
-    $apiKey       = trim((string)($body['api_key'] ?? ''));
-    $locations    = $body['locations'] ?? [];
-    $settings     = $body['settings'] ?? [];
-
-    if ($title === '') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.title_required']);
-        return;
-    }
-    if ($apiKey === '') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.api_key_required']);
-        return;
-    }
-    if (!is_array($locations) || count($locations) === 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'errors.admin.weather.locations_required']);
-        return;
-    }
-
-    $config = [
-        'title'         => $title,
-        'coverage_area' => $coverageArea,
-        'api_key'       => $apiKey,
-        'locations'     => array_values(array_map(function($loc) {
-            return [
-                'name' => trim((string)($loc['name'] ?? '')),
-                'lat'  => (float)($loc['lat'] ?? 0),
-                'lon'  => (float)($loc['lon'] ?? 0),
-            ];
-        }, $locations)),
-        'settings'      => [
-            'api_timeout'   => max(1, (int)($settings['api_timeout'] ?? 10)),
-            'max_locations' => max(1, (int)($settings['max_locations'] ?? 10)),
-            'units'         => in_array($settings['units'] ?? '', ['metric', 'imperial', 'standard'], true)
-                                ? $settings['units']
-                                : 'metric',
-        ],
-    ];
 
     $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
     try {
@@ -5828,4 +6691,633 @@ SimpleRouter::get('/admin/api/zip-diag', function() {
     echo json_encode($result, JSON_PRETTY_PRINT);
 });
 
+// ---------------------------------------------------------------------------
+// Interests admin page
+// ---------------------------------------------------------------------------
+
+SimpleRouter::group(['prefix' => '/admin'], function() {
+
+    SimpleRouter::get('/interests', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $template = new Template();
+        $template->renderResponse('admin/interests.twig', [
+            'ai_available' => !empty(\BinktermPHP\AI\AiService::create()->getConfiguredProviders()),
+        ]);
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Interests admin API
+// ---------------------------------------------------------------------------
+
+SimpleRouter::group(['prefix' => '/api/admin'], function() {
+
+    /** List all interests (including inactive). */
+    SimpleRouter::get('/interests', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $manager = new \BinktermPHP\InterestManager();
+        echo json_encode($manager->getInterests(false));
+    });
+
+    /** List echo areas not assigned to any interest. */
+    SimpleRouter::get('/interests/unassigned-echoareas', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->query("
+            SELECT e.id, e.tag, e.domain, e.description, e.is_active
+            FROM echoareas e
+            WHERE e.id NOT IN (SELECT echoarea_id FROM interest_echoareas)
+            ORDER BY e.tag
+        ");
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['id']        = (int)$row['id'];
+            $row['is_active'] = (bool)$row['is_active'];
+        }
+        unset($row);
+        echo json_encode(['areas' => $rows, 'count' => count($rows)]);
+    });
+
+    /** Get a single interest with its area lists. */
+    SimpleRouter::get('/interests/{id}', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        echo json_encode($interest);
+    });
+
+    /** Create a new interest. */
+    SimpleRouter::post('/interests', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        if (empty(trim((string)($data['name'] ?? '')))) {
+            apiError('errors.interests.name_required', apiLocalizedText('errors.interests.name_required', 'Interest name is required.'), 400);
+            return;
+        }
+        try {
+            $manager = new \BinktermPHP\InterestManager();
+            $id = $manager->createInterest($data);
+            http_response_code(201);
+            echo json_encode(['success' => true, 'id' => $id]);
+        } catch (\PDOException $e) {
+            if (str_contains($e->getMessage(), 'interests_name_key') || str_contains($e->getMessage(), 'unique constraint')) {
+                apiError('errors.interests.name_taken', apiLocalizedText('errors.interests.name_taken', 'An interest with that name already exists.'), 409);
+            } elseif (str_contains($e->getMessage(), 'interests_slug_key')) {
+                apiError('errors.interests.slug_taken', apiLocalizedText('errors.interests.slug_taken', 'An interest with that slug already exists.'), 409);
+            } else {
+                throw $e;
+            }
+        }
+    });
+
+    /** Update an interest's metadata. */
+    SimpleRouter::put('/interests/{id}', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $manager = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        try {
+            $manager->updateInterest((int)$id, $data);
+            echo json_encode(['success' => true]);
+        } catch (\PDOException $e) {
+            if (str_contains($e->getMessage(), 'interests_name_key')) {
+                apiError('errors.interests.name_taken', apiLocalizedText('errors.interests.name_taken', 'An interest with that name already exists.'), 409);
+            } elseif (str_contains($e->getMessage(), 'interests_slug_key')) {
+                apiError('errors.interests.slug_taken', apiLocalizedText('errors.interests.slug_taken', 'An interest with that slug already exists.'), 409);
+            } else {
+                throw $e;
+            }
+        }
+    });
+
+    /** Delete an interest. */
+    SimpleRouter::delete('/interests/{id}', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $manager = new \BinktermPHP\InterestManager();
+        if (!$manager->deleteInterest((int)$id)) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        echo json_encode(['success' => true]);
+    });
+
+    /** Set echo areas for an interest (replaces current list). */
+    SimpleRouter::post('/interests/{id}/echoareas', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $ids = array_map('intval', (array)($data['ids'] ?? []));
+        $manager = new \BinktermPHP\InterestManager();
+        if (!$manager->getInterest((int)$id)) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        $manager->setEchoareas((int)$id, $ids);
+        echo json_encode(['success' => true]);
+    });
+
+    /** Set file areas for an interest (replaces current list). */
+    SimpleRouter::post('/interests/{id}/fileareas', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $ids = array_map('intval', (array)($data['ids'] ?? []));
+        $manager = new \BinktermPHP\InterestManager();
+        if (!$manager->getInterest((int)$id)) {
+            apiError('errors.interests.not_found', apiLocalizedText('errors.interests.not_found', 'Interest not found.'), 404);
+            return;
+        }
+        $manager->setFileareas((int)$id, $ids);
+        echo json_encode(['success' => true]);
+    });
+
+    /** Echo areas not assigned to any interest. */
+    /**
+     * Generate interest suggestions via keyword heuristics and optionally AI.
+     * Does NOT create any interests — returns suggestions for admin review only.
+     */
+    SimpleRouter::post('/interests/generate', function() {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        $data        = json_decode(file_get_contents('php://input'), true) ?? [];
+        $useAi       = (bool)($data['use_ai'] ?? true);
+        $useKeywords = (bool)($data['use_keywords'] ?? true);
+        $result = (new \BinktermPHP\InterestGenerator())->generate($useAi, $useKeywords);
+        echo json_encode($result);
+    });
+
+    /** Keyword-classify a single echo area (fast, no AI). */
+    SimpleRouter::get('/interests/echoarea/{id}/classify', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        try {
+            $result = (new \BinktermPHP\InterestGenerator())->classifyOne((int)$id, false);
+            echo json_encode($result);
+        } catch (\RuntimeException $e) {
+            http_response_code(404);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    /** AI-classify a single echo area (slower, uses configured AI provider). */
+    SimpleRouter::post('/interests/echoarea/{id}/classify-ai', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        try {
+            $result = (new \BinktermPHP\InterestGenerator())->classifyOne((int)$id, true);
+            echo json_encode($result);
+        } catch (\RuntimeException $e) {
+            http_response_code(404);
+            echo json_encode(['error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    /** Add a single echo area to an interest (non-destructive). */
+    SimpleRouter::post('/interests/{id}/echoareas/add', function($id) {
+        RouteHelper::requireAdmin();
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: application/json');
+        $data       = json_decode(file_get_contents('php://input'), true) ?? [];
+        $echoareaId = (int)($data['echoarea_id'] ?? 0);
+        if (!$echoareaId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'echoarea_id required']);
+            return;
+        }
+        $manager  = new \BinktermPHP\InterestManager();
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Interest not found']);
+            return;
+        }
+        $manager->addEchoarea((int)$id, $echoareaId);
+        echo json_encode(['ok' => true]);
+    });
+
+});
+
+// ============================================================
+// AreaFix / FileFix Manager
+// ============================================================
+
+/**
+ * GET /admin/areafix
+ * AreaFix / FileFix manager admin page.
+ */
+SimpleRouter::get('/admin/areafix', function () {
+    $user = RouteHelper::requireAdmin();
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    $uplinks = $areafixManager->getConfiguredUplinks();
+
+    $template = new Template();
+    $template->renderResponse('admin/areafix.twig', [
+        'uplinks'                => $uplinks,
+        'has_configured_uplinks' => !empty($uplinks),
+    ]);
+});
+
+/**
+ * GET /api/admin/areafix/uplinks
+ * Return uplinks that have areafix or filefix passwords configured.
+ */
+SimpleRouter::get('/api/admin/areafix/uplinks', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    $uplinks = $areafixManager->getConfiguredUplinks();
+
+    echo json_encode(['success' => true, 'uplinks' => $uplinks]);
+});
+
+/**
+ * POST /api/admin/areafix/send
+ * Send AreaFix or FileFix commands to a hub uplink.
+ * Body: { uplink: string, robot: "areafix"|"filefix", commands: string[] }
+ */
+SimpleRouter::post('/api/admin/areafix/send', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.areafix.invalid_json',
+            apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? '')));
+    $commands = $body['commands'] ?? [];
+
+    if ($uplinkAddress === '') {
+        apiError(
+            'errors.admin.areafix.uplink_required',
+            apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (!in_array($robot, ['areafix', 'filefix'], true)) {
+        apiError(
+            'errors.admin.areafix.invalid_robot',
+            apiLocalizedText('errors.admin.areafix.invalid_robot', 'Robot must be "areafix" or "filefix"', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (empty($commands) || !is_array($commands)) {
+        apiError(
+            'errors.admin.areafix.commands_required',
+            apiLocalizedText('errors.admin.areafix.commands_required', 'At least one command is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    // Sanitize commands: must be non-empty strings
+    $commands = array_values(array_filter(array_map('trim', $commands), static fn ($c) => $c !== ''));
+    if (empty($commands)) {
+        apiError(
+            'errors.admin.areafix.commands_required',
+            apiLocalizedText('errors.admin.areafix.commands_required', 'At least one command is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+    try {
+        $areafixManager = new \BinktermPHP\AreaFixManager();
+        $areafixManager->sendCommand($uplinkAddress, $commands, $robot, $sysopUserId);
+    } catch (\RuntimeException $e) {
+        apiError(
+            'errors.admin.areafix.send_failed',
+            $e->getMessage(),
+            400,
+            ['success' => false]
+        );
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.areafix.send_failed',
+            apiLocalizedText('errors.admin.areafix.send_failed', 'Failed to send command', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+/**
+ * GET /api/admin/areafix/history
+ * Return AreaFix/FileFix message history for an uplink.
+ * Query params: uplink=<address>
+ */
+SimpleRouter::get('/api/admin/areafix/history', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $uplinkAddress = trim((string)($_GET['uplink'] ?? ''));
+    if ($uplinkAddress === '') {
+        apiError(
+            'errors.admin.areafix.uplink_required',
+            apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+    try {
+        $areafixManager = new \BinktermPHP\AreaFixManager();
+        $messages = $areafixManager->getHistory($uplinkAddress, $sysopUserId);
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.areafix.history_failed',
+            apiLocalizedText('errors.admin.areafix.history_failed', 'Failed to load message history', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true, 'messages' => $messages]);
+});
+
+/**
+ * POST /api/admin/areafix/sync
+ * Parse area list and sync to local echo/file area table.
+ * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool }
+ */
+SimpleRouter::post('/api/admin/areafix/sync', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError(
+            'errors.admin.areafix.invalid_json',
+            apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? '')));
+    $parsedAreas = $body['areas'] ?? [];
+    $deactivateMissing = (bool)($body['deactivate_missing'] ?? false);
+
+    if ($uplinkAddress === '') {
+        apiError(
+            'errors.admin.areafix.uplink_required',
+            apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (!in_array($robot, ['areafix', 'filefix'], true)) {
+        apiError(
+            'errors.admin.areafix.invalid_robot',
+            apiLocalizedText('errors.admin.areafix.invalid_robot', 'Robot must be "areafix" or "filefix"', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    if (!is_array($parsedAreas)) {
+        apiError(
+            'errors.admin.areafix.invalid_json',
+            apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user),
+            400,
+            ['success' => false]
+        );
+    }
+
+    // Look up domain for this uplink
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    try {
+        $areafixManager = new \BinktermPHP\AreaFixManager();
+        $summary = $areafixManager->syncSubscribedAreas(
+            $uplinkAddress,
+            $domain,
+            $parsedAreas,
+            $deactivateMissing,
+            $robot
+        );
+    } catch (\Throwable $e) {
+        apiError(
+            'errors.admin.areafix.sync_failed',
+            apiLocalizedText('errors.admin.areafix.sync_failed', 'Failed to sync areas', $user),
+            500,
+            ['success' => false]
+        );
+    }
+
+    echo json_encode(['success' => true, 'summary' => $summary]);
+});
+
+// GET /admin/api/uplinks — list configured uplink addresses for the admin terminal
+SimpleRouter::get('/admin/api/uplinks', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplinks = array_map(function ($u) {
+        return [
+            'address' => $u['address'] ?? '',
+            'host'    => $u['host'] ?? '',
+            'domain'  => $u['domain'] ?? '',
+        ];
+    }, $config->getUplinks());
+
+    echo json_encode(['success' => true, 'uplinks' => $uplinks]);
+});
+
+// POST /admin/api/poll — synchronous binkp poll for the admin terminal
+SimpleRouter::post('/admin/api/poll', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $upstream = trim((string)($input['upstream'] ?? 'all'));
+    if ($upstream === '') {
+        $upstream = 'all';
+    }
+
+    try {
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $result = $client->binkPollSync($upstream);
+        $client->close();
+        echo json_encode(['success' => true, 'result' => $result]);
+    } catch (\Throwable $e) {
+        apiError('errors.admin.poll.failed', 'Poll failed: ' . $e->getMessage(), 500);
+    }
+});
+
+// GET /admin/api/last — recent callers within the past N hours (default 168 = 1 week)
+SimpleRouter::get('/admin/api/last', function () {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $hours = isset($_GET['hours']) ? max(1, (int)$_GET['hours']) : 168;
+    $auth = new \BinktermPHP\Auth();
+    $callers = $auth->getRecentCallers($hours);
+
+    echo json_encode(['callers' => $callers, 'hours' => $hours]);
+});
+
+// POST /admin/api/wall — broadcast a wall message to all connected users
+SimpleRouter::post('/admin/api/wall', function () {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $message = trim((string)($input['message'] ?? ''));
+
+    if ($message === '') {
+        apiError('errors.admin.wall.empty_message', 'Message cannot be empty', 400);
+        return;
+    }
+
+    if (mb_strlen($message) > 1000) {
+        apiError('errors.admin.wall.message_too_long', 'Message too long (max 1000 characters)', 400);
+        return;
+    }
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    \BinktermPHP\Realtime\BinkStream::emit($db, 'wall_message', [
+        'from'    => $user['username'],
+        'message' => $message,
+    ], null, false);
+
+    echo json_encode(['success' => true]);
+});
+
+// POST /admin/api/msg — send a private message to a specific user
+SimpleRouter::post('/admin/api/msg', function () {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $targetUsername = trim((string)($input['username'] ?? ''));
+    $message = trim((string)($input['message'] ?? ''));
+
+    if ($targetUsername === '') {
+        apiError('errors.admin.msg.no_username', 'Username is required', 400);
+        return;
+    }
+
+    if ($message === '') {
+        apiError('errors.admin.msg.empty_message', 'Message cannot be empty', 400);
+        return;
+    }
+
+    if (mb_strlen($message) > 1000) {
+        apiError('errors.admin.msg.message_too_long', 'Message too long (max 1000 characters)', 400);
+        return;
+    }
+
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1");
+    $stmt->execute([$targetUsername]);
+    $target = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$target) {
+        apiError('errors.admin.msg.user_not_found', 'User not found', 404);
+        return;
+    }
+
+    \BinktermPHP\Realtime\BinkStream::emit($db, 'wall_message', [
+        'from'    => $user['username'],
+        'message' => $message,
+        'private' => true,
+    ], (int)$target['id'], false);
+
+    echo json_encode(['success' => true]);
+});
 

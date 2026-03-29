@@ -111,6 +111,11 @@ class BinkpSession
     {
         $this->logger = $logger;
     }
+
+    public function setSessionLogger($sessionLogger): void
+    {
+        $this->sessionLogger = $sessionLogger;
+    }
     
     public function setUplinkPassword($password)
     {
@@ -150,23 +155,15 @@ class BinkpSession
 
     private function formatReceivedFrameForLog(BinkpFrame $frame): string
     {
-        $data = $frame->getData();
-        $hex = bin2hex($data);
-
         if ($frame->isCommand()) {
             return sprintf(
-                'command=%d length=%d data_hex=%s',
+                'command=%d length=%d',
                 $frame->getCommand(),
-                $frame->getLength(),
-                $hex
+                $frame->getLength()
             );
         }
 
-        return sprintf(
-            'data length=%d data_hex=%s',
-            $frame->getLength(),
-            $hex
-        );
+        return sprintf('data length=%d', $frame->getLength());
     }
     
     public function handshake()
@@ -220,19 +217,20 @@ class BinkpSession
         $sysopName = $this->config->getSystemSysop();
         $location = $this->config->getSystemLocation();
 
+        // CRAM extension requires the answerer to advertise the challenge as
+        // the first M_NUL when CRAM-MD5 is available.
+        if (!$this->isOriginator && $this->hasAnyCramEnabledUplink()) {
+            $this->cramChallenge = $this->generateCramChallenge();
+            $this->sendNul("OPT CRAM-MD5-{$this->cramChallenge}");
+            $this->log("Sent CRAM-MD5 challenge", 'DEBUG');
+        }
+
         // Send M_NUL frames with system information
         $this->sendNul("SYS {$systemName}");
         $this->sendNul("ZYZ {$sysopName}");
         $this->sendNul("LOC {$location}");
         $this->sendNul("VER BinktermPHP/".Version::getVersion()." binkp/1.0");
         $this->sendNul("TIME " . gmdate('D, d M Y H:i:s') . " UTC");
-
-        // As answerer, send CRAM-MD5 challenge if any uplink has crypt enabled
-        if (!$this->isOriginator && $this->hasAnyCramEnabledUplink()) {
-            $this->cramChallenge = $this->generateCramChallenge();
-            $this->sendNul("OPT CRAM-MD5-{$this->cramChallenge}");
-            $this->log("Sent CRAM-MD5 challenge", 'DEBUG');
-        }
     }
 
     private function sendNul($data)
@@ -306,18 +304,27 @@ class BinkpSession
 
             $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
 
-            // Send any FREQ files queued for this node (runs for both originator and answerer)
-            $this->sendFreqFiles();
+            // In insecure receive-only mode, suppress all outbound file sending.
+            if ($this->isInsecureSession && $this->insecureReceiveOnly) {
+                $this->log("Insecure receive-only session — skipping all outbound file delivery", 'INFO');
+            } else {
+                // Send any FREQ files queued for this node (runs for both originator and answerer)
+                $this->sendFreqFiles();
 
-            // Deliver any hold-directory files queued for the connecting node (runs for both roles)
-            $this->sendHoldFiles();
+                // Deliver any hold-directory files queued for the connecting node (runs for both roles)
+                $this->sendHoldFiles();
+            }
 
             if ($this->isOriginator) {
                 // Send any in-memory FREQ requests as M_GET before outbound files
-                $this->sendFreqRequests();
+                if (!($this->isInsecureSession && $this->insecureReceiveOnly)) {
+                    $this->sendFreqRequests();
+                }
 
                 $this->log("As originator, checking for outbound files", 'DEBUG');
-                $this->sendFiles();
+                if (!($this->isInsecureSession && $this->insecureReceiveOnly)) {
+                    $this->sendFiles();
+                }
 
                 // Wait for M_GOT responses before sending EOB
                 if (!empty($this->filesSent)) {
@@ -631,6 +638,9 @@ class BinkpSession
                 $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
                 $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
+                if ($this->sessionLogger && !empty($this->remoteAddress)) {
+                    $this->sessionLogger->setRemoteAddress($this->remoteAddress);
+                }
 
                 if ($this->state === self::STATE_INIT) {
                     // Answerer hasn't sent ADR yet (rare path)
@@ -827,12 +837,18 @@ class BinkpSession
             $digest = $this->computeCramDigest($this->cramChallenge, $password);
             $cramPassword = "CRAM-MD5-{$digest}";
             $this->authMethod = 'cram-md5';
+            if ($this->sessionLogger) {
+                $this->sessionLogger->setAuthMethod($this->authMethod);
+            }
             $this->log("Sending CRAM-MD5 digest", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $cramPassword);
         } else {
             // Plain text password. Send '-' for empty password to explicitly
             // request an insecure/anonymous session per binkp convention.
             $this->authMethod = 'plaintext';
+            if ($this->sessionLogger) {
+                $this->sessionLogger->setAuthMethod($this->authMethod);
+            }
             $sendPwd = ($password === '') ? '-' : $password;
             $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $sendPwd);
@@ -1297,6 +1313,10 @@ class BinkpSession
 
         if ($bytesSent === $fileSize) {
             $this->filesSent[] = $wireName;
+            if ($this->sessionLogger) {
+                $this->sessionLogger->incrementStat('files_sent', 1);
+                $this->sessionLogger->incrementStat('bytes_sent', $bytesSent);
+            }
             $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
             $this->log("Packet send incomplete: {$wireName} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
@@ -1411,6 +1431,10 @@ class BinkpSession
 
                 $this->currentFile['name'] = $localName;
                 $this->filesReceived[] = $localName;
+                if ($this->sessionLogger) {
+                    $this->sessionLogger->incrementStat('files_received', 1);
+                    $this->sessionLogger->incrementStat('bytes_received', (int)$this->currentFile['received']);
+                }
                 $this->log("File received: {$localName} ({$this->currentFile['received']} bytes)", 'INFO');
 
                 // If the received file is a Bark-style .req file, process it immediately
@@ -1425,8 +1449,9 @@ class BinkpSession
                     $metadataFile = $inboundPath . '/' . $this->currentFile['name'] . '.meta';
                     $metadata = [
                         'insecure_session' => true,
-                        'remote_address' => $this->remoteAddress ?? 'unknown',
-                        'received_at' => time()
+                        'remote_address'   => $this->remoteAddress ?? 'unknown',
+                        'node_address'     => $this->remoteAddress ?? 'unknown',
+                        'received_at'      => time()
                     ];
 
                     $jsonData = json_encode($metadata, JSON_PRETTY_PRINT);
@@ -1530,6 +1555,85 @@ class BinkpSession
         return false;
     }
 
+    private function countMessagesInPacket(string $filepath): int
+    {
+        if (!is_file($filepath) || !is_readable($filepath)) {
+            return 0;
+        }
+
+        $handle = @fopen($filepath, 'rb');
+        if (!$handle) {
+            return 0;
+        }
+
+        $count = 0;
+
+        try {
+            $header = fread($handle, 58);
+            if ($header === false || strlen($header) < 58) {
+                return 0;
+            }
+
+            while (!feof($handle) && $count < 1000) {
+                $msgType = fread($handle, 2);
+                if ($msgType === false || strlen($msgType) < 2) {
+                    break;
+                }
+
+                $typeData = unpack('vtype', $msgType);
+                $type = (int)($typeData['type'] ?? 0);
+
+                if ($type === 0) {
+                    break;
+                }
+
+                if ($type !== 2) {
+                    break;
+                }
+
+                $count++;
+
+                $msgHeader = fread($handle, 14);
+                if ($msgHeader === false || strlen($msgHeader) < 14) {
+                    break;
+                }
+
+                if (
+                    !$this->skipNullTerminatedField($handle, 20) ||
+                    !$this->skipNullTerminatedField($handle, 36) ||
+                    !$this->skipNullTerminatedField($handle, 36) ||
+                    !$this->skipNullTerminatedField($handle, 72) ||
+                    !$this->skipNullTerminatedField($handle, 64000)
+                ) {
+                    break;
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return $count;
+    }
+
+    private function skipNullTerminatedField($handle, int $maxBytes): bool
+    {
+        $bytesRead = 0;
+
+        while (!feof($handle) && $bytesRead < $maxBytes) {
+            $char = fread($handle, 1);
+            if ($char === false || $char === '') {
+                return false;
+            }
+
+            $bytesRead++;
+            if (ord($char) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Parse and serve a Bark-style .req file received from the remote node.
      *
@@ -1590,6 +1694,11 @@ class BinkpSession
     private function handleGetCommand($data)
     {
         $this->log("Remote FREQ request: {$data}", 'DEBUG');
+
+        if ($this->isInsecureSession && $this->insecureReceiveOnly) {
+            $this->log("FREQ request ignored — insecure receive-only session", 'INFO');
+            return;
+        }
 
         // Parse M_GET format per FSP-1011 / binkd:
         //   <filename> <size> <time> <offset> [<password>]
@@ -1673,6 +1782,10 @@ class BinkpSession
 
                 $this->authMethod = 'cram-md5';
                 $this->sessionType = 'secure';
+                if ($this->sessionLogger) {
+                    $this->sessionLogger->setAuthMethod($this->authMethod);
+                    $this->sessionLogger->setSessionType($this->sessionType);
+                }
                 return true;
             }
 
@@ -1718,6 +1831,10 @@ class BinkpSession
         if ($match) {
             $this->authMethod = 'plaintext';
             $this->sessionType = 'secure';
+            if ($this->sessionLogger) {
+                $this->sessionLogger->setAuthMethod($this->authMethod);
+                $this->sessionLogger->setSessionType($this->sessionType);
+            }
         }
 
         return $match;
@@ -1753,6 +1870,9 @@ class BinkpSession
         $this->isInsecureSession = true;
         $this->insecureReceiveOnly = $this->config->getInsecureReceiveOnly();
         $this->sessionType = 'insecure';
+        if ($this->sessionLogger) {
+            $this->sessionLogger->setSessionType($this->sessionType);
+        }
         $this->log("Insecure session accepted for {$this->remoteAddress}", 'INFO');
         return true;
     }

@@ -90,7 +90,6 @@
                         </label>
                     </div>
                     <input type="text" class="form-control mb-2" id="areaSearch" placeholder="{{ t('ui.echolist.area_filter_placeholder') }}" onkeyup="searchEchoAreas(this.value)">
-                    <small class="text-muted d-block mt-1 mb-3">{{ t('ui.echolist.area_filter_help') }}</small>
                     <div class="dropdown" id="networkPickerWrap">
                         <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
                                 type="button" id="networkPickerBtn"
@@ -101,6 +100,18 @@
                             <li><span class="dropdown-item-text text-muted small" id="networkDropdownEmpty">{{ t('ui.echolist.loading') }}</span></li>
                         </ul>
                     </div>
+                    {% if interests_enabled %}
+                    <div class="dropdown mt-2" id="interestPickerWrap">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
+                                type="button" id="interestPickerBtn"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <span id="interestPickerLabel">{{ t('ui.echolist.all_interests') }}</span>
+                        </button>
+                        <ul class="dropdown-menu p-2" id="interestDropdown" style="min-width:220px;max-height:260px;overflow-y:auto;">
+                            <li><span class="dropdown-item-text text-muted small">{{ t('ui.echolist.loading') }}</span></li>
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -185,6 +196,7 @@ function saveEcholistPreferences() {
 $(document).ready(function() {
     // Load saved preferences from database
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadInterestFilter();
         $.get('/api/user/echolist-preference')
             .done(function(data) {
                 if (data.subscribed_only) $('#subscribedOnlyCheck').prop('checked', true);
@@ -205,6 +217,59 @@ $(document).ready(function() {
     }, 120000);
 });
 
+let allInterests = [];
+
+function loadInterestFilter() {
+    if (!document.getElementById('interestDropdown')) return;
+    $.get('/api/interests')
+        .done(function(data) {
+            allInterests = data.interests || [];
+            populateInterestFilter();
+        });
+}
+
+function populateInterestFilter() {
+    const ul = $('#interestDropdown');
+    const prevChecked = new Set(
+        $('#interestDropdown .interest-cb:checked').map(function() { return this.value; }).get()
+    );
+
+    ul.empty();
+
+    const subscribedOnly = $('#subscribedOnlyCheck').is(':checked');
+    const interests = subscribedOnly ? allInterests.filter(i => i.subscribed) : allInterests;
+
+    if (!interests.length) {
+        ul.append('<li><span class="dropdown-item-text text-muted small">' + uiT('ui.interests.no_interests', 'No interests defined') + '</span></li>');
+        return;
+    }
+
+    interests.forEach(interest => {
+        const checked = prevChecked.has(String(interest.id)) ? ' checked' : '';
+        const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(interest.color || '#6c757d')};flex-shrink:0"></span>`;
+        ul.append($(`<li><label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">
+            <input type="checkbox" class="form-check-input interest-cb flex-shrink-0" value="${escapeHtml(String(interest.id))}"${checked}>
+            ${dot}
+            <span class="small">${escapeHtml(interest.name)}</span>
+        </label></li>`));
+    });
+
+    ul.find('.interest-cb').on('change', function() {
+        updateInterestPickerLabel();
+        searchEchoAreas($('#areaSearch').val());
+    });
+
+    updateInterestPickerLabel();
+}
+
+function updateInterestPickerLabel() {
+    const allLabel = uiT('ui.echolist.all_interests', 'All Interests');
+    const checked = $('#interestDropdown .interest-cb:checked').map(function() {
+        return $(this).closest('label').find('span.small').text().trim();
+    }).get();
+    $('#interestPickerLabel').text(checked.length > 0 ? checked.join(', ') : allLabel);
+}
+
 function loadEchoAreas() {
     const subscribedOnly = $('#subscribedOnlyCheck').is(':checked');
     const url = '/api/echoareas?subscribed_only=' + subscribedOnly;
@@ -213,6 +278,7 @@ function loadEchoAreas() {
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
             populateNetworkFilter();
+            if (document.getElementById('interestDropdown')) populateInterestFilter();
             searchEchoAreas(searchQuery);
             const networks = new Set();
             allEchoAreas.forEach(f => {
@@ -428,6 +494,15 @@ function searchEchoAreas(query) {
         filtered = filtered.filter(f => {
             if (f.is_local) return selectedNets.has('__local__');
             return selectedNets.has(f.domain || uiT('ui.echolist.unknown', 'Unknown'));
+        });
+    }
+
+    // Apply interest filter
+    const selectedInterests = new Set($('#interestDropdown .interest-cb:checked').map(function() { return this.value; }).get());
+    if (selectedInterests.size > 0) {
+        filtered = filtered.filter(f => {
+            const ids = (f.interest_ids || []).map(String);
+            return ids.some(id => selectedInterests.has(id));
         });
     }
 

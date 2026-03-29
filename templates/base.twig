@@ -34,7 +34,11 @@
             color: #ffc107 !important;
         }
         .file-menu-icon.unread,
+        .file-menu-parent-link.unread,
         .file-menu-link.unread {
+            color: #ffc107 !important;
+        }
+        .file-approvals-menu-link.unread {
             color: #ffc107 !important;
         }
 
@@ -77,11 +81,27 @@
         window.appLocale = {{ locale|json_encode|raw }};
         window.appDefaultLocale = {{ default_locale|json_encode|raw }};
         window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
-        window.siteConfig = { ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }} };
+        window.siteConfig = {
+            ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }},
+            sseTransportMode: {{ effective_sse_transport_mode|json_encode|raw }},
+            configuredRealtimeTransportMode: {{ configured_realtime_transport_mode|json_encode|raw }},
+            realtimeTransportMode: {{ effective_realtime_transport_mode|json_encode|raw }},
+            realtimeWsUrl: {{ realtime_ws_url|json_encode|raw }}
+        };
     </script>
+    <script src="/js/user-storage.js"></script>
     <script src="/js/app.js"></script>
-    {% if current_user and bbs_feature_enabled('chat') %}
-    <script src="/js/chat-notify.js"></script>
+    {% if current_user %}
+    <script src="/js/binkstream-client.js"></script>
+    {% endif %}
+    {% if current_user %}
+    <script src="/js/notifier.js"></script>
+    {% endif %}
+    {% if current_user.is_admin and admin_terminal_enabled %}
+    <script src="/js/xterm.js"></script>
+    <script src="/js/xterm-addon-fit.js"></script>
+    <link href="/css/xterm.css" rel="stylesheet">
+    <script src="/js/admin-terminal.js" defer></script>
     {% endif %}
     {# Include custom header insertions if available #}
     {% include 'custom/header.insert.twig' ignore missing %}
@@ -181,11 +201,23 @@
                         {% endif %}
 
                         {% if bbs_feature_enabled('file_areas') and current_user %}
+                        {% if current_user.is_admin %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle file-menu-parent-link" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item file-menu-link" href="/files"><i class="fas fa-file me-1"></i> {{ t('ui.base.files', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item file-approvals-menu-link" href="/admin/file-approvals"><i class="fas fa-check-circle me-1"></i> {{ t('ui.base.file_approvals', {}, 'common') }}</a></li>
+                            </ul>
+                        </li>
+                        {% else %}
                         <li class="nav-item">
                             <a class="nav-link file-menu-link" href="/files">
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                         </li>
+                        {% endif %}
                         {% endif %}
 
                         {% if bbs_directory_enabled %}
@@ -226,13 +258,19 @@
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> {{ t('ui.base.admin.area_management', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> {{ t('ui.base.admin.echo_areas', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
+                                        {% if interests_enabled %}
+                                        <li><a class="dropdown-item" href="/admin/interests"><i class="fas fa-layer-group"></i> {{ t('ui.base.admin.interests', {}, 'common') }}</a></li>
+                                        {% endif %}
+                                        <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/echomail-robots"><i class="fas fa-robot"></i> {{ t('ui.base.admin.echomail_robots', {}, 'common') }}</a></li>
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/file-approvals"><i class="fas fa-user-check"></i> {{ t('ui.base.admin.file_approvals', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" href="/admin/lovlynet"><i class="fas fa-globe"></i> {{ t('ui.base.admin.lovlynet', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/areafix"><i class="fas fa-network-wired me-1"></i> {{ t('ui.base.admin.areafix', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
                                 <li class="dropdown-submenu">
@@ -265,6 +303,8 @@
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-chart-line"></i> {{ t('ui.base.admin.analytics', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> {{ t('ui.base.admin.activity_stats', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/ai-usage"><i class="fas fa-robot"></i> {{ t('ui.base.admin.ai_usage', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item{% if not license_valid %} dropdown-item-locked{% endif %}" href="{{ license_valid ? '/admin/ad-analytics' : '#' }}"{% if not license_valid %} title="{{ t('ui.base.admin.registered_feature', {}, 'common') }}" onclick="return false;"{% endif %}><i class="fas fa-ad"></i> {{ t('ui.base.admin.ad_analytics', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
                                         <li><a class="dropdown-item" href="/admin/sharing"><i class="fas fa-share-alt"></i> {{ t('ui.base.admin.sharing', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item{% if not license_valid %} dropdown-item-locked{% endif %}" href="{{ license_valid ? '/admin/economy' : '#' }}"{% if not license_valid %} title="{{ t('ui.base.admin.registered_feature', {}, 'common') }}" onclick="return false;"{% endif %}><i class="fas fa-coins"></i> {{ t('ui.base.admin.economy_viewer', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
                                         <li><a class="dropdown-item{% if not license_valid %} dropdown-item-locked{% endif %}" href="{{ license_valid ? '/admin/referrals' : '#' }}"{% if not license_valid %} title="{{ t('ui.base.admin.registered_feature', {}, 'common') }}" onclick="return false;"{% endif %}><i class="fas fa-user-plus"></i> {{ t('ui.base.admin.referrals', {}, 'common') }}{% if not license_valid %} <i class="fas fa-lock ms-1 small"></i>{% endif %}</a></li>
@@ -273,19 +313,20 @@
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> {{ t('ui.base.admin.bbs_settings', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/admin/appearance"><i class="fas fa-palette"></i> {{ t('ui.base.admin.appearance', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> {{ t('ui.base.admin.binkp_configuration', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> {{ t('ui.base.admin.template_editor', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/i18n-overrides"><i class="fas fa-language"></i> {{ t('ui.base.admin.i18n_overrides', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/licensing"><i class="fas fa-id-card"></i> {{ t('ui.base.admin.licensing', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> {{ t('ui.base.admin.template_editor', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> {{ t('ui.base.admin.help', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> {{ t('ui.base.admin.readme', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/docs/view/README"><i class="fas fa-book"></i> {{ t('ui.base.admin.readme', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/docs"><i class="fas fa-book-open"></i> {{ t('ui.base.admin.docs', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> {{ t('ui.base.admin.faq', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/docs/view/FAQ"><i class="fas fa-question-circle"></i> {{ t('ui.base.admin.faq', {}, 'common') }}</a></li>
                                         {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> {{ t('ui.base.admin.upgrade_notes', {'version': app_version}, 'common') }}</a></li>{% endif %}
                                         <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> {{ t('ui.base.admin.claudes_bbs', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> {{ t('ui.base.admin.report_issue', {}, 'common') }}</a></li>
@@ -293,6 +334,14 @@
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item text-primary" href="/admin/register"><i class="fas fa-id-card me-1"></i> {{ t('ui.base.admin.register', {}, 'common') }}</a></li>
                                         {% endif %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li class="dropdown-submenu">
+                                            <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-code"></i> Developer</a>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="/admin/sse-test"><i class="fas fa-satellite-dish"></i> BinkStream Test</a></li>
+                                                <li><a class="dropdown-item" href="/admin/buffer-test"><i class="fas fa-filter"></i> Buffer Test</a></li>
+                                            </ul>
+                                        </li>
                                     </ul>
                                 </li>
 
@@ -348,6 +397,9 @@
                                 <li><a class="dropdown-item" href="/profile">{{ t('ui.base.profile', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/settings">{{ t('ui.base.settings', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.subscriptions', {}, 'common') }}</a></li>
+                                {% if interests_enabled and has_active_interests %}
+                                <li><a class="dropdown-item" href="/interests"><i class="fas fa-layer-group"></i> {{ t('ui.interests.nav_label', {}, 'common') }}</a></li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="logout()">{{ t('ui.base.logout', {}, 'common') }}</a></li>
                             </ul>
@@ -417,6 +469,7 @@
         window.currentUserId = {{ current_user.user_id ?? current_user.id }};
         window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
         {% endif %}
+        window.isDevMode = {{ is_dev ? 'true' : 'false' }};
 
         // Handle nested dropdown submenus
         $(document).ready(function() {
@@ -465,26 +518,30 @@
     </script>
     <script>
         if ('serviceWorker' in navigator) {
-            let updateNotified = false;
-
-            function showUpdateToast() {
-                if (updateNotified) return;
-                updateNotified = true;
-                const toastEl = document.getElementById('updateToast');
-                if (toastEl && window.bootstrap) {
-                    bootstrap.Toast.getOrCreateInstance(toastEl).show();
-                }
-            }
-
+            // Reload/update toast intentionally disabled.
+            // The service worker still updates and claims clients normally, but
+            // we no longer interrupt users with a reload prompt.
+            //
+            // let updateNotified = false;
+            //
+            // function showUpdateToast() {
+            //     if (updateNotified) return;
+            //     updateNotified = true;
+            //     const toastEl = document.getElementById('updateToast');
+            //     if (toastEl && window.bootstrap) {
+            //         bootstrap.Toast.getOrCreateInstance(toastEl).show();
+            //     }
+            // }
+            //
             // Path 1: SW sends UPDATE_AVAILABLE after activate + clients.claim().
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-                    showUpdateToast();
-                }
-            });
+            // navigator.serviceWorker.addEventListener('message', (event) => {
+            //     if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+            //         showUpdateToast();
+            //     }
+            // });
 
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
                     .then(registration => {
                         // Path 1 (postMessage from SW) is the only notification mechanism.
                         // Path 2 (watchWorker statechange) was removed: it fired on every

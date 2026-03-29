@@ -6,6 +6,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 
 - [Message Posting Tool](#message-posting-tool)
 - [Weather Report Generator](#weather-report-generator)
+- [New Files Report](#new-files-report)
 - [Activity Digest Generator](#activity-digest-generator)
 - [Activity Report Sender](#activity-report-sender)
 - [Echomail Maintenance Utility](#echomail-maintenance-utility)
@@ -32,6 +33,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Restart Daemons](#restart-daemons)
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
+- [Fix Date Received](#fix-date-received)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -73,6 +75,38 @@ php scripts/weather_report.php --config=/path/to/custom/weather.json
 ```
 
 The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [docs/Weather.md](Weather.md) for detailed setup instructions and configuration examples.
+
+## New Files Report
+Generate a report of recently uploaded or hatched files:
+
+```bash
+# Default: last 7 days of approved non-private file uploads and hatches
+php scripts/report_newfiles.php
+
+# Custom relative period
+php scripts/report_newfiles.php --since=14d
+
+# Explicit date window
+php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
+
+# Only include file areas marked public
+php scripts/report_newfiles.php --public
+
+# Only include file areas from one domain
+php scripts/report_newfiles.php --domain=lovlynet
+
+# Combine public-only and domain filtering
+php scripts/report_newfiles.php --public --domain=lovlynet
+```
+
+Options:
+- `--since=PERIOD` - Relative time window such as `12h`, `7d`, `2w`, `1mo`
+- `--days=N` - Shortcut for `--since=Nd`
+- `--from=YYYY-MM-DD` - Start date
+- `--to=YYYY-MM-DD` - End date (defaults to now when used with `--from`)
+- `--public` - Only report files from file areas where `is_public = true`
+- `--domain=NAME` - Only report files from file areas in the specified domain
+- `--help` - Show usage
 
 ## Activity Digest Generator
 Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:
@@ -805,6 +839,61 @@ Example output:
 
 Services that are not running are shown with `-` rather than an error. The script reads `/proc/<pid>/status` directly for accurate RSS values.
 
+## Binktop
+
+Shows a live, terminal-sized dashboard similar to `top` for a BinktermPHP host. The screen is refreshed on a timer and is laid out to fit the current terminal window.
+
+The dashboard includes:
+
+- a compact three-line system header
+- current users from `user_sessions`
+- daemon status in a dense two-column layout with colorized running/stopped state
+- per-daemon RSS plus a daemon total RSS line
+- active door sessions
+- queue and PostgreSQL totals folded into the header summary
+
+Header notes:
+
+- `users:N` is the total number of online identities shown in the user list
+- `sess:U/G` means `logged-in users / guest users`
+- `pg:T (Aa/Ii)` means `T` total PostgreSQL connections, `A` active, `I` idle
+
+Additional daemon/process rows are included for common host services when detected:
+
+- `postgres`
+- `httpd`
+- `apache2`
+- `php-fpm`
+- `php-fpm:*` for versioned `php-fpm:` worker processes
+
+```bash
+# Live dashboard (refreshes every 2 seconds by default)
+php scripts/binktop.php
+
+# Refresh every second
+php scripts/binktop.php --interval=1
+
+# Show a single snapshot and exit
+php scripts/binktop.php --once
+
+# Use a longer online-user window
+php scripts/binktop.php --minutes=30
+
+# JSON output for monitoring or jq
+php scripts/binktop.php --json
+```
+
+Options:
+- `--interval=N` — Refresh interval in seconds for the live dashboard (default: `2`)
+- `--minutes=N` — Consider users online if active within the last N minutes (default: `15`)
+- `--once` — Render one screen and exit instead of continuously refreshing
+- `--json` — Return a machine-readable snapshot instead of the live dashboard
+- `--help` — Show usage
+
+On Linux and other `/proc`-based systems, `binktop.php` also shows load average and system RAM totals. On Windows, those fields degrade gracefully when equivalent metrics are not available.
+
+RAM and disk usage in the header are shown in compact `used / total UNIT` form to conserve screen width, for example `ram: 1.4 / 3.8 GB`.
+
 ## Who
 
 Shows currently active users — those who have been active within the last N minutes.
@@ -816,6 +905,49 @@ php scripts/who.php
 # Custom time window
 php scripts/who.php --minutes=30
 ```
+
+## Fix Date Received
+
+Sets `date_received = date_written` for echomail messages in one or more echo areas. Useful after a `%RESCAN` import where all messages land with the same `date_received` (the import timestamp) instead of their original send date, which causes the entire rescan to appear as a single burst of new messages.
+
+Only rows where `date_written` is non-NULL and not in the future are updated. Rows that already have matching values are skipped.
+
+```bash
+# Fix a single area by numeric id
+php scripts/fix_date_received.php 42
+
+# Fix multiple areas by id
+php scripts/fix_date_received.php 42 43 57
+
+# Fix all areas in a domain
+php scripts/fix_date_received.php --domain fidonet
+
+# Fix areas across multiple domains
+php scripts/fix_date_received.php --domain fidonet araknet
+
+# Fix by tag across all domains (use when the tag is unique)
+php scripts/fix_date_received.php --tag FIDONEWS
+
+# Fix multiple tags
+php scripts/fix_date_received.php --tag FIDONEWS COOKING SPORTS
+
+# Fix a specific tag in a specific domain (when the same tag exists in multiple domains)
+php scripts/fix_date_received.php --tag GENERAL --domain fidonet
+
+# Fix every echo area on the system
+php scripts/fix_date_received.php --all
+
+# Preview changes without writing (combine with any selector)
+php scripts/fix_date_received.php --dry-run --domain fidonet
+php scripts/fix_date_received.php --dry-run --tag GENERAL --domain fidonet
+```
+
+Options:
+- `--domain <name>` — Filter by domain (repeatable). Applied alone, selects all areas in that domain.
+- `--tag <tag>` — Filter by tag (repeatable). Applied alone, selects that tag across all domains.
+- `--domain` and `--tag` combined — selects only areas matching both filters (intersection).
+- `--all` — Apply to every echo area on the system.
+- `--dry-run` — Show how many rows would be updated without making any changes.
 
 ## Admin Client
 

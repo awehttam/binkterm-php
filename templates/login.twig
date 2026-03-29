@@ -2,11 +2,152 @@
 
 {% block title %}{{ t('ui.login.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+{% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+<style>
+.login-ansi-shell {
+    background: #050505;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    box-shadow: 0 1rem 2rem rgba(0,0,0,0.35);
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    --login-ansi-cols: 80;
+    --login-ansi-rows: 25;
+    --login-ansi-min-font-size: 6px;
+    --login-ansi-max-font-size: 16px;
+    --login-ansi-mobile-font-size: 8px;
+    --login-ansi-font-size: min(
+        var(--login-ansi-max-font-size),
+        calc((100vw - 4rem) / var(--login-ansi-cols)),
+        calc((100dvh - 18rem) / var(--login-ansi-rows))
+    );
+}
+.login-ansi-shell .ansi-art-container {
+    margin: 0;
+    border-radius: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding: 12px;
+    overflow: hidden;
+}
+.login-ansi-shell .ansi-art-container pre,
+.login-ansi-shell .ansi-art {
+    display: inline-block;
+    font-size: max(var(--login-ansi-min-font-size), var(--login-ansi-font-size)) !important;
+    line-height: max(var(--login-ansi-min-font-size), var(--login-ansi-font-size)) !important;
+}
+.login-ansi-prompt {
+    background: #050505;
+    color: #d8d8d8;
+    font-family: 'Perfect DOS VGA 437', Consolas, monospace;
+    font-size: clamp(13px, calc(var(--login-ansi-font-size) * 1.05), 20px);
+    padding: clamp(0.85rem, 1.5vw, 1.25rem);
+}
+.login-ansi-line {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+.login-ansi-label {
+    color: #55ffff;
+    min-width: 10ch;
+    letter-spacing: 0.02em;
+    font-size: 1em;
+}
+.login-ansi-input {
+    background: #000;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.2;
+    padding: clamp(0.55rem, 1vw, 0.8rem) clamp(0.6rem, 1.2vw, 0.9rem);
+    width: min(100%, 100%);
+    min-height: calc(2.2em + 2px);
+}
+.login-ansi-input:focus {
+    background: #000;
+    color: #fff;
+    border-color: #55ffff;
+    box-shadow: none;
+}
+.login-ansi-submit {
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.2;
+    padding: clamp(0.55rem, 1vw, 0.8rem) clamp(1rem, 1.8vw, 1.4rem);
+}
+.login-ansi-links {
+    margin-top: 1rem;
+    color: #aaaaaa;
+    font-size: 1em;
+}
+.login-ansi-prompt .btn,
+.login-ansi-prompt label,
+.login-ansi-prompt input,
+.login-ansi-prompt .form-check-label,
+.login-ansi-prompt .form-check,
+.login-ansi-prompt .alert,
+.login-ansi-prompt .mb-3,
+.login-ansi-prompt .login-ansi-links {
+    font-size: 1em;
+}
+.login-ansi-prompt .form-check {
+    font-size: 1em;
+}
+.login-ansi-prompt .form-check-input {
+    width: 1.1em;
+    height: 1.1em;
+    margin-top: 0.15em;
+    background-color: #000;
+    border-radius: 0;
+}
+.login-ansi-prompt .form-check-label {
+    font-size: 1em;
+}
+.login-ansi-links a {
+    color: #ffff55;
+    text-decoration: none;
+}
+.login-ansi-links a:hover {
+    text-decoration: underline;
+}
+.login-ansi-wide {
+    max-width: min(100%, 1200px);
+}
+.login-ansi-full {
+    max-width: 100%;
+}
+@media (max-width: 768px) {
+    .login-ansi-shell .ansi-art-container pre,
+    .login-ansi-shell .ansi-art {
+        font-size: max(var(--login-ansi-mobile-font-size), var(--login-ansi-font-size)) !important;
+        line-height: max(var(--login-ansi-mobile-font-size), var(--login-ansi-font-size)) !important;
+    }
+    .login-ansi-prompt {
+        font-size: clamp(15px, 4vw, 18px);
+    }
+    .login-ansi-label {
+        min-width: 100%;
+    }
+    .login-ansi-line {
+        gap: 0.5rem;
+    }
+}
+</style>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 
     {% include 'custom/login.banner.twig' ignore missing %}
 
-{% if login_splash %}
+{% if login_splash and login_screen.display_mode|default('standard') == 'standard' %}
 <div class="row justify-content-center mb-3">
     <div class="col-md-6 col-lg-6">
         <div class="card">
@@ -19,8 +160,16 @@
 {% endif %}
 
     <div class="row justify-content-center">
-    <div class="col-md-6 col-lg-6">
-        {% if welcome_message %}
+    <div class="{% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+        {% if login_screen.ansi_size|default('80x25') == 'full' %}
+            col-12 login-ansi-full
+        {% elseif login_screen.ansi_size|default('80x25') in ['132x24', '132x43', '132x50'] %}
+            col-12 col-xl-10 login-ansi-wide
+        {% else %}
+            col-md-6 col-lg-6
+        {% endif %}
+    {% else %}col-md-6 col-lg-6{% endif %}">
+        {% if welcome_message and login_screen.display_mode|default('standard') != 'ansi_prompt' %}
         <div class="card mb-3">
             <div class="card-body text-center">
                 {{ welcome_message|raw|nl2br }}
@@ -29,6 +178,86 @@
         {% else %}
 
         {% endif %}
+        {% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+        {% set loginAnsiCols = 80 %}
+        {% set loginAnsiRows = 25 %}
+        {% set loginAnsiMinFont = '8px' %}
+        {% set loginAnsiMaxFont = '16px' %}
+        {% set loginAnsiMobileFont = '12px' %}
+        {% if login_screen.ansi_size|default('80x25') == '132x24' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 24 %}
+            {% set loginAnsiMinFont = '6px' %}
+            {% set loginAnsiMaxFont = '12px' %}
+            {% set loginAnsiMobileFont = '10px' %}
+        {% elseif login_screen.ansi_size|default('80x25') == '132x43' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 43 %}
+            {% set loginAnsiMinFont = '6px' %}
+            {% set loginAnsiMaxFont = '11px' %}
+            {% set loginAnsiMobileFont = '10px' %}
+        {% elseif login_screen.ansi_size|default('80x25') == '132x50' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 50 %}
+            {% set loginAnsiMinFont = '5px' %}
+            {% set loginAnsiMaxFont = '10px' %}
+            {% set loginAnsiMobileFont = '9px' %}
+        {% elseif login_screen.ansi_size|default('80x25') == 'full' %}
+            {% set loginAnsiCols = 132 %}
+            {% set loginAnsiRows = 50 %}
+            {% set loginAnsiMinFont = '5px' %}
+            {% set loginAnsiMaxFont = '12px' %}
+            {% set loginAnsiMobileFont = '9px' %}
+        {% endif %}
+        <div class="login-ansi-shell" style="--login-ansi-cols: {{ loginAnsiCols }}; --login-ansi-rows: {{ loginAnsiRows }}; --login-ansi-min-font-size: {{ loginAnsiMinFont }}; --login-ansi-max-font-size: {{ loginAnsiMaxFont }}; --login-ansi-mobile-font-size: {{ loginAnsiMobileFont }};">
+            {% if welcome_message %}
+            <div class="card mb-0 border-0 border-bottom rounded-0">
+                <div class="card-body text-center">
+                    {{ welcome_message|raw|nl2br }}
+                </div>
+            </div>
+            {% endif %}
+            {% if login_ansi_art %}
+            <div class="ansi-art-container">
+                <pre class="ansi-art" id="loginAnsiArt" data-ansi-size="{{ login_screen.ansi_size|default('80x25')|e('html_attr') }}">{{ login_ansi_art }}</pre>
+            </div>
+            {% endif %}
+            <div class="login-ansi-prompt">
+                <div class="mb-3">
+                    <span class="login-ansi-label">{{ t('ui.login.login_to_system', {'system_name': system_name}, 'common') }}</span>
+                </div>
+                <form id="loginForm">
+                    <div class="login-ansi-line">
+                        <label for="username" class="login-ansi-label">{{ t('ui.login.username', {}, 'common') }}</label>
+                        <input type="text" class="form-control login-ansi-input" id="username" name="username" required autofocus>
+                    </div>
+                    <div class="login-ansi-line">
+                        <label for="password" class="login-ansi-label">{{ t('ui.login.password', {}, 'common') }}</label>
+                        <input type="password" class="form-control login-ansi-input" id="password" name="password" required>
+                    </div>
+                    <div class="login-ansi-line">
+                        <div class="form-check mb-0">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <label class="form-check-label" for="remember">
+                                {{ t('ui.login.remember_me_30_days', {}, 'common') }}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="login-ansi-line mb-0">
+                        <button type="submit" class="btn btn-primary login-ansi-submit">
+                            {{ t('ui.login.title', {}, 'common') }}
+                        </button>
+                    </div>
+                </form>
+                <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
+                <div class="login-ansi-links">
+                    {{ t('ui.login.no_account', {}, 'common') }} <a href="/register">{{ t('ui.login.request_access', {}, 'common') }}</a>
+                    <br>
+                    {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password">{{ t('ui.login.reset_password', {}, 'common') }}</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
         <div class="card">
             <div class="card-header">
                 <h4 class="mb-0">
@@ -62,6 +291,7 @@
                 <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
             </div>
         </div>
+        {% endif %}
         
         {% if pubterm_enabled %}
         <div class="card mt-3">
@@ -74,6 +304,7 @@
         </div>
         {% endif %}
 
+        {% if login_screen.display_mode|default('standard') != 'ansi_prompt' %}
         <div class="text-center mt-3">
             <small class="text-muted">
                 {{ t('ui.login.no_account', {}, 'common') }} <a href="/register" class="text-decoration-none">{{ t('ui.login.request_access', {}, 'common') }}</a>
@@ -81,6 +312,7 @@
                 {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password" class="text-decoration-none">{{ t('ui.login.reset_password', {}, 'common') }}</a>
             </small>
         </div>
+        {% endif %}
         
         {#
         <!-- Account Reminder Section -->
@@ -124,6 +356,63 @@
 {% endblock %}
 
 {% block scripts %}
+{% if login_screen.display_mode|default('standard') == 'ansi_prompt' %}
+<script src="/js/ansisys.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var pre = document.getElementById('loginAnsiArt');
+    if (!pre || typeof renderAnsiBuffer !== 'function') {
+        return;
+    }
+
+    var size = pre.getAttribute('data-ansi-size') || '80x25';
+    var dims = { cols: 80, rows: 25 };
+    if (size === '132x24') dims = { cols: 132, rows: 24 };
+    else if (size === '132x43') dims = { cols: 132, rows: 43 };
+    else if (size === '132x50') dims = { cols: 132, rows: 50 };
+    else if (size === 'full') dims = { cols: 132, rows: 80 };
+
+    pre.innerHTML = renderAnsiBuffer(pre.textContent, dims.cols, dims.rows, null, {
+        preserveTrailingSpaces: true,
+        trimTrailingSpaces: false
+    });
+
+    var shell = pre.closest('.login-ansi-shell');
+    var container = pre.closest('.ansi-art-container');
+    function fitAnsiToContainer() {
+        if (!container) {
+            return;
+        }
+
+        pre.style.removeProperty('font-size');
+        pre.style.removeProperty('line-height');
+
+        var horizontalPadding = 12;
+        var availableWidth = Math.max(0, container.clientWidth - horizontalPadding);
+        var renderedWidth = pre.scrollWidth;
+        var computedSize = parseFloat(window.getComputedStyle(pre).fontSize) || 16;
+        var maxFont = shell ? parseFloat(window.getComputedStyle(shell).getPropertyValue('--login-ansi-max-font-size')) || computedSize : computedSize;
+
+        if (!availableWidth || !renderedWidth || !computedSize) {
+            return;
+        }
+
+        var nextSize = computedSize * (availableWidth / renderedWidth);
+        nextSize = Math.min(maxFont, nextSize);
+        nextSize = Math.max(4, nextSize);
+
+        pre.style.setProperty('font-size', nextSize + 'px', 'important');
+        pre.style.setProperty('line-height', nextSize + 'px', 'important');
+    }
+
+    requestAnimationFrame(fitAnsiToContainer);
+    window.addEventListener('resize', fitAnsiToContainer);
+    if (window.ResizeObserver && container) {
+        new ResizeObserver(fitAnsiToContainer).observe(container);
+    }
+});
+</script>
+{% endif %}
 <script>
 $('#loginForm').on('submit', function(e) {
     e.preventDefault();

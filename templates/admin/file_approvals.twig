@@ -1,0 +1,423 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.file_approvals.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-user-check"></i>
+                {{ t('ui.admin.file_approvals.heading', {}, locale, ['common']) }}
+            </h1>
+            <p class="text-muted mb-0">{{ t('ui.admin.file_approvals.intro', {}, locale, ['common']) }}</p>
+        </div>
+        <button class="btn btn-outline-secondary" type="button" onclick="loadPendingFiles()">
+            <i class="fas fa-sync-alt"></i>
+            {{ t('ui.common.refresh', {}, locale, ['common']) }}
+        </button>
+    </div>
+
+    <div id="fileApprovalsAlert"></div>
+    {% if virus_scan_disabled %}
+    <div class="alert alert-secondary">
+        <i class="fas fa-shield-alt me-1"></i>{{ t('ui.admin.file_approvals.scan_disabled_notice', {}, locale, ['common']) }}
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>{{ t('ui.admin.file_approvals.pending_queue', {}, locale, ['common']) }}</span>
+            <span class="badge bg-warning text-dark d-none" id="fileApprovalsBadge">0</span>
+        </div>
+        <div class="card-body p-0" id="fileApprovalsContainer">
+            <div class="text-center py-4 text-muted">
+                <i class="fas fa-spinner fa-spin me-2"></i>{{ t('ui.common.loading', {}, locale, ['common']) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.file-approvals-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.file-approvals-table td,
+.file-approvals-table th {
+    vertical-align: top;
+}
+
+.file-approvals-table .file-approvals-filename {
+    width: 42%;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.file-approvals-table .file-approvals-area {
+    width: 16%;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.file-approvals-table .file-approvals-uploader {
+    width: 12%;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.file-approvals-table .file-approvals-size,
+.file-approvals-table .file-approvals-uploaded,
+.file-approvals-table .file-approvals-scan {
+    width: 10%;
+    white-space: normal;
+}
+
+.file-approvals-table .file-approvals-actions {
+    width: 14%;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+function apiErr(payload, fallbackKey, fallbackText) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, uiT(fallbackKey, fallbackText));
+    }
+    return uiT(fallbackKey, fallbackText);
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes < 1024) {
+        return `${bytes || 0} B`;
+    }
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let size = bytes / 1024;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+    }
+    return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return '—';
+    }
+    try {
+        return new Date(value).toLocaleString();
+    } catch (e) {
+        return value;
+    }
+}
+
+function scanBadge(file) {
+    const status = !file.virus_scanned ? 'not_scanned' : (file.virus_scan_result || 'not_scanned');
+    if (status === 'clean') {
+        return `<span class="badge bg-success">${uiT('ui.files.clean', 'Clean')}</span>`;
+    }
+    if (status === 'infected') {
+        const label = file.virus_signature
+            ? `${uiT('ui.files.infected', 'Infected')}: ${escapeHtml(file.virus_signature)}`
+            : uiT('ui.files.infected', 'Infected');
+        return `<span class="badge bg-danger">${label}</span>`;
+    }
+    if (status === 'scan_error') {
+        return `<span class="badge bg-warning text-dark">${uiT('ui.files.scan_error', 'Scan Error')}</span>`;
+    }
+    if (status === 'skipped') {
+        return `<span class="badge bg-secondary">${uiT('ui.files.skipped', 'Skipped')}</span>`;
+    }
+    return `<span class="badge bg-secondary">${uiT('ui.files.not_scanned', 'Not Scanned')}</span>`;
+}
+
+function renderPendingFiles(files) {
+    const badge = $('#fileApprovalsBadge');
+    if (!files || files.length === 0) {
+        badge.addClass('d-none').text('0');
+        $('#fileApprovalsContainer').html(`
+            <div class="text-center text-muted py-4">
+                ${uiT('ui.admin.file_approvals.none_pending', 'No files are waiting for approval.')}
+            </div>
+        `);
+        return;
+    }
+
+    badge.removeClass('d-none').text(files.length);
+
+    const rows = files.map(function(file) {
+        const uploader = escapeHtml(file.owner_username || file.uploaded_from_address || '—');
+        const area = escapeHtml(file.area_tag || '');
+        const domain = file.domain ? `<span class="text-muted small d-block">${escapeHtml(file.domain)}</span>` : '';
+        const description = escapeHtml(file.short_description || '');
+        const longDescription = file.long_description
+            ? `<div class="small text-muted mt-1">${escapeHtml(file.long_description)}</div>`
+            : '';
+        return `
+            <tr>
+                <td>
+                    <strong>${escapeHtml(file.filename)}</strong>
+                    <div class="small text-muted">${description}</div>
+                    ${longDescription}
+                </td>
+                <td>
+                    <span class="font-monospace">${area}</span>
+                    ${domain}
+                </td>
+                <td>${uploader}</td>
+                <td class="text-nowrap">${formatBytes(parseInt(file.filesize || 0, 10))}</td>
+                <td class="text-nowrap">${formatDateTime(file.created_at)}</td>
+                <td>${scanBadge(file)}</td>
+                <td class="text-end text-nowrap">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a class="btn btn-outline-secondary" href="/admin/api/files/${file.id}/download" title="${uiT('ui.files.download', 'Download')}">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        {% if not virus_scan_disabled %}
+                        <button class="btn btn-outline-primary" type="button" onclick="scanPendingFile(${file.id}, this)" title="${uiT('ui.files.virus_scan_now', 'Virus Scan')}">
+                            <i class="fas fa-shield-alt"></i>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-success" type="button" onclick="approvePendingFile(${file.id})" title="${uiT('ui.admin.file_approvals.approve', 'Approve')}">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" type="button" onclick="rejectPendingFile(${file.id})" title="${uiT('ui.admin.file_approvals.reject', 'Reject')}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    $('#fileApprovalsContainer').html(`
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>${uiT('ui.files.filename', 'Filename')}</th>
+                        <th>${uiT('ui.files.area', 'Area')}</th>
+                        <th>${uiT('ui.admin.file_approvals.uploader', 'Uploader')}</th>
+                        <th>${uiT('ui.files.size', 'Size')}</th>
+                        <th>${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th>${uiT('ui.files.virus_scan', 'Virus Scan')}</th>
+                        <th class="text-end">${uiT('ui.files.actions', 'Actions')}</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `);
+}
+
+function loadPendingFiles() {
+    $('#fileApprovalsContainer').html(`
+        <div class="text-center py-4 text-muted">
+            <i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}
+        </div>
+    `);
+
+    $.get('/admin/api/files/pending')
+        .done(function(data) {
+            renderPendingFiles(data.files || []);
+        })
+        .fail(function(xhr) {
+            $('#fileApprovalsContainer').html(`
+                <div class="text-center text-danger py-4">
+                    ${apiErr(xhr.responseJSON, 'errors.admin.file_approvals.load_failed', 'Failed to load pending file approvals')}
+                </div>
+            `);
+        });
+}
+
+function approvePendingFile(fileId) {
+    $.ajax({
+        url: `/admin/api/files/${fileId}/approve`,
+        method: 'POST'
+    }).done(function() {
+        showSuccess(uiT('ui.admin.file_approvals.approved', 'File approved'));
+        loadPendingFiles();
+    }).fail(function(xhr) {
+        showError(apiErr(xhr.responseJSON, 'errors.admin.file_approvals.approve_failed', 'Failed to approve file upload'));
+    });
+}
+
+function scanPendingFile(fileId, button) {
+    const $btn = $(button);
+    const originalHtml = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: `/api/files/${fileId}/scan`,
+        method: 'POST'
+    }).done(function(data) {
+        const result = data.result;
+        if (result === 'clean') {
+            showSuccess(uiT('ui.files.virus_scan_clean', 'Virus scan: Clean'));
+        } else if (result === 'infected') {
+            const sig = data.signature || uiT('ui.common.unknown', 'Unknown');
+            showError(uiT('ui.files.virus_detected_prefix', 'Virus detected: ') + sig);
+        } else {
+            showError(uiT('ui.files.virus_scan_error', 'Virus scan: Error'));
+        }
+        loadPendingFiles();
+    }).fail(function(xhr) {
+        showError(apiErr(xhr.responseJSON, 'errors.files.scan_failed', 'Virus scan failed'));
+    }).always(function() {
+        $btn.prop('disabled', false).html(originalHtml);
+    });
+}
+
+function rejectPendingFile(fileId) {
+    const reasonPrompt = uiT('ui.admin.file_approvals.reject_reason_prompt', 'Optional rejection reason:');
+    const reason = window.prompt(reasonPrompt, '');
+    if (reason === null) {
+        return;
+    }
+
+    $.ajax({
+        url: `/admin/api/files/${fileId}/reject`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ reason })
+    }).done(function() {
+        showSuccess(uiT('ui.admin.file_approvals.rejected', 'File rejected'));
+        loadPendingFiles();
+    }).fail(function(xhr) {
+        showError(apiErr(xhr.responseJSON, 'errors.admin.file_approvals.reject_failed', 'Failed to reject file upload'));
+    });
+}
+
+function buildResponsiveApprovalActions(file) {
+    return `
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <a class="btn btn-outline-secondary" href="/admin/api/files/${file.id}/download" title="${uiT('ui.files.download', 'Download')}">
+                <i class="fas fa-download"></i>
+            </a>
+            {% if not virus_scan_disabled %}
+            <button class="btn btn-outline-primary" type="button" onclick="scanPendingFile(${file.id}, this)" title="${uiT('ui.files.virus_scan_now', 'Virus Scan')}">
+                <i class="fas fa-shield-alt"></i>
+            </button>
+            {% endif %}
+            <button class="btn btn-success" type="button" onclick="approvePendingFile(${file.id})" title="${uiT('ui.admin.file_approvals.approve', 'Approve')}">
+                <i class="fas fa-check"></i>
+            </button>
+            <button class="btn btn-outline-danger" type="button" onclick="rejectPendingFile(${file.id})" title="${uiT('ui.admin.file_approvals.reject', 'Reject')}">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+}
+
+renderPendingFiles = function(files) {
+    const badge = $('#fileApprovalsBadge');
+    if (!files || files.length === 0) {
+        badge.addClass('d-none').text('0');
+        $('#fileApprovalsContainer').html(`
+            <div class="text-center text-muted py-4">
+                ${uiT('ui.admin.file_approvals.none_pending', 'No files are waiting for approval.')}
+            </div>
+        `);
+        return;
+    }
+
+    badge.removeClass('d-none').text(files.length);
+
+    const tableRows = files.map(function(file) {
+        const uploader = escapeHtml(file.owner_username || file.uploaded_from_address || '—');
+        const area = escapeHtml(file.area_tag || '');
+        const domain = file.domain ? `<span class="text-muted small d-block">${escapeHtml(file.domain)}</span>` : '';
+        const description = escapeHtml(file.short_description || '');
+        const longDescription = file.long_description
+            ? `<div class="small text-muted mt-1">${escapeHtml(file.long_description)}</div>`
+            : '';
+        return `
+            <tr>
+                <td class="file-approvals-filename">
+                    <strong>${escapeHtml(file.filename)}</strong>
+                    <div class="small text-muted">${description}</div>
+                    ${longDescription}
+                </td>
+                <td class="file-approvals-area">
+                    <span class="font-monospace">${area}</span>
+                    ${domain}
+                </td>
+                <td class="file-approvals-uploader">${uploader}</td>
+                <td class="file-approvals-size">${formatBytes(parseInt(file.filesize || 0, 10))}</td>
+                <td class="file-approvals-uploaded">${formatDateTime(file.created_at)}</td>
+                <td class="file-approvals-scan">${scanBadge(file)}</td>
+                <td class="file-approvals-actions text-end">${buildResponsiveApprovalActions(file)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const mobileCards = files.map(function(file) {
+        const uploader = escapeHtml(file.owner_username || file.uploaded_from_address || '—');
+        const area = escapeHtml(file.area_tag || '');
+        const domain = file.domain ? `<span class="text-muted small d-block">${escapeHtml(file.domain)}</span>` : '';
+        const description = escapeHtml(file.short_description || '');
+        const longDescription = file.long_description
+            ? `<div class="small text-muted mt-1">${escapeHtml(file.long_description)}</div>`
+            : '';
+        return `
+            <div class="border-bottom p-3 d-lg-none">
+                <div class="fw-semibold" style="word-break: break-all;">${escapeHtml(file.filename)}</div>
+                <div class="small text-muted mt-1">${description}</div>
+                ${longDescription}
+                <div class="mt-3 small">
+                    <div><span class="text-muted">${uiT('ui.files.area', 'Area')}:</span> <span class="font-monospace">${area}</span>${domain}</div>
+                    <div><span class="text-muted">${uiT('ui.admin.file_approvals.uploader', 'Uploader')}:</span> ${uploader}</div>
+                    <div><span class="text-muted">${uiT('ui.files.size', 'Size')}:</span> ${formatBytes(parseInt(file.filesize || 0, 10))}</div>
+                    <div><span class="text-muted">${uiT('ui.files.uploaded', 'Uploaded')}:</span> ${formatDateTime(file.created_at)}</div>
+                    <div><span class="text-muted">${uiT('ui.files.virus_scan', 'Virus Scan')}:</span> ${scanBadge(file)}</div>
+                </div>
+                <div class="mt-3 d-flex justify-content-end">${buildResponsiveApprovalActions(file)}</div>
+            </div>
+        `;
+    }).join('');
+
+    $('#fileApprovalsContainer').html(`
+        <div class="d-none d-lg-block">
+            <table class="table table-hover table-sm mb-0 file-approvals-table">
+                <thead>
+                    <tr>
+                        <th class="file-approvals-filename">${uiT('ui.files.filename', 'Filename')}</th>
+                        <th class="file-approvals-area">${uiT('ui.files.area', 'Area')}</th>
+                        <th class="file-approvals-uploader">${uiT('ui.admin.file_approvals.uploader', 'Uploader')}</th>
+                        <th class="file-approvals-size">${uiT('ui.files.size', 'Size')}</th>
+                        <th class="file-approvals-uploaded">${uiT('ui.files.uploaded', 'Uploaded')}</th>
+                        <th class="file-approvals-scan">${uiT('ui.files.virus_scan', 'Virus Scan')}</th>
+                        <th class="file-approvals-actions text-end">${uiT('ui.files.actions', 'Actions')}</th>
+                    </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+        </div>
+        <div class="d-lg-none">${mobileCards}</div>
+    `);
+};
+
+$(function() {
+    loadPendingFiles();
+});
+</script>
+{% endblock %}

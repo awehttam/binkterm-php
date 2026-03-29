@@ -11,231 +11,258 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">{{ t('ui.settings.display_preferences', {}, locale, ['common']) }}</h5>
+    {# Left nav #}
+    <div class="col-md-3 col-lg-2 mb-3 mb-md-0">
+        <div class="nav flex-column nav-pills" id="settingsTabs" role="tablist" aria-orientation="vertical">
+            <button class="nav-link active text-start" id="tab-display-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-display"
+                    type="button" role="tab">
+                <i class="fas fa-palette me-2"></i>{{ t('ui.settings.tab.display', {}, locale, ['common']) }}
+            </button>
+            <button class="nav-link text-start" id="tab-messaging-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-messaging"
+                    type="button" role="tab">
+                <i class="fas fa-envelope me-2"></i>{{ t('ui.settings.tab.messaging', {}, locale, ['common']) }}
+            </button>
+            <button class="nav-link text-start" id="tab-notifications-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-notifications"
+                    type="button" role="tab">
+                <i class="fas fa-bell me-2"></i>{{ t('ui.settings.tab.notifications', {}, locale, ['common']) }}
+            </button>
+            <button class="nav-link text-start" id="tab-account-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-account"
+                    type="button" role="tab">
+                <i class="fas fa-user-shield me-2"></i>{{ t('ui.settings.tab.account', {}, locale, ['common']) }}
+            </button>
+            <button class="nav-link text-start" id="tab-ai-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-ai"
+                    type="button" role="tab">
+                <i class="fas fa-robot me-2"></i>{{ t('ui.settings.tab.ai', {}, locale, ['common']) }}
+            </button>
+        </div>
+    </div>
+
+    {# Right content #}
+    <div class="col-md-9 col-lg-10">
+        <form id="settingsForm">
+        <div class="tab-content">
+
+            {# ------------------------------------------------------------------ #}
+            {# Display tab                                                         #}
+            {# ------------------------------------------------------------------ #}
+            <div class="tab-pane fade show active" id="tab-display" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.settings.display_preferences', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="messagesPerPage" class="form-label">{{ t('ui.settings.messages_per_page', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="messagesPerPage" name="messages_per_page">
+                                <option value="10">10 messages</option>
+                                <option value="25" selected>25 messages</option>
+                                <option value="50">50 messages</option>
+                                <option value="100">100 messages</option>
+                                <option value="250">250 messages</option>
+                                <option value="500">500 messages</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.messages_per_page_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="timezone" class="form-label">{{ t('ui.settings.timezone', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="timezone" name="timezone">
+                                <option value="UTC">UTC (Coordinated Universal Time)</option>
+                                <option value="America/New_York">Eastern Time (US/Canada)</option>
+                                <option value="America/Chicago">Central Time (US/Canada)</option>
+                                <option value="America/Denver">Mountain Time (US/Canada)</option>
+                                <option value="America/Los_Angeles" selected>Pacific Time (US/Canada)</option>
+                                <option value="Europe/London">London (GMT/BST)</option>
+                                <option value="Europe/Berlin">Central European Time</option>
+                                <option value="Asia/Tokyo">Japan Standard Time</option>
+                                <option value="Australia/Sydney">Australian Eastern Time</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.timezone_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="locale" class="form-label">{{ t('ui.settings.language', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="locale" name="locale">
+                                {% for localeCode in supported_locales %}
+                                    <option value="{{ localeCode }}">{{ localeCode }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.language_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="dateFormat" class="form-label">{{ t('ui.settings.date_format', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="dateFormat" name="date_format">
+                                <option value="en-US" selected>{{ t('ui.settings.date_format.option.en_us', {}, locale, ['common']) }}</option>
+                                <option value="en-GB">{{ t('ui.settings.date_format.option.en_gb', {}, locale, ['common']) }}</option>
+                                <option value="en-CA">{{ t('ui.settings.date_format.option.en_ca', {}, locale, ['common']) }}</option>
+                                <option value="de-DE">{{ t('ui.settings.date_format.option.de_de', {}, locale, ['common']) }}</option>
+                                <option value="fr-FR">{{ t('ui.settings.date_format.option.fr_fr', {}, locale, ['common']) }}</option>
+                                <option value="es-ES">{{ t('ui.settings.date_format.option.es_es', {}, locale, ['common']) }}</option>
+                                <option value="it-IT">{{ t('ui.settings.date_format.option.it_it', {}, locale, ['common']) }}</option>
+                                <option value="ja-JP">{{ t('ui.settings.date_format.option.ja_jp', {}, locale, ['common']) }}</option>
+                                <option value="zh-CN">{{ t('ui.settings.date_format.option.zh_cn', {}, locale, ['common']) }}</option>
+                                <option value="sv-SE">{{ t('ui.settings.date_format.option.sv_se', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.date_format_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="theme" class="form-label">{{ t('ui.settings.theme', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="theme" name="theme">
+                                {% for name, path in available_themes %}
+                                    <option value="{{ path }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.theme_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        {% if not appearance.shell.lock_shell %}
+                        <div class="mb-3">
+                            <label for="shellPreference" class="form-label">{{ t('ui.settings.interface_style', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="shellPreference" name="shell">
+                                <option value="web">{{ t('ui.settings.interface_style.web', {}, locale, ['common']) }}</option>
+                                <option value="bbs-menu">{{ t('ui.settings.interface_style.bbs_menu', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.interface_style_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="defaultEchoList" class="form-label">{{ t('ui.settings.default_echo_list', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="defaultEchoList" name="default_echo_list">
+                                <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
+                                <option value="reader">{{ t('ui.settings.default_echo_list.reader', {}, locale, ['common']) }}</option>
+                                <option value="echolist">{{ t('ui.settings.default_echo_list.echolist', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.default_echo_list_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fontFamily" class="form-label">{{ t('ui.settings.message_font', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="fontFamily" name="font_family">
+                                <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
+                                <option value="Monaco, Consolas, 'Courier New', monospace">Monaco (Monospace)</option>
+                                <option value="Consolas, 'Courier New', Monaco, monospace">Consolas (Monospace)</option>
+                                <option value="'Lucida Console', Monaco, monospace">Lucida Console (Monospace)</option>
+                                <option value="Arial, sans-serif">Arial (Sans-serif)</option>
+                                <option value="Helvetica, Arial, sans-serif">Helvetica (Sans-serif)</option>
+                                <option value="Georgia, serif">Georgia (Serif)</option>
+                                <option value="'Times New Roman', serif">Times New Roman (Serif)</option>
+                                <option value="Verdana, sans-serif">Verdana (Sans-serif)</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.message_font_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fontSize" class="form-label">{{ t('ui.settings.message_font_size', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="fontSize" name="font_size">
+                                <option value="12">12px (Small)</option>
+                                <option value="14">14px (Medium)</option>
+                                <option value="16" selected>16px (Large)</option>
+                                <option value="18">18px (Extra Large)</option>
+                                <option value="20">20px (Very Large)</option>
+                                <option value="22">22px (Huge)</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.message_font_size_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <form id="settingsForm">
-                    <div class="mb-3">
-                        <label for="messagesPerPage" class="form-label">{{ t('ui.settings.messages_per_page', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="messagesPerPage" name="messages_per_page">
-                            <option value="10">10 messages</option>
-                            <option value="25" selected>25 messages</option>
-                            <option value="50">50 messages</option>
-                            <option value="100">100 messages</option>
-                            <option value="250">250 messages</option>
-                            <option value="500">500 messages</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.messages_per_page_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="timezone" class="form-label">{{ t('ui.settings.timezone', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="timezone" name="timezone">
-                            <option value="UTC">UTC (Coordinated Universal Time)</option>
-                            <option value="America/New_York">Eastern Time (US/Canada)</option>
-                            <option value="America/Chicago">Central Time (US/Canada)</option>
-                            <option value="America/Denver">Mountain Time (US/Canada)</option>
-                            <option value="America/Los_Angeles" selected>Pacific Time (US/Canada)</option>
-                            <option value="Europe/London">London (GMT/BST)</option>
-                            <option value="Europe/Berlin">Central European Time</option>
-                            <option value="Asia/Tokyo">Japan Standard Time</option>
-                            <option value="Australia/Sydney">Australian Eastern Time</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.timezone_help', {}, locale, ['common']) }}</div>
-                    </div>
 
-                    <div class="mb-3">
-                        <label for="locale" class="form-label">{{ t('ui.settings.language', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="locale" name="locale">
-                            {% for localeCode in supported_locales %}
-                                <option value="{{ localeCode }}">{{ localeCode }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.language_help', {}, locale, ['common']) }}</div>
+            {# ------------------------------------------------------------------ #}
+            {# Messaging tab                                                       #}
+            {# ------------------------------------------------------------------ #}
+            <div class="tab-pane fade" id="tab-messaging" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.settings.tab.messaging', {}, locale, ['common']) }}</h5>
                     </div>
-
-                    <div class="mb-3">
-                        <label for="dateFormat" class="form-label">{{ t('ui.settings.date_format', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="dateFormat" name="date_format">
-                            <option value="en-US" selected>{{ t('ui.settings.date_format.option.en_us', {}, locale, ['common']) }}</option>
-                            <option value="en-GB">{{ t('ui.settings.date_format.option.en_gb', {}, locale, ['common']) }}</option>
-                            <option value="en-CA">{{ t('ui.settings.date_format.option.en_ca', {}, locale, ['common']) }}</option>
-                            <option value="de-DE">{{ t('ui.settings.date_format.option.de_de', {}, locale, ['common']) }}</option>
-                            <option value="fr-FR">{{ t('ui.settings.date_format.option.fr_fr', {}, locale, ['common']) }}</option>
-                            <option value="es-ES">{{ t('ui.settings.date_format.option.es_es', {}, locale, ['common']) }}</option>
-                            <option value="it-IT">{{ t('ui.settings.date_format.option.it_it', {}, locale, ['common']) }}</option>
-                            <option value="ja-JP">{{ t('ui.settings.date_format.option.ja_jp', {}, locale, ['common']) }}</option>
-                            <option value="zh-CN">{{ t('ui.settings.date_format.option.zh_cn', {}, locale, ['common']) }}</option>
-                            <option value="sv-SE">{{ t('ui.settings.date_format.option.sv_se', {}, locale, ['common']) }}</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.date_format_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="theme" class="form-label">{{ t('ui.settings.theme', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="theme" name="theme">
-                            {% for name, path in available_themes %}
-                                <option value="{{ path }}">{{ name }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.theme_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    {% if not appearance.shell.lock_shell %}
-                    <div class="mb-3">
-                        <label for="shellPreference" class="form-label">{{ t('ui.settings.interface_style', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="shellPreference" name="shell">
-                            <option value="web">{{ t('ui.settings.interface_style.web', {}, locale, ['common']) }}</option>
-                            <option value="bbs-menu">{{ t('ui.settings.interface_style.bbs_menu', {}, locale, ['common']) }}</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.interface_style_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    {% endif %}
-
-                    <div class="mb-3">
-                        <label for="defaultEchoList" class="form-label">{{ t('ui.settings.default_echo_list', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="defaultEchoList" name="default_echo_list">
-                            <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
-                            <option value="reader">{{ t('ui.settings.default_echo_list.reader', {}, locale, ['common']) }}</option>
-                            <option value="echolist">{{ t('ui.settings.default_echo_list.echolist', {}, locale, ['common']) }}</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.default_echo_list_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="fontFamily" class="form-label">{{ t('ui.settings.message_font', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="fontFamily" name="font_family">
-                            <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
-                            <option value="Monaco, Consolas, 'Courier New', monospace">Monaco (Monospace)</option>
-                            <option value="Consolas, 'Courier New', Monaco, monospace">Consolas (Monospace)</option>
-                            <option value="'Lucida Console', Monaco, monospace">Lucida Console (Monospace)</option>
-                            <option value="Arial, sans-serif">Arial (Sans-serif)</option>
-                            <option value="Helvetica, Arial, sans-serif">Helvetica (Sans-serif)</option>
-                            <option value="Georgia, serif">Georgia (Serif)</option>
-                            <option value="'Times New Roman', serif">Times New Roman (Serif)</option>
-                            <option value="Verdana, sans-serif">Verdana (Sans-serif)</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.message_font_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="fontSize" class="form-label">{{ t('ui.settings.message_font_size', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="fontSize" name="font_size">
-                            <option value="12">12px (Small)</option>
-                            <option value="14">14px (Medium)</option>
-                            <option value="16" selected>16px (Large)</option>
-                            <option value="18">18px (Extra Large)</option>
-                            <option value="20">20px (Very Large)</option>
-                            <option value="22">22px (Huge)</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.message_font_size_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="signatureText" class="form-label">{{ t('ui.settings.message_signature', {}, locale, ['common']) }}</label>
-                        <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="{{ t('ui.settings.message_signature_placeholder', {}, locale, ['common']) }}"></textarea>
-                        <div class="form-text">{{ t('ui.settings.message_signature_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="defaultTagline" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="defaultTagline" name="default_tagline">
-                            <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
-                            {% if taglines %}
-                                <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>{{ t('ui.settings.random_tagline', {}, locale, ['common']) }}</option>
-                            {% endif %}
-                            {% for tagline in taglines %}
-                                <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">{{ t('ui.settings.default_tagline_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">{{ t('ui.settings.threading_preferences', {}, locale, ['common']) }}</label>
-                        
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="threadedView" name="threaded_view">
-                            <label class="form-check-label" for="threadedView">
-                                {{ t('ui.settings.threaded_view_echomail', {}, locale, ['common']) }}
-                            </label>
-                            <div class="form-text">{{ t('ui.settings.threaded_view_echomail_help', {}, locale, ['common']) }}</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="signatureText" class="form-label">{{ t('ui.settings.message_signature', {}, locale, ['common']) }}</label>
+                            <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="{{ t('ui.settings.message_signature_placeholder', {}, locale, ['common']) }}"></textarea>
+                            <div class="form-text">{{ t('ui.settings.message_signature_help', {}, locale, ['common']) }}</div>
                         </div>
-                        
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="netmailThreadedView" name="netmail_threaded_view">
-                            <label class="form-check-label" for="netmailThreadedView">
-                                {{ t('ui.settings.threaded_view_netmail', {}, locale, ['common']) }}
-                            </label>
-                            <div class="form-text">{{ t('ui.settings.threaded_view_netmail_help', {}, locale, ['common']) }}</div>
+
+                        <div class="mb-3">
+                            <label for="defaultTagline" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="defaultTagline" name="default_tagline">
+                                <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
+                                {% if taglines %}
+                                    <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>{{ t('ui.settings.random_tagline', {}, locale, ['common']) }}</option>
+                                {% endif %}
+                                {% for tagline in taglines %}
+                                    <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.default_tagline_help', {}, locale, ['common']) }}</div>
                         </div>
-                    </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">{{ t('ui.settings.page_position_memory', {}, locale, ['common']) }}</label>
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('ui.settings.threading_preferences', {}, locale, ['common']) }}</label>
 
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="rememberPagePosition" name="remember_page_position">
-                            <label class="form-check-label" for="rememberPagePosition">
-                                {{ t('ui.settings.remember_page_position', {}, locale, ['common']) }}
-                            </label>
-                            <div class="form-text">{{ t('ui.settings.remember_page_position_help', {}, locale, ['common']) }}</div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">{{ t('ui.settings.quote_display', {}, locale, ['common']) }}</label>
-
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="quoteColoring" name="quote_coloring" checked>
-                            <label class="form-check-label" for="quoteColoring">
-                                {{ t('ui.settings.quote_coloring', {}, locale, ['common']) }}
-                            </label>
-                            <div class="form-text">{{ t('ui.settings.quote_coloring_help', {}, locale, ['common']) }}</div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">{{ t('ui.settings.notifications', {}, locale, ['common']) }}</label>
-
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label" for="chatNotificationSound">{{ t('ui.settings.chat_notification_sound', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="chatNotificationSound" name="chat_notification_sound">
-                                    {% for sound in notification_sounds %}
-                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
-                                    {% endfor %}
-                                </select>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="threadedView" name="threaded_view">
+                                <label class="form-check-label" for="threadedView">
+                                    {{ t('ui.settings.threaded_view_echomail', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.settings.threaded_view_echomail_help', {}, locale, ['common']) }}</div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="echomailNotificationSound">{{ t('ui.settings.echomail_notification_sound', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="echomailNotificationSound" name="echomail_notification_sound">
-                                    {% for sound in notification_sounds %}
-                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="netmailNotificationSound">{{ t('ui.settings.netmail_notification_sound', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="netmailNotificationSound" name="netmail_notification_sound">
-                                    {% for sound in notification_sounds %}
-                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="fileNotificationSound">{{ t('ui.settings.file_notification_sound', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="fileNotificationSound" name="file_notification_sound">
-                                    {% for sound in notification_sounds %}
-                                        <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
-                                    {% endfor %}
-                                </select>
+
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="netmailThreadedView" name="netmail_threaded_view">
+                                <label class="form-check-label" for="netmailThreadedView">
+                                    {{ t('ui.settings.threaded_view_netmail', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.settings.threaded_view_netmail_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
-                        <div class="form-text mb-3">{{ t('ui.settings.notification_sound_help', {}, locale, ['common']) }}</div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('ui.settings.page_position_memory', {}, locale, ['common']) }}</label>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="rememberPagePosition" name="remember_page_position">
+                                <label class="form-check-label" for="rememberPagePosition">
+                                    {{ t('ui.settings.remember_page_position', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.settings.remember_page_position_help', {}, locale, ['common']) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('ui.settings.quote_display', {}, locale, ['common']) }}</label>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="quoteColoring" name="quote_coloring" checked>
+                                <label class="form-check-label" for="quoteColoring">
+                                    {{ t('ui.settings.quote_coloring', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.settings.quote_coloring_help', {}, locale, ['common']) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('ui.settings.image_load_mode', {}, locale, ['common']) }}</label>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="radio" name="image_load_mode" id="imageLoadClick" value="click" checked>
+                                <label class="form-check-label" for="imageLoadClick">
+                                    {{ t('ui.settings.image_load_mode.click', {}, locale, ['common']) }}
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="radio" name="image_load_mode" id="imageLoadAuto" value="auto">
+                                <label class="form-check-label" for="imageLoadAuto">
+                                    {{ t('ui.settings.image_load_mode.auto', {}, locale, ['common']) }}
+                                </label>
+                            </div>
+                            <div class="form-text">{{ t('ui.settings.image_load_mode.help', {}, locale, ['common']) }}</div>
+                        </div>
 
                         {% if license_valid %}
                         <div class="form-check form-switch mb-2">
@@ -273,84 +300,243 @@
                             <div class="form-text">{{ t('ui.settings.echomail_digest_help', {}, locale, ['common']) }}</div>
                         </div>
                         {% endif %}
+
+                        <hr class="mt-4 mb-3">
+
+                        <div class="mb-0">
+                            <label class="form-label">{{ t('ui.settings.echomail_ignore_rules.title', {}, locale, ['common']) }}</label>
+                            <div class="form-text mb-3">{{ t('ui.settings.echomail_ignore_rules.help', {}, locale, ['common']) }}</div>
+                            <div id="echomailIgnoreRulesList">
+                                <div class="text-muted">{{ t('ui.settings.echomail_ignore_rules.loading', {}, locale, ['common']) }}</div>
+                            </div>
+                        </div>
                     </div>
-
-                </form>
-            </div>
-        </div>
-
-        {# <!-- not implemented -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">Message Display Options</h5>
-            </div>
-            <div class="card-body">
-
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="showOrigin" name="show_origin" checked>
-                    <label class="form-check-label" for="showOrigin">
-                        Show origin lines in messages
-                    </label>
-                    <div class="form-text">Display the origin line (system information) at the bottom of messages</div>
-                </div>
-                
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="showTearline" name="show_tearline" checked>
-                    <label class="form-check-label" for="showTearline">
-                        Show tearlines in messages
-                    </label>
-                    <div class="form-text">Display the tearline (software signature) in messages</div>
-                </div>
-
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="autoRefresh" name="auto_refresh">
-                    <label class="form-check-label" for="autoRefresh">
-                        Auto-refresh message lists
-                    </label>
-                    <div class="form-text">Automatically refresh message lists every 5 minutes</div>
                 </div>
             </div>
-        </div>
-        #}
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">{{ t('ui.settings.session_security', {}, locale, ['common']) }}</h5>
+
+            {# ------------------------------------------------------------------ #}
+            {# Notifications tab                                                   #}
+            {# ------------------------------------------------------------------ #}
+            <div class="tab-pane fade" id="tab-notifications" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.settings.notifications', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('ui.settings.notifications', {}, locale, ['common']) }}</label>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="chatNotificationSound">{{ t('ui.settings.chat_notification_sound', {}, locale, ['common']) }}</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="chatNotificationSound" name="chat_notification_sound">
+                                            {% for sound in notification_sounds %}
+                                                <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="previewNotificationSound($('#chatNotificationSound').val())" title="{{ t('ui.settings.preview_sound', {}, locale, ['common']) }}"><i class="fas fa-play"></i></button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="echomailNotificationSound">{{ t('ui.settings.echomail_notification_sound', {}, locale, ['common']) }}</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="echomailNotificationSound" name="echomail_notification_sound">
+                                            {% for sound in notification_sounds %}
+                                                <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="previewNotificationSound($('#echomailNotificationSound').val())" title="{{ t('ui.settings.preview_sound', {}, locale, ['common']) }}"><i class="fas fa-play"></i></button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="netmailNotificationSound">{{ t('ui.settings.netmail_notification_sound', {}, locale, ['common']) }}</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="netmailNotificationSound" name="netmail_notification_sound">
+                                            {% for sound in notification_sounds %}
+                                                <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="previewNotificationSound($('#netmailNotificationSound').val())" title="{{ t('ui.settings.preview_sound', {}, locale, ['common']) }}"><i class="fas fa-play"></i></button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="fileNotificationSound">{{ t('ui.settings.file_notification_sound', {}, locale, ['common']) }}</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="fileNotificationSound" name="file_notification_sound">
+                                            {% for sound in notification_sounds %}
+                                                <option value="{{ sound }}">{{ sound == 'disabled' ? t('ui.settings.notification_sound_disabled', {}, locale, ['common']) : sound }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="previewNotificationSound($('#fileNotificationSound').val())" title="{{ t('ui.settings.preview_sound', {}, locale, ['common']) }}"><i class="fas fa-play"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text mb-3">{{ t('ui.settings.notification_sound_help', {}, locale, ['common']) }}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>{{ t('ui.settings.active_sessions', {}, locale, ['common']) }}</h6>
-                        <p class="text-muted">{{ t('ui.settings.active_sessions_help', {}, locale, ['common']) }}</p>
-                        <button type="button" class="btn btn-outline-warning" onclick="showActiveSessions()">
-                            <i class="fas fa-list"></i>
-                            {{ t('ui.settings.view_sessions', {}, locale, ['common']) }}
+
+            {# ------------------------------------------------------------------ #}
+            {# Account tab                                                         #}
+            {# ------------------------------------------------------------------ #}
+            <div class="tab-pane fade" id="tab-account" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.settings.session_security', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>{{ t('ui.settings.active_sessions', {}, locale, ['common']) }}</h6>
+                                <p class="text-muted">{{ t('ui.settings.active_sessions_help', {}, locale, ['common']) }}</p>
+                                <button type="button" class="btn btn-outline-warning" onclick="showActiveSessions()">
+                                    <i class="fas fa-list"></i>
+                                    {{ t('ui.settings.view_sessions', {}, locale, ['common']) }}
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>{{ t('ui.settings.security_actions', {}, locale, ['common']) }}</h6>
+                                <p class="text-muted">{{ t('ui.settings.logout_all_help', {}, locale, ['common']) }}</p>
+                                <button type="button" class="btn btn-outline-danger" onclick="logoutAllSessions()">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    {{ t('ui.settings.logout_all', {}, locale, ['common']) }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if interests_enabled %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.settings.onboarding.title', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">{{ t('ui.settings.onboarding.help', {}, locale, ['common']) }}</p>
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetOnboarding()">
+                            <i class="fas fa-redo me-1"></i>
+                            {{ t('ui.settings.onboarding.reset_button', {}, locale, ['common']) }}
                         </button>
+                        <div id="onboardingResetStatus" class="mt-2" style="display:none;"></div>
                     </div>
-                    <div class="col-md-6">
-                        <h6>{{ t('ui.settings.security_actions', {}, locale, ['common']) }}</h6>
-                        <p class="text-muted">{{ t('ui.settings.logout_all_help', {}, locale, ['common']) }}</p>
-                        <button type="button" class="btn btn-outline-danger" onclick="logoutAllSessions()">
-                            <i class="fas fa-sign-out-alt"></i>
-                            {{ t('ui.settings.logout_all', {}, locale, ['common']) }}
+                </div>
+                {% endif %}
+            </div>
+
+            {# ------------------------------------------------------------------ #}
+            {# AI tab                                                             #}
+            {# ------------------------------------------------------------------ #}
+            <div class="tab-pane fade" id="tab-ai" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-robot me-2"></i>{{ t('ui.settings.ai.mcp_key_title', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if not mcp_server_url %}
+                        <div class="alert alert-secondary">
+                            <i class="fas fa-robot me-2"></i>
+                            {{ t('ui.settings.ai.mcp_not_enabled', {}, locale, ['common']) }}
+                        </div>
+                        {% elseif not mcp_service_running %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {{ t('ui.settings.ai.mcp_service_unavailable', {}, locale, ['common']) }}
+                        </div>
+                        {% elseif not license_valid %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {{ t('ui.settings.ai.registration_required', {}, locale, ['common']) }}
+                        </div>
+                        {% else %}
+                        <p>{{ t('ui.settings.ai.mcp_what_is', {}, locale, ['common']) }}</p>
+                        <p class="text-muted small">{{ t('ui.settings.ai.mcp_key_help', {}, locale, ['common']) }}</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">{{ t('ui.settings.ai.mcp_server_url_label', {}, locale, ['common']) }}</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" value="{{ mcp_server_url }}/mcp" readonly>
+                                <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText('{{ mcp_server_url }}/mcp')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="mcpKeySection">
+                            <div id="mcpKeyExisting" style="display:none;">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">{{ t('ui.settings.ai.mcp_current_key', {}, locale, ['common']) }}</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" id="mcpKeyPreview" readonly>
+                                        <button type="button" class="btn btn-outline-warning" onclick="generateMcpKey()">
+                                            <i class="fas fa-sync-alt me-1"></i>{{ t('ui.settings.ai.mcp_regenerate', {}, locale, ['common']) }}
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="revokeMcpKey()">
+                                            <i class="fas fa-trash me-1"></i>{{ t('ui.settings.ai.mcp_revoke', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="mcpKeyNone" style="display:none;">
+                                <p class="text-muted fst-italic">{{ t('ui.settings.ai.mcp_no_key', {}, locale, ['common']) }}</p>
+                                <button type="button" class="btn btn-outline-primary" onclick="generateMcpKey()">
+                                    <i class="fas fa-key me-1"></i>{{ t('ui.settings.ai.mcp_generate', {}, locale, ['common']) }}
+                                </button>
+                            </div>
+                        </div>
+                        <div id="mcpKeyNew" class="mt-3" style="display:none;">
+                            <div class="alert alert-warning">
+                                <strong><i class="fas fa-exclamation-triangle me-1"></i>{{ t('ui.settings.ai.mcp_key_once_title', {}, locale, ['common']) }}</strong>
+                                <p class="mb-2">{{ t('ui.settings.ai.mcp_key_once_help', {}, locale, ['common']) }}</p>
+                                <div class="input-group">
+                                    <input type="text" class="form-control font-monospace" id="mcpKeyValue" readonly>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="copyMcpKey()">
+                                        <i class="fas fa-copy me-1"></i>{{ t('ui.settings.ai.mcp_copy', {}, locale, ['common']) }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="mcpKeyStatus" class="mt-2" style="display:none;"></div>
+                        <hr class="mt-4">
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                onclick="openMcpHelpModal()">
+                            <i class="fas fa-question-circle me-1"></i>{{ t('ui.settings.ai.mcp_help_button', {}, locale, ['common']) }}
                         </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="d-flex justify-content-end mt-4">
+
+        </div>{# /tab-content #}
+        </form>
+
+        {# Save button — not shown on Account tab which has its own actions #}
+        <div class="d-flex justify-content-end mt-4" id="saveButtonRow">
             <button type="button" class="btn btn-fidonet" onclick="saveSettings()">
                 <i class="fas fa-save"></i>
                 {{ t('ui.settings.save_settings', {}, locale, ['common']) }}
             </button>
         </div>
-        
+
         <div id="settingsStatus" class="mt-3" style="display: none;"></div>
     </div>
-    
 </div>
 
 <!-- Active Sessions Modal -->
+<div class="modal fade" id="mcpHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-question-circle me-2"></i>{{ t('ui.settings.ai.mcp_help_button', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="mcpHelpBody">
+                <div class="text-center py-3">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="sessionsModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -382,6 +568,36 @@ function uiT(key, fallback, params = {}) {
 
 $(document).ready(function() {
     loadSettings();
+    loadEchomailIgnoreRules();
+
+    // Restore last active tab
+    const savedTab = UserStorage.getItem('settingsActiveTab');
+    if (savedTab) {
+        const btn = document.querySelector(`[data-bs-target="${savedTab}"]`);
+        if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+    }
+
+    // Save active tab on change; toggle Save button visibility
+    document.querySelectorAll('#settingsTabs [data-bs-toggle="pill"]').forEach(function(btn) {
+        btn.addEventListener('shown.bs.tab', function(e) {
+            const target = e.target.getAttribute('data-bs-target');
+            UserStorage.setItem('settingsActiveTab', target);
+            $('#saveButtonRow').toggle(target !== '#tab-account' && target !== '#tab-ai');
+        });
+    });
+
+    // Hide Save button if Account or AI tab was restored
+    if (savedTab === '#tab-account' || savedTab === '#tab-ai') {
+        $('#saveButtonRow').hide();
+    }
+
+    // Load MCP key status when the AI tab is shown
+    document.getElementById('tab-ai-btn')?.addEventListener('shown.bs.tab', function() {
+        loadMcpKeyStatus();
+    });
+    if (savedTab === '#tab-ai') {
+        loadMcpKeyStatus();
+    }
 
     // Apply theme immediately when changed
     $('#theme').on('change', function() {
@@ -447,6 +663,9 @@ function loadSettings() {
             // Quote coloring (defaults to true if not set)
             $('#quoteColoring').prop('checked', data.quote_coloring !== false);
 
+            // Image load mode (defaults to 'click')
+            $('input[name="image_load_mode"][value="' + (data.image_load_mode || 'click') + '"]').prop('checked', true);
+
             // Notifications
             $('#chatNotificationSound').val(data.chat_notification_sound || 'notify3');
             $('#echomailNotificationSound').val(data.echomail_notification_sound || 'disabled');
@@ -463,6 +682,86 @@ function loadSettings() {
         .fail(function() {
             console.log(uiT('ui.settings.load_failed_console', 'Failed to load settings'));
         });
+}
+
+function loadEchomailIgnoreRules() {
+    const container = $('#echomailIgnoreRulesList');
+    container.html(`<div class="text-muted"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.settings.echomail_ignore_rules.loading', 'Loading ignore rules...')}</div>`);
+
+    $.get('/api/user/echomail-ignore-rules')
+        .done(function(response) {
+            const rules = Array.isArray(response.rules) ? response.rules : [];
+
+            if (rules.length === 0) {
+                container.html(`<div class="text-muted">${uiT('ui.settings.echomail_ignore_rules.empty', 'No echomail ignore rules saved.')}</div>`);
+                return;
+            }
+
+            let html = '<div class="list-group">';
+            rules.forEach(function(rule) {
+                const senderDisplay = rule.sender_address
+                    ? `${escapeHtml(rule.sender_name)} &lt;${escapeHtml(rule.sender_address)}&gt;`
+                    : escapeHtml(rule.sender_name);
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div><strong>${senderDisplay}</strong></div>
+                                <div class="text-muted small">${uiT('ui.settings.echomail_ignore_rules.subject_contains_prefix', 'Subject contains:')} ${escapeHtml(rule.subject_contains || '')}</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteEchomailIgnoreRule(${Number(rule.id)})">
+                                <i class="fas fa-trash me-1"></i>${uiT('ui.settings.echomail_ignore_rules.remove', 'Remove')}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.html(html);
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('ui.settings.echomail_ignore_rules.load_failed', 'Failed to load ignore rules'))
+                : uiT('ui.settings.echomail_ignore_rules.load_failed', 'Failed to load ignore rules');
+            container.html(`<div class="text-danger">${escapeHtml(error)}</div>`);
+        });
+}
+
+function deleteEchomailIgnoreRule(ruleId) {
+    if (!confirm(uiT('ui.settings.echomail_ignore_rules.remove_confirm', 'Remove this echomail ignore rule?'))) {
+        return;
+    }
+
+    $.ajax({
+        url: `/api/user/echomail-ignore-rules/${encodeURIComponent(ruleId)}`,
+        method: 'DELETE',
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.echomail.ignore.removed', 'Ignore rule removed'))
+                : uiT('ui.echomail.ignore.removed', 'Ignore rule removed');
+            $('#settingsStatus').show().html(`
+                <div class="alert alert-success">
+                    <i class="fas fa-check me-2"></i>
+                    ${escapeHtml(successMessage)}
+                </div>
+            `);
+            loadEchomailIgnoreRules();
+            setTimeout(function() {
+                $('#settingsStatus').fadeOut();
+            }, 3000);
+        },
+        error: function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found'))
+                : uiT('errors.messages.echomail.ignore.invalid_rule', 'Ignore rule not found');
+            $('#settingsStatus').show().html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${escapeHtml(error)}
+                </div>
+            `);
+        }
+    });
 }
 
 
@@ -484,6 +783,7 @@ function saveSettings() {
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
         remember_page_position: $('#rememberPagePosition').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
+        image_load_mode: $('input[name="image_load_mode"]:checked').val() || 'click',
         chat_notification_sound: $('#chatNotificationSound').val() || 'notify3',
         echomail_notification_sound: $('#echomailNotificationSound').val() || 'disabled',
         netmail_notification_sound: $('#netmailNotificationSound').val() || 'notify1',
@@ -494,14 +794,14 @@ function saveSettings() {
         show_tearline: $('#showTearline').is(':checked'),
         auto_refresh: $('#autoRefresh').is(':checked')
     };
-    
+
     $('#settingsStatus').show().html(`
         <div class="alert alert-info">
             <i class="fas fa-spinner fa-spin me-2"></i>
             ${uiT('ui.settings.saving', 'Saving settings...')}
         </div>
     `);
-    
+
     $.ajax({
         url: '/api/user/settings',
         method: 'POST',
@@ -517,12 +817,12 @@ function saveSettings() {
                     ${escapeHtml(successMessage)}
                 </div>
             `);
-            
+
             // Update global settings cache
             if (typeof window.userSettings !== 'undefined') {
                 Object.assign(window.userSettings, settings);
             }
-            
+
             setTimeout(function() {
                 $('#settingsStatus').fadeOut();
             }, 3000);
@@ -553,7 +853,7 @@ function escapeHtml(text) {
 
 function showActiveSessions() {
     $('#sessionsModal').modal('show');
-    
+
     $.get('/api/user/sessions')
         .done(function(data) {
             let html = '';
@@ -591,12 +891,12 @@ function showActiveSessions() {
 
 function revokeSession(sessionId) {
     if (!confirm(uiT('ui.settings.sessions.revoke_confirm', 'Are you sure you want to revoke this session?'))) return;
-    
+
     $.ajax({
         url: `/api/user/sessions/${sessionId}`,
         method: 'DELETE',
         success: function(response) {
-            showActiveSessions(); // Refresh the list
+            showActiveSessions();
             const successMessage = window.getApiMessage
                 ? window.getApiMessage(response, uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully'))
                 : uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully');
@@ -608,9 +908,23 @@ function revokeSession(sessionId) {
     });
 }
 
+function resetOnboarding() {
+    $.post('/api/user/reset-onboarding')
+        .done(function() {
+            const status = $('#onboardingResetStatus');
+            status.html('<div class="alert alert-success py-1 mb-0">' + uiT('ui.settings.onboarding.reset_success', 'Onboarding reset. You will be taken through the guide next time you visit Echomail.') + '</div>');
+            status.show();
+        })
+        .fail(function() {
+            const status = $('#onboardingResetStatus');
+            status.html('<div class="alert alert-danger py-1 mb-0">' + uiT('ui.settings.onboarding.reset_error', 'Failed to reset onboarding.') + '</div>');
+            status.show();
+        });
+}
+
 function logoutAllSessions() {
     if (!confirm(uiT('ui.settings.sessions.logout_all_confirm', 'Are you sure you want to logout from all devices? You will need to login again.'))) return;
-    
+
     $.ajax({
         url: '/api/user/sessions/all',
         method: 'DELETE',
@@ -623,9 +937,91 @@ function logoutAllSessions() {
     });
 }
 
+function loadMcpKeyStatus() {
+    $.get('/api/user/mcp-key')
+        .done(function(data) {
+            if (data.has_key) {
+                $('#mcpKeyPreview').val(data.key_preview);
+                $('#mcpKeyExisting').show();
+                $('#mcpKeyNone').hide();
+            } else {
+                $('#mcpKeyExisting').hide();
+                $('#mcpKeyNone').show();
+            }
+            $('#mcpKeyNew').hide();
+        })
+        .fail(function() {
+            $('#mcpKeyStatus').show().html('<div class="alert alert-danger">' + uiT('errors.mcp.load_failed', 'Failed to load MCP key status') + '</div>');
+        });
+}
+
+function generateMcpKey() {
+    if ($('#mcpKeyExisting').is(':visible')) {
+        if (!confirm(uiT('ui.settings.ai.mcp_regenerate_confirm', 'Regenerating the key will invalidate the existing key. Any MCP clients using the old key will stop working. Continue?'))) return;
+    }
+    $.post('/api/user/mcp-key/generate')
+        .done(function(data) {
+            if (data.success && data.key) {
+                $('#mcpKeyValue').val(data.key);
+                $('#mcpKeyNew').show();
+                $('#mcpKeyExisting').hide();
+                $('#mcpKeyNone').hide();
+                $('#mcpKeyPreview').val(data.key.slice(0, 8) + '*'.repeat(24));
+            }
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.mcp.generate_failed', 'Failed to generate MCP key'))
+                : uiT('errors.mcp.generate_failed', 'Failed to generate MCP key');
+            $('#mcpKeyStatus').show().html('<div class="alert alert-danger">' + escapeHtml(error) + '</div>');
+        });
+}
+
+function revokeMcpKey() {
+    if (!confirm(uiT('ui.settings.ai.mcp_revoke_confirm', 'Are you sure you want to revoke your MCP key? Any MCP clients using it will stop working.'))) return;
+    $.ajax({ url: '/api/user/mcp-key', method: 'DELETE' })
+        .done(function() {
+            $('#mcpKeyExisting').hide();
+            $('#mcpKeyNew').hide();
+            $('#mcpKeyNone').show();
+            $('#mcpKeyStatus').show().html('<div class="alert alert-success">' + uiT('ui.settings.ai.mcp_revoked', 'MCP key revoked.') + '</div>');
+            setTimeout(function() { $('#mcpKeyStatus').fadeOut(); }, 3000);
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.mcp.revoke_failed', 'Failed to revoke MCP key'))
+                : uiT('errors.mcp.revoke_failed', 'Failed to revoke MCP key');
+            $('#mcpKeyStatus').show().html('<div class="alert alert-danger">' + escapeHtml(error) + '</div>');
+        });
+}
+
+function copyMcpKey() {
+    const val = $('#mcpKeyValue').val();
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(function() {
+        $('#mcpKeyStatus').show().html('<div class="alert alert-success py-1">' + uiT('ui.settings.ai.mcp_copied', 'Key copied to clipboard.') + '</div>');
+        setTimeout(function() { $('#mcpKeyStatus').fadeOut(); }, 2000);
+    });
+}
+
+let mcpHelpLoaded = false;
+function openMcpHelpModal() {
+    const modal = new bootstrap.Modal(document.getElementById('mcpHelpModal'));
+    modal.show();
+    if (mcpHelpLoaded) return;
+    $.get('/api/docs/mcp-client-help/claude')
+        .done(function(data) {
+            mcpHelpLoaded = true;
+            $('#mcpHelpBody').html(data.html);
+        })
+        .fail(function() {
+            $('#mcpHelpBody').html('<div class="alert alert-danger">Failed to load help content.</div>');
+        });
+}
+
 function pollUplinks() {
     showSuccess(uiT('ui.settings.polling_uplinks', 'Polling uplinks... (this may take a moment)'));
-    
+
     $.post('/api/binkp/poll')
         .done(function(data) {
             const pollMessage = window.getApiMessage
@@ -649,4 +1045,3 @@ function pollUplinks() {
 }
 </script>
 {% endblock %}
-

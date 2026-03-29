@@ -6,6 +6,7 @@ require_once __DIR__ . '/src/TelnetServer.php';
 require_once __DIR__ . '/src/BbsSession.php';
 require_once __DIR__ . '/src/TelnetUtils.php';
 require_once __DIR__ . '/src/TerminalMarkupRenderer.php';
+require_once __DIR__ . '/src/TerminalBoxRenderer.php';
 require_once __DIR__. '/src/MailUtils.php';
 require_once __DIR__ . '/src/NetmailHandler.php';
 require_once __DIR__ . '/src/EchomailHandler.php';
@@ -15,6 +16,8 @@ require_once __DIR__ . '/src/DoorHandler.php';
 require_once __DIR__ . '/src/ZmodemTransfer.php';
 require_once __DIR__ . '/src/FileHandler.php';
 require_once __DIR__ . '/src/TerminalSettingsHandler.php';
+require_once __DIR__ . '/src/InterestsHandler.php';
+require_once __DIR__ . '/src/QwkMenuHandler.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\TelnetServer\TelnetServer;

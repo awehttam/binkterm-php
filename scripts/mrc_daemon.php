@@ -19,6 +19,7 @@ use BinktermPHP\Database;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Mrc\MrcConfig;
 use BinktermPHP\Mrc\MrcClient;
+use BinktermPHP\Realtime\BinkStream;
 
 // ========================================
 // CLI Functions
@@ -83,6 +84,106 @@ function setConsoleTitle(string $title): void
 }
 
 // ========================================
+// BinkStream Helpers
+// ========================================
+
+/**
+ * Return the user IDs of all locally connected WebDoor users in a given room.
+ * Only users whose heartbeat has been seen in the last 10 minutes are included.
+ */
+function getLocalUserIdsInRoom(PDO $db, string $room): array
+{
+    $stmt = $db->prepare("
+        SELECT DISTINCT user_id AS id
+        FROM mrc_local_presence
+        WHERE room_name = :room
+          AND user_id IS NOT NULL
+          AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    ");
+    $stmt->execute(['room' => $room]);
+    return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
+}
+
+/**
+ * Return local user IDs for a given MRC handle.
+ *
+ * Custom MRC handles do not necessarily match users.username, so targeted
+ * replies from the server must first resolve against active local MRC presence.
+ * Fall back to the account username only for legacy/default-handle sessions.
+ *
+ * @return int[]
+ */
+function getLocalUserIdsByMrcHandle(PDO $db, string $handle): array
+{
+    $handle = trim($handle);
+    if ($handle === '') {
+        return [];
+    }
+
+    $stmt = $db->prepare("
+        SELECT DISTINCT id
+        FROM (
+            SELECT user_id AS id
+            FROM mrc_local_handles
+            WHERE user_id IS NOT NULL
+              AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+              AND LOWER(username) = LOWER(:handle)
+            UNION
+            SELECT user_id AS id
+            FROM mrc_local_presence
+            WHERE user_id IS NOT NULL
+              AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+              AND LOWER(username) = LOWER(:handle)
+        ) matches
+    ");
+    $stmt->execute(['handle' => $handle]);
+    $ids = array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id'));
+
+    if (!empty($ids)) {
+        return $ids;
+    }
+
+    $stmt = $db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1");
+    $stmt->execute(['username' => $handle]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return $row ? [(int)$row['id']] : [];
+}
+
+/**
+ * Emit an mrc_presence event with the current user list for a room
+ * to every local WebDoor user in that room.
+ */
+function emitPresenceForRoom(PDO $db, string $room): void
+{
+    $localUserIds = getLocalUserIdsInRoom($db, $room);
+    if (empty($localUserIds)) {
+        return;
+    }
+
+    $config   = MrcConfig::getInstance();
+    $localBbs = MrcClient::sanitizeName($config->getBbsName());
+
+    $stmt = $db->prepare("
+        SELECT username, COALESCE(bbs_name, 'unknown') AS bbs_name, false AS is_afk
+        FROM mrc_users
+        WHERE room_name = :room
+        UNION
+        SELECT username, :local_bbs AS bbs_name, false AS is_afk
+        FROM mrc_local_presence
+        WHERE room_name = :room2
+          AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    ");
+    $stmt->execute(['room' => $room, 'local_bbs' => $localBbs, 'room2' => $room]);
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $payload = ['room' => $room, 'users' => $users];
+    foreach ($localUserIds as $userId) {
+        BinkStream::emit($db, 'mrc_presence', $payload, (int)$userId);
+    }
+}
+
+// ========================================
 // Database Functions
 // ========================================
 
@@ -92,6 +193,11 @@ function setConsoleTitle(string $title): void
 function getDb(): PDO
 {
     return Database::getInstance()->getPdo();
+}
+
+function isValidMrcRoomName(string $room): bool
+{
+    return preg_match('/^[A-Za-z0-9]{1,20}$/', $room) === 1;
 }
 
 /**
@@ -107,6 +213,21 @@ function updateConnectionState(bool $connected): void
         SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
     ");
     $stmt->execute(['value' => $connected ? 'true' : 'false']);
+}
+
+/**
+ * Write a daemon heartbeat timestamp so the web UI can detect if the daemon
+ * has stopped unexpectedly (crash, kill -9, etc.) without a clean shutdown.
+ */
+function updateDaemonHeartbeat(): void
+{
+    $db = getDb();
+    $db->prepare("
+        INSERT INTO mrc_state (key, value, updated_at)
+        VALUES ('daemon_heartbeat', :value, CURRENT_TIMESTAMP)
+        ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    ")->execute(['value' => (string)time()]);
 }
 
 /**
@@ -206,10 +327,17 @@ function processIncomingPacket(array $packet): void
         return;
     }
 
+    // MRC room traffic can legally use f4=NOTME for non-private delivery
+    // contexts (join/part and similar room-scoped traffic). Treat only an
+    // actual target user as private; room-scoped traffic must still fan out to
+    // local room subscribers via BinkStream.
+    $targetUser = trim((string)$f4);
+    $isPrivate = ($targetUser !== '' && strcasecmp($targetUser, 'NOTME') !== 0 && $f6 === '');
     // Regular chat message - store in database
     $stmt = $db->prepare("
         INSERT INTO mrc_messages (from_user, from_site, from_room, to_user, msg_ext, to_room, message_body, is_private, received_at)
         VALUES (:from_user, :from_site, :from_room, :to_user, :msg_ext, :to_room, :message_body, :is_private, CURRENT_TIMESTAMP)
+        RETURNING id, received_at
     ");
 
     $stmt->execute([
@@ -220,8 +348,35 @@ function processIncomingPacket(array $packet): void
         'msg_ext'      => $f5,
         'to_room'      => $f6,
         'message_body' => $f7,
-        'is_private'   => !empty($f4) ? 'true' : 'false'
+        'is_private'   => $isPrivate ? 'true' : 'false'
     ]);
+
+    $msgRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    $msgId  = $msgRow ? (int)$msgRow['id'] : 0;
+    $rcvdAt = $msgRow['received_at'] ?? null;
+
+    // Notify connected WebDoor clients via BinkStream
+    if ($msgId > 0) {
+        $eventPayload = [
+            'id'           => $msgId,
+            'from_user'    => $f1,
+            'from_site'    => $f2,
+            'to_room'      => $f6,
+            'to_user'      => $isPrivate ? $targetUser : '',
+            'is_private'   => $isPrivate,
+            'message_body' => $f7,
+            'received_at'  => $rcvdAt,
+        ];
+        if ($isPrivate) {
+            foreach (getLocalUserIdsByMrcHandle($db, $targetUser) as $targetId) {
+                BinkStream::emit($db, 'mrc_message', $eventPayload, $targetId);
+            }
+        } else {
+            foreach (getLocalUserIdsInRoom($db, $f6) as $userId) {
+                BinkStream::emit($db, 'mrc_message', $eventPayload, (int)$userId);
+            }
+        }
+    }
 
     // Prune old messages (keep last 1000 per room)
     pruneOldMessages($f6);
@@ -291,6 +446,7 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
 
         if ($room) {
             $suppressAnnouncement = false;
+            $presenceChanged      = false;
             // Parse join/part/timeout announcements to keep the user list accurate.
 
             // Join format:    * (Joining) user@bbs just joined room #room
@@ -300,9 +456,11 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             if (preg_match('/\(Joining\)\s+(\S+?)@(\S+?)\s+just joined/i', $clean, $m)) {
                 handleUserJoinAnnouncement($m[1], $m[2], $room);
                 $suppressAnnouncement = isLocalAnnouncement($m[1], $m[2], $room);
+                $presenceChanged      = true;
             } elseif (preg_match('/\((Parting|Timeout)\)\s+(\S+?)@(\S+?)\s/i', $clean, $m)) {
                 handleUserPartAnnouncement($m[2], $m[3], $room);
                 $suppressAnnouncement = isLocalAnnouncement($m[2], $m[3], $room);
+                $presenceChanged      = true;
             } elseif (preg_match('/(?:\(Leaving\)\s+)?(\S+?)@(\S+?)\s+just left the server/i', $clean, $m)) {
                 // Remove from all rooms; server did not provide a room context.
                 $db->prepare("
@@ -310,16 +468,39 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     WHERE username = :username AND bbs_name = :bbs_name
                 ")->execute(['username' => $m[1], 'bbs_name' => $m[2]]);
                 $suppressAnnouncement = isLocalAnnouncement($m[1], $m[2], $room);
+                $presenceChanged      = true;
             }
 
             // Store announcement in mrc_messages so webdoor clients see it.
             // Suppress local join/part announcements to avoid spam when switching rooms.
             if (!$suppressAnnouncement) {
-                $db->prepare("
+                $annStmt = $db->prepare("
                     INSERT INTO mrc_messages
                         (from_user, from_site, from_room, to_user, msg_ext, to_room, message_body, is_private, received_at)
                     VALUES ('SERVER', '', '', '', '', :room, :body, false, CURRENT_TIMESTAMP)
-                ")->execute(['room' => $room, 'body' => $f7]);
+                    RETURNING id, received_at
+                ");
+                $annStmt->execute(['room' => $room, 'body' => $f7]);
+                $annRow = $annStmt->fetch(PDO::FETCH_ASSOC);
+                if ($annRow) {
+                    $annPayload = [
+                        'id'           => (int)$annRow['id'],
+                        'from_user'    => 'SERVER',
+                        'from_site'    => '',
+                        'to_room'      => $room,
+                        'to_user'      => '',
+                        'is_private'   => false,
+                        'message_body' => $f7,
+                        'received_at'  => $annRow['received_at'],
+                    ];
+                    foreach (getLocalUserIdsInRoom($db, $room) as $userId) {
+                        BinkStream::emit($db, 'mrc_message', $annPayload, (int)$userId);
+                    }
+                }
+            }
+
+            if ($presenceChanged) {
+                emitPresenceForRoom($db, $room);
             }
         } else {
             // No room context: may be a LIST response directed to this BBS.
@@ -360,15 +541,32 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             if ($targetUser !== '') {
                 $targetUser = MrcClient::sanitizeName($targetUser);
                 $fromSite = $packet['f5'] ?? '';
-                $db->prepare("
+                $privStmt = $db->prepare("
                     INSERT INTO mrc_messages
                         (from_user, from_site, from_room, to_user, msg_ext, to_room, message_body, is_private, received_at)
                     VALUES ('SERVER', :from_site, '', :to_user, '', '', :body, true, CURRENT_TIMESTAMP)
-                ")->execute([
+                    RETURNING id, received_at
+                ");
+                $privStmt->execute([
                     'from_site' => $fromSite,
                     'to_user' => $targetUser,
                     'body' => $f7
                 ]);
+                $privRow = $privStmt->fetch(PDO::FETCH_ASSOC);
+                if ($privRow) {
+                    foreach (getLocalUserIdsByMrcHandle($db, $targetUser) as $targetUserId) {
+                        BinkStream::emit($db, 'mrc_message', [
+                            'id'           => (int)$privRow['id'],
+                            'from_user'    => 'SERVER',
+                            'from_site'    => $fromSite,
+                            'to_room'      => '',
+                            'to_user'      => $targetUser,
+                            'is_private'   => true,
+                            'message_body' => $f7,
+                            'received_at'  => $privRow['received_at'],
+                        ], $targetUserId);
+                    }
+                }
             }
         }
 
@@ -477,6 +675,7 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                 mrcLog("MRC: USERLIST sync failed for room {$room}: " . $e->getMessage(), 'ERROR');
             }
             mrcLog("MRC: Room {$room} users (" . count($users) . "): {$params}");
+            emitPresenceForRoom($db, $room);
             break;
 
         case 'HELLO':
@@ -599,6 +798,18 @@ function maintainLocalUserSessions(MrcClient $client): void
 
     $staleCount = 0;
     foreach ($rows as $row) {
+        if (!isValidMrcRoomName((string)$row['room_name'])) {
+            $db->prepare("
+                DELETE FROM mrc_local_presence
+                WHERE username = :username AND room_name = :room_name
+            ")->execute([
+                'username' => $row['username'],
+                'room_name' => $row['room_name'],
+            ]);
+            mrcLog("MRC: Pruned invalid local room '{$row['room_name']}' for {$row['username']}");
+            continue;
+        }
+
         if ($row['is_stale']) {
             $client->sendLogoff($row['username'], $row['room_name']);
             mrcLog("MRC: LOGOFF stale user {$row['username']} from {$row['room_name']}");
@@ -663,6 +874,18 @@ function rejoinLocalUserRooms(MrcClient $client): void
 
     $stmt = $db->query("SELECT username, room_name FROM mrc_local_presence");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (!isValidMrcRoomName((string)$row['room_name'])) {
+            $db->prepare("
+                DELETE FROM mrc_local_presence
+                WHERE username = :username AND room_name = :room_name
+            ")->execute([
+                'username' => $row['username'],
+                'room_name' => $row['room_name'],
+            ]);
+            mrcLog("MRC: Skipped invalid rejoin room '{$row['room_name']}' for {$row['username']}");
+            continue;
+        }
+
         $client->joinRoom($row['room_name'], $row['username']);
         mrcLog("MRC: Re-joined {$row['username']} into room: {$row['room_name']}");
     }
@@ -757,6 +980,10 @@ try {
     $lastIamHere = 0;
     $lastUserListRefresh = 0;
     $lastRoomListRefresh = 0;
+    $lastHeartbeat = 0;
+
+    // Write initial heartbeat immediately so the web UI knows we are alive.
+    updateDaemonHeartbeat();
 
     // Main loop
     while (!$shutdown) {
@@ -870,6 +1097,12 @@ try {
 
         // Prune rooms after LIST refresh window.
         pruneStaleRooms();
+
+        // Heartbeat: let the web UI know the daemon is alive.
+        if (time() - $lastHeartbeat >= 30) {
+            updateDaemonHeartbeat();
+            $lastHeartbeat = time();
+        }
 
         // Check keepalive timeout
         if ($client->isKeepaliveExpired()) {

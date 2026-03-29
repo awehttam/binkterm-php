@@ -157,6 +157,62 @@ class Mail
         
         return $this->sendMail($email, $subject, $htmlMessage, $plainTextMessage);
     }
+
+    public function sendMessageForward(
+        string $toEmail,
+        string $messageType,
+        array $metadata,
+        string $messageText,
+        string $systemName
+    ): bool {
+        if (!$this->isEnabled()) {
+            return false;
+        }
+
+        $messageType = strtolower(trim($messageType));
+        $subject = trim((string)($metadata['subject'] ?? '(No Subject)'));
+        $fromName = trim((string)($metadata['from_name'] ?? 'Unknown'));
+        $fromAddress = trim((string)($metadata['from_address'] ?? ''));
+        $toName = trim((string)($metadata['to_name'] ?? ''));
+        $toAddress = trim((string)($metadata['to_address'] ?? ''));
+        $area = trim((string)($metadata['area'] ?? ''));
+        $date = trim((string)($metadata['date'] ?? ''));
+
+        $prefix = $messageType === 'echomail' ? 'Echomail' : 'Netmail';
+        $emailSubject = "[{$prefix}] {$subject}";
+
+        $lines = [];
+        $lines[] = "Type: {$prefix}";
+        $lines[] = "From: " . ($fromAddress !== '' ? "{$fromName} ({$fromAddress})" : $fromName);
+        if ($toName !== '') {
+            $lines[] = "To: " . ($toAddress !== '' ? "{$toName} ({$toAddress})" : $toName);
+        }
+        if ($area !== '') {
+            $lines[] = "Area: {$area}";
+        }
+        if ($date !== '') {
+            $lines[] = "Date: {$date}";
+        }
+        $lines[] = "System: {$systemName}";
+        $lines[] = "---";
+        $lines[] = $messageText;
+        $lines[] = '';
+        $lines[] = '---';
+        $lines[] = "This message was forwarded from {$systemName}.";
+        $lines[] = "Replying to this email will not post a reply back to the message network.";
+        $plainText = implode("\n", $lines);
+
+        $htmlParts = [];
+        foreach ($lines as $line) {
+            $htmlParts[] = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
+        }
+        $htmlBody = '<html><body style="font-family: Arial, sans-serif; line-height: 1.5;">'
+            . '<pre style="white-space: pre-wrap; font-family: Consolas, &quot;Courier New&quot;, monospace;">'
+            . implode("\n", $htmlParts)
+            . '</pre></body></html>';
+
+        return $this->sendMail($toEmail, $emailSubject, $htmlBody, $plainText);
+    }
     
     /**
      * Send a netmail forwarding email to the recipient's external email address.

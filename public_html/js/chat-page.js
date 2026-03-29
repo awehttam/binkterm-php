@@ -3,7 +3,10 @@
     const CHAT_DB_STORE = 'settings';
     const CHAT_STORAGE_KEY = `state:${window.currentUserId || 'unknown'}`;
     const CHAT_MAX_MESSAGES = 500;
-    const CHAT_POLL_INTERVAL_MS = 3000;
+    // When BinkStream realtime is active we fall back to a slow safety-net poll;
+    // when realtime is unavailable we use a faster interval.
+    const CHAT_POLL_INTERVAL_SSE_MS  = 30000;
+    const CHAT_POLL_INTERVAL_POLL_MS = 1000;
 
     const state = {
         rooms: [],
@@ -12,7 +15,7 @@
         unreadCounts: {},
         oldestIds: {},
         hasMore: {},
-        lastEventId: 0,
+        lastChatId: 0,
         loadingHistory: false,
         displayedMessageIds: new Set() // Track displayed messages to prevent duplicates
     };
@@ -90,7 +93,7 @@
         if (stored && typeof stored === 'object') {
             state.active = stored.active || state.active;
             state.unreadCounts = stored.unreadCounts || {};
-            state.lastEventId = stored.lastEventId || 0;
+            state.lastChatId = stored.lastChatId || stored.lastEventId || 0;
         }
     }
 
@@ -98,7 +101,7 @@
         const payload = {
             active: state.active,
             unreadCounts: state.unreadCounts,
-            lastEventId: state.lastEventId
+            lastChatId: state.lastChatId
         };
         idbSet(CHAT_STORAGE_KEY, payload);
     }
@@ -124,7 +127,10 @@
             return window.formatFullDate(ts);
         } else {
             const userDateFormat = window.userSettings?.date_format || 'en-US';
-            return new Date(ts).toLocaleString(userDateFormat);
+            const parsed = typeof window.parseAppDate === 'function'
+                ? window.parseAppDate(ts)
+                : new Date(String(ts).replace(' ', 'T'));
+            return parsed ? parsed.toLocaleString(userDateFormat) : '';
         }
     }
 
@@ -281,7 +287,9 @@
         const header = document.createElement('div');
         header.className = 'chat-message-header';
         const authorClass = window.currentUserIsAdmin ? 'chat-message-author admin-action' : 'chat-message-author';
-        header.innerHTML = `<span class="${authorClass}" data-user-id="${msg.from_user_id || ''}" title="${window.currentUserIsAdmin ? uiT('ui.chat.moderation_hint', 'Right-click or click to moderate') : ''}">${escapeHtml(msg.from_username || uiT('ui.chat.system', 'System'))}</span>
+        const devBadge = window.isDevMode && msg._source
+            ? ` <span class="chat-dev-source">(${msg._source})</span>` : '';
+        header.innerHTML = `<span class="${authorClass}" data-user-id="${msg.from_user_id || ''}" title="${window.currentUserIsAdmin ? uiT('ui.chat.moderation_hint', 'Right-click or click to moderate') : ''}">${escapeHtml(msg.from_username || uiT('ui.chat.system', 'System'))}</span>${devBadge}
             <span class="chat-message-time">${formatTimestamp(msg.created_at)}</span>`;
 
         const body = document.createElement('div');
@@ -406,17 +414,18 @@
 
     function pollMessages() {
         const params = new URLSearchParams();
-        if (state.lastEventId) {
-            params.set('since_id', state.lastEventId);
+        if (state.lastChatId) {
+            params.set('since_id', state.lastChatId);
         }
         fetch(`/api/chat/poll?${params.toString()}`)
             .then(res => res.json())
             .then(data => {
                 const messages = data.messages || [];
                 messages.forEach(payload => {
+                    payload._source = 'poll';
                     handleIncoming(payload);
-                    if (payload.id) {
-                        state.lastEventId = payload.id;
+                    if (payload.id && payload.id > state.lastChatId) {
+                        state.lastChatId = payload.id;
                     }
                 });
                 if (messages.length > 0) {
@@ -430,6 +439,9 @@
 
     function handleIncoming(payload) {
         if (!payload || !payload.id) return;
+        // Guard against duplicate delivery (BinkStream catch-up + poll overlap).
+        if (state.displayedMessageIds.has(payload.id)) return;
+
         const thread = payload.type === 'room'
             ? { type: 'room', id: payload.room_id }
             : {
@@ -442,9 +454,12 @@
 
         const isActive = state.active.type === thread.type && state.active.id === thread.id;
         if (isActive) {
+            // appendMessage() renders and adds the id to displayedMessageIds.
             appendMessage(payload);
         } else if (payload.from_user_id !== window.currentUserId) {
-            // Only increment unread count for messages from other users
+            // Inactive thread — track as processed so re-delivery doesn't
+            // double-count the unread badge.
+            state.displayedMessageIds.add(payload.id);
             state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
             saveState();
             renderUnreadBadge();
@@ -619,8 +634,34 @@
             loadMessages();
         }
         setInterval(refreshUsers, 15000);
-        pollMessages();
-        setInterval(pollMessages, CHAT_POLL_INTERVAL_MS);
+
+        // Wire BinkStream if available; fall back to fast polling otherwise.
+        let sseActive = false;
+        if (window.BinkStream) {
+            window.BinkStream.on('chat_message', function (payload) {
+                if (!payload || !payload.id) return;
+                // Full message payload arrives via BinkStream — render directly with no
+                // extra HTTP round-trip. Advance the poll fallback cursor so the
+                // safety-net poll won't re-deliver the same message.
+                // Note: the stream cursor is managed automatically by the
+                // browser/SharedWorker transport layer.
+                payload._source = (typeof window.BinkStream.getMode === 'function')
+                    ? window.BinkStream.getMode()
+                    : 'binkstream';
+                handleIncoming(payload);
+                if (payload.id > state.lastChatId) {
+                    state.lastChatId = payload.id;
+                    saveState();
+                }
+            });
+            sseActive = true;
+        }
+
+        // Polling is disabled — BinkStream delivers messages in real-time.
+        // Re-enable by uncommenting the lines below if BinkStream is unavailable.
+        // const pollInterval = sseActive ? CHAT_POLL_INTERVAL_SSE_MS : CHAT_POLL_INTERVAL_POLL_MS;
+        // pollMessages();
+        // setInterval(pollMessages, pollInterval);
     }
 
     document.addEventListener('DOMContentLoaded', init);

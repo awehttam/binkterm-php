@@ -26,15 +26,19 @@ use BinktermPHP\Database;
 
 class SessionLogger
 {
+    private const REALTIME_PROGRESS_THROTTLE_SECONDS = 0.75;
+
     private $db;
     private $sessionId;
     private $startTime;
+    private ?float $lastRealtimeEmitAt;
 
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
         $this->sessionId = null;
         $this->startTime = null;
+        $this->lastRealtimeEmitAt = null;
     }
 
     /**
@@ -50,20 +54,30 @@ class SessionLogger
         ?string $remoteAddress,
         ?string $remoteIp,
         string $sessionType,
-        bool $isInbound
+        bool $isInbound,
+        ?int $processId = null,
+        ?string $logFile = null
     ): int {
         $this->startTime = microtime(true);
 
         $stmt = $this->db->prepare("
             INSERT INTO binkp_session_log
-            (remote_address, remote_ip, session_type, is_inbound, status)
-            VALUES (?, ?::inet, ?, ?::boolean, 'active')
+            (remote_address, remote_ip, session_type, is_inbound, status, process_id, log_file)
+            VALUES (?, ?::inet, ?, ?::boolean, 'active', ?, ?)
             RETURNING id
         ");
         // Cast boolean to PostgreSQL-compatible string
         $isInboundStr = $isInbound ? 'true' : 'false';
-        $stmt->execute([$remoteAddress, $remoteIp, $sessionType, $isInboundStr]);
+        $stmt->execute([
+            $remoteAddress,
+            $remoteIp,
+            $sessionType,
+            $isInboundStr,
+            $processId ?? getmypid(),
+            $logFile !== null ? basename($logFile) : null,
+        ]);
         $this->sessionId = (int)$stmt->fetchColumn();
+        $this->emitRealtimeUpdate('started', true);
         return $this->sessionId;
     }
 
@@ -108,6 +122,7 @@ class SessionLogger
             $bytesSent,
             $this->sessionId
         ]);
+        $this->emitRealtimeUpdate('stats');
     }
 
     /**
@@ -140,6 +155,7 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$amount, $this->sessionId]);
+        $this->emitRealtimeUpdate('progress');
     }
 
     /**
@@ -162,6 +178,7 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$status, $errorMessage, $this->sessionId]);
+        $this->emitRealtimeUpdate('ended', true);
     }
 
     /**
@@ -197,6 +214,21 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$address, $this->sessionId]);
+        $this->emitRealtimeUpdate('address', true);
+    }
+
+    public function setRemoteIp(string $remoteIp): void
+    {
+        if (!$this->sessionId || filter_var($remoteIp, FILTER_VALIDATE_IP) === false) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE binkp_session_log SET remote_ip = ?::inet
+            WHERE id = ?
+        ");
+        $stmt->execute([$remoteIp, $this->sessionId]);
+        $this->emitRealtimeUpdate('address', true);
     }
 
     /**
@@ -213,6 +245,7 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$sessionType, $this->sessionId]);
+        $this->emitRealtimeUpdate('type', true);
     }
 
     /**
@@ -231,6 +264,80 @@ class SessionLogger
             WHERE id = ?
         ");
         $stmt->execute([$method, $this->sessionId]);
+        $this->emitRealtimeUpdate('auth', true);
+    }
+
+    private function emitRealtimeUpdate(string $reason, bool $force = false): void
+    {
+        if (!$this->sessionId) {
+            return;
+        }
+
+        $now = microtime(true);
+        if (
+            !$force &&
+            $this->lastRealtimeEmitAt !== null &&
+            ($now - $this->lastRealtimeEmitAt) < self::REALTIME_PROGRESS_THROTTLE_SECONDS
+        ) {
+            return;
+        }
+
+        $payload = $this->buildRealtimePayload($reason);
+        if ($payload === null) {
+            return;
+        }
+
+        try {
+            \BinktermPHP\Realtime\BinkStream::emit($this->db, 'binkp_session', $payload, null, true);
+            $this->lastRealtimeEmitAt = $now;
+        } catch (\Throwable $e) {
+            // Realtime delivery is best-effort only; never break a session write.
+        }
+    }
+
+    private function buildRealtimePayload(string $reason): ?array
+    {
+        if (!$this->sessionId) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT *,
+                   EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) AS duration_seconds
+            FROM binkp_session_log
+            WHERE id = ?
+        ");
+        $stmt->execute([$this->sessionId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'reason' => $reason,
+            'session' => [
+                'id' => (int)$row['id'],
+                'remote_address' => $row['remote_address'] !== null ? (string)$row['remote_address'] : null,
+                'remote_ip' => $row['remote_ip'] !== null ? (string)$row['remote_ip'] : null,
+                'process_id' => isset($row['process_id']) ? (int)$row['process_id'] : null,
+                'log_file' => $row['log_file'] !== null ? (string)$row['log_file'] : null,
+                'session_type' => (string)$row['session_type'],
+                'is_inbound' => (bool)$row['is_inbound'],
+                'status' => (string)$row['status'],
+                'auth_method' => $row['auth_method'] !== null ? (string)$row['auth_method'] : null,
+                'messages_received' => (int)($row['messages_received'] ?? 0),
+                'messages_sent' => (int)($row['messages_sent'] ?? 0),
+                'files_received' => (int)($row['files_received'] ?? 0),
+                'files_sent' => (int)($row['files_sent'] ?? 0),
+                'bytes_received' => (int)($row['bytes_received'] ?? 0),
+                'bytes_sent' => (int)($row['bytes_sent'] ?? 0),
+                'started_at' => $row['started_at'] !== null ? (string)$row['started_at'] : null,
+                'ended_at' => $row['ended_at'] !== null ? (string)$row['ended_at'] : null,
+                'duration_seconds' => isset($row['duration_seconds']) ? (float)$row['duration_seconds'] : 0.0,
+                'error_message' => $row['error_message'] !== null ? (string)$row['error_message'] : null,
+            ],
+        ];
     }
 
     // ========================================
@@ -271,11 +378,18 @@ class SessionLogger
             $params[] = $filters['is_inbound'] === 'true';
         }
 
+        if (!empty($filters['process_id'])) {
+            $where[] = 'process_id = ?';
+            $params[] = (int)$filters['process_id'];
+        }
+
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
         $params[] = $limit;
 
         $stmt = $db->prepare("
             SELECT *,
+                   files_received AS messages_received,
+                   files_sent AS messages_sent,
                    EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) as duration_seconds
             FROM binkp_session_log
             {$whereClause}
@@ -285,6 +399,24 @@ class SessionLogger
         $stmt->execute($params);
 
         return $stmt->fetchAll();
+    }
+
+    public static function getSessionById(int $id): ?array
+    {
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->prepare("
+            SELECT *,
+                   files_received AS messages_received,
+                   files_sent AS messages_sent,
+                   EXTRACT(EPOCH FROM (COALESCE(ended_at, CURRENT_TIMESTAMP) - started_at)) AS duration_seconds
+            FROM binkp_session_log
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
     }
 
     /**
@@ -297,13 +429,8 @@ class SessionLogger
     {
         $db = Database::getInstance()->getPdo();
 
-        $interval = match($period) {
-            'hour' => '1 hour',
-            'day' => '24 hours',
-            'week' => '7 days',
-            'month' => '30 days',
-            default => '24 hours'
-        };
+        $periodConfig = self::getPeriodConfig($period);
+        $interval = $periodConfig['interval'];
 
         $stmt = $db->prepare("
             SELECT
@@ -318,8 +445,8 @@ class SessionLogger
                 COUNT(*) FILTER (WHERE is_inbound = FALSE) as outbound,
                 COUNT(*) FILTER (WHERE auth_method = 'cram-md5') as cram_md5_sessions,
                 COUNT(*) FILTER (WHERE auth_method = 'plaintext') as plaintext_sessions,
-                COALESCE(SUM(messages_received), 0) as total_messages_received,
-                COALESCE(SUM(messages_sent), 0) as total_messages_sent,
+                COALESCE(SUM(files_received), 0) as total_messages_received,
+                COALESCE(SUM(files_sent), 0) as total_messages_sent,
                 COALESCE(SUM(files_received), 0) as total_files_received,
                 COALESCE(SUM(files_sent), 0) as total_files_sent,
                 COALESCE(SUM(bytes_received), 0) as total_bytes_received,
@@ -329,7 +456,149 @@ class SessionLogger
         ");
         $stmt->execute();
 
-        return $stmt->fetch();
+        $stats = $stmt->fetch();
+        if (!is_array($stats)) {
+            $stats = [];
+        }
+
+        $stats['timeline'] = self::getTrafficTimeline($period);
+        $stats['uplink_connections'] = self::getUplinkConnectionCounts($period);
+
+        return $stats;
+    }
+
+    /**
+     * @return array{interval:string,bucket_interval:string,bucket_count:int,label_format:string,label_key:string,group_by:string}
+     */
+    private static function getPeriodConfig(string $period): array
+    {
+        return match($period) {
+            'week' => [
+                'interval' => '7 days',
+                'bucket_interval' => '1 day',
+                'bucket_count' => 7,
+                'label_format' => 'Dy',
+                'label_key' => 'day_label',
+                'group_by' => 'day',
+            ],
+            'month' => [
+                'interval' => '30 days',
+                'bucket_interval' => '1 day',
+                'bucket_count' => 30,
+                'label_format' => 'Mon DD',
+                'label_key' => 'day_label',
+                'group_by' => 'day',
+            ],
+            default => [
+                'interval' => '24 hours',
+                'bucket_interval' => '1 hour',
+                'bucket_count' => 24,
+                'label_format' => 'HH24:00',
+                'label_key' => 'hour_label',
+                'group_by' => 'hour',
+            ],
+        };
+    }
+
+    public static function getTrafficTimeline(string $period = 'day'): array
+    {
+        $db = Database::getInstance()->getPdo();
+        $periodConfig = self::getPeriodConfig($period);
+        $bucketStart = $periodConfig['group_by'] === 'hour'
+            ? "date_trunc('hour', NOW()) - INTERVAL '23 hours'"
+            : "date_trunc('day', NOW()) - INTERVAL '" . ($periodConfig['bucket_count'] - 1) . " days'";
+        $bucketEnd = $periodConfig['group_by'] === 'hour'
+            ? "date_trunc('hour', NOW())"
+            : "date_trunc('day', NOW())";
+        $joinExpression = $periodConfig['group_by'] === 'hour'
+            ? "date_trunc('hour', log.started_at)"
+            : "date_trunc('day', log.started_at)";
+
+        $stmt = $db->query("
+            SELECT
+                to_char(bucket.time_bucket, '{$periodConfig['label_format']}') AS {$periodConfig['label_key']},
+                EXTRACT(EPOCH FROM bucket.time_bucket) AS bucket_epoch,
+                COALESCE(SUM(log.files_received), 0) AS messages_received,
+                COALESCE(SUM(log.files_sent), 0) AS messages_sent
+            FROM generate_series(
+                {$bucketStart},
+                {$bucketEnd},
+                INTERVAL '{$periodConfig['bucket_interval']}'
+            ) AS bucket(time_bucket)
+            LEFT JOIN binkp_session_log log
+                ON {$joinExpression} = bucket.time_bucket
+            GROUP BY bucket.time_bucket
+            ORDER BY bucket.time_bucket ASC
+        ");
+
+        $rows = $stmt->fetchAll();
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(static function ($row) {
+            return [
+                'label' => (string)($row['hour_label'] ?? $row['day_label'] ?? ''),
+                'bucket_epoch' => isset($row['bucket_epoch']) ? (int)$row['bucket_epoch'] : 0,
+                'messages_received' => (int)($row['messages_received'] ?? 0),
+                'messages_sent' => (int)($row['messages_sent'] ?? 0),
+            ];
+        }, $rows);
+    }
+
+    public static function getUplinkConnectionCounts(string $period = 'day'): array
+    {
+        $periodConfig = self::getPeriodConfig($period);
+        $uplinkAddresses = [];
+
+        try {
+            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            foreach ($config->getEnabledUplinks() as $uplink) {
+                $address = trim((string)($uplink['address'] ?? ''));
+                if ($address !== '') {
+                    $uplinkAddresses[$address] = $address;
+                }
+            }
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if ($uplinkAddresses === []) {
+            return [];
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $placeholders = implode(',', array_fill(0, count($uplinkAddresses), '?'));
+        $params = array_values($uplinkAddresses);
+        $params[] = $periodConfig['interval'];
+
+        $stmt = $db->prepare("
+            SELECT remote_address, COUNT(*) AS connection_count
+            FROM binkp_session_log
+            WHERE remote_address IN ({$placeholders})
+              AND started_at > NOW() - CAST(? AS interval)
+            GROUP BY remote_address
+            ORDER BY remote_address ASC
+        ");
+        $stmt->execute($params);
+
+        $rows = $stmt->fetchAll();
+        $counts = [];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $counts[(string)$row['remote_address']] = (int)($row['connection_count'] ?? 0);
+            }
+        }
+
+        $result = [];
+        foreach ($uplinkAddresses as $address) {
+            $result[] = [
+                'label' => $address,
+                'count' => (int)($counts[$address] ?? 0),
+            ];
+        }
+
+        return $result;
     }
 
     /**

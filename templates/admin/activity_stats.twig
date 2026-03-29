@@ -44,6 +44,11 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-areas" data-bs-toggle="tab" data-bs-target="#pane-areas" type="button">{{ t('ui.admin.activity_stats.tab_popular_areas') }}</button>
             </li>
+            {% if interests_enabled %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-interests" data-bs-toggle="tab" data-bs-target="#pane-interests" type="button">{{ t('ui.admin.activity_stats.tab_interests') }}</button>
+            </li>
+            {% endif %}
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-doors" data-bs-toggle="tab" data-bs-target="#pane-doors" type="button">{{ t('ui.admin.activity_stats.tab_doors') }}</button>
             </li>
@@ -228,6 +233,21 @@
                     </div>
                 </div>
             </div>
+
+            {% if interests_enabled %}
+            <!-- Popular Interests Tab -->
+            <div class="tab-pane fade" id="pane-interests" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-header"><strong>{{ t('ui.admin.activity_stats.popular_interests') }}</strong></div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead><tr><th>{{ t('ui.admin.activity_stats.interest') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.subscribers') }}</th><th style="width:35%"></th></tr></thead>
+                            <tbody id="interest-rows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
         </div><!-- /.tab-content -->
 
@@ -436,6 +456,30 @@
         renderRows('top-users-rows', data.top_users || [], r => r.username || uiT('ui.admin.activity_stats.anonymous', '(anon)'), r => r.count, 'bg-primary');
     }
 
+    function renderInterests(data) {
+        const tbody = document.getElementById('interest-rows');
+        if (!tbody) return;
+        const interests = data.popular_interests || [];
+        if (interests.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-center py-3">${uiT('ui.admin.activity_stats.no_data_for_period', 'No data for this period')}</td></tr>`;
+            return;
+        }
+        const maxVal = Math.max(...interests.map(r => r.subscribers || 0));
+        tbody.innerHTML = interests.map(r => {
+            const val = r.subscribers || 0;
+            const icon = escapeHtml(r.icon || 'fa-layer-group');
+            const color = escapeHtml(r.color || '#6c757d');
+            const name = escapeHtml(r.name || '');
+            return `<tr>
+                <td class="text-truncate" style="max-width:220px">
+                    <i class="fas ${icon} me-2" style="color:${color}"></i>${name}
+                </td>
+                <td class="text-end fw-semibold">${val.toLocaleString()}</td>
+                <td>${progressBar(val, maxVal, 'bg-primary')}</td>
+            </tr>`;
+        }).join('');
+    }
+
     function renderHourly(data) {
         const hourly = data.hourly || [];
         const tbody = document.getElementById('hourly-rows');
@@ -468,6 +512,7 @@
         renderNodelist(data);
         renderUsers(data);
         renderHourly(data);
+        renderInterests(data);
     }
 
     function loadStats() {

@@ -8,7 +8,7 @@
         On desktop the art renders at natural size.
     #}
     <div class="ansi-art-wrapper d-flex justify-content-center" id="ansiArtWrapper" style="cursor:pointer;">
-        <pre class="ansi-art" id="shellMenuAnsi" style="display:inline-block;">{{ shell_art_content }}</pre>
+        <pre class="ansi-art" id="shellMenuAnsi" data-ansi-size="{{ appearance.shell.bbs_menu.ansi_size|default('80x25')|e('html_attr') }}" style="display:inline-block;">{{ shell_art_content }}</pre>
     </div>
 
     {#
@@ -32,22 +32,86 @@
 
 <script>
 (function() {
+    function resolveAnsiCanvas(size) {
+        switch (size) {
+            case '132x24':
+                return { cols: 132, rows: 24, fitViewport: false };
+            case '132x43':
+                return { cols: 132, rows: 43, fitViewport: false };
+            case '132x50':
+                return { cols: 132, rows: 50, fitViewport: false };
+            case 'full':
+                return { cols: 132, rows: 50, fitViewport: true };
+            case '80x25':
+            default:
+                return { cols: 80, rows: 25, fitViewport: false };
+        }
+    }
+
     function scaleAnsiArt() {
         var pre = document.getElementById('shellMenuAnsi');
         if (!pre) return;
         var wrapper = pre.closest('.ansi-art-wrapper');
         if (!wrapper) return;
+        var ansiSize = pre.dataset.ansiSize || '80x25';
+        var canvas = resolveAnsiCanvas(ansiSize);
         // Reset any previous scaling
         pre.style.fontSize = '';
+        pre.style.transform = 'scale(1)';
+        pre.style.transformOrigin = 'top center';
+        pre.style.position = '';
+        pre.style.left = '';
+        pre.style.top = '';
+        wrapper.style.height = '';
+        wrapper.style.position = '';
+        wrapper.style.overflow = '';
         var isMobile = window.matchMedia('(max-width: 767.98px)').matches;
         var targetWidth = isMobile
             ? Math.floor(window.innerWidth * 0.99)
             : wrapper.clientWidth;
+        var viewportPadding = isMobile ? 24 : 48;
+        var wrapperTop = wrapper.getBoundingClientRect().top;
+        var targetHeight = Math.max(0, window.innerHeight - wrapperTop - viewportPadding);
         var naturalWidth = pre.scrollWidth;
-        // Mobile: scale to fill (up or down); desktop: only scale down if too wide
-        if (targetWidth > 0 && naturalWidth > 0 && (isMobile || naturalWidth > targetWidth)) {
-            var currentFontSize = parseFloat(window.getComputedStyle(pre).fontSize);
-            pre.style.fontSize = (currentFontSize * targetWidth / naturalWidth).toFixed(2) + 'px';
+        var naturalHeight = pre.scrollHeight;
+        if (targetWidth <= 0 || naturalWidth <= 0 || naturalHeight <= 0) {
+            return;
+        }
+
+        var widthScale = targetWidth / naturalWidth;
+        var heightScale = targetHeight > 0 ? (targetHeight / naturalHeight) : widthScale;
+        var scale;
+
+        if (canvas.fitViewport) {
+            scale = Math.min(widthScale, heightScale);
+        } else if (ansiSize === '80x25') {
+            scale = 1;
+            if (isMobile && targetWidth > 0 && naturalWidth > targetWidth) {
+                scale = targetWidth / naturalWidth;
+            }
+        } else {
+            var baselineScale = Math.min(80 / canvas.cols, 25 / canvas.rows);
+            scale = baselineScale;
+            if (isMobile && targetWidth > 0) {
+                scale = Math.min(scale, widthScale);
+            }
+        }
+
+        if (scale > 0 && Math.abs(scale - 1) > 0.0001) {
+            wrapper.style.position = 'relative';
+            wrapper.style.overflow = 'hidden';
+            pre.style.position = 'absolute';
+            pre.style.left = '50%';
+            pre.style.top = '0';
+            if (canvas.fitViewport) {
+                pre.style.transform = 'translateX(-50%) scale(' + scale.toFixed(4) + ')';
+                wrapper.style.height = Math.max(1, Math.floor(naturalHeight * scale)) + 'px';
+            } else {
+                pre.style.transform = 'translateX(-50%) scale(' + scale.toFixed(4) + ')';
+                wrapper.style.height = Math.max(1, Math.floor(naturalHeight * scale)) + 'px';
+            }
+        } else if (!canvas.fitViewport) {
+            wrapper.style.height = Math.max(1, naturalHeight) + 'px';
         }
     }
     // Run after ANSI rendering (which happens in a separate ready handler)

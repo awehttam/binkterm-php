@@ -27,15 +27,18 @@ class SystemStatus
             'admin_daemon'    => Config::env('ADMIN_DAEMON_PID_FILE',    $runDir . '/admin_daemon.pid'),
             'binkp_scheduler' => Config::env('BINKP_SCHEDULER_PID_FILE', $runDir . '/binkp_scheduler.pid'),
             'binkp_server'    => Config::env('BINKP_SERVER_PID_FILE',    $runDir . '/binkp_server.pid'),
+            'realtime_server' => Config::env('BINKSTREAM_WS_PID_FILE', Config::env('REALTIME_WS_PID_FILE', $runDir . '/realtime_server.pid')),
         ];
 
         // Optional daemons — shown with a distinct "not configured" state when absent
         $optionalDaemons = [
+            'ftp_daemon'           => Config::env('FTPD_PID_FILE',         $runDir . '/ftpd.pid'),
             'telnetd'              => Config::env('TELNETD_PID_FILE',      $runDir . '/telnetd.pid'),
             'ssh_daemon'           => Config::env('SSHD_PID_FILE',        $runDir . '/sshd.pid'),
             'gemini_daemon'        => Config::env('GEMINI_PID_FILE',       $runDir . '/gemini_daemon.pid'),
             'mrc_daemon'           => Config::env('MRC_PID_FILE',          $runDir . '/mrc_daemon.pid'),
             'multiplexing_server'  => Config::env('MULTIPLEX_PID_FILE',    $runDir . '/multiplexing-server.pid'),
+            'mcp_server'           => Config::env('MCP_SERVER_PID_FILE',   $runDir . '/mcp-server.pid'),
         ];
 
         $status = [];

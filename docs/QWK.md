@@ -44,6 +44,11 @@ FidoNet metadata.
 4. **Upload** the REP packet to `/api/qwk/upload`. BinktermPHP imports your
    messages, posts echomail to the appropriate areas, and routes netmail.
 
+The same workflow is also available through the optional FTP daemon:
+
+- Download: `/qwk/download/<BBSID>.QWK`
+- Upload: `/qwk/upload/<BBSID>.REP` or `/qwk/upload/<BBSID>.ZIP`
+
 You must download a QWK packet at least once before uploading a REP packet.
 The download establishes the conference map that BinktermPHP uses to route
 your replies back to the correct echo areas.
@@ -77,6 +82,16 @@ Both QWK and QWKE export message bodies in CP437. Differences in QWKE:
 
 QWKE is recommended for readers that support it. Use plain QWK for maximum
 compatibility with older readers.
+
+### Choosing QWK vs QWKE
+
+HTTP downloads can choose the format explicitly with
+`/api/qwk/download?format=qwk` or `/api/qwk/download?format=qwke`.
+
+FTP downloads do not currently expose a separate path or filename for choosing
+the format. Instead, `/qwk/download/<BBSID>.QWK` uses the account's saved QWK
+format preference (`qwk` or `qwke`), the same preference set by the web UI and
+`POST /api/qwk/format`.
 
 ---
 
@@ -164,6 +179,10 @@ routed to the system address as a fallback.
 
 ## Uploading a REP Packet
 
+REP upload parsing is shared across the web UI, the HTTP API, and FTP. There is
+no separate "QWKE upload mode" switch. BinktermPHP inspects the uploaded
+packet's contents and imports QWKE extended headers when they are present.
+
 ### Validation
 
 BinktermPHP validates the REP packet before importing any messages:
@@ -213,6 +232,12 @@ against the most recent packet.
 
 All endpoints require authentication and return JSON (except `/download` which
 streams a ZIP file).
+
+If the optional FTP daemon is enabled, the equivalent FTP paths are:
+
+- `/qwk/download/<BBSID>.QWK`
+- `/qwk/upload/<BBSID>.REP`
+- `/qwk/upload/<BBSID>.ZIP`
 
 ---
 

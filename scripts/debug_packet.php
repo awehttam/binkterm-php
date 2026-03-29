@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 
 /*
@@ -246,11 +247,13 @@ function analyzeMessages($handle, $startOffset = 58)
                 printf("    Cost: %d\n", $header['cost']);
             }
             
-            // Read null-terminated strings
-            $dateTime = readNullString($handle, 20);
-            $toName = readNullString($handle, 36);
-            $fromName = readNullString($handle, 36);
-            $subject = readNullString($handle, 72);
+            // Read fixed-size header string fields (FTS-0001).
+            // Each field is a fixed number of bytes regardless of where the null falls;
+            // reading byte-by-byte to the null leaves padding unread and drifts the offset.
+            $dateTime = readFixedString($handle, 20);
+            $toName   = readFixedString($handle, 36);
+            $fromName = readFixedString($handle, 36);
+            $subject  = readFixedString($handle, 72);
             
             echo "    Date: $dateTime\n";
             echo "    From name: $fromName\n";
@@ -287,20 +290,38 @@ function analyzeMessages($handle, $startOffset = 58)
     echo "\nTotal messages found: $messageCount\n";
 }
 
-function readNullString($handle, $maxLen)
+function readFixedString($handle, int $len): string
 {
     $string = '';
-    $count = 0;
-    
-    while ($count < $maxLen) {
+    $count  = 0;
+
+    while ($count < $len) {
         $char = fread($handle, 1);
-        if ($char === false || ord($char) === 0) {
+        if ($char === false || $char === '') {
+            return $string;
+        }
+        $count++;
+        if (ord($char) === 0) {
             break;
         }
         $string .= $char;
-        $count++;
     }
-    
+
+    // Skip zero-padding bytes; if a non-zero byte follows the null it belongs
+    // to the next field (non-padded mailer) — seek back and stop.
+    while ($count < $len) {
+        $char = fread($handle, 1);
+        if ($char === false || $char === '') {
+            break;
+        }
+        $count++;
+        if (ord($char) !== 0) {
+            fseek($handle, -1, SEEK_CUR);
+            $count--;
+            break;
+        }
+    }
+
     return $string;
 }
 

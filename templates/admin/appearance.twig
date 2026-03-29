@@ -36,13 +36,18 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="tab-message-reader-btn" data-bs-toggle="tab" data-bs-target="#tab-message-reader" type="button" role="tab">
-            <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.admin.appearance.tab_message_reader', {}, locale, ['common']) }}
+        <button class="nav-link" id="tab-login-btn" data-bs-toggle="tab" data-bs-target="#tab-login" type="button" role="tab">
+            <i class="fas fa-right-to-bracket me-1"></i> {{ t('ui.admin.appearance.tab_login', {}, locale, ['common']) }}
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="tab-splash-btn" data-bs-toggle="tab" data-bs-target="#tab-splash" type="button" role="tab">
-            <i class="fas fa-door-open me-1"></i> {{ t('ui.admin.appearance.tab_splash', {}, locale, ['common']) }}
+        <button class="nav-link" id="tab-term-server-btn" data-bs-toggle="tab" data-bs-target="#tab-term-server" type="button" role="tab">
+            <i class="fas fa-terminal me-1"></i> {{ t('ui.admin.appearance.tab_term_server', {}, locale, ['common']) }}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-message-reader-btn" data-bs-toggle="tab" data-bs-target="#tab-message-reader" type="button" role="tab">
+            <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.admin.appearance.tab_message_reader', {}, locale, ['common']) }}
         </button>
     </li>
 </ul>
@@ -204,11 +209,30 @@
                                 </div>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="saveContent()">
-                            <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.content.save', {}, locale, ['common']) }}
-                        </button>
-                        <span id="contentStatus" class="ms-2 text-muted small"></span>
                     </div>
+                </div>
+            </div>
+
+            {% if license_valid %}
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.admin.appearance.splash.register_label', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control font-monospace" id="registerSplash" rows="8" placeholder="{{ t('ui.admin.appearance.splash.placeholder', {}, locale, ['common']) }}"></textarea>
+                        <div class="form-text">{{ t('ui.admin.appearance.splash.register_help', {}, locale, ['common']) }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-primary" onclick="saveContent()">
+                        <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.content.save', {}, locale, ['common']) }}
+                    </button>
+                    <span id="contentStatus" class="text-muted small"></span>
                 </div>
             </div>
         </div>
@@ -370,6 +394,18 @@
                         <div id="shellArtUploadStatus" class="mt-1 small"></div>
                     </div>
 
+                    <div class="mb-3" id="ansiSizeRow" style="display:none;">
+                        <label class="form-label" for="ansiSizeSelect">{{ t('ui.admin.appearance.shell.ansi_art_size', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="ansiSizeSelect" style="max-width: 240px;">
+                            <option value="80x25">80x25</option>
+                            <option value="132x24">132x24</option>
+                            <option value="132x43">132x43</option>
+                            <option value="132x50">132x50</option>
+                            <option value="full">{{ t('ui.admin.appearance.shell.ansi_art_size_full', {}, locale, ['common']) }}</option>
+                        </select>
+                        <div class="form-text">{{ t('ui.admin.appearance.shell.ansi_art_size_help', {}, locale, ['common']) }}</div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">{{ t('ui.admin.appearance.shell.menu_items', {}, locale, ['common']) }}</label>
                         <div class="form-text mb-2">{{ t('ui.admin.appearance.shell.menu_items_help', {}, locale, ['common']) }}</div>
@@ -403,6 +439,108 @@
         </div>
     </div>
 
+    {# ====== TAB: LOGIN ====== #}
+    <div class="tab-pane fade" id="tab-login" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.admin.appearance.login.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.appearance.login.help', {}, locale, ['common']) }}</p>
+
+                <div class="mb-3">
+                    <label class="form-label" for="loginDisplayMode">{{ t('ui.admin.appearance.login.display_mode', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="loginDisplayMode" style="max-width: 320px;">
+                        <option value="standard">{{ t('ui.admin.appearance.login.mode_standard', {}, locale, ['common']) }}</option>
+                        <option value="ansi_prompt">{{ t('ui.admin.appearance.login.mode_ansi_prompt', {}, locale, ['common']) }}</option>
+                    </select>
+                    <div class="form-text">{{ t('ui.admin.appearance.login.display_mode_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                {% if license_valid %}
+                <div class="mb-4" id="loginSplashSettings">
+                    <label class="form-label fw-semibold" for="loginSplash">{{ t('ui.admin.appearance.splash.login_label', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control font-monospace" id="loginSplash" rows="8" placeholder="{{ t('ui.admin.appearance.splash.placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.splash.login_help', {}, locale, ['common']) }}</div>
+                </div>
+                {% endif %}
+
+                <div id="loginAnsiSettings" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label" for="loginAnsiSizeSelect">{{ t('ui.admin.appearance.login.ansi_art_size', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="loginAnsiSizeSelect" style="max-width: 240px;">
+                            <option value="80x25">80x25</option>
+                            <option value="132x24">132x24</option>
+                            <option value="132x43">132x43</option>
+                            <option value="132x50">132x50</option>
+                            <option value="full">{{ t('ui.admin.appearance.shell.ansi_art_size_full', {}, locale, ['common']) }}</option>
+                        </select>
+                        <div class="form-text">{{ t('ui.admin.appearance.login.ansi_art_size_help', {}, locale, ['common']) }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="loginAnsiContent">{{ t('ui.admin.appearance.login.ansi_content', {}, locale, ['common']) }}</label>
+                        <div id="loginAnsiEditorWrap">
+                            <textarea class="form-control font-monospace" id="loginAnsiContent" rows="18" placeholder="{{ t('ui.admin.appearance.login.ansi_placeholder', {}, locale, ['common']) }}"></textarea>
+                        </div>
+                        <div class="form-text">{{ t('ui.admin.appearance.login.ansi_help', {}, locale, ['common']) }}</div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveLoginAppearance()">
+                    <i class="fas fa-save me-1"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
+                </button>
+                <span id="loginAppearanceStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
+
+    {# ====== TAB: TERMINAL SERVER ====== #}
+    <div class="tab-pane fade" id="tab-term-server" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.admin.appearance.term_server.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.appearance.term_server.help', {}, locale, ['common']) }}</p>
+
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label class="form-label" for="termScreenSelect">{{ t('ui.admin.appearance.term_server.screen_slot', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="termScreenSelect"></select>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="d-flex flex-wrap gap-2">
+                            <label class="btn btn-outline-secondary btn-sm mb-0" for="termScreenUploadInput">
+                                <i class="fas fa-upload me-1"></i> {{ t('ui.admin.appearance.term_server.upload', {}, locale, ['common']) }}
+                            </label>
+                            <input type="file" id="termScreenUploadInput" accept=".ans,.asc,.txt" style="display:none;" onchange="uploadTerminalScreenFile(this)">
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="deleteTerminalScreenBtn" onclick="deleteTerminalScreen()" style="display:none;">
+                                <i class="fas fa-undo me-1"></i> {{ t('ui.admin.appearance.term_server.reset_default', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <div class="small text-muted mb-1" id="termScreenDescription"></div>
+                    <div class="small text-muted mb-2" id="termScreenMeta"></div>
+                    <div id="termScreenContentEditor">
+                        <textarea class="form-control font-monospace" id="termScreenContent" rows="16" placeholder="{{ t('ui.admin.appearance.term_server.placeholder', {}, locale, ['common']) }}"></textarea>
+                    </div>
+                    <div class="form-text">{{ t('ui.admin.appearance.term_server.editor_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="button" class="btn btn-primary" onclick="saveTerminalScreen()">
+                        <i class="fas fa-save me-1"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
+                    </button>
+                    <span id="termScreenStatus" class="ms-2 text-muted small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {# ====== TAB: MESSAGE READER ====== #}
     <div class="tab-pane fade" id="tab-message-reader" role="tabpanel">
@@ -436,51 +574,14 @@
         </div>
     </div>
 
-    {# ====== TAB: SPLASH PAGES ====== #}
-    <div class="tab-pane fade" id="tab-splash" role="tabpanel">
-        {% if not license_valid %}
-        <div class="card">
-            <div class="card-body text-center py-5">
-                <i class="fas fa-lock text-muted mb-3" style="font-size: 3rem; opacity: 0.4;"></i>
-                <h5 class="text-muted">{{ t('ui.admin.appearance.splash.locked_heading', {}, locale, ['common']) }}</h5>
-                <p class="text-muted small">{{ t('ui.admin.appearance.splash.locked_description', {}, locale, ['common']) }}</p>
-                <a href="/admin/licensing" class="btn btn-outline-primary btn-sm">
-                    <i class="fas fa-id-card me-1"></i>{{ t('ui.error403.licensing_link', {}, locale, ['common']) }}
-                </a>
-            </div>
-        </div>
-        {% else %}
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">{{ t('ui.admin.appearance.splash.title', {}, locale, ['common']) }}</h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted small mb-4">{{ t('ui.admin.appearance.splash.help', {}, locale, ['common']) }}</p>
-
-                <div class="mb-4">
-                    <label class="form-label fw-semibold" for="loginSplash">{{ t('ui.admin.appearance.splash.login_label', {}, locale, ['common']) }}</label>
-                    <textarea class="form-control font-monospace" id="loginSplash" rows="8" placeholder="{{ t('ui.admin.appearance.splash.placeholder', {}, locale, ['common']) }}"></textarea>
-                    <div class="form-text">{{ t('ui.admin.appearance.splash.login_help', {}, locale, ['common']) }}</div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label fw-semibold" for="registerSplash">{{ t('ui.admin.appearance.splash.register_label', {}, locale, ['common']) }}</label>
-                    <textarea class="form-control font-monospace" id="registerSplash" rows="8" placeholder="{{ t('ui.admin.appearance.splash.placeholder', {}, locale, ['common']) }}"></textarea>
-                    <div class="form-text">{{ t('ui.admin.appearance.splash.register_help', {}, locale, ['common']) }}</div>
-                </div>
-
-                <button class="btn btn-fidonet" onclick="saveSplash()">
-                    <i class="fas fa-save me-1"></i>{{ t('ui.common.save', {}, locale, ['common']) }}
-                </button>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
+<script src="/js/ansi-editor.js"></script>
 <script>
 const defaultMenuItems = [
     { key: 'M', label: uiT('ui.admin.appearance.default_menu.messages', 'Messages'), label_key: 'ui.admin.appearance.default_menu.messages', icon: 'envelope', url: '/echomail' },
@@ -491,6 +592,10 @@ const defaultMenuItems = [
 ];
 
 let appearanceData = {};
+let terminalScreens = [];
+let currentTerminalScreenKey = '';
+let termScreenAnsiEditor = null;
+let loginAnsiEditor = null;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -499,7 +604,39 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+function getTerminalScreenLabel(key) {
+    const map = {
+        welcome: uiT('ui.admin.appearance.term_server.screen.welcome', 'Welcome'),
+        main_menu: uiT('ui.admin.appearance.term_server.screen.main_menu', 'Main Menu'),
+        goodbye: uiT('ui.admin.appearance.term_server.screen.goodbye', 'Goodbye')
+    };
+    return map[key] || key;
+}
+
+function getTerminalScreenDescription(key) {
+    const map = {
+        welcome: uiT('ui.admin.appearance.term_server.screen.welcome_help', 'Shown when a user first connects to the terminal server.'),
+        main_menu: uiT('ui.admin.appearance.term_server.screen.main_menu_help', 'Shown behind the terminal main menu after login.'),
+        goodbye: uiT('ui.admin.appearance.term_server.screen.goodbye_help', 'Shown when a user disconnects from the terminal server.')
+    };
+    return map[key] || '';
+}
+
 $(document).ready(function() {
+    termScreenAnsiEditor = window.AnsiEditor ? window.AnsiEditor.create(document.getElementById('termScreenContentEditor'), {
+        previewTitleResolver: function() {
+            if (!currentTerminalScreenKey) {
+                return uiT('ui.common.preview', 'Preview');
+            }
+            return getTerminalScreenLabel(currentTerminalScreenKey);
+        }
+    }) : null;
+    loginAnsiEditor = window.AnsiEditor ? window.AnsiEditor.create(document.getElementById('loginAnsiEditorWrap'), {
+        previewTitleResolver: function() {
+            return uiT('ui.admin.appearance.login.preview_title', 'Login Screen Preview');
+        }
+    }) : null;
+
     loadAppearanceConfig();
 
     // Accent color sync
@@ -522,16 +659,35 @@ $(document).ready(function() {
     $('input[name="bbsVariant"]').on('change', function() {
         if ($(this).val() === 'ansi') {
             $('#ansiFileRow').show();
-            loadShellArtList();
+            $('#ansiSizeRow').show();
+            loadShellArtList({
+                selectedFile: $('#ansiFile').val(),
+                selectId: 'ansiFileSelect',
+                hiddenInputId: 'ansiFile',
+                deleteButtonId: 'deleteShellArtBtn',
+                statusId: 'shellArtUploadStatus'
+            });
         } else {
             $('#ansiFileRow').hide();
+            $('#ansiSizeRow').hide();
         }
+    });
+
+    $('#loginDisplayMode').on('change', function() {
+        updateLoginAppearanceDisplay();
     });
 
     // Show delete button when a file is selected
     $('#ansiFileSelect').on('change', function() {
         $('#ansiFile').val($(this).val());
         $('#deleteShellArtBtn').toggle($(this).val() !== '');
+    });
+
+    $('#termScreenSelect').on('change', function() {
+        currentTerminalScreenKey = $(this).val() || '';
+        if (currentTerminalScreenKey) {
+            loadTerminalScreen(currentTerminalScreenKey);
+        }
     });
 
     // Active shell toggle (show/hide BBS menu config)
@@ -576,9 +732,12 @@ function loadAppearanceConfig() {
             }
             $('#annDismissible').prop('checked', ann.dismissible !== false);
 
-            // MOTD / House Rules
+            // MOTD / House Rules / Registration Splash
             $('#motdText').val(d.system_news || '');
             $('#rulesText').val(d.house_rules || '');
+            if (d.register_splash !== null && d.register_splash !== undefined) {
+                $('#registerSplash').val(d.register_splash);
+            }
 
             // Navigation
             const links = (config.navigation || {}).custom_links || [];
@@ -605,28 +764,42 @@ function loadAppearanceConfig() {
             $('input[name="bbsVariant"][value="' + variant + '"]').prop('checked', true);
             if (variant === 'ansi') {
                 $('#ansiFileRow').show();
-                loadShellArtList(bbsMenu.ansi_file || '');
+                $('#ansiSizeRow').show();
+                loadShellArtList({
+                    selectedFile: bbsMenu.ansi_file || '',
+                    selectId: 'ansiFileSelect',
+                    hiddenInputId: 'ansiFile',
+                    deleteButtonId: 'deleteShellArtBtn',
+                    statusId: 'shellArtUploadStatus'
+                });
             } else {
                 $('#ansiFileRow').hide();
+                $('#ansiSizeRow').hide();
             }
             $('#ansiFile').val(bbsMenu.ansi_file || '');
+            $('#ansiSizeSelect').val(bbsMenu.ansi_size || '80x25');
 
             const items = bbsMenu.menu_items || defaultMenuItems;
             $('#menuItemsBody').empty();
             items.forEach(item => addMenuItemRow(item));
+
+            const loginConfig = config.login || {};
+            $('#loginDisplayMode').val(loginConfig.display_mode || 'standard');
+            $('#loginAnsiSizeSelect').val(loginConfig.ansi_size || '80x25');
+            $('#loginAnsiContent').val(d.login_ansi || '');
+            updateLoginAppearanceDisplay();
+            loginAnsiEditor?.refreshPreview();
 
             // Message Reader
             const mr = config.message_reader || {};
             $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
             $('#mrEmailLinkUrl').val(mr.email_link_url || '');
 
-            // Splash Pages
+            // Login
             if (d.login_splash !== null && d.login_splash !== undefined) {
                 $('#loginSplash').val(d.login_splash);
             }
-            if (d.register_splash !== null && d.register_splash !== undefined) {
-                $('#registerSplash').val(d.register_splash);
-            }
+            loadTerminalScreenList();
             setSettingsLoading('#appearanceTabContent', false);
         })
         .fail(function(xhr) {
@@ -653,6 +826,12 @@ function selectShell(shell) {
 
 function updateShellDisplay() {
     selectShell($('#activeShell').val() || 'web');
+}
+
+function updateLoginAppearanceDisplay() {
+    const ansiMode = ($('#loginDisplayMode').val() || 'standard') === 'ansi_prompt';
+    $('#loginSplashSettings').toggle(!ansiMode);
+    $('#loginAnsiSettings').toggle(ansiMode);
 }
 
 function resetAccentColor() {
@@ -700,6 +879,7 @@ function saveContent() {
     const payload = {
         system_news: $('#motdText').val(),
         house_rules: $('#rulesText').val(),
+        register_splash: $('#registerSplash').val(),
         announcement: {
             enabled: $('#annEnabled').is(':checked'),
             text: $('#annText').val().trim(),
@@ -855,6 +1035,7 @@ function saveShell() {
             bbs_menu: {
                 variant: variant,
                 ansi_file: $('#ansiFile').val().trim(),
+                ansi_size: $('#ansiSizeSelect').val() || '80x25',
                 menu_items: menuItems.length > 0 ? menuItems : defaultMenuItems
             }
         }
@@ -875,28 +1056,60 @@ function saveShell() {
     });
 }
 
+function saveLoginAppearance() {
+    showStatus('loginAppearanceStatus', 'info', uiT('ui.common.saving', 'Saving...'));
+    $.ajax({
+        url: '/admin/api/appearance/login',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            login: {
+                display_mode: $('#loginDisplayMode').val() || 'standard',
+                ansi_size: $('#loginAnsiSizeSelect').val() || '80x25'
+            },
+            login_ansi: $('#loginAnsiContent').val(),
+            login_splash: $('#loginSplash').val()
+        }),
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('loginAppearanceStatus', 'success', successMessage);
+        },
+        error: function(xhr) {
+            showStatus('loginAppearanceStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.save_failed', 'Save failed')));
+        }
+    });
+}
+
 // ---- Shell Art Management ----
-function loadShellArtList(selectedFile) {
+function loadShellArtList(options) {
+    const config = options || {};
+    const selectId = config.selectId || 'ansiFileSelect';
+    const hiddenInputId = config.hiddenInputId || 'ansiFile';
+    const deleteButtonId = config.deleteButtonId || 'deleteShellArtBtn';
+    const statusId = config.statusId || 'shellArtUploadStatus';
     $.get('/admin/api/shell-art', function(data) {
         const files = data.files || [];
-        const current = selectedFile !== undefined ? selectedFile : $('#ansiFile').val();
-        const $sel = $('#ansiFileSelect');
+        const current = config.selectedFile !== undefined ? config.selectedFile : $('#' + hiddenInputId).val();
+        const $sel = $('#' + selectId);
         $sel.empty().append('<option value="">' + escHtml(uiT('ui.admin.appearance.shell.none_selected', '(none selected)')) + '</option>');
         files.forEach(function(f) {
             const opt = $('<option>').val(f.name).text(f.name + ' (' + formatBytes(f.size) + ')');
             if (f.name === current) opt.prop('selected', true);
             $sel.append(opt);
         });
-        $('#ansiFile').val($sel.val() || '');
-        $('#deleteShellArtBtn').toggle($sel.val() !== '');
+        $('#' + hiddenInputId).val($sel.val() || '');
+        $('#' + deleteButtonId).toggle($sel.val() !== '');
     }).fail(function() {
-        $('#shellArtUploadStatus').text(uiT('ui.admin.appearance.shell.could_not_load_file_list', 'Could not load file list.')).addClass('text-danger');
+        $('#' + statusId).text(uiT('ui.admin.appearance.shell.could_not_load_file_list', 'Could not load file list.')).addClass('text-danger');
     });
 }
 
-function uploadShellArtFile(input) {
+function uploadShellArtFile(input, options) {
     if (!input.files || !input.files[0]) return;
-    const $status = $('#shellArtUploadStatus');
+    const config = options || {};
+    const $status = $('#' + (config.statusId || 'shellArtUploadStatus'));
     $status.text(uiT('ui.admin.appearance.shell.uploading', 'Uploading...')).removeClass('text-danger text-success');
     const formData = new FormData();
     formData.append('file', input.files[0]);
@@ -912,7 +1125,13 @@ function uploadShellArtFile(input) {
                 ? window.getApiMessage(data, fallback)
                 : fallback;
             $status.text(successMessage).addClass('text-success');
-            loadShellArtList(data.name);
+            loadShellArtList({
+                selectedFile: data.name,
+                selectId: config.selectId || 'ansiFileSelect',
+                hiddenInputId: config.hiddenInputId || 'ansiFile',
+                deleteButtonId: config.deleteButtonId || 'deleteShellArtBtn',
+                statusId: config.statusId || 'shellArtUploadStatus'
+            });
             input.value = '';
         },
         error: function(xhr) {
@@ -922,8 +1141,13 @@ function uploadShellArtFile(input) {
     });
 }
 
-function deleteSelectedShellArt() {
-    const name = $('#ansiFileSelect').val();
+function deleteSelectedShellArt(options) {
+    const config = options || {};
+    const selectId = config.selectId || 'ansiFileSelect';
+    const hiddenInputId = config.hiddenInputId || 'ansiFile';
+    const deleteButtonId = config.deleteButtonId || 'deleteShellArtBtn';
+    const statusId = config.statusId || 'shellArtUploadStatus';
+    const name = $('#' + selectId).val();
     if (!name) return;
     if (!confirm(uiT('ui.admin.appearance.delete_shell_art_confirm', 'Delete {name}?', { name }))) return;
     $.ajax({
@@ -934,11 +1158,17 @@ function deleteSelectedShellArt() {
             const successMessage = window.getApiMessage
                 ? window.getApiMessage(response, fallback)
                 : fallback;
-            $('#shellArtUploadStatus').text(successMessage).addClass('text-success');
-            loadShellArtList('');
+            $('#' + statusId).text(successMessage).addClass('text-success');
+            loadShellArtList({
+                selectedFile: '',
+                selectId: selectId,
+                hiddenInputId: hiddenInputId,
+                deleteButtonId: deleteButtonId,
+                statusId: statusId
+            });
         },
         error: function(xhr) {
-            $('#shellArtUploadStatus').text(uiT('ui.admin.appearance.delete_failed_prefix', 'Delete failed: ') + apiError(xhr.responseJSON, uiT('ui.common.unknown_error', 'Unknown error'))).addClass('text-danger');
+            $('#' + statusId).text(uiT('ui.admin.appearance.delete_failed_prefix', 'Delete failed: ') + apiError(xhr.responseJSON, uiT('ui.common.unknown_error', 'Unknown error'))).addClass('text-danger');
         }
     });
 }
@@ -946,6 +1176,119 @@ function deleteSelectedShellArt() {
 function formatBytes(b) {
     if (b < 1024) return b + ' B';
     return Math.round(b / 1024) + ' KB';
+}
+
+// ---- Terminal Server Screens ----
+function loadTerminalScreenList(selectedKey) {
+    $.get('/admin/api/appearance/terminal-screens', function(data) {
+        terminalScreens = data.screens || [];
+        const $sel = $('#termScreenSelect');
+        const preferred = selectedKey || currentTerminalScreenKey || (terminalScreens[0] ? terminalScreens[0].key : '');
+        $sel.empty();
+        terminalScreens.forEach(function(screen) {
+            const suffix = screen.exists ? '' : ' [' + uiT('ui.admin.appearance.term_server.default_active', 'default') + ']';
+            $sel.append($('<option>').val(screen.key).text(getTerminalScreenLabel(screen.key) + suffix));
+        });
+        $sel.val(preferred);
+        currentTerminalScreenKey = $sel.val() || '';
+        if (currentTerminalScreenKey) {
+            loadTerminalScreen(currentTerminalScreenKey);
+        } else {
+            $('#termScreenDescription').text('');
+            $('#termScreenMeta').text('');
+            $('#termScreenContent').val('');
+            termScreenAnsiEditor?.refreshPreview();
+            $('#deleteTerminalScreenBtn').hide();
+        }
+    }).fail(function(xhr) {
+        showStatus('termScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.term_server.list_failed', 'Failed to load terminal screens')));
+    });
+}
+
+function loadTerminalScreen(key) {
+    $.get('/admin/api/appearance/terminal-screens/' + encodeURIComponent(key), function(data) {
+        const screen = data.screen || {};
+        currentTerminalScreenKey = screen.key || key;
+        $('#termScreenDescription').text(getTerminalScreenDescription(currentTerminalScreenKey));
+        const metaParts = [];
+        if (screen.filename) metaParts.push(screen.filename);
+        if (screen.exists && screen.size) metaParts.push(formatBytes(screen.size));
+        if (screen.updated_at) metaParts.push(screen.updated_at);
+        if (!screen.exists) metaParts.push(uiT('ui.admin.appearance.term_server.default_active', 'default'));
+        $('#termScreenMeta').text(metaParts.join(' • '));
+        $('#termScreenContent').val(screen.content || '');
+        termScreenAnsiEditor?.refreshPreview();
+        $('#deleteTerminalScreenBtn').toggle(!!screen.exists);
+        $('#termScreenStatus').text('');
+    }).fail(function(xhr) {
+        showStatus('termScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.term_server.load_failed', 'Failed to load terminal screen')));
+    });
+}
+
+function saveTerminalScreen() {
+    if (!currentTerminalScreenKey) return;
+    showStatus('termScreenStatus', 'info', uiT('ui.common.saving', 'Saving...'));
+    $.ajax({
+        url: '/admin/api/appearance/terminal-screens/' + encodeURIComponent(currentTerminalScreenKey),
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ content: $('#termScreenContent').val() }),
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('termScreenStatus', 'success', successMessage);
+            loadTerminalScreenList(currentTerminalScreenKey);
+        },
+        error: function(xhr) {
+            showStatus('termScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.term_server.save_failed', 'Failed to save terminal screen')));
+        }
+    });
+}
+
+function uploadTerminalScreenFile(input) {
+    if (!currentTerminalScreenKey || !input.files || !input.files[0]) return;
+    showStatus('termScreenStatus', 'info', uiT('ui.admin.appearance.term_server.uploading', 'Uploading...'));
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    $.ajax({
+        url: '/admin/api/appearance/terminal-screens/' + encodeURIComponent(currentTerminalScreenKey) + '/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('termScreenStatus', 'success', successMessage);
+            loadTerminalScreenList(currentTerminalScreenKey);
+            input.value = '';
+        },
+        error: function(xhr) {
+            showStatus('termScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.term_server.upload_failed', 'Failed to upload terminal screen')));
+            input.value = '';
+        }
+    });
+}
+
+function deleteTerminalScreen() {
+    if (!currentTerminalScreenKey) return;
+    if (!confirm(uiT('ui.admin.appearance.term_server.reset_confirm', 'Reset this terminal screen to the default behavior?'))) return;
+    $.ajax({
+        url: '/admin/api/appearance/terminal-screens/' + encodeURIComponent(currentTerminalScreenKey),
+        method: 'DELETE',
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('termScreenStatus', 'success', successMessage);
+            loadTerminalScreenList(currentTerminalScreenKey);
+        },
+        error: function(xhr) {
+            showStatus('termScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.term_server.delete_failed', 'Failed to reset terminal screen')));
+        }
+    });
 }
 
 // ---- Helpers ----
@@ -982,29 +1325,6 @@ function saveMessageReader() {
         .fail(function(xhr) {
             $('#messageReaderStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
         });
-}
-
-// ---- SPLASH PAGES ----
-function saveSplash() {
-    const payload = {
-        login_splash: $('#loginSplash').val(),
-        register_splash: $('#registerSplash').val()
-    };
-    $.ajax({
-        url: '/admin/api/appearance/splash',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify(payload),
-        success: function(data) {
-            showAppearanceAlert('success', window.t ? window.t('ui.common.saved', {}, 'Saved') : 'Saved');
-        },
-        error: function(xhr) {
-            const msg = window.getApiErrorMessage
-                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings'))
-                : uiT('errors.admin.appearance.splash.save_failed', 'Failed to save splash settings');
-            showAppearanceAlert('danger', msg);
-        }
-    });
 }
 
 function showAppearanceAlert(type, msg) {

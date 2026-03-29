@@ -21,7 +21,9 @@ Content is managed from **Admin → Ads and Bulletins → Content Library**. Bro
 - Schedule campaigns by day of week, time, and timezone
 - Track post history for manual and automatic posts
 - Quick Setup wizard for common campaign types
-- Dynamic ads driven by an external command script
+- Dynamic ads driven by an allowlisted command script
+- Click-through URLs on dashboard ads with impression and click tracking
+- Ad analytics dashboard with per-ad CTR, daily activity, and period filtering
 - Campaign expiry with automatic deactivation
 
 ## Ad Library
@@ -37,6 +39,8 @@ Each ad is stored in the database with:
 - dashboard eligibility
 - auto-post eligibility
 - tags
+- click-through URL (optional — see [Click-Through URLs](#click-through-urls))
+- impression and click counts (tracked automatically)
 
 Duplicate uploads are allowed. If the ANSI payload matches an existing ad, the system warns but does not block the upload.
 
@@ -96,7 +100,9 @@ echoarea targets, subject template, and an optional expiry date. Step 3 shows a
 review before creating the campaign.
 
 The **File Echo Update** type automatically creates a dynamic ad linked to
-`scripts/report_newfiles.php` — no static ANSI file is needed.
+`scripts/report_newfiles.php` and the **Weather Report** type links to
+`scripts/weather_report.php` — no static ANSI file or manual script selection
+is needed for either.
 
 ## Campaigns
 
@@ -133,33 +139,68 @@ eligibility, and any configured date window on the ad.
 ## Dynamic Ads
 
 An ad can generate its body at post time by setting a **Content Command** instead
-of (or in addition to) static ANSI content. The command is a path to any
-executable on the server.
+of (or in addition to) static ANSI content.
 
-At post time the command is run via `proc_open`. Its standard output becomes the
+At post time the script is run via `proc_open`. Its standard output becomes the
 message body. The post is silently skipped and logged if:
 
-- the command exits with a non-zero exit code, or
-- the command produces no output (empty stdout after trim)
+- the script exits with a non-zero exit code, or
+- the script produces no output (empty stdout after trim)
 
 This allows fully dynamic content — weekly file listings, player scoreboards,
 system statistics, or anything else a script can generate.
 
+### Allowed Scripts
+
+For security, the content command must be one of:
+
+- Any file placed in the `content_commands/` directory at the project root
+- `scripts/weather_report.php`
+- `scripts/report_newfiles.php`
+- `scripts/generate_ad.php`
+
+The **Content Command** field in the ad editor is a dropdown populated from
+these sources. Free-text entry is not permitted.
+
+The system automatically resolves the selected script to an absolute path and
+invokes it through `PHP_BINARY` (for `.php` scripts) without requiring a `php`
+prefix in the value. The `content_commands/` directory is the recommended place
+to install custom scripts for your installation.
+
+### Arguments
+
+An optional **Arguments** field accepts space-separated parameters passed to the
+script at runtime. For example, selecting `scripts/report_newfiles.php` and
+entering `--since=14d` in the arguments field runs:
+
+```
+php /path/to/scripts/report_newfiles.php '--since=14d'
+```
+
+Each argument is individually passed through `escapeshellarg()` at execution
+time. Shell metacharacters (`;`, `|`, `!`, `&`, `>`, `<`, `` ` ``, `$`, `\`,
+`(`, `)`, `{`, `}`, `*`, `?`, `"`, `'`, `~`, `#`) are also rejected at storage
+time so that injection attempts cannot be saved.
+
 ### Creating a Dynamic Ad
 
-**Via the Content Library:** In **Admin → Ads and Bulletins → Content Library**, enter the command
-path in the **Content Command** field and leave the file picker empty. A title
-is still required. Enable **Allow Auto-Post** so campaigns can use it.
+**Via the Content Library:** In **Admin → Ads and Bulletins → Content Library**,
+select a script from the **Content Command** dropdown and leave the file picker
+empty. A title is still required. Enable **Allow Auto-Post** so campaigns can
+use it.
 
-**Via the Quick Setup wizard:** The **File Echo Update** campaign type
-automatically creates a dynamic ad pre-configured with:
+**Via the Quick Setup wizard:** The **File Echo Update** and **Weather Report**
+campaign types automatically create a dynamic ad pre-configured with the
+appropriate script. No manual selection is needed.
 
-```
-/usr/bin/php /path/to/scripts/report_newfiles.php
-```
+### Installing a Custom Script
 
-The path is computed from `PHP_BINARY` and the application base directory at
-render time, so no manual path entry is needed.
+1. Place the script in the `content_commands/` directory at the project root.
+2. Make it executable (`chmod +x`).
+3. The script will appear in the Content Command dropdown immediately.
+
+Scripts in `content_commands/` follow the same contract as any other content
+command script (see below).
 
 ### Writing a Content Command Script
 
@@ -169,7 +210,7 @@ The script must:
 2. Exit with code `0` on success
 3. Exit with a non-zero code or produce no output to signal "nothing to post"
 
-Example skeleton (`scripts/report_newfiles.php`):
+Example skeleton (`content_commands/my_report.php`):
 
 ```php
 #!/usr/bin/env php
@@ -178,9 +219,9 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
 $db = \BinktermPHP\Database::getInstance()->getPdo();
-// ... query recent files, build report ...
+// ... build report ...
 if ($report === '') {
-    exit(1); // nothing to post this week
+    exit(1); // nothing to post
 }
 echo $report;
 exit(0);
@@ -200,94 +241,64 @@ Good fits include:
 - rotating "what changed this week" summaries
 - generated network or system-status notices
 
-The field can contain a full command line, not just a bare script path. For
-example:
-
-```bash
-php scripts/report_newfiles.php
-php scripts/report_newfiles.php --since=14d
-/usr/bin/php /opt/binkterm/scripts/joke_of_the_day.php
-```
-
-Use absolute paths where practical so scheduled runs do not depend on
-interactive shell state.
-
 ### Content Command Examples
 
-#### 1. Weekly New Files Digest
+#### Weekly New Files Digest
 
-The built-in [scripts/report_newfiles.php](/C:/devel/binktest/scripts/report_newfiles.php)
-script is the standard example. It queries recent public uploads and hatched
-files, groups them by file area, and writes a ready-to-post report to stdout.
-
-Example commands:
-
-```bash
-php scripts/report_newfiles.php
-php scripts/report_newfiles.php --since=14d
-php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
-```
+The built-in `scripts/report_newfiles.php` script queries recent public uploads
+and hatched files, groups them by file area, and writes a ready-to-post report
+to stdout.
 
 Typical use:
 
 - create a dynamic ad titled `Weekly File Echo Update`
-- set **Content Command** to `php scripts/report_newfiles.php --since=7d`
+- select `scripts/report_newfiles.php` from the Content Command dropdown
+- enter `--since=7d` in the Arguments field
 - attach that ad to a Friday campaign posting into one or more file
   announcement echoes
 
-#### 2. Joke of the Day
+#### Custom Generated Bulletins
 
-A small custom script can select one joke from a text file, database table, or
-cached external source and emit it as a formatted post.
-
-Example command:
-
-```bash
-php scripts/joke_of_the_day.php
-```
-
-Example output:
-
-```text
-Joke of the Day
----------------
-Why do programmers mix up Halloween and Christmas?
-Because OCT 31 == DEC 25.
-```
-
-Typical use:
-
-- schedule daily or weekly to a casual chat echo
-- have the script exit `1` if there is no approved joke for that run
-- add ANSI color codes if you want it to render like a styled ad
-
-#### 3. Custom Generated Bulletins
-
-The same feature works for any generated content you want to post on a schedule.
-
-These are examples of scripts that you could write:
-
-- `php scripts/door_tournament_results.php`
-- `php scripts/top_uploaders.php --days=30`
-- `php scripts/system_status_digest.php`
-- `php scripts/sub_of_the_week.php`
-
-Scripts like these can read local database tables, config files, or other
+Place any custom script in `content_commands/` and it will appear in the
+dropdown. Scripts can read local database tables, config files, or other
 prepared data and emit a complete plain-text or ANSI bulletin for echomail.
 
 ### Recommended Pattern
 
 For recurring generated posts:
 
-1. Write a script that can run unattended from the command line.
+1. Write a script and place it in `content_commands/` (or use a whitelisted script).
 2. Make it output the full message body to stdout.
 3. Return exit code `0` when the script succeeds and has content to post.
 4. Return exit code `1` when there is nothing worth posting.
-5. Create a dynamic ad that points at that command.
+5. Create a dynamic ad and select that script from the Content Command dropdown.
 6. Assign the ad to a campaign with the desired schedule and targets.
 
 This keeps scheduling, targeting, and post logging inside the advertising
 system while your script controls only the generated body text.
+
+## Click-Through URLs
+
+Each ad can optionally include a **Click-Through URL**. When set, a **Visit**
+button appears next to the ad on the dashboard. Clicking it opens the URL in a
+new tab.
+
+Impressions (how many times the ad was shown) and clicks are tracked
+automatically per user and stored in the database. Both counts are visible in
+the Content Library ad list and in the Ad Analytics page.
+
+## Ad Analytics
+
+**Admin → Analytics → Ad Analytics** (requires a valid license) provides a
+performance overview of all ads:
+
+- **Period selector** — filter by last 7 days, 30 days, 90 days, or all time
+- **Summary cards** — total impressions, total clicks, overall CTR, and
+  active/total ad count
+- **Daily activity chart** — impression and click counts per day as a
+  progress-bar chart
+- **Per-ad breakdown table** — impressions, clicks, CTR%, relative reach bar,
+  last impression date, and last click date for each ad
 
 ## Scheduler Integration
 

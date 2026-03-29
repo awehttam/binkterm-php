@@ -51,9 +51,19 @@ class AdminDaemonClient
         return $this->sendCommand('binkp_poll', ['upstream' => $upstream]);
     }
 
+    public function binkPollSync(string $upstream): array
+    {
+        return $this->sendCommand('binkp_poll_sync', ['upstream' => $upstream]);
+    }
+
     public function binkpAuthTest(string $domain): array
     {
         return $this->sendCommand('binkp_auth_test', ['domain' => $domain]);
+    }
+
+    public function binkpAuthTestAddress(string $address): array
+    {
+        return $this->sendCommand('binkp_auth_test', ['address' => $address]);
     }
 
     public function getBbsConfig(): array
@@ -241,6 +251,11 @@ class AdminDaemonClient
         return $this->sendCommand('set_login_splash', ['text' => $text]);
     }
 
+    public function setLoginAnsi(string $text): array
+    {
+        return $this->sendCommand('set_login_ansi', ['text' => $text]);
+    }
+
     public function setRegisterSplash(string $text): array
     {
         return $this->sendCommand('set_register_splash', ['text' => $text]);
@@ -263,6 +278,38 @@ class AdminDaemonClient
     public function deleteShellArt(string $name): array
     {
         return $this->sendCommand('delete_shell_art', ['name' => $name]);
+    }
+
+    public function listTerminalScreens(): array
+    {
+        return $this->sendCommand('list_terminal_screens');
+    }
+
+    public function getTerminalScreen(string $key): array
+    {
+        return $this->sendCommand('get_terminal_screen', ['key' => $key]);
+    }
+
+    public function saveTerminalScreen(string $key, string $content): array
+    {
+        return $this->sendCommand('save_terminal_screen', [
+            'key' => $key,
+            'content' => $content,
+        ]);
+    }
+
+    public function uploadTerminalScreen(string $key, string $contentBase64, string $originalName = ''): array
+    {
+        return $this->sendCommand('upload_terminal_screen', [
+            'key' => $key,
+            'content_base64' => $contentBase64,
+            'original_name' => $originalName,
+        ]);
+    }
+
+    public function deleteTerminalScreen(string $key): array
+    {
+        return $this->sendCommand('delete_terminal_screen', ['key' => $key]);
     }
 
     /**

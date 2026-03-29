@@ -31,6 +31,12 @@ class AdminDaemonServer
     private $serverSocket;
     private bool $shutdownRequested = false;
 
+    /** @var resource|null Raw pg_* connection used for sse_events cleanup */
+    private $pgConn = null;
+
+    /** Loop iteration counter used to schedule periodic sse_events cleanup. */
+    private int $loopIteration = 0;
+
     public function __construct(?string $socketTarget = null, ?string $secret = null, ?Logger $logger = null, ?string $pidFile = null, ?string $socketPerms = null)
     {
         $this->socketTarget = $socketTarget
@@ -51,6 +57,8 @@ class AdminDaemonServer
         $this->writePidFile();
 
         $this->logger->info('Admin daemon started', ['socket' => $this->socketTarget]);
+
+        $this->initPgConnection();
 
         $canFork = function_exists('pcntl_fork')
             && function_exists('posix_getppid')
@@ -80,7 +88,13 @@ class AdminDaemonServer
                 break;
             }
 
-            $client = @stream_socket_accept($this->serverSocket, 1);
+
+            // Prune stale SSE events roughly once per minute (600 iterations × 0.1 s timeout).
+            if (++$this->loopIteration % 600 === 0) {
+                $this->pruneSSEEvents();
+            }
+
+            $client = @stream_socket_accept($this->serverSocket, 0.1);
             if ($client === false) {
                 continue;
             }
@@ -260,26 +274,50 @@ class AdminDaemonServer
                     $this->logger->info("Spawned background binkp_poll for {$upstream}");
                     $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
+                case 'binkp_poll_sync':
+                    // Synchronous poll — runs binkp_poll.php and waits for it to finish.
+                    // Used by the admin terminal so the result is visible immediately.
+                    $upstream = $data['upstream'] ?? null;
+                    if (!$upstream) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_upstream']);
+                        break;
+                    }
+                    if ($upstream === 'all') {
+                        $cmd = [PHP_BINARY, 'scripts/binkp_poll.php', '--all', '--no-console'];
+                    } else {
+                        // No --no-console for single uplink: logger output goes to stdout
+                        // so the admin terminal can display the actual error detail.
+                        $cmd = [PHP_BINARY, 'scripts/binkp_poll.php', $upstream];
+                    }
+                    $result = $this->runCommand($cmd);
+                    $this->logCommandResult('binkp_poll_sync', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 case 'binkp_auth_test':
                     $domain = $data['domain'] ?? null;
-                    if (!$domain) {
+                    $address = $data['address'] ?? null;
+                    if (!$domain && !$address) {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_domain']);
                         break;
                     }
                     try {
                         $binkpConfig = BinkpConfig::getInstance();
-                        $uplink = $binkpConfig->getUplinkByDomain($domain);
+                        $uplink = $address
+                            ? $binkpConfig->getUplinkByAddress((string)$address)
+                            : $binkpConfig->getUplinkByDomain((string)$domain);
                         if (!$uplink) {
-                            $this->writeResponse($client, ['ok' => false, 'error' => "No uplink configured for domain: {$domain}"]);
+                            $lookup = $address !== null ? (string)$address : (string)$domain;
+                            $kind = $address !== null ? 'address' : 'domain';
+                            $this->writeResponse($client, ['ok' => false, 'error' => "No uplink configured for {$kind}: {$lookup}"]);
                             break;
                         }
-                        $address = $uplink['address'] ?? null;
-                        if (!$address) {
+                        $uplinkAddress = $uplink['address'] ?? null;
+                        if (!$uplinkAddress) {
                             $this->writeResponse($client, ['ok' => false, 'error' => 'Uplink has no address configured']);
                             break;
                         }
                         $binkpClient = new \BinktermPHP\Binkp\Protocol\BinkpClient($binkpConfig, $this->logger);
-                        $result = $binkpClient->connect($address);
+                        $result = $binkpClient->authTest($uplinkAddress);
                         $this->writeResponse($client, [
                             'ok'     => true,
                             'result' => [
@@ -335,7 +373,8 @@ class AdminDaemonServer
                         $payload['max_connections'] ?? null,
                         $payload['bind_address'] ?? null,
                         $payload['preserve_processed_packets'] ?? null,
-                        $payload['preserve_sent_packets'] ?? null
+                        $payload['preserve_sent_packets'] ?? null,
+                        $payload['outbound_queue_timer_minutes'] ?? null
                     );
                     $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
                     break;
@@ -495,6 +534,31 @@ class AdminDaemonServer
                     $this->deleteShellArt((string)$name);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'list_terminal_screens':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listTerminalScreens()]);
+                    break;
+                case 'get_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTerminalScreen($key)]);
+                    break;
+                case 'save_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $content = (string)($data['content'] ?? '');
+                    $this->saveTerminalScreen($key, $content);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTerminalScreen($key)]);
+                    break;
+                case 'upload_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $contentBase64 = (string)($data['content_base64'] ?? '');
+                    $originalName = (string)($data['original_name'] ?? '');
+                    $this->uploadTerminalScreen($key, $contentBase64, $originalName);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTerminalScreen($key)]);
+                    break;
+                case 'delete_terminal_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $this->deleteTerminalScreen($key);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'list_custom_templates':
                     $templates = $this->listCustomTemplates();
                     $this->writeResponse($client, ['ok' => true, 'result' => $templates]);
@@ -592,6 +656,15 @@ class AdminDaemonServer
                         break;
                     }
                     $this->writeLoginSplash($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'set_login_ansi':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeLoginAnsi($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
                 case 'set_register_splash':
@@ -749,6 +822,59 @@ class AdminDaemonServer
             $this->logger->error('Admin daemon command error', ['error' => $e->getMessage(), 'cmd' => $cmd]);
             $this->writeResponse($client, ['ok' => false, 'error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Open a raw pg_* connection and start listening on the 'binkstream' channel.
+     * Called once at daemon startup. Failures are logged but not fatal — the daemon
+     * continues running and PHP endpoints fall back to direct DB catch-up queries.
+     */
+    private function initPgConnection(): void
+    {
+        if (!function_exists('pg_connect')) {
+            $this->logger->warning('pg_connect not available — sse_events cleanup disabled');
+            return;
+        }
+
+        try {
+            $cfg = \BinktermPHP\Config::getDatabaseConfig();
+            $connStr = sprintf(
+                "host=%s port=%s dbname=%s user=%s password=%s",
+                $cfg['host'], $cfg['port'], $cfg['database'],
+                $cfg['username'], $cfg['password']
+            );
+            $this->logger->debug('Admin daemon: attempting pg_connect', [
+                'host' => $cfg['host'],
+                'port' => $cfg['port'],
+                'dbname' => $cfg['database'],
+                'user' => $cfg['username'],
+            ]);
+            $this->pgConn = pg_connect($connStr);
+            if (!$this->pgConn) {
+                $this->logger->warning('Admin daemon: pg_connect failed — sse_events cleanup disabled');
+                $this->pgConn = null;
+                return;
+            }
+
+            $this->logger->info('Admin daemon: pg connection active for sse_events cleanup');
+        } catch (\Throwable $e) {
+            $this->logger->warning('Admin daemon: pg connection init failed', ['error' => $e->getMessage()]);
+            $this->pgConn = null;
+        }
+    }
+
+    /**
+     * Delete sse_events rows older than one hour. The table is UNLOGGED so
+     * autovacuum handles dead tuples; this just keeps the row count bounded.
+     * Called from the main loop roughly once per minute.
+     */
+    private function pruneSSEEvents(): void
+    {
+        if (!$this->pgConn) {
+            return;
+        }
+
+        @pg_query($this->pgConn, "DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'");
     }
 
     private function runCommand(array $command): array
@@ -1491,6 +1617,155 @@ class AdminDaemonServer
         return __DIR__ . '/../../data/shell_art';
     }
 
+    /**
+     * @return array<string,array{filename:string,label:string,description:string}>
+     */
+    private function getSupportedTerminalScreens(): array
+    {
+        return [
+            'welcome' => [
+                'filename' => 'login.ans',
+                'label' => 'Welcome',
+                'description' => 'Shown when a user first connects to the terminal server.',
+            ],
+            'main_menu' => [
+                'filename' => 'mainmenu.ans',
+                'label' => 'Main Menu',
+                'description' => 'Shown behind the terminal main menu after login.',
+            ],
+            'goodbye' => [
+                'filename' => 'bye.ans',
+                'label' => 'Goodbye',
+                'description' => 'Shown when a user disconnects from the terminal server.',
+            ],
+        ];
+    }
+
+    private function getTerminalScreensDir(): string
+    {
+        return __DIR__ . '/../../telnet/screens';
+    }
+
+    /**
+     * @return array{filename:string,label:string,description:string}|null
+     */
+    private function resolveTerminalScreen(string $key): ?array
+    {
+        $supported = $this->getSupportedTerminalScreens();
+        return $supported[$key] ?? null;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function listTerminalScreens(): array
+    {
+        $dir = $this->getTerminalScreensDir();
+        $result = [];
+
+        foreach ($this->getSupportedTerminalScreens() as $key => $meta) {
+            $path = $dir . DIRECTORY_SEPARATOR . $meta['filename'];
+            $exists = is_file($path);
+            $result[] = [
+                'key' => $key,
+                'filename' => $meta['filename'],
+                'label' => $meta['label'],
+                'description' => $meta['description'],
+                'exists' => $exists,
+                'size' => $exists ? (filesize($path) ?: 0) : 0,
+                'updated_at' => $exists ? date('c', filemtime($path) ?: time()) : null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function getTerminalScreen(string $key): array
+    {
+        $meta = $this->resolveTerminalScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported terminal screen');
+        }
+
+        $path = $this->getTerminalScreensDir() . DIRECTORY_SEPARATOR . $meta['filename'];
+        $exists = is_file($path);
+        $content = $exists ? (@file_get_contents($path) ?: '') : '';
+
+        return [
+            'key' => $key,
+            'filename' => $meta['filename'],
+            'label' => $meta['label'],
+            'description' => $meta['description'],
+            'exists' => $exists,
+            'content' => $content,
+            'size' => $exists ? (filesize($path) ?: 0) : 0,
+            'updated_at' => $exists ? date('c', filemtime($path) ?: time()) : null,
+        ];
+    }
+
+    private function saveTerminalScreen(string $key, string $content): void
+    {
+        $meta = $this->resolveTerminalScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported terminal screen');
+        }
+
+        $dir = $this->getTerminalScreensDir();
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            throw new \RuntimeException('Failed to create terminal screens directory');
+        }
+
+        $path = $dir . DIRECTORY_SEPARATOR . $meta['filename'];
+        if (@file_put_contents($path, $content) === false) {
+            throw new \RuntimeException('Failed to save terminal screen');
+        }
+    }
+
+    private function uploadTerminalScreen(string $key, string $contentBase64, string $originalName): void
+    {
+        if ($contentBase64 === '') {
+            throw new \RuntimeException('Missing content');
+        }
+
+        $content = base64_decode($contentBase64, true);
+        if ($content === false) {
+            throw new \RuntimeException('Invalid content encoding');
+        }
+
+        if (strlen($content) > 1024 * 1024) {
+            throw new \RuntimeException('File is too large (max 1MB)');
+        }
+
+        if ($originalName !== '') {
+            $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['ans', 'asc', 'txt'], true)) {
+                throw new \RuntimeException('Invalid file extension');
+            }
+        }
+
+        $this->saveTerminalScreen($key, $content);
+    }
+
+    private function deleteTerminalScreen(string $key): void
+    {
+        $meta = $this->resolveTerminalScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported terminal screen');
+        }
+
+        $path = $this->getTerminalScreensDir() . DIRECTORY_SEPARATOR . $meta['filename'];
+        if (!is_file($path)) {
+            return;
+        }
+
+        if (!@unlink($path)) {
+            throw new \RuntimeException('Failed to delete terminal screen');
+        }
+    }
+
     private function sanitizeShellArtFilename(string $name): string
     {
         $safe = basename($name);
@@ -1606,6 +1881,11 @@ class AdminDaemonServer
         return __DIR__ . '/../../data/register_splash.md';
     }
 
+    private function getLoginScreenPath(): string
+    {
+        return __DIR__ . '/../../data/login_screen.ans';
+    }
+
     private function getAppearanceConfig(): array
     {
         $path = $this->getAppearanceConfigPath();
@@ -1621,6 +1901,7 @@ class AdminDaemonServer
         $systemNewsPath = $this->getSystemNewsPath();
         $houseRulesPath = $this->getHouseRulesPath();
         $loginSplashPath = $this->getLoginSplashPath();
+        $loginScreenPath = $this->getLoginScreenPath();
         $registerSplashPath = $this->getRegisterSplashPath();
 
         return [
@@ -1628,6 +1909,7 @@ class AdminDaemonServer
             'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
             'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
             'login_splash' => file_exists($loginSplashPath) ? (file_get_contents($loginSplashPath) ?: '') : null,
+            'login_ansi' => file_exists($loginScreenPath) ? (file_get_contents($loginScreenPath) ?: '') : null,
             'register_splash' => file_exists($registerSplashPath) ? (file_get_contents($registerSplashPath) ?: '') : null,
         ];
     }
@@ -1673,6 +1955,19 @@ class AdminDaemonServer
 
         if (@file_put_contents($path, $text, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write house rules');
+        }
+    }
+
+    private function writeLoginAnsi(string $text): void
+    {
+        $path = $this->getLoginScreenPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write login ANSI');
         }
     }
 

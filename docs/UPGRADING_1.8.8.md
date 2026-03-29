@@ -65,6 +65,7 @@
   - [Echomail Reader From Line Style](#echomail-reader-from-line-style)
   - [Compose Advanced Options Panel](#compose-advanced-options-panel)
   - [Compose Hard Wrap](#compose-hard-wrap)
+  - [Advanced Search: Message ID Field](#advanced-search-message-id-field)
 - [Weather Reports](#weather-reports)
   - [Weather Configuration Admin Page](#weather-configuration-admin-page)
 - [Broadcast Manager](#broadcast-manager)
@@ -99,6 +100,7 @@
 - The **From** field in the echomail message reader now uses a solid underline (matching a hyperlink) instead of a dashed underline.
 - The compose form's Encoding and Markup Format selectors have been moved into a collapsible **Advanced Options** panel below the message textarea, keeping the default compose view clean. The panel's open/closed state is saved per-user and persists across sessions.
 - A **Hard Wrap** selector has been added to the Advanced Options panel. When enabled, the compose textarea automatically breaks lines at 79 characters (standard 80-column format, default), 39 characters (for readability on 40-column systems such as the C64), or can be turned off entirely. Word-wrap is used when possible; a hard break is used if no space is found. The setting is saved per-user and persists across sessions.
+- The echomail Advanced Search modal now includes a **Message ID** field that searches the `message_id` column using a partial (ILIKE) match.
 
 **Telnet/SSH BBS Server**
 - The terminal server now logs user actions to `data/logs/telnetd.log`: menu navigation, echoarea and netmail access, individual message reads, echomail and netmail compose/send, file area browsing, file downloads and uploads, door launches, shoutbox posts, and poll votes.
@@ -882,6 +884,17 @@ The full alias table:
 Existing messages in the database with alias values in `message_charset` are
 not migrated — the normalization is applied on read when composing a reply, so
 no data migration is needed.
+
+### Advanced Search: Message ID Field
+
+The echomail **Advanced Search** modal now includes a **Message ID** field.
+Entering a value performs a case-insensitive partial match (`ILIKE`) against
+the `message_id` column of the `echomail` table, so you can search by a
+fragment of a FidoNet message ID such as `<12345@fidonet.org>` without knowing
+the full value.
+
+The field follows the same rules as the other Advanced Search text fields:
+minimum two characters, combined with the remaining fields using AND logic.
 
 ## Weather Reports
 

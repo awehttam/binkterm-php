@@ -1,0 +1,575 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.areafix.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block head %}
+<style>
+.areafix-history-expand { cursor: pointer; }
+.areafix-row-body { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-network-wired"></i>
+        {{ t('ui.admin.areafix.heading', {}, 'common') }}
+    </h2>
+</div>
+
+{% if not has_configured_uplinks %}
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>{{ t('ui.admin.areafix.not_configured_title', {}, 'common') }}</strong>
+    <div class="mt-2">{{ t('ui.admin.areafix.not_configured_body', {}, 'common') }}</div>
+    <div class="mt-2">{{ t('ui.admin.areafix.not_configured_hint', {}, 'common') }}</div>
+    <pre class="mt-2 mb-0"><code>{
+    "uplinks": [
+        {
+            "address": "1:1/23",
+            "areafix_password": "your_areafix_password",
+            "filefix_password": "your_filefix_password"
+        }
+    ]
+}</code></pre>
+</div>
+{% else %}
+
+<div class="mb-3">
+    <label for="uplinkSelect" class="form-label fw-semibold">
+        <i class="fas fa-server me-1"></i>{{ t('ui.admin.areafix.select_uplink', {}, 'common') }}
+    </label>
+    <select id="uplinkSelect" class="form-select" style="max-width:340px;" onchange="onUplinkChange()">
+        {% for uplink in uplinks %}
+        <option value="{{ uplink.address }}"
+                data-has-areafix="{{ uplink.has_areafix ? '1' : '0' }}"
+                data-has-filefix="{{ uplink.has_filefix ? '1' : '0' }}"
+                data-domain="{{ uplink.domain }}">
+            {{ uplink.address }} ({{ uplink.domain }})
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="robotTabs">
+    <li class="nav-item">
+        <a class="nav-link active" id="areafixTabLink" data-bs-toggle="tab" href="#areafixTab">
+            <i class="fas fa-comments me-1"></i>
+            {{ t('ui.admin.areafix.tab_areafix', {}, 'common') }}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="filefixTabLink" data-bs-toggle="tab" href="#filefixTab">
+            <i class="fas fa-folder-open me-1"></i>
+            {{ t('ui.admin.areafix.tab_filefix', {}, 'common') }}
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    {# ── AreaFix Tab ─────────────────────────────────────────────────────── #}
+    <div class="tab-pane fade show active" id="areafixTab">
+
+        {# Quick Actions #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-bolt me-1"></i>{{ t('ui.admin.areafix.quick_actions', {}, 'common') }}
+            </div>
+            <div class="card-body d-flex flex-wrap gap-2">
+                <button class="btn btn-info btn-sm" onclick="sendQuickAction('areafix','%QUERY')">%QUERY</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendQuickAction('areafix','%LIST')">%LIST</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendQuickAction('areafix','%UNLINKED')">%UNLINKED</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendQuickAction('areafix','%HELP')">%HELP</button>
+                <button class="btn btn-warning btn-sm" onclick="sendQuickAction('areafix','%PAUSE')">%PAUSE</button>
+                <button class="btn btn-success btn-sm" onclick="sendQuickAction('areafix','%RESUME')">%RESUME</button>
+            </div>
+        </div>
+
+        {# Subscribe / Unsubscribe #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-plus-minus me-1"></i>{{ t('ui.admin.areafix.subscribe_card_title', {}, 'common') }}
+            </div>
+            <div class="card-body">
+                <div class="input-group" style="max-width:480px;">
+                    <input type="text" id="areaTagInput_areafix" class="form-control font-monospace text-uppercase"
+                           placeholder="{{ t('ui.admin.areafix.area_tag_placeholder', {}, 'common') }}">
+                    <button class="btn btn-success" onclick="subscribeArea('areafix')">
+                        <i class="fas fa-plus me-1"></i>{{ t('ui.admin.areafix.btn_subscribe', {}, 'common') }}
+                    </button>
+                    <button class="btn btn-danger" onclick="unsubscribeArea('areafix')">
+                        <i class="fas fa-minus me-1"></i>{{ t('ui.admin.areafix.btn_unsubscribe', {}, 'common') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# Freeform Commands #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-terminal me-1"></i>{{ t('ui.admin.areafix.freeform_card_title', {}, 'common') }}
+            </div>
+            <div class="card-body">
+                <textarea id="freeformCommands_areafix" class="form-control font-monospace mb-2" rows="4"
+                          placeholder="{{ t('ui.admin.areafix.freeform_placeholder', {}, 'common') }}"></textarea>
+                <button id="sendBtn_areafix" class="btn btn-primary btn-sm" onclick="sendFreeform('areafix')">
+                    <i class="fas fa-paper-plane me-1"></i>{{ t('ui.admin.areafix.btn_send', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+
+        {# Latest Reply #}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold"><i class="fas fa-inbox me-1"></i>{{ t('ui.admin.areafix.latest_reply_title', {}, 'common') }}</span>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadHistory('areafix')">
+                    <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, 'common') }}
+                </button>
+            </div>
+            <div class="card-body" id="latestReply_areafix">
+                <p class="text-muted mb-0">{{ t('ui.admin.areafix.no_reply_yet', {}, 'common') }}</p>
+            </div>
+        </div>
+
+        {# Message History #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-history me-1"></i>{{ t('ui.admin.areafix.history_title', {}, 'common') }}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>{{ t('ui.admin.areafix.history_col_date', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_direction', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_address', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_network', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_preview', {}, 'common') }}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody_areafix">
+                        <tr><td colspan="6" class="text-center py-3 text-muted">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>{# /areafixTab #}
+
+    {# ── FileFix Tab ─────────────────────────────────────────────────────── #}
+    <div class="tab-pane fade" id="filefixTab">
+
+        {# Quick Actions #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-bolt me-1"></i>{{ t('ui.admin.areafix.quick_actions', {}, 'common') }}
+            </div>
+            <div class="card-body d-flex flex-wrap gap-2">
+                <button class="btn btn-info btn-sm" onclick="sendQuickAction('filefix','%QUERY')">%QUERY</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendQuickAction('filefix','%LIST')">%LIST</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendQuickAction('filefix','%UNLINKED')">%UNLINKED</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendQuickAction('filefix','%HELP')">%HELP</button>
+                <button class="btn btn-warning btn-sm" onclick="sendQuickAction('filefix','%PAUSE')">%PAUSE</button>
+                <button class="btn btn-success btn-sm" onclick="sendQuickAction('filefix','%RESUME')">%RESUME</button>
+            </div>
+        </div>
+
+        {# Subscribe / Unsubscribe #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-plus-minus me-1"></i>{{ t('ui.admin.areafix.subscribe_card_title', {}, 'common') }}
+            </div>
+            <div class="card-body">
+                <div class="input-group" style="max-width:480px;">
+                    <input type="text" id="areaTagInput_filefix" class="form-control font-monospace text-uppercase"
+                           placeholder="{{ t('ui.admin.areafix.area_tag_placeholder', {}, 'common') }}">
+                    <button class="btn btn-success" onclick="subscribeArea('filefix')">
+                        <i class="fas fa-plus me-1"></i>{{ t('ui.admin.areafix.btn_subscribe', {}, 'common') }}
+                    </button>
+                    <button class="btn btn-danger" onclick="unsubscribeArea('filefix')">
+                        <i class="fas fa-minus me-1"></i>{{ t('ui.admin.areafix.btn_unsubscribe', {}, 'common') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# Freeform Commands #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-terminal me-1"></i>{{ t('ui.admin.areafix.freeform_card_title', {}, 'common') }}
+            </div>
+            <div class="card-body">
+                <textarea id="freeformCommands_filefix" class="form-control font-monospace mb-2" rows="4"
+                          placeholder="{{ t('ui.admin.areafix.freeform_placeholder', {}, 'common') }}"></textarea>
+                <button id="sendBtn_filefix" class="btn btn-primary btn-sm" onclick="sendFreeform('filefix')">
+                    <i class="fas fa-paper-plane me-1"></i>{{ t('ui.admin.areafix.btn_send', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+
+        {# Latest Reply #}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold"><i class="fas fa-inbox me-1"></i>{{ t('ui.admin.areafix.latest_reply_title', {}, 'common') }}</span>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadHistory('filefix')">
+                    <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, 'common') }}
+                </button>
+            </div>
+            <div class="card-body" id="latestReply_filefix">
+                <p class="text-muted mb-0">{{ t('ui.admin.areafix.no_reply_yet', {}, 'common') }}</p>
+            </div>
+        </div>
+
+        {# Message History #}
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-history me-1"></i>{{ t('ui.admin.areafix.history_title', {}, 'common') }}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>{{ t('ui.admin.areafix.history_col_date', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_direction', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_address', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_network', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.areafix.history_col_preview', {}, 'common') }}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody_filefix">
+                        <tr><td colspan="6" class="text-center py-3 text-muted">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>{# /filefixTab #}
+
+</div>{# /tab-content #}
+
+{% endif %}
+
+{# Toast container #}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+    <div id="areafixToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="areafixToastBody"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+
+    function formatTimestamp(raw) {
+        if (!raw) return '';
+        var s = raw.trim().replace(' ', 'T');
+        // Treat bare timestamps (no Z / +HH / +HH:MM) as UTC
+        if (!/[Zz]$/.test(s) && !/[+-]\d{2}(:?\d{2})?$/.test(s)) {
+            s += 'Z';
+        }
+        var d = new Date(s);
+        if (isNaN(d.getTime())) return raw;
+        return d.toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function showToast(message, isError) {
+        var toastEl = document.getElementById('areafixToast');
+        var bodyEl  = document.getElementById('areafixToastBody');
+        if (!toastEl || !bodyEl) return;
+        bodyEl.textContent = message;
+        toastEl.classList.remove('bg-success', 'bg-danger', 'text-white');
+        toastEl.classList.add(isError ? 'bg-danger' : 'bg-success', 'text-white');
+        var toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4000 });
+        toast.show();
+    }
+
+    function getSelectedUplink() {
+        var sel = document.getElementById('uplinkSelect');
+        return sel ? sel.value : '';
+    }
+
+    function getSelectedUplinkOption() {
+        var sel = document.getElementById('uplinkSelect');
+        return sel ? sel.options[sel.selectedIndex] : null;
+    }
+
+    // ── Uplink / tab state ────────────────────────────────────────────────────
+
+    window.onUplinkChange = function () {
+        var opt = getSelectedUplinkOption();
+        var hasFilefix = opt && opt.dataset.hasFilefix === '1';
+        var filefixTab = document.getElementById('filefixTabLink');
+        if (filefixTab) {
+            if (hasFilefix) {
+                filefixTab.classList.remove('disabled');
+                filefixTab.removeAttribute('aria-disabled');
+                filefixTab.removeAttribute('tabindex');
+            } else {
+                filefixTab.classList.add('disabled');
+                filefixTab.setAttribute('aria-disabled', 'true');
+                filefixTab.setAttribute('tabindex', '-1');
+            }
+        }
+
+        // Clear panels when switching uplinks
+        ['areafix', 'filefix'].forEach(function (r) {
+            var rp = document.getElementById('latestReply_' + r);
+            if (rp) rp.innerHTML = '<p class="text-muted mb-0">' +
+                escapeHtml(window.t('ui.admin.areafix.no_reply_yet', {}, 'No reply yet')) + '</p>';
+            var hb = document.getElementById('historyBody_' + r);
+            if (hb) hb.innerHTML = '';
+        });
+    };
+
+    // ── Quick Action buttons ──────────────────────────────────────────────────
+
+    window.sendQuickAction = function (robot, command) {
+        sendCommands(robot, [command]);
+    };
+
+    // ── Subscribe / Unsubscribe ───────────────────────────────────────────────
+
+    window.subscribeArea = function (robot) {
+        var input = document.getElementById('areaTagInput_' + robot);
+        var tag   = input ? input.value.trim().toUpperCase() : '';
+        if (!tag) {
+            showToast(window.t('ui.admin.areafix.tag_required', {}, 'Area tag is required'), true);
+            return;
+        }
+        sendCommands(robot, ['+' + tag], function () { if (input) input.value = ''; });
+    };
+
+    window.unsubscribeArea = function (robot) {
+        var input = document.getElementById('areaTagInput_' + robot);
+        var tag   = input ? input.value.trim().toUpperCase() : '';
+        if (!tag) {
+            showToast(window.t('ui.admin.areafix.tag_required', {}, 'Area tag is required'), true);
+            return;
+        }
+        sendCommands(robot, ['-' + tag], function () { if (input) input.value = ''; });
+    };
+
+
+    // ── Freeform send ─────────────────────────────────────────────────────────
+
+    window.sendFreeform = function (robot) {
+        var ta  = document.getElementById('freeformCommands_' + robot);
+        var raw = ta ? ta.value.trim() : '';
+        if (!raw) {
+            showToast(window.t('ui.admin.areafix.commands_required', {}, 'Enter at least one command'), true);
+            return;
+        }
+        var commands = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+        sendCommands(robot, commands, function () { if (ta) ta.value = ''; });
+    };
+
+    // ── Core send function ────────────────────────────────────────────────────
+
+    function sendCommands(robot, commands, onSuccess) {
+        var uplink = getSelectedUplink();
+        if (!uplink) {
+            showToast(window.t('ui.admin.areafix.select_uplink_first', {}, 'Please select an uplink'), true);
+            return;
+        }
+
+        var sendBtn = document.getElementById('sendBtn_' + robot);
+        if (sendBtn) sendBtn.disabled = true;
+
+        fetch('/api/admin/areafix/send', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ uplink: uplink, robot: robot, commands: commands }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                showToast(window.t('ui.admin.areafix.command_sent', {}, 'Command sent — check history for a reply'), false);
+                if (typeof onSuccess === 'function') onSuccess();
+                loadHistory(robot);
+            } else {
+                var msg = (data.error) ? data.error : window.t('ui.admin.areafix.send_failed', {}, 'Failed to send command');
+                showToast(msg, true);
+            }
+        })
+        .catch(function () {
+            showToast(window.t('ui.admin.areafix.send_failed', {}, 'Failed to send command'), true);
+        })
+        .finally(function () {
+            if (sendBtn) sendBtn.disabled = false;
+        });
+    }
+
+    // ── History load ──────────────────────────────────────────────────────────
+
+    window.loadHistory = function (robot) {
+        var uplink = getSelectedUplink();
+        if (!uplink) return;
+
+        var container = document.getElementById('historyBody_' + robot);
+        if (!container) return;
+        container.innerHTML = '<tr><td colspan="4" class="text-center py-3"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+
+        fetch('/api/admin/areafix/history?uplink=' + encodeURIComponent(uplink))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data.success) {
+                container.innerHTML = '<tr><td colspan="6" class="text-danger py-2">' +
+                    escapeHtml(window.t('ui.admin.areafix.history_load_failed', {}, 'Failed to load history')) + '</td></tr>';
+                return;
+            }
+
+            var messages = (data.messages && data.messages.messages) ? data.messages.messages : (data.messages || []);
+            if (!Array.isArray(messages)) messages = [];
+
+            // Filter by robot type.
+            // Outgoing: we set to_name, so request_type is reliable.
+            // Incoming: robot names vary (SBBSEcho, BRoboCop, etc.) — show all replies on both tabs.
+            var robotMessages = messages.filter(function (m) {
+                if (m.direction === 'incoming') return true;
+                return m.request_type === (robot === 'filefix' ? 'file' : 'echo');
+            });
+
+            renderHistory(container, robotMessages, robot);
+
+            // Show latest incoming reply
+            var incoming = robotMessages.filter(function (m) { return m.direction === 'incoming'; });
+            if (incoming.length > 0) {
+                renderLatestReply(robot, incoming[0]);
+            }
+        })
+        .catch(function () {
+            container.innerHTML = '<tr><td colspan="6" class="text-danger py-2">' +
+                escapeHtml(window.t('ui.admin.areafix.history_load_failed', {}, 'Failed to load history')) + '</td></tr>';
+        });
+    };
+
+    function renderHistory(container, messages, robot) {
+        if (!messages.length) {
+            container.innerHTML = '<tr><td colspan="6" class="text-muted py-3 px-3">' +
+                escapeHtml(window.t('ui.admin.areafix.no_history', {}, 'No messages yet')) + '</td></tr>';
+            return;
+        }
+
+        var opt     = getSelectedUplinkOption();
+        var network = opt ? (opt.dataset.domain || '') : '';
+
+        var html = '';
+        messages.forEach(function (m, i) {
+            var dirLabel = m.direction === 'incoming'
+                ? '<span class="badge bg-info text-dark">' + escapeHtml(window.t('ui.admin.areafix.direction_incoming', {}, 'Incoming')) + '</span>'
+                : '<span class="badge bg-secondary">'     + escapeHtml(window.t('ui.admin.areafix.direction_outgoing', {}, 'Outgoing')) + '</span>';
+            var dateStr  = formatTimestamp(m.timestamp || m.date_received || m.date_written);
+            var excerpt  = escapeHtml(m.excerpt || m.message_text || '');
+            var rowId    = 'histRow_' + robot + '_' + i;
+            // For outgoing we sent to the hub; for incoming the hub sent to us.
+            var nodeAddr = m.direction === 'incoming'
+                ? (m.from_address || '')
+                : (m.to_address   || '');
+
+            html += '<tr class="areafix-history-expand" onclick="toggleHistoryRow(\'' + rowId + '\')">';
+            html += '<td class="text-muted small">' + escapeHtml(dateStr) + '</td>';
+            html += '<td>' + dirLabel + '</td>';
+            html += '<td class="font-monospace small">' + escapeHtml(nodeAddr) + '</td>';
+            html += '<td class="small">' + escapeHtml(network) + '</td>';
+            html += '<td class="font-monospace small text-truncate" style="max-width:220px;">' + excerpt + '</td>';
+            html += '<td class="text-end"><i class="fas fa-chevron-down small text-muted"></i></td>';
+            html += '</tr>';
+            html += '<tr id="' + rowId + '" class="areafix-row-body">';
+            html += '<td colspan="6"><pre class="small mb-0 p-2" style="white-space:pre-wrap;">' +
+                escapeHtml(m.message_text || '') + '</pre></td>';
+            html += '</tr>';
+        });
+
+        container.innerHTML = html;
+    }
+
+    window.toggleHistoryRow = function (rowId) {
+        var el = document.getElementById(rowId);
+        if (!el) return;
+        el.style.display = (el.style.display === 'table-row') ? 'none' : 'table-row';
+    };
+
+    // ── Latest reply panel ────────────────────────────────────────────────────
+
+    function renderLatestReply(robot, message) {
+        var panel = document.getElementById('latestReply_' + robot);
+        if (!panel) return;
+
+        var from = escapeHtml(message.from_name || '');
+        var date = escapeHtml(formatTimestamp(message.date_received || message.date_written || ''));
+        var body = message.message_text || '';
+
+        panel.innerHTML =
+            '<div class="text-muted small mb-1">' +
+                '<strong>' + from + '</strong>' +
+                (date ? ' &mdash; ' + date : '') +
+            '</div>' +
+            '<pre class="small bg-light p-2 rounded mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto;">' +
+                escapeHtml(body) +
+            '</pre>';
+    }
+
+    // ── Initialisation ────────────────────────────────────────────────────────
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof window.onUplinkChange === 'function') {
+            window.onUplinkChange();
+        }
+
+        // Load history when a robot tab becomes active
+        var tabEls = document.querySelectorAll('#robotTabs a[data-bs-toggle="tab"]');
+        tabEls.forEach(function (tab) {
+            tab.addEventListener('shown.bs.tab', function (e) {
+                var href  = e.target.getAttribute('href');
+                var robot = href === '#filefixTab' ? 'filefix' : 'areafix';
+                loadHistory(robot);
+            });
+        });
+
+        // Load AreaFix history on initial page load
+        loadHistory('areafix');
+
+        // Periodic poll: refresh the active robot tab's history every 30 s
+        function getActiveRobot() {
+            var active = document.querySelector('#robotTabs a.active');
+            if (!active) return 'areafix';
+            return active.getAttribute('href') === '#filefixTab' ? 'filefix' : 'areafix';
+        }
+
+        setInterval(function () {
+            if (document.visibilityState === 'hidden') return;
+            loadHistory(getActiveRobot());
+        }, 30000);
+    });
+
+}());
+</script>
+{% endblock %}

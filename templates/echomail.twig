@@ -42,19 +42,61 @@
                         <a href="/echolist" class="btn btn-sm btn-outline-primary flex-fill">
                             <i class="fa-solid fa-list me-1"></i> {{ t('ui.echomail.full_echo_list', {}, locale, ['common']) }}
                         </a>
-                        <a href="/subscriptions" class="btn btn-sm btn-outline-secondary flex-fill">
-                            <i class="fa-solid fa-star me-1"></i> {{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}
+                        <a href="/subscriptions" id="mobileManageBtn" class="btn btn-sm btn-outline-secondary flex-fill">
+                            <i class="fa-solid fa-star me-1" id="mobileManageBtnIcon"></i> <span id="mobileManageBtnLabel">{{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}</span>
                         </a>
                     </div>
-                    <input type="text" class="form-control form-control-sm mb-2" id="mobileEchoareaSearchInput"
-                           placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
-                    <div style="max-height: 300px; overflow-y: auto;">
-                        <div id="mobileEchoareasList">
-                            <div class="loading-spinner">
-                                <i class="fas fa-spinner fa-spin me-2"></i>
-                                {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                    <ul class="nav nav-tabs nav-fill mb-0" id="mobileViewingTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-1 small" id="mobileAreaListTab"
+                                    data-bs-toggle="tab" data-bs-target="#mobileAreaListPane"
+                                    type="button" role="tab">
+                                {{ t('ui.echomail.tab_area_list', {}, locale, ['common']) }}
+                            </button>
+                        </li>
+                        {% if interests_enabled and has_interests %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1 small" id="mobileInterestsTab"
+                                    data-bs-toggle="tab" data-bs-target="#mobileInterestsPane"
+                                    type="button" role="tab">
+                                {{ t('ui.echomail.tab_interests', {}, locale, ['common']) }}
+                            </button>
+                        </li>
+                        {% endif %}
+                    </ul>
+                    <div class="tab-content border border-top-0 rounded-bottom">
+                        <div class="tab-pane fade show active p-0" id="mobileAreaListPane" role="tabpanel">
+                            <div class="px-2 pt-2">
+                                {% if interests_enabled and has_interests %}
+                                <select class="form-select form-select-sm mb-2" id="mobileAreaListInterestFilter"
+                                        onchange="setAreaListInterestFilter(this.value ? parseInt(this.value) : null)">
+                                    <option value="">{{ t('ui.echomail.all_subscribed_areas', {}, locale, ['common']) }}</option>
+                                </select>
+                                {% endif %}
+                                <input type="text" class="form-control form-control-sm" id="mobileEchoareaSearchInput"
+                                       placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
+                            </div>
+                            <div style="max-height: 268px; overflow-y: auto;">
+                                <div id="mobileEchoareasList">
+                                    <div class="loading-spinner">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>
+                                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                        {% if interests_enabled and has_interests %}
+                        <div class="tab-pane fade p-0" id="mobileInterestsPane" role="tabpanel">
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                <div id="mobileInterestsList">
+                                    <div class="text-center text-muted p-3">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>
+                                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -193,28 +235,83 @@
     <!-- Echo Areas Sidebar - Hidden on mobile -->
     <div class="col-lg-3 d-none d-lg-block">
         <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="card-header p-0">
+                <div class="d-flex justify-content-between align-items-center px-3 pt-2 pb-1">
                     <h6 class="mb-0">{{ t('ui.echomail.echo_areas', {}, locale, ['common']) }}</h6>
                     <div class="d-flex gap-2">
-                        <a href="/echolist" class="" title="Echo List View">
+                        <a href="/echolist" class="" title="{{ t('ui.echomail.full_echo_list', {}, locale, ['common']) }}">
                             <i class="fa-solid fa-list"></i>
                         </a>
-                        <a href="/subscriptions" class="" title="Manage Subscriptions">
+                        <a href="/subscriptions" class="" id="desktopManageLink" title="{{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}">
                             <i class="fa-solid fa-wrench"></i>
                         </a>
                     </div>
                 </div>
-                <input type="text" class="form-control form-control-sm" id="echoareaSearchInput"
-                       placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
+                {% if interests_enabled and has_interests %}
+                <ul class="nav nav-tabs nav-fill px-2 mb-0" id="desktopViewingTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 small" id="desktopAreaListTab"
+                                data-bs-toggle="tab" data-bs-target="#desktopAreaListPane"
+                                type="button" role="tab">
+                            {{ t('ui.echomail.tab_area_list', {}, locale, ['common']) }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 small" id="desktopInterestsTab"
+                                data-bs-toggle="tab" data-bs-target="#desktopInterestsPane"
+                                type="button" role="tab">
+                            {{ t('ui.echomail.tab_interests', {}, locale, ['common']) }}
+                        </button>
+                    </li>
+                </ul>
+                {% endif %}
             </div>
-            <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
-                <div id="echoareasList">
-                    <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin me-2"></i>
-                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+            <div class="card-body p-0">
+                {% if interests_enabled and has_interests %}
+                <div class="tab-content">
+                    <div class="tab-pane fade show active p-0" id="desktopAreaListPane" role="tabpanel">
+                        <div class="px-2 pt-2">
+                            <select class="form-select form-select-sm mb-2" id="areaListInterestFilter"
+                                    onchange="setAreaListInterestFilter(this.value ? parseInt(this.value) : null)">
+                                <option value="">{{ t('ui.echomail.all_subscribed_areas', {}, locale, ['common']) }}</option>
+                            </select>
+                            <input type="text" class="form-control form-control-sm" id="echoareaSearchInput"
+                                   placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
+                        </div>
+                        <div style="max-height: 268px; overflow-y: auto;">
+                            <div id="echoareasList">
+                                <div class="loading-spinner">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                    {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade p-0" id="desktopInterestsPane" role="tabpanel">
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <div id="desktopInterestsList">
+                                <div class="text-center text-muted p-3">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                    {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                {% else %}
+                <div class="px-2 pt-2">
+                    <input type="text" class="form-control form-control-sm" id="echoareaSearchInput"
+                           placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
+                </div>
+                <div style="max-height: 268px; overflow-y: auto;">
+                    <div id="echoareasList">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin me-2"></i>
+                            {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         
@@ -261,12 +358,70 @@
     </div>
 </div>
 
-<!-- Manage Subscriptions Button -->
+<!-- Manage Subscriptions / Interests Button -->
 <div class="text-center mt-4 mb-4">
-    <a href="/subscriptions" class="btn btn-outline-primary">
+    <a href="/subscriptions" id="desktopBottomManageBtn" class="btn btn-outline-primary">
         <i class="fa-solid fa-wrench me-2"></i>
-        {{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}
+        <span id="desktopBottomManageBtnLabel">{{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}</span>
     </a>
+</div>
+
+<div id="messageContextMenu" class="dropdown-menu" style="display:none; position:absolute; z-index:1080;">
+    <button type="button" class="dropdown-item" onclick="replyFromContextMenu()">
+        <i class="fas fa-reply me-2"></i>{{ t('ui.common.reply', {}, 'common') }}
+    </button>
+    <button type="button" class="dropdown-item" onclick="viewConversationFromContextMenu()">
+        <i class="fas fa-comments me-2"></i>{{ t('ui.common.view_conversation', {}, locale, ['common']) }}
+    </button>
+    <button type="button" class="dropdown-item" id="messageContextMenuSaveAction" onclick="toggleSaveFromContextMenu()">
+        <i class="fas fa-bookmark me-2"></i><span id="messageContextMenuSaveLabel">{{ t('ui.common.save_for_later', {}, locale, ['common']) }}</span>
+    </button>
+    <button type="button" class="dropdown-item" onclick="downloadMessageFromContextMenu()">
+        <i class="fas fa-download me-2"></i>{{ t('ui.common.download_message', {}, locale, ['common']) }}
+    </button>
+    <button type="button" class="dropdown-item" onclick="openIgnoreMessageModalFromContextMenu()">
+        <i class="fas fa-eye-slash me-2"></i>{{ t('ui.echomail.ignore.open_action', {}, locale, ['common']) }}
+    </button>
+    <button type="button" class="dropdown-item" onclick="shareMessageFromContextMenu()">
+        <i class="fas fa-share-alt me-2"></i>{{ t('ui.common.share', {}, locale, ['common']) }}
+    </button>
+    {% if current_user.email %}
+    <button type="button" class="dropdown-item" onclick="forwardMessageToEmailFromContextMenu()">
+        <i class="fas fa-envelope me-2"></i>{{ t('ui.common.forward_to_me_by_email', {}, locale, ['common']) }}
+    </button>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="ignoreMessageModal" tabindex="-1" aria-labelledby="ignoreMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="ignoreMessageForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ignoreMessageModalLabel">{{ t('ui.echomail.ignore.modal_title', {}, locale, ['common']) }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">{{ t('ui.echomail.ignore.help', {}, locale, ['common']) }}</p>
+                    <div class="mb-3">
+                        <label for="ignoreMessageSenderDisplay" class="form-label">{{ t('ui.echomail.ignore.sender_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="ignoreMessageSenderDisplay" maxlength="255" readonly>
+                        <input type="hidden" id="ignoreMessageSender" name="sender_name">
+                        <input type="hidden" id="ignoreMessageSenderAddress" name="sender_address">
+                    </div>
+                    <div class="mb-0">
+                        <label for="ignoreMessageSubjectContains" class="form-label">{{ t('ui.echomail.ignore.subject_contains_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="ignoreMessageSubjectContains" name="subject_contains" maxlength="255">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                    <button type="submit" class="btn btn-warning" id="ignoreMessageSubmitButton">
+                        <i class="fas fa-eye-slash me-1"></i>{{ t('ui.echomail.ignore.save_button', {}, locale, ['common']) }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- Message View Modal -->
@@ -477,6 +632,10 @@
                     <input type="text" class="form-control" id="advSearchBody" placeholder="{{ t('ui.common.advanced_search.body_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <div class="mb-3">
+                    <label for="advSearchMessageId" class="form-label">{{ t('ui.common.advanced_search.message_id', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="advSearchMessageId" placeholder="{{ t('ui.common.advanced_search.message_id_placeholder', {}, locale, ['common']) }}">
+                </div>
+                <div class="mb-3">
                     <label class="form-label">{{ t('ui.common.advanced_search.date_range', {}, locale, ['common']) }}</label>
                     <div class="d-flex gap-2 align-items-center">
                         <input type="date" class="form-control" id="advSearchDateFrom">
@@ -563,6 +722,7 @@
     </div>
 </div>
 {% endif %}
+
 {% endblock %}
 
 {% block styles %}
@@ -610,10 +770,132 @@ window.currentUserRealName = '{{ current_user.real_name }}';
 window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
 window.echomailDateField = '{{ echomail_date_field|default("received") }}';
 </script>
+{% if interests_enabled %}
 <script src="/js/ansisys.js"></script>
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
+<script src="/js/message-list-context-menu.js"></script>
+<script src="/js/file-preview.js"></script>
+{% endif %}
 <script src="/js/echomail.js"></script>
+{% if interests_enabled and has_interests %}
+<script>
+$(document).ready(function() {
+    function setListOrInterestPreference(value) {
+        document.cookie = `p_listorinterest=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+
+    function getListOrInterestPreference() {
+        const match = document.cookie.match(/(?:^|;\s*)p_listorinterest=([^;]+)/);
+        if (!match) {
+            return null;
+        }
+
+        const value = decodeURIComponent(match[1] || '');
+        return (value === 'area' || value === 'interests') ? value : null;
+    }
+
+    function getListOrInterestPreferenceForTab(tabId) {
+        return tabId === 'mobileInterestsTab' || tabId === 'desktopInterestsTab' ? 'interests' : 'area';
+    }
+
+    function activatePreferredTab(preference) {
+        const mobileTabId = preference === 'interests' ? 'mobileInterestsTab' : 'mobileAreaListTab';
+        const desktopTabId = preference === 'interests' ? 'desktopInterestsTab' : 'desktopAreaListTab';
+        const mobileTab = document.getElementById(mobileTabId);
+        const desktopTab = document.getElementById(desktopTabId);
+
+        if (mobileTab) {
+            bootstrap.Tab.getOrCreateInstance(mobileTab).show();
+        }
+
+        if (desktopTab) {
+            bootstrap.Tab.getOrCreateInstance(desktopTab).show();
+        }
+    }
+
+    // Load interests list immediately (Interests tab is active by default)
+    $.get('/api/interests')
+        .done(function(data) {
+            if (data && data.interests) {
+                const subscribedInterests = data.interests.filter(function(i) { return i.subscribed; });
+                displayMobileInterests(subscribedInterests);
+                populateAreaListInterestDropdowns(subscribedInterests);
+
+                // Auto-select interest from ?interest=slug URL param (e.g. returning from compose)
+                const urlInterestSlug = new URLSearchParams(window.location.search).get('interest');
+                if (urlInterestSlug) {
+                    const match = data.interests.find(function(i) {
+                        return i.slug === urlInterestSlug || String(i.id) === urlInterestSlug;
+                    });
+                    if (match) {
+                        selectInterest(match.id, match.name, match.slug);
+                    }
+                }
+            }
+        })
+        .fail(function() {
+            const errHtml = '<div class="text-center text-danger p-3">' +
+                uiT('ui.interests.load_failed', 'Failed to load interests') +
+                '</div>';
+            $('#mobileInterestsList').html(errHtml);
+            $('#desktopInterestsList').html(errHtml);
+        });
+
+    // Swap the mobile manage button label/link based on active tab
+    function updateMobileManageBtn(tabId) {
+        const btn   = $('#mobileManageBtn');
+        const label = $('#mobileManageBtnLabel');
+        if (tabId === 'mobileInterestsTab') {
+            btn.attr('href', '/interests');
+            label.text(uiT('ui.echomail.manage_interests', 'Manage Interests'));
+        } else {
+            btn.attr('href', '/subscriptions');
+            label.text(uiT('ui.echomail.manage_subscriptions', 'Manage Subscriptions'));
+        }
+    }
+
+    // Swap the desktop manage link + bottom button based on active tab
+    function updateDesktopManageBtn(tabId) {
+        const link       = $('#desktopManageLink');
+        const bottomBtn  = $('#desktopBottomManageBtn');
+        const bottomLabel = $('#desktopBottomManageBtnLabel');
+        if (tabId === 'desktopInterestsTab') {
+            link.attr('href', '/interests').attr('title', uiT('ui.echomail.manage_interests', 'Manage Interests'));
+            bottomBtn.attr('href', '/interests');
+            bottomLabel.text(uiT('ui.echomail.manage_interests', 'Manage Interests'));
+        } else {
+            link.attr('href', '/subscriptions').attr('title', uiT('ui.echomail.manage_subscriptions', 'Manage Subscriptions'));
+            bottomBtn.attr('href', '/subscriptions');
+            bottomLabel.text(uiT('ui.echomail.manage_subscriptions', 'Manage Subscriptions'));
+        }
+    }
+
+    // Restore preferred tab, defaulting to area list unless the URL explicitly opens an interest.
+    const initialPreference = new URLSearchParams(window.location.search).get('interest')
+        ? 'interests'
+        : (getListOrInterestPreference() || 'area');
+    activatePreferredTab(initialPreference);
+    updateMobileManageBtn(initialPreference === 'interests' ? 'mobileInterestsTab' : 'mobileAreaListTab');
+    updateDesktopManageBtn(initialPreference === 'interests' ? 'desktopInterestsTab' : 'desktopAreaListTab');
+    setListOrInterestPreference(initialPreference);
+
+    // Update on mobile tab switch
+    $('#mobileViewingTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
+        const tabId = $(this).attr('id');
+        updateMobileManageBtn(tabId);
+        setListOrInterestPreference(getListOrInterestPreferenceForTab(tabId));
+    });
+
+    // Update on desktop tab switch
+    $('#desktopViewingTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
+        const tabId = $(this).attr('id');
+        updateDesktopManageBtn(tabId);
+        setListOrInterestPreference(getListOrInterestPreferenceForTab(tabId));
+    });
+});
+</script>
+{% endif %}
 
 <style>
 /* Read/Unread message styling */

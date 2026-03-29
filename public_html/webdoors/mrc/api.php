@@ -12,6 +12,7 @@ require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 use BinktermPHP\Database;
 use BinktermPHP\Mrc\MrcClient;
 use BinktermPHP\Mrc\MrcConfig;
+use BinktermPHP\Realtime\BinkStream;
 
 header('Content-Type: application/json');
 
@@ -32,9 +33,11 @@ try {
         case 'longpoll': handleLongPoll($db, $user);         break;
         case 'command':  handleCommand($db, $user);           break;
         case 'users':    handleUsers($db);                  break;
-        case 'send':     handleSend($db, $user);            break;
-        case 'join':     handleJoin($db, $user);            break;
+        case 'send':       handleSend($db, $user);           break;
+        case 'join':       handleJoin($db, $user);           break;
         case 'room_cursor': handleRoomCursor($db);           break;
+        case 'connect':    handleConnect($db, $user);        break;
+        case 'disconnect': handleDisconnect($db, $user);     break;
         default:
             \WebDoorSDK\jsonError('Unknown action', 400);
     }
@@ -48,16 +51,32 @@ function handleStatus(PDO $db): void
 {
     $config = MrcConfig::getInstance();
 
-    $stmt = $db->prepare("SELECT value FROM mrc_state WHERE key = 'connected'");
+    $stmt = $db->prepare("SELECT key, value, updated_at FROM mrc_state WHERE key IN ('connected', 'daemon_heartbeat')");
     $stmt->execute();
-    $connected = ($stmt->fetchColumn() === 'true');
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stateMap = [];
+    foreach ($rows as $row) {
+        $stateMap[$row['key']] = $row;
+    }
+
+    $connected = ($stateMap['connected']['value'] ?? 'false') === 'true';
+
+    // Consider the daemon running only if it has written a heartbeat within
+    // the last 90 seconds (daemon writes every 30 s; allow 3 missed beats).
+    $daemonRunning = false;
+    if (!empty($stateMap['daemon_heartbeat']['updated_at'])) {
+        $lastBeat = strtotime($stateMap['daemon_heartbeat']['updated_at']);
+        $daemonRunning = $lastBeat !== false && (time() - $lastBeat) < 90;
+    }
 
     \WebDoorSDK\jsonResponse([
-        'success'  => true,
-        'enabled'  => $config->isEnabled(),
-        'connected' => $connected,
-        'server'   => $config->getServerHost() . ':' . $config->getServerPort(),
-        'bbs_name' => $config->getBbsName()
+        'success'        => true,
+        'enabled'        => $config->isEnabled(),
+        'connected'      => $connected,
+        'daemon_running' => $daemonRunning,
+        'server'         => $config->getServerHost() . ':' . $config->getServerPort(),
+        'bbs_name'       => $config->getBbsName()
     ]);
 }
 
@@ -114,6 +133,31 @@ function handleRooms(PDO $db): void
     ]);
 }
 
+function normalizeMrcHandle(string $handle, array $user): string
+{
+    $handle = trim($handle);
+    if ($handle === '') {
+        $handle = (string)($user['username'] ?? '');
+    }
+
+    $handle = substr(MrcClient::sanitizeName($handle), 0, 30);
+    if ($handle === '') {
+        \WebDoorSDK\jsonError('Username is required');
+    }
+
+    if (in_array(strtoupper($handle), ['SERVER', 'CLIENT', 'NOTME'], true)) {
+        \WebDoorSDK\jsonError('Invalid username');
+    }
+
+    return $handle;
+}
+
+function resolveMrcUsername(array $user): string
+{
+    $sessionHandle = isset($_SESSION['mrc_username']) ? (string)$_SESSION['mrc_username'] : '';
+    return normalizeMrcHandle($sessionHandle, $user);
+}
+
 function handleMessages(PDO $db, array $user): void
 {
     $room  = $_GET['room']  ?? '';
@@ -161,7 +205,7 @@ function handlePrivateMessages(PDO $db, array $user): void
     }
 
     $config   = MrcConfig::getInstance();
-    $username = MrcClient::sanitizeName($user['username']);
+    $username = resolveMrcUsername($user);
     $withUser = MrcClient::sanitizeName($with);
 
     $stmt = $db->prepare("
@@ -191,7 +235,7 @@ function handlePrivateMessages(PDO $db, array $user): void
 function handlePrivateUnread(PDO $db, array $user): void
 {
     $after = isset($_GET['after']) ? (int)$_GET['after'] : 0;
-    $username = MrcClient::sanitizeName($user['username']);
+    $username = resolveMrcUsername($user);
 
     $stmt = $db->prepare("
         SELECT id, from_user
@@ -234,14 +278,111 @@ function handleHeartbeat(PDO $db, array $user): void
         \WebDoorSDK\jsonError('Invalid character in room');
     }
 
+    upsertLocalHandle($db, $user);
     upsertLocalPresence($db, $user, $room);
     \WebDoorSDK\jsonResponse(['success' => true]);
+}
+
+/**
+ * Normalize a user-entered MRC room name.
+ * Accepts an optional leading '#' from the UI, then enforces the protocol's
+ * room-name rules before anything is queued to the daemon.
+ */
+function normalizeMrcRoomName(string $room): string
+{
+    $room = trim($room);
+    if (strncmp($room, '#', 1) === 0) {
+        $room = substr($room, 1);
+    }
+
+    $room = MrcClient::sanitizeName($room);
+
+    if ($room === '' || !preg_match('/^[A-Za-z0-9]{1,20}$/', $room)) {
+        \WebDoorSDK\jsonError('Invalid room name');
+    }
+
+    return $room;
+}
+
+/**
+ * Emit a fresh room presence payload to all remaining local users in a room.
+ */
+function emitPresenceForRoom(PDO $db, string $room): void
+{
+    $room = MrcClient::sanitizeName($room);
+    if ($room === '') {
+        return;
+    }
+
+    $userIdStmt = $db->prepare("
+        SELECT DISTINCT user_id AS id
+        FROM mrc_local_presence
+        WHERE room_name = :room
+          AND user_id IS NOT NULL
+          AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    ");
+    $userIdStmt->execute(['room' => $room]);
+    $targetUserIds = array_map('intval', array_column($userIdStmt->fetchAll(PDO::FETCH_ASSOC), 'id'));
+    if (empty($targetUserIds)) {
+        return;
+    }
+
+    $localBbs = MrcClient::sanitizeName(MrcConfig::getInstance()->getBbsName());
+    $usersStmt = $db->prepare("
+        SELECT username, COALESCE(bbs_name, 'unknown') AS bbs_name, false AS is_afk
+        FROM mrc_users
+        WHERE room_name = :room
+        UNION
+        SELECT username, :local_bbs AS bbs_name, false AS is_afk
+        FROM mrc_local_presence
+        WHERE room_name = :room2
+          AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    ");
+    $usersStmt->execute([
+        'room' => $room,
+        'local_bbs' => $localBbs,
+        'room2' => $room,
+    ]);
+    $payload = [
+        'room' => $room,
+        'users' => $usersStmt->fetchAll(PDO::FETCH_ASSOC),
+    ];
+
+    foreach ($targetUserIds as $targetUserId) {
+        BinkStream::emit($db, 'mrc_presence', $payload, $targetUserId);
+    }
+}
+
+function upsertLocalHandle(PDO $db, array $user): void
+{
+    $config        = MrcConfig::getInstance();
+    $localUsername = resolveMrcUsername($user);
+    $localUserId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $localBbsName  = MrcClient::sanitizeName($config->getBbsName());
+
+    if ($localUserId <= 0 || $localUsername === '') {
+        return;
+    }
+
+    $db->prepare("
+        INSERT INTO mrc_local_handles (user_id, username, bbs_name, connected_at, last_seen)
+        VALUES (:user_id, :username, :bbs_name, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id) DO UPDATE
+        SET username = EXCLUDED.username,
+            bbs_name = EXCLUDED.bbs_name,
+            last_seen = CURRENT_TIMESTAMP
+    ")->execute([
+        'user_id' => $localUserId,
+        'username' => $localUsername,
+        'bbs_name' => $localBbsName,
+    ]);
 }
 
 function upsertLocalPresence(PDO $db, array $user, string $room): void
 {
     $config        = MrcConfig::getInstance();
-    $localUsername = MrcClient::sanitizeName($user['username']);
+    $localUsername = resolveMrcUsername($user);
+    $localUserId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $localBbsName  = MrcClient::sanitizeName($config->getBbsName());
     $room          = MrcClient::sanitizeName($room);
 
@@ -252,11 +393,18 @@ function upsertLocalPresence(PDO $db, array $user, string $room): void
     ")->execute(['room' => $room]);
 
     $db->prepare("
-        INSERT INTO mrc_local_presence (username, bbs_name, room_name, last_seen)
-        VALUES (:username, :bbs_name, :room, CURRENT_TIMESTAMP)
-        ON CONFLICT (username, bbs_name, room_name) DO UPDATE
-        SET last_seen = CURRENT_TIMESTAMP
-    ")->execute(['username' => $localUsername, 'bbs_name' => $localBbsName, 'room' => $room]);
+        INSERT INTO mrc_local_presence (user_id, username, bbs_name, room_name, last_seen)
+        VALUES (:user_id, :username, :bbs_name, :room, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, room_name) DO UPDATE
+        SET username = EXCLUDED.username,
+            bbs_name = EXCLUDED.bbs_name,
+            last_seen = CURRENT_TIMESTAMP
+    ")->execute([
+        'user_id' => $localUserId > 0 ? $localUserId : null,
+        'username' => $localUsername,
+        'bbs_name' => $localBbsName,
+        'room' => $room
+    ]);
 }
 
 function handlePoll(PDO $db, array $user): void
@@ -282,10 +430,11 @@ function handlePoll(PDO $db, array $user): void
     }
 
     $response = ['success' => true];
+    upsertLocalHandle($db, $user);
 
     // Messages for current view
     if ($viewMode === 'private' && $withUser !== '') {
-        $username = MrcClient::sanitizeName($user['username']);
+        $username = resolveMrcUsername($user);
         $withUser = MrcClient::sanitizeName($withUser);
 
             $stmt = $db->prepare("
@@ -332,8 +481,8 @@ function handlePoll(PDO $db, array $user): void
     }
 
     // Private unread counts
-    if (!empty($user['username'])) {
-        $username = MrcClient::sanitizeName($user['username']);
+    $username = resolveMrcUsername($user);
+    if ($username !== '') {
         if ($unreadInit && $afterUnread === 0) {
             $stmt = $db->prepare("
                 SELECT COALESCE(MAX(id), 0) AS max_id
@@ -450,7 +599,8 @@ function handleLongPoll(PDO $db, array $user): void
         \WebDoorSDK\jsonError('Invalid character in user');
     }
 
-    $username = !empty($user['username']) ? MrcClient::sanitizeName($user['username']) : '';
+    $username = resolveMrcUsername($user);
+    upsertLocalHandle($db, $user);
     $viewRoom = $viewRoom !== '' ? MrcClient::sanitizeName($viewRoom) : '';
     $joinRoom = $joinRoom !== '' ? MrcClient::sanitizeName($joinRoom) : '';
     $withUser = $withUser !== '' ? MrcClient::sanitizeName($withUser) : '';
@@ -636,7 +786,8 @@ function handleCommand(PDO $db, array $user): void
     }
 
     $config   = MrcConfig::getInstance();
-    $username = MrcClient::sanitizeName($user['username']);
+    $username = resolveMrcUsername($user);
+    upsertLocalHandle($db, $user);
     $room     = $command === 'rooms' ? '' : MrcClient::sanitizeName($room);
     $bbsName  = MrcClient::sanitizeName($config->getBbsName());
 
@@ -778,7 +929,8 @@ function handleSend(PDO $db, array $user): void
     }
 
     $config   = MrcConfig::getInstance();
-    $username = MrcClient::sanitizeName($user['username']);
+    $username = resolveMrcUsername($user);
+    upsertLocalHandle($db, $user);
     $message  = str_replace('~', '', $message);
     $message  = substr($message, 0, $config->getMaxMessageLength());
     $bbsName  = MrcClient::sanitizeName($config->getBbsName());
@@ -827,9 +979,13 @@ function handleJoin(PDO $db, array $user): void
     }
 
     $config   = MrcConfig::getInstance();
-    $username = MrcClient::sanitizeName($user['username']);
-    $room     = MrcClient::sanitizeName($room);
-    $fromRoom = MrcClient::sanitizeName($fromRoom);
+    $username = resolveMrcUsername($user);
+    upsertLocalHandle($db, $user);
+    $room     = normalizeMrcRoomName((string)$room);
+    $fromRoom = trim((string)$fromRoom);
+    if ($fromRoom !== '') {
+        $fromRoom = normalizeMrcRoomName($fromRoom);
+    }
     $bbsName  = MrcClient::sanitizeName($config->getBbsName());
     $clientIp = $_SERVER['REMOTE_ADDR'] ?? '';
     if ($clientIp !== '') {
@@ -864,13 +1020,22 @@ function handleJoin(PDO $db, array $user): void
         ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
     ")->execute(['room' => $room]);
 
+    $localUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $db->prepare("
-        INSERT INTO mrc_local_presence (username, bbs_name, room_name, ip_address, last_seen)
-        VALUES (:username, :bbs_name, :room, :ip_address, CURRENT_TIMESTAMP)
-        ON CONFLICT (username, bbs_name, room_name) DO UPDATE
-        SET last_seen = CURRENT_TIMESTAMP,
+        INSERT INTO mrc_local_presence (user_id, username, bbs_name, room_name, ip_address, last_seen)
+        VALUES (:user_id, :username, :bbs_name, :room, :ip_address, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, room_name) DO UPDATE
+        SET username = EXCLUDED.username,
+            bbs_name = EXCLUDED.bbs_name,
+            last_seen = CURRENT_TIMESTAMP,
             ip_address = COALESCE(EXCLUDED.ip_address, mrc_local_presence.ip_address)
-    ")->execute(['username' => $username, 'bbs_name' => $bbsName, 'room' => $room, 'ip_address' => $clientIp]);
+    ")->execute([
+        'user_id' => $localUserId > 0 ? $localUserId : null,
+        'username' => $username,
+        'bbs_name' => $bbsName,
+        'room' => $room,
+        'ip_address' => $clientIp
+    ]);
 
     $stmt = $db->prepare("
         SELECT COALESCE(MAX(id), 0) AS max_id
@@ -916,3 +1081,108 @@ function handleRoomCursor(PDO $db): void
     ]);
 }
 
+
+/**
+ * Establish an MRC session for the current user.
+ * Queues USERIP to register presence with the server, and optionally
+ * queues IDENTIFY if a password is provided.
+ */
+function handleConnect(PDO $db, array $user): void
+{
+    $input    = json_decode(file_get_contents('php://input'), true) ?? [];
+    $password = isset($input['password']) ? trim((string)$input['password']) : '';
+    $username = normalizeMrcHandle((string)($input['username'] ?? ''), $user);
+    $_SESSION['mrc_username'] = $username;
+    upsertLocalHandle($db, $user);
+
+    $config   = MrcConfig::getInstance();
+    $bbsName  = MrcClient::sanitizeName($config->getBbsName());
+    $clientIp = $_SERVER['REMOTE_ADDR'] ?? '';
+    if ($clientIp !== '') {
+        $clientIp = preg_replace('/[^0-9a-fA-F:\.]/', '', $clientIp);
+    }
+
+    $outStmt = $db->prepare("
+        INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
+        VALUES (:f1, :f2, :f3, :f4, :f5, :f6, :f7, :priority)
+    ");
+
+    if ($clientIp !== '') {
+        $outStmt->execute([
+            'f1' => $username, 'f2' => $bbsName, 'f3' => '',
+            'f4' => 'SERVER',  'f5' => '',        'f6' => '',
+            'f7' => "USERIP:{$clientIp}", 'priority' => 9
+        ]);
+    }
+
+    if ($password !== '') {
+        $password = substr(str_replace(['~', ' '], '', $password), 0, 20);
+        if ($password !== '') {
+            $outStmt->execute([
+                'f1' => $username, 'f2' => $bbsName, 'f3' => '',
+                'f4' => 'SERVER',  'f5' => '',        'f6' => '',
+                'f7' => "IDENTIFY {$password}", 'priority' => 8
+            ]);
+        }
+    }
+
+    \WebDoorSDK\jsonResponse([
+        'success' => true,
+        'username' => $username,
+    ]);
+}
+
+/**
+ * Disconnect the current user from MRC.
+ * Queues LOGOFF for every room the user is currently in and removes
+ * their local presence so IAMHERE keepalives stop.
+ */
+function handleDisconnect(PDO $db, array $user): void
+{
+    $config   = MrcConfig::getInstance();
+    $username = resolveMrcUsername($user);
+    $bbsName  = MrcClient::sanitizeName($config->getBbsName());
+
+    $localUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $stmt = $db->prepare("
+        SELECT DISTINCT room_name FROM mrc_local_presence
+        WHERE user_id = :user_id
+          AND last_seen > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    ");
+    $stmt->execute(['user_id' => $localUserId]);
+    $rooms = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'room_name');
+
+    $outStmt = $db->prepare("
+        INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
+        VALUES (:f1, :f2, :f3, :f4, :f5, :f6, :f7, :priority)
+    ");
+    foreach ($rooms as $room) {
+        $room = MrcClient::sanitizeName($room);
+        $outStmt->execute([
+            'f1' => $username, 'f2' => $bbsName, 'f3' => $room,
+            'f4' => 'SERVER',  'f5' => '',        'f6' => $room,
+            'f7' => 'LOGOFF', 'priority' => 10
+        ]);
+    }
+
+    $db->prepare("
+        DELETE FROM mrc_local_presence WHERE user_id = :user_id
+    ")->execute(['user_id' => $localUserId]);
+    $db->prepare("
+        DELETE FROM mrc_local_handles WHERE user_id = :user_id
+    ")->execute(['user_id' => $localUserId]);
+
+    foreach ($rooms as $room) {
+        emitPresenceForRoom($db, $room);
+    }
+
+    unset($_SESSION['mrc_username']);
+
+    // Notify all other tabs/windows for this user so they return to the
+    // connect screen instead of running against a terminated session.
+    if ($localUserId > 0) {
+        BinkStream::emit($db, 'mrc_session_ended', [], $localUserId);
+    }
+
+    \WebDoorSDK\jsonResponse(['success' => true]);
+}

@@ -93,7 +93,12 @@ class TerminalMarkupRenderer
     {
         $lines = preg_split('/\r\n|\r|\n/', $text);
         $out   = [];
+        $firstLine = true;
         foreach ($lines as $line) {
+            if ($firstLine) {
+                $line = preg_replace('/^\xEF\xBB\xBF/', '', $line) ?? $line;
+                $firstLine = false;
+            }
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
                 continue;
             }
@@ -161,16 +166,19 @@ class TerminalMarkupRenderer
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $level   = strlen($m[1]);
                 $content = $m[2];
-                $prefix  = str_repeat('#', $level) . ' ';
                 if ($level === 1) {
-                    $formatted = self::BOLD . self::CYN . $prefix . $content . self::R;
+                    $formatted = self::BOLD . self::CYN . strtoupper($content) . self::R;
                 } elseif ($level === 2) {
-                    $formatted = self::BOLD . $prefix . $content . self::R;
+                    $formatted = self::BOLD . $content . self::R;
                 } else {
-                    $formatted = self::CYN . $prefix . $content . self::R;
+                    $formatted = self::CYN . $content . self::R;
                 }
                 $output[] = '';
                 $output[] = $formatted;
+                if ($level <= 2) {
+                    $underlineChar = $level === 1 ? '=' : '-';
+                    $output[] = self::DIM . str_repeat($underlineChar, min($width, self::textLength($content))) . self::R;
+                }
                 $output[] = '';
                 $i++;
                 continue;
@@ -218,7 +226,7 @@ class TerminalMarkupRenderer
             // Unordered list
             if (preg_match('/^[-*]\s+(.+)$/', $line, $m)) {
                 while ($i < $total && preg_match('/^[-*]\s+(.+)$/', $lines[$i], $lm)) {
-                    $itemText    = $lm[1];
+                    $itemText    = self::expandMarkdownLinks($lm[1]);
                     $continuation = $width - 2;
                     $wrapped      = self::wrapRaw($itemText, max(4, $continuation));
                     $first        = true;
@@ -251,7 +259,7 @@ class TerminalMarkupRenderer
                 $i++;
             }
             if ($para) {
-                $joined  = implode(' ', $para);
+                $joined  = self::expandMarkdownLinks(implode(' ', $para));
                 $wrapped = self::wrapRaw($joined, $width);
                 foreach ($wrapped as $wl) {
                     $output[] = self::inlineMarkdown($wl);
@@ -306,6 +314,23 @@ class TerminalMarkupRenderer
         if (!empty($codeMap)) {
             $text = strtr($text, $codeMap);
         }
+
+        return $text;
+    }
+
+    /**
+     * Expand markdown links before wrapping so long links do not get split
+     * before inline markdown conversion runs.
+     */
+    private static function expandMarkdownLinks(string $text): string
+    {
+        $text = preg_replace_callback(
+            '/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/',
+            static fn($m) => $m[1] . ' (' . $m[2] . ')',
+            $text
+        );
+
+        $text = preg_replace('/<((?:https?:\/\/)[^>]+)>/', '$1', $text);
 
         return $text;
     }

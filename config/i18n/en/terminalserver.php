@@ -10,8 +10,10 @@ return [
     'ui.terminalserver.server.login_menu.prompt'       => 'Would you like to:',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Login to existing account',
     'ui.terminalserver.server.login_menu.register'     => '  (R) Register new account',
+    'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK transfer',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Quit',
     'ui.terminalserver.server.login_menu.choice'       => 'Your choice: ',
+    'ui.terminalserver.server.login_menu.invalid_choice' => 'Invalid selection.',
     'ui.terminalserver.server.goodbye'                 => 'Goodbye!',
     'ui.terminalserver.server.press_enter_disconnect'  => 'Press Enter to disconnect.',
 
@@ -118,6 +120,11 @@ return [
     'ui.terminalserver.echomail.no_areas'              => 'No echoareas available.',
     'ui.terminalserver.echomail.areas_header'          => 'Echoareas (page {page}/{total}):',
     'ui.terminalserver.echomail.areas_nav'             => 'Enter #, n/p (next/prev), q (quit)',
+    'ui.terminalserver.echomail.areas_nav_interests'   => 'Enter #, n/p (next/prev), i (by interest), q (quit)',
+    'ui.terminalserver.echomail.interests_title'       => 'Browse by Interest',
+    'ui.terminalserver.echomail.interests_none'        => 'No interests available.',
+    'ui.terminalserver.echomail.interests_prompt'      => 'Enter # to browse, Q to return:',
+    'ui.terminalserver.echomail.interest_areas_header' => '{name} (page {page}/{total}):',
     'ui.terminalserver.echomail.no_messages'           => 'No echomail messages.',
     'ui.terminalserver.echomail.messages_header'       => 'Echomail: {area} (page {page}/{total})',
     'ui.terminalserver.echomail.compose_title'         => '=== Compose Echomail ===',
@@ -191,6 +198,7 @@ return [
     'ui.terminalserver.files.files_back_hint'          => 'B)ack to parent folder',
     'ui.terminalserver.files.not_a_file'               => 'That entry is a folder, not a file.',
     'ui.terminalserver.files.enter_folder_or_file'     => 'Enter a folder number to browse, or a file number to view details.',
+    'ui.terminalserver.qwk.action_logout'              => 'Q) Log out',
 
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Terminal Settings',

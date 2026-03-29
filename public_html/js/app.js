@@ -237,15 +237,7 @@ function formatPlainMessageText(messageText, searchTerms = []) {
         searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
     }
 
-    let plainText = messageText;
-    if (window.hasPipeCodes && window.hasPipeCodes(plainText) && window.convertPipeCodesToAnsi) {
-        plainText = window.convertPipeCodesToAnsi(plainText);
-    }
-    if (window.stripAllAnsi) {
-        plainText = window.stripAllAnsi(plainText);
-    }
-
-    let escaped = escapeHtml(plainText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let escaped = escapeHtml(messageText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     escaped = linkifyUrls(escaped);
     if (searchTerms && searchTerms.length > 0) {
         escaped = highlightSearchTerms(escaped, searchTerms);
@@ -254,14 +246,29 @@ function formatPlainMessageText(messageText, searchTerms = []) {
     return `<div class="message-formatted"><pre class="mb-0" style="white-space: pre-wrap;">${escaped}</pre></div>`;
 }
 
+/**
+ * Render message body as raw source — no ANSI stripping, no pipe code conversion,
+ * no URL linkification. Useful for inspecting the wire content of a message.
+ */
+function formatRawMessageText(messageText) {
+    if (!messageText || messageText.trim() === '') {
+        return '';
+    }
+    const escaped = escapeHtml(messageText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return `<div class="message-formatted"><pre class="mb-0" style="white-space: pre-wrap;">${escaped}</pre></div>`;
+}
+
 function normalizeViewerRenderMode(mode) {
     const normalized = String(mode || 'auto').toLowerCase();
-    if (normalized === 'plain') {
-        return 'plain';
-    }
-    if (normalized === 'rip' || normalized === 'ripscript') {
-        return 'rip';
-    }
+    if (normalized === 'plain' || normalized === 'plain_text' || normalized === 'text') return 'plain';
+    if (normalized === 'raw') return 'raw';
+    if (normalized === 'rip' || normalized === 'ripscript') return 'rip';
+    // Handle art format names explicitly — normalizeArtFormat does not recognise
+    // 'amiga_ansi' (only 'amiga'/'amigaansi') and falls back to 'auto' for unknowns,
+    // which would corrupt the viewer mode cycle.
+    if (normalized === 'ansi') return 'ansi';
+    if (normalized === 'amiga_ansi' || normalized === 'amiga' || normalized === 'amigaansi') return 'amiga_ansi';
+    if (normalized === 'petscii') return 'petscii';
     if (window.normalizeArtFormat) {
         return window.normalizeArtFormat(normalized);
     }
@@ -269,7 +276,7 @@ function normalizeViewerRenderMode(mode) {
 }
 
 function getNextViewerRenderMode(mode) {
-    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain'];
+    const modes = ['auto', 'rip', 'ansi', 'amiga_ansi', 'plain', 'raw'];
     const normalized = normalizeViewerRenderMode(mode);
     const currentIndex = modes.indexOf(normalized);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
@@ -286,6 +293,8 @@ function getViewerRenderModeLabel(mode) {
             return window.t ? window.t('ui.echomail.viewer_mode_amiga_ansi', {}, 'Amiga ANSI') : 'Amiga ANSI';
         case 'plain':
             return window.t ? window.t('ui.echomail.viewer_mode_plain', {}, 'Plain Text') : 'Plain Text';
+        case 'raw':
+            return window.t ? window.t('ui.echomail.viewer_mode_raw', {}, 'Raw Source') : 'Raw Source';
         default:
             return window.t ? window.t('ui.echomail.viewer_mode_auto', {}, 'Auto') : 'Auto';
     }
@@ -460,6 +469,12 @@ function renderAdContent(container, content) {
         return;
     }
 
+    const looksLikeAnsiArt = typeof looksLikeAnsiArtText === 'function' && looksLikeAnsiArtText(content);
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(content);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(content);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(content);
+    const hasColorCodes = hasAnsi || hasPipes;
+
     // RIPscrip
     if (typeof looksLikeRipScript === 'function' && looksLikeRipScript(content)) {
         renderRipContent(container, content);
@@ -477,7 +492,12 @@ function renderAdContent(container, content) {
     }
 
     // ANSI / PCBoard / plain
-    const html = formatMessageBodyForDisplay({}, content, []);
+    const adMessage = {};
+    if (looksLikeAnsiArt) {
+        adMessage.art_format = 'ansi';
+    }
+
+    const html = formatMessageBodyForDisplay(adMessage, content, []);
     container.innerHTML = '';
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
@@ -504,6 +524,10 @@ function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forceP
 
     if (!searchTerms || searchTerms.length === 0) {
         searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
+    if (requestedFormat === 'raw') {
+        return formatRawMessageText(text);
     }
 
     if (forcePlainText || requestedFormat === 'plain') {
@@ -774,6 +798,16 @@ function printMessage() {
 
 // Global user settings object
 window.userSettings = {};
+
+/**
+ * Replace a .md-image-placeholder element with an inline <img>.
+ * @param {jQuery} $placeholder
+ */
+function loadMarkdownImage($placeholder) {
+    const src = $placeholder.data('src');
+    const alt = $placeholder.data('alt');
+    $placeholder.replaceWith($('<img>').attr({ src: src, alt: alt }).addClass('md-image img-fluid'));
+}
 
 // Lightweight i18n client state with lazy namespace loading.
 window.i18n = window.i18n || {
@@ -1122,6 +1156,8 @@ function applyFontSettings() {
 
 // Authentication functions
 function logout() {
+    // Clear all user-scoped localStorage entries for this account
+    try { UserStorage.clear(); } catch (_) {}
     $.ajax({
         url: '/api/auth/logout',
         method: 'POST',
@@ -1153,10 +1189,41 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Utility functions
+function parseAppDate(dateString) {
+    if (!dateString) {
+        return null;
+    }
+
+    let normalized = String(dateString).trim();
+    if (!normalized) {
+        return null;
+    }
+
+    // Safari is strict about timestamp parsing. PostgreSQL/PDO often returns
+    // "YYYY-MM-DD HH:MM:SS", "YYYY-MM-DD HH:MM:SS+00", or
+    // "YYYY-MM-DD HH:MM:SS.ffffff+00", while SSE/json payloads may include
+    // ISO timestamps with fractional seconds and/or a timezone offset.
+    // Normalize these forms to ISO-8601 before handing them to Date.
+    normalized = normalized.replace(' ', 'T');
+
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}$/.test(normalized)) {
+        normalized += ':00';
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{4}$/.test(normalized)) {
+        normalized = normalized.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(normalized)) {
+        normalized += 'Z';
+    }
+
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatDate(dateString) {
     // Database stores dates in UTC, so parse as UTC and convert to local time
-    //const date = new Date(dateString + 'Z'); // Add 'Z' to treat as UTC
-    const date = new Date(dateString+'Z');
+    const date = parseAppDate(dateString);
+    if (!date) {
+        return '-';
+    }
     const now = new Date();
     const diffMs = now - date;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -1213,7 +1280,10 @@ function formatFidonetAddress(address, systemName) {
 
 function formatFullDate(dateString) {
     // Database stores dates in UTC, so parse as UTC
-    const date = new Date(dateString + 'Z'); // Add 'Z' to treat as UTC
+    const date = parseAppDate(dateString);
+    if (!date) {
+        return '-';
+    }
     const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
     const userDateFormat = window.userSettings?.date_format || 'en-US';
 
@@ -1227,6 +1297,8 @@ function formatFullDate(dateString) {
         hour12: true
     });
 }
+
+window.parseAppDate = parseAppDate;
 
 /**
  * Toggle a loading-blur state on settings cards or any container.
@@ -1622,6 +1694,27 @@ $(document).ready(function(){
         $('[data-bs-toggle="tooltip"]').tooltip();
         $('[data-bs-toggle="popover"]').popover();
     });
+
+    // Markdown inline image: click-to-load placeholder
+    $(document).on('click', '.md-image-placeholder .md-image-load', function(e) {
+        e.preventDefault();
+        loadMarkdownImage($(this).closest('.md-image-placeholder'));
+    });
+
+    // Auto-load images when the setting is enabled, watching for dynamically added content
+    const mdImageObserver = new MutationObserver(function(mutations) {
+        if ((window.userSettings || {}).image_load_mode !== 'auto') return;
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const placeholders = node.classList && node.classList.contains('md-image-placeholder')
+                    ? [node]
+                    : node.querySelectorAll('.md-image-placeholder');
+                placeholders.forEach(function(el) { loadMarkdownImage($(el)); });
+            });
+        });
+    });
+    mdImageObserver.observe(document.body, { childList: true, subtree: true });
 
     // Handle page unload
     $(window).on('beforeunload', function() {

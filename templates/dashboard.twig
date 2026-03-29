@@ -2,6 +2,26 @@
 
 {% block title %}{{ t('ui.dashboard.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+{{ parent() }}
+<style>
+    #dashboardAdContainer,
+    #dashboardAdContainer .ansi-art-container,
+    #dashboardAdContainer pre.ansi-art {
+        overflow: hidden !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    #dashboardAdContainer::-webkit-scrollbar,
+    #dashboardAdContainer .ansi-art-container::-webkit-scrollbar,
+    #dashboardAdContainer pre.ansi-art::-webkit-scrollbar,
+    #dashboardAdContainer .dashboard-ad-scaled::-webkit-scrollbar {
+        display: none;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-lg-8">
@@ -106,7 +126,16 @@
                 {% endif %}
             </div>
             <div class="card-body d-flex flex-column align-items-center">
-                <div class="fw-semibold mb-2 text-center" id="dashboardAdTitle">{{ dashboard_ad.title }}</div>
+                <div class="fw-semibold mb-2 text-center w-100 d-flex justify-content-center align-items-center gap-2">
+                    <span id="dashboardAdTitle">{{ dashboard_ad.title }}</span>
+                    <a id="dashboardAdLink" href="#" target="_blank" rel="noopener noreferrer"
+                       class="badge bg-primary text-decoration-none d-none"
+                       title="{{ t('ui.dashboard.advertisement_visit', {}, locale, ['common']) }}"
+                       onclick="return handleAdClick(event)">
+                        <i class="fas fa-external-link-alt"></i>
+                        {{ t('ui.dashboard.advertisement_visit', {}, locale, ['common']) }}
+                    </a>
+                </div>
                 <div id="dashboardAdContainer" class="w-100" style="overflow: hidden;"></div>
                 {% if dashboard_ads|length > 1 %}
                 <div class="small text-muted mt-2" id="dashboardAdPosition"></div>
@@ -139,14 +168,31 @@
                     {% endif %}
 
                     {% if current_user.is_admin and todays_callers is not null %}
-                    <dt class="col-sm-5">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-sm-7">
+                    <dt class="col-12 mb-1">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-12">
                         {% if todays_callers|length > 0 %}
-                            <ul class="list-unstyled mb-0 small">
+                            <table class="table table-sm table-borderless mb-0 small callers-table w-100">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-0">{{ t('ui.dashboard.callers_col_user', {}, locale, ['common']) }}</th>
+                                        <th>{{ t('ui.dashboard.callers_col_time', {}, locale, ['common']) }}</th>
+                                        <th class="text-center">{{ t('ui.dashboard.callers_col_online', {}, locale, ['common']) }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                 {% for caller in todays_callers %}
-                                <li>{{ caller.username }} <span class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</span></li>
+                                <tr>
+                                    <td class="ps-0">{{ caller.username }}</td>
+                                    <td class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</td>
+                                    <td class="text-center">
+                                        {% if caller.is_online %}
+                                            <span class="badge bg-success" title="{{ t('ui.dashboard.callers_online_now', {}, locale, ['common']) }}">●</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
                                 {% endfor %}
-                            </ul>
+                                </tbody>
+                            </table>
                         {% else %}
                             <span class="text-muted small">{{ t('ui.dashboard.no_callers_today', {}, locale, ['common']) }}</span>
                         {% endif %}
@@ -267,6 +313,7 @@ function uiT(key, fallback, params = {}) {
 const dashboardAds = {{ (dashboard_ads|default([]))|json_encode|raw }};
 const DASHBOARD_AD_ROTATE_INTERVAL_MS = {{ (dashboard_ad_rotate_interval_seconds|default(20) * 1000)|json_encode|raw }};
 let dashboardAdIndex = 0;
+const dashboardAdImpressionsSent = new Set();
 
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
@@ -284,6 +331,7 @@ $(document).ready(function() {
     renderDashboardAd();
     updateDashboardAdPosition();
 
+    window.addEventListener('resize', scaleDashboardAd);
     });
 
     // Refresh dashboard data every 30 seconds (but not system news)
@@ -641,6 +689,48 @@ function copyReferralLink(button, evt) {
     }
 }
 
+function scaleDashboardAd() {
+    const outer = document.getElementById('dashboardAdContainer');
+    if (!outer) {
+        return;
+    }
+    const inner = outer.querySelector('.ansi-art-container');
+    if (!inner) {
+        return;
+    }
+    const pre = inner.querySelector('pre.ansi-art');
+    if (!pre) {
+        return;
+    }
+
+    pre.style.removeProperty('font-size');
+    pre.style.removeProperty('line-height');
+    inner.style.removeProperty('transform');
+    inner.style.removeProperty('transform-origin');
+    inner.style.removeProperty('width');
+    inner.style.removeProperty('overflow');
+    inner.style.removeProperty('scrollbar-width');
+    inner.style.removeProperty('-ms-overflow-style');
+    inner.classList.remove('dashboard-ad-scaled');
+    outer.style.removeProperty('height');
+
+    const availableWidth = outer.clientWidth;
+    const contentWidth = pre.scrollWidth;
+    if (!availableWidth || !contentWidth || contentWidth <= availableWidth) {
+        return;
+    }
+
+    const scale = availableWidth / contentWidth;
+    inner.style.transform = `scale(${scale})`;
+    inner.style.transformOrigin = 'top left';
+    inner.style.width = `${contentWidth}px`;
+    inner.style.overflow = 'hidden';
+    inner.style.scrollbarWidth = 'none';
+    inner.style.msOverflowStyle = 'none';
+    inner.classList.add('dashboard-ad-scaled');
+    outer.style.height = `${Math.ceil(inner.getBoundingClientRect().height * scale || pre.scrollHeight * scale)}px`;
+}
+
 function renderDashboardAd() {
     const container = document.getElementById('dashboardAdContainer');
     if (!container) {
@@ -653,6 +743,40 @@ function renderDashboardAd() {
     }
 
     renderAdContent(container, current.content || '');
+    requestAnimationFrame(scaleDashboardAd);
+
+    // Update click-through link visibility
+    const link = document.getElementById('dashboardAdLink');
+    if (link) {
+        if (current.click_url) {
+            link.href = '#';
+            link.dataset.adId = String(current.id);
+            link.dataset.clickUrl = current.click_url;
+            link.classList.remove('d-none');
+        } else {
+            link.classList.add('d-none');
+        }
+    }
+
+    // Record impression once per ad per page load
+    if (current.id && !dashboardAdImpressionsSent.has(current.id)) {
+        dashboardAdImpressionsSent.add(current.id);
+        fetch(`/api/ads/${current.id}/impression`, { method: 'POST' }).catch(() => {});
+    }
+}
+
+function handleAdClick(event) {
+    event.preventDefault();
+    const link = event.currentTarget;
+    const adId = link.dataset.adId;
+    const url  = link.dataset.clickUrl;
+    if (!adId || !url) {
+        return false;
+    }
+
+    fetch(`/api/ads/${adId}/click`, { method: 'POST' }).catch(() => {});
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return false;
 }
 
 function updateDashboardAdPosition() {
@@ -683,6 +807,7 @@ function showDashboardAd(delta) {
         title.textContent = current.title || '';
     }
     renderDashboardAd();
+
     updateDashboardAdPosition();
 }
 

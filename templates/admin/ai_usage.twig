@@ -1,0 +1,216 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.ai_usage.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.ai_usage.heading', {}, locale, ['common']) }}</h1>
+        <div class="d-flex gap-2 align-items-center">
+            <form method="get" action="/admin/ai-usage" class="d-flex gap-2 align-items-center">
+                <label for="period" class="text-muted small mb-0">{{ t('ui.admin.ai_usage.period', {}, locale, ['common']) }}</label>
+                <select id="period" name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="1d" {{ report.period == '1d' ? 'selected' : '' }}>{{ t('ui.admin.ai_usage.period_1d', {}, locale, ['common']) }}</option>
+                    <option value="7d" {{ report.period == '7d' ? 'selected' : '' }}>{{ t('ui.admin.ai_usage.period_7d', {}, locale, ['common']) }}</option>
+                    <option value="30d" {{ report.period == '30d' ? 'selected' : '' }}>{{ t('ui.admin.ai_usage.period_30d', {}, locale, ['common']) }}</option>
+                    <option value="all" {{ report.period == 'all' ? 'selected' : '' }}>{{ t('ui.admin.ai_usage.period_all', {}, locale, ['common']) }}</option>
+                </select>
+            </form>
+            <a href="/admin/" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.ai_usage.dashboard', {}, locale, ['common']) }}
+            </a>
+        </div>
+    </div>
+
+    {% if not report.available %}
+    <div class="alert alert-warning">
+        <strong>{{ t('ui.admin.ai_usage.unavailable', {}, locale, ['common']) }}</strong>
+        <div class="mt-1">{{ t('ui.admin.ai_usage.unavailable_help', {}, locale, ['common']) }}</div>
+    </div>
+    {% else %}
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">{{ t('ui.admin.ai_usage.summary_requests', {}, locale, ['common']) }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ report.summary.requests|number_format }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.ai_usage.summary_cost', {}, locale, ['common']) }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ report.summary.estimated_cost_usd|number_format(4) }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.ai_usage.summary_failures', {}, locale, ['common']) }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ report.summary.failures|number_format }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.ai_usage.summary_tokens', {}, locale, ['common']) }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ report.summary.total_tokens|number_format }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3"><strong>{{ t('ui.admin.ai_usage.by_feature', {}, locale, ['common']) }}</strong></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.ai_usage.feature', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.requests', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.failures', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.cost', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if report.by_feature %}
+                                    {% for row in report.by_feature %}
+                                    <tr>
+                                        <td><code>{{ row.feature }}</code></td>
+                                        <td class="text-end">{{ row.requests|number_format }}</td>
+                                        <td class="text-end">{{ row.failures|number_format }}</td>
+                                        <td class="text-end">${{ row.estimated_cost_usd|number_format(4) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr><td colspan="4" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3"><strong>{{ t('ui.admin.ai_usage.by_provider_model', {}, locale, ['common']) }}</strong></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.ai_usage.provider_model', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.requests', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.failures', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.cost', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if report.by_provider_model %}
+                                    {% for row in report.by_provider_model %}
+                                    <tr>
+                                        <td><code>{{ row.provider }}</code><div class="small text-muted">{{ row.model }}</div></td>
+                                        <td class="text-end">{{ row.requests|number_format }}</td>
+                                        <td class="text-end">{{ row.failures|number_format }}</td>
+                                        <td class="text-end">${{ row.estimated_cost_usd|number_format(4) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr><td colspan="4" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3"><strong>{{ t('ui.admin.ai_usage.recent_failures', {}, locale, ['common']) }}</strong></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.ai_usage.created_at', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.ai_usage.feature', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.ai_usage.error', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if report.recent_failures %}
+                                    {% for row in report.recent_failures %}
+                                    <tr>
+                                        <td class="small text-nowrap">{{ row.created_at_local ?: t('ui.common.not_applicable', {}, locale, ['common']) }}</td>
+                                        <td><code>{{ row.feature }}</code><div class="small text-muted">{{ row.provider }} / {{ row.model }}</div></td>
+                                        <td class="small">
+                                            {% if row.http_status %}<span class="badge bg-danger">{{ row.http_status }}</span>{% endif %}
+                                            {% if row.error_code %}<code>{{ row.error_code }}</code>{% endif %}
+                                            <div>{{ row.error_message ?: t('ui.common.not_applicable', {}, locale, ['common']) }}</div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr><td colspan="3" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3"><strong>{{ t('ui.admin.ai_usage.recent_requests', {}, locale, ['common']) }}</strong></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.admin.ai_usage.created_at', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.ai_usage.feature', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.admin.ai_usage.status', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.cost', {}, locale, ['common']) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if report.recent_requests %}
+                                    {% for row in report.recent_requests %}
+                                    <tr>
+                                        <td class="small text-nowrap">{{ row.created_at_local ?: t('ui.common.not_applicable', {}, locale, ['common']) }}</td>
+                                        <td><code>{{ row.feature }}</code><div class="small text-muted">{{ row.provider }} / {{ row.model }} / {{ row.operation }}</div></td>
+                                        <td>
+                                            {% if row.status == 'success' %}
+                                                <span class="badge bg-success">{{ row.status }}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ row.status }}</span>
+                                            {% endif %}
+                                            <div class="small text-muted">{{ row.total_tokens|number_format }} {{ t('ui.admin.ai_usage.tokens', {}, locale, ['common']) }}</div>
+                                        </td>
+                                        <td class="text-end">${{ row.estimated_cost_usd|number_format(4) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr><td colspan="4" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

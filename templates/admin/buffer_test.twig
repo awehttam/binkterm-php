@@ -1,0 +1,199 @@
+{% extends "base.twig" %}
+
+{% block title %}Buffer Test — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+        <h4 class="mb-0"><i class="fas fa-filter me-2"></i>Proxy Buffer Test</h4>
+        <span id="connBadge" class="badge bg-secondary ms-2">Idle</span>
+    </div>
+
+    <div class="alert alert-info py-2 mb-3">
+        <strong>What this tests:</strong> Opens a raw <code>EventSource</code> directly to this server (no SharedWorker, no database) and streams one event per second. If events appear one-by-one the proxy chain is <strong>not buffering</strong>. If they all appear at once at the end, something upstream (Apache, Caddy, or PHP-FPM) is holding the response body.
+    </div>
+
+    <div class="row g-2 align-items-end mb-3">
+        <div class="col-sm-auto">
+            <label class="form-label mb-1">Events</label>
+            <select class="form-select form-select-sm" id="ctrlCount">
+                <option value="5">5</option>
+                <option value="8" selected>8</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+            </select>
+        </div>
+        <div class="col-sm-auto">
+            <button class="btn btn-primary btn-sm" id="btnStart"><i class="fas fa-play me-1"></i>Start</button>
+            <button class="btn btn-danger btn-sm d-none ms-1" id="btnStop"><i class="fas fa-stop me-1"></i>Stop</button>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0" id="statReceived">—</div>
+                    <div class="small text-muted">Received</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0" id="statExpected">—</div>
+                    <div class="small text-muted">Expected</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h5 mb-0" id="statVerdict">—</div>
+                    <div class="small text-muted">Verdict</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header py-1">
+            <span class="small fw-semibold">Event log</span>
+            <span class="small text-muted ms-2">Each row should appear ~1 second apart if the chain is not buffering</span>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm table-striped mb-0 font-monospace" id="eventTable">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>#</th>
+                        <th>Client received (ms since start)</th>
+                        <th>Server timestamp</th>
+                        <th>Gap from previous (ms)</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody id="eventLog"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    let es        = null;
+    let startTs   = null;
+    let prevTs    = null;
+    let received  = 0;
+
+    const badge    = document.getElementById('connBadge');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop  = document.getElementById('btnStop');
+    const logBody  = document.getElementById('eventLog');
+
+    function setStatus(text, cls) {
+        badge.textContent = text;
+        badge.className   = 'badge ms-2 ' + cls;
+    }
+
+    function addRow(seq, clientOffset, serverTs, gap, note) {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+            `<td>${seq}</td>` +
+            `<td>${clientOffset.toFixed(0)} ms</td>` +
+            `<td>${serverTs}</td>` +
+            `<td>${gap === null ? '—' : gap.toFixed(0) + ' ms'}</td>` +
+            `<td>${note}</td>`;
+        logBody.appendChild(tr);
+        tr.scrollIntoView({ block: 'nearest' });
+    }
+
+    function setVerdict(total) {
+        const el = document.getElementById('statVerdict');
+        if (received === 0) {
+            el.textContent = 'No events received';
+            el.className   = 'h5 mb-0 text-danger';
+            return;
+        }
+        // If all events arrived within 500 ms of each other it smells like buffering
+        const rows  = logBody.querySelectorAll('tr');
+        const first = rows[0]  ? parseFloat(rows[0].cells[1].textContent)  : 0;
+        const last  = rows[rows.length - 1] ? parseFloat(rows[rows.length - 1].cells[1].textContent) : 0;
+        const span  = last - first;
+
+        if (received < total) {
+            el.textContent = `Incomplete (${received}/${total})`;
+            el.className   = 'h5 mb-0 text-warning';
+        } else if (span < 500) {
+            el.textContent = '⚠ Likely buffered — all events arrived within ' + span.toFixed(0) + ' ms';
+            el.className   = 'h5 mb-0 text-danger';
+        } else {
+            el.textContent = '✓ Not buffered — events streamed in real time';
+            el.className   = 'h5 mb-0 text-success';
+        }
+    }
+
+    function start() {
+        const count = parseInt(document.getElementById('ctrlCount').value, 10);
+
+        logBody.innerHTML = '';
+        received  = 0;
+        startTs   = null;
+        prevTs    = null;
+        document.getElementById('statReceived').textContent = '0';
+        document.getElementById('statExpected').textContent = count;
+        document.getElementById('statVerdict').textContent  = '—';
+        document.getElementById('statVerdict').className    = 'h5 mb-0';
+
+        btnStart.classList.add('d-none');
+        btnStop.classList.remove('d-none');
+        setStatus('Connecting…', 'bg-warning text-dark');
+
+        es = new EventSource(`/admin/buffer-test/stream?count=${count}`);
+
+        es.addEventListener('tick', function (e) {
+            const now  = Date.now();
+            if (!startTs) startTs = now;
+            const data   = JSON.parse(e.data);
+            const offset = now - startTs;
+            const gap    = prevTs !== null ? now - prevTs : null;
+            prevTs = now;
+            received++;
+            document.getElementById('statReceived').textContent = received;
+            setStatus('Connected', 'bg-success');
+            addRow(data.seq, offset, data.server_ts, gap, '');
+        });
+
+        es.addEventListener('done', function () {
+            setVerdict(count);
+            stop(false);
+        });
+
+        es.onerror = function () {
+            if (es && es.readyState === EventSource.CLOSED) {
+                setStatus('Error / closed', 'bg-danger');
+                setVerdict(count);
+                stop(false);
+            }
+        };
+    }
+
+    function stop(closeEs) {
+        if (closeEs !== false && es) {
+            es.close();
+        }
+        es = null;
+        btnStart.classList.remove('d-none');
+        btnStop.classList.add('d-none');
+        if (badge.textContent === 'Connecting…') {
+            setStatus('Idle', 'bg-secondary');
+        }
+    }
+
+    btnStart.addEventListener('click', start);
+    btnStop.addEventListener('click', function () {
+        setStatus('Stopped', 'bg-secondary');
+        stop(true);
+    });
+})();
+</script>
+{% endblock %}

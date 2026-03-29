@@ -64,7 +64,17 @@ A Bootstrap card grid. Each menu item shows an icon, label, and keyboard shortcu
 A terminal-style numbered/lettered text menu rendered in a monospace font with cyan, yellow, and green colours. Feels like a traditional BBS.
 
 #### `ansi`
-Displays a full-screen ANSI art image (uploaded via Admin → Appearance → ANSI Art) above or instead of the menu. Uses the Perfect DOS VGA 437 web font (`public_html/fonts/PerfectDOSVGA437.ttf`) and the `public_html/css/ansisys.css` stylesheet for authentic CP437 rendering.
+Displays an ANSI art image (uploaded via Admin → Appearance → ANSI Art) above or instead of the menu. Uses the Perfect DOS VGA 437 web font (`public_html/fonts/PerfectDOSVGA437.ttf`) and the `public_html/css/ansisys.css` stylesheet for authentic CP437 rendering.
+
+The BBS menu shell now includes an **ANSI Art Size** setting in **Admin → Appearance → Shell** with these presets:
+
+- `80x25` - Traditional BBS screen size. This is the authentic baseline presentation, so it can look smaller than the larger presets on modern displays.
+- `132x24` - Wide-screen ANSI mode using a fixed 132-column canvas.
+- `132x43` - Wide-screen ANSI mode with a taller fixed canvas.
+- `132x50` - Wide-screen ANSI mode with the tallest fixed canvas.
+- `Full Screen` - Scales the rendered ANSI art to fit the available browser viewport below the shell header.
+
+These presets apply to the BBS menu shell only. Other ANSI views on the site keep their normal renderer behaviour.
 
 #### Customising menu items
 
@@ -86,9 +96,11 @@ Items can be reordered via drag-and-drop in the admin UI. The list is stored in 
 When the `bbs-menu` shell is set to the `ansi` variant, BinktermPHP displays an ANSI art file on the dashboard.
 
 **Uploading art files:**
-1. Go to **Admin → Appearance → ANSI Art**.
-2. Upload a `.ans`, `.asc`, or `.txt` file (CP437 encoded DOS ANSI art).
-3. Select it from the dropdown in the Shell settings.
+1. Go to **Admin → Appearance → ANSI Art** and upload a `.ans`, `.asc`, or `.txt` file (CP437 encoded DOS ANSI art).
+2. Go to **Admin → Appearance → Shell**.
+3. Set the BBS menu variant to `ansi`.
+4. Select the uploaded art file.
+5. Choose an **ANSI Art Size** preset.
 
 Art files are stored in `data/shell_art/`. BinktermPHP strips the SAUCE record (EOF marker `\x1A`) and converts CP437 bytes to UTF-8 before rendering, so standard ANSI editors (TheDraw, PabloDraw, etc.) produce compatible files.
 
@@ -97,6 +109,8 @@ The `public_html/css/ansisys.css` stylesheet provides:
 - Full CGA/EGA colour class set (`.ansi-red`, `.ansi-bg-cyan`, `.ansi-bright-yellow`, etc.)
 - Text attribute classes (`.ansi-bold`, `.ansi-blink`, `.ansi-reverse`)
 - Responsive scaling (8 px on mobile, 6 px on very small screens)
+
+For the BBS menu shell specifically, the size presets use a fixed ANSI grid so `80x25`, `132x24`, `132x43`, and `132x50` render as distinct terminal layouts instead of all collapsing to the same trimmed output.
 
 ---
 

@@ -12,7 +12,7 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h6 class="mb-0">{{ t('ui.whos_online.online_users', {}, locale, ['common']) }}</h6>
-            <span class="badge bg-secondary" id="onlineCount">{{ online_users|length }}</span>
+            <span class="badge bg-secondary" id="onlineCount">{{ online_user_count|default(online_users|length) }}</span>
         </div>
         <div class="card-body p-0">
             <div id="onlineTableWrap" class="{{ online_users|length > 0 ? '' : 'd-none' }}">
@@ -98,8 +98,9 @@
         }
 
         const users = payload.users;
+        const onlineUserCountValue = payload.online_user_count ?? users.length;
         if (onlineCount) {
-            onlineCount.textContent = users.length;
+            onlineCount.textContent = onlineUserCountValue;
         }
         if (onlineMinutesLabel && payload.online_minutes) {
             onlineMinutesLabel.textContent = uiT(

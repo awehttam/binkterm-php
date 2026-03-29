@@ -1,5 +1,22 @@
 # BinktermPHP Frequently Asked Questions
 
+## Table of Contents
+
+- [Troubleshooting](#troubleshooting)
+- [Support](#support)
+- [Installation & Setup](#installation--setup)
+- [Configuration](#configuration)
+- [Echo Areas](#echo-areas)
+- [Netmail](#netmail)
+- [Binkp Server & Polling](#binkp-server--polling)
+- [Users & Authentication](#users--authentication)
+- [Maintenance](#maintenance)
+- [File Areas](#file-areas)
+- [Multi-Network Support](#multi-network-support)
+- [LovlyNet Network](#lovlynet-network)
+- [Database](#database)
+- [WebDoors](#webdoors)
+
 ## Troubleshooting
 
 ### Q: The page looks broken after an upgrade — missing features, broken menus, or "loadI18nNamespaces is not defined" errors
@@ -96,6 +113,75 @@ This allows the web server and CLI scripts to create and manage outbound packets
 php scripts/setup.php
 ```
 This will apply all pending migrations from the `database/migrations/` directory.
+
+### Q: How do I move my BinktermPHP installation from one system to another?
+
+**A:** The simplest approach is to copy the entire BinktermPHP directory to the new server along with a database dump.
+
+**Step 1 — Dump the database on the old system**
+
+```bash
+pg_dump -U your_db_user your_db_name > binkterm_backup.sql
+```
+
+**Step 2 — Stop the daemons on the old system**
+
+Stop the BinkP server, admin daemon, and any other BinktermPHP processes before copying to avoid transferring files mid-write.
+
+**Step 3 — Copy the directory to the new system**
+
+Copy the entire BinktermPHP directory including the dump file:
+
+```bash
+rsync -av /path/to/binkterm-php/ newserver:/path/to/binkterm-php/
+```
+
+Or use `scp`, a tarball, or whatever transfer method suits your setup.
+
+**Step 4 — Create the database and user on the new system**
+
+```bash
+sudo -u postgres psql
+```
+
+```sql
+CREATE USER your_db_user WITH PASSWORD 'your_password';
+CREATE DATABASE your_db_name OWNER your_db_user;
+GRANT ALL PRIVILEGES ON DATABASE your_db_name TO your_db_user;
+\q
+```
+
+**Step 5 — Restore the database**
+
+Run the restore as the database user you just created (the same user BinktermPHP connects as):
+
+```bash
+psql -U your_db_user -d your_db_name < binkterm_backup.sql
+```
+
+**Step 6 — Update `.env` for the new environment**
+
+Edit `.env` on the new system and update anything that is host-specific:
+
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` — if the database details differ on the new server
+- `SITE_URL` — update to the new hostname or URL
+
+**Step 7 — Run setup**
+
+```bash
+php scripts/setup.php
+```
+
+This ensures file permissions are correct and applies any pending migrations.
+
+**Step 8 — Start the daemons**
+
+Start the BinkP server, admin daemon, and any other services on the new system.
+
+**Notes:**
+- `vendor/` does not need to be reinstalled — Composer's autoloader uses relative paths and works correctly regardless of where the installation directory lives on the filesystem.
+- If the new system has a different public hostname or IP address, update your LovlyNet registration (`php scripts/lovlynet_setup.php --update`) and notify any downlinks of the change.
+- Verify the web server on the new system points to `public_html/` as its document root.
 
 ### Q: How do I switch from installer/zip file installation to git based installation?
 **A:** The safest method is to do a fresh git clone and then copy your local
@@ -280,7 +366,18 @@ In practice, for a typical setup, step 2 handles everything and `uplink_address`
 ### Q: Why does ANSI art render incorrectly?
 **A:**
 - Make sure you're using a monospace font such as Courier new.  Non mono-space fonts will not render ANSI correctly.
-- 
+-
+---
+
+### Q: In Markdown view mode, two lines of text are being joined into one. Why?
+**A:** This is standard Markdown behaviour. A single newline in the source text is treated as a space — not a line break. This matches the [CommonMark spec](https://spec.commonmark.org/0.31.2/#hard-line-breaks).
+
+To produce a line break in Markdown, use one of:
+- **Two spaces** at the end of the first line, followed by a newline
+- **A blank line** between the two lines (produces a paragraph break)
+
+If the message was written in a plain-text mailer or editor that uses single newlines, the lines will be joined when rendered as Markdown. This is expected and correct.
+
 ---
 
 ## Netmail

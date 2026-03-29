@@ -34,12 +34,137 @@ class MessageHandler
     {
         $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
         if ($raw === 'written' || $raw === 'date_written') {
+            // date_written ordering is only available to admins; non-admins always use date_received
+            $currentUser = (new Auth())->getCurrentUser();
+            if (!$currentUser || empty($currentUser['is_admin'])) {
+                return 'date_received';
+            }
             return 'date_written';
         }
         if ($raw === 'received' || $raw === 'date_received') {
             return 'date_received';
         }
         return self::ECHOMAIL_DATE_FIELD_DEFAULT;
+    }
+
+    /**
+     * Builds the SQL fragment used to hide echomail messages ignored by a user.
+     *
+     * @param int|null $userId
+     * @param string $messageAlias
+     * @return array{sql:string,params:array<int,int>}
+     */
+    public function buildEchomailIgnoreFilter(?int $userId, string $messageAlias = 'em'): array
+    {
+        if (empty($userId)) {
+            return ['sql' => '', 'params' => []];
+        }
+
+        return [
+            'sql' => " AND NOT EXISTS (
+                SELECT 1
+                FROM user_echomail_ignore_rules ueir
+                WHERE ueir.user_id = ?
+                  AND ueir.sender_name = {$messageAlias}.from_name
+                  AND COALESCE(ueir.sender_address, '') = COALESCE({$messageAlias}.from_address, '')
+                  AND (
+                      ueir.subject_contains = ''
+                      OR POSITION(LOWER(ueir.subject_contains) IN LOWER(COALESCE({$messageAlias}.subject, ''))) > 0
+                  )
+            )",
+            'params' => [(int)$userId]
+        ];
+    }
+
+    /**
+     * Creates or updates an echomail ignore rule for a user.
+     */
+    public function createEchomailIgnoreRule(int $userId, string $senderName, string $senderAddress, string $subjectContains): bool
+    {
+        $senderName = trim($senderName);
+        $senderAddress = trim($senderAddress);
+        $subjectContains = trim($subjectContains);
+
+        if ($userId <= 0 || $senderName === '') {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO user_echomail_ignore_rules (user_id, sender_name, sender_address, subject_contains)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT (user_id, sender_name, sender_address, subject_contains)
+            DO UPDATE SET sender_name = EXCLUDED.sender_name
+            RETURNING id
+        ");
+        $stmt->execute([$userId, $senderName, $senderAddress, $subjectContains]);
+
+        return (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Checks whether a single echomail message is hidden by an ignore rule.
+     */
+    public function isEchomailIgnoredForUser(int $userId, string $senderName, string $senderAddress, string $subject): bool
+    {
+        if ($userId <= 0 || $senderName === '') {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM user_echomail_ignore_rules
+            WHERE user_id = ?
+              AND sender_name = ?
+              AND COALESCE(sender_address, '') = COALESCE(?, '')
+              AND (
+                  subject_contains = ''
+                  OR POSITION(LOWER(subject_contains) IN LOWER(COALESCE(?, ''))) > 0
+              )
+            LIMIT 1
+        ");
+        $stmt->execute([$userId, $senderName, $senderAddress, $subject]);
+
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Lists saved echomail ignore rules for a user.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function getEchomailIgnoreRules(int $userId): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id, sender_name, sender_address, subject_contains, created_at
+            FROM user_echomail_ignore_rules
+            WHERE user_id = ?
+            ORDER BY created_at DESC, id DESC
+        ");
+        $stmt->execute([$userId]);
+
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Deletes an echomail ignore rule owned by a user.
+     */
+    public function deleteEchomailIgnoreRule(int $userId, int $ruleId): bool
+    {
+        if ($userId <= 0 || $ruleId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            DELETE FROM user_echomail_ignore_rules
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([$ruleId, $userId]);
+
+        return $stmt->rowCount() > 0;
     }
 
     public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
@@ -108,6 +233,9 @@ class MessageHandler
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
+        } elseif ($filter === 'saved') {
+            // Show only messages saved by this user
+            $whereClause .= " AND sav.id IS NOT NULL";
         }
 
         // Filter out soft-deleted messages
@@ -132,35 +260,38 @@ class MessageHandler
                    n.subject, n.date_received, n.user_id, n.date_written,
                    n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
             $whereClause
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
         
-        // Insert userId at the beginning for the LEFT JOIN, then add existing params
-        $allParams = [$userId];
+        // Insert userId twice at the beginning for the two LEFT JOINs (mrs and sav), then add existing params
+        $allParams = [$userId, $userId];
         foreach ($params as $param) {
             $allParams[] = $param;
         }
         $allParams[] = $limit;
         $allParams[] = $offset;
-        
+
         $stmt->execute($allParams);
         $messages = $stmt->fetchAll();
 
-        // Get total count with same filter - need to include the LEFT JOIN for unread filter
-        $countAllParams = [$userId];
+        // Get total count with same filter - need to include the LEFT JOINs for unread/saved filters
+        $countAllParams = [$userId, $userId];
         foreach ($params as $param) {
             $countAllParams[] = $param;
         }
-        
+
         $countStmt = $this->db->prepare("
-            SELECT COUNT(*) as total 
+            SELECT COUNT(*) as total
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
             $whereClause
         ");
         $countStmt->execute($countAllParams);
@@ -282,6 +413,11 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
+
         $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
@@ -319,6 +455,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             if (!empty($domain)) {
                 $params[] = $domain;
             }
@@ -336,6 +475,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             if (!empty($domain)) {
@@ -365,6 +507,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -378,6 +523,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
@@ -395,10 +543,14 @@ class MessageHandler
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE ea.tag = ? AND mrs.read_at IS NULL AND {$domainCondition}
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
                 ");
                 $unreadParams = [$userId, $echoareaTag];
                 if (!empty($domain)) {
                     $unreadParams[] = $domain;
+                }
+                foreach ($ignoreFilter['params'] as $param) {
+                    $unreadParams[] = $param;
                 }
                 $unreadCountStmt->execute($unreadParams);
             } else {
@@ -406,8 +558,13 @@ class MessageHandler
                     SELECT COUNT(*) as count FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE mrs.read_at IS NULL
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
                 ");
-                $unreadCountStmt->execute([$userId]);
+                $unreadParams = [$userId];
+                foreach ($ignoreFilter['params'] as $param) {
+                    $unreadParams[] = $param;
+                }
+                $unreadCountStmt->execute($unreadParams);
             }
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
@@ -482,6 +639,10 @@ class MessageHandler
         } elseif ($filter === 'saved') {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -521,6 +682,9 @@ class MessageHandler
         foreach ($filterParams as $param) {
             $params[] = $param;
         }
+        foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
         $params[] = $limit;
         $params[] = $offset;
         
@@ -541,6 +705,9 @@ class MessageHandler
         foreach ($filterParams as $param) {
             $countParams[] = $param;
         }
+        foreach ($ignoreFilter['params'] as $param) {
+            $countParams[] = $param;
+        }
         
         $countStmt->execute($countParams);
         $total = $countStmt->fetch()['total'];
@@ -553,9 +720,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE AND mrs.read_at IS NULL
+                  AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
             ");
             $unreadParams = [$userId];
             $unreadParams = array_merge($unreadParams, $echoareaIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $unreadParams[] = $param;
+            }
             $unreadCountStmt->execute($unreadParams);
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
@@ -564,7 +735,7 @@ class MessageHandler
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
+
             // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
             $replyToData = null;
             
@@ -595,6 +766,314 @@ class MessageHandler
                 'total' => $total,
                 'pages' => ceil($total / $limit)
             ]
+        ];
+    }
+
+    /**
+     * Get paginated echomail from all echo areas belonging to an interest.
+     *
+     * @param int      $userId     Authenticated user ID
+     * @param int      $interestId Interest to load messages for
+     * @param int      $page       Page number (1-based)
+     * @param int|null $limit      Messages per page (null = use user setting)
+     * @param string   $filter     'all'|'unread'|'read'|'tome'|'saved'
+     * @param string   $sort       'date_desc'|'date_asc'|'subject'|'author'
+     * @return array{messages: array, unreadCount: int, pagination: array}
+     */
+    public function getEchomailFromInterest(int $userId, int $interestId, int $page = 1, ?int $limit = null, string $filter = 'all', string $sort = 'date_desc'): array
+    {
+        $manager     = new \BinktermPHP\InterestManager();
+        $echoareaIds = $manager->getUserSubscribedInterestEchoareaIds($interestId, $userId);
+
+        if (empty($echoareaIds)) {
+            return [
+                'messages'    => [],
+                'unreadCount' => 0,
+                'pagination'  => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
+            ];
+        }
+
+        $user    = $this->getUserById($userId);
+        $isAdmin = $user && !empty($user['is_admin']);
+
+        if ($limit === null) {
+            $settings = $this->getUserSettings($userId);
+            $limit    = $settings['messages_per_page'] ?? 25;
+        }
+
+        $offset       = ($page - 1) * $limit;
+        $filterClause = '';
+        $filterParams = [];
+
+        if ($filter === 'unread') {
+            $filterClause = ' AND mrs.read_at IS NULL';
+        } elseif ($filter === 'read') {
+            $filterClause = ' AND mrs.read_at IS NOT NULL';
+        } elseif ($filter === 'tome') {
+            if ($user) {
+                $filterClause   = ' AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))';
+                $filterParams[] = $user['username'];
+                $filterParams[] = $user['real_name'];
+            }
+        } elseif ($filter === 'saved') {
+            $filterClause = ' AND sav.id IS NOT NULL';
+        }
+
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $sysopClause  = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
+        $echoPH       = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $dateField    = $this->getEchomailDateField();
+
+        // Only use UNION path when filter === 'all' and there are associated file areas
+        $fileareaIds  = [];
+        $useUnion     = false;
+        if ($filter === 'all') {
+            $fileareaIds = $manager->getInterestFileareaIds($interestId);
+            $useUnion    = !empty($fileareaIds);
+        }
+
+        if ($useUnion) {
+            $filePH       = implode(',', array_fill(0, count($fileareaIds), '?'));
+            $unionOrderBy = match ($sort) {
+                'date_asc' => 'sort_date ASC',
+                'subject'  => 'subject ASC',
+                'author'   => 'from_name ASC',
+                default    => 'CASE WHEN sort_date > NOW() THEN 0 ELSE 1 END, sort_date DESC',
+            };
+
+            $stmt = $this->db->prepare("
+                SELECT item_type, id, from_name, from_address, to_name, subject, sort_date,
+                       date_received, date_written, echoarea_id, file_area_id,
+                       area_tag, area_color, area_domain, art_format,
+                       is_read, is_shared, is_saved, filename, filesize, short_description,
+                       message_id, reply_to_id, uploader_name
+                FROM (
+                    SELECT
+                        'message'::text AS item_type,
+                        em.id,
+                        em.from_name,
+                        em.from_address,
+                        em.to_name,
+                        em.subject,
+                        em.{$dateField} AS sort_date,
+                        em.date_received,
+                        em.date_written,
+                        em.echoarea_id,
+                        NULL::integer AS file_area_id,
+                        ea.tag AS area_tag,
+                        ea.color AS area_color,
+                        ea.domain AS area_domain,
+                        COALESCE(NULLIF(em.art_format,''), NULLIF(ea.art_format_hint,'')) AS art_format,
+                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END AS is_read,
+                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END AS is_shared,
+                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END AS is_saved,
+                        NULL::text AS filename,
+                        NULL::bigint AS filesize,
+                        NULL::text AS short_description,
+                        em.message_id,
+                        em.reply_to_id,
+                        NULL::text AS uploader_name
+                    FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}
+
+                    UNION ALL
+
+                    SELECT
+                        'file'::text AS item_type,
+                        f.id,
+                        fa.tag AS from_name,
+                        NULL::text AS from_address,
+                        NULL::text AS to_name,
+                        f.filename AS subject,
+                        f.created_at AS sort_date,
+                        f.created_at AS date_received,
+                        NULL::timestamptz AS date_written,
+                        NULL::integer AS echoarea_id,
+                        f.file_area_id,
+                        fa.tag AS area_tag,
+                        '#6c757d'::text AS area_color,
+                        fa.domain AS area_domain,
+                        NULL::text AS art_format,
+                        1::integer AS is_read,
+                        0::integer AS is_shared,
+                        0::integer AS is_saved,
+                        f.filename,
+                        f.filesize,
+                        f.short_description,
+                        NULL::text AS message_id,
+                        NULL::integer AS reply_to_id,
+                        COALESCE(u.real_name, f.uploaded_from_address) AS uploader_name
+                    FROM files f
+                    JOIN file_areas fa ON f.file_area_id = fa.id
+                    LEFT JOIN users u ON u.id = f.owner_id
+                    WHERE f.file_area_id IN ({$filePH})
+                      AND f.status = 'approved'
+                      AND fa.is_active = TRUE
+                ) combined
+                ORDER BY {$unionOrderBy}
+                LIMIT ? OFFSET ?
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $echoareaIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            $params = array_merge($params, $fileareaIds);
+            $params[] = $limit;
+            $params[] = $offset;
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll();
+
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) AS total FROM (
+                    SELECT em.id
+                    FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}
+                    UNION ALL
+                    SELECT f.id
+                    FROM files f
+                    JOIN file_areas fa ON f.file_area_id = fa.id
+                    WHERE f.file_area_id IN ({$filePH})
+                      AND f.status = 'approved'
+                      AND fa.is_active = TRUE
+                ) combined
+            ");
+            $countParams = [$userId, $userId];
+            $countParams = array_merge($countParams, $echoareaIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
+            $countParams = array_merge($countParams, $fileareaIds);
+            $countStmt->execute($countParams);
+            $total = $countStmt->fetch()['total'];
+        } else {
+            // Messages-only path (original behavior)
+            $placeholders = $echoPH;
+
+            $orderBy = match ($sort) {
+                'date_asc' => "em.{$dateField} ASC",
+                'subject'  => 'em.subject ASC',
+                'author'   => 'em.from_name ASC',
+                default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+            };
+
+            $stmt = $this->db->prepare("
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}
+                ORDER BY {$orderBy}
+                LIMIT ? OFFSET ?
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $echoareaIds, $filterParams);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            $params[] = $limit;
+            $params[] = $offset;
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll();
+
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}
+            ");
+            $countParams = [$userId, $userId];
+            $countParams = array_merge($countParams, $echoareaIds, $filterParams);
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
+            $countStmt->execute($countParams);
+            $total = $countStmt->fetch()['total'];
+        }
+
+        $unreadStmt = $this->db->prepare("
+            SELECT COUNT(*) as count FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause} AND mrs.read_at IS NULL{$ignoreFilter['sql']}
+        ");
+        $unreadParams = [$userId];
+        $unreadParams = array_merge($unreadParams, $echoareaIds);
+        foreach ($ignoreFilter['params'] as $param) {
+            $unreadParams[] = $param;
+        }
+        $unreadStmt->execute($unreadParams);
+        $unreadCount = $unreadStmt->fetch()['count'];
+
+        $cleanMessages = [];
+        foreach ($rows as $row) {
+            if ($useUnion && ($row['item_type'] ?? 'message') === 'file') {
+                $cleanMessages[] = [
+                    'type'              => 'file',
+                    'id'                => (int)$row['id'],
+                    'filename'          => $row['filename'],
+                    'short_description' => $row['short_description'],
+                    'filesize'          => (int)$row['filesize'],
+                    'date_received'     => $row['date_received'],
+                    'file_area_id'      => (int)$row['file_area_id'],
+                    'file_area_tag'     => $row['area_tag'],
+                    'file_area_domain'  => $row['area_domain'],
+                    'uploader_name'     => $row['uploader_name'] ?? null,
+                ];
+            } else {
+                // The UNION query uses area_tag/area_color/area_domain aliases;
+                // remap them to the echoarea/echoarea_color/echoarea_domain keys
+                // that the JS expects before passing to cleanMessageForJson.
+                if ($useUnion) {
+                    $row['echoarea']        = $row['area_tag']    ?? null;
+                    $row['echoarea_color']  = $row['area_color']  ?? null;
+                    $row['echoarea_domain'] = $row['area_domain'] ?? null;
+                }
+                $cleanMessage = $this->cleanMessageForJson($row);
+                $replyToData  = null;
+                if (!empty($row['kludge_lines'])) {
+                    $replyToData = $this->parseEchomailReplyToKludge($row['kludge_lines']);
+                }
+                if (!$replyToData) {
+                    $replyToData = $this->parseReplyToKludge($row);
+                }
+                if ($replyToData && isset($replyToData['address'])) {
+                    $cleanMessage['replyto_address'] = $replyToData['address'];
+                    $cleanMessage['replyto_name']    = $replyToData['name'] ?? null;
+                }
+                $cleanMessage['type'] = 'message';
+                $cleanMessages[]      = $cleanMessage;
+            }
+        }
+
+        return [
+            'messages'    => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'pagination'  => [
+                'page'  => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'pages' => (int) ceil($total / $limit),
+            ],
         ];
     }
 
@@ -659,6 +1138,7 @@ class MessageHandler
             }
         } else {
             // Echomail is public, so no user restriction needed
+            $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
             $stmt = $this->db->prepare("
                 SELECT em.*,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
@@ -669,9 +1149,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                WHERE em.id = ?
+                WHERE em.id = ?{$ignoreFilter['sql']}
             ");
-            $stmt->execute([$userId, $userId, $messageId]);
+            $params = [$userId, $userId, $messageId];
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            $stmt->execute($params);
         }
         
         $message = $stmt->fetch();
@@ -881,6 +1365,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status)
             VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status)
+            RETURNING id
         ");
 
         $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
@@ -899,11 +1384,11 @@ class MessageHandler
         $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
         $stmt->bindValue(':freq_status', $isFreq ? 'pending' : null, $isFreq ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
 
-        $result = $stmt->execute();
+        $stmt->execute();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
-        if ($result) {
-            $messageId = $this->db->lastInsertId();
-
+        if ($messageId > 0) {
             // Store attachment path and set FILE_ATTACH attribute when a file is attached
             $recipientUser = null;
             if ($attachment !== null) {
@@ -1075,7 +1560,7 @@ class MessageHandler
             }
         }
 
-        return $result;
+        return $messageId > 0;
     }
 
     private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null, $attachment = null)
@@ -1134,6 +1619,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
             VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL)
+            RETURNING id
         ");
 
         $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
@@ -1150,11 +1636,11 @@ class MessageHandler
         $stmt->bindValue(':message_id', $msgId);
         $stmt->bindValue(':kludge_lines', $kludgeLines);
 
-        $result = $stmt->execute();
+        $stmt->execute();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
-        if ($result) {
-            $messageId = $this->db->lastInsertId();
-
+        if ($messageId > 0) {
             // Store attachment into sysop's private file area if provided
             if ($attachment !== null) {
                 try {
@@ -1184,7 +1670,7 @@ class MessageHandler
             }
         }
 
-        return $result;
+        return $messageId > 0;
     }
 
     /**
@@ -1282,6 +1768,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges, tearline_component)
             VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id, :message_id, :origin_line, :kludge_lines, NULL, :tearline_component)
+            RETURNING id
         ");
 
         $stmt->bindValue(':echoarea_id', $echoarea['id'], \PDO::PARAM_INT);
@@ -1299,10 +1786,11 @@ class MessageHandler
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':tearline_component', $tearlineComponent);
 
-        $result = $stmt->execute();
+        $stmt->execute();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
-        if ($result) {
-            $messageId = $this->db->lastInsertId();
+        if ($messageId > 0) {
             if (!$skipCredits) {
                 $creditsRules = $this->getCreditsRules();
                 if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
@@ -1328,7 +1816,7 @@ class MessageHandler
             $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
         }
 
-        return $result;
+        return $messageId > 0;
     }
 
     private function applyUserSignatureAndTagline(string $messageText, int $userId, ?string $tagline = null): string
@@ -1439,7 +1927,7 @@ class MessageHandler
         $conditions = [];
         $params = [];
 
-        $hasFieldSearch = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']);
+        $hasFieldSearch = !empty($searchParams['from_name']) || !empty($searchParams['subject']) || !empty($searchParams['body']) || !empty($searchParams['message_id']);
 
         if ($hasFieldSearch) {
             if (!empty($searchParams['from_name'])) {
@@ -1453,6 +1941,10 @@ class MessageHandler
             if (!empty($searchParams['body'])) {
                 $conditions[] = $tableAlias . 'message_text ILIKE ?';
                 $params[] = '%' . $searchParams['body'] . '%';
+            }
+            if (!empty($searchParams['message_id'])) {
+                $conditions[] = $tableAlias . 'message_id ILIKE ?';
+                $params[] = '%' . $searchParams['message_id'] . '%';
             }
             return ['(' . implode(' AND ', $conditions) . ')', $params];
         }
@@ -1971,6 +2463,17 @@ class MessageHandler
             return false;
         }
 
+        if (!empty($message['spooled_at'])) {
+            $spooledAt = (string)$message['spooled_at'];
+            $complaint = "[SPOOL] REFUSING to respool netmail #{$messageId}: already spooled at {$spooledAt}. This is a bug, not a retry path.";
+            error_log($complaint);
+            \BinktermPHP\Admin\AdminDaemonClient::log('ERROR', 'duplicate netmail spool prevented', [
+                'message_id' => $messageId,
+                'spooled_at' => $spooledAt,
+            ]);
+            return false;
+        }
+
         // Extract message details for logging
         $fromName = $message['from_name'] ?? 'unknown';
         $fromAddr = $message['from_address'] ?? 'unknown';
@@ -2014,8 +2517,8 @@ class MessageHandler
                 $this->queueImmediateOutboundPoll($routeAddress, "netmail #{$messageId}");
             }
 
-            // Mark message as sent
-            $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
+            // Mark the message as spooled so duplicate spool attempts fail loudly.
+            $this->db->prepare("UPDATE netmail SET is_sent = TRUE, spooled_at = CURRENT_TIMESTAMP WHERE id = ?")
                      ->execute([$messageId]);
 
             \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'netmail sent', [
@@ -2121,6 +2624,7 @@ class MessageHandler
                 (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
                  '', 'UTF-8', NOW(), FALSE, :message_id,
                  :kludge_lines, :attributes, :attachment_path, FALSE, NULL)
+            RETURNING id
         ");
         $stmt->execute([
             ':from_address'    => $originAddress,
@@ -2133,7 +2637,8 @@ class MessageHandler
             ':attributes'      => $attributes,
             ':attachment_path' => $filePath,
         ]);
-        return (int)$this->db->lastInsertId();
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ? (int)$row['id'] : 0;
     }
 
     /**
@@ -2229,6 +2734,7 @@ class MessageHandler
                 (NULL, :from_address, :to_address, :from_name, :to_name, :subject,
                  :message_text, 'UTF-8', NOW(), FALSE, :message_id,
                  :kludge_lines, FALSE, NULL)
+            RETURNING id
         ");
         $stmt->execute([
             ':from_address'  => $originAddress,
@@ -2240,7 +2746,11 @@ class MessageHandler
             ':message_id'    => $msgId,
             ':kludge_lines'  => $kludgeLines,
         ]);
-        $this->spoolOutboundNetmail((int)$this->db->lastInsertId());
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $notifId = $row ? (int)$row['id'] : 0;
+        if ($notifId > 0) {
+            $this->spoolOutboundNetmail($notifId);
+        }
     }
 
     private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
@@ -2255,6 +2765,18 @@ class MessageHandler
         $message = $stmt->fetch();
 
         if (!$message) {
+            return false;
+        }
+
+        if (!empty($message['spooled_at'])) {
+            $spooledAt = (string)$message['spooled_at'];
+            $complaint = "[SPOOL] REFUSING to respool echomail #{$messageId} ({$echoareaTag}): already spooled at {$spooledAt}. This is a bug, not a retry path.";
+            error_log($complaint);
+            \BinktermPHP\Admin\AdminDaemonClient::log('ERROR', 'duplicate echomail spool prevented', [
+                'message_id' => $messageId,
+                'area'       => $echoareaTag,
+                'spooled_at' => $spooledAt,
+            ]);
             return false;
         }
 
@@ -2310,6 +2832,9 @@ class MessageHandler
                     'msgid'   => $message['message_id'] ?? '',
                     'packet'  => $packetName,
                 ]);
+
+                $this->db->prepare("UPDATE echomail SET spooled_at = CURRENT_TIMESTAMP WHERE id = ?")
+                         ->execute([$messageId]);
 
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
@@ -2733,6 +3258,17 @@ class MessageHandler
             return $message;
         }
 
+        // Mask the subject line for AreaFix/FileFix robot messages.
+        // AreaFix uses the netmail subject as its password; exposing it in any
+        // list or detail view would be a security issue.
+        $toName   = strtolower((string)($message['to_name']   ?? ''));
+        $fromName = strtolower((string)($message['from_name'] ?? ''));
+        $isRobotMsg = str_contains($toName, 'areafix')   || str_contains($toName, 'filefix')
+                   || str_contains($fromName, 'areafix') || str_contains($fromName, 'filefix');
+        if ($isRobotMsg && isset($message['subject'])) {
+            $message['subject'] = '••••••••';
+        }
+
         $cleaned = [];
         foreach ($message as $key => $value) {
             if ($key === 'raw_message_bytes') {
@@ -2888,6 +3424,7 @@ class MessageHandler
             $userStmt = $this->db->prepare("
                 INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active, referral_code, referred_by)
                 VALUES (?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
+                RETURNING id
             ");
 
             $userStmt->execute([
@@ -2899,8 +3436,11 @@ class MessageHandler
                 $referralCode,
                 $pendingUser['referrer_id'] ?? null
             ]);
-
-            $newUserId = $this->db->lastInsertId();
+            $insertedUser = $userStmt->fetch(\PDO::FETCH_ASSOC);
+            $newUserId = $insertedUser ? (int)$insertedUser['id'] : 0;
+            if ($newUserId <= 0) {
+                throw new \RuntimeException('Failed to create user account');
+            }
             
             // Create default user settings
             $settingsStmt = $this->db->prepare("
@@ -4353,6 +4893,10 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -4392,6 +4936,9 @@ class MessageHandler
         $params = [$userId, $userId, $userId];
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
+            $params[] = $param;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
             $params[] = $param;
         }
         $params[] = $limit;
@@ -4435,6 +4982,9 @@ class MessageHandler
         $countParams = [$userId, $userId];
         $countParams = array_merge($countParams, $echoareaIds);
         foreach ($filterParams as $param) {
+            $countParams[] = $param;
+        }
+        foreach ($ignoreFilter['params'] as $param) {
             $countParams[] = $param;
         }
         
@@ -4511,6 +5061,10 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
+        // Hide future-dated messages until their date_written has passed
+        $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $filterClause .= $ignoreFilter['sql'];
 
         // First, get the total count of root messages (threads) for pagination
         $totalThreads = 0;
@@ -4528,6 +5082,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
             if (!empty($domain)) {
                 $countParams[] = $domain;
             }
@@ -4543,6 +5100,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
@@ -4585,6 +5145,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             if (!empty($domain)) {
                 $params[] = $domain;
             }
@@ -4613,6 +5176,9 @@ class MessageHandler
             ");
             $params = [$userId, $userId, $userId];
             foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
             }
             $params[] = $limit;
@@ -4692,6 +5258,7 @@ class MessageHandler
 
         while (!empty($currentLevelIds) && $depth < $maxDepth) {
             $placeholders = implode(',', array_fill(0, count($currentLevelIds), '?'));
+            $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
 
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
@@ -4707,11 +5274,14 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE em.reply_to_id IN ({$placeholders})
+                WHERE em.reply_to_id IN ({$placeholders}){$ignoreFilter['sql']}
             ");
 
             $params = [$userId, $userId, $userId];
             $params = array_merge($params, $currentLevelIds);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $stmt->execute($params);
 
             $children = $stmt->fetchAll();
@@ -4724,6 +5294,130 @@ class MessageHandler
             $allMessages = array_merge($allMessages, $children);
 
             // Prepare for next level
+            $currentLevelIds = array_column($children, 'id');
+            $depth++;
+        }
+
+        return $allMessages;
+    }
+
+    public function getEchomailConversation(int $messageId, ?int $userId = null): array
+    {
+        $selected = $this->getMessage($messageId, 'echomail', $userId);
+        if (!$selected) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $rootStmt = $this->db->prepare("
+            WITH RECURSIVE ancestors AS (
+                SELECT id, reply_to_id
+                FROM echomail
+                WHERE id = ?
+                UNION ALL
+                SELECT em.id, em.reply_to_id
+                FROM echomail em
+                INNER JOIN ancestors a ON a.reply_to_id = em.id
+            )
+            SELECT id
+            FROM ancestors
+            WHERE reply_to_id IS NULL
+            ORDER BY id ASC
+            LIMIT 1
+        ");
+        $rootStmt->execute([$messageId]);
+        $rootId = (int)($rootStmt->fetchColumn() ?: $messageId);
+
+        $stmt = $this->db->prepare("
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                   COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE em.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId, $userId, $userId, $rootId]);
+        $rootMessages = $stmt->fetchAll();
+        if ($rootMessages === []) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $allMessages = $this->loadThreadChildren($rootMessages, $userId);
+        $threads = $this->buildMessageThreads($allMessages);
+        $messages = $this->flattenThreadsForDisplay($threads);
+
+        $cleanMessages = [];
+        $unreadCount = 0;
+        foreach ($messages as $message) {
+            if (empty($message['is_read'])) {
+                $unreadCount++;
+            }
+            $cleanMessages[] = $this->cleanMessageForJson($message);
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => 1,
+                'limit' => count($cleanMessages),
+                'total' => count($cleanMessages),
+                'pages' => 1
+            ]
+        ];
+    }
+
+    private function loadNetmailThreadChildren($rootMessages, $userId)
+    {
+        if (empty($rootMessages)) {
+            return [];
+        }
+
+        $allMessages = $rootMessages;
+        $currentLevelIds = array_column($rootMessages, 'id');
+        $maxDepth = 50;
+        $depth = 0;
+
+        while (!empty($currentLevelIds) && $depth < $maxDepth) {
+            $placeholders = implode(',', array_fill(0, count($currentLevelIds), '?'));
+
+            $stmt = $this->db->prepare("
+                SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                       n.subject, n.date_received, n.user_id, n.date_written,
+                       n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE n.reply_to_id IN ({$placeholders})
+            ");
+
+            $params = [$userId];
+            $params = array_merge($params, $currentLevelIds);
+            $stmt->execute($params);
+
+            $children = $stmt->fetchAll();
+            if (empty($children)) {
+                break;
+            }
+
+            $children = array_values(array_filter($children, function ($child) use ($userId) {
+                return $this->getMessage((int)$child['id'], 'netmail', $userId) !== null;
+            }));
+            if (empty($children)) {
+                break;
+            }
+
+            $allMessages = array_merge($allMessages, $children);
             $currentLevelIds = array_column($children, 'id');
             $depth++;
         }
@@ -4977,6 +5671,9 @@ class MessageHandler
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
+        } elseif ($filter === 'saved') {
+            // Show only messages saved by this user
+            $whereClause .= " AND sav.id IS NOT NULL";
         }
 
         // Filter out soft-deleted messages
@@ -4994,19 +5691,21 @@ class MessageHandler
                    n.subject, n.date_received, n.user_id, n.date_written,
                    n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
             $whereClause
             ORDER BY n.date_received DESC
         ");
-        
-        // Insert userId at the beginning for the LEFT JOIN, then add existing params
-        $allParams = [$userId];
+
+        // Insert userId twice at the beginning for the two LEFT JOINs (mrs and sav), then add existing params
+        $allParams = [$userId, $userId];
         foreach ($params as $param) {
             $allParams[] = $param;
         }
-        
+
         $stmt->execute($allParams);
         $allMessages = $stmt->fetchAll();
         
@@ -5093,6 +5792,87 @@ class MessageHandler
         ];
     }
 
+    public function getNetmailConversation(int $messageId, int $userId): array
+    {
+        $selected = $this->getMessage($messageId, 'netmail', $userId);
+        if (!$selected) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $rootStmt = $this->db->prepare("
+            WITH RECURSIVE ancestors AS (
+                SELECT id, reply_to_id
+                FROM netmail
+                WHERE id = ?
+                UNION ALL
+                SELECT n.id, n.reply_to_id
+                FROM netmail n
+                INNER JOIN ancestors a ON a.reply_to_id = n.id
+            )
+            SELECT id
+            FROM ancestors
+            WHERE reply_to_id IS NULL
+            ORDER BY id ASC
+            LIMIT 1
+        ");
+        $rootStmt->execute([$messageId]);
+        $rootId = (int)($rootStmt->fetchColumn() ?: $messageId);
+
+        $stmt = $this->db->prepare("
+            SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.date_received, n.user_id, n.date_written,
+                   n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
+            FROM netmail n
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            WHERE n.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId, $rootId]);
+        $rootMessages = $stmt->fetchAll();
+        if ($rootMessages === []) {
+            return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
+        }
+
+        $allMessages = $this->loadNetmailThreadChildren($rootMessages, $userId);
+        $threads = $this->buildMessageThreads($allMessages);
+        $messages = $this->flattenThreadsForDisplay($threads);
+
+        $cleanMessages = [];
+        $unreadCount = 0;
+        foreach ($messages as $message) {
+            if (empty($message['is_read'])) {
+                $unreadCount++;
+            }
+
+            $cleanMessage = $this->cleanMessageForJson($message);
+            try {
+                $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                if (!empty($cleanMessage['from_address'])) {
+                    $cleanMessage['from_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['from_address']) ?: null;
+                }
+                if (!empty($cleanMessage['to_address'])) {
+                    $cleanMessage['to_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['to_address']) ?: null;
+                }
+            } catch (\Exception $e) {
+            }
+            $cleanMessages[] = $cleanMessage;
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => 1,
+                'limit' => count($cleanMessages),
+                'total' => count($cleanMessages),
+                'pages' => 1
+            ]
+        ];
+    }
+
     /**
      * Return visible AreaFix/FileFix request and response netmail for a user.
      *
@@ -5129,16 +5909,17 @@ class MessageHandler
                    n.subject, n.message_text, n.date_written, n.date_received, n.is_sent,
                    n.message_id, n.kludge_lines, n.bottom_kludges,
                    CASE
-                       WHEN LOWER(n.to_name) = 'areafix' OR LOWER(n.from_name) LIKE 'areafix%' THEN 'echo'
-                       ELSE 'file'
+                       WHEN n.from_address IN ($addressPlaceholders) THEN
+                           CASE WHEN LOWER(n.to_name) LIKE 'filefix%' THEN 'file' ELSE 'echo' END
+                       ELSE 'echo'
                    END AS request_type,
                    CASE
-                       WHEN n.from_address = ? AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%') THEN 'incoming'
-                       ELSE 'outgoing'
+                       WHEN n.from_address IN ($addressPlaceholders) THEN 'outgoing'
+                       ELSE 'incoming'
                    END AS direction
             FROM netmail n
             WHERE (
-                -- Requests are messages sent to AreaFix/FileFix at the configured hub address.
+                -- Outgoing: messages we sent to the hub addressed to the robot (to_name set by us).
                 (
                     n.from_address IN ($addressPlaceholders)
                     AND n.to_address = ?
@@ -5146,10 +5927,10 @@ class MessageHandler
                     AND n.deleted_by_sender = FALSE
                 )
                 OR
-                -- Responses are messages from AreaFix/FileFix at the configured hub address.
+                -- Incoming: any message from the hub to us, regardless of the sender name.
+                -- Robot names vary (SBBSEcho, BRoboCop, etc.) so we match on address only.
                 (
                     n.from_address = ?
-                    AND (LOWER(n.from_name) LIKE 'areafix%' OR LOWER(n.from_name) LIKE 'filefix%')
                     AND n.to_address IN ($addressPlaceholders)
                     AND n.deleted_by_recipient = FALSE
                 )
@@ -5157,8 +5938,7 @@ class MessageHandler
             ORDER BY COALESCE(n.date_written, n.date_received) ASC, n.id ASC
         ";
 
-        $params = [$hubAddress];
-        $params = array_merge($params, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
+        $params = array_merge($myAddresses, $myAddresses, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -5169,8 +5949,10 @@ class MessageHandler
 
         foreach ($rows as $index => &$row) {
             $type = ($row['request_type'] ?? '') === 'file' ? 'file' : 'echo';
-            $timestamp = (string)($row['date_written'] ?: $row['date_received']);
-            $row['timestamp'] = $timestamp;
+            $row['date_received'] = $this->formatApiTimestamp($row['date_received'] ?? null);
+            $row['date_written'] = $this->formatApiTimestamp($row['date_written'] ?? null);
+            // For AreaFix/FileFix history, prefer the server-side receive time.
+            $row['timestamp'] = $row['date_received'] !== '' ? $row['date_received'] : $row['date_written'];
             $row['excerpt'] = $this->buildLovlyNetExcerpt((string)($row['message_text'] ?? ''));
             $row['status'] = ($row['direction'] ?? '') === 'incoming' ? 'response' : 'pending';
             $row['response_message_id'] = null;
@@ -5231,11 +6013,29 @@ class MessageHandler
                 'message_id' => (string)($row['message_id'] ?? ''),
                 'reply_msgid' => (string)($row['reply_msgid'] ?? ''),
                 'timestamp' => (string)($row['timestamp'] ?? ''),
+                'date_received' => (string)($row['date_received'] ?? ''),
+                'date_written' => (string)($row['date_written'] ?? ''),
                 'is_sent' => (bool)($row['is_sent'] ?? false),
                 'response_message_id' => isset($row['response_message_id']) ? (int)$row['response_message_id'] : null,
                 'linked_request_id' => isset($row['linked_request_id']) ? (int)$row['linked_request_id'] : null,
             ];
         }, $rows);
+    }
+
+    private function formatApiTimestamp($value): string
+    {
+        $raw = trim((string)($value ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+
+        try {
+            return (new \DateTimeImmutable($raw))
+                ->setTimezone(new \DateTimeZone('UTC'))
+                ->format('Y-m-d\TH:i:s\Z');
+        } catch (\Throwable $e) {
+            return $raw;
+        }
     }
 
     private function buildNetmailKludgeText(array $message): string
@@ -5632,6 +6432,7 @@ class MessageHandler
                 $stmt = $this->db->prepare("
                     INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
+                    RETURNING id
                 ");
 
                 $stmt->execute([
@@ -5644,8 +6445,8 @@ class MessageHandler
                     $draftData['message_text'] ?? null,
                     $draftData['reply_to_id'] ?? null
                 ]);
-
-                $draftId = $this->db->lastInsertId();
+                $insertedDraft = $stmt->fetch(\PDO::FETCH_ASSOC);
+                $draftId = $insertedDraft ? (int)$insertedDraft['id'] : 0;
                 return ['success' => true, 'draft_id' => $draftId, 'created' => true];
             }
         } catch (\Exception $e) {

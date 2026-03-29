@@ -40,10 +40,9 @@ class AdminController
         
         try {
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system
                 FROM users
-                WHERE is_system = FALSE
-                  AND (username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?)
+                WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             ";
@@ -79,8 +78,7 @@ class AdminController
         try {
             $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM users
-                WHERE is_system = FALSE
-                  AND (username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?)
+                WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
             ");
             $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
         } catch (\PDOException $e) {
@@ -298,7 +296,7 @@ class AdminController
         $stats['echomail_posted'] = $stmt->fetch()['count'];
         
         // Session stats
-        $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM sessions WHERE user_id = ?");
+        $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM user_sessions WHERE user_id = ? AND expires_at > NOW()");
         $stmt->execute([$userId]);
         $stats['active_sessions'] = $stmt->fetch()['count'];
         
@@ -320,9 +318,96 @@ class AdminController
         }
         $stats['total_netmail'] = $this->db->query("SELECT COUNT(*) as count FROM netmail")->fetch()['count'];
         $stats['total_echomail'] = $this->db->query("SELECT COUNT(*) as count FROM echomail")->fetch()['count'];
-        $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM sessions WHERE expires_at > NOW()")->fetch()['count'];
+        $stats['all_sessions'] = $this->db->query("
+            SELECT COUNT(*) as count
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.expires_at > NOW()
+              AND u.is_active = TRUE
+        ")->fetch()['count'];
+        try {
+            $stats['active_sessions'] = $this->db->query("
+                SELECT COUNT(DISTINCT s.user_id) as count
+                FROM user_sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.expires_at > NOW()
+                  AND u.is_active = TRUE
+                  AND u.is_system = FALSE
+            ")->fetch()['count'];
+        } catch (\PDOException $e) {
+            $stats['active_sessions'] = $stats['all_sessions'];
+        }
+        $stats['system_metrics_supported'] = PHP_OS_FAMILY !== 'Windows';
+        $stats['load_average'] = $this->getLoadAverageSummary();
+        $stats['ram_usage'] = $this->getRamUsageSummary();
         
         return $stats;
+    }
+
+    public function getRamUsageDetails(): ?string
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return null;
+        }
+
+        $scriptPath = realpath(__DIR__ . '/../scripts/binktop.php');
+        if ($scriptPath === false || !is_file($scriptPath)) {
+            return null;
+        }
+
+        $command = escapeshellarg($scriptPath) . ' --once 2>&1';
+        $output = @shell_exec($command);
+        if (!is_string($output)) {
+            return null;
+        }
+
+        $output = trim($output);
+        return $output !== '' ? $output : null;
+    }
+
+    private function getLoadAverageSummary(): ?string
+    {
+        if (PHP_OS_FAMILY === 'Windows' || !function_exists('sys_getloadavg')) {
+            return null;
+        }
+
+        $loads = @sys_getloadavg();
+        if (!is_array($loads) || count($loads) < 3) {
+            return null;
+        }
+
+        return implode(', ', array_map(static function($value): string {
+            return number_format((float)$value, 2, '.', '');
+        }, array_slice($loads, 0, 3)));
+    }
+
+    private function getRamUsageSummary(): ?string
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return null;
+        }
+
+        $scriptPath = realpath(__DIR__ . '/../scripts/ram_usage.sh');
+        if ($scriptPath === false || !is_file($scriptPath)) {
+            return null;
+        }
+
+        $output = @shell_exec('bash ' . escapeshellarg($scriptPath) . ' --json 2>&1');
+        if (!is_string($output) || trim($output) === '') {
+            return null;
+        }
+
+        $data = json_decode($output, true);
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $totalMb = isset($data['total_rss_mb']) ? (float)$data['total_rss_mb'] : null;
+        if ($totalMb === null) {
+            return null;
+        }
+
+        return number_format($totalMb, 1, '.', '') . ' MB';
     }
 
     public function getEconomyStats(string $period = '30d'): array
@@ -591,7 +676,7 @@ class AdminController
         $currentDate = new \DateTime();
         $interval = $currentDate->diff($reminderDate);
 
-        error_log("[ADMIN] calculateDaysSinceReminder: lastReminded='$lastReminded', days={$interval->days}");
+        //error_log("[ADMIN] calculateDaysSinceReminder: lastReminded='$lastReminded', days={$interval->days}");
 
         return $interval->days;
     }
@@ -746,6 +831,11 @@ class AdminController
     public function getBinkpSessionStats(string $period = 'day'): array
     {
         return \BinktermPHP\Binkp\SessionLogger::getSessionStats($period);
+    }
+
+    public function getBinkpSession(int $id): ?array
+    {
+        return \BinktermPHP\Binkp\SessionLogger::getSessionById($id);
     }
 }
 

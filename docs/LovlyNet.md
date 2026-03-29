@@ -265,6 +265,31 @@ Send these in the body of a netmail to AreaFix:
 - `-AREA_TAG` - Unsubscribe from an area
 - `%RESCAN AREA_TAG` - Request rescan of area
 
+### Web-Based LovlyNet Manager
+
+The LovlyNet manager at **Admin → LovlyNet** is the primary web interface for managing your LovlyNet membership once initial registration has been completed with `lovlynet_setup.php`. It shows your node number, hub address, server URL, and subscribed area count at a glance, and provides three tabs for managing areas and your registration details.
+
+#### Echo Areas Tab
+
+Lists all echo areas available from the hub with their subscription status. Each row shows the area tag, description, and whether you are currently subscribed. From this tab you can subscribe or unsubscribe individual areas, request a **rescan** (replay messages from the last N days, last N messages, or all messages), and send freeform AreaFix commands to the hub via the **Request** button.
+
+#### File Areas Tab
+
+The same layout as the Echo Areas tab, but for file areas managed through FileFix.
+
+#### Setup Tab
+
+The Setup tab lets you update your LovlyNet registration without running `lovlynet_setup.php` from the command line. Fields include:
+
+- **System Name** — the name of your BBS
+- **Sysop Name** — your name as it appears in the nodelist
+- **Hostname** — your BBS's public hostname
+- **BinkP Port** — the port your BinkP server listens on
+- **Site URL** — your BBS's public web address
+- **Passive Node** — check this if your node does not accept inbound connections
+
+Saving the form sends the updated information to the LovlyNet registry. A checklist panel alongside the form shows the current health of your registration (reachability, certificate, BinkP connectivity, etc.) to help diagnose configuration problems.
+
 ## Troubleshooting
 
 ### Registration Fails with "Failed to verify node ownership"

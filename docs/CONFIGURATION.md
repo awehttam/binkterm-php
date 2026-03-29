@@ -26,6 +26,7 @@ bash scripts/restart_daemons.sh
 - [config/bbs.json — BBS Feature Settings](#configbbsjson--bbs-feature-settings)
 - [Other Config Files](#other-config-files)
 - [Network Ports Reference](#network-ports-reference)
+- [Server Sizing & Tuning](#server-sizing--tuning)
 - [Welcome & Text Files](#welcome--text-files)
 
 ---
@@ -165,6 +166,17 @@ See [docs/SSHServer.md](SSHServer.md) for full SSH daemon setup including key ge
 
 See [docs/GeminiCapsule.md](GeminiCapsule.md) for Gemini capsule hosting setup.
 
+### MCP Server
+
+```bash
+# MCP_SERVER_URL=https://yourbbs.example.com:3740  # Required to enable AI settings tab and key management
+# MCP_SERVER_PORT=3740                              # Port the MCP server listens on (MCP_PORT also accepted)
+# MCP_BIND_HOST=127.0.0.1                          # Bind to localhost when using a reverse proxy
+# MCP_TRUSTED_PROXIES=127.0.0.1,::1,::ffff:127.0.0.1  # Proxy IPs whose X-Forwarded-For header is trusted
+```
+
+`MCP_SERVER_URL` must be set for users to see the AI settings tab and manage their bearer keys.  It is the public-facing base URL of the MCP server (no trailing slash), e.g. `https://yourbbs.example.com:3740` for the default direct listener, or `https://mcp.yourbbs.example.com` when using a reverse proxy or dedicated subdomain.  See [docs/MCPServer.md](MCPServer.md) for full setup instructions.
+
 ### Web Terminal (WebDoor)
 
 ```bash
@@ -279,6 +291,7 @@ Minimal example:
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
         "outbound_path": "data/outbound",
+        "outbound_queue_timer_minutes": 30,
         "preserve_processed_packets": false,
         "preserve_sent_packets": false
     },
@@ -315,6 +328,7 @@ When `website` is configured, origin lines include it:
 | `bind_address` | `0.0.0.0` | IP address to bind to (`0.0.0.0` = all interfaces) |
 | `inbound_path` | `data/inbound` | Directory for incoming packets |
 | `outbound_path` | `data/outbound` | Directory for outgoing packets |
+| `outbound_queue_timer_minutes` | 30 | After an immediate outbound delivery attempt, wait this many minutes before retrying while the queue remains non-empty |
 | `preserve_processed_packets` | false | When true, moves processed packets to `data/inbound/keep/<Mon-DD-YYYY>/` instead of deleting them |
 | `preserve_sent_packets` | false | When true, moves successfully sent outbound packets to `data/outbound/keep/<Mon-DD-YYYY>/` instead of deleting them |
 
@@ -503,6 +517,7 @@ A documented example is provided in `config/bbs.json.example`.
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| Realtime WebSocket daemon | `6010` | WebSocket/TCP | Inbound or proxied | `.env` `BINKSTREAM_WS_PORT` |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |
 | Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
@@ -534,11 +549,276 @@ a2enmod deflate
 systemctl reload apache2
 ```
 
+### Caddy: enabling compression for JSON and HTML
+
+Caddy does not enable response compression unless you add an `encode` directive. To compress normal pages and API responses, while avoiding compression on the SSE stream endpoint, add:
+
+```caddyfile
+@compressible {
+    not path /api/stream
+}
+encode @compressible zstd gzip
+```
+
+Place this near the top of your site block, after `root`.
+
+This will compress endpoints such as:
+
+- `/api/messages/echomail`
+- `/api/messages/netmail`
+- `/api/i18n/catalog`
+- regular HTML, CSS, and JavaScript responses
+
+Avoid compressing `/api/stream`, because SSE can be negatively affected by buffering or delayed flush behavior when compression is in play.
+
+---
+
+## Server Sizing & Tuning
+
+This section helps you right-size your server and tune Apache, PHP-FPM, and PostgreSQL for the number of concurrent users you expect.
+
+### How SSE Affects php-fpm Worker Count
+
+BinktermPHP uses BinkStream for browser realtime delivery. In SSE mode, the SharedWorker calls `/api/stream`, which holds a php-fpm worker open for `SSE_WINDOW_SECONDS`, delivering events as they arrive. A keepalive comment is sent every 15 seconds to prevent proxy timeouts. When the window expires the connection is cleanly closed and the SharedWorker reconnects immediately. The practical effect is that **every online user occupies one php-fpm worker continuously** while SSE is the active transport. In WebSocket mode, the standalone PHP BinkStream daemon handles the realtime connection instead.
+
+This makes `pm.max_children` the most important tuning knob on the system. If all workers are occupied by SSE connections, regular page loads and API calls will queue — or fail entirely.
+
+**Rule of thumb:** `pm.max_children` ≥ (concurrent users × 1.1) + 5
+
+The dominant cost is one worker per online user held for the SSE window. The 10% overhead covers concurrent HTTP requests (page loads, API calls) — at typical usage patterns only a small fraction of users are mid-request at any given instant.
+
+The extra 0.5× headroom covers simultaneous HTTP requests (page loads, API calls) that arrive while SSE workers are held.
+
+---
+
+### Real-World Baseline (3 concurrent users)
+
+Measured RSS with 3 active users, all optional services running (Gemini, MRC, SSH, telnet, multiplexer):
+
+| Service | Processes | RSS (MB) |
+|---|---:|---:|
+| Apache (apache2) | 13 | 201.4 |
+| Caddy (reverse proxy) | 1 | 49.6 |
+| php-fpm | 5 | 164.5 |
+| PostgreSQL | 12 | 451.0 |
+| admin_daemon | 1 | 19.1 |
+| binkp_server | 1 | 30.0 |
+| binkp_scheduler | 1 | 19.9 |
+| mrc_daemon | 1 | 19.6 |
+| gemini_daemon | 1 | 13.6 |
+| telnetd | 1 | 15.0 |
+| ssh_daemon | 3 | 51.7 |
+| multiplexing-server | 1 | 63.4 |
+| **Total** | | **1,099 MB** |
+
+Key per-unit costs derived from the above:
+- **php-fpm worker:** ~33 MB each
+- **Apache worker:** ~15 MB each
+- **PostgreSQL backend:** ~12–15 MB per connection
+- **System service baseline** (daemons + proxy, no users): ~350–400 MB
+
+---
+
+### Capacity Planning by User Count
+
+These figures assume all optional services are running. Deduct ~130 MB if you omit MRC, Gemini, and the multiplexer.
+
+| Concurrent users | php-fpm workers | RAM (minimum) | RAM (recommended) | vCPU |
+|---:|---:|---:|---:|---:|
+| 1–5 | 11 | 1 GB | 1.5 GB | 1 |
+| 5–20 | 27 | 2 GB | 3 GB | 2 |
+| 20–50 | 60 | 4 GB | 5 GB | 2–4 |
+| 50–150 | 170 | 10 GB | 13 GB | 4–8 |
+| 150–300 | 335 | 20 GB | 26 GB | 8–16 |
+
+**DOSBox-X doors add ~60–100 MB RAM per active session** (see [DOSDoors.md](DOSDoors.md)). At a typical 1% concurrency rate, the additional footprint is modest — roughly one instance per 100 online users — but plan for it if your BBS is games-heavy. A deployment with 100 concurrent users running a popular door at 5% concurrency would need an extra ~400 MB on top of the figures above.
+
+"Concurrent users" means distinct logged-in users with the BBS open in their browser. Because SSE runs through a SharedWorker, all tabs belonging to the same user on the same browser share one EventSource connection — multiple tabs do not multiply worker usage.
+
+---
+
+### php-fpm Tuning
+
+Edit your php-fpm pool file (typically `/etc/php/8.x/fpm/pool.d/www.conf`):
+
+```ini
+; Use dynamic process management
+pm = dynamic
+
+; Maximum workers — size this first (see table above)
+pm.max_children = 25
+
+; Workers kept alive when idle
+pm.min_spare_servers = 3
+pm.max_spare_servers = 8
+
+; Workers started on boot
+pm.start_servers = 5
+
+; Recycle workers to prevent slow memory growth
+pm.max_requests = 500
+```
+
+After changing, reload php-fpm:
+
+```bash
+systemctl reload php8.x-fpm
+```
+
+**`BINKSTREAM_TRANSPORT_MODE`** — currently supported values are `auto`, `sse`, and `ws`.
+
+- `auto` (default): prefer the standalone WebSocket daemon when it appears to be running, otherwise use SSE. If Apache is detected and `SSE_WINDOW_SECONDS` is not explicitly set, BinktermPHP defaults the SSE window to **2 seconds** as an interim mitigation for Apache + php-fpm buffering behavior.
+- `sse`: force the standard SSE behavior and default `SSE_WINDOW_SECONDS` to **60** unless explicitly overridden.
+- `ws`: force the standalone PHP WebSocket realtime daemon for inbound events and commands.
+
+```bash
+# .env
+BINKSTREAM_TRANSPORT_MODE=auto
+```
+
+**`BINKSTREAM_WS_BIND_HOST`**, **`BINKSTREAM_WS_PORT`**, **`BINKSTREAM_WS_PUBLIC_URL`**, and **`BINKSTREAM_WS_PID_FILE`** — settings for the standalone realtime WebSocket daemon (`scripts/realtime_server.php`).
+
+- `BINKSTREAM_WS_BIND_HOST`: daemon bind host, typically `127.0.0.1` behind a reverse proxy
+- `BINKSTREAM_WS_PORT`: daemon listen port, default `6010`
+- `BINKSTREAM_WS_PUBLIC_URL`: browser-facing WebSocket URL, typically a proxied path such as `/ws`
+- `BINKSTREAM_WS_PID_FILE`: optional PID file path used by `auto` mode as a server-side hint that the daemon is running; if omitted, BinktermPHP uses its built-in default PID path
+
+```bash
+# .env
+BINKSTREAM_WS_BIND_HOST=127.0.0.1
+BINKSTREAM_WS_PORT=6010
+BINKSTREAM_WS_PUBLIC_URL=/ws
+BINKSTREAM_WS_PID_FILE=data/run/realtime_server.pid
+```
+
+**`FTPD_ENABLED`**, **`FTPD_BIND_HOST`**, **`FTPD_PORT`**, **`FTPD_PUBLIC_HOST`**, **`FTPD_PASSIVE_PORT_START`**, and **`FTPD_PASSIVE_PORT_END`** — settings for the standalone FTP daemon (`scripts/ftp_daemon.php`).
+
+- `FTPD_ENABLED`: enable or disable the standalone passive FTP daemon
+- `FTPD_BIND_HOST`: FTP control socket bind host, typically `0.0.0.0` for inbound access or `127.0.0.1` when fronted by another layer
+- `FTPD_PORT`: FTP control port, default `2121`
+- `FTPD_PUBLIC_HOST`: optional public IPv4 address or hostname advertised in `PASV` replies when the daemon sits behind NAT or binds to `0.0.0.0`
+- `FTPD_PASSIVE_PORT_START` / `FTPD_PASSIVE_PORT_END`: passive-mode data port range opened by the daemon
+
+The FTP virtual filesystem exposes:
+
+- `/qwk/download/<BBSID>.QWK` for downloading the authenticated user's QWK packet
+- `/qwk/upload/*.REP` or `/qwk/upload/*.ZIP` for uploading REP reply packets
+- `/incoming/<AREA>/...` for uploading files into writable file areas using the existing pending-approval workflow
+- `/fileareas/...` for browsing and downloading approved files from accessible file areas
+
+Anonymous FTP login is also supported. Anonymous users are restricted to `/fileareas/...` and only see file areas marked `is_public`; they cannot access QWK endpoints or upload anything.
+
+See [FTPServer.md](FTPServer.md) for daemon startup, systemd/cron examples, NAT setup, and rootless port-21 redirect rules.
+
+```bash
+# .env
+FTPD_ENABLED=false
+FTPD_BIND_HOST=0.0.0.0
+FTPD_PORT=2121
+FTPD_PASSIVE_PORT_START=2122
+FTPD_PASSIVE_PORT_END=2149
+```
+
+**`SSE_WINDOW_SECONDS`** — how long each SSE connection is held open before the client is told to reconnect. A keepalive comment is sent every 15 seconds inside the window to prevent proxy timeouts. When SSE is the active transport, each active browser session occupies one php-fpm worker for the full duration, so scale `pm.max_children` accordingly.
+
+Defaults:
+
+- **60** seconds normally
+- **2** seconds when `BINKSTREAM_TRANSPORT_MODE=auto`, Apache is detected, and `SSE_WINDOW_SECONDS` is not explicitly set
+
+Testing has shown that some Apache + php-fpm (`mod_proxy_fcgi`) deployments buffer SSE responses instead of flushing events in real time. In those environments, sysops should lower `SSE_WINDOW_SECONDS` explicitly if the automatic 2-second default is still too sluggish.
+
+```bash
+# .env
+BINKSTREAM_TRANSPORT_MODE=auto
+SSE_WINDOW_SECONDS=60
+```
+
+Older `REALTIME_*` environment variable names are still accepted as compatibility aliases, and `SSE_TRANSPORT_MODE` is still accepted as the oldest transport-mode alias, but `BINKSTREAM_*` is the preferred prefix going forward.
+
+---
+
+### Apache MPM Tuning
+
+For Apache + php-fpm (via `mod_proxy_fcgi`), use **mpm_event** — it handles idle keepalive connections with threads rather than processes, which is far more efficient than mpm_prefork.
+
+```bash
+a2dismod mpm_prefork
+a2enmod mpm_event proxy_fcgi
+systemctl restart apache2
+```
+
+```apache
+# /etc/apache2/mods-enabled/mpm_event.conf
+<IfModule mpm_event_module>
+    StartServers          2
+    MinSpareThreads      10
+    MaxSpareThreads      30
+    ThreadsPerChild      25
+    MaxRequestWorkers   150   # should be ≥ pm.max_children
+    MaxConnectionsPerChild 1000
+</IfModule>
+```
+
+`MaxRequestWorkers` controls how many simultaneous connections Apache will accept. It should be at least as large as `pm.max_children` so Apache never queues requests that php-fpm has capacity to handle.
+
+---
+
+### PostgreSQL Tuning
+
+PostgreSQL spawns one backend process per connection. Each php-fpm worker can hold an open connection, so `max_connections` must exceed `pm.max_children`.
+
+```ini
+# postgresql.conf
+
+# Must exceed pm.max_children + room for admin/scripts
+max_connections = 100        # adjust up for larger deployments
+
+# 25% of total RAM is a standard starting point
+shared_buffers = 512MB       # for a 2 GB server
+
+# Effective cache size hint for the query planner (~50–75% of RAM)
+effective_cache_size = 1GB
+
+# Background writer — tune for write-heavy loads
+wal_buffers = 16MB
+checkpoint_completion_target = 0.9
+```
+
+After editing `postgresql.conf`, reload:
+
+```bash
+systemctl reload postgresql
+```
+
+**PgBouncer** is worth considering at 50+ concurrent users. It pools application connections so that 100 php-fpm workers can share 20 actual PostgreSQL backends, reducing per-connection memory significantly.
+
+---
+
+### Quick Sizing Reference
+
+| Knob | Formula | Notes |
+|---|---|---|
+| `pm.max_children` | concurrent users × 1.1 + 5 | 1 SSE worker per user (SharedWorker) |
+| `MaxRequestWorkers` | ≥ `pm.max_children` | Keep in sync |
+| `max_connections` (PG) | `pm.max_children` + 10 | Add more for scripts |
+| `shared_buffers` (PG) | 25% of total RAM | Standard rule of thumb |
+| `BINKSTREAM_TRANSPORT_MODE` | auto | `auto` prefers WS if the daemon appears to be running, otherwise uses SSE; Apache + SSE falls back to a 2 s window unless overridden |
+| `BINKSTREAM_WS_PORT` | 6010 | Port used by the standalone PHP realtime WebSocket daemon |
+| `BINKSTREAM_WS_PUBLIC_URL` | /ws | Browser-facing WebSocket URL or path |
+| `BINKSTREAM_WS_PID_FILE` | `data/run/realtime_server.pid` | PID file hint used by `auto` transport selection |
+| `FTPD_PORT` | 2121 | FTP control port exposed by the standalone FTP daemon |
+| `FTPD_PASSIVE_PORT_START` | 2122 | First port in the FTP passive data range |
+| `FTPD_PASSIVE_PORT_END` | 2149 | Last port in the FTP passive data range |
+| `SSE_WINDOW_SECONDS` | 60 | Default SSE window unless Apache + `auto` applies the 2 s implicit fallback |
+
 ---
 
 ## Welcome & Text Files
 
-Customise user-facing text by creating optional files in `config/`.  Examples are provided as `config/*.example`.
+The recommended way to manage welcome text is through **Admin → Appearance**, which provides a live editor with Markdown support and instant preview — no file editing or service restart required.
+
+Direct file editing is still supported as a fallback (useful for scripted deployments or when the admin UI is not yet accessible):
 
 | File | When shown |
 |------|-----------|
@@ -546,4 +826,4 @@ Customise user-facing text by creating optional files in `config/`.  Examples ar
 | `config/newuser_welcome.txt` | Email sent to newly approved users |
 | `config/welcome.txt` | General welcome message on the main page / login screen |
 
-Files are plain text; newlines are preserved as written.
+Files are plain text; newlines are preserved as written. When both a file and an Appearance editor value exist, the Appearance editor value takes precedence.

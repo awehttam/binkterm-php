@@ -16,6 +16,10 @@ let currentMessageData = null;
 let currentParsedMessage = null;
 let currentRenderMode = 'auto';
 let requestedMessageId = null;
+let currentConversationMessageId = null;
+let currentConversationSubject = '';
+let currentContextMenuMessageId = null;
+let currentContextMenuMessageSaved = false;
 
 /**
  * Render a FREQ status badge appropriate to the given status value.
@@ -128,6 +132,8 @@ $(document).ready(function() {
 
     // Filter change handler
     $('input[name="filter"]').change(function() {
+        currentConversationMessageId = null;
+        currentConversationSubject = '';
         currentFilter = $(this).val();
         currentPage = 1;
         loadMessages();
@@ -140,20 +146,45 @@ $(document).ready(function() {
         }
     });
 
+    document.addEventListener('click', hideMessageContextMenu);
+    document.addEventListener('scroll', hideMessageContextMenu, true);
+    window.addEventListener('resize', hideMessageContextMenu);
+    bindMessageListTouchContextMenu();
+
     // Address book search
     $('#addressBookSearch').on('keyup', debounce(function() {
         loadAddressBook($(this).val());
     }, 300));
 
-    // Auto refresh every 2 minutes
-    startAutoRefresh(function() {
-        loadMessages();
-        loadStats();
-    }, 120000);
+    // Polling disabled — BinkStream delivers dashboard_stats on new netmail.
+    // Re-enable by uncommenting if BinkStream is unavailable.
+    // startAutoRefresh(function() { loadMessages(); loadStats(); }, 120000);
+
+    if (window.BinkStream) {
+        // Reload the message list when new netmail arrives.
+        // Debounced to absorb bursts from concurrent imports.
+        let _dashboardRefreshTimer = null;
+        window.BinkStream.on('dashboard_stats', function() {
+            clearTimeout(_dashboardRefreshTimer);
+            _dashboardRefreshTimer = setTimeout(function() {
+                loadMessages(null, true);
+                loadStats();
+            }, 2000);
+        });
+
+        // Cross-tab read sync — apply read styling immediately when another tab
+        // marks a message as read without requiring a full list reload.
+        window.BinkStream.on('message_read', function(data) {
+            if (data.message_type !== 'netmail') return;
+            (data.message_ids || []).forEach(function(id) {
+                applyNetmailReadStyle(id);
+            });
+        });
+    }
 });
 
-function loadMessages(callback) {
-    showLoading('#messagesContainer');
+function loadMessages(callback, silent = false) {
+    if (!silent) showLoading('#messagesContainer');
 
     // Clear search terms when loading regular messages (not from search)
     currentSearchTerms = [];
@@ -161,6 +192,19 @@ function loadMessages(callback) {
     if (currentFilter === 'drafts') {
         // Load drafts instead of regular messages
         loadDrafts();
+        return;
+    }
+
+    if (currentConversationMessageId) {
+        $.get(`/api/messages/netmail/${currentConversationMessageId}/conversation`)
+            .done(function(data) {
+                displayMessages(data.messages, true);
+                updatePagination(data.pagination);
+                if (typeof callback === 'function') callback(data);
+            })
+            .fail(function() {
+                $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
+            });
         return;
     }
 
@@ -274,7 +318,19 @@ function displayMessages(messages, isThreaded = false) {
     if (messages.length === 0) {
         html = `<div class="text-center text-muted py-4">${uiT('messages.none_found', 'No messages found')}</div>`;
     } else {
-        html = `
+        if (currentConversationMessageId) {
+            html += `
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <strong>${uiT('ui.common.showing_entire_conversation', 'Showing Entire Conversation')}</strong>
+                        ${currentConversationSubject ? `<div class="small mt-1">${escapeHtml(currentConversationSubject)}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="clearConversationView()">${uiT('ui.common.back_to_message_list', 'Back to Message List')}</button>
+                </div>
+            `;
+        }
+
+        html += `
             <table class="table table-hover message-table mb-0">
                 <thead>
                     <tr>
@@ -306,23 +362,25 @@ function displayMessages(messages, isThreaded = false) {
             // Indent up to 2 levels (0.75rem each); deeper nesting shown via border-left color
             const indentRem = Math.min(threadLevel, 2) * 0.75;
             const threadIndent = threadLevel > 0 ? `style="padding-left: ${indentRem}rem;"` : '';
-            const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
+            const threadIcon = (threadLevel > 0 || replyCount > 0)
+                ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.show_entire_conversation', 'Show Entire Conversation')}" style="cursor: pointer;" onclick="event.stopPropagation(); showConversation(${msg.id})"></i>`
+                : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
             const threadLevelClass = threadLevel > 0 ? ` thread-reply thread-level-${Math.min(threadLevel, 9)}` : '';
 
             html += `
-                <tr class="${rowClass} message-row${threadLevelClass}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                <tr class="${rowClass} message-row${threadLevelClass}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" oncontextmenu="openMessageContextMenu(event, ${msg.id})" style="cursor: pointer;">
                     <td class="message-checkbox d-none" onclick="event.stopPropagation()">
                         <div class="form-check">
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
                         </div>
                     </td>
                     <td ${threadIndent}>
-                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : ''}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
+                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}<i class="fas fa-bookmark ${Number(msg.is_saved) === 1 ? 'text-warning' : 'text-muted'} me-1 save-btn" data-message-id="${msg.id}" data-message-type="netmail" data-saved="${Number(msg.is_saved) === 1 ? 'true' : 'false'}" title="${Number(msg.is_saved) === 1 ? uiT('ui.common.remove_from_saved', 'Remove from saved') : uiT('ui.common.save_for_later', 'Save for later')}" style="cursor: pointer;" onclick="toggleSaveMessage(${msg.id}, 'netmail', ${Number(msg.is_saved) === 1})"></i>${msg.art_format === 'petscii' ? `<span class="badge me-1" style="background-color:#4040a0;color:#fff;font-size:0.6em;padding:1px 3px;vertical-align:middle;" title="PETSCII / C64 Art">C64</span>` : ''}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
                         <br>
                     </td>
                     <td>
-                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
+                        ${isUnread ? '<strong class="subject-unread">' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
                         ${msg.has_attachment ? ` <i class="fas fa-paperclip text-muted" title="${uiT('ui.common.has_attachment', 'Has attachment')}"></i>` : ''}
                         <br>
                         <small class="text-muted">
@@ -431,6 +489,11 @@ function updatePagination(pagination) {
     const container = $('#pagination');
     let html = '';
 
+    if (currentConversationMessageId) {
+        container.empty();
+        return;
+    }
+
     if (pagination.pages > 1) {
         html = '<ul class="pagination pagination-sm mb-0">';
 
@@ -468,6 +531,143 @@ function updatePagination(pagination) {
     container.html(html);
 }
 
+function showConversation(messageId) {
+    currentConversationMessageId = messageId;
+    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    currentConversationSubject = selected && selected.subject ? selected.subject : '';
+    loadMessages();
+}
+
+function clearConversationView() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
+    loadMessages();
+}
+
+function openMessageContextMenu(event, messageId) {
+    if (event.shiftKey) {
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    openMessageContextMenuAtPosition(event.pageX, event.pageY, messageId);
+}
+
+function openMessageContextMenuAtPosition(pageX, pageY, messageId) {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+
+    currentContextMenuMessageId = messageId;
+    const selected = currentMessages.find(msg => Number(msg.id) === Number(messageId));
+    currentContextMenuMessageSaved = !!(selected && Number(selected.is_saved) === 1);
+    const saveLabel = document.getElementById('messageContextMenuSaveLabel');
+    if (saveLabel) {
+        saveLabel.textContent = currentContextMenuMessageSaved
+            ? uiT('ui.common.remove_from_saved', 'Remove from saved')
+            : uiT('ui.common.save_for_later', 'Save for later');
+    }
+    menu.style.left = `${pageX}px`;
+    menu.style.top = `${pageY}px`;
+    menu.style.display = 'block';
+}
+
+function hideMessageContextMenu() {
+    const menu = document.getElementById('messageContextMenu');
+    if (!menu) {
+        return;
+    }
+    menu.style.display = 'none';
+    currentContextMenuMessageId = null;
+}
+
+function bindMessageListTouchContextMenu() {
+    if (!window.MessageListContextMenu) {
+        return;
+    }
+    window.MessageListContextMenu.bindLongPress({
+        containerId: 'messagesContainer',
+        rowSelector: '.message-row[data-message-id]',
+        isInteractiveTarget: isMessageRowInteractiveTarget,
+        onLongPress: function(details) {
+            openMessageContextMenuAtPosition(details.pageX, details.pageY, details.messageId);
+        }
+    });
+}
+
+function isMessageRowInteractiveTarget(target) {
+    return !!target.closest(
+        'button, a, input, select, textarea, label, .save-btn, .echo-from-popover, .node-addr-popover, .message-select'
+    );
+}
+
+function replyFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    composeMessage('netmail', messageId);
+}
+
+function viewConversationFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    showConversation(messageId);
+}
+
+function downloadMessageFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    window.location.href = `/api/messages/netmail/${messageId}/download`;
+}
+
+function forwardMessageToEmailFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+
+    $.post(`/api/messages/netmail/${messageId}/forward-email`)
+        .done(function(response) {
+            if (response && response.success) {
+                showForwardEmailFeedback(
+                    true,
+                    (window.getApiMessage
+                        ? window.getApiMessage(response, uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                        : uiT('ui.common.forwarded_to_email', 'Message forwarded to your email'))
+                );
+            } else {
+                showForwardEmailFeedback(
+                    false,
+                    apiError(response, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+                );
+            }
+        })
+        .fail(function(xhr) {
+            showForwardEmailFeedback(
+                false,
+                apiError(xhr.responseJSON || {}, uiT('errors.messages.forward_email.failed', 'Failed to forward message by email'))
+            );
+        });
+}
+
+function showForwardEmailFeedback(success, message) {
+    if (window.MessageListContextMenu) {
+        window.MessageListContextMenu.showActionNotice(success, message);
+        return;
+    }
+    window.alert(message);
+}
+
 function changePage(page) {
     currentPage = page;
     loadMessages();
@@ -483,18 +683,18 @@ function toggleModalFullscreen() {
         dialog.classList.add('modal-lg');
         icon.classList.remove('fa-compress');
         icon.classList.add('fa-expand');
-        localStorage.setItem('modalFullscreen', 'false');
+        UserStorage.setItem('modalFullscreen', 'false');
     } else {
         dialog.classList.remove('modal-lg');
         dialog.classList.add('modal-fullscreen');
         icon.classList.remove('fa-expand');
         icon.classList.add('fa-compress');
-        localStorage.setItem('modalFullscreen', 'true');
+        UserStorage.setItem('modalFullscreen', 'true');
     }
 }
 
 function applyModalFullscreenPreference() {
-    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const isFullscreen = UserStorage.getItem('modalFullscreen') === 'true';
     const modal = document.getElementById('messageModal');
     const dialog = modal.querySelector('.modal-dialog');
     const icon = document.querySelector('#fullscreenToggle i');
@@ -586,7 +786,7 @@ function displayMessageContent(message) {
 }
 
 function getNextRenderMode(mode) {
-    const modes = ['auto', 'ansi', 'amiga_ansi', 'plain'];
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'plain', 'raw'];
     const currentIndex = modes.indexOf(mode);
     return modes[(currentIndex + 1 + modes.length) % modes.length];
 }
@@ -655,6 +855,7 @@ function renderCurrentMessageBody() {
     if (!container) return;
 
     if (currentRenderMode !== 'plain'
+            && currentRenderMode !== 'raw'
             && typeof looksLikeSixel === 'function'
             && looksLikeSixel(body)) {
         renderSixelChunks(container, body, function (textChunk) {
@@ -684,6 +885,7 @@ function cycleRenderMode() {
 
     currentRenderMode = getNextRenderMode(currentRenderMode);
     renderCurrentMessageBody();
+    showRenderModeToast();
 }
 
 function checkAndDisplayMessage(message, parsedMessage, isSent) {
@@ -740,7 +942,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-6 text-end">
                     <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name)}
                     <small class="text-muted ms-2">${formatFidonetAddress(message.to_address, message.to_system_name)}</small>
                 </div>
@@ -751,6 +953,14 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                 </div>
                 <div class="col-md-6">
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
+                </div>
+            </div>
+            <div class="row mt-2 align-items-center">
+                <div class="col-12 text-end">
+                    <i class="fas fa-bookmark modal-header-save-icon ${Number(message.is_saved) === 1 ? 'text-warning' : 'text-muted'}"
+                       id="modalHeaderSaveIcon"
+                       style="cursor: pointer;"
+                       title="${Number(message.is_saved) === 1 ? uiT('ui.common.remove_from_saved', 'Remove from saved') : uiT('ui.common.save_for_later', 'Save for later')}"></i>
                 </div>
             </div>
             ${message.received_insecure ? `
@@ -815,6 +1025,9 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     $('#messageContent').html(html);
 
     initSenderPopover(message, message.from_address, message.from_name);
+
+    // Wire up save button and header icon
+    updateModalSaveButton(message);
 
     // Set up reply button
     if (!isSent) {
@@ -890,6 +1103,7 @@ function saveEditMessage() {
         if (listMsg) {
             listMsg.art_format = artFormat || null;
         }
+        renderCurrentMessageBody();
         $('#editMessageSuccess').removeClass('d-none');
         $('#saveEditMessageBtn').prop('disabled', false);
     }).fail(function(xhr) {
@@ -921,6 +1135,8 @@ function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {
 }
 
 function searchMessages() {
+    currentConversationMessageId = null;
+    currentConversationSubject = '';
     const query = $('#searchInput').val().trim();
     if (query.length < 2) {
         showError(uiT('errors.messages.search.query_too_short', 'Please enter at least 2 characters to search'));
@@ -1015,6 +1231,17 @@ function loadStats() {
             $('#totalCount').text(data.total || 0);
             $('#unreadCount').text(data.unread || 0);
             $('#sentCount').text(data.sent || 0);
+            $('#savedCount').text(data.saved || 0);
+            const saved = data.saved || 0;
+            const badge = document.getElementById('savedFilterBadge');
+            if (badge) {
+                if (saved > 0) {
+                    badge.textContent = saved;
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
         })
         .fail(function(xhr, status, error) {
             console.error('Netmail stats loading failed:', xhr.status, status, error);
@@ -1022,12 +1249,158 @@ function loadStats() {
             $('#totalCount').text(uiT('ui.common.error', 'Error'));
             $('#unreadCount').text(uiT('ui.common.error', 'Error'));
             $('#sentCount').text(uiT('ui.common.error', 'Error'));
+            $('#savedCount').text(uiT('ui.common.error', 'Error'));
         });
+}
+
+/**
+ * Toggle save status of a netmail message (from list row or context menu).
+ */
+function toggleSaveMessage(messageId, messageType, isSaved) {
+    if (typeof event !== 'undefined' && event && typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+    }
+
+    const method = isSaved ? 'DELETE' : 'POST';
+    $.ajax({
+        url: `/api/messages/${messageType}/${messageId}/save`,
+        method: method,
+        success: function() {
+            const icon = $(`.save-btn[data-message-id="${messageId}"]`);
+            if (isSaved) {
+                icon.removeClass('text-warning').addClass('text-muted')
+                    .attr('title', uiT('ui.common.save_for_later', 'Save for later'))
+                    .attr('data-saved', 'false')
+                    .attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', false)`);
+                showSuccess(uiT('ui.netmail.saved_items.removed', 'Message removed from saved items'));
+                if (currentFilter === 'saved') {
+                    loadMessages();
+                }
+            } else {
+                icon.removeClass('text-muted').addClass('text-warning')
+                    .attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'))
+                    .attr('data-saved', 'true')
+                    .attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
+                showSuccess(uiT('ui.netmail.saved_items.saved', 'Message saved for later'));
+            }
+            // Sync current message data
+            const msg = currentMessages.find(m => Number(m.id) === Number(messageId));
+            if (msg) {
+                msg.is_saved = isSaved ? 0 : 1;
+            }
+            loadStats();
+        },
+        error: function(xhr) {
+            showError(window.getApiErrorMessage ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.messages.save.failed', 'Failed to update saved status')) : uiT('errors.messages.save.failed', 'Failed to update saved status'));
+        }
+    });
+}
+
+/**
+ * Sync the modal footer save button and header icon to the current saved state.
+ */
+function updateModalSaveButton(message) {
+    const saveBtn = $('#modalSaveButton');
+    const saveText = $('#modalSaveText');
+    const headerIcon = $('#modalHeaderSaveIcon');
+    const isSaved = Number(message.is_saved) === 1;
+
+    if (isSaved) {
+        saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
+        saveText.text(uiT('ui.common.saved_short', 'Saved'));
+        saveBtn.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
+        headerIcon.removeClass('text-muted').addClass('text-warning');
+        headerIcon.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
+        saveBtn.off('click').on('click', function() {
+            toggleSaveMessageNetmailModal(message.id, true);
+        });
+        headerIcon.off('click').on('click', function() {
+            toggleSaveMessageNetmailModal(message.id, true);
+        });
+    } else {
+        saveBtn.removeClass('btn-warning').addClass('btn-outline-warning');
+        saveText.text(uiT('ui.common.save', 'Save'));
+        saveBtn.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
+        headerIcon.removeClass('text-warning').addClass('text-muted');
+        headerIcon.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
+        saveBtn.off('click').on('click', function() {
+            toggleSaveMessageNetmailModal(message.id, false);
+        });
+        headerIcon.off('click').on('click', function() {
+            toggleSaveMessageNetmailModal(message.id, false);
+        });
+    }
+}
+
+/**
+ * Toggle save state from the message modal (netmail).
+ */
+function toggleSaveMessageNetmailModal(messageId, isSaved) {
+    const method = isSaved ? 'DELETE' : 'POST';
+    $.ajax({
+        url: `/api/messages/netmail/${messageId}/save`,
+        method: method,
+        success: function() {
+            const newSavedState = isSaved ? 0 : 1;
+            // Update current message data and re-sync the modal controls
+            if (currentMessageData && currentMessageData.id == messageId) {
+                currentMessageData.is_saved = newSavedState;
+                updateModalSaveButton(currentMessageData);
+            }
+            // Sync list row icon
+            const listIcon = $(`.save-btn[data-message-id="${messageId}"]`);
+            if (newSavedState) {
+                listIcon.removeClass('text-muted').addClass('text-warning')
+                    .attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'))
+                    .attr('data-saved', 'true')
+                    .attr('onclick', `toggleSaveMessage(${messageId}, 'netmail', true)`);
+                showSuccess(uiT('ui.netmail.saved_items.saved', 'Message saved for later'));
+            } else {
+                listIcon.removeClass('text-warning').addClass('text-muted')
+                    .attr('title', uiT('ui.common.save_for_later', 'Save for later'))
+                    .attr('data-saved', 'false')
+                    .attr('onclick', `toggleSaveMessage(${messageId}, 'netmail', false)`);
+                showSuccess(uiT('ui.netmail.saved_items.removed', 'Message removed from saved items'));
+                if (currentFilter === 'saved') {
+                    loadMessages();
+                }
+            }
+            // Sync currentMessages array
+            const msg = currentMessages.find(m => Number(m.id) === Number(messageId));
+            if (msg) {
+                msg.is_saved = newSavedState;
+            }
+            loadStats();
+        },
+        error: function(xhr) {
+            showError(window.getApiErrorMessage ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.messages.save.failed', 'Failed to update saved status')) : uiT('errors.messages.save.failed', 'Failed to update saved status'));
+        }
+    });
+}
+
+/**
+ * Handle save toggle from context menu.
+ */
+function saveFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    const isSaved = currentContextMenuMessageSaved;
+    hideMessageContextMenu();
+    toggleSaveMessage(messageId, 'netmail', isSaved);
 }
 
 function deleteMessage(messageId) {
     if (!confirm(uiT('ui.netmail.delete_message_confirm', 'Are you sure you want to delete this message? This action cannot be undone.'))) {
         return;
+    }
+
+    const msg = currentMessages.find(m => Number(m.id) === Number(messageId)) || currentMessageData;
+    if (msg && Number(msg.is_saved) === 1) {
+        if (!confirm(uiT('ui.netmail.delete_saved_confirm', 'This message is saved. Are you sure you want to delete it?'))) {
+            return;
+        }
     }
 
     $.ajax({
@@ -1049,23 +1422,21 @@ function deleteMessage(messageId) {
     });
 }
 
+function applyNetmailReadStyle(messageId) {
+    const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+    if (!messageRow.length) return;
+    messageRow.removeClass('table-light');
+    messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('far fa-envelope-open text-muted');
+    messageRow.find('strong.subject-unread').contents().unwrap();
+    messageRow.find('.fa-envelope-open').attr('title', 'Read');
+    messageRow.css('opacity', '0.85');
+}
+
 // Mark message as read when viewed
 function markMessageAsRead(messageId) {
     $.post(`/api/messages/netmail/${messageId}/read`)
         .done(function() {
-            // Update the UI to show message as read
-            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
-            if (messageRow.length) {
-                messageRow.removeClass('table-light');
-                // Change envelope icon from closed to open
-                messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('far fa-envelope-open text-muted');
-                // Remove bold formatting from subject
-                messageRow.find('strong').contents().unwrap();
-                // Update title attribute
-                messageRow.find('.fa-envelope-open').attr('title', 'Read');
-                // Reduce opacity slightly to show as read
-                messageRow.css('opacity', '0.85');
-            }
+            applyNetmailReadStyle(messageId);
         })
         .fail(function() {
             console.log('Failed to mark netmail as read');
@@ -1724,6 +2095,16 @@ function deleteSelectedMessages() {
     }
 
     const messageIds = Array.from(selectedMessages);
+
+    const savedCount = messageIds.filter(id => {
+        const msg = currentMessages.find(m => Number(m.id) === Number(id));
+        return msg && Number(msg.is_saved) === 1;
+    }).length;
+    if (savedCount > 0) {
+        if (!confirm(uiT('ui.netmail.bulk_delete.saved_confirm', `{count} of the selected messages are saved. Are you sure you want to delete them?`, { count: savedCount }))) {
+            return;
+        }
+    }
 
     $.ajax({
         url: '/api/messages/netmail/bulk-delete',

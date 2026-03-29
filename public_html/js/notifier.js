@@ -2,11 +2,15 @@
     let chatUnreadTotal = 0;
     let mailUnreadTotal = 0;
     let filesUnread = false;
+    let fileApprovalsUnread = false;
     let chatUnread = false;
+    let mrcUnread = false;
     let mailUnread = { netmail: false, echomail: false };
     let initialized = false;
     let pollInterval = null;
     let audioUnlocked = false;
+    let lastChatSoundAt = 0;
+    const CHAT_SOUND_COOLDOWN_MS = 3000; // 3 s — standard notification debounce (Discord/Slack/IRC)
     const audioCache = new Map();
     let previousStats = {
         unread_netmail: 0,
@@ -97,6 +101,31 @@
         }
     }
 
+    function maybeChatSound() {
+        if (isPathMatch('/chat')) {
+            return;
+        }
+        if (!audioUnlocked) {
+            return;
+        }
+        const now = Date.now();
+        if (now - lastChatSoundAt < CHAT_SOUND_COOLDOWN_MS) {
+            return;
+        }
+        try {
+            const sharedLastSoundAt = parseInt(UserStorage.getItem('chatSoundAt') || '0', 10) || 0;
+            if (now - sharedLastSoundAt < CHAT_SOUND_COOLDOWN_MS) {
+                lastChatSoundAt = now;
+                return;
+            }
+            UserStorage.setItem('chatSoundAt', String(now));
+        } catch (_) {
+            // Ignore storage errors and fall back to per-tab cooldown only.
+        }
+        lastChatSoundAt = now;
+        playNotificationSound('chat');
+    }
+
     function maybePlayNotificationSounds(stats, suppressSounds = false) {
         const currentStats = {
             unread_netmail: parseInt(stats?.unread_netmail || 0, 10) || 0,
@@ -107,7 +136,7 @@
 
         if (!suppressSounds && audioUnlocked) {
             if (currentStats.chat_total > previousStats.chat_total) {
-                playNotificationSound('chat');
+                maybeChatSound();
             }
             if (currentStats.new_echomail > previousStats.new_echomail) {
                 playNotificationSound('echomail');
@@ -135,16 +164,27 @@
 
     function updateFileIcon(stats, clearTarget = null) {
         const fileMenuIcons = document.querySelectorAll('.file-menu-icon');
+        const fileMenuParentLinks = document.querySelectorAll('.file-menu-parent-link');
         const fileMenuLinks = document.querySelectorAll('.file-menu-link');
+        const fileApprovalLinks = document.querySelectorAll('.file-approvals-menu-link');
         const newFiles = parseInt(stats?.new_files || 0, 10) || 0;
-        filesUnread = newFiles > 0;
+        const pendingApprovals = parseInt(stats?.pending_file_approvals || 0, 10) || 0;
 
-        if (clearTarget === 'files') {
+        filesUnread = newFiles > 0;
+        fileApprovalsUnread = pendingApprovals > 0;
+
+        if (clearTarget === 'files' || isPathMatch('/files')) {
             filesUnread = false;
         }
+        if (clearTarget === 'file-approvals' || isPathMatch('/admin/file-approvals')) {
+            fileApprovalsUnread = false;
+        }
 
-        fileMenuIcons.forEach((icon) => icon.classList.toggle('unread', filesUnread));
+        const fileIconUnread = filesUnread || fileApprovalsUnread;
+        fileMenuIcons.forEach((icon) => icon.classList.toggle('unread', fileIconUnread));
+        fileMenuParentLinks.forEach((link) => link.classList.toggle('unread', fileIconUnread));
         fileMenuLinks.forEach((link) => link.classList.toggle('unread', filesUnread));
+        fileApprovalLinks.forEach((link) => link.classList.toggle('unread', fileApprovalsUnread));
     }
 
     function updateChatIcons() {
@@ -156,6 +196,15 @@
             menuIcons.forEach((icon) => icon.classList.remove('unread'));
         }
         updateMessagingIcon();
+    }
+
+    function updateMrcIcons() {
+        const menuIcons = document.querySelectorAll('.mrc-menu-icon');
+        if (mrcUnread) {
+            menuIcons.forEach((icon) => icon.classList.add('unread'));
+        } else {
+            menuIcons.forEach((icon) => icon.classList.remove('unread'));
+        }
     }
 
     function updateCreditBalance(stats) {
@@ -185,7 +234,7 @@
         mailUnread.netmail = netmailUnread > 0;
         mailUnread.echomail = echomailUnread > 0;
 
-        if (clearTarget === 'netmail') {
+        if (clearTarget === 'netmail' || isPathMatch('/netmail')) {
             mailUnread.netmail = false;
         }
         if (clearTarget === 'echomail') {
@@ -225,7 +274,7 @@
                 updateMailIcons(data, clearTarget);
                 updateFileIcon(data, clearTarget);
 
-                if (clearTarget === 'chat') {
+                if (clearTarget === 'chat' || isPathMatch('/chat')) {
                     chatUnread = false;
                 }
 
@@ -277,28 +326,134 @@
             updateChatIcons();
             await markSeen('chat', stats.chat_max_id ?? 0);
         }
+        if (isPathMatch('/games/mrc')) {
+            mrcUnread = false;
+            updateMrcIcons();
+        }
         if (isPathMatch('/netmail')) {
             await markSeen('netmail', stats.total_netmail);
             await refreshMailState('netmail', true);
-        } else if (isPathMatch('/echomail')) {
+        } else if (isPathMatch('/echomail') || isPathMatch('/echolist')) {
             await markSeen('echomail', stats.total_echomail);
             await refreshMailState('echomail', true);
         } else if (isPathMatch('/files')) {
             await markSeen('files', stats.files_max_id ?? 0);
             await refreshMailState('files', true);
+        } else if (isPathMatch('/admin/file-approvals')) {
+            await markSeen('file-approvals', stats.pending_files_max_id ?? 0);
+            await refreshMailState('file-approvals', true);
         }
         if (isPathMatch('/chat')) {
             await refreshMailState('chat', true);
         }
-        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/files')) {
+        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files') && !isPathMatch('/admin/file-approvals') && !isPathMatch('/chat')) {
             refreshMailState(null, true);
         }
 
-        // Clear any existing interval and create new one
-        if (pollInterval) {
-            clearInterval(pollInterval);
+        // Polling is disabled — BinkStream delivers all events in real-time.
+        // dashboard_stats fires on echomail/netmail/files INSERT; chat_message fires on chat INSERT.
+        // Re-enable by uncommenting the lines below if BinkStream is unavailable.
+        // if (pollInterval) { clearInterval(pollInterval); }
+        // pollInterval = setInterval(refreshMailState, 30000);
+
+        if (window.BinkStream) {
+            // Real-time chat sound — fires immediately on message arrival.
+            // Incrementing previousStats.chat_total prevents the dashboard_stats
+            // event (which also fires on chat INSERT via the chat trigger) from
+            // double-firing a sound for the same message.
+            window.BinkStream.on('chat_message', function () {
+                previousStats.chat_total++;
+                if (!isPathMatch('/chat')) {
+                    chatUnread = true;
+                    updateChatIcons();
+                }
+                maybeChatSound();
+            });
+
+            window.BinkStream.on('mrc_message', function (data) {
+                if (isPathMatch('/games/mrc')) {
+                    return;
+                }
+                // Suppress badge for messages already seen in the MRC window.
+                // mrc.js writes the highest rendered mrc_messages.id to UserStorage
+                // so replayed BinkStream events for already-seen messages are ignored.
+                // Only notify for private (direct) messages, not room messages.
+                if (!data || !data.is_private) {
+                    return;
+                }
+                // Suppress badge for messages already seen in the MRC window.
+                // mrc.js writes the highest rendered mrc_messages.id to UserStorage
+                // so replayed BinkStream events for already-seen messages are ignored.
+                const lastSeen = parseInt(UserStorage.getItem('mrc_last_seen_id') || '0', 10);
+                if (data.id && data.id <= lastSeen) {
+                    return;
+                }
+                mrcUnread = true;
+                updateMrcIcons();
+                maybeChatSound();
+            });
+
+            // Refresh badges when mail changes or when legacy insert-based
+            // file events arrive. Separate file-specific events handle
+            // approval transitions that do not INSERT new rows.
+            let _dashboardStatsTimer = null;
+            const scheduleRefresh = function (delayMs = 1000) {
+                clearTimeout(_dashboardStatsTimer);
+                _dashboardStatsTimer = setTimeout(refreshMailState, delayMs);
+            };
+
+            window.BinkStream.on('dashboard_stats', function () {
+                scheduleRefresh(2000);
+            });
+            window.BinkStream.on('files_changed', function () {
+                scheduleRefresh(500);
+            });
+            window.BinkStream.on('file_approvals_changed', function () {
+                scheduleRefresh(500);
+            });
         }
-        pollInterval = setInterval(refreshMailState, 30000);
+    }
+
+    function showWallMessage(from, message) {
+        var modalId = 'wallMessageModal';
+        var existing = document.getElementById(modalId);
+        if (existing) { existing.remove(); }
+
+        var escaped = function (str) {
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(str));
+            return d.innerHTML;
+        };
+
+        var html = [
+            '<div class="modal fade" id="' + modalId + '" tabindex="-1" aria-labelledby="wallMessageModalLabel" aria-modal="true" role="dialog">',
+            '  <div class="modal-dialog modal-dialog-centered">',
+            '    <div class="modal-content">',
+            '      <div class="modal-header">',
+            '        <h5 class="modal-title" id="wallMessageModalLabel">',
+            '          <i class="fas fa-bullhorn me-2"></i>',
+            window.t ? window.t('ui.admin.wall.incoming', { from: escaped(from) }, 'Incoming message from ' + escaped(from)) : ('Incoming message from ' + escaped(from)),
+            '        </h5>',
+            '        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>',
+            '      </div>',
+            '      <div class="modal-body">',
+            '        <p class="mb-0">' + escaped(message) + '</p>',
+            '      </div>',
+            '      <div class="modal-footer">',
+            '        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">',
+            window.t ? window.t('ui.common.close', {}, 'Close') : 'Close',
+            '        </button>',
+            '      </div>',
+            '    </div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        var el = document.getElementById(modalId);
+        el.addEventListener('hidden.bs.modal', function () { el.remove(); });
+        var modal = new bootstrap.Modal(el);
+        modal.show();
     }
 
     // Listen for postMessage events from WebDoors (credit updates, etc.)
@@ -331,6 +486,18 @@
             creditBalanceElement.textContent = symbol + Math.floor(credits);
         }
     });
+
+    // Register the wall_message listener immediately — do NOT wait for the async
+    // init() to complete. Events can arrive as soon as BinkStream connects, and
+    // any event that arrives before a listener is registered is silently dropped.
+    // Registering here (synchronously, at script-parse time) ensures the handler
+    // is in place before the first SSE event can be dispatched to this page.
+    if (window.BinkStream) {
+        window.BinkStream.on('wall_message', function (data) {
+            if (!data || !data.from) { return; }
+            showWallMessage(data.from, data.message || '');
+        });
+    }
 
     document.addEventListener('DOMContentLoaded', init);
 })();

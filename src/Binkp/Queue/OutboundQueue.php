@@ -293,18 +293,19 @@ class OutboundQueue
                 // Check for reasonable message type values
                 if ($type === 2) { // FTS-0001 stored message type
                     $messageCount++;
-                    
-                    // Skip message header
-                    $msgHeader = fread($handle, 14);
-                    if (strlen($msgHeader) < 14) break;
-                    
-                    // Skip null-terminated strings safely
-                    if (!$this->skipNullString($handle, 20)) break; // Date/time
-                    if (!$this->skipNullString($handle, 36)) break; // To name
-                    if (!$this->skipNullString($handle, 36)) break; // From name
-                    if (!$this->skipNullString($handle, 72)) break; // Subject
-                    
-                    // Skip message text safely
+
+                    // Skip fixed-size message header fields (FTS-0001):
+                    // 14 bytes: orig/dest node, net, attr, cost
+                    // 20 bytes: date/time string (fixed width, null-padded)
+                    // 36 bytes: to name (fixed width, null-padded)
+                    // 36 bytes: from name (fixed width, null-padded)
+                    // 72 bytes: subject (fixed width, null-padded)
+                    // These fields are fixed size regardless of where the null terminator falls,
+                    // so read them with fread rather than scanning for nulls.
+                    $fixedHeader = fread($handle, 14 + 20 + 36 + 36 + 72);
+                    if (strlen($fixedHeader) < 14 + 20 + 36 + 36 + 72) break;
+
+                    // Skip message body (variable length, null-terminated)
                     $textBytes = 0;
                     while (($char = fread($handle, 1)) !== false && $char !== '' && ord($char) !== 0) {
                         $textBytes++;
@@ -391,22 +392,6 @@ class OutboundQueue
             'origZone' => $zones['origZone'] ?? 0,
             'destZone' => $zones['destZone'] ?? 0,
         ];
-    }
-    
-    private function skipNullString($handle, $maxLen)
-    {
-        $count = 0;
-        while ($count < $maxLen) {
-            $char = fread($handle, 1);
-            if ($char === false) {
-                return false; // Read error
-            }
-            if (ord($char) === 0) {
-                return true; // Found null terminator
-            }
-            $count++;
-        }
-        return true; // Reached max length
     }
     
     public function deleteOutboundFile($filename)

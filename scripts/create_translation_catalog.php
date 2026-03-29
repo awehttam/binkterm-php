@@ -8,6 +8,8 @@ chdir(__DIR__ . '/../');
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
+use BinktermPHP\AI\AiRequest;
+use BinktermPHP\AI\AiService;
 use BinktermPHP\Config;
 
 const SOURCE_LOCALE          = 'en';
@@ -77,24 +79,16 @@ function main(array $argv): void
         exit(1);
     }
 
-    if ($provider === 'claude') {
-        $apiKey  = trim((string)Config::env('ANTHROPIC_API_KEY', ''));
-        if ($apiKey === '') {
-            fwrite(STDERR, "Error: ANTHROPIC_API_KEY is required for the Claude provider.\n");
-            exit(1);
-        }
-        $apiBase = rtrim((string)Config::env('ANTHROPIC_API_BASE', 'https://api.anthropic.com/v1'), '/');
-    } else {
-        $apiKey  = trim((string)Config::env('OPENAI_API_KEY', ''));
-        if ($apiKey === '') {
-            fwrite(STDERR, "Error: OPENAI_API_KEY is required for the OpenAI provider.\n");
-            exit(1);
-        }
-        $apiBase = rtrim((string)Config::env('OPENAI_API_BASE', 'https://api.openai.com/v1'), '/');
-    }
-
     $defaultModel = $provider === 'claude' ? DEFAULT_CLAUDE_MODEL : DEFAULT_OPENAI_MODEL;
     $model = trim((string)($options['model'] ?? $defaultModel));
+    $aiService = AiService::create();
+    $resolvedProvider = $provider === 'claude' ? 'anthropic' : $provider;
+
+    if (!in_array($resolvedProvider, $aiService->getConfiguredProviders(), true)) {
+        $envKey = $provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+        fwrite(STDERR, "Error: {$envKey} is required for the {$provider} provider.\n");
+        exit(1);
+    }
 
     $namespaces = normalizeNamespaces((string)($options['namespaces'] ?? 'common,errors,terminalserver'));
     if ($namespaces === []) {
@@ -129,16 +123,15 @@ function main(array $argv): void
             $entries,
             $locale,
             $language,
-            $model,
-            $apiBase,
-            $apiKey,
             $provider,
+            $model,
             $batchSize,
             $timeout,
             $retries,
             $pauseMs,
             $validationWarnings,
-            $namespace
+            $namespace,
+            $aiService
         );
 
         if ($dryRun) {
@@ -288,16 +281,15 @@ function translateCatalog(
     array $entries,
     string $locale,
     string $language,
-    string $model,
-    string $apiBase,
-    string $apiKey,
     string $provider,
+    string $model,
     int $batchSize,
     int $timeout,
     int $retries,
     int $pauseMs,
     array &$validationWarnings,
-    string $namespace
+    string $namespace,
+    AiService $aiService
 ): array {
     $result = [];
     $keys = array_keys($entries);
@@ -325,11 +317,11 @@ function translateCatalog(
                     $batchEntries,
                     $locale,
                     $language,
-                    $model,
-                    $apiBase,
-                    $apiKey,
                     $provider,
-                    $timeout
+                    $model,
+                    $timeout,
+                    $namespace,
+                    $aiService
                 );
                 break;
             } catch (RuntimeException $e) {
@@ -376,83 +368,33 @@ function requestBatchTranslation(
     array $entries,
     string $locale,
     string $language,
-    string $model,
-    string $apiBase,
-    string $apiKey,
     string $provider,
-    int $timeout
-): array {
-    if ($provider === 'claude') {
-        return requestClaudeBatchTranslation($entries, $locale, $language, $model, $apiBase, $apiKey, $timeout);
-    }
-    return requestOpenAIBatchTranslation($entries, $locale, $language, $model, $apiBase, $apiKey, $timeout);
-}
-
-/**
- * @param array<int, array{key:string,text:string}> $entries
- * @return array<string, string>
- */
-function requestOpenAIBatchTranslation(
-    array $entries,
-    string $locale,
-    string $language,
     string $model,
-    string $apiBase,
-    string $apiKey,
-    int $timeout
+    int $timeout,
+    string $namespace,
+    AiService $aiService
 ): array {
-    $payload = [
-        'model'           => $model,
-        'temperature'     => 0.2,
-        'response_format' => ['type' => 'json_object'],
-        'messages'        => [
-            ['role' => 'system', 'content' => buildSystemPrompt($language, $locale)],
-            ['role' => 'user',   'content' => json_encode(['entries' => $entries], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
-        ],
-    ];
+    $resolvedProvider = $provider === 'claude' ? 'anthropic' : $provider;
+    $request = new AiRequest(
+        'translation_catalog',
+        buildSystemPrompt($language, $locale),
+        json_encode(['entries' => $entries], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{"entries":[]}',
+        $resolvedProvider,
+        $model,
+        0.2,
+        8096,
+        $timeout,
+        null,
+        [
+            'locale' => $locale,
+            'language' => $language,
+            'namespace' => $namespace,
+            'batch_size' => count($entries),
+        ]
+    );
 
-    $headers = [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $apiKey,
-    ];
-
-    $response = httpPostJson($apiBase . '/chat/completions', $payload, $headers, $timeout);
-    $content  = extractOpenAIContent($response);
-    return decodeTranslations($content, $entries);
-}
-
-/**
- * @param array<int, array{key:string,text:string}> $entries
- * @return array<string, string>
- */
-function requestClaudeBatchTranslation(
-    array $entries,
-    string $locale,
-    string $language,
-    string $model,
-    string $apiBase,
-    string $apiKey,
-    int $timeout
-): array {
-    $payload = [
-        'model'      => $model,
-        'max_tokens' => 8096,
-        'temperature' => 0.2,
-        'system'     => buildSystemPrompt($language, $locale),
-        'messages'   => [
-            ['role' => 'user', 'content' => json_encode(['entries' => $entries], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
-        ],
-    ];
-
-    $headers = [
-        'Content-Type: application/json',
-        'x-api-key: ' . $apiKey,
-        'anthropic-version: 2023-06-01',
-    ];
-
-    $response = httpPostJson($apiBase . '/messages', $payload, $headers, $timeout);
-    $content  = extractClaudeContent($response);
-    return decodeTranslations($content, $entries);
+    $response = $aiService->generateJson($request);
+    return decodeTranslationsFromObject($response->getParsedJson(), $entries);
 }
 
 /**
@@ -461,9 +403,8 @@ function requestClaudeBatchTranslation(
  * @param array<int, array{key:string,text:string}> $entries
  * @return array<string, string>
  */
-function decodeTranslations(string $content, array $entries): array
+function decodeTranslationsFromObject(?array $decoded, array $entries): array
 {
-    $decoded = decodeJsonObject($content);
     if (!is_array($decoded)) {
         throw new RuntimeException('Model did not return a JSON object.');
     }
@@ -492,154 +433,6 @@ function buildSystemPrompt(string $language, string $locale): string
     ]);
 }
 
-/**
- * @param array<int, string>  $headers  Full HTTP header lines, e.g. ['Authorization: Bearer ...']
- * @return array<string, mixed>
- */
-function httpPostJson(string $url, array $payload, array $headers, int $timeout): array
-{
-    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($json === false) {
-        throw new RuntimeException('Failed to encode request JSON.');
-    }
-
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_POSTFIELDS     => $json,
-            CURLOPT_TIMEOUT        => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 20,
-        ]);
-
-        $raw       = curl_exec($ch);
-        $httpCode  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($raw === false) {
-            throw new RuntimeException('Network error: ' . $curlError);
-        }
-
-        return parseHttpResponse($raw, $httpCode);
-    }
-
-    // stream_context fallback (no curl)
-    $headerStr = implode("\r\n", $headers) . "\r\n";
-    $context   = stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => $headerStr,
-            'content' => $json,
-            'timeout' => $timeout,
-        ],
-    ]);
-
-    $raw = file_get_contents($url, false, $context);
-    if ($raw === false) {
-        throw new RuntimeException('Network error while calling API.');
-    }
-
-    $httpCode = 0;
-    if (isset($http_response_header) && is_array($http_response_header)) {
-        foreach ($http_response_header as $headerLine) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $headerLine, $m)) {
-                $httpCode = (int)$m[1];
-                break;
-            }
-        }
-    }
-
-    return parseHttpResponse($raw, $httpCode);
-}
-
-/**
- * @return array<string, mixed>
- */
-function parseHttpResponse(string $raw, int $httpCode): array
-{
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded)) {
-        throw new RuntimeException('API response was not valid JSON.');
-    }
-
-    if ($httpCode >= 400) {
-        $errBlock = $decoded['error'] ?? [];
-        $error    = is_array($errBlock) ? ($errBlock['message'] ?? 'Unknown API error') : (string)$errBlock;
-        throw new RuntimeException("API HTTP {$httpCode}: {$error}");
-    }
-
-    return $decoded;
-}
-
-/**
- * Extract text content from an OpenAI chat/completions response.
- *
- * @param array<string, mixed> $response
- */
-function extractOpenAIContent(array $response): string
-{
-    $content = $response['choices'][0]['message']['content'] ?? null;
-
-    if (is_string($content)) {
-        return $content;
-    }
-
-    if (is_array($content)) {
-        $parts = [];
-        foreach ($content as $item) {
-            if (is_array($item) && isset($item['text']) && is_string($item['text'])) {
-                $parts[] = $item['text'];
-            }
-        }
-        if (!empty($parts)) {
-            return implode("\n", $parts);
-        }
-    }
-
-    throw new RuntimeException('Missing assistant content in OpenAI API response.');
-}
-
-/**
- * Extract text content from a Claude messages API response.
- *
- * @param array<string, mixed> $response
- */
-function extractClaudeContent(array $response): string
-{
-    if (isset($response['content']) && is_array($response['content'])) {
-        foreach ($response['content'] as $block) {
-            if (is_array($block) && ($block['type'] ?? '') === 'text' && is_string($block['text'])) {
-                return $block['text'];
-            }
-        }
-    }
-
-    throw new RuntimeException('Missing content in Claude API response.');
-}
-
-/**
- * @return array<string, mixed>|null
- */
-function decodeJsonObject(string $content): ?array
-{
-    $decoded = json_decode(trim($content), true);
-    if (is_array($decoded)) {
-        return $decoded;
-    }
-
-    $start = strpos($content, '{');
-    $end = strrpos($content, '}');
-    if ($start === false || $end === false || $end <= $start) {
-        return null;
-    }
-
-    $jsonSlice = substr($content, $start, $end - $start + 1);
-    $decoded = json_decode($jsonSlice, true);
-    return is_array($decoded) ? $decoded : null;
-}
 
 /**
  * @return array{0:bool,1:string}

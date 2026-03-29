@@ -249,15 +249,20 @@ class BbsSession
             // SSH: already authenticated at the protocol layer
             $loginResult = $this->preAuthSession;
         } else {
+            $showQwkTransfer = BbsConfig::isFeatureEnabled('qwk');
             while ($loginResult === null) {
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (R) Register new account', [], $state['locale']));
+                if ($showQwkTransfer) {
+                    $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.qwk_transfer', '  (K) QWK transfer', [], $state['locale']));
+                }
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.quit',    '  (Q) Quit', [], $state['locale']));
                 $this->writeLine($conn, '');
                 $choice = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login_menu.choice', 'Your choice: ', [], $state['locale']), true);
+                $normalizedChoice = strtolower(trim((string)$choice));
 
-                if ($choice === null || strtolower(trim($choice)) === 'q') {
+                if ($choice === null || $normalizedChoice === 'q') {
                     $this->writeLine($conn, $this->colorize(
                         $this->t('ui.terminalserver.server.goodbye', 'Goodbye!', [], $state['locale']),
                         self::ANSI_CYAN
@@ -267,7 +272,7 @@ class BbsSession
                     return;
                 }
 
-                if (strtolower(trim($choice)) === 'r') {
+                if ($normalizedChoice === 'r') {
                     $registered = $this->attemptRegistration($conn, $state);
                     if ($registered) {
                         $this->writeLine($conn, $this->t('ui.terminalserver.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
@@ -280,6 +285,16 @@ class BbsSession
                     continue;
                 }
 
+                $qwkTransferMode = $showQwkTransfer && $normalizedChoice === 'k';
+                if ($normalizedChoice !== 'l' && !$qwkTransferMode) {
+                    $this->writeLine($conn, $this->colorize(
+                        $this->t('ui.terminalserver.server.login_menu.invalid_choice', 'Invalid selection.', [], $state['locale']),
+                        self::ANSI_RED
+                    ));
+                    $this->writeLine($conn, '');
+                    continue;
+                }
+
                 $this->writeLine($conn, '');
                 $maxAttempts = 3;
                 for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
@@ -287,6 +302,7 @@ class BbsSession
                     $loginResult = $this->attemptLogin($conn, $state, $attemptedUsername);
 
                     if ($loginResult !== null) {
+                        $loginResult['qwk_transfer_mode'] = $qwkTransferMode;
                         $this->writeLine($conn, $this->colorize(
                             $this->t('ui.terminalserver.server.login.success', 'Login successful.', [], $state['locale']),
                             self::ANSI_GREEN
@@ -337,6 +353,7 @@ class BbsSession
         $state['user_timezone']   = $settings['timezone']    ?? 'UTC';
         $state['user_date_format']= $settings['date_format'] ?? 'Y-m-d H:i:s';
         $state['username']        = $username;
+        $state['qwk_transfer_mode'] = !empty($loginResult['qwk_transfer_mode']);
         $userLocale = $settings['locale'] ?? '';
         if ($userLocale !== '' && $this->translator->isSupportedLocale($userLocale)) {
             $state['locale'] = $userLocale;
@@ -345,6 +362,7 @@ class BbsSession
         $auth       = new \BinktermPHP\Auth();
         $userRecord = $auth->validateSession($session);
         $state['is_admin'] = !empty($userRecord['is_admin']);
+        $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
 
         $this->clearFailedLogins($peerIp);
 
@@ -362,23 +380,49 @@ class BbsSession
         $config = BinkpConfig::getInstance();
         $this->setTerminalTitle($conn, $config->getSystemName());
 
-        $netmailHandler  = new NetmailHandler($this, $this->apiBase);
-        $echomailHandler = new EchomailHandler($this, $this->apiBase);
-        $shoutboxHandler = new ShoutboxHandler($this, $this->apiBase);
-        $pollsHandler    = new PollsHandler($this, $this->apiBase);
-        $doorHandler     = new DoorHandler($this, $this->apiBase);
-        $fileHandler     = new FileHandler($this, $this->apiBase, $this->isSsh);
+        $netmailHandler    = new NetmailHandler($this, $this->apiBase);
+        $echomailHandler   = new EchomailHandler($this, $this->apiBase);
+        $shoutboxHandler   = new ShoutboxHandler($this, $this->apiBase);
+        $pollsHandler      = new PollsHandler($this, $this->apiBase);
+        $doorHandler       = new DoorHandler($this, $this->apiBase);
+        $fileHandler       = new FileHandler($this, $this->apiBase, $this->isSsh);
+        $interestsHandler  = new InterestsHandler($this, $this->apiBase);
+        $qwkHandler        = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
 
         // Load saved terminal settings and apply them to the session
         $terminalSettingsHandler = new TerminalSettingsHandler($this, $this->apiBase);
         $terminalSettingsHandler->loadSettings($conn, $state, $session);
 
         // Run first-time detection wizard if no terminal settings have been saved yet
-        if (($state['terminal_charset'] ?? null) === null) {
+        if (($state['terminal_charset'] ?? null) === null && empty($state['qwk_transfer_mode'])) {
             $terminalSettingsHandler->runDetectionWizard($conn, $state, $session);
         }
 
+        if (!empty($state['qwk_transfer_mode'])) {
+            $this->log("Menu: {$username} -> QWK Offline Mail (direct)");
+            $logoutRequested = $qwkHandler->show($conn, $state, $session, true);
+            if ($logoutRequested) {
+                $this->logoutSession($session);
+            }
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t('ui.terminalserver.server.goodbye', 'Goodbye!', [], $state['locale']),
+                self::ANSI_CYAN
+            ));
+            if (is_resource($conn)) { fflush($conn); }
+            $this->logDuration("Logout", $username, $loginTime);
+            $this->setTerminalTitle($conn, '');
+            fclose($conn);
+            if ($forked) { exit(0); }
+            return;
+        }
+
+        $this->showSystemNews($conn, $state);
         $shoutboxHandler->show($conn, $state, $session, 5, false);
+
+        if (Config::env('ENABLE_INTERESTS') === 'true') {
+            $interestsHandler->showOnboardingHintIfNeeded($conn, $state, $session);
+        }
 
         $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
 
@@ -431,11 +475,13 @@ class BbsSession
                 $this->writeLine($conn, $menuPad . $titleLine);
                 $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
 
-                $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
-                $showPolls    = BbsConfig::isFeatureEnabled('voting_booth');
-                $showDoors    = BbsConfig::isFeatureEnabled('webdoors');
-                $showFiles    = \BinktermPHP\FileAreaManager::isFeatureEnabled();
-                $locale       = $state['locale'];
+                $showShoutbox   = BbsConfig::isFeatureEnabled('shoutbox');
+                $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
+                $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
+                $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
+                $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
+                $showQwk        = BbsConfig::isFeatureEnabled('qwk');
+                $locale         = $state['locale'];
 
                 $o = $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
                 $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('N', $o, $menuWidth, $state));
@@ -447,6 +493,8 @@ class BbsSession
                 $pollsOption      = null;
                 $doorsOption      = null;
                 $filesOption      = null;
+                $interestsOption  = null;
+                $qwkOption        = null;
                 $whosOnlineOption = 'w';
 
                 $o = $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
@@ -461,6 +509,16 @@ class BbsSession
                     $o = $this->t('ui.terminalserver.server.menu.polls', 'P) Polls', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('P', $o, $menuWidth, $state));
                     $pollsOption = 'p';
+                }
+                if ($showInterests) {
+                    $o = $this->t('ui.terminalserver.server.menu.interests', 'I) Interests', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('I', $o, $menuWidth, $state));
+                    $interestsOption = 'i';
+                }
+                if ($showQwk) {
+                    $o = $this->t('ui.terminalserver.server.menu.qwk', 'K) QWK Offline Mail', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('K', $o, $menuWidth, $state));
+                    $qwkOption = 'k';
                 }
                 if ($showDoors) {
                     $o = $this->t('ui.terminalserver.server.menu.doors', 'D) Door Games', [], $locale);
@@ -506,7 +564,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d','f','t'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','p','w','d','f','t','i','k'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -528,6 +586,12 @@ class BbsSession
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);
+            } elseif (!empty($interestsOption) && $choice === $interestsOption) {
+                $this->log("Menu: {$username} -> Interests");
+                $interestsHandler->show($conn, $state, $session);
+            } elseif (!empty($qwkOption) && $choice === $qwkOption) {
+                $this->log("Menu: {$username} -> QWK Offline Mail");
+                $qwkHandler->show($conn, $state, $session);
             } elseif (!empty($doorsOption) && $choice === $doorsOption) {
                 $this->log("Menu: {$username} -> Door Games");
                 $doorHandler->show($conn, $state, $session);
@@ -823,6 +887,16 @@ class BbsSession
             'l_tee' => '╠',
             'r_tee' => '╣',
         ];
+    }
+
+    /**
+     * Public wrapper so helper classes can reuse the terminal's frame glyphs.
+     *
+     * @return array{h:string,h_bold:string,v:string,tl:string,tr:string,bl:string,br:string,l_tee:string,r_tee:string}
+     */
+    public function getTerminalLineDrawingChars(): array
+    {
+        return $this->getLineDrawingChars();
     }
 
     /**
@@ -1309,6 +1383,36 @@ class BbsSession
             self::ANSI_YELLOW
         ));
         $this->readKeyWithIdleCheck($conn, $state);
+    }
+
+    /**
+     * Show system news from data/systemnews.md before entering the shoutbox.
+     */
+    private function showSystemNews($conn, array &$state): void
+    {
+        $markdown = \BinktermPHP\AppearanceConfig::getSystemNewsMarkdown();
+        if ($markdown === null || trim($markdown) === '') {
+            return;
+        }
+
+        $cols = max(40, (int)($state['cols'] ?? 80));
+        $contentWidth = max(20, min($cols - 8, 92) - 4);
+        $lines = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
+        if (!$this->ansiColorEnabled) {
+            $lines = array_map(
+                static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
+                $lines
+            );
+        }
+
+        $boxRenderer = new TerminalBoxRenderer($this);
+        $boxRenderer->showPagedBox(
+            $conn,
+            $state,
+            'SYSTEM NEWS',
+            $lines,
+            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale'])
+        );
     }
 
     // ===== AUTHENTICATION =====
@@ -2084,6 +2188,23 @@ class BbsSession
     {
         $duration = time() - $loginTime;
         $this->log("{$event}: {$username} (session duration: " . floor($duration / 60) . "m " . ($duration % 60) . "s)");
+    }
+
+    /**
+     * Explicitly invalidate the authenticated session.
+     */
+    private function logoutSession(string $sessionId): void
+    {
+        if ($sessionId === '') {
+            return;
+        }
+
+        try {
+            $auth = new \BinktermPHP\Auth();
+            $auth->logout($sessionId);
+        } catch (\Throwable $e) {
+            $this->log('Logout failed for terminal session: ' . $e->getMessage());
+        }
     }
 }
 

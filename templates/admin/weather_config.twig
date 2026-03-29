@@ -37,8 +37,13 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="weatherApiKey">{{ t('ui.admin.weather_config.api_key') }}</label>
-                        <input type="text" class="form-control font-monospace" id="weatherApiKey" maxlength="200"
-                               placeholder="{{ t('ui.admin.weather_config.api_key_placeholder') }}" autocomplete="off">
+                        <div class="input-group">
+                            <input type="password" class="form-control font-monospace" id="weatherApiKey" maxlength="200"
+                                   placeholder="{{ t('ui.admin.weather_config.api_key_placeholder') }}" autocomplete="off">
+                            <button class="btn btn-outline-secondary" type="button" id="toggleApiKeyBtn" onclick="toggleApiKeyVisibility()">
+                                {{ t('ui.admin.weather_config.show_api_key') }}
+                            </button>
+                        </div>
                         <div class="form-text">
                             {{ t('ui.admin.weather_config.api_key_help') }}
                             <a href="https://openweathermap.org/api" target="_blank" rel="noopener">OpenWeatherMap</a>.
@@ -94,6 +99,9 @@
                 <button type="button" class="btn btn-outline-secondary d-none" id="loadExampleBtn" onclick="loadExample()">
                     <i class="fas fa-file-import me-1"></i>{{ t('ui.admin.weather_config.load_example') }}
                 </button>
+                <button type="button" class="btn btn-outline-secondary" id="previewWeatherBtn" onclick="previewWeatherReport()">
+                    <i class="fas fa-eye me-1"></i>{{ t('ui.admin.weather_config.preview') }}
+                </button>
                 <button type="button" class="btn btn-primary ms-auto" id="saveWeatherBtn" onclick="saveWeatherConfig()">
                     <i class="fas fa-save me-1"></i>{{ t('ui.admin.weather_config.save') }}
                 </button>
@@ -139,13 +147,30 @@
     </div>
 </div>
 
+<!-- Weather Preview Modal -->
+<div class="modal fade" id="weatherPreviewModal" tabindex="-1" aria-labelledby="weatherPreviewModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="weatherPreviewModalTitle">{{ t('ui.admin.weather_config.preview_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="weatherPreviewContent" class="mb-0" style="white-space: pre-wrap;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let locations = [];
 let locationModal = null;
+let previewModal = null;
 let exampleConfig = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     locationModal = new bootstrap.Modal(document.getElementById('locationModal'));
+    previewModal = new bootstrap.Modal(document.getElementById('weatherPreviewModal'));
     loadWeatherConfig();
 });
 
@@ -269,12 +294,8 @@ function removeLocation(index) {
     renderLocations();
 }
 
-function saveWeatherConfig() {
-    const btn = document.getElementById('saveWeatherBtn');
-    const alertEl = document.getElementById('weatherAlert');
-    alertEl.innerHTML = '';
-
-    const config = {
+function buildWeatherConfigPayload() {
+    return {
         title:         document.getElementById('weatherTitle').value.trim(),
         coverage_area: document.getElementById('weatherCoverageArea').value.trim(),
         api_key:       document.getElementById('weatherApiKey').value.trim(),
@@ -285,6 +306,46 @@ function saveWeatherConfig() {
             units:         document.getElementById('weatherUnits').value,
         },
     };
+}
+
+function previewWeatherReport() {
+    const btn = document.getElementById('previewWeatherBtn');
+    const pre = document.getElementById('weatherPreviewContent');
+
+    btn.disabled = true;
+    pre.textContent = window.t('ui.admin.weather_config.preview_loading', {}, '{{ t('ui.admin.weather_config.preview_loading') }}');
+    previewModal.show();
+
+    fetch('/admin/api/weather-config/preview', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.csrfToken || ''
+        },
+        body: JSON.stringify(buildWeatherConfigPayload()),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && typeof data.report === 'string') {
+            pre.textContent = data.report;
+            return;
+        }
+
+        const fallback = window.t('ui.admin.weather_config.preview_failed', {}, '{{ t('ui.admin.weather_config.preview_failed') }}');
+        pre.textContent = data.message
+            ? `${fallback}\n\n${data.message}`
+            : window.getApiErrorMessage(data, fallback);
+    })
+    .catch(() => {
+        pre.textContent = window.t('ui.admin.weather_config.preview_error', {}, '{{ t('ui.admin.weather_config.preview_error') }}');
+    })
+    .finally(() => { btn.disabled = false; });
+}
+
+function saveWeatherConfig() {
+    const btn = document.getElementById('saveWeatherBtn');
+    const alertEl = document.getElementById('weatherAlert');
+    alertEl.innerHTML = '';
 
     btn.disabled = true;
     fetch('/admin/api/weather-config', {
@@ -293,7 +354,7 @@ function saveWeatherConfig() {
             'Content-Type': 'application/json',
             'X-CSRF-Token': window.csrfToken || ''
         },
-        body: JSON.stringify(config),
+        body: JSON.stringify(buildWeatherConfigPayload()),
     })
     .then(r => r.json())
     .then(data => {
@@ -310,6 +371,16 @@ function saveWeatherConfig() {
         alertEl.innerHTML = `<div class="alert alert-danger">${window.t('ui.admin.weather_config.save_error', {}, '{{ t('ui.admin.weather_config.save_error') }}')}</div>`;
     })
     .finally(() => { btn.disabled = false; });
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('weatherApiKey');
+    const btn   = document.getElementById('toggleApiKeyBtn');
+    const show  = input.type === 'password';
+    input.type  = show ? 'text' : 'password';
+    btn.textContent = show
+        ? window.t('ui.admin.weather_config.hide_api_key', {}, '{{ t('ui.admin.weather_config.hide_api_key') }}')
+        : window.t('ui.admin.weather_config.show_api_key', {}, '{{ t('ui.admin.weather_config.show_api_key') }}');
 }
 
 function escapeHtml(s) {

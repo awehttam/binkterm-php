@@ -1,6 +1,7 @@
 /**
  * MRC Chat Client
- * Handles real-time chat interface with HTTP polling
+ * Handles real-time chat interface via BinkStream SSE events,
+ * with a simple interval-poll fallback for environments without SharedWorker.
  */
 
 // Required by ansisys.js parsePipeCodes (normally provided by app.js)
@@ -18,12 +19,10 @@ function escapeHtml(text) {
 class MrcClient {
     constructor() {
         this.joinedRoom = null;
-        this.viewedRoom = null;
         this.viewMode = 'room'; // room | private
         this.privateUser = null;
         this.pollTimer = null;
-        this.longPollActive = false;
-        this.longPollXhr = null;
+        this.binkStreamActive = false;
         this.lastRoomsPollAt = 0;
         this.lastMessageId = 0;
         this.lastPrivateMessageId = 0;
@@ -38,7 +37,6 @@ class MrcClient {
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
         this.localBbs = window.mrcCurrentBbs || null;
-        this.pollMode = localStorage.getItem('mrc_poll_mode') || 'simple'; // 'longpoll' | 'simple'
         this.missingPresenceCount = 0;
         this.inputHistory = [];
         this.historyIndex = -1;
@@ -46,7 +44,107 @@ class MrcClient {
         this.currentUsers = [];
         this.tabState = null; // { prefix, matches, index } while cycling
 
-        this.init();
+        this.initConnectScreen();
+    }
+
+    /**
+     * Wire the connect screen and decide whether to show it or auto-connect.
+     */
+    initConnectScreen() {
+        const savedHandle = UserStorage.getItem('mrc_handle');
+        if (savedHandle) {
+            $('#connect-username').val(savedHandle);
+        }
+
+        $('#connect-btn').on('click', () => {
+            const username = $('#connect-username').val();
+            const password = $('#connect-password').val();
+            this.connect(username, password);
+        });
+
+        $('#connect-username, #connect-password').on('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.connect($('#connect-username').val(), $('#connect-password').val());
+            }
+        });
+
+        // Auto-connect if a prior session was stored
+        if (UserStorage.getItem('mrc_session') === '1') {
+            this.connect($('#connect-username').val(), '', true);
+        }
+    }
+
+    /**
+     * Connect to MRC. If autoConnect is true the connect screen is never shown.
+     */
+    async connect(username = '', password = '', autoConnect = false) {
+        $('#connect-btn').prop('disabled', true).text('Connecting…');
+        $('#connect-error').addClass('d-none');
+
+        try {
+            const response = await $.ajax({
+                url: 'api.php?action=connect',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ username: username, password: password }),
+                dataType: 'json'
+            });
+
+            this.username = response.username || String(username || '').trim() || this.username;
+            UserStorage.setItem('mrc_session', '1');
+            UserStorage.setItem('mrc_handle', this.username || '');
+            $('#connect-username').val(this.username || '');
+            $('#mrc-connect-screen').addClass('d-none');
+            $('#mrc-app').removeClass('d-none');
+            this.init();
+            await this.sendCommand('motd', []);
+        } catch (error) {
+            $('#connect-btn').prop('disabled', false).text('Connect');
+            $('#connect-error')
+                .text('Connection failed. Please try again.')
+                .removeClass('d-none');
+        }
+    }
+
+    /**
+     * Disconnect from MRC, send LOGOFF, and return to the connect screen.
+     */
+    async disconnect() {
+        try {
+            await $.ajax({
+                url: 'api.php?action=disconnect',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({}),
+                dataType: 'json'
+            });
+        } catch (_) {}
+
+        this.resetSession();
+    }
+
+    /**
+     * Reset the local session state and return to the connect screen.
+     * Does NOT contact the server — call this when the server has already
+     * ended the session (e.g. receiving an mrc_session_ended event from
+     * another tab).
+     */
+    resetSession() {
+        if (this.pollTimer) {
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
+        }
+
+        UserStorage.removeItem('mrc_session');
+        this.joinedRoom = null;
+
+        $('#mrc-app').addClass('d-none');
+        $('#mrc-connect-screen').removeClass('d-none');
+        $('#connect-btn').prop('disabled', false).text('Connect');
+        $('#connect-username').val(UserStorage.getItem('mrc_handle') || this.username || '');
+        $('#connect-password').val('');
+        $('#connect-error').addClass('d-none');
     }
 
     init() {
@@ -103,9 +201,14 @@ class MrcClient {
             this.refreshMessages();
         });
 
-        $('#join-room-active-btn').on('click', () => {
-            if (this.viewedRoom) {
-                this.joinRoom(this.viewedRoom);
+        $('#disconnect-btn').on('click', () => {
+            this.disconnect();
+        });
+
+        $('#room-select').on('change', () => {
+            const room = $('#room-select').val();
+            if (room) {
+                this.joinRoom(room);
             }
         });
 
@@ -114,16 +217,6 @@ class MrcClient {
             this.exitPrivateChat(true);
         });
 
-        $('#join-room-btn').on('click', () => {
-            this.joinRoomFromInput();
-        });
-
-        $('#join-room-input').on('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.joinRoomFromInput();
-            }
-        });
 
         // Disable auto-scroll when user scrolls up
         $('#chat-messages').on('scroll', () => {
@@ -134,21 +227,21 @@ class MrcClient {
         const activityHandler = () => this.pingPresence();
         $(document).on('keydown mousedown mousemove touchstart', activityHandler);
 
-        // Check connection status
-        this.checkStatus();
 
-        // Wire poll-mode toggle button
-        this.initPollModeButton();
+        // Subscribe before the first poll so realtime handlers are registered
+        // before any join-related events arrive.
+        this.subscribeBinkStream();
+
+        // Check connection status, then recheck every 30 s
+        this.checkStatus();
+        setInterval(() => this.checkStatus(), 30000);
 
         // Initial poll (includes rooms + unread init)
         this.poll(true, true);
-
-        // Start unified polling
-        this.startPolling();
     }
 
     /**
-     * Check MRC daemon status
+     * Check MRC daemon status and update the UI overlay accordingly.
      */
     async checkStatus() {
         try {
@@ -159,88 +252,106 @@ class MrcClient {
             });
 
             if (response.success) {
-                this.updateConnectionStatus(response.connected, response.enabled);
+                this.updateConnectionStatus(response.connected, response.enabled, response.daemon_running);
             }
         } catch (error) {
             console.error('Status check failed:', error);
-            this.updateConnectionStatus(false, false);
+            this.updateConnectionStatus(false, false, false);
         }
     }
 
     /**
-     * Update connection status indicator
+     * Update connection status indicator and daemon-offline overlay.
+     *
+     * @param {boolean} connected  - daemon is connected to the MRC server
+     * @param {boolean} enabled    - MRC is enabled in config
+     * @param {boolean} daemonRunning - daemon process is alive (heartbeat recent)
      */
-    updateConnectionStatus(connected, enabled) {
+    updateConnectionStatus(connected, enabled, daemonRunning) {
         const statusEl = $('#connection-status');
 
         if (!enabled) {
-            statusEl.html('<i class="bi bi-circle-fill text-danger"></i> MRC Disabled');
+            statusEl.html('<i class="bi bi-circle-fill text-danger" title="MRC Disabled"></i>');
         } else if (connected) {
-            statusEl.html('<i class="bi bi-circle-fill text-success"></i> Connected');
+            statusEl.html('<i class="bi bi-circle-fill text-success" title="Connected"></i>');
         } else {
-            statusEl.html('<i class="bi bi-circle-fill text-warning"></i> Connecting...');
+            statusEl.html('<i class="bi bi-circle-fill text-warning" title="Connecting..."></i>');
+        }
+
+        const overlay = $('#mrc-daemon-overlay');
+        const isDown = enabled && !daemonRunning;
+
+        if (isDown) {
+            overlay.removeClass('d-none');
+            $('#message-input').prop('disabled', true);
+            $('#send-btn').prop('disabled', true);
+            this.startDaemonCountdown();
+        } else {
+            overlay.addClass('d-none');
+            $('#message-input').prop('disabled', false);
+            $('#send-btn').prop('disabled', false);
+            this.stopDaemonCountdown();
         }
     }
 
     /**
-     * Wire the poll-mode toggle button.
+     * Start (or restart) the countdown timer shown in the daemon-offline overlay.
      */
-    initPollModeButton() {
-        this.updatePollModeButton();
-        $('#poll-mode-btn').on('click', () => this.togglePollMode());
+    startDaemonCountdown() {
+        this.stopDaemonCountdown();
+        let secs = 30;
+        $('#mrc-daemon-countdown').text(secs);
+        this._daemonCountdownTimer = setInterval(() => {
+            secs--;
+            if (secs <= 0) {
+                secs = 30;
+            }
+            $('#mrc-daemon-countdown').text(secs);
+        }, 1000);
+    }
+
+    /** Stop the countdown timer. */
+    stopDaemonCountdown() {
+        if (this._daemonCountdownTimer) {
+            clearInterval(this._daemonCountdownTimer);
+            this._daemonCountdownTimer = null;
+        }
     }
 
     /**
-     * Render rooms list
+     * Render rooms dropdown
      */
     renderRooms(rooms) {
-        const roomList = $('#room-list');
-        roomList.empty();
+        const select = $('#room-select');
+        const current = select.val();
 
-        if (!rooms || rooms.length === 0) {
-            roomList.html('<div class="text-muted small p-2">No rooms available</div>');
-            return;
+        select.empty().append($('<option>').val('').text('— join a room —'));
+
+        if (rooms && rooms.length > 0) {
+            rooms.forEach(room => {
+                const label = `#${room.room_name}`
+                    + (room.user_count ? ` (${room.user_count})` : '');
+                select.append($('<option>').val(room.room_name).text(label));
+            });
         }
 
-        rooms.forEach(room => {
-            const isJoined = this.joinedRoom === room.room_name;
-            const isViewed = this.viewedRoom === room.room_name && this.viewMode === 'room';
-            const item = $('<div>')
-                .addClass('list-group-item')
-                .addClass(isViewed ? 'active' : '')
-                .addClass(isJoined ? 'room-joined' : '')
-                .addClass(isViewed ? 'room-viewed' : '')
-                .attr('data-room', room.room_name)
-                .html(`
-                    <div class="room-name">#${this.escapeHtml(room.room_name)}</div>
-                    ${room.topic ? `<div class="room-topic">${this.escapeHtml(room.topic)}</div>` : ''}
-                    <div class="room-users">
-                        <i class="bi bi-people"></i> ${room.user_count || 0} users
-                    </div>
-                `)
-                .on('click', () => {
-                    this.viewRoom(room.room_name);
-                });
-
-            roomList.append(item);
-        });
-    }
-
-    /**
-     * Join room from the text input
-     */
-    joinRoomFromInput() {
-        const input = $('#join-room-input');
-        const roomName = input.val().trim();
-        if (!roomName) return;
-        input.val('');
-        this.joinRoom(roomName);
+        // Restore selection: prefer joinedRoom, then previous value
+        const restore = this.joinedRoom || current;
+        if (restore) {
+            select.val(restore);
+        }
     }
 
     /**
      * Join a room
      */
     async joinRoom(roomName) {
+        roomName = String(roomName || '').trim().replace(/^#/, '');
+        if (!/^[A-Za-z0-9]{1,20}$/.test(roomName)) {
+            this.showError('Invalid room name.');
+            return;
+        }
+
         if (this.joinedRoom && this.joinedRoom === roomName) {
             if (this.viewMode !== 'room') {
                 this.exitPrivateChat(true);
@@ -263,7 +374,6 @@ class MrcClient {
 
             if (response.success) {
                 this.joinedRoom = roomName;
-                this.viewedRoom = roomName;
                 this.lastMessageId = typeof response.last_message_id === 'number'
                     ? response.last_message_id
                     : 0;
@@ -272,25 +382,12 @@ class MrcClient {
                 this.exitPrivateChat();
 
                 // Update UI
-                $('#current-room-name span').text(roomName);
+                $('#room-select').val(roomName);
                 $('#current-room-topic').text('');
                 $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
-                $('#join-room-active-btn').addClass('d-none');
-
-                // Update active room in list
-                $('#room-list .list-group-item').removeClass('active');
-                $(`#room-list .list-group-item[data-room="${roomName}"]`).addClass('active');
-
-                // Clear messages
-                $('#chat-messages').html(
-                    '<div class="text-center text-muted py-3">Waiting for new messages...</div>'
-                );
 
                 // Load initial data (includes rooms + users + messages)
                 await this.poll(true);
-
-                // Restart long poll with the new room's cursor.
-                this.restartLongPoll();
 
                 // Focus message input
                 $('#message-input').focus();
@@ -304,24 +401,9 @@ class MrcClient {
     /**
      * Render messages in chat area
      */
-    renderMessages(messages, append = false) {
+    renderMessages(messages) {
         const chatArea = $('#chat-messages');
-
-        if (!append) {
-            chatArea.empty();
-            if (this.viewMode === 'private') {
-                this.seenPrivateMessageIds.clear();
-            } else {
-                this.seenMessageIds.clear();
-            }
-        }
-
-        if (messages.length === 0 && !append) {
-            chatArea.html(
-                '<div class="text-center text-muted py-5">No messages yet. Start the conversation!</div>'
-            );
-            return;
-        }
+        let maxRenderedId = 0;
 
         messages.forEach(msg => {
             const msgId = msg.id;
@@ -342,7 +424,20 @@ class MrcClient {
             if (msg.from_user === 'SERVER') {
                 this.handleServerNotice(msg.message_body || '');
             }
+
+            if (msgId && msgId > maxRenderedId) {
+                maxRenderedId = msgId;
+            }
         });
+
+        // Keep a watermark so notifier.js can suppress badges for messages
+        // that were already visible while the user was on the MRC page.
+        if (maxRenderedId > 0) {
+            const current = parseInt(UserStorage.getItem('mrc_last_seen_id') || '0', 10);
+            if (maxRenderedId > current) {
+                UserStorage.setItem('mrc_last_seen_id', String(maxRenderedId));
+            }
+        }
 
         // Auto-scroll to bottom
         if (this.autoScroll) {
@@ -375,36 +470,10 @@ class MrcClient {
 
         const body = $('<div>').addClass('message-body');
 
-        if (isSystem) {
-            const line = timeText ? `${timeText} ${msg.message_body}` : msg.message_body;
-            body.html(typeof parsePipeCodes === 'function'
-                ? parsePipeCodes(line)
-                : $('<div>').text(line).html());
-        } else {
-            const parsed = this.extractUserAndMessage(msg.message_body, msg.from_user);
-            if (timeText) {
-                body.append($('<span>').text(`${timeText} `));
-            }
-
-            const userSpan = $('<span>')
-                .addClass('message-user')
-                .attr('title', msg.from_site ? `@${msg.from_site}` : '');
-
-            if (typeof parsePipeCodes === 'function') {
-                userSpan.html(parsePipeCodes(parsed.user));
-            } else {
-                userSpan.text(parsed.user);
-            }
-
-            body.append(userSpan);
-            body.append($('<span>').text(' : '));
-
-            if (typeof parsePipeCodes === 'function') {
-                body.append($('<span>').html(parsePipeCodes(parsed.message)));
-            } else {
-                body.append($('<span>').text(parsed.message));
-            }
-        }
+        const line = timeText ? `${timeText} ${msg.message_body}` : msg.message_body;
+        body.html(typeof parsePipeCodes === 'function'
+            ? parsePipeCodes(line)
+            : $('<div>').text(line).html());
 
         messageDiv.append(body);
 
@@ -443,9 +512,7 @@ class MrcClient {
 
         normalizedUsers.forEach(user => {
             const userName = user.username || '';
-            const isSelf = this.username && userName === this.username;
             const isActiveDm = this.privateUser && userName === this.privateUser;
-            const unread = this.privateUnread[userName] || 0;
             const displayName = this.escapeHtml(userName);
             const item = $('<div>')
                 .addClass('list-group-item')
@@ -454,15 +521,13 @@ class MrcClient {
                     <div class="user-name">
                         ${displayName}
                         ${user.is_afk ? '<span class="user-afk">(AFK)</span>' : ''}
-                        ${unread > 0 ? `<span class="badge bg-warning text-dark ms-2 user-dm-badge">${unread}</span>` : ''}
                     </div>
                 `);
 
-            if (!isSelf) {
-                item.on('click', () => {
-                    this.startPrivateChat(user.username);
-                });
-            }
+            // Intentionally disabled:
+            // item.on('click', () => {
+            //     this.startPrivateChat(user.username);
+            // });
 
             userList.append(item);
         });
@@ -515,8 +580,8 @@ class MrcClient {
             this.missingPresenceCount += 1;
             if (this.missingPresenceCount >= 2) {
                 this.joinedRoom = null;
+                $('#room-select').val('');
                 $('#message-input').attr('placeholder', 'Type a command (e.g. /identify) or join a room to chat...');
-                $('#join-room-active-btn').removeClass('d-none');
             }
         } else {
             this.missingPresenceCount = 0;
@@ -564,9 +629,6 @@ class MrcClient {
 
                 if (this.viewMode === 'private') {
                     this.echoSentMessage(message);
-                } else {
-                    // Force immediate message refresh for room messages
-                    setTimeout(() => this.poll(false), 500);
                 }
             }
         } catch (error) {
@@ -579,193 +641,7 @@ class MrcClient {
      * Refresh messages manually
      */
     async refreshMessages() {
-        if (this.viewMode === 'private') {
-            this.lastPrivateMessageId = 0;
-        } else {
-            this.lastMessageId = 0;
-        }
         await this.poll(false);
-    }
-
-    /**
-     * Start unified polling. Uses long-poll or simple interval polling
-     * depending on this.pollMode.
-     */
-    startPolling() {
-        this.stopPolling();
-        if (this.pollMode === 'simple') {
-            // Simple interval polling — safer on platforms where long-running
-            // HTTP connections are terminated (e.g. PHP built-in server).
-            this.poll(false);
-            this.pollTimer = setInterval(() => this.poll(false), 3000);
-        } else {
-            this.longPollActive = true;
-            this.runLongPoll();
-        }
-    }
-
-    /**
-     * Toggle between long-poll and simple interval polling modes,
-     * persist the choice to localStorage, and restart polling.
-     */
-    togglePollMode() {
-        this.pollMode = this.pollMode === 'longpoll' ? 'simple' : 'longpoll';
-        localStorage.setItem('mrc_poll_mode', this.pollMode);
-        this.startPolling();
-        this.updatePollModeButton();
-    }
-
-    /**
-     * Update the poll-mode toggle button label to reflect the current mode.
-     */
-    updatePollModeButton() {
-        const btn = $('#poll-mode-btn');
-        if (this.pollMode === 'simple') {
-            // Currently in simple mode — clicking switches to long poll
-            btn.html('<i class="bi bi-lightning-charge"></i> Use long poll').attr('title', 'Switch to long polling (lower latency, keeps connection open)');
-        } else {
-            // Currently in long poll mode — clicking switches to simple
-            btn.html('<i class="bi bi-arrow-repeat"></i> Use simple poll').attr('title', 'Switch to simple polling (safer for some server configs)');
-        }
-    }
-
-    /**
-     * Stop long-poll loop and cancel any in-flight request.
-     */
-    stopPolling() {
-        this.longPollActive = false;
-        if (this.longPollXhr) {
-            this.longPollXhr.abort();
-            this.longPollXhr = null;
-        }
-        if (this.pollTimer) {
-            clearInterval(this.pollTimer);
-            this.pollTimer = null;
-        }
-    }
-
-    /**
-     * Abort the in-flight long-poll request so the loop immediately restarts
-     * with the current view state. Call this after any room/mode change.
-     * In simple poll mode this is a no-op; the next interval tick picks up
-     * the new state automatically.
-     */
-    restartLongPoll() {
-        if (this.pollMode === 'simple') return;
-        if (this.longPollXhr) {
-            this.longPollXhr.abort(); // doLongPoll catches the abort and loops again
-        }
-    }
-
-    /**
-     * Self-restarting long-poll loop. Runs until stopPolling() is called.
-     * Errors (network failures, etc.) trigger a 2-second back-off before retry.
-     */
-    async runLongPoll() {
-        while (this.longPollActive) {
-            try {
-                await this.doLongPoll();
-            } catch (e) {
-                if (!this.longPollActive) break;
-                // Back off briefly on unexpected errors before retrying.
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        }
-    }
-
-    /**
-     * Perform a single long-poll request. Holds open for up to ~20 s server-side;
-     * returns as soon as new messages or unread DMs arrive, or on timeout.
-     * An intentional abort (from restartLongPoll) returns silently so the loop
-     * can restart immediately with fresh state.
-     */
-    async doLongPoll() {
-        const xhr = $.ajax({
-            url: 'api.php',
-            method: 'GET',
-            dataType: 'json',
-            timeout: 30000, // 30 s client-side safety net (server responds in ≤ 20 s)
-            data: {
-                action:        'longpoll',
-                view_mode:     this.viewMode,
-                view_room:     this.viewedRoom  || '',
-                join_room:     this.joinedRoom  || '',
-                with_user:     this.privateUser || '',
-                after:         this.lastMessageId,
-                after_private: this.lastPrivateMessageId,
-                after_unread:  this.lastPrivateGlobalId,
-            }
-        });
-
-        this.longPollXhr = xhr;
-
-        try {
-            const response = await xhr;
-            this.longPollXhr = null;
-            if (!this.longPollActive) return;
-            this.processLongPollResponse(response);
-        } catch (e) {
-            this.longPollXhr = null;
-            // Abort is intentional (restartLongPoll called) — return so the
-            // while loop immediately starts the next request.
-            if (!this.longPollActive || e.statusText === 'abort') return;
-            throw e; // Propagate real errors so runLongPoll can back off.
-        }
-    }
-
-    /**
-     * Process a long-poll response the same way poll() handles its response,
-     * but without the rooms/users-only slow-poll logic.
-     */
-    processLongPollResponse(response) {
-        if (!response || !response.success) return;
-
-        if (response.messages) {
-            if (this.viewMode === 'private') {
-                const append = this.lastPrivateMessageId !== 0;
-                this.renderMessages(response.messages, append);
-                if (response.messages.length > 0) {
-                    const maxId = Math.max(...response.messages.map(m => m.id));
-                    this.lastPrivateMessageId = Math.max(this.lastPrivateMessageId, maxId);
-                    this.syncPrivateUnreadFromMessages(response.messages);
-                }
-            } else if (this.viewedRoom) {
-                const append = this.lastMessageId !== 0;
-                this.renderMessages(response.messages, append);
-                if (response.messages.length > 0) {
-                    const maxId = Math.max(...response.messages.map(m => m.id));
-                    this.lastMessageId = Math.max(this.lastMessageId, maxId);
-                }
-            }
-        }
-
-        if (response.users) {
-            this.renderUsers(response.users);
-        }
-
-        if (response.rooms) {
-            this.renderRooms(response.rooms);
-            this.lastRoomsPollAt = Date.now();
-        }
-
-        if (response.private_unread) {
-            const counts = response.private_unread.counts || {};
-            Object.keys(counts).forEach(sender => {
-                if (this.privateUser && sender === this.privateUser && this.viewMode === 'private') {
-                    return;
-                }
-                this.privateUnread[sender] = (this.privateUnread[sender] || 0) + counts[sender];
-            });
-            if (typeof response.private_unread.latest_id === 'number') {
-                this.lastPrivateGlobalId = Math.max(this.lastPrivateGlobalId, response.private_unread.latest_id);
-            }
-            this.updatePrivateUnreadBadge();
-            this.unreadInitDone = true;
-
-            if (counts.SERVER) {
-                this.fetchSystemNotices();
-            }
-        }
     }
 
     /**
@@ -778,6 +654,13 @@ class MrcClient {
         const args = parts;
 
         switch (command) {
+            case 'join':
+                if (args.length === 0) {
+                    this.showError('Usage: /join &lt;room&gt;');
+                    break;
+                }
+                this.joinRoom(args[0]);
+                break;
             case 'motd':
                 this.sendCommand(command, args);
                 break;
@@ -827,7 +710,7 @@ class MrcClient {
      * Commands that can be sent without being in a room.
      */
     static get NO_ROOM_COMMANDS() {
-        return ['rooms', 'motd', 'register', 'identify', 'update', 'help'];
+        return ['join', 'rooms', 'motd', 'register', 'identify', 'update', 'help'];
     }
 
     async sendCommand(command, args) {
@@ -854,7 +737,6 @@ class MrcClient {
                 return;
             }
 
-            setTimeout(() => this.poll(false), 500);
             if (command === 'rooms') {
                 this.showError('Refreshing room list...');
                 setTimeout(() => this.poll(true), 1000);
@@ -921,7 +803,7 @@ class MrcClient {
             if (spaceIdx === -1 || pos <= spaceIdx) {
                 const partial = before.slice(1); // strip leading /
                 const prefix = partial.toLowerCase();
-                const commands = ['help', 'identify', 'motd', 'msg', 'register', 'rooms', 'topic', 'update'];
+                const commands = ['help', 'identify', 'join', 'motd', 'msg', 'register', 'rooms', 'topic', 'update'];
                 const matches = commands.filter(c => c.startsWith(prefix));
                 if (matches.length === 0) return;
 
@@ -1049,15 +931,11 @@ class MrcClient {
     }
 
     /**
-     * Send a private message and open the DM view.
+     * Send a private message and render it inline in the main message area.
      */
     async sendPrivateMessage(username, message) {
-        // Open the DM view and load history BEFORE sending so the echo
+        // Render the private message inline in the main stream.
         // is appended after a stable cursor — not after a cursor reset.
-        if (this.viewMode !== 'private' || this.privateUser !== username) {
-            await this.startPrivateChat(username);
-        }
-
         try {
             const response = await $.ajax({
                 url: 'api.php?action=send',
@@ -1097,19 +975,8 @@ class MrcClient {
         $('#message-input').attr('placeholder', `Private message to ${username}...`);
 
         $('#current-room-topic').text('Private chat');
-        $('#chat-messages').html(
-            '<div class="text-center text-muted py-3">Loading private messages...</div>'
-        );
 
         await this.poll(false);
-        // If no prior history existed, lastPrivateMessageId is still 0.
-        // Set it to -1 so subsequent polls use append mode (id > -1 is
-        // equivalent to id > 0) instead of doing a full replace that would
-        // wipe the locally echoed sent message.
-        if (this.lastPrivateMessageId === 0) {
-            this.lastPrivateMessageId = -1;
-        }
-        this.restartLongPoll();
         $('#message-input').focus();
         this.clearPrivateUnread(username);
     }
@@ -1128,8 +995,7 @@ class MrcClient {
         if (!suppressPoll) {
             this.poll(false);
         }
-        this.restartLongPoll();
-        if (this.viewedRoom) {
+        if (this.joinedRoom) {
             $('#current-room-topic').text('');
         }
     }
@@ -1150,13 +1016,9 @@ class MrcClient {
      * Update the global private unread badge in the sidebar header.
      */
     updatePrivateUnreadBadge() {
-        const total = Object.values(this.privateUnread).reduce((sum, val) => sum + val, 0);
         const badge = $('#private-unread-count');
-        if (total > 0) {
-            badge.text(total).removeClass('d-none');
-        } else {
-            badge.text('0').addClass('d-none');
-        }
+        // Intentionally disabled: DMs are rendered inline in the main stream.
+        badge.text('0').addClass('d-none');
     }
 
     /**
@@ -1230,6 +1092,101 @@ class MrcClient {
     }
 
     /**
+     * Subscribe to BinkStream real-time events.
+     * Falls back to a simple 3-second interval poll when SharedWorker is not
+     * available (old browsers, HTTP contexts, etc.).
+     */
+    subscribeBinkStream() {
+        if (typeof SharedWorker === 'undefined' || !window.BinkStream) {
+            this.poll(false);
+            this.pollTimer = setInterval(() => this.poll(false), 3000);
+            return;
+        }
+
+        this.binkStreamActive = true;
+
+        window.BinkStream.on('mrc_message', (data) => this.handleMrcMessageEvent(data));
+        window.BinkStream.on('mrc_presence', (data) => this.handleMrcPresenceEvent(data));
+        window.BinkStream.on('mrc_session_ended', () => this.resetSession());
+
+        // Slow periodic safety-net poll: refreshes rooms list and catches
+        // anything that may have been missed while this tab was not active.
+        this.pollTimer = setInterval(() => {
+            if (this.joinedRoom) {
+                this.poll(true);
+            }
+        }, 30000);
+    }
+
+    /**
+     * Handle a BinkStream mrc_message event.
+     * Routes the message to the appropriate view: room, private chat, or system notices.
+     */
+    handleMrcMessageEvent(data) {
+        if (!data || typeof data.id === 'undefined') return;
+
+        const isPrivate = !!data.is_private;
+        const fromUser = data.from_user || '';
+        const toRoom = (data.to_room || '').toLowerCase();
+        const toUser = (data.to_user || '').toLowerCase();
+        const myUsername = (this.username || '').toLowerCase();
+
+        if (isPrivate) {
+            // Server notices: display inline in the current view
+            if (fromUser === 'SERVER') {
+                if (!this.seenSystemMessageIds.has(data.id)) {
+                    this.seenSystemMessageIds.add(data.id);
+                    this.lastSystemMessageId = Math.max(this.lastSystemMessageId, data.id);
+                    const chatArea = $('#chat-messages');
+                    chatArea.append(this.createMessageElement(data));
+                    if (this.autoScroll) this.scrollToBottom();
+                }
+                return;
+            }
+
+            const isFromMe = fromUser.toLowerCase() === myUsername;
+            const isForMe = toUser === myUsername;
+            if (!isForMe && !isFromMe) return;
+
+            if (!this.seenPrivateMessageIds.has(data.id)) {
+                this.seenPrivateMessageIds.add(data.id);
+                this.lastPrivateMessageId = Math.max(this.lastPrivateMessageId, data.id);
+                this.lastPrivateGlobalId = Math.max(this.lastPrivateGlobalId, data.id);
+                const chatArea = $('#chat-messages');
+                chatArea.append(this.createMessageElement(data));
+                if (this.autoScroll) this.scrollToBottom();
+            }
+            return;
+        }
+
+        // Room message — display only if we are joined to this room
+        if (toRoom && this.joinedRoom && toRoom === this.joinedRoom.toLowerCase() &&
+            this.viewMode !== 'private') {
+            if (!this.seenMessageIds.has(data.id)) {
+                this.lastMessageId = Math.max(this.lastMessageId, data.id);
+                this.renderMessages([data]);
+
+                if (fromUser === 'SERVER') {
+                    this.handleServerNotice(data.message_body || '');
+                }
+            }
+        }
+    }
+
+    /**
+     * Handle a BinkStream mrc_presence event.
+     * Updates the user list for the given room when it matches the current view.
+     */
+    handleMrcPresenceEvent(data) {
+        if (!data || !data.room) return;
+        if (!this.joinedRoom) return;
+        if (data.room.toLowerCase() !== this.joinedRoom.toLowerCase()) return;
+        if (data.users) {
+            this.renderUsers(data.users);
+        }
+    }
+
+    /**
      * Unified poll for messages, users, rooms, and private unread.
      */
     async poll(includeRooms = false, unreadInit = false) {
@@ -1244,7 +1201,7 @@ class MrcClient {
                 data: {
                     action: 'poll',
                     view_mode: this.viewMode,
-                    view_room: this.viewedRoom || '',
+                    view_room: this.joinedRoom || '',
                     join_room: this.joinedRoom || '',
                     with_user: this.privateUser || '',
                     after: this.lastMessageId,
@@ -1261,16 +1218,14 @@ class MrcClient {
 
             if (response.messages) {
                 if (this.viewMode === 'private') {
-                    const append = this.lastPrivateMessageId !== 0;
-                    this.renderMessages(response.messages, append);
+                    this.renderMessages(response.messages);
                     if (response.messages.length > 0) {
                         const maxId = Math.max(...response.messages.map(m => m.id));
                         this.lastPrivateMessageId = Math.max(this.lastPrivateMessageId, maxId);
                         this.syncPrivateUnreadFromMessages(response.messages);
                     }
-                } else if (this.viewedRoom) {
-                    const append = this.lastMessageId !== 0;
-                    this.renderMessages(response.messages, append);
+                } else if (this.joinedRoom) {
+                    this.renderMessages(response.messages);
                     if (response.messages.length > 0) {
                         const maxId = Math.max(...response.messages.map(m => m.id));
                         this.lastMessageId = Math.max(this.lastMessageId, maxId);
@@ -1309,67 +1264,6 @@ class MrcClient {
         } catch (error) {
             console.error('Poll failed:', error);
         }
-    }
-
-    /**
-     * View a room without sending NEWROOM (no join spam).
-     */
-    async viewRoom(roomName) {
-        if (!roomName) return;
-
-        if (this.viewMode !== 'room') {
-            this.exitPrivateChat(true);
-        }
-
-        this.viewedRoom = roomName;
-        this.lastMessageId = await this.fetchRoomCursor(roomName);
-        this.seenMessageIds.clear();
-
-        $('#current-room-name span').text(roomName);
-        $('#current-room-topic').text(
-            this.joinedRoom && this.joinedRoom !== roomName
-                ? 'Viewing history (not joined)'
-                : ''
-        );
-
-        const needsJoin = !this.joinedRoom || this.joinedRoom !== roomName;
-        $('#join-room-active-btn').toggleClass('d-none', !needsJoin);
-        $('#message-input').attr('placeholder', needsJoin
-            ? 'Type a command (e.g. /identify) or join a room to chat...'
-            : 'Type a message... (max 140 chars)');
-
-        $('#room-list .list-group-item').removeClass('active');
-        $(`#room-list .list-group-item[data-room="${roomName}"]`).addClass('active');
-
-        $('#chat-messages').html(
-            '<div class="text-center text-muted py-3">Waiting for new messages...</div>'
-        );
-
-        await this.poll(false);
-        this.restartLongPoll();
-    }
-
-    /**
-     * Fetch latest message id for a room to start from "now".
-     */
-    async fetchRoomCursor(roomName) {
-        try {
-            const response = await $.ajax({
-                url: 'api.php',
-                method: 'GET',
-                dataType: 'json',
-                data: {
-                    action: 'room_cursor',
-                    room: roomName
-                }
-            });
-            if (response && response.success && typeof response.last_message_id === 'number') {
-                return response.last_message_id;
-            }
-        } catch (error) {
-            console.error('Room cursor fetch failed:', error);
-        }
-        return 0;
     }
 
     /**

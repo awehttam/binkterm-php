@@ -296,7 +296,7 @@ $interestCategories = [
         ],
     ],
     [
-        'name' => 'Synchronet & Other BBS Software',
+        'name' => 'BBS and related software',
         'keywords' => [
             'SYNCHRONET', 'SYNCDATA', 'SBBS', 'ENIGMA', 'MYSTIC',
             'MAXIMUS', 'TELEGARD', 'RENEGADE', 'WILDCAT', 'PCBOARD',

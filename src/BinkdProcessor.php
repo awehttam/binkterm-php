@@ -28,6 +28,34 @@ class BinkdProcessor
     private $config;
     private Logger $logger;
 
+    /**
+     * When set, this UTC timestamp string is used as date_received on all inserted
+     * echomail and netmail rows instead of the database DEFAULT (NOW()).
+     * Format: 'YYYY-MM-DD HH:MM:SS' UTC.
+     */
+    public ?string $receivedDateOverride = null;
+
+    /**
+     * When true, use the fixed-width FTS-0001 field parser that correctly handles
+     * both zero-padded (spec-compliant) and non-padded mailers.
+     * When false (default), use the original null-terminated parser.
+     */
+    public bool $useFixedWidthParser = false;
+
+    /**
+     * When true (default), run the gap-detect parser in shadow mode alongside
+     * the null-terminated parser. Differences are logged but the null-terminated
+     * parser's results are used for import. Set to false once the gap-detect
+     * parser is promoted to production via useGapDetectParser.
+     */
+    public bool $shadowGapDetectParser = true;
+
+    /**
+     * When true, use the gap-detect parser for import instead of null-terminated.
+     * Enable this once shadow mode confirms the parsers agree on all packets.
+     */
+    public bool $useGapDetectParser = false;
+
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
@@ -201,11 +229,16 @@ class BinkdProcessor
                     $message = $this->readMessage($handle, $packetInfo);
 
                     if ($message) {
-                        // Security check: reject echomail from insecure sessions
+                        // Security check: reject echomail from insecure sessions unless the
+                        // sending node is a configured uplink with allow_insecure_echomail enabled.
                         if ($isInsecureSession && !$this->isNetmailMessage($message, true)) {
-                            $echomailRejected = true;
-                            $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName");
-                            break; // Stop processing this packet
+                            $nodeAddress = $metadata['node_address'] ?? ($metadata['remote_address'] ?? '');
+                            if (!$nodeAddress || !$this->config->uplinkAllowsInsecureEchomail($nodeAddress)) {
+                                $echomailRejected = true;
+                                $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName (node: $nodeAddress)");
+                                break; // Stop processing this packet
+                            }
+                            $this->log("[BINKD] Allowing echomail from insecure session for trusted uplink $nodeAddress - packet $packetName");
                         }
 
                         $msgUndeliverable = false;
@@ -257,6 +290,59 @@ class BinkdProcessor
             $this->logPacket($filename, 'IN', 'error');
             throw $e;
         }
+    }
+
+    /**
+     * Process a kept/archived packet file for reimport purposes.
+     * Unlike processPacket(), this method skips password validation and insecure-session
+     * checks — kept packets have already been received and verified. Duplicate messages
+     * are silently skipped by the existing MSGID check in storeEchomail/storeNetmail.
+     *
+     * Set $this->receivedDateOverride before calling to stamp date_received on imported rows.
+     *
+     * @return array{imported:int,skipped_duplicate:int,failed:int}
+     */
+    public function processKeptPacket(string $filename): array
+    {
+        $packetName = basename($filename);
+        $this->log("[RESCAN] Processing kept packet $packetName");
+
+        $handle = fopen($filename, 'rb');
+        if (!$handle) {
+            throw new \RuntimeException("Cannot open packet file: $filename");
+        }
+
+        $header = fread($handle, 58);
+        if (strlen($header) < 58) {
+            fclose($handle);
+            throw new \RuntimeException("Packet header too short in $packetName");
+        }
+
+        $packetInfo = $this->parsePacketHeader($header);
+        $packetInfo['packet_name'] = $packetName;
+
+        $imported = 0;
+        $failed   = 0;
+
+        while (!feof($handle)) {
+            try {
+                $message = $this->readMessage($handle, $packetInfo);
+                if (!$message) {
+                    continue;
+                }
+                $undeliverable = false;
+                $this->storeMessage($message, $packetInfo, false, $undeliverable);
+                $imported++;
+            } catch (\Exception $e) {
+                $failed++;
+                $this->log("[RESCAN] Failed to process message in $packetName: " . $e->getMessage());
+            }
+        }
+
+        fclose($handle);
+        $this->log("[RESCAN] $packetName: $imported imported, $failed failed");
+
+        return ['imported' => $imported, 'failed' => $failed];
     }
 
     private function parsePacketHeader($header)
@@ -329,7 +415,18 @@ class BinkdProcessor
         }
         
         $type = unpack('v', $msgType)[1];
-        if ($type !== 2) { // Type 2 = stored message
+        if ($type === 0) {
+            // Normal end-of-packet marker
+            return null;
+        }
+        if ($type !== 2) {
+            $offset = ftell($handle) - 2;
+            $this->log(sprintf(
+                '[BINKD] Unexpected message type 0x%04X at offset %d in packet %s — stopping packet analysis',
+                $type,
+                $offset,
+                $packetInfo['packet_name'] ?? 'unknown'
+            ), 'WARNING');
             return null;
         }
 
@@ -342,16 +439,70 @@ class BinkdProcessor
         // Parse message header
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
-        // Read null-terminated strings (raw bytes first)
-        $dateTimeRaw = $this->readNullStringRaw($handle, 20);
-        $toNameRaw = $this->readNullStringRaw($handle, 36);
-        $fromNameRaw = $this->readNullStringRaw($handle, 36);
-        $subjectRaw = $this->readNullStringRaw($handle, 72);
-        
+        // Read header string fields and message body.
+        $preFieldsPos = ftell($handle);
+
+        if ($this->useGapDetectParser) {
+            // Gap-detect parser: null-terminated reads + padding skip when gap is all zeros.
+            [$dateTimeRaw, $toNameRaw, $fromNameRaw, $subjectRaw] = $this->readMessageFieldsGapDetect($handle);
+        } elseif ($this->useFixedWidthParser) {
+            // Fixed-width parser (experimental, not validated for production).
+            $dateTimeRaw = $this->readFixedStringRaw($handle, 20);
+            $toNameRaw   = $this->readFixedStringRaw($handle, 36);
+            $fromNameRaw = $this->readFixedStringRaw($handle, 36);
+            $subjectRaw  = $this->readFixedStringRaw($handle, 72);
+        } else {
+            // Original null-terminated parser (production default).
+            $dateTimeRaw = $this->readNullStringRaw($handle);
+            $toNameRaw   = $this->readNullStringRaw($handle);
+            $fromNameRaw = $this->readNullStringRaw($handle);
+            $subjectRaw  = $this->readNullStringRaw($handle);
+        }
+
         // Read message text until null terminator
         $messageTextRaw = '';
         while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
             $messageTextRaw .= $char;
+        }
+        $postBodyPos = ftell($handle);
+
+        // Shadow mode: run gap-detect parser on the same bytes and compare.
+        // Differences are logged but do not affect what gets imported.
+        if (!$this->useGapDetectParser && $this->shadowGapDetectParser) {
+            fseek($handle, $preFieldsPos);
+            [$shDateTime, $shToName, $shFromName, $shSubject] = $this->readMessageFieldsGapDetect($handle);
+            $shBodyRaw = '';
+            while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
+                $shBodyRaw .= $char;
+            }
+            fseek($handle, $postBodyPos);
+
+            $extractMsgid = function (string $body): string {
+                foreach (preg_split('/[\r\n]+/', $body) as $line) {
+                    if (str_starts_with($line, "\x01MSGID:")) {
+                        return trim(substr($line, 7));
+                    }
+                }
+                return '';
+            };
+
+            $diffs = [];
+            if ($shDateTime !== $dateTimeRaw) $diffs[] = 'dateTime: old=' . json_encode($dateTimeRaw) . ' new=' . json_encode($shDateTime);
+            if ($shToName   !== $toNameRaw)   $diffs[] = 'toName: old='   . json_encode($toNameRaw)   . ' new=' . json_encode($shToName);
+            if ($shFromName !== $fromNameRaw) $diffs[] = 'fromName: old=' . json_encode($fromNameRaw) . ' new=' . json_encode($shFromName);
+            if ($shSubject  !== $subjectRaw)  $diffs[] = 'subject: old='  . json_encode($subjectRaw)  . ' new=' . json_encode($shSubject);
+
+            $oldMsgid = $extractMsgid($messageTextRaw);
+            $newMsgid = $extractMsgid($shBodyRaw);
+            if ($oldMsgid !== $newMsgid) $diffs[] = 'msgid: old=' . json_encode($oldMsgid) . ' new=' . json_encode($newMsgid);
+
+            if (!empty($diffs)) {
+                $pkt = $packetInfo['packet_name'] ?? 'unknown';
+                $this->log(sprintf('[BINKD] Parser shadow diff in %s at offset %d:', $pkt, $preFieldsPos), 'WARNING');
+                foreach ($diffs as $diff) {
+                    $this->log('  ' . $diff, 'WARNING');
+                }
+            }
         }
 
         // Extract CHRS kludge to determine character encoding before conversion
@@ -480,22 +631,86 @@ class BinkdProcessor
         return $this->convertToUtf8($string, $encoding);
     }
 
-    private function readNullStringRaw($handle, $maxLen)
+    /**
+     * Read an FTN fixed-size string field, handling both spec-compliant (zero-padded)
+     * and non-compliant (bare null-terminated) mailers.
+     *
+     * Reads byte-by-byte until a null terminator, then peeks ahead and skips any
+     * consecutive zero bytes up to the field boundary. This correctly handles:
+     * - Non-padded mailers: null found early, no zeros follow → stop immediately.
+     * - Padded mailers: null found early, zeros follow to field end → skip padding.
+     * - Full-width strings: null at position $len-1 → nothing extra to skip.
+     *
+     * Sets $paddingSkipped to true if zero-padding bytes were consumed.
+     */
+    private function readNullStringRaw($handle): string
     {
         $string = '';
-        $count = 0;
-        
-        while ($count < $maxLen) {
-            $char = fread($handle, 1);
-            if ($char === false || ord($char) === 0) {
-                break;
-            }
+        while (($char = fread($handle, 1)) !== false && $char !== '' && ord($char) !== 0) {
             $string .= $char;
-            $count++;
         }
-        
-        // Return raw bytes without encoding conversion
         return $string;
+    }
+
+    /**
+     * Read all four FTS-0001 fixed-size string fields using gap-detection.
+     *
+     * Each field is read null-terminated. After all four fields are consumed,
+     * the total bytes read is compared to the expected 164-byte block
+     * (20+36+36+72). If the gap bytes are all zeros they are padding from a
+     * spec-compliant mailer and are consumed. If any byte is non-zero the gap
+     * bytes belong to the message body (non-padded mailer) and are left in the
+     * stream.
+     *
+     * @return array{string, string, string, string} [dateTime, toName, fromName, subject]
+     */
+    private function readMessageFieldsGapDetect($handle): array
+    {
+        $prePos = ftell($handle);
+
+        $dateTime = $this->readNullStringRaw($handle);
+        $toName   = $this->readNullStringRaw($handle);
+        $fromName = $this->readNullStringRaw($handle);
+        $subject  = $this->readNullStringRaw($handle);
+
+        $consumed = ftell($handle) - $prePos;
+        $expected = 20 + 36 + 36 + 72; // 164
+        $gap      = $expected - $consumed;
+
+        if ($gap > 0) {
+            $gapBytes = fread($handle, $gap);
+            if ($gapBytes !== false && ltrim($gapBytes, "\0") !== '') {
+                // Non-zero bytes in gap — body content, not padding; seek back
+                fseek($handle, -strlen($gapBytes), SEEK_CUR);
+            }
+            // All zeros — padding from spec-compliant mailer, consumed correctly
+        }
+
+        return [$dateTime, $toName, $fromName, $subject];
+    }
+
+    private function readFixedStringRaw($handle, int $len): string
+    {
+        $raw = fread($handle, $len);
+        if ($raw === false || $raw === '') {
+            return '';
+        }
+
+        $pos = strpos($raw, "\0");
+        if ($pos === false) {
+            // No null found — string fills the entire field width
+            return $raw;
+        }
+
+        // If any byte after the null is non-zero, those bytes belong to the
+        // next field (non-padded mailer) — seek back so they are read correctly.
+        $afterNull = substr($raw, $pos + 1);
+        if ($afterNull !== '' && ltrim($afterNull, "\0") !== '') {
+            fseek($handle, -strlen($afterNull), SEEK_CUR);
+        }
+        // If all bytes after the null are zero, they are padding — already consumed.
+
+        return substr($raw, 0, $pos);
     }
 
     private function convertToUtf8($string, $preferredEncoding = null)
@@ -844,11 +1059,19 @@ class BinkdProcessor
             }
         }
 
-        // We don't record date_received explictly to allow postgres to use its DEFAULT value
-        $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
-            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
-        ");
+        if ($this->receivedDateOverride !== null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, date_received, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+                VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :date_received, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
+                RETURNING id
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+                VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :attributes, :message_id, :original_author_address, :reply_address, :kludge_lines, :bottom_kludges, :reply_to_id, :received_insecure)
+                RETURNING id
+            ");
+        }
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
 
@@ -871,9 +1094,12 @@ class BinkdProcessor
         $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
         $stmt->bindValue(':reply_to_id', $replyToId);
         $stmt->bindValue(':received_insecure', $isInsecureSession ? 'true' : 'false');
+        if ($this->receivedDateOverride !== null) {
+            $stmt->bindValue(':date_received', $this->receivedDateOverride);
+        }
         $stmt->execute();
-
-        $netmailId = $this->db->lastInsertId();
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $netmailId = $insertedRow ? (int)$insertedRow['id'] : 0;
 
         $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
 
@@ -1207,10 +1433,19 @@ class BinkdProcessor
                     ', Subject: '.$message['subject']
         );
 
-        $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
-            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
-        ");
+        if ($this->receivedDateOverride !== null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, date_received, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+                VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :date_received, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+                RETURNING id
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+                VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, :date_written, :message_id, :origin_line, :kludge_lines, :bottom_kludges, :reply_to_id)
+                RETURNING id
+            ");
+        }
         $stmt->bindValue(':echoarea_id', $echoarea['id']);
         $stmt->bindValue(':from_address', $fromAddress);
         $stmt->bindValue(':from_name', $message['fromName']);
@@ -1226,8 +1461,35 @@ class BinkdProcessor
         $stmt->bindValue(':kludge_lines', $kludgeText);
         $stmt->bindValue(':bottom_kludges', !empty($bottomKludgeText) ? $bottomKludgeText : null);
         $stmt->bindValue(':reply_to_id', $replyToId);
+        if ($this->receivedDateOverride !== null) {
+            $stmt->bindValue(':date_received', $this->receivedDateOverride);
+        }
         $stmt->execute();
-        
+        $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $newId = $insertedRow ? (int)$insertedRow['id'] : 0;
+
+        // Backfill reply_to_id for any messages that arrived before their parent.
+        // When a reply is stored before the message it references, reply_to_id is
+        // left NULL because the parent's row doesn't exist yet. Now that the parent
+        // has been inserted, find orphaned replies in the same echoarea whose REPLY
+        // kludge matches this message's MSGID and wire them up.
+        if (!empty($messageId) && $newId) {
+            $backfillStmt = $this->db->prepare("
+                UPDATE echomail
+                SET reply_to_id = ?
+                WHERE echoarea_id = ?
+                  AND reply_to_id IS NULL
+                  AND kludge_lines ~ ?
+            ");
+            // Match the REPLY kludge value — anchored to avoid partial MSGID matches.
+            $pattern = '(^|\n)\x01REPLY:\s*' . preg_quote($messageId, null) . '\s*(\n|$)';
+            $backfillStmt->execute([$newId, $echoarea['id'], $pattern]);
+            $backfilled = $backfillStmt->rowCount();
+            if ($backfilled > 0) {
+                $this->log("[BINKD]: Backfilled reply_to_id for {$backfilled} orphaned reply(ies) referencing MSGID '{$messageId}'");
+            }
+        }
+
         // Update message count
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
                  ->execute([$echoarea['id']]);

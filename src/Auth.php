@@ -27,13 +27,10 @@ class Auth
 
     public function login($username, $password, string $service = 'web')
     {
-        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE');
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
+        $user = $this->authenticateCredentials($username, $password);
 
-        if ($user && password_verify($password, $user['password_hash'])) {
+        if ($user) {
             $sessionId = $this->createSession($user['id'], $service);
-            $this->updateLastLogin($user['id']);
 
             // Generate a fresh CSRF token and store it per-user in UserMeta so it
             // is accessible to both web sessions and the telnet daemon (which has
@@ -48,6 +45,32 @@ class Auth
         return false;
     }
 
+    /**
+     * Validate username/password credentials without creating a session.
+     *
+     * @param string $username
+     * @param string $password
+     * @return array|false
+     */
+    public function authenticateCredentials(string $username, string $password): array|false
+    {
+        $stmt = $this->db->prepare('
+            SELECT id, username, real_name, email, is_admin, password_hash, created_at, last_login, location, fidonet_address
+            FROM users
+            WHERE LOWER(username) = LOWER(?) AND is_active = TRUE
+            LIMIT 1
+        ');
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
+
+        if ($user && password_verify($password, $user['password_hash'])) {
+            $this->updateLastLogin($user['id']);
+            return $user;
+        }
+
+        return false;
+    }
+
     public function logout($sessionId)
     {
         $stmt = $this->db->prepare('DELETE FROM user_sessions WHERE session_id = ?');
@@ -57,7 +80,7 @@ class Auth
     public function validateSession($sessionId)
     {
         $stmt = $this->db->prepare('
-            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login, u.location, u.fidonet_address
+            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.session_id = ? AND s.expires_at > NOW() AND u.is_active = TRUE
@@ -94,6 +117,16 @@ class Auth
 
     public function createSession($userId, string $service = 'web')
     {
+        return $this->createSessionForConnection(
+            (int)$userId,
+            $service,
+            (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
+        );
+    }
+
+    public function createSessionForConnection(int $userId, string $service, string $ipAddress = '', string $userAgent = ''): string
+    {
         $sessionId = bin2hex(random_bytes(32));
 
         $stmt = $this->db->prepare('
@@ -103,8 +136,8 @@ class Auth
         $stmt->execute([
             $sessionId,
             $userId,
-            $_SERVER['REMOTE_ADDR'] ?? '',
-            $_SERVER['HTTP_USER_AGENT'] ?? '',
+            $ipAddress,
+            $userAgent,
             $service
         ]);
 
@@ -247,6 +280,37 @@ class Auth
     }
 
     /**
+     * Get list of online sessions (active within specified minutes).
+     * Unlike getOnlineUsers(), this returns one row per active session/service.
+     *
+     * @param int $minutes Consider sessions online if active within this many minutes
+     * @return array List of online sessions
+     */
+    public function getOnlineSessions(int $minutes = 15): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                u.id as user_id,
+                u.username,
+                u.real_name,
+                u.location,
+                u.fidonet_address,
+                s.last_activity,
+                s.activity,
+                s.ip_address,
+                s.service
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.last_activity > NOW() - INTERVAL '1 minute' * ?
+              AND s.expires_at > NOW()
+              AND u.is_active = TRUE
+            ORDER BY u.username ASC, s.last_activity DESC, s.service ASC
+        ");
+        $stmt->execute([$minutes]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Get count of online users
      *
      * @param int $minutes Consider users online if active within this many minutes
@@ -303,7 +367,9 @@ class Auth
 
         $stmt = $this->db->prepare("
             SELECT u.username,
-                   MAX(s.last_activity) AT TIME ZONE :tz AS last_activity
+                   MAX(s.last_activity) AT TIME ZONE :tz AS last_activity,
+                   BOOL_OR(s.last_activity > NOW() - INTERVAL '15 minutes'
+                           AND s.expires_at > NOW()) AS is_online
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.last_activity >= date_trunc('day', NOW() AT TIME ZONE :tz2) AT TIME ZONE :tz3
@@ -312,6 +378,30 @@ class Auth
             ORDER BY MIN(s.last_activity) ASC
         ");
         $stmt->execute([':tz' => $timezone, ':tz2' => $timezone, ':tz3' => $timezone]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get callers active within the past N hours, most recent first.
+     *
+     * @param int $hours Look-back window in hours
+     * @return array Rows with username, last_activity (UTC), is_online
+     */
+    public function getRecentCallers(int $hours = 168): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT u.username,
+                   MAX(s.last_activity) AS last_activity,
+                   BOOL_OR(s.last_activity > NOW() - INTERVAL '15 minutes'
+                           AND s.expires_at > NOW()) AS is_online
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.last_activity >= NOW() - (:hours * INTERVAL '1 hour')
+              AND u.is_active = TRUE
+            GROUP BY u.id, u.username
+            ORDER BY MAX(s.last_activity) DESC
+        ");
+        $stmt->execute([':hours' => $hours]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 

@@ -66,6 +66,19 @@
                 </dl>
             </div>
         </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.user_profile.about_me', {}, 'common') }}</h5>
+            </div>
+            <div class="card-body">
+                {% if profile_about_me_html %}
+                <div class="about-me-rendered">{{ profile_about_me_html|raw }}</div>
+                {% else %}
+                <p class="text-muted mb-0"><em>{{ t('ui.user_profile.about_me_empty', {}, 'common') }}</em></p>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
     <div class="col-lg-4">
@@ -250,8 +263,7 @@
                                 {% for entry in activity_log %}
                                 <tr>
                                     <td>
-                                        <small>{{ entry.created_at|date('m/d/Y') }}</small><br>
-                                        <small class="text-muted">{{ entry.created_at|date('g:i A') }}</small>
+                                        <small class="activity-date" data-utc="{{ entry.created_at }}"></small>
                                     </td>
                                     <td>
                                         <span class="badge bg-{% if entry.category == 'message' %}primary{% elseif entry.category == 'file' %}success{% elseif entry.category == 'door' %}info{% elseif entry.category == 'chat' %}warning{% elseif entry.category == 'auth' %}danger{% else %}secondary{% endif %}">
@@ -290,6 +302,15 @@
 <script>
 let currentOffset = 10; // We already loaded 10 transactions
 let activityOffset = 25; // We already loaded 25 activity entries
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.activity-date[data-utc]').forEach(function(el) {
+        el.textContent = formatFullDate(el.getAttribute('data-utc'));
+    });
+
+
+});
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -489,7 +510,7 @@ function loadMoreActivity() {
                     const badgeClass = getCategoryBadgeClass(entry.category);
                     const row = `<tr>
                         <td>
-                            <small>${escapeHtml(entry.created_at)}</small>
+                            <small>${escapeHtml(formatFullDate(entry.created_at))}</small>
                         </td>
                         <td><span class="badge bg-${badgeClass}">${escapeHtml(entry.category)}</span></td>
                         <td><small>${escapeHtml(entry.activity)}</small></td>
