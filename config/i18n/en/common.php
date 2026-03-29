@@ -3184,7 +3184,7 @@ return [
     'ui.dashboard.todays_callers' => "Today's Callers",
     'ui.dashboard.no_callers_today' => 'None yet today',
     'ui.dashboard.callers_col_user' => 'User',
-    'ui.dashboard.callers_col_time' => 'Time',
+    'ui.dashboard.callers_col_time' => 'Last seen',
     'ui.dashboard.callers_col_online' => 'Online',
     'ui.dashboard.callers_online_now' => 'Online now',
     'ui.dashboard.online_now' => 'Online Now',

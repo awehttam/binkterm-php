@@ -3190,7 +3190,7 @@ return [
     'ui.dashboard.todays_callers' => 'Llamadas de hoy',
     'ui.dashboard.no_callers_today' => 'Ninguno hoy todavía',
     'ui.dashboard.callers_col_user' => 'Usuario',
-    'ui.dashboard.callers_col_time' => 'Hora',
+    'ui.dashboard.callers_col_time' => 'Última vez',
     'ui.dashboard.callers_col_online' => 'En línea',
     'ui.dashboard.callers_online_now' => 'En línea ahora',
     'ui.dashboard.online_now' => 'En línea ahora',

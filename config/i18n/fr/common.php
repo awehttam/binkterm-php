@@ -2558,7 +2558,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.dashboard.todays_callers' => "Appelants du jour",
     'ui.dashboard.no_callers_today' => "Aucun appel aujourd'hui",
     'ui.dashboard.callers_col_user' => 'Utilisateur',
-    'ui.dashboard.callers_col_time' => 'Heure',
+    'ui.dashboard.callers_col_time' => 'Dernière connexion',
     'ui.dashboard.callers_col_online' => 'En ligne',
     'ui.dashboard.callers_online_now' => 'En ligne maintenant',
     'ui.dashboard.online_now' => 'En ligne maintenant',
