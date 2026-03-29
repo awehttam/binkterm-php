@@ -408,13 +408,18 @@ class InterestPicker {
                         <th>${InterestPicker._escHtml(thNet)}</th>
                         <th>${InterestPicker._escHtml(thDesc)}</th>
                     </tr></thead>
-                    <tbody>${areas.map(a => `<tr>
+                    <tbody>${areas.map(a => {
+                        const checked = operation === 'unsubscribe'
+                            ? (a.subscribed ? 'checked' : '')
+                            : 'checked';
+                        return `<tr>
                         <td><input class="form-check-input interest-area-check" type="checkbox"
-                                   value="${InterestPicker._escAttr(String(a.echoarea_id))}" checked></td>
+                                   value="${InterestPicker._escAttr(String(a.echoarea_id))}" ${checked}></td>
                         <td class="fw-semibold text-warning">${InterestPicker._escHtml(a.tag)}${a.subscribed ? subBadge : ''}</td>
                         <td><span class="badge bg-secondary fw-normal">${InterestPicker._escHtml(a.domain || '')}</span></td>
                         <td>${InterestPicker._escHtml(a.description || '')}</td>
-                    </tr>`).join('')}</tbody>
+                    </tr>`;
+                    }).join('')}</tbody>
                 </table>`;
 
             const cancelLabel = window.t ? window.t('ui.cancel', {}, 'Cancel') : 'Cancel';
