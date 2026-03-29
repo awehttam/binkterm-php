@@ -1288,6 +1288,13 @@ function wizardGoTo(step) {
  * Populate the wizard content command select (step 2) from the allowed commands API.
  * Uses the select's data-default attribute to pre-select the preset's default command.
  */
+function updateNewfilesHint(selId, hintId) {
+    const sel  = document.getElementById(selId);
+    const hint = document.getElementById(hintId);
+    if (!sel || !hint) return;
+    hint.classList.toggle('d-none', !sel.value.includes('report_newfiles'));
+}
+
 function populateWizardContentCommandSelect() {
     const sel = document.getElementById('wizardContentCommand');
     if (!sel) return;
@@ -1304,8 +1311,10 @@ function populateWizardContentCommandSelect() {
                 sel.appendChild(opt);
             });
             if (defaultVal) sel.value = defaultVal;
+            updateNewfilesHint('wizardContentCommand', 'wizardNewfilesHint');
         })
         .catch(() => {});
+    sel.addEventListener('change', () => updateNewfilesHint('wizardContentCommand', 'wizardNewfilesHint'));
 }
 
 /**
@@ -1492,6 +1501,10 @@ function renderWizardStep2() {
                 <label class="form-label" for="wizardContentCommandArgs">${uiT('ui.admin.ads.content_command_args', 'Arguments')}</label>
                 <input class="form-control font-monospace" type="text" id="wizardContentCommandArgs" placeholder="--flag=value">
                 <div class="form-text">${uiT('ui.admin.ads.content_command_help', 'An executable that writes the post body to stdout. A dynamic ad will be created automatically.')}</div>
+                <div id="wizardNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                </div>
             </div>
             ` : `
             <div class="col-12">

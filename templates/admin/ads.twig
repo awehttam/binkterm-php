@@ -37,6 +37,10 @@
                     <div class="col-md-2">
                         <label class="form-label" for="adContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
                         <input class="form-control font-monospace" type="text" id="adContentCommandArgs" placeholder="--flag=value">
+                        <div id="adNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                        </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label" for="adTitle">{{ t('ui.common.title') }}</label>
@@ -176,6 +180,10 @@
                     <div class="col-md-6">
                         <label class="form-label" for="editAdContentCommandArgs">{{ t('ui.admin.ads.content_command_args') }}</label>
                         <input class="form-control font-monospace" type="text" id="editAdContentCommandArgs" placeholder="--flag=value">
+                        <div id="editAdNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                        </div>
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="editAdContent">{{ t('ui.admin.ads.ansi_content') }}</label>
@@ -284,13 +292,23 @@ function detectHiddenUploadFields() {
     }
 }
 
+function updateNewfilesHint(selId, hintId) {
+    const sel  = document.getElementById(selId);
+    const hint = document.getElementById(hintId);
+    if (!sel || !hint) return;
+    hint.classList.toggle('d-none', !sel.value.includes('report_newfiles'));
+}
+
 function loadContentCommands() {
     fetch('/admin/api/ads/content-commands')
         .then(r => r.json())
         .then(data => {
             const cmds = Array.isArray(data.commands) ? data.commands : [];
-            [document.getElementById('adContentCommand'),
-             document.getElementById('editAdContentCommand')].forEach(sel => {
+            [
+                { selId: 'adContentCommand',     hintId: 'adNewfilesHint' },
+                { selId: 'editAdContentCommand', hintId: 'editAdNewfilesHint' },
+            ].forEach(({ selId, hintId }) => {
+                const sel = document.getElementById(selId);
                 if (!sel) return;
                 const current = sel.value;
                 while (sel.options.length > 1) sel.remove(1);
@@ -301,6 +319,8 @@ function loadContentCommands() {
                     sel.appendChild(opt);
                 });
                 if (current) sel.value = current;
+                updateNewfilesHint(selId, hintId);
+                sel.addEventListener('change', () => updateNewfilesHint(selId, hintId));
             });
         })
         .catch(() => {});

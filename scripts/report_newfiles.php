@@ -9,6 +9,7 @@
  *   php scripts/report_newfiles.php --days=30
  *   php scripts/report_newfiles.php --from=2026-03-01 --to=2026-03-20
  *   php scripts/report_newfiles.php --public
+ *   php scripts/report_newfiles.php --freq
  *   php scripts/report_newfiles.php --domain=lovlynet
  */
 
@@ -28,6 +29,7 @@ function printUsage(): void
     echo "  --from=YYYY-MM-DD   Start date (overrides --since/--days)\n";
     echo "  --to=YYYY-MM-DD     End date (used with --from, defaults to now)\n";
     echo "  --public            Only include file areas where is_public is true\n";
+    echo "  --freq              Only include file areas where freq_enabled is true\n";
     echo "  --domain=NAME       Only include file areas in the specified domain\n";
     echo "  --help              Show this help message\n";
 }
@@ -129,7 +131,7 @@ function buildWindow(array $args): array
     return [$from, $to];
 }
 
-function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to, bool $publicOnly = false, ?string $domain = null): array
+function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to, bool $publicOnly = false, bool $freqOnly = false, ?string $domain = null): array
 {
     $db = Database::getInstance()->getPdo();
     $sql = "
@@ -156,6 +158,10 @@ function fetchNewFiles(DateTimeImmutable $from, DateTimeImmutable $to, bool $pub
 
     if ($publicOnly) {
         $sql .= " AND fa.is_public = TRUE";
+    }
+
+    if ($freqOnly) {
+        $sql .= " AND fa.freq_enabled = TRUE";
     }
 
     if ($domain !== null && $domain !== '') {
@@ -311,7 +317,7 @@ try {
     if ($domain === '') {
         throw new RuntimeException('--domain must not be empty');
     }
-    $rows = fetchNewFiles($from, $to, isset($args['public']), $domain);
+    $rows = fetchNewFiles($from, $to, isset($args['public']), isset($args['freq']), $domain);
     printReport($rows, $from, $to);
     exit(0);
 } catch (Throwable $e) {
