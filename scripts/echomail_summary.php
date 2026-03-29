@@ -57,7 +57,7 @@ try {
 $since       = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
                    ->modify("-{$days} days")
                    ->format('Y-m-d H:i:s');
-$areaFilter  = $area !== null ? 'AND ea.tag = :area' : '';
+$areaFilter  = 'AND ea.is_sysop_only = FALSE' . ($area !== null ? ' AND ea.tag = :area' : '');
 
 // ── Helper: bind common params ────────────────────────────────────────────────
 
