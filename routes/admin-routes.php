@@ -435,7 +435,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $user = RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/ads.twig');
+        $template->renderResponse('admin/ads.twig', [
+            'weather_configured' => file_exists(__DIR__ . '/../config/weather.json'),
+        ]);
     });
 
     SimpleRouter::get('/ad-campaigns', function() {
@@ -7164,6 +7166,18 @@ SimpleRouter::post('/admin/api/poll', function () {
     } catch (\Throwable $e) {
         apiError('errors.admin.poll.failed', 'Poll failed: ' . $e->getMessage(), 500);
     }
+});
+
+// GET /admin/api/last — recent callers within the past N hours (default 168 = 1 week)
+SimpleRouter::get('/admin/api/last', function () {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $hours = isset($_GET['hours']) ? max(1, (int)$_GET['hours']) : 168;
+    $auth = new \BinktermPHP\Auth();
+    $callers = $auth->getRecentCallers($hours);
+
+    echo json_encode(['callers' => $callers, 'hours' => $hours]);
 });
 
 // POST /admin/api/wall — broadcast a wall message to all connected users

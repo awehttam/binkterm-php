@@ -382,6 +382,30 @@ class Auth
     }
 
     /**
+     * Get callers active within the past N hours, most recent first.
+     *
+     * @param int $hours Look-back window in hours
+     * @return array Rows with username, last_activity (UTC), is_online
+     */
+    public function getRecentCallers(int $hours = 168): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT u.username,
+                   MAX(s.last_activity) AS last_activity,
+                   BOOL_OR(s.last_activity > NOW() - INTERVAL '15 minutes'
+                           AND s.expires_at > NOW()) AS is_online
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.last_activity >= NOW() - (:hours * INTERVAL '1 hour')
+              AND u.is_active = TRUE
+            GROUP BY u.id, u.username
+            ORDER BY MAX(s.last_activity) DESC
+        ");
+        $stmt->execute([':hours' => $hours]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Update user's location
      *
      * @param int $userId User ID

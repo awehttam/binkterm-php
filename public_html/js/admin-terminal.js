@@ -552,6 +552,37 @@
             }
         },
         {
+            cmd: 'last',
+            desc: 'Show callers from the past week',
+            run: function () {
+                logLine('\x1b[90mFetching recent callers…\x1b[0m');
+                fetch('/admin/api/last', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        var callers = data.callers || [];
+                        term.write('\r\x1b[A\x1b[2K');
+                        if (callers.length === 0) {
+                            logLine('\x1b[90mNo callers in the past week.\x1b[0m');
+                        } else {
+                            logLine('\x1b[1mCallers — past 7 days (' + callers.length + ')\x1b[0m');
+                            callers.forEach(function (c) {
+                                var when = c.last_activity ? new Date(c.last_activity) : null;
+                                var timeStr = when ? when.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+                                var online = c.is_online === true || c.is_online === 't'
+                                    ? ' \x1b[32m●\x1b[0m' : '';
+                                logLine('  \x1b[96m' + escapeForTerminal(c.username) + '\x1b[0m' + online + '  \x1b[90m' + timeStr + '\x1b[0m');
+                            });
+                        }
+                        term.write(PROMPT_STR + inputBuffer);
+                    })
+                    .catch(function () {
+                        term.write('\r\x1b[A\x1b[2K');
+                        logLine('\x1b[31mFailed to fetch callers.\x1b[0m');
+                        term.write(PROMPT_STR + inputBuffer);
+                    });
+            }
+        },
+        {
             cmd: 'wall',
             desc: 'wall <message>  —  Broadcast a message to all online users',
             run: function (parts) {

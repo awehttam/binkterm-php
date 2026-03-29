@@ -44,6 +44,16 @@
                             Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
                         </div>
                     </div>
+                    <div id="adWeatherHint" class="col-12 d-none">
+                        <div class="alert alert-{{ weather_configured ? 'info' : 'warning' }} py-2 px-3 mb-0 small">
+                            <i class="fas fa-{{ weather_configured ? 'info-circle' : 'exclamation-triangle' }} me-1"></i>
+                            {% if weather_configured %}
+                                Weather report is configured and ready.
+                            {% else %}
+                                Weather report requires API configuration. <a href="/admin/weather-config">Configure weather settings</a> before using this command.
+                            {% endif %}
+                        </div>
+                    </div>
                     <div class="col-md-3">
                         <label class="form-label" for="adTitle">{{ t('ui.common.title') }}</label>
                         <input class="form-control" type="text" id="adTitle" name="title">
@@ -189,6 +199,16 @@
                             Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
                         </div>
                     </div>
+                    <div id="editAdWeatherHint" class="col-12 d-none">
+                        <div class="alert alert-{{ weather_configured ? 'info' : 'warning' }} py-2 px-3 mb-0 small">
+                            <i class="fas fa-{{ weather_configured ? 'info-circle' : 'exclamation-triangle' }} me-1"></i>
+                            {% if weather_configured %}
+                                Weather report is configured and ready.
+                            {% else %}
+                                Weather report requires API configuration. <a href="/admin/weather-config">Configure weather settings</a> before using this command.
+                            {% endif %}
+                        </div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label" for="editAdContent">{{ t('ui.admin.ads.ansi_content') }}</label>
                         <div class="form-text mb-2">{{ t('ui.admin.ads.escape_helper_help') }}</div>
@@ -296,11 +316,19 @@ function detectHiddenUploadFields() {
     }
 }
 
+function updateCommandHints(selId, newfilesHintId, weatherHintId) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const val = sel.value;
+    const newfilesHint = document.getElementById(newfilesHintId);
+    const weatherHint  = document.getElementById(weatherHintId);
+    if (newfilesHint) newfilesHint.classList.toggle('d-none', !val.includes('report_newfiles'));
+    if (weatherHint)  weatherHint.classList.toggle('d-none',  !val.includes('weather_report'));
+}
+
+// Keep the old name as an alias so the edit-modal open path can call it directly.
 function updateNewfilesHint(selId, hintId) {
-    const sel  = document.getElementById(selId);
-    const hint = document.getElementById(hintId);
-    if (!sel || !hint) return;
-    hint.classList.toggle('d-none', !sel.value.includes('report_newfiles'));
+    updateCommandHints(selId, hintId, selId === 'adContentCommand' ? 'adWeatherHint' : 'editAdWeatherHint');
 }
 
 function loadContentCommands() {
@@ -309,9 +337,9 @@ function loadContentCommands() {
         .then(data => {
             const cmds = Array.isArray(data.commands) ? data.commands : [];
             [
-                { selId: 'adContentCommand',     hintId: 'adNewfilesHint' },
-                { selId: 'editAdContentCommand', hintId: 'editAdNewfilesHint' },
-            ].forEach(({ selId, hintId }) => {
+                { selId: 'adContentCommand',     newfilesHintId: 'adNewfilesHint',     weatherHintId: 'adWeatherHint' },
+                { selId: 'editAdContentCommand', newfilesHintId: 'editAdNewfilesHint', weatherHintId: 'editAdWeatherHint' },
+            ].forEach(({ selId, newfilesHintId, weatherHintId }) => {
                 const sel = document.getElementById(selId);
                 if (!sel) return;
                 const current = sel.value;
@@ -323,8 +351,8 @@ function loadContentCommands() {
                     sel.appendChild(opt);
                 });
                 if (current) sel.value = current;
-                updateNewfilesHint(selId, hintId);
-                sel.addEventListener('change', () => updateNewfilesHint(selId, hintId));
+                updateCommandHints(selId, newfilesHintId, weatherHintId);
+                sel.addEventListener('change', () => updateCommandHints(selId, newfilesHintId, weatherHintId));
             });
         })
         .catch(() => {});
@@ -521,6 +549,7 @@ function openEditor(id) {
             const storedScript = cmdParts[0] || '';
             editCmdSel.value  = storedScript;
             editCmdArgs.value = cmdParts.slice(1).join(' ');
+            updateCommandHints('editAdContentCommand', 'editAdNewfilesHint', 'editAdWeatherHint');
             // If the stored script isn't in the list (e.g. legacy entry), show a warning
             if (storedScript && editCmdSel.value !== storedScript) {
                 showAdsAlert(uiT('ui.admin.ads.content_command_invalid_stored', 'This ad has a content command that is no longer allowed. Please select a valid command or clear it.'), 'warning');

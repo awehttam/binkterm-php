@@ -1288,11 +1288,14 @@ function wizardGoTo(step) {
  * Populate the wizard content command select (step 2) from the allowed commands API.
  * Uses the select's data-default attribute to pre-select the preset's default command.
  */
-function updateNewfilesHint(selId, hintId) {
-    const sel  = document.getElementById(selId);
-    const hint = document.getElementById(hintId);
-    if (!sel || !hint) return;
-    hint.classList.toggle('d-none', !sel.value.includes('report_newfiles'));
+function updateCommandHints(selId, newfilesHintId, weatherHintId) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const val = sel.value;
+    const newfilesHint = document.getElementById(newfilesHintId);
+    const weatherHint  = document.getElementById(weatherHintId);
+    if (newfilesHint) newfilesHint.classList.toggle('d-none', !val.includes('report_newfiles'));
+    if (weatherHint)  weatherHint.classList.toggle('d-none',  !val.includes('weather_report'));
 }
 
 function populateWizardContentCommandSelect() {
@@ -1311,10 +1314,10 @@ function populateWizardContentCommandSelect() {
                 sel.appendChild(opt);
             });
             if (defaultVal) sel.value = defaultVal;
-            updateNewfilesHint('wizardContentCommand', 'wizardNewfilesHint');
+            updateCommandHints('wizardContentCommand', 'wizardNewfilesHint', 'wizardWeatherHint');
         })
         .catch(() => {});
-    sel.addEventListener('change', () => updateNewfilesHint('wizardContentCommand', 'wizardNewfilesHint'));
+    sel.addEventListener('change', () => updateCommandHints('wizardContentCommand', 'wizardNewfilesHint', 'wizardWeatherHint'));
 }
 
 /**
@@ -1504,6 +1507,14 @@ function renderWizardStep2() {
                 <div id="wizardNewfilesHint" class="alert alert-info py-2 px-3 mt-2 small d-none">
                     <i class="fas fa-info-circle me-1"></i>
                     Consider limiting which file areas are included using <code>--freq</code>, <code>--network</code>, or <code>--public</code> to control the scope of this report.
+                </div>
+                <div id="wizardWeatherHint" class="alert alert-{{ weather_configured ? 'info' : 'warning' }} py-2 px-3 mt-2 small d-none">
+                    <i class="fas fa-{{ weather_configured ? 'info-circle' : 'exclamation-triangle' }} me-1"></i>
+                    {% if weather_configured %}
+                        Weather report is configured and ready.
+                    {% else %}
+                        Weather report requires API configuration. <a href="/admin/weather-config">Configure weather settings</a> before using this command.
+                    {% endif %}
                 </div>
             </div>
             ` : `
