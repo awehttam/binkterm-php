@@ -34,6 +34,7 @@ let wsConnectTimer = null;
 let wsRetryProbeTimer = null;
 let wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
 let lastCursor = '';
+let isInitialized = false;
 
 function debugLog() {
     if (typeof console === 'undefined' || typeof console.log !== 'function') {
@@ -51,6 +52,7 @@ self.onconnect = function (e) {
         switch (data.action) {
             case 'init':
                 initializeConfig(data.config || {});
+                isInitialized = true;
                 ensureTransport();
                 break;
             case 'subscribe':
@@ -77,8 +79,6 @@ self.onconnect = function (e) {
             port.postMessage({ type: '__cursor', data: { cursor: lastCursor } });
         } catch (_) {}
     }
-
-    ensureTransport();
 };
 
 function initializeConfig(config) {
@@ -114,6 +114,9 @@ function effectiveTransportMode() {
 }
 
 function ensureTransport() {
+    if (!isInitialized) {
+        return;
+    }
     if (ports.size === 0) {
         closeTransport();
         return;

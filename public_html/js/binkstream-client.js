@@ -157,7 +157,7 @@
     }
 
     try {
-        const WORKER_BUILD = 7;
+        const WORKER_BUILD = 8;
         const worker = new SharedWorker('/js/binkstream-worker-v2.js?v=' + WORKER_BUILD, { name: 'binkstream-v' + WORKER_BUILD });
         workerPort = worker.port;
         workerPort.onmessage = function (e) {
