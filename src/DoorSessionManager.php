@@ -79,7 +79,8 @@ class DoorSessionManager
      */
     public function startSession(int $userId, string $doorName, array $userData, string $doorType = 'dos'): array
     {
-        $this->logger->info("[StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType");
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'cli';
+        $this->logger->info("[StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType, IP: $remoteAddr");
 
         // Get door information from manifest to get the display name
         if ($doorType === 'native') {
@@ -107,7 +108,7 @@ class DoorSessionManager
 
         // Generate session ID
         $sessionId = DoorDropFile::generateSessionId($userId, $node);
-        $this->logger->info("[StartSession] Session ID: $sessionId");
+        $this->logger->info("[StartSession] Session ID: $sessionId, IP: $remoteAddr");
 
         // Prepare user data for drop file generation (bridge will create DOOR.SYS)
         // Add session-specific data to user data
@@ -156,7 +157,7 @@ class DoorSessionManager
             'node' => $node,
         ]);
 
-            $this->logger->info("[StartSession] Session created - Node $node, bridge will launch DOSBox");
+            $this->logger->info("[StartSession] Session created - Node $node, bridge will launch DOSBox, IP: $remoteAddr");
 
             // Return session info (bridge will create session_path, allocate tcp_port, launch DOSBox)
             $session = [
