@@ -25,6 +25,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Logging**
 - When a web-server PHP process cannot write directly to an application log file, it now sends the log entry to the admin daemon so the daemon can append it to the correct log file instead.
+- Door session setup events (session start, node allocation, DOSBox launch) are now written to `data/logs/dosdoor.log`. Activity during actual door execution continues to be logged by the multiplexing bridge server to `data/logs/multiplexing-server.log`.
 
 **BinkP**
 - Outbound routing now checks for an exact configured uplink address match before falling back to network-based uplink selection. This allows multiple uplinks on the same FTN network, so messages explicitly addressed to a specific uplink node can be routed through that uplink instead of being matched only by shared network patterns.
