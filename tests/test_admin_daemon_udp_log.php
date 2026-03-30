@@ -5,18 +5,6 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use BinktermPHP\Config;
 
-const TEST_UDP_TAGS = [
-    'server' => 0,
-    'packets' => 1,
-    'multiplexing_server' => 2,
-    'binkp_poll' => 3,
-    'binkp_server' => 4,
-    'binkp_scheduler' => 5,
-    'admin_daemon' => 6,
-    'mrc_daemon' => 7,
-    'crashmail' => 8,
-];
-
 main($argv);
 
 function main(array $argv): void
@@ -35,12 +23,7 @@ function main(array $argv): void
         exit(1);
     }
 
-    $tagInput = strtolower((string)($options['tag'] ?? 'server'));
-    $tagValue = resolveTagValue($tagInput);
-    if ($tagValue === null) {
-        fwrite(STDERR, "Unknown tag: {$tagInput}\n");
-        exit(1);
-    }
+    $logFile = (string)($options['file'] ?? 'server.log');
 
     $levelValue = resolveLevelValue((string)($options['level'] ?? 'INFO'));
     if ($levelValue === null) {
@@ -49,17 +32,16 @@ function main(array $argv): void
     }
 
     $message = (string)($options['message'] ?? ($positional[0] ?? 'test admin daemon udp log'));
-    $messageBytes = $message;
-    if (!mb_check_encoding($messageBytes, 'UTF-8')) {
+    if (!mb_check_encoding($message, 'UTF-8')) {
         fwrite(STDERR, "Message must be valid UTF-8.\n");
         exit(1);
     }
 
-    if (strlen($messageBytes) > 1200) {
-        $messageBytes = substr($messageBytes, 0, 1200);
+    if (strlen($message) > 1200) {
+        $message = substr($message, 0, 1200);
     }
 
-    $packet = buildPacket($tagValue, $levelValue, $messageBytes);
+    $packet = buildPacket($logFile, $levelValue, $message);
     $socket = @stream_socket_client($udpTarget, $errno, $errstr, 2, STREAM_CLIENT_CONNECT);
     if (!$socket) {
         fwrite(STDERR, "Failed to connect to {$udpTarget}: {$errstr} ({$errno})\n");
@@ -75,7 +57,7 @@ function main(array $argv): void
     }
 
     echo "Sent UDP log packet to {$udpTarget}\n";
-    echo "Tag={$tagValue} Level={$levelValue} PID=" . getmypid() . " Message=\"{$messageBytes}\"\n";
+    echo "File={$logFile} Level={$levelValue} PID=" . getmypid() . " Message=\"{$message}\"\n";
 }
 
 function parseArgs(array $argv): array
@@ -105,13 +87,13 @@ function printUsage(string $script): void
 {
     $name = basename($script);
     echo "Usage:\n";
-    echo "  php {$name} [--socket=tcp://127.0.0.1:9065] [--tag=server] [--level=INFO] [--message=\"hello\"]\n";
+    echo "  php {$name} [--socket=tcp://127.0.0.1:9065] [--file=server.log] [--level=INFO] [--message=\"hello\"]\n";
     echo "  php {$name} [message]\n\n";
-    echo "Tags:\n";
-    foreach (TEST_UDP_TAGS as $nameKey => $value) {
-        echo "  {$nameKey} = {$value}\n";
-    }
-    echo "\nLevels: DEBUG, INFO, WARNING, ERROR\n";
+    echo "Options:\n";
+    echo "  --file    Basename of the target log file (e.g. server.log, packets.log)\n";
+    echo "  --level   Log level: DEBUG, INFO, WARNING, ERROR\n";
+    echo "  --message Log message text\n";
+    echo "  --socket  Admin daemon socket (default: tcp://127.0.0.1:9065)\n";
 }
 
 function socketTargetToUdpTarget(string $socketTarget): ?string
@@ -121,16 +103,6 @@ function socketTargetToUdpTarget(string $socketTarget): ?string
     }
 
     return 'udp://' . $matches[1] . ':' . $matches[2];
-}
-
-function resolveTagValue(string $tagInput): ?int
-{
-    if ($tagInput !== '' && ctype_digit($tagInput)) {
-        $value = (int)$tagInput;
-        return ($value >= 0 && $value <= 255) ? $value : null;
-    }
-
-    return TEST_UDP_TAGS[$tagInput] ?? null;
 }
 
 function resolveLevelValue(string $level): ?int
@@ -145,16 +117,20 @@ function resolveLevelValue(string $level): ?int
     return $map[strtoupper($level)] ?? null;
 }
 
-function buildPacket(int $tag, int $level, string $message): string
+function buildPacket(string $logFile, int $level, string $message): string
 {
     $timestampMs = (int) floor(microtime(true) * 1000);
     $pid = (int) getmypid();
+    $filenameBytes = substr($logFile, 0, 255);
+    $filenameLen = strlen($filenameBytes);
     $messageLen = strlen($message);
 
+    // Packet layout: uint64 timestamp | uint8 level | uint32 pid | uint8 filenameLen | filename | uint16 msgLen | message
     return packUint64BE($timestampMs)
-        . pack('C', $tag)
         . pack('C', $level)
         . pack('N', $pid)
+        . pack('C', $filenameLen)
+        . $filenameBytes
         . pack('n', $messageLen)
         . $message;
 }

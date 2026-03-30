@@ -20,18 +20,6 @@ use BinktermPHP\Config;
 
 class AdminDaemonClient
 {
-    private const UDP_LOG_TAGS = [
-        'server' => 0,
-        'packets' => 1,
-        'multiplexing_server' => 2,
-        'binkp_poll' => 3,
-        'binkp_server' => 4,
-        'binkp_scheduler' => 5,
-        'admin_daemon' => 6,
-        'mrc_daemon' => 7,
-        'crashmail' => 8,
-    ];
-
     private const UDP_LOG_LEVELS = [
         'DEBUG' => 0,
         'INFO' => 1,
@@ -42,6 +30,7 @@ class AdminDaemonClient
     private string $socketTarget;
     private string $secret;
     private $socket;
+    private $udpSocket = null;
 
     public function __construct(?string $socketTarget = null, ?string $secret = null)
     {
@@ -412,13 +401,12 @@ class AdminDaemonClient
      * This is a separate best-effort path from serverLog(). It uses the same
      * numeric port as the TCP admin daemon socket, but over UDP.
      *
-     * @param string $tag     Logical log target tag (e.g. server, packets)
-     * @param string $level   Log level: DEBUG, INFO, WARNING, ERROR
-     * @param string $message Human-readable message
+     * @param string $logFile  Basename of the target log file (e.g. server.log)
+     * @param string $level    Log level: DEBUG, INFO, WARNING, ERROR
+     * @param string $message  Pre-formatted log line to write verbatim
      */
-    public function udpLog(string $tag, string $level, string $message): bool
+    public function udpLog(string $logFile, string $level, string $message): bool
     {
-        $tagValue = $this->resolveUdpLogTag($tag);
         $levelValue = $this->resolveUdpLogLevel($level);
         $udpTarget = $this->getUdpSocketTarget();
 
@@ -434,14 +422,16 @@ class AdminDaemonClient
             $message = substr($message, 0, 1200);
         }
 
-        $packet = $this->buildUdpLogPacket($tagValue, $levelValue, $message);
-        $socket = @stream_socket_client($udpTarget, $errno, $errstr, 2, STREAM_CLIENT_CONNECT);
-        if (!$socket) {
-            throw new \RuntimeException("Failed to connect to admin daemon UDP logger: {$errstr} ({$errno})");
+        $packet = $this->buildUdpLogPacket($logFile, $levelValue, $message);
+
+        if (!$this->udpSocket || !is_resource($this->udpSocket)) {
+            $this->udpSocket = @stream_socket_client($udpTarget, $errno, $errstr, 2, STREAM_CLIENT_CONNECT);
+            if (!$this->udpSocket) {
+                throw new \RuntimeException("Failed to connect to admin daemon UDP logger: {$errstr} ({$errno})");
+            }
         }
 
-        $written = @fwrite($socket, $packet);
-        fclose($socket);
+        $written = @fwrite($this->udpSocket, $packet);
 
         if ($written === false || $written !== strlen($packet)) {
             throw new \RuntimeException('Admin daemon UDP logger send failed');
@@ -526,6 +516,11 @@ class AdminDaemonClient
             fclose($this->socket);
         }
         $this->socket = null;
+
+        if ($this->udpSocket && is_resource($this->udpSocket)) {
+            fclose($this->udpSocket);
+        }
+        $this->udpSocket = null;
     }
 
     private function connect(): void
@@ -620,19 +615,6 @@ class AdminDaemonClient
         return 'udp://' . $matches[1] . ':' . $matches[2];
     }
 
-    private function resolveUdpLogTag(string $tag): int
-    {
-        $normalized = strtolower(trim($tag));
-        if ($normalized !== '' && ctype_digit($normalized)) {
-            $value = (int)$normalized;
-            if ($value >= 0 && $value <= 255) {
-                return $value;
-            }
-        }
-
-        return self::UDP_LOG_TAGS[$normalized] ?? 255;
-    }
-
     private function resolveUdpLogLevel(string $level): int
     {
         $normalized = strtoupper(trim($level));
@@ -643,16 +625,20 @@ class AdminDaemonClient
         return self::UDP_LOG_LEVELS[$normalized];
     }
 
-    private function buildUdpLogPacket(int $tag, int $level, string $message): string
+    private function buildUdpLogPacket(string $logFile, int $level, string $message): string
     {
         $timestampMs = (int) floor(microtime(true) * 1000);
         $pid = (int) getmypid();
+        $filenameBytes = substr($logFile, 0, 255);
+        $filenameLen = strlen($filenameBytes);
         $messageLen = strlen($message);
 
+        // Packet layout: uint64 timestamp | uint8 level | uint32 pid | uint8 filenameLen | filename | uint16 msgLen | message
         return $this->packUint64BE($timestampMs)
-            . pack('C', $tag)
             . pack('C', $level)
             . pack('N', $pid)
+            . pack('C', $filenameLen)
+            . $filenameBytes
             . pack('n', $messageLen)
             . $message;
     }

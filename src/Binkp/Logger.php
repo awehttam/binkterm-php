@@ -28,6 +28,7 @@ class Logger
     private $logFile;
     private $logToConsole;
     private $dateFormat;
+    private ?\BinktermPHP\Admin\AdminDaemonClient $udpClient = null;
     
     public function __construct($logFile = null, $logLevel = self::LEVEL_INFO, $logToConsole = true)
     {
@@ -95,30 +96,11 @@ class Logger
     private function sendUdpFallback(string $level, string $logMessage): bool
     {
         try {
-            $client = new \BinktermPHP\Admin\AdminDaemonClient();
-            return $client->udpLog($this->getUdpFallbackTag(), $level, $logMessage);
+            $this->udpClient ??= new \BinktermPHP\Admin\AdminDaemonClient();
+            return $this->udpClient->udpLog(basename((string)$this->logFile), $level, $logMessage);
         } catch (\Throwable $e) {
             return false;
         }
-    }
-
-    private function getUdpFallbackTag(): string
-    {
-        $filename = strtolower((string)basename((string)$this->logFile));
-
-        $map = [
-            'server.log' => 'server',
-            'packets.log' => 'packets',
-            'multiplexing-server.log' => 'multiplexing_server',
-            'binkp_poll.log' => 'binkp_poll',
-            'binkp_server.log' => 'binkp_server',
-            'binkp_scheduler.log' => 'binkp_scheduler',
-            'admin_daemon.log' => 'admin_daemon',
-            'mrc_daemon.log' => 'mrc_daemon',
-            'crashmail.log' => 'crashmail',
-        ];
-
-        return $map[$filename] ?? 'server';
     }
     
     public function debug($message, $context = [])

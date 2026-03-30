@@ -30,16 +30,17 @@ class AdminDaemonServer
         3 => 'ERROR',
     ];
 
-    private const UDP_TAG_MAP = [
-        0 => ['name' => 'server', 'file' => 'server.log'],
-        1 => ['name' => 'packets', 'file' => 'packets.log'],
-        2 => ['name' => 'multiplexing_server', 'file' => 'multiplexing-server.log'],
-        3 => ['name' => 'binkp_poll', 'file' => 'binkp_poll.log'],
-        4 => ['name' => 'binkp_server', 'file' => 'binkp_server.log'],
-        5 => ['name' => 'binkp_scheduler', 'file' => 'binkp_scheduler.log'],
-        6 => ['name' => 'admin_daemon', 'file' => 'admin_daemon.log'],
-        7 => ['name' => 'mrc_daemon', 'file' => 'mrc_daemon.log'],
-        8 => ['name' => 'crashmail', 'file' => 'crashmail.log'],
+    /** Allowlist of log filenames the UDP logger is permitted to write. */
+    private const UDP_ALLOWED_LOG_FILES = [
+        'server.log',
+        'packets.log',
+        'multiplexing-server.log',
+        'binkp_poll.log',
+        'binkp_server.log',
+        'binkp_scheduler.log',
+        'admin_daemon.log',
+        'mrc_daemon.log',
+        'crashmail.log',
     ];
 
     private string $socketTarget;
@@ -1106,7 +1107,7 @@ class AdminDaemonServer
             try {
                 $decoded = $this->decodeUdpLogPacket($packet);
                 $this->appendUdpLog(
-                    $decoded['tag_value'],
+                    $decoded['log_file'],
                     $decoded['level'],
                     $decoded['pid'],
                     $decoded['message'],
@@ -1123,61 +1124,76 @@ class AdminDaemonServer
 
     private function decodeUdpLogPacket(string $packet): array
     {
-        if (strlen($packet) < 16) {
+        // Fixed header: uint64 timestamp(8) | uint8 level(1) | uint32 pid(4) | uint8 filenameLen(1) = 14 bytes
+        if (strlen($packet) < 14) {
             throw new \RuntimeException('packet_too_short');
         }
 
-        $parts = unpack('Nts_hi/Nts_lo/Ctag/Clevel/Npid/nmsg_len', substr($packet, 0, 16));
-        if (!is_array($parts)) {
+        $header = unpack('Nts_hi/Nts_lo/Clevel/Npid/Cfilename_len', substr($packet, 0, 14));
+        if (!is_array($header)) {
             throw new \RuntimeException('unpack_failed');
         }
 
-        $msgLen = (int)$parts['msg_len'];
-        $actualLen = strlen($packet) - 16;
-        if ($actualLen < $msgLen) {
+        $filenameLen = (int)$header['filename_len'];
+        $filenameOffset = 14;
+        $msgLenOffset = $filenameOffset + $filenameLen;
+
+        if (strlen($packet) < $msgLenOffset + 2) {
+            throw new \RuntimeException('packet_too_short_for_filename');
+        }
+
+        $logFile = $filenameLen > 0 ? substr($packet, $filenameOffset, $filenameLen) : 'server.log';
+
+        $msgLenParts = unpack('nmsg_len', substr($packet, $msgLenOffset, 2));
+        if (!is_array($msgLenParts)) {
+            throw new \RuntimeException('unpack_msg_len_failed');
+        }
+
+        $msgLen = (int)$msgLenParts['msg_len'];
+        $msgOffset = $msgLenOffset + 2;
+
+        if (strlen($packet) - $msgOffset < $msgLen) {
             throw new \RuntimeException('invalid_message_length');
         }
 
-        $message = substr($packet, 16, $msgLen);
+        $message = substr($packet, $msgOffset, $msgLen);
         if (!mb_check_encoding($message, 'UTF-8')) {
             throw new \RuntimeException('invalid_utf8');
         }
 
-        $timestampMs = (((int)$parts['ts_hi']) << 32) | (int)$parts['ts_lo'];
+        $timestampMs = (((int)$header['ts_hi']) << 32) | (int)$header['ts_lo'];
 
         return [
             'timestamp' => $timestampMs,
-            'tag_value' => (int)$parts['tag'],
-            'level' => self::UDP_LEVEL_MAP[(int)$parts['level']] ?? 'INFO',
-            'pid' => (int)$parts['pid'],
-            'message' => $message,
+            'log_file'  => basename($logFile),
+            'level'     => self::UDP_LEVEL_MAP[(int)$header['level']] ?? 'INFO',
+            'pid'       => (int)$header['pid'],
+            'message'   => $message,
         ];
     }
 
-    private function appendUdpLog(int $tagValue, string $level, int $pid, string $message, int $timestampMs): void
+    private function appendUdpLog(string $logFile, string $level, int $pid, string $message, int $timestampMs): void
     {
-        $target = self::UDP_TAG_MAP[$tagValue] ?? null;
-        $fallback = $target === null;
-        $logFile = $fallback ? 'server.log' : (string)$target['file'];
+        $allowed = in_array($logFile, self::UDP_ALLOWED_LOG_FILES, true);
+        if (!$allowed) {
+            $this->logger->warning('Admin daemon UDP logger rejected unknown log file', [
+                'log_file' => $logFile,
+                'pid'      => $pid,
+            ]);
+            $logFile = 'server.log';
+        }
+
         $logPath = Config::getLogPath($logFile);
-        $timestamp = $this->formatUdpTimestamp($timestampMs);
 
         $this->logger->debug('Admin daemon UDP log received', [
-            'tag' => $tagValue,
-            'level' => $level,
-            'pid' => $pid,
+            'level'    => $level,
+            'pid'      => $pid,
             'log_file' => $logFile,
-            'fallback' => $fallback,
-            'message' => $message,
+            'message'  => $message,
         ]);
 
-        $line = "[{$timestamp}] [{$pid}] [{$level}] ";
-        if ($fallback) {
-            $line .= "[FALLBACK tag={$tagValue}] ";
-        }
-        $line .= $message . "\n";
-
-        @file_put_contents($logPath, $line, FILE_APPEND | LOCK_EX);
+        // $message is a pre-formatted log line from Logger — write it verbatim.
+        @file_put_contents($logPath, $message . "\n", FILE_APPEND | LOCK_EX);
     }
 
     private function formatUdpTimestamp(int $timestampMs): string
