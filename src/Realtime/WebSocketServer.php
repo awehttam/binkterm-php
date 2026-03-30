@@ -214,6 +214,7 @@ class WebSocketServer implements LoopServiceInterface
         $this->clients[$clientId]['handshake_complete'] = true;
         $this->clients[$clientId]['user'] = $user;
         $this->clients[$clientId]['remote_ip'] = $this->resolveRemoteIp($clientId, $headers);
+        $this->clients[$clientId]['requested_cursor'] = $lastEventId;
         $this->clients[$clientId]['cursor'] = $anchorId;
 
         $this->sendJson($clientId, [
@@ -226,11 +227,13 @@ class WebSocketServer implements LoopServiceInterface
         $username = (string)($user['username'] ?? '');
         $remoteIp = (string)($this->clients[$clientId]['remote_ip'] ?? '');
         $this->logger->info(sprintf(
-            'Realtime websocket client connected: ip=%s username=%s user_id=%d client_id=%d',
+            'Realtime websocket client connected: ip=%s username=%s user_id=%d client_id=%d requested_cursor=%d anchor_cursor=%d',
             $remoteIp !== '' ? $remoteIp : '-',
             $username !== '' ? $username : '-',
             $userId,
-            $clientId
+            $clientId,
+            $lastEventId,
+            $anchorId
         ));
     }
 
