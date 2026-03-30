@@ -907,7 +907,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.binkp_sessions.success' => 'Succès',
     'ui.admin.binkp_sessions.rejected' => 'Rejetée',
     'ui.admin.binkp_sessions.remote_address' => 'Adresse distante',
-    'ui.admin.binkp_sessions.remote_address_placeholder' => '1:123/456',
+    'ui.admin.binkp_sessions.remote_address_placeholder' => '1:123/456 ou 203.0.113.7',
     'ui.admin.binkp_sessions.apply_filter' => 'Appliquer le filtre',
     'ui.admin.binkp_sessions.recent_sessions' => 'Sessions récentes',
     'ui.admin.binkp_sessions.time' => 'Heure',

@@ -1170,7 +1170,7 @@ return [
     'ui.admin.binkp_sessions.success' => 'Success',
     'ui.admin.binkp_sessions.rejected' => 'Rejected',
     'ui.admin.binkp_sessions.remote_address' => 'Remote Address',
-    'ui.admin.binkp_sessions.remote_address_placeholder' => '1:123/456',
+    'ui.admin.binkp_sessions.remote_address_placeholder' => '1:123/456 or 203.0.113.7',
     'ui.admin.binkp_sessions.apply_filter' => 'Apply Filter',
     'ui.admin.binkp_sessions.recent_sessions' => 'Recent Sessions',
     'ui.admin.binkp_sessions.time' => 'Time',

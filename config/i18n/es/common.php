@@ -1223,7 +1223,7 @@ return [
     'ui.admin.binkp_sessions.success' => 'Exito',
     'ui.admin.binkp_sessions.rejected' => 'Rechazada',
     'ui.admin.binkp_sessions.remote_address' => 'Direccion remota',
-    'ui.admin.binkp_sessions.remote_address_placeholder' => '1:123/456',
+    'ui.admin.binkp_sessions.remote_address_placeholder' => '1:123/456 o 203.0.113.7',
     'ui.admin.binkp_sessions.apply_filter' => 'Aplicar filtro',
     'ui.admin.binkp_sessions.recent_sessions' => 'Sesiones recientes',
     'ui.admin.binkp_sessions.time' => 'Hora',

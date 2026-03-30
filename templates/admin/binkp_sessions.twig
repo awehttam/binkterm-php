@@ -560,6 +560,34 @@ function updateChartHeader() {
     `;
 }
 
+function renderRemoteAddressCell(session) {
+    const remoteAddress = session && session.remote_address;
+    const value = String(remoteAddress || '').trim();
+    if (!value) {
+        return `<code>${escapeHtml(uiT('ui.common.unknown', 'Unknown'))}</code>`;
+    }
+
+    const resolvedDomain = String((session && session.remote_domain) || '').trim();
+    const atIndex = value.lastIndexOf('@');
+    if (atIndex > 0 && atIndex < value.length - 1) {
+        const nodeAddress = value.slice(0, atIndex);
+        const domain = value.slice(atIndex + 1);
+        return `
+            <div><code>${escapeHtml(nodeAddress)}</code></div>
+            <small class="text-muted">${escapeHtml(domain)}</small>
+        `;
+    }
+
+    if (resolvedDomain) {
+        return `
+            <div><code>${escapeHtml(value)}</code></div>
+            <small class="text-muted">${escapeHtml(resolvedDomain)}</small>
+        `;
+    }
+
+    return `<code>${escapeHtml(value)}</code>`;
+}
+
 function loadSessions() {
     const sessionType = document.getElementById('filterType').value;
     const status = document.getElementById('filterStatus').value;
@@ -638,7 +666,7 @@ function renderSessionsTable(hasError = false) {
     tbody.innerHTML = pageSessions.map(session => `
         <tr data-session-id="${session.id}">
             <td><small>${formatLocalizedDateTime(session.started_at)}</small></td>
-            <td><code>${escapeHtml(session.remote_address || uiT('ui.common.unknown', 'Unknown'))}</code></td>
+            <td>${renderRemoteAddressCell(session)}</td>
             <td><small>${escapeHtml(session.remote_ip || '-')}</small></td>
             <td>
                 <div><code>${escapeHtml(String(session.process_id || '-'))}</code></div>
