@@ -5,7 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
 /**
- * Convert Caddy JSON access logs to Apache common log format.
+ * Convert Caddy JSON access logs to Apache combined or common log format.
  *
  * Usage:
  *   php scripts/caddylog.php /path/to/caddy.log
@@ -25,9 +25,15 @@ function main(array $argv): void
     }
 
     $logFile = (string)($options['file'] ?? ($positional[0] ?? ''));
+    $format = strtolower((string)($options['format'] ?? 'combined'));
     if ($logFile === '') {
         fwrite(STDERR, "Error: missing Caddy log file path.\n\n");
         printUsage($argv[0] ?? 'scripts/caddylog.php');
+        exit(1);
+    }
+
+    if (!in_array($format, ['combined', 'common'], true)) {
+        fwrite(STDERR, "Error: unsupported format '{$format}'. Use 'combined' or 'common'.\n");
         exit(1);
     }
 
@@ -42,11 +48,11 @@ function main(array $argv): void
     }
 
     if (!empty($options['tail'])) {
-        tailLogFile($logFile);
+        tailLogFile($logFile, $format);
         return;
     }
 
-    processFile($logFile);
+    processFile($logFile, $format);
 }
 
 function parseArgs(array $argv): array
@@ -70,6 +76,11 @@ function parseArgs(array $argv): array
             continue;
         }
 
+        if (str_starts_with($arg, '--format=')) {
+            $options['format'] = substr($arg, 9);
+            continue;
+        }
+
         if (str_starts_with($arg, '--')) {
             fwrite(STDERR, "Warning: ignoring unknown option {$arg}\n");
             continue;
@@ -90,12 +101,13 @@ function printUsage(string $script): void
     echo "\n";
     echo "Options:\n";
     echo "  --file=PATH   Path to the Caddy JSON access log file\n";
+    echo "  --format=FMT  Output format: combined (default) or common\n";
     echo "  --tail        Follow the file from EOF and emit converted lines in real time\n";
     echo "  --help        Show this help message\n";
     echo "\n";
 }
 
-function processFile(string $logFile): void
+function processFile(string $logFile, string $format): void
 {
     $handle = fopen($logFile, 'rb');
     if ($handle === false) {
@@ -104,14 +116,14 @@ function processFile(string $logFile): void
 
     try {
         while (($line = fgets($handle)) !== false) {
-            emitConvertedLine($line, $logFile);
+            emitConvertedLine($line, $logFile, $format);
         }
     } finally {
         fclose($handle);
     }
 }
 
-function tailLogFile(string $logFile): void
+function tailLogFile(string $logFile, string $format): void
 {
     $size = @filesize($logFile);
     if ($size === false) {
@@ -153,7 +165,7 @@ function tailLogFile(string $logFile): void
                 while (($newlinePos = strpos($partial, "\n")) !== false) {
                     $line = substr($partial, 0, $newlinePos + 1);
                     $partial = substr($partial, $newlinePos + 1);
-                    emitConvertedLine($line, $logFile);
+                    emitConvertedLine($line, $logFile, $format);
                 }
             }
         }
@@ -162,9 +174,9 @@ function tailLogFile(string $logFile): void
     }
 }
 
-function emitConvertedLine(string $line, string $source): void
+function emitConvertedLine(string $line, string $source, string $format): void
 {
-    $converted = convertCaddyLogLineToCommon($line);
+    $converted = convertCaddyLogLine($line, $format);
     if ($converted === null) {
         $trimmed = trim($line);
         if ($trimmed !== '') {
@@ -177,7 +189,7 @@ function emitConvertedLine(string $line, string $source): void
     flush();
 }
 
-function convertCaddyLogLineToCommon(string $line): ?string
+function convertCaddyLogLine(string $line, string $format): ?string
 {
     $line = trim($line);
     if ($line === '') {
@@ -230,15 +242,29 @@ function convertCaddyLogLineToCommon(string $line): ?string
 
     $status = extractStatusCode($row, $request);
     $bytes = extractResponseSize($row);
-
-    return sprintf(
+    $base = sprintf(
         '%s - %s [%s] "%s" %s %s',
         $remoteHost,
         $user,
         $time,
-        escapeRequestLine($requestLine),
+        escapeLogField($requestLine),
         $status,
         $bytes
+    );
+
+    if ($format === 'common') {
+        return $base;
+    }
+
+    $headers = is_array($request['headers'] ?? null) ? $request['headers'] : [];
+    $referer = firstHeaderValue($headers, 'referer') ?? '-';
+    $userAgent = firstHeaderValue($headers, 'user-agent') ?? '-';
+
+    return sprintf(
+        '%s "%s" "%s"',
+        $base,
+        escapeLogField($referer),
+        escapeLogField($userAgent)
     );
 }
 
@@ -319,7 +345,31 @@ function firstNonEmptyString(array $values): ?string
     return null;
 }
 
-function escapeRequestLine(string $requestLine): string
+function firstHeaderValue(array $headers, string $headerName): ?string
 {
-    return str_replace('"', '\"', $requestLine);
+    foreach ($headers as $key => $value) {
+        if (strcasecmp((string)$key, $headerName) !== 0) {
+            continue;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (is_string($item) && trim($item) !== '') {
+                    return trim($item);
+                }
+            }
+            return null;
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+    }
+
+    return null;
+}
+
+function escapeLogField(string $value): string
+{
+    return str_replace('"', '\"', $value);
 }
