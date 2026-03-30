@@ -82,6 +82,8 @@ self.onconnect = function (e) {
 };
 
 function initializeConfig(config) {
+    const rawTransportMode = String(config.transportMode || 'sse');
+    const rawPreferredTransportMode = String(config.preferredTransportMode || 'sse');
     const mode = String(config.transportMode || 'sse').toLowerCase();
     transportMode = ['auto', 'sse', 'ws'].includes(mode) ? mode : 'sse';
     const preferred = String(config.preferredTransportMode || 'sse').toLowerCase();
@@ -97,6 +99,9 @@ function initializeConfig(config) {
         wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
     }
     debugLog('[BinkStream worker] init', {
+        rawTransportMode: rawTransportMode,
+        rawPreferredTransportMode: rawPreferredTransportMode,
+        rawWsUrl: typeof config.wsUrl === 'string' ? config.wsUrl : '(missing)',
         configuredTransportMode: transportMode,
         preferredTransportMode: preferredTransportMode,
         wsUrl: wsUrl || '(default)',
