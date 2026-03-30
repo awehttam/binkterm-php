@@ -1,9 +1,6 @@
 #!/usr/bin/env php
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../src/functions.php';
-
 /**
  * Convert Caddy JSON access logs to Apache combined or common log format.
  *
