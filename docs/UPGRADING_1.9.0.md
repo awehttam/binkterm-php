@@ -8,6 +8,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Security Fixes](#security-fixes)
   - [MCP Server Dependency Update](#mcp-server-dependency-update)
   - [CVE Coverage](#cve-coverage)
+- [BinkP](#binkp)
+  - [Multi-Uplink Outbound Routing](#multi-uplink-outbound-routing)
+- [Real-time Events (BinkStream)](#real-time-events-binkstream)
+  - [Targeted Dashboard Stats Notifications](#targeted-dashboard-stats-notifications)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -17,6 +21,12 @@ Make sure you have a current backup of your database and files before upgrading.
 **Security Fixes**
 - The optional MCP server now updates its `path-to-regexp` dependency from `8.3.0` to `8.4.0`.
 - This release addresses `CVE-2026-4926` (`GHSA-j3q9-mxjg-w52f`) and `CVE-2026-4923` (`GHSA-27v5-c462-wpq7`) in the MCP server dependency tree.
+
+**BinkP**
+- Outbound packet routing now supports multiple uplinks with overlapping network patterns. Packets explicitly addressed to a specific uplink's node address are routed to that uplink exclusively, rather than being potentially claimed by another uplink whose network wildcard also matches.
+
+**Real-time Events (BinkStream)**
+- Dashboard stats notifications are now targeted per user. Echomail events are sent only to users subscribed to the affected echo area who are currently online; netmail events go only to the recipient if online; file events go to all online users. Previously all events were broadcast to every connected user regardless of subscriptions.
 
 ## Security Fixes
 
