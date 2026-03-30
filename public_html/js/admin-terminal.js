@@ -458,7 +458,7 @@
                 var modeColor = modeColors[mode] || '\x1b[90m';
                 var cursor = '', initCursor = '';
                 try { cursor = UserStorage.getItem('binkstream_cursor') || ''; } catch (_) {}
-                try { initCursor = UserStorage.getItem('binkstream_cursor_init') || ''; } catch (_) {}
+                try { initCursor = sessionStorage.getItem('binkstream_cursor_init') || ''; } catch (_) {}
                 term.writeln('\x1b[1mStream Status\x1b[0m');
                 term.writeln('  Mode          ' + modeColor + mode + '\x1b[0m');
                 term.writeln('  Cursor        ' + (cursor ? '\x1b[37m' + cursor + '\x1b[0m' : '\x1b[90m-\x1b[0m'));
