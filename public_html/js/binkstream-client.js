@@ -172,7 +172,12 @@
             if (msg.type === '__cursor' && msg.data && msg.data.cursor) {
                 // Persist the stream cursor so a new worker instance can resume
                 // from the same position rather than replaying old events.
-                try { UserStorage.setItem('binkstream_cursor', String(msg.data.cursor)); } catch (_) {}
+                // A timestamp is saved alongside so stale cursors are discarded
+                // on worker restart rather than flooding the client with old events.
+                try {
+                    UserStorage.setItem('binkstream_cursor', String(msg.data.cursor));
+                    UserStorage.setItem('binkstream_cursor_ts', String(Date.now()));
+                } catch (_) {}
                 return;
             }
             if (msg.type === 'command_result' && msg.requestId) {
@@ -196,6 +201,21 @@
             }
         };
         workerPort.start();
+        const initCursor = (function () {
+            try {
+                const c = UserStorage.getItem('binkstream_cursor') || '';
+                const ts = parseInt(UserStorage.getItem('binkstream_cursor_ts') || '0', 10);
+                // Discard the cursor if it is older than 5 minutes.  A stale cursor
+                // causes the worker to replay a large backlog of old events when
+                // reconnecting after a long absence (browser close/reopen, sleep/wake).
+                // Within-session reconnects (page refresh, tab close/reopen) happen
+                // in seconds so they are well within the window.
+                const CURSOR_TTL_MS = 5 * 60 * 1000;
+                return (c && ts && (Date.now() - ts) < CURSOR_TTL_MS) ? c : '';
+            } catch (_) { return ''; }
+        })();
+        // Persist the page-load cursor so the admin terminal can display it.
+        try { UserStorage.setItem('binkstream_cursor_init', initCursor || '(none)'); } catch (_) {}
         workerPort.postMessage({
             action: 'init',
             config: {
@@ -203,7 +223,7 @@
                 preferredTransportMode: getPreferredTransportMode(),
                 wsUrl: getWsUrl(),
                 csrfToken: getCsrfToken(),
-                cursor: (function () { try { return UserStorage.getItem('binkstream_cursor') || ''; } catch (_) { return ''; } })()
+                cursor: initCursor
             }
         });
 

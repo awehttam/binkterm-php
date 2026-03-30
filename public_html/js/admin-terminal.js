@@ -456,11 +456,13 @@
                 var mode = bs ? bs.getMode() : 'unavailable';
                 var modeColors = { ws: '\x1b[32m', sse: '\x1b[33m', poll: '\x1b[31m' };
                 var modeColor = modeColors[mode] || '\x1b[90m';
-                var cursor = '';
+                var cursor = '', initCursor = '';
                 try { cursor = UserStorage.getItem('binkstream_cursor') || ''; } catch (_) {}
+                try { initCursor = UserStorage.getItem('binkstream_cursor_init') || ''; } catch (_) {}
                 term.writeln('\x1b[1mStream Status\x1b[0m');
                 term.writeln('  Mode          ' + modeColor + mode + '\x1b[0m');
                 term.writeln('  Cursor        ' + (cursor ? '\x1b[37m' + cursor + '\x1b[0m' : '\x1b[90m-\x1b[0m'));
+                term.writeln('  Init cursor   ' + (initCursor ? '\x1b[37m' + initCursor + '\x1b[0m' : '\x1b[90m-\x1b[0m'));
                 term.writeln('  Watch         ' + (streamWatch ? '\x1b[32mon\x1b[0m' : '\x1b[90moff\x1b[0m'));
                 term.writeln('  Events recv   \x1b[37m' + streamEventCount + '\x1b[0m');
                 term.writeln('  Connected at  \x1b[37m' + (streamConnectedAt ? streamConnectedAt.toLocaleTimeString() : '-') + '\x1b[0m');
