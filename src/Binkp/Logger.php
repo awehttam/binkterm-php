@@ -79,12 +79,46 @@ class Logger
             try {
                 $result = @file_put_contents($this->logFile, $logMessage . "\n", FILE_APPEND | LOCK_EX);
                 if ($result === false) {
-                    error_log('LOG FALLBACK: ' . $logMessage);
+                    if (!$this->sendUdpFallback($levelStr, $logMessage)) {
+                        error_log('UDPLOG FAIL FALLBACK: ' . $logMessage);
+                    }
                 }
             } catch (\Throwable $e) {
-                error_log('LOG FALLBACK: ' . $logMessage . ' [write failed: ' . $e->getMessage() . ']');
+                $fallbackMessage = $logMessage . ' [write failed: ' . $e->getMessage() . ']';
+                if (!$this->sendUdpFallback($levelStr, $fallbackMessage)) {
+                    error_log('UDPLOG FAIL FALLBACK: ' . $fallbackMessage);
+                }
             }
         }
+    }
+
+    private function sendUdpFallback(string $level, string $logMessage): bool
+    {
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            return $client->udpLog($this->getUdpFallbackTag(), $level, $logMessage);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function getUdpFallbackTag(): string
+    {
+        $filename = strtolower((string)basename((string)$this->logFile));
+
+        $map = [
+            'server.log' => 'server',
+            'packets.log' => 'packets',
+            'multiplexing-server.log' => 'multiplexing_server',
+            'binkp_poll.log' => 'binkp_poll',
+            'binkp_server.log' => 'binkp_server',
+            'binkp_scheduler.log' => 'binkp_scheduler',
+            'admin_daemon.log' => 'admin_daemon',
+            'mrc_daemon.log' => 'mrc_daemon',
+            'crashmail.log' => 'crashmail',
+        ];
+
+        return $map[$filename] ?? 'server';
     }
     
     public function debug($message, $context = [])

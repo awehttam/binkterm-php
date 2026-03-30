@@ -20,6 +20,25 @@ use BinktermPHP\Config;
 
 class AdminDaemonClient
 {
+    private const UDP_LOG_TAGS = [
+        'server' => 0,
+        'packets' => 1,
+        'multiplexing_server' => 2,
+        'binkp_poll' => 3,
+        'binkp_server' => 4,
+        'binkp_scheduler' => 5,
+        'admin_daemon' => 6,
+        'mrc_daemon' => 7,
+        'crashmail' => 8,
+    ];
+
+    private const UDP_LOG_LEVELS = [
+        'DEBUG' => 0,
+        'INFO' => 1,
+        'WARNING' => 2,
+        'ERROR' => 3,
+    ];
+
     private string $socketTarget;
     private string $secret;
     private $socket;
@@ -388,6 +407,50 @@ class AdminDaemonClient
     }
 
     /**
+     * Write a log entry to the admin daemon UDP logging listener.
+     *
+     * This is a separate best-effort path from serverLog(). It uses the same
+     * numeric port as the TCP admin daemon socket, but over UDP.
+     *
+     * @param string $tag     Logical log target tag (e.g. server, packets)
+     * @param string $level   Log level: DEBUG, INFO, WARNING, ERROR
+     * @param string $message Human-readable message
+     */
+    public function udpLog(string $tag, string $level, string $message): bool
+    {
+        $tagValue = $this->resolveUdpLogTag($tag);
+        $levelValue = $this->resolveUdpLogLevel($level);
+        $udpTarget = $this->getUdpSocketTarget();
+
+        if ($udpTarget === null) {
+            throw new \RuntimeException('Admin daemon UDP logging requires a tcp://HOST:PORT socket target');
+        }
+
+        if (!mb_check_encoding($message, 'UTF-8')) {
+            throw new \RuntimeException('UDP log message must be valid UTF-8');
+        }
+
+        if (strlen($message) > 1200) {
+            $message = substr($message, 0, 1200);
+        }
+
+        $packet = $this->buildUdpLogPacket($tagValue, $levelValue, $message);
+        $socket = @stream_socket_client($udpTarget, $errno, $errstr, 2, STREAM_CLIENT_CONNECT);
+        if (!$socket) {
+            throw new \RuntimeException("Failed to connect to admin daemon UDP logger: {$errstr} ({$errno})");
+        }
+
+        $written = @fwrite($socket, $packet);
+        fclose($socket);
+
+        if ($written === false || $written !== strlen($packet)) {
+            throw new \RuntimeException('Admin daemon UDP logger send failed');
+        }
+
+        return true;
+    }
+
+    /**
      * Convenience static method for one-shot logging via the admin daemon.
      *
      * Constructs a client, sends the log entry, and closes the connection.
@@ -546,6 +609,59 @@ class AdminDaemonClient
     private function getDefaultSocketTarget(): string
     {
         return 'tcp://127.0.0.1:9065';
+    }
+
+    private function getUdpSocketTarget(): ?string
+    {
+        if (preg_match('#^tcp://([^:]+):(\\d+)$#', $this->socketTarget, $matches) !== 1) {
+            return null;
+        }
+
+        return 'udp://' . $matches[1] . ':' . $matches[2];
+    }
+
+    private function resolveUdpLogTag(string $tag): int
+    {
+        $normalized = strtolower(trim($tag));
+        if ($normalized !== '' && ctype_digit($normalized)) {
+            $value = (int)$normalized;
+            if ($value >= 0 && $value <= 255) {
+                return $value;
+            }
+        }
+
+        return self::UDP_LOG_TAGS[$normalized] ?? 255;
+    }
+
+    private function resolveUdpLogLevel(string $level): int
+    {
+        $normalized = strtoupper(trim($level));
+        if (!isset(self::UDP_LOG_LEVELS[$normalized])) {
+            throw new \RuntimeException("Unknown UDP log level: {$level}");
+        }
+
+        return self::UDP_LOG_LEVELS[$normalized];
+    }
+
+    private function buildUdpLogPacket(int $tag, int $level, string $message): string
+    {
+        $timestampMs = (int) floor(microtime(true) * 1000);
+        $pid = (int) getmypid();
+        $messageLen = strlen($message);
+
+        return $this->packUint64BE($timestampMs)
+            . pack('C', $tag)
+            . pack('C', $level)
+            . pack('N', $pid)
+            . pack('n', $messageLen)
+            . $message;
+    }
+
+    private function packUint64BE(int $value): string
+    {
+        $hi = ($value >> 32) & 0xFFFFFFFF;
+        $lo = $value & 0xFFFFFFFF;
+        return pack('NN', $hi, $lo);
     }
 }
 
