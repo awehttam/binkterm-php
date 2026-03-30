@@ -23,6 +23,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - The optional MCP server now updates its `path-to-regexp` dependency from `8.3.0` to `8.4.0`.
 - This release addresses `CVE-2026-4926` (`GHSA-j3q9-mxjg-w52f`) and `CVE-2026-4923` (`GHSA-27v5-c462-wpq7`) in the MCP server dependency tree.
 
+**Logging**
+- When a web-server PHP process cannot write directly to an application log file, it now sends the log entry to the admin daemon so the daemon can append it to the correct log file instead.
+
 **BinkP**
 - Outbound routing now checks for an exact configured uplink address match before falling back to network-based uplink selection. This allows multiple uplinks on the same FTN network, so messages explicitly addressed to a specific uplink node can be routed through that uplink instead of being matched only by shared network patterns.
 
@@ -103,6 +106,8 @@ Then restart the MCP server process if it is running under a service manager, su
 
 If you use BinkStream with `BINKSTREAM_TRANSPORT_MODE=auto`, restart the PHP web service and the realtime WebSocket service after deploying the new code so browsers receive the corrected transport preference logic and worker script versions.
 
+Restart the admin daemon after upgrading so the new log-ingest behavior is available when web-server PHP processes cannot write directly to the destination log file.
+
 ### Using the Installer
 
 Re-run the BinktermPHP installer to update the application files. When prompted to run `php scripts/setup.php`, allow it to complete.
@@ -110,3 +115,5 @@ Re-run the BinktermPHP installer to update the application files. When prompted 
 If you use the optional MCP server, run `npm install` inside `mcp-server/` after the upgrade so the updated npm packages are installed, then restart that service.
 
 If you use BinkStream with browser realtime enabled, restart the web service and realtime WebSocket service after the upgrade so clients receive the updated transport selection and cursor-handling fixes.
+
+Restart the admin daemon after upgrading so the new log-ingest behavior is available when web-server PHP processes cannot write directly to the destination log file.
