@@ -459,6 +459,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $insertStmt = $db->prepare("
                 INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
             ");
 
             $insertStmt->execute([
@@ -474,7 +475,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $referrerId
             ]);
 
-            $pendingUserId = $db->lastInsertId();
+            $pendingUserRow = $insertStmt->fetch(\PDO::FETCH_ASSOC);
+            $pendingUserId = $pendingUserRow ? (int)$pendingUserRow['id'] : 0;
 
             // Send notification to sysop
             try {
@@ -490,9 +492,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $updateAttemptStmt = $db->prepare("
                     UPDATE registration_attempts
                     SET success = TRUE
-                    WHERE ip_address = ?
-                    ORDER BY attempt_time DESC
-                    LIMIT 1
+                    WHERE id = (
+                        SELECT id
+                        FROM registration_attempts
+                        WHERE ip_address = ?
+                        ORDER BY attempt_time DESC
+                        LIMIT 1
+                    )
                 ");
                 $updateAttemptStmt->execute([$ipAddress]);
             } catch (Exception $e) {
