@@ -73,6 +73,17 @@ self.onconnect = function (e) {
 
     port.start();
 
+    // Push the current cursor to this port immediately so that UserStorage is
+    // up-to-date as soon as the page connects, even if no new events arrive
+    // before the next reconnect cycle.  Without this, a refresh where the
+    // SharedWorker survives but no events fire leaves UserStorage pointing at
+    // a stale position, causing replay if the worker is later restarted.
+    if (lastCursor) {
+        try {
+            port.postMessage({ type: '__cursor', data: { cursor: lastCursor } });
+        } catch (_) {}
+    }
+
     // Replay any events that arrived while no ports were connected (e.g. single-tab
     // refresh). Discard events older than the TTL to avoid stale replays.
     if (orphanEvents.length > 0) {
@@ -288,6 +299,18 @@ function connectSse() {
     current.addEventListener('error', function () {
         if (current !== es) {
             return;
+        }
+        // Sync cursor from the browser's native lastEventId before closing.
+        // The browser advances lastEventId for every SSE id: field regardless
+        // of whether a named-event listener is registered, so this ensures the
+        // cursor advances past events whose types are not currently subscribed
+        // (e.g. admin events on a non-admin page, or events the page hasn't
+        // subscribed to yet).  Without this, unsubscribed events are replayed
+        // on every reconnect because lastCursor never moves past them.
+        const nativeId = current.lastEventId;
+        if (nativeId && nativeId !== lastCursor) {
+            lastCursor = nativeId;
+            broadcastCursor(lastCursor);
         }
         current.close();
         es = null;
@@ -558,7 +581,7 @@ function broadcast(type, data) {
         // Buffer the event so it can be replayed to the next port that connects
         // (e.g. the same tab finishing a page refresh). Skip internal transport
         // events — only buffer application-level events.
-        if (type !== '__transport') {
+        if (type !== '__transport' && type !== '__cursor') {
             orphanEvents.push({ type: type, data: data, at: Date.now() });
         }
         closeTransport();
