@@ -10,6 +10,7 @@
 
 namespace BinktermPHP;
 
+use BinktermPHP\Binkp\Logger;
 use Exception;
 use PDO;
 
@@ -23,6 +24,7 @@ class DoorSessionManager
     private $processHandles = []; // Store process resources (not serialized)
     private $headlessMode = true; // Use production headless config by default
     private $maxSessions; // Maximum simultaneous sessions (configurable via DOSDOOR_MAX_SESSIONS)
+    private Logger $logger;
 
     // Port ranges for multi-user support
     private const TCP_PORT_BASE = 5000;
@@ -61,6 +63,8 @@ class DoorSessionManager
 
         // Initialize database connection
         $this->db = Database::getInstance()->getPdo();
+
+        $this->logger = new Logger(Config::getLogPath('dosdoor.log'), Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -75,7 +79,7 @@ class DoorSessionManager
      */
     public function startSession(int $userId, string $doorName, array $userData, string $doorType = 'dos'): array
     {
-        error_log("DOSDOOR: [StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType");
+        $this->logger->info("[StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType");
 
         // Get door information from manifest to get the display name
         if ($doorType === 'native') {
@@ -86,25 +90,24 @@ class DoorSessionManager
         $doorInfo = $doorManager->getDoor($doorName);
 
         if (!$doorInfo) {
-            error_log("DOSDOOR: [StartSession] ERROR - Door not found: $doorName");
+            $this->logger->error("[StartSession] Door not found: $doorName");
             throw new Exception("Door not found: $doorName");
         }
 
         $doorDisplayName = $doorInfo['name'] ?? $doorName;
-        error_log("DOSDOOR: [StartSession] Door display name: $doorDisplayName");
 
         try {
             // Find available node number (starts transaction with row-level lock)
             $node = $this->findAvailableNode();
             if ($node === null) {
-                error_log("DOSDOOR: [StartSession] ERROR - No available nodes");
+                $this->logger->error("[StartSession] No available nodes (max {$this->maxSessions} sessions)");
                 // Transaction already rolled back in findAvailableNode()
                 throw new Exception('No available door nodes (max ' . $this->maxSessions . ' sessions)');
             }
 
         // Generate session ID
         $sessionId = DoorDropFile::generateSessionId($userId, $node);
-        error_log("DOSDOOR: [StartSession] Session ID: $sessionId");
+        $this->logger->info("[StartSession] Session ID: $sessionId");
 
         // Prepare user data for drop file generation (bridge will create DOOR.SYS)
         // Add session-specific data to user data
@@ -113,11 +116,8 @@ class DoorSessionManager
         $userData['baud_rate'] = 115200;
         $userData['time_remaining'] = 7200; // 2 hours
 
-        error_log("DOSDOOR: [StartSession] User data prepared for bridge");
-
         // Generate WebSocket authentication token
         $wsToken = bin2hex(random_bytes(32)); // 64 character hex string
-        error_log("DOSDOOR: [StartSession] Generated WebSocket token");
 
         // WebSocket port is shared (single multiplexing bridge for all sessions)
         $wsPort = (int)Config::env('DOSDOOR_WS_PORT', '6001');
@@ -148,7 +148,7 @@ class DoorSessionManager
 
         // Commit transaction (releases node allocation lock)
         $this->db->commit();
-        error_log("DOSDOOR: [StartSession] Transaction committed - Node $node locked");
+        $this->logger->debug("[StartSession] Transaction committed - Node $node locked");
 
         // Log session creation
         $this->logSessionEvent($sessionId, 'created', [
@@ -156,7 +156,7 @@ class DoorSessionManager
             'node' => $node,
         ]);
 
-            error_log("DOSDOOR: [StartSession] Session created, bridge will create directory and launch DOSBox");
+            $this->logger->info("[StartSession] Session created - Node $node, bridge will launch DOSBox");
 
             // Return session info (bridge will create session_path, allocate tcp_port, launch DOSBox)
             $session = [
@@ -177,7 +177,7 @@ class DoorSessionManager
             // Rollback transaction if it's still active
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
-                error_log("DOSDOOR: [StartSession] Transaction rolled back due to error");
+                $this->logger->error("[StartSession] Transaction rolled back due to error");
             }
             throw $e;
         }
@@ -191,12 +191,12 @@ class DoorSessionManager
      */
     public function endSession(string $sessionId): bool
     {
-        error_log("DOSDOOR: [EndSession] BEGIN - Session: $sessionId");
+        $this->logger->info("[EndSession] BEGIN - Session: $sessionId");
 
         // Get session from database
         $session = $this->getSession($sessionId);
         if (!$session) {
-            error_log("DOSDOOR: [EndSession] Session not found: $sessionId");
+            $this->logger->error("[EndSession] Session not found: $sessionId");
             return false;
         }
 
@@ -205,36 +205,29 @@ class DoorSessionManager
 
         // Kill DOSBox process using PID (taskkill works, proc_terminate doesn't)
         if ($dosboxPid) {
-            error_log("DOSDOOR: [EndSession] Killing DOSBox PID: $dosboxPid");
+            $this->logger->debug("[EndSession] Killing DOSBox PID: $dosboxPid");
             $killed = $this->killProcess($dosboxPid);
             if ($killed) {
-                error_log("DOSDOOR: [EndSession] DOSBox killed successfully");
+                $this->logger->debug("[EndSession] DOSBox killed successfully");
             } else {
-                error_log("DOSDOOR: [EndSession] WARNING - Failed to kill DOSBox PID: $dosboxPid (may already be dead)");
+                $this->logger->warning("[EndSession] Failed to kill DOSBox PID: $dosboxPid (may already be dead)");
             }
         }
 
         // Clean up process handle if it exists
         if (isset($this->processHandles[$sessionId])) {
-            error_log("DOSDOOR: [EndSession] Closing process handle");
+            $this->logger->debug("[EndSession] Closing process handle");
             proc_close($this->processHandles[$sessionId]);
             unset($this->processHandles[$sessionId]);
         }
 
         // Note: Bridge is shared multiplexing server - don't kill it
-        if ($bridgePid) {
-            error_log("DOSDOOR: [EndSession] Note: Bridge PID $bridgePid (legacy - multiplexing bridge is shared)");
-        } else {
-            error_log("DOSDOOR: [EndSession] Using shared multiplexing bridge (no per-session bridge)");
-        }
 
         // Cleanup drop files
-        error_log("DOSDOOR: [EndSession] Cleaning up drop files");
         $dropFile = new DoorDropFile();
         $dropFile->cleanupSession($sessionId);
 
         // Update database - mark session as ended
-        error_log("DOSDOOR: [EndSession] Updating database");
         $stmt = $this->db->prepare("
             UPDATE door_sessions
             SET ended_at = NOW(), exit_status = ?
@@ -245,7 +238,7 @@ class DoorSessionManager
         // Log session termination
         $this->logSessionEvent($sessionId, 'terminated', ['exit_status' => 'normal']);
 
-        error_log("DOSDOOR: [EndSession] COMPLETE - Session: $sessionId");
+        $this->logger->info("[EndSession] COMPLETE - Session: $sessionId");
         return true;
     }
 
@@ -424,7 +417,7 @@ class DoorSessionManager
             $disconnectTimeout,
             $wsToken
         );
-        error_log("DOSDOOR: [Bridge] Full command: $cmd");
+        $this->logger->debug("[Bridge] Full command: $cmd");
 
         // Start bridge in background
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
@@ -569,8 +562,7 @@ class DoorSessionManager
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             // Get list of dosbox PIDs BEFORE starting (to find the new one)
             $pidsBefore = $this->getDosBoxPids();
-            error_log("DOSDOOR: [Launch] PIDs before: " . implode(', ', $pidsBefore));
-            error_log("DOSDOOR: [Launch] Command: $cmd");
+            $this->logger->debug("[Launch] Command: $cmd");
 
             // Windows: use proc_open
             $descriptors = [
@@ -594,39 +586,32 @@ class DoorSessionManager
 
             $process = proc_open($cmd, $descriptors, $pipes, $this->basePath, $env, $options);
             if (!is_resource($process)) {
-                error_log("DOSDOOR: [Launch] proc_open failed - not a resource");
+                $this->logger->error("[Launch] proc_open failed - not a resource");
                 throw new Exception('Failed to start DOSBox');
             }
-
-            error_log("DOSDOOR: [Launch] proc_open succeeded");
 
             // Close pipes immediately (don't read stderr as it can block on Windows)
             fclose($pipes[0]);
             fclose($pipes[1]);
             fclose($pipes[2]);
-            error_log("DOSDOOR: [Launch] Pipes closed");
 
             // Wait for DOSBox to actually start
-            error_log("DOSDOOR: [Launch] Sleeping 2 seconds...");
             sleep(2);
-            error_log("DOSDOOR: [Launch] Sleep complete, checking PIDs...");
 
             // Find the NEW dosbox PID that wasn't there before
             $pidsAfter = $this->getDosBoxPids();
             $newPids = array_diff($pidsAfter, $pidsBefore);
-            error_log("DOSDOOR: [Launch] PID check complete");
 
-            error_log("DOSDOOR: [Launch] PIDs after: " . implode(', ', $pidsAfter));
-            error_log("DOSDOOR: [Launch] New PIDs: " . implode(', ', $newPids));
+            $this->logger->debug("[Launch] PIDs before: " . implode(', ', $pidsBefore) . " | after: " . implode(', ', $pidsAfter) . " | new: " . implode(', ', $newPids));
 
             if (empty($newPids)) {
-                error_log("DOSDOOR: [Launch] FAILED - No new DOSBox process detected");
+                $this->logger->error("[Launch] FAILED - No new DOSBox process detected");
                 throw new Exception('Failed to detect DOSBox-X process');
             }
 
             // Use the first new PID (should only be one)
             $pid = reset($newPids);
-            error_log("DOSDOOR: [Launch] SUCCESS - PID: $pid");
+            $this->logger->info("[Launch] DOSBox started - PID: $pid");
 
             // Store process handle for cleanup (can't be serialized, kept in memory)
             $this->processHandles[$sessionId] = $process;
@@ -675,12 +660,12 @@ class DoorSessionManager
             ");
             $usedNodes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-            error_log("DOSDOOR: [NodeAlloc] Used nodes: " . implode(', ', $usedNodes));
+            $this->logger->debug("[NodeAlloc] Used nodes: " . (empty($usedNodes) ? 'none' : implode(', ', $usedNodes)));
 
             // Find first available node
             for ($i = 1; $i <= $this->maxSessions; $i++) {
                 if (!in_array($i, $usedNodes)) {
-                    error_log("DOSDOOR: [NodeAlloc] Assigned node: $i");
+                    $this->logger->debug("[NodeAlloc] Assigned node: $i");
                     // Don't commit yet - caller will insert the session and commit
                     return $i;
                 }
@@ -688,12 +673,12 @@ class DoorSessionManager
 
             // No available nodes
             $this->db->rollBack();
-            error_log("DOSDOOR: [NodeAlloc] No available nodes (max " . $this->maxSessions . ")");
+            $this->logger->warning("[NodeAlloc] No available nodes (max " . $this->maxSessions . ")");
             return null;
 
         } catch (\Exception $e) {
             $this->db->rollBack();
-            error_log("DOSDOOR: [NodeAlloc] Error: " . $e->getMessage());
+            $this->logger->error("[NodeAlloc] Error: " . $e->getMessage());
             throw $e;
         }
     }
@@ -815,13 +800,13 @@ class DoorSessionManager
             // Windows
             exec("taskkill /F /PID $pid 2>&1", $output, $returnCode);
             if ($returnCode !== 0) {
-                error_log("DOSDOOR: [KillProcess] taskkill failed for PID $pid - Return code: $returnCode, Output: " . implode(' ', $output));
+                $this->logger->warning("[KillProcess] taskkill failed for PID $pid - code: $returnCode, output: " . implode(' ', $output));
             }
         } else {
             // Linux/Mac
             exec("kill -9 $pid 2>&1", $output, $returnCode);
             if ($returnCode !== 0) {
-                error_log("DOSDOOR: [KillProcess] kill failed for PID $pid - Return code: $returnCode, Output: " . implode(' ', $output));
+                $this->logger->warning("[KillProcess] kill failed for PID $pid - code: $returnCode, output: " . implode(' ', $output));
             }
         }
 

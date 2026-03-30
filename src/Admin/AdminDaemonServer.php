@@ -41,6 +41,7 @@ class AdminDaemonServer
         'admin_daemon.log',
         'mrc_daemon.log',
         'crashmail.log',
+        'dosdoor.log',
     ];
 
     private string $socketTarget;
