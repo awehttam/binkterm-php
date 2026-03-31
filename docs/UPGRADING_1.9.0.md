@@ -17,6 +17,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Targeted Dashboard Stats Notifications](#targeted-dashboard-stats-notifications)
   - [Browser Transport Preference and Cursor Replay Fixes](#browser-transport-preference-and-cursor-replay-fixes)
   - [Message List Refresh on Page Restore](#message-list-refresh-on-page-restore)
+- [Caddy Configuration](#caddy-configuration)
+  - [Static File Serving Fix](#static-file-serving-fix)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -37,6 +39,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Robots**
 - The echomail robot processor type previously displayed as "Auto-Reply" is now displayed as "TEST Area Auto Responder" to better describe its purpose. No configuration changes are required; the internal processor type identifier (`auto_reply`) is unchanged.
+
+**Caddy Configuration**
+- The recommended Caddy configuration has been updated. If you use Caddy, a one-time manual edit to your Caddyfile is required to ensure static files and subdirectories with `index.html` (such as WebDoors and the C64 emulator) are served correctly instead of being routed through PHP.
 
 **Documentation**
 - `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.
@@ -119,6 +124,33 @@ When a browser tab or PWA window is sent to the background, BinkStream events ar
 The echomail and netmail pages now listen for the browser's `visibilitychange` event. When the page transitions from hidden to visible and was hidden for more than 30 seconds, the message list and stats are reloaded automatically. Brief tab switches under 30 seconds do not trigger a reload.
 
 No configuration changes are required.
+
+## Caddy Configuration
+
+### Static File Serving Fix
+
+The previous recommended Caddy configuration passed all requests through `php_fastcgi`, including requests for static files and subdirectories that contain their own `index.html` entry point (WebDoors, the C64 emulator, and any future static content). When a directory with an `index.html` was requested by URL without specifying the filename, PHP received the request, found no matching route, and returned a 404.
+
+The fix is to add a `@static` matcher block before `php_fastcgi` so that Caddy serves real files and HTML index directories directly, without involving PHP:
+
+```
+@static file {
+    try_files {path} {path}/index.html
+}
+handle @static {
+    file_server {
+        index index.html
+    }
+}
+
+php_fastcgi unix//run/php/php8.2-fpm.sock {
+    capture_stderr
+}
+```
+
+Remove the bare `file_server` line that was previously listed after `php_fastcgi` — it is no longer needed. The updated full Caddy example is in `README.md`.
+
+This change is required if you use Caddy. nginx users are unaffected; the existing `try_files` directive in the nginx example already handles this correctly.
 
 ## Upgrade Instructions
 
