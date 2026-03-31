@@ -160,6 +160,22 @@ $(document).ready(function() {
     // Re-enable by uncommenting if BinkStream is unavailable.
     // startAutoRefresh(function() { loadMessages(); loadStats(); }, 120000);
 
+    // Refresh when the page becomes visible again (PWA restore, tab focus, browser un-minimize).
+    // BinkStream events are throttled while the page is hidden, so a manual refresh is needed.
+    let _hiddenAt = null;
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            _hiddenAt = Date.now();
+        } else if (document.visibilityState === 'visible' && _hiddenAt !== null) {
+            // Only refresh if the page was hidden for more than 30 seconds.
+            if (Date.now() - _hiddenAt >= 30000) {
+                loadMessages(null, true);
+                loadStats();
+            }
+            _hiddenAt = null;
+        }
+    });
+
     if (window.BinkStream) {
         // Reload the message list when new netmail arrives.
         // Debounced to absorb bursts from concurrent imports.

@@ -16,6 +16,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [Targeted Dashboard Stats Notifications](#targeted-dashboard-stats-notifications)
   - [Browser Transport Preference and Cursor Replay Fixes](#browser-transport-preference-and-cursor-replay-fixes)
+  - [Message List Refresh on Page Restore](#message-list-refresh-on-page-restore)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -41,6 +42,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Dashboard stats notifications are now targeted per user. Echomail events are sent only to users subscribed to the affected echo area who are currently online; netmail events go only to the recipient if online; file events go to all online users. Previously all events were broadcast to every connected user regardless of subscriptions.
 - Browser-side BinkStream transport selection in `auto` mode now prefers the configured public WebSocket endpoint instead of relying on local PID-file visibility from the web process. This prevents deployments that run the realtime server outside the PHP process namespace from incorrectly starting in SSE mode.
 - The SharedWorker now waits for page configuration before opening a transport, and replay behavior on refresh has been tightened so already-seen events are not re-delivered after browser reloads.
+- The echomail and netmail message lists now refresh automatically when the page is restored from the background after being hidden for more than 30 seconds. BinkStream events are paused or throttled while the page is hidden, so new messages that arrived during that period were not reflected in the list until a manual reload. The page now detects when it becomes visible again and triggers a refresh automatically.
 
 ## Security Fixes
 
@@ -106,6 +108,14 @@ With this update, browser `auto` mode prefers WebSocket whenever a public WebSoc
 The browser SharedWorker startup sequence was also corrected so it waits for page configuration before opening any transport. This removes an incorrect first-connect SSE attempt that could happen before the page's realtime settings were delivered to the worker.
 
 Cursor replay handling was tightened at the same time. Refreshes and worker restarts now use the persisted stream cursor without replaying already-seen application events back into the page after reload.
+
+### Message List Refresh on Page Restore
+
+When a browser tab or PWA window is sent to the background, BinkStream events are paused or throttled by the browser's background-tab throttling policy. As a result, `dashboard_stats` events that would normally trigger a message list reload were not delivered while the page was hidden. When the user returned to the page, the echomail and netmail lists showed stale content until they manually refreshed.
+
+The echomail and netmail pages now listen for the browser's `visibilitychange` event. When the page transitions from hidden to visible and was hidden for more than 30 seconds, the message list and stats are reloaded automatically. Brief tab switches under 30 seconds do not trigger a reload.
+
+No configuration changes are required.
 
 ## Upgrade Instructions
 
