@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [CVE Coverage](#cve-coverage)
 - [BinkP](#binkp)
   - [Exact Uplink Address Matching](#exact-uplink-address-matching)
+  - [FTS-0001 Compliant Outbound Line Terminators](#fts-0001-compliant-outbound-line-terminators)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [Targeted Dashboard Stats Notifications](#targeted-dashboard-stats-notifications)
   - [Browser Transport Preference and Cursor Replay Fixes](#browser-transport-preference-and-cursor-replay-fixes)
@@ -29,6 +30,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **BinkP**
 - Outbound routing now checks for an exact configured uplink address match before falling back to network-based uplink selection. This allows multiple uplinks on the same FTN network, so messages explicitly addressed to a specific uplink node can be routed through that uplink instead of being matched only by shared network patterns.
+- Outbound FTN packet message bodies now use bare CR (`\r`, 0x0D) as the line separator, as required by FTS-0001. Previously all line terminators were written as CRLF (`\r\n`), which caused interoperability problems with remote nodes that enforce strict FTS-0001 parsing — most visibly a spurious LF after the `* Origin:` line.
 
 **Real-time Events (BinkStream)**
 - Dashboard stats notifications are now targeted per user. Echomail events are sent only to users subscribed to the affected echo area who are currently online; netmail events go only to the recipient if online; file events go to all online users. Previously all events were broadcast to every connected user regardless of subscriptions.
@@ -63,6 +65,14 @@ Outbound routing now checks for an exact configured uplink address match before 
 This allows systems to carry different echo areas through different uplink nodes on the same FTN network. When a message is explicitly addressed to a configured uplink node, that specific uplink can now be selected directly instead of being resolved only through shared network patterns.
 
 If multiple uplinks are configured with the same network patterns and no exact uplink-address match applies, routing still falls back to the existing network-based selection rules.
+
+### FTS-0001 Compliant Outbound Line Terminators
+
+FTS-0001 defines CR (0x0D) as the sole line separator in FTN packet message bodies. LF (0x0A) is explicitly defined as a character parsers may ignore — it must not be emitted by a compliant writer. BinktermPHP was writing CRLF (`\r\n`) throughout the outbound packet body, which caused interoperability failures with remote nodes that apply strict parsing. The most visible symptom was a spurious LF character after the `* Origin:` line.
+
+All line terminators in outbound packet bodies are now written as bare CR. This covers kludge lines (`\x01TZUTC`, `\x01MSGID`, `\x01PID`, etc.), the `AREA:` control line, the tearline, the blank line preceding the tearline, the `* Origin:` line, `SEEN-BY:`, `\x01PATH:`, and any stored kludge or Via lines read from the database. The message body text from the database is also normalized to bare CR before being written into the packet.
+
+No database migration is required. The change affects only what is written into outbound `.pkt` files; incoming packet parsing is unchanged.
 
 ## Real-time Events (BinkStream)
 

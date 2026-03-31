@@ -1838,9 +1838,8 @@ class BinkdProcessor
         // Message text with proper FTN control lines
         $messageText = $message['message_text'];
         
-        // Convert line breaks to FidoNet format (\r\n) and ensure proper formatting
-        // This fixes the issue where outgoing messages have improper line breaks
-        $messageText = str_replace(["\r\n", "\r", "\n"], "\r\n", $messageText);
+        // Normalize line endings to bare CR per FTS-0001 (LF must not be emitted by compliant writers)
+        $messageText = str_replace(["\r\n", "\r", "\n"], "\r", $messageText);
 
         // Convert body to target charset when the stored kludge lines specify a non-UTF-8
         // encoding (e.g. CP437). The database always stores message_text as UTF-8; the
@@ -1913,26 +1912,26 @@ class BinkdProcessor
         if ($isNetmail) {
             // Use stored kludges from database if available
             if (!empty($message['kludge_lines'])) {
-                // Convert stored kludges to packet format (with \r\n line endings)
-                $storedKludges = str_replace("\n", "\r\n", $message['kludge_lines']);
-                $kludgeLines .= $storedKludges . "\r\n";
+                // Convert stored kludges to packet format (bare CR per FTS-0001)
+                $storedKludges = str_replace(["\r\n", "\n"], "\r", $message['kludge_lines']);
+                $kludgeLines .= $storedKludges . "\r";
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for netmail
                 $tzutc = \generateTzutc();
-                $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
-                
+                $kludgeLines .= "\x01TZUTC: {$tzutc}\r";
+
                 // Add MSGID kludge (required for netmail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
                 $msgidAddress = $this->buildMsgidAddress($fromAddress, $message['from_domain'] ?? null);
-                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r\n";
-                
+                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r";
+
                 // Add reply address information - REPLYADDR is always the sender
-                $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
+                $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r";
 
                 // Only add REPLYTO if message has a different reply-to address
                 // For now, we don't add redundant REPLYTO that matches REPLYADDR
-                
+
                 // Add INTL kludge for zone routing (required for inter-zone mail).
                 // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
                 list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
@@ -1943,16 +1942,16 @@ class BinkdProcessor
                 list($toNet, $toNodePoint) = explode('/', $toNetNodeRaw);
                 $toNodeOnly = explode('.', $toNodePoint)[0];
 
-                $kludgeLines .= "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}\r\n";
+                $kludgeLines .= "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}\r";
 
                 // Add FMPT/TOPT kludges for point addressing if needed
                 if (strpos($fromAddress, '.') !== false) {
                     list($mainAddr, $fmptPoint) = explode('.', $fromAddress);
-                    $kludgeLines .= "\x01FMPT {$fmptPoint}\r\n";
+                    $kludgeLines .= "\x01FMPT {$fmptPoint}\r";
                 }
                 if (strpos($toAddress, '.') !== false) {
                     list($mainAddr, $toptPoint) = explode('.', $toAddress);
-                    $kludgeLines .= "\x01TOPT {$toptPoint}\r\n";
+                    $kludgeLines .= "\x01TOPT {$toptPoint}\r";
                 }
 
                 // Add FLAGS kludge for netmail attributes
@@ -1961,51 +1960,51 @@ class BinkdProcessor
                 if (($message['attributes'] ?? 0) & 0x0004) $flags[] = 'RCV'; // Received
                 if (($message['attributes'] ?? 0) & 0x0008) $flags[] = 'SNT'; // Sent
                 if (!empty($flags)) {
-                    $kludgeLines .= "\x01FLAGS " . implode(' ', $flags) . "\r\n";
+                    $kludgeLines .= "\x01FLAGS " . implode(' ', $flags) . "\r";
                 }
             }
         } elseif ($isEchomail) {
             // Use stored kludges from database if available
             if (!empty($message['kludge_lines'])) {
-                // Convert stored kludges to packet format (with \r\n line endings)
-                $storedKludges = str_replace("\n", "\r\n", $message['kludge_lines']);
-                $kludgeLines .= $storedKludges . "\r\n";
+                // Convert stored kludges to packet format (bare CR per FTS-0001)
+                $storedKludges = str_replace(["\r\n", "\n"], "\r", $message['kludge_lines']);
+                $kludgeLines .= $storedKludges . "\r";
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for echomail
                 $tzutc = \generateTzutc();
-                $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
-                
+                $kludgeLines .= "\x01TZUTC: {$tzutc}\r";
+
                 // Add MSGID kludge (required for echomail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
                 $msgidAddress = $this->buildMsgidAddress($fromAddress, $message['echoarea_domain'] ?? $message['from_domain'] ?? null);
-                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r\n";
-                
+                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r";
+
                 // Add REPLY kludge if this is a reply to another message
                 if (!empty($message['reply_to_id'])) {
                     $originalMsgId = $this->getOriginalMessageId($message['reply_to_id'], 'echomail');
                     if ($originalMsgId) {
-                        $kludgeLines .= "\x01REPLY: {$originalMsgId}\r\n";
+                        $kludgeLines .= "\x01REPLY: {$originalMsgId}\r";
                     }
                 }
             }
         }
 
-        $kludgeLines.="\x01PID: BinktermPHP ".Version::getVersion()." ".PHP_OS_FAMILY."\r\n";
+        $kludgeLines .= "\x01PID: BinktermPHP " . Version::getVersion() . " " . PHP_OS_FAMILY . "\r";
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
-            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";  // No Space after AREA
+            $areaLine = "AREA:{$message['echoarea_tag']}\r";  // No Space after AREA
         }
         
         $messageText = $areaLine . $kludgeLines . $messageText;
         
         // Add tearline and origin
-        if (!empty($messageText) && !str_ends_with($messageText, "\r\n")) {
-            $messageText .= "\r\n";
+        if (!empty($messageText) && !str_ends_with($messageText, "\r")) {
+            $messageText .= "\r";
         }
-        $messageText.="\r\n";
-        $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r\n";
+        $messageText .= "\r";
+        $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
@@ -2028,14 +2027,14 @@ class BinkdProcessor
         // Add bottom kludges (Via lines, etc.) after origin per FTS-4009.001
         // These appear after message text but before SEEN-BY/PATH
         if (!empty($message['bottom_kludges'])) {
-            $messageText .= "\r\n";
-            $bottomKludges = str_replace("\n", "\r\n", $message['bottom_kludges']);
+            $messageText .= "\r";
+            $bottomKludges = str_replace(["\r\n", "\n"], "\r", $message['bottom_kludges']);
             $messageText .= $bottomKludges;
         }
 
         // Add echomail-specific control lines after bottom kludges
         if ($isEchomail) {
-            $messageText .= "\r\n";
+            $messageText .= "\r";
 
             // Parse system address for SEEN-BY and PATH lines
             list($zone, $netNode) = explode(':', $systemAddress);
@@ -2043,15 +2042,15 @@ class BinkdProcessor
             $hostNode = explode('.', $nodePoint)[0]; // Host node without point
 
             // Add SEEN-BY line (required for echomail) - uses host node only
-            $messageText .= "SEEN-BY: {$net}/{$hostNode}\r\n";
-            
+            $messageText .= "SEEN-BY: {$net}/{$hostNode}\r";
+
             // Add PATH line (required for echomail routing) - includes point if present
             if (strpos($nodePoint, '.') !== false) {
                 // Point system: include full node.point in PATH
-                $messageText .= "\x01PATH: {$net}/{$nodePoint}\r\n";
+                $messageText .= "\x01PATH: {$net}/{$nodePoint}\r";
             } else {
                 // Regular node: just net/node
-                $messageText .= "\x01PATH: {$net}/{$hostNode}\r\n";
+                $messageText .= "\x01PATH: {$net}/{$hostNode}\r";
             }
         }
         
