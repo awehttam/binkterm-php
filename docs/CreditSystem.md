@@ -83,3 +83,30 @@ $reward = UserCredit::getRewardAmount('action_name', $defaultValue);
 ## Disabling Credits
 
 Set `"enabled": false` in the credits configuration to disable the entire system. When disabled, all credit-related functionality is hidden and no transactions are recorded.
+
+---
+
+## Developer: Adding a New Credit Type
+
+When adding a new `UserCredit` credit or debit type, update all five of these locations:
+
+1. **`src/UserCredit.php`** — add the new type with a fallback value to the `$defaults` array in `getCreditsConfig()`, and add validation in the `$merged` array processing.
+2. **`bbs.json.example`** — add to the `credits` section with a comment explaining the type.
+3. **`templates/admin/bbs_settings.twig`** — add a form field in the Credits section, load it in `loadBbsSettings()`, validate in `saveBbsCredits()`, and include it in the config object sent to the API.
+4. **`routes/admin-routes.php`** — in the POST `/admin/api/bbs-settings` handler, add validation and include the field in `$config['credits']` with correct type casting.
+5. **`README.md`** — document the new type in the credits section.
+
+**Configuration priority** (highest to lowest): `data/bbs.json` → `bbs.json.example` → code defaults in `src/UserCredit.php`.
+
+Always add code defaults first so the system works even without `bbs.json`. When updating a template to show credit info, use the `credits_enabled` Twig variable to conditionally show it.
+
+### Credit Transaction Security
+
+**CRITICAL**: Credit balance changes must only happen server-side. JavaScript requests business actions; the server decides whether credits are involved and performs the transaction internally.
+
+```text
+❌ POST /api/credits/deduct   ← never expose credit endpoints to JS
+✅ POST /api/webdoor/game/buy-item  ← server handles credits internally, returns new balance
+```
+
+JS may display the balance value returned by the server and communicate it to parent windows via `postMessage`. It must never calculate or request credit modifications.

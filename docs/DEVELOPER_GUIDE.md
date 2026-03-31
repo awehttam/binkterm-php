@@ -141,7 +141,29 @@ binkterm-php/
 - **Apply migrations**: Run `php scripts/setup.php` — this runs both migrations and other upgrade tasks
 - **DO NOT** edit `postgres_schema.sql` directly — use migrations
 - **Version numbering**: Before creating a migration, check the highest existing version with `ls database/migrations/ | sort -V | tail -5`. The new file must be one increment higher — do not guess or reuse a version from a different branch of the version tree
-- Migrations can be SQL files or PHP files; see `CLAUDE.md` for the PHP migration patterns
+- Migrations can be SQL files or PHP files. Two PHP patterns are supported:
+
+**Pattern 1: Direct Execution** — for simple SQL operations. The file executes on include, uses `$db` from scope, and returns `true`.
+
+```php
+<?php
+$db->exec("CREATE TABLE IF NOT EXISTS example (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL)");
+return true;
+```
+
+**Pattern 2: Callable** — for migrations needing helper functions, loops, or complex logic. Return a closure that receives `$db`.
+
+```php
+<?php
+function generateCode(): string { /* ... */ }
+
+return function($db) {
+    $stmt = $db->query("SELECT id FROM users WHERE referral_code IS NULL");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $user) {
+        $db->prepare("UPDATE users SET referral_code = ? WHERE id = ?")->execute([generateCode(), $user['id']]);
+    }
+    return true;
+};
 
 ### Making Changes
 
