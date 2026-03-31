@@ -476,11 +476,18 @@ yourdomain.com {
         header_up X-Real-IP {remote_host}
     }
 
+    @static file {
+        try_files {path} {path}/index.html
+    }
+    handle @static {
+        file_server {
+            index index.html
+        }
+    }
+
     php_fastcgi unix//run/php/php8.2-fpm.sock {
         capture_stderr
     }
-
-    file_server
 
     log {
         output file /var/log/caddy/binkterm-access.log
