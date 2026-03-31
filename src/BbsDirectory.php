@@ -433,7 +433,7 @@ class BbsDirectory
         $date = \DateTimeImmutable::createFromFormat('Y-m-d', $text);
         $errors = \DateTimeImmutable::getLastErrors();
 
-        if ($date instanceof \DateTimeImmutable && $errors['warning_count'] === 0 && $errors['error_count'] === 0) {
+        if ($date instanceof \DateTimeImmutable && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
             return $date->format('Y-m-d');
         }
 
