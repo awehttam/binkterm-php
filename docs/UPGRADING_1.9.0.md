@@ -11,6 +11,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [BinkP](#binkp)
   - [Exact Uplink Address Matching](#exact-uplink-address-matching)
   - [FTS-0001 Compliant Outbound Line Terminators](#fts-0001-compliant-outbound-line-terminators)
+- [Robots](#robots)
+  - [TEST Area Auto Responder Rename](#test-area-auto-responder-rename)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
   - [Targeted Dashboard Stats Notifications](#targeted-dashboard-stats-notifications)
   - [Browser Transport Preference and Cursor Replay Fixes](#browser-transport-preference-and-cursor-replay-fixes)
@@ -31,6 +33,9 @@ Make sure you have a current backup of your database and files before upgrading.
 **BinkP**
 - Outbound routing now checks for an exact configured uplink address match before falling back to network-based uplink selection. This allows multiple uplinks on the same FTN network, so messages explicitly addressed to a specific uplink node can be routed through that uplink instead of being matched only by shared network patterns.
 - Outbound FTN packet message bodies now use bare CR (`\r`, 0x0D) as the line separator, as required by FTS-0001. Previously all line terminators were written as CRLF (`\r\n`), which caused interoperability problems with remote nodes that enforce strict FTS-0001 parsing — most visibly a spurious LF after the `* Origin:` line.
+
+**Robots**
+- The echomail robot processor type previously displayed as "Auto-Reply" is now displayed as "TEST Area Auto Responder" to better describe its purpose. No configuration changes are required; the internal processor type identifier (`auto_reply`) is unchanged.
 
 **Real-time Events (BinkStream)**
 - Dashboard stats notifications are now targeted per user. Echomail events are sent only to users subscribed to the affected echo area who are currently online; netmail events go only to the recipient if online; file events go to all online users. Previously all events were broadcast to every connected user regardless of subscriptions.
@@ -73,6 +78,14 @@ FTS-0001 defines CR (0x0D) as the sole line separator in FTN packet message bodi
 All line terminators in outbound packet bodies are now written as bare CR. This covers kludge lines (`\x01TZUTC`, `\x01MSGID`, `\x01PID`, etc.), the `AREA:` control line, the tearline, the blank line preceding the tearline, the `* Origin:` line, `SEEN-BY:`, `\x01PATH:`, and any stored kludge or Via lines read from the database. The message body text from the database is also normalized to bare CR before being written into the packet.
 
 No database migration is required. The change affects only what is written into outbound `.pkt` files; incoming packet parsing is unchanged.
+
+## Robots
+
+### TEST Area Auto Responder Rename
+
+The echomail robot processor that automatically replies to messages in a test echo area was previously labelled "Auto-Reply" in the admin interface. It is now labelled "TEST Area Auto Responder" to better reflect its intended use.
+
+No configuration changes are required. The internal processor type identifier stored in the database (`auto_reply`) is unchanged, so existing robot configurations continue to work without modification.
 
 ## Real-time Events (BinkStream)
 

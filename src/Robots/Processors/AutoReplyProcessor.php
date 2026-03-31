@@ -67,12 +67,12 @@ class AutoReplyProcessor implements MessageProcessorInterface
 
     public static function getDisplayName(): string
     {
-        return 'Auto-Reply';
+        return 'TEST Area Auto Responder';
     }
 
     public static function getDescription(): string
     {
-        return 'Automatically replies to matching messages, quoting the original body and kludge lines. Useful for testing message routing.';
+        return 'Automatically replies to messages addressed to All, quoting the original body and kludge lines. Intended for test echo areas to verify end-to-end message routing.';
     }
 
     /**
