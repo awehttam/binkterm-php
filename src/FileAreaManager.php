@@ -34,10 +34,12 @@ class FileAreaManager
     const DIR_PERM = 02775;      // Directory permissions use 02775 (octal) to ensure group sticky access between web server and local user
 
     private PDO $db;
+    private \BinktermPHP\Binkp\Logger $logger;
 
     public function __construct()
     {
-        $this->db = Database::getInstance()->getPdo();
+        $this->db     = Database::getInstance()->getPdo();
+        $this->logger = new \BinktermPHP\Binkp\Logger(\BinktermPHP\Config::getLogPath('server.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -828,7 +830,7 @@ class FileAreaManager
                     ]);
                     $counters[$insertStmt->rowCount() > 0 ? 'imported' : 'skipped']++;
                 } catch (\Exception $e) {
-                    error_log("[IsoImport] Error importing {$relPath}: " . $e->getMessage());
+                    $this->logger->error("[IsoImport] Error importing {$relPath}: " . $e->getMessage());
                     $counters['errors']++;
                 }
             }
@@ -1681,10 +1683,10 @@ class FileAreaManager
                 $ruleProcessor = new FileAreaRuleProcessor();
                 $ruleResult    = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
                 if (!empty($ruleResult['output'])) {
-                    error_log("File area rules output for {$filename}: " . $ruleResult['output']);
+                    $this->logger->info("File area rules output for {$filename}: " . $ruleResult['output']);
                 }
             } catch (\Exception $e) {
-                error_log("File area rules error for {$filename}: " . $e->getMessage());
+                $this->logger->error("File area rules error for {$filename}: " . $e->getMessage());
             }
         }
 
@@ -2064,7 +2066,7 @@ class FileAreaManager
         // Handle infected files
         if ($result['result'] === 'infected') {
             $allowInfected = Config::env('FILES_ALLOW_INFECTED', 'false') === 'true';
-            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (FILES_ALLOW_INFECTED: keeping file)' : ''));
+            $this->logger->warning("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (FILES_ALLOW_INFECTED: keeping file)' : ''));
 
             \BinktermPHP\Admin\AdminDaemonClient::log('WARNING', 'Virus detected in uploaded file', [
                 'file_id'   => $fileId,
@@ -2079,7 +2081,7 @@ class FileAreaManager
                 // Delete infected file immediately
                 if (file_exists($filePath)) {
                     unlink($filePath);
-                    error_log("Deleted infected file: {$filePath}");
+                    $this->logger->info("Deleted infected file: {$filePath}");
                 }
 
                 // Mark file record as rejected and update area stats
@@ -2094,7 +2096,7 @@ class FileAreaManager
                 }
             }
         } elseif ($result['result'] === 'error') {
-            error_log("Virus scan error for file ID {$fileId}: {$result['error']}");
+            $this->logger->error("Virus scan error for file ID {$fileId}: {$result['error']}");
         }
 
         return $result;
@@ -3066,10 +3068,10 @@ class FileAreaManager
             $ruleProcessor = new FileAreaRuleProcessor();
             $ruleResult = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
             if (!empty($ruleResult['output'])) {
-                error_log("File area rules output for {$fileRecord['filename']}: " . $ruleResult['output']);
+                $this->logger->info("File area rules output for {$fileRecord['filename']}: " . $ruleResult['output']);
             }
         } catch (\Exception $e) {
-            error_log("File area rules error for {$fileRecord['filename']}: " . $e->getMessage());
+            $this->logger->error("File area rules error for {$fileRecord['filename']}: " . $e->getMessage());
         }
 
         $fileRecord = $this->getFileById($fileId);
@@ -3085,10 +3087,10 @@ class FileAreaManager
                 $ticGenerator = new TicFileGenerator();
                 $createdTics = $ticGenerator->createTicFilesForUplinks($fileRecord, $fileArea);
                 if (count($createdTics) > 0) {
-                    error_log("Generated " . count($createdTics) . " TIC file(s) for file: {$fileRecord['filename']}");
+                    $this->logger->info("Generated " . count($createdTics) . " TIC file(s) for file: {$fileRecord['filename']}");
                 }
             } catch (\Throwable $e) {
-                error_log("Failed to generate TIC files for uploaded file: " . $e->getMessage());
+                $this->logger->error("Failed to generate TIC files for uploaded file: " . $e->getMessage());
             }
         }
     }

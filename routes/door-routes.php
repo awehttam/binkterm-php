@@ -15,6 +15,19 @@ use BinktermPHP\I18n\Translator;
 use BinktermPHP\RouteHelper;
 use Pecee\SimpleRouter\SimpleRouter;
 
+function getDoorLogger(): \BinktermPHP\Binkp\Logger
+{
+    static $logger = null;
+    if ($logger === null) {
+        $logger = new \BinktermPHP\Binkp\Logger(
+            \BinktermPHP\Config::getLogPath('dosdoor.log'),
+            \BinktermPHP\Binkp\Logger::LEVEL_INFO,
+            false
+        );
+    }
+    return $logger;
+}
+
 function doorApiError(string $errorCode, string $message, int $status = 400, array $extra = []): void
 {
     http_response_code($status);
@@ -61,7 +74,7 @@ SimpleRouter::post('/api/door/launch', function() {
     $userId = $user['user_id'] ?? $user['id'] ?? null;
     $doorName = $_POST['door'] ?? null;
 
-    error_log("DOSDOOR: [API] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: $doorName");
+    getDoorLogger()->info("DOSDOOR: [API] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: $doorName");
 
     if (!$doorName) {
         doorApiError('errors.door.door_name_required', 'Door name required', 400);
@@ -102,7 +115,7 @@ SimpleRouter::post('/api/door/launch', function() {
         if ($existingSession) {
             // User already has an active session for this door - return it
             // Bridge v3 owns the lifecycle, so if it's in DB, it's active
-            error_log("DOSDOOR: [API] Resuming existing session: {$existingSession['session_id']}");
+            getDoorLogger()->info("DOSDOOR: [API] Resuming existing session: {$existingSession['session_id']}");
 
             // Build WebSocket URL
             $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
@@ -137,16 +150,16 @@ SimpleRouter::post('/api/door/launch', function() {
         $doorType = $nativeDoor ? 'native' : 'dos';
         $activeDoorManager = $nativeDoor ? $nativeDoorManager : $doorManager;
 
-        error_log("DOSDOOR: [API] Door '$doorName' detected as type: $doorType");
+        getDoorLogger()->info("DOSDOOR: [API] Door '$doorName' detected as type: $doorType");
 
         // Ensure door exists in database (fallback sync)
         $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ?");
         $stmt->execute([$doorName]);
         if (!$stmt->fetch()) {
             // Door not in database - try to sync it
-            error_log("DOSDOOR: [API] Door '$doorName' not in database, attempting sync...");
+            getDoorLogger()->info("DOSDOOR: [API] Door '$doorName' not in database, attempting sync...");
             $syncResult = $activeDoorManager->syncDoorsToDatabase();
-            error_log("DOSDOOR: [API] Sync result: synced={$syncResult['synced']}, errors=" . json_encode($syncResult['errors']));
+            getDoorLogger()->info("DOSDOOR: [API] Sync result: synced={$syncResult['synced']}, errors=" . json_encode($syncResult['errors']));
 
             // Check again after sync
             $stmt->execute([$doorName]);
@@ -180,7 +193,7 @@ SimpleRouter::post('/api/door/launch', function() {
                     $currentBalance = $userCredit->getBalance();
 
                     if ($currentBalance < $creditCost) {
-                        error_log("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
+                        getDoorLogger()->warning("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
                         doorApiError('errors.door.insufficient_credits_detail', 'Insufficient credits', 402, [
                             'required' => $creditCost,
                             'balance' => $currentBalance
@@ -190,11 +203,11 @@ SimpleRouter::post('/api/door/launch', function() {
 
                     // Deduct credits
                     if (!$userCredit->deductCredits($creditCost, 'dosdoor_launch', "Launched door: $doorName")) {
-                        error_log("DOSDOOR: [API] Failed to deduct credits for $doorName");
+                        getDoorLogger()->error("DOSDOOR: [API] Failed to deduct credits for $doorName");
                         throw new \Exception("Failed to process credit payment. Please try again.");
                     }
 
-                    error_log("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
+                    getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
                 }
             }
         }
@@ -215,7 +228,7 @@ SimpleRouter::post('/api/door/launch', function() {
             $activeSessions = (int)$result['count'];
 
             if ($activeSessions >= $maxNodes) {
-                error_log("DOSDOOR: [API] Door '$doorName' at max capacity - Active: $activeSessions, Max: $maxNodes");
+                getDoorLogger()->warning("DOSDOOR: [API] Door '$doorName' at max capacity - Active: $activeSessions, Max: $maxNodes");
                 doorApiError('errors.door.capacity_reached_detail', 'Door at capacity', 503, [
                     'active_sessions' => $activeSessions,
                     'max_nodes' => $maxNodes
@@ -223,7 +236,7 @@ SimpleRouter::post('/api/door/launch', function() {
                 return;
             }
 
-            error_log("DOSDOOR: [API] Door '$doorName' capacity check passed - Active: $activeSessions, Max: $maxNodes");
+            getDoorLogger()->info("DOSDOOR: [API] Door '$doorName' capacity check passed - Active: $activeSessions, Max: $maxNodes");
         }
 
         // Start new session
@@ -439,17 +452,17 @@ SimpleRouter::get('/api/door/session', function() {
     $userId = $user['user_id'] ?? $user['id'];
     $doorId = $_GET['door'] ?? null;
 
-    error_log("DOSDOOR: [GetSession] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: " . ($doorId ?? 'any'));
+    getDoorLogger()->info("DOSDOOR: [GetSession] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: " . ($doorId ?? 'any'));
 
     try {
         $sessionManager = new DoorSessionManager(null, true);
         $session = $sessionManager->getUserSession($userId, $doorId);
 
         if ($session) {
-            error_log("DOSDOOR: [GetSession] Found session: {$session['session_id']} for user $userId");
+            getDoorLogger()->info("DOSDOOR: [GetSession] Found session: {$session['session_id']} for user $userId");
             // Bridge v3 owns the entire lifecycle - no need to validate processes here
         } else {
-            error_log("DOSDOOR: [GetSession] No session found for user $userId");
+            getDoorLogger()->info("DOSDOOR: [GetSession] No session found for user $userId");
         }
 
         if ($session) {

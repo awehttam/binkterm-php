@@ -1680,7 +1680,7 @@ SimpleRouter::match([\Pecee\Http\Request::REQUEST_TYPE_GET, \Pecee\Http\Request:
         http_response_code(403);
         echo htmlspecialchars($e->getMessage());
     } catch (\Throwable $e) {
-        error_log('[QWK] basic-auth download failed for user ' . $userId . ': ' . $e->getMessage());
+        getServerLogger()->error('[QWK] basic-auth download failed for user ' . $userId . ': ' . $e->getMessage());
         http_response_code(500);
         echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
     }
@@ -1709,7 +1709,7 @@ SimpleRouter::post('/qwk/upload', function() {
             'error' => $e->getMessage(),
         ]);
     } catch (\Throwable $e) {
-        error_log('[QWK] basic-auth upload failed for user ' . $userId . ': ' . $e->getMessage());
+        getServerLogger()->error('[QWK] basic-auth upload failed for user ' . $userId . ': ' . $e->getMessage());
         http_response_code(500);
         echo json_encode([
             'success' => false,

@@ -35,6 +35,7 @@
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
 
@@ -165,7 +166,7 @@ try {
             if (!$quiet) {
                 echo "⚠ Warning: VACUUM failed: " . $e->getMessage() . "\n";
             }
-            error_log("Echomail maintenance VACUUM warning: " . $e->getMessage());
+            getServerLogger()->warning("Echomail maintenance VACUUM warning: " . $e->getMessage());
         }
     }
 
@@ -189,7 +190,7 @@ try {
 
 } catch (Exception $e) {
     echo "✗ Error: " . $e->getMessage() . "\n";
-    error_log("Echomail maintenance error: " . $e->getMessage());
+    getServerLogger()->error("Echomail maintenance error: " . $e->getMessage());
     exit(1);
 }
 

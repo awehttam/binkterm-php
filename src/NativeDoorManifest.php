@@ -20,6 +20,7 @@ class NativeDoorManifest
     private $basePath;
     private $doorsBasePath;
     private $manifestCache = [];
+    private \BinktermPHP\Binkp\Logger $logger;
 
     /**
      * Constructor
@@ -33,6 +34,7 @@ class NativeDoorManifest
             : __DIR__ . '/..');
 
         $this->doorsBasePath = $this->basePath . '/native-doors/doors';
+        $this->logger = new \BinktermPHP\Binkp\Logger(\BinktermPHP\Config::getLogPath('dosdoor.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -61,7 +63,7 @@ class NativeDoorManifest
                         $doors[$doorId] = $manifest;
                     }
                 } catch (Exception $e) {
-                    error_log("Invalid native door manifest at $manifestPath: " . $e->getMessage());
+                    $this->logger->warning("Invalid native door manifest at $manifestPath: " . $e->getMessage());
                 }
             }
         }
@@ -107,7 +109,7 @@ class NativeDoorManifest
             $this->manifestCache[$doorId] = $manifest;
             return $manifest;
         } catch (Exception $e) {
-            error_log("Error reading native door manifest for $doorId: " . $e->getMessage());
+            $this->logger->warning("Error reading native door manifest for $doorId: " . $e->getMessage());
             return null;
         }
     }

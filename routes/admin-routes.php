@@ -2782,7 +2782,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     return;
                 }
 
-                error_log('File approval failed: ' . $message);
+                getServerLogger()->error('File approval failed: ' . $message);
                 http_response_code(500);
                 apiError('errors.admin.file_approvals.approve_failed', apiLocalizedText('errors.admin.file_approvals.approve_failed', 'Failed to approve file upload'));
             }
@@ -2825,7 +2825,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     return;
                 }
 
-                error_log('File rejection failed: ' . $message);
+                getServerLogger()->error('File rejection failed: ' . $message);
                 http_response_code(500);
                 apiError('errors.admin.file_approvals.reject_failed', apiLocalizedText('errors.admin.file_approvals.reject_failed', 'Failed to reject file upload'));
             }
@@ -6287,7 +6287,7 @@ SimpleRouter::post('/admin/api/lovlynet/update-registration', function() {
     $regData = $result['data']['data'] ?? $result['data'] ?? [];
     $regData['is_passive'] = $isPassive;
     if (!$client->saveRegistrationUpdate($regData)) {
-        error_log('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
+        getServerLogger()->error('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
     }
 
     echo json_encode(['success' => true]);
@@ -6331,7 +6331,7 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
             }
         }
     } catch (\Exception $e) {
-        error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+        getServerLogger()->error('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
         $nodelistRuleDaemonError = true;
     }
 
@@ -6515,7 +6515,7 @@ SimpleRouter::get('/admin/api/lovlynet/checklist/{id}', function(string $id) {
                     }
                 }
             } catch (\Exception $e) {
-                error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+                getServerLogger()->error('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
                 $nodelistRuleDaemonError = true;
             }
             echo json_encode(['success' => true, 'item' => [
@@ -6610,7 +6610,7 @@ SimpleRouter::post('/admin/api/lovlynet/checklist/fix-nodelist-rule', function()
 
         echo json_encode(['success' => true]);
     } catch (\Exception $e) {
-        error_log('LovlyNet checklist fix-nodelist-rule failed: ' . $e->getMessage());
+        getServerLogger()->error('LovlyNet checklist fix-nodelist-rule failed: ' . $e->getMessage());
         http_response_code(500);
         apiError('errors.admin.lovlynet.checklist_fix_failed', $e->getMessage());
     }

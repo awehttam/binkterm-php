@@ -195,7 +195,7 @@ class PasswordResetController
 
         } catch (\Exception $e) {
             $this->db->rollBack();
-            error_log("Password reset failed: " . $e->getMessage());
+            getServerLogger()->error("Password reset failed: " . $e->getMessage());
 
             return [
                 'success' => false,
@@ -242,7 +242,7 @@ class PasswordResetController
         $mail = new Mail();
 
         if (!$mail->isEnabled()) {
-            error_log("Password reset requested but email is not configured");
+            getServerLogger()->warning("Password reset requested but email is not configured");
             return;
         }
 

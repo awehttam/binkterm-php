@@ -369,7 +369,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $logAttemptStmt->execute([$ipAddress]);
 
         } catch (Exception $e) {
-            error_log("Rate limit check failed: " . $e->getMessage());
+            getServerLogger()->error("Rate limit check failed: " . $e->getMessage());
             // Continue with registration if rate limit check fails
         }
 
@@ -484,7 +484,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
             } catch (Exception $e) {
                 // Log error but don't fail registration
-                error_log("Failed to send registration notification: " . $e->getMessage());
+                getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
             }
 
             // Mark registration attempt as successful
@@ -502,7 +502,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 ");
                 $updateAttemptStmt->execute([$ipAddress]);
             } catch (Exception $e) {
-                error_log("Failed to update registration attempt: " . $e->getMessage());
+                getServerLogger()->error("Failed to update registration attempt: " . $e->getMessage());
             }
 
             echo json_encode([
@@ -511,7 +511,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (Exception $e) {
-            error_log("Registration error: " . $e->getMessage());
+            getServerLogger()->error("Registration error: " . $e->getMessage());
             apiError('errors.register.failed', apiLocalizedText('errors.register.failed', 'Registration failed. Please try again later.'), 500);
         }
     });
@@ -551,7 +551,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
         } catch (Exception $e) {
-            error_log("Account reminder error: " . $e->getMessage());
+            getServerLogger()->error("Account reminder error: " . $e->getMessage());
             apiError('errors.reminder.send_failed', apiLocalizedText('errors.reminder.send_failed', 'Failed to send reminder. Please try again later.'), 500);
         }
     });
@@ -1356,7 +1356,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         if ($roomId) {
-            error_log('[CHAT SEND] user_id=' . $userId . ' room_id=' . $roomId);
+            getServerLogger()->debug('[CHAT SEND] user_id=' . $userId . ' room_id=' . $roomId);
             $roomStmt = $db->prepare("SELECT id FROM chat_rooms WHERE id = ? AND is_active = TRUE");
             $roomStmt->execute([$roomId]);
             if (!$roomStmt->fetch()) {
@@ -1372,7 +1372,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
             $banStmt->execute([$roomId, $userId]);
             $banHit = $banStmt->fetchColumn();
-            error_log('[CHAT SEND] ban_hit=' . ($banHit ? '1' : '0'));
+            getServerLogger()->debug('[CHAT SEND] ban_hit=' . ($banHit ? '1' : '0'));
             if ($banHit) {
                 http_response_code(403);
                 apiError('errors.chat.user_banned', apiLocalizedText('errors.chat.user_banned', 'You are banned from this room', $user));
@@ -1410,7 +1410,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         $result = $stmt->fetch();
         if (!$result) {
-            error_log('[CHAT SEND] insert blocked by ban');
+            getServerLogger()->info('[CHAT SEND] insert blocked by ban');
             http_response_code(403);
             apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
             return;
@@ -2476,7 +2476,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
-            error_log('[FileArea create] ' . $e->getMessage());
+            getServerLogger()->error('[FileArea create] ' . $e->getMessage());
             http_response_code(400);
             apiError('errors.fileareas.create_failed', apiLocalizedText('errors.fileareas.create_failed', 'Failed to create file area', $user));
         }
@@ -2550,7 +2550,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $preview = $manager->previewIsoImport((int)$id, $flat, $catalogueOnly);
             echo json_encode(['success' => true] + $preview);
         } catch (\Exception $e) {
-            error_log('[IsoPreview] ' . $e->getMessage());
+            getServerLogger()->error('[IsoPreview] ' . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => $e->getMessage()]);
         }
@@ -2582,7 +2582,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $counters = $manager->importIsoFiles((int)$id, true, null, $flat, $overrides, $catalogueOnly);
             echo json_encode(['success' => true, 'counters' => $counters]);
         } catch (\Exception $e) {
-            error_log('[IsoReindex] ' . $e->getMessage());
+            getServerLogger()->error('[IsoReindex] ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.fileareas.reindex_failed', apiLocalizedText('errors.fileareas.reindex_failed', 'Failed to re-index ISO area', $user));
         }
@@ -2612,7 +2612,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $deleted = $manager->deleteSubfolder((int)$id, $subfolder);
             echo json_encode(['success' => true, 'deleted' => $deleted]);
         } catch (\Exception $e) {
-            error_log('[SubfolderDelete] ' . $e->getMessage());
+            getServerLogger()->error('[SubfolderDelete] ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.delete_failed', 'Failed to delete subfolder');
         }
@@ -2912,7 +2912,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode(['success' => true, 'result' => $result['result'] ?? []]);
         } catch (\Throwable $e) {
-            error_log('[Rehatch] ' . $e->getMessage());
+            getServerLogger()->error('[Rehatch] ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.rehatch_failed', apiLocalizedText('errors.files.rehatch_failed', 'Rehatch failed', $user));
         }
@@ -3030,7 +3030,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     UserCredit::TYPE_SYSTEM_REWARD
                 );
                 if (!$creditSuccess) {
-                    error_log("Failed to award file download credits for user {$userId} and file {$id}");
+                    getServerLogger()->error("Failed to award file download credits for user {$userId} and file {$id}");
                 }
             }
 
@@ -4204,7 +4204,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     UserCredit::TYPE_SYSTEM_REWARD
                 );
                 if (!$creditSuccess) {
-                    error_log("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
+                    getServerLogger()->error("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
                 }
             }
 
@@ -4258,7 +4258,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 http_response_code(422);
                 apiError('errors.files.upload.virus_detected', apiLocalizedText('errors.files.upload.virus_detected', 'File rejected: virus detected', $user));
             } else {
-                error_log("File upload error: " . $message);
+                getServerLogger()->error("File upload error: " . $message);
                 apiError('errors.files.upload.failed', apiLocalizedText('errors.files.upload.failed', 'Failed to upload file', $user));
             }
         }
@@ -4439,7 +4439,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'scanned'   => $result['scanned'] ?? false,
             ]);
         } catch (\Exception $e) {
-            error_log('[FileScan] Exception: ' . $e->getMessage());
+            getServerLogger()->error('[FileScan] Exception: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.scan_failed', apiLocalizedText('errors.files.scan_failed', 'Virus scan failed', $user));
         }
@@ -5325,7 +5325,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
-            error_log('[echomail bulk read] Failed to persist read status: ' . $e->getMessage());
+            getServerLogger()->error('[echomail bulk read] Failed to persist read status: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.echomail.bulk_read.failed', apiLocalizedText('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read', $user));
             return;
@@ -5339,7 +5339,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'message_type' => 'echomail',
             ], $userId);
         } catch (\Throwable $e) {
-            error_log('[echomail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+            getServerLogger()->warning('[echomail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
         }
 
         echo json_encode([
@@ -6186,7 +6186,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         if (empty($_FILES['file'])) {
-            error_log('[netmail/attachment/upload] No file in $_FILES');
+            getServerLogger()->warning('[netmail/attachment/upload] No file in $_FILES');
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6195,7 +6195,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $file = $_FILES['file'];
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
-            error_log('[netmail/attachment/upload] PHP upload error code: ' . $file['error']);
+            getServerLogger()->warning('[netmail/attachment/upload] PHP upload error code: ' . $file['error']);
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6203,7 +6203,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $maxBytes = (int)\BinktermPHP\Config::env('NETMAIL_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024);
         if ($file['size'] > $maxBytes) {
-            error_log('[netmail/attachment/upload] File too large: ' . $file['size'] . ' bytes (max ' . $maxBytes . ')');
+            getServerLogger()->warning('[netmail/attachment/upload] File too large: ' . $file['size'] . ' bytes (max ' . $maxBytes . ')');
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6220,7 +6220,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $destDir = __DIR__ . '/../data/netmail_attachments';
         if (!is_dir($destDir)) {
             if (!mkdir($destDir, 0777, true)) {
-                error_log('[netmail/attachment/upload] Failed to create directory: ' . $destDir);
+                getServerLogger()->error('[netmail/attachment/upload] Failed to create directory: ' . $destDir);
                 http_response_code(500);
                 apiError('', apiLocalizedText('', ''));
                 return;
@@ -6229,7 +6229,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $destPath = $destDir . '/' . $token . '_' . $safeName;
 
         if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-            error_log('[netmail/attachment/upload] move_uploaded_file failed: tmp=' . $file['tmp_name'] . ' dest=' . $destPath . ' dir_writable=' . (is_writable($destDir) ? 'yes' : 'no'));
+            getServerLogger()->error('[netmail/attachment/upload] move_uploaded_file failed: tmp=' . $file['tmp_name'] . ' dest=' . $destPath . ' dir_writable=' . (is_writable($destDir) ? 'yes' : 'no'));
             http_response_code(500);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6368,7 +6368,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
-                            error_log("[CROSSPOST] Failed to cross-post to {$areaTag}: " . $e->getMessage());
+                            getServerLogger()->error("[CROSSPOST] Failed to cross-post to {$areaTag}: " . $e->getMessage());
                         }
                     }
                 }
@@ -6404,7 +6404,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.messages.send.failed', apiLocalizedText('errors.messages.send.failed', 'Failed to send message', $user));
             }
         } catch (Exception $e) {
-            error_log('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            getServerLogger()->error('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
             apiError('errors.messages.send.exception', apiLocalizedText('errors.messages.send.exception', 'Failed to send message', $user));
         }
@@ -6916,7 +6916,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $result = $stmt->execute([$userId, (int)$id, $type]);
         } catch (\Throwable $e) {
-            error_log('[message read] Failed to persist read status for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
+            getServerLogger()->error('[message read] Failed to persist read status for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
             return;
@@ -6936,7 +6936,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'message_type' => $type,
             ], (int)$userId);
         } catch (\Throwable $e) {
-            error_log('[message read] SSE notification failed after read status persisted for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
+            getServerLogger()->warning('[message read] SSE notification failed after read status persisted for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
         }
 
         echo json_encode(['success' => true]);
@@ -9501,7 +9501,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
         } catch (Exception $e) {
-            error_log("Admin reminder error: " . $e->getMessage());
+            getServerLogger()->error("Admin reminder error: " . $e->getMessage());
             http_response_code(500);
             apiError('', apiLocalizedText('', ''));
         }
@@ -9944,7 +9944,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
             ]);
 
         } catch (Exception $e) {
-            error_log("Referral stats error: " . $e->getMessage());
+            getServerLogger()->error("Referral stats error: " . $e->getMessage());
             http_response_code(500);
             apiError('errors.referrals.stats_failed', apiLocalizedText('errors.referrals.stats_failed', 'Failed to load referral statistics'));
         }
@@ -10003,7 +10003,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
             ]);
 
         } catch (Exception $e) {
-            error_log("Admin referral stats error: " . $e->getMessage());
+            getServerLogger()->error("Admin referral stats error: " . $e->getMessage());
             http_response_code(500);
             apiError('errors.referrals.admin_stats_failed', apiLocalizedText('errors.referrals.admin_stats_failed', 'Failed to load admin referral statistics', $user));
         }
@@ -10114,7 +10114,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             http_response_code(403);
             echo htmlspecialchars($e->getMessage());
         } catch (\Exception $e) {
-            error_log('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
         }
@@ -10158,7 +10158,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             http_response_code(403);
             apiError('errors.qwk.disabled', $e->getMessage());
         } catch (\Exception $e) {
-            error_log('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.qwk.processing_failed', 'Failed to process REP packet: ' . $e->getMessage());
         }
@@ -10317,7 +10317,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 'has_custom_selection' => $hasCustomSelection,
             ]);
         } catch (\Exception $e) {
-            error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.qwk.status_failed', 'Failed to retrieve QWK status: ' . $e->getMessage());
         }
@@ -10382,7 +10382,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
 
             echo json_encode(['success' => true]);
         } catch (\Exception $e) {
-            error_log('[QWK] reset failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] reset failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
@@ -10515,7 +10515,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             $db->commit();
         } catch (\Exception $e) {
             $db->rollBack();
-            error_log('[QWK] area-selections save failed: ' . $e->getMessage());
+            getServerLogger()->error('[QWK] area-selections save failed: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.qwk.save_failed', 'Failed to save area selections.');
             return;

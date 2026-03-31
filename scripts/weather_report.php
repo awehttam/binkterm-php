@@ -338,28 +338,28 @@ class WeatherReportGenerator
         $response = @file_get_contents($url, false, $context);
         
         if ($response === false) {
-            error_log("Weather API request failed: {$url}");
+            getServerLogger()->error("Weather API request failed: {$url}");
             // Get more details about the failure
             $error = error_get_last();
             if ($error) {
-                error_log("Last error: " . $error['message']);
+                getServerLogger()->error("Last error: " . $error['message']);
             }
             return null;
         }
-        
+
         $data = json_decode($response, true);
-        
+
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("Weather API JSON decode error: " . json_last_error_msg());
-            error_log("Response was: " . substr($response, 0, 200));
+            getServerLogger()->error("Weather API JSON decode error: " . json_last_error_msg());
+            getServerLogger()->error("Response was: " . substr($response, 0, 200));
             return null;
         }
-        
+
         // Check for API errors - OpenWeatherMap uses different codes
         if (isset($data['cod']) && $data['cod'] != 200) {
             $errorMsg = $data['message'] ?? 'Unknown error';
-            error_log("Weather API error (code {$data['cod']}): {$errorMsg}");
-            error_log("Full response: " . json_encode($data));
+            getServerLogger()->error("Weather API error (code {$data['cod']}): {$errorMsg}");
+            getServerLogger()->error("Full response: " . json_encode($data));
             return null;
         }
         

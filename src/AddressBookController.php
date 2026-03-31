@@ -339,7 +339,7 @@ class AddressBookController
                     'description' => 'Auto-added from netmail'
                 ]);
             } catch (\Exception $e) {
-                error_log("Failed to auto-add address book entry: " . $e->getMessage());
+                getServerLogger()->error("Failed to auto-add address book entry: " . $e->getMessage());
                 return false;
             }
         }

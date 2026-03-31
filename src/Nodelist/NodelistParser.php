@@ -49,7 +49,7 @@ class NodelistParser
                     $nodes[] = $node;
                 }
             } catch (\Exception $e) {
-                error_log("Error parsing line {$lineNumber}: {$e->getMessage()}");
+                getServerLogger()->warning("Error parsing line {$lineNumber}: {$e->getMessage()}");
             }
         }
         

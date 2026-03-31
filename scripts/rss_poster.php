@@ -251,7 +251,7 @@ function parseRssFeed($xml) {
     // Detect feed type (RSS 2.0, RSS 1.0/RDF, Atom, etc.)
     if (isset($xml->channel->item)) {
         // RSS 2.0
-        error_log("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
+        getServerLogger()->info("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
         foreach ($xml->channel->item as $item) {
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
@@ -263,7 +263,7 @@ function parseRssFeed($xml) {
         }
     } elseif (isset($xml->item)) {
         // RSS 1.0 (RDF) - items are direct children of root
-        error_log("Auto Feed: Parsing RSS 1.0 (RDF) feed with " . count($xml->item) . " items");
+        getServerLogger()->info("Auto Feed: Parsing RSS 1.0 (RDF) feed with " . count($xml->item) . " items");
         foreach ($xml->item as $item) {
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
@@ -275,7 +275,7 @@ function parseRssFeed($xml) {
         }
     } elseif (isset($xml->entry)) {
         // Atom
-        error_log("Auto Feed: Parsing Atom feed with " . count($xml->entry) . " entries");
+        getServerLogger()->info("Auto Feed: Parsing Atom feed with " . count($xml->entry) . " entries");
         foreach ($xml->entry as $entry) {
             $link = '';
             if (isset($entry->link)) {
@@ -291,8 +291,8 @@ function parseRssFeed($xml) {
             ];
         }
     } else {
-        error_log("Auto Feed: Unknown feed format - root element: " . $xml->getName());
-        error_log("Auto Feed: XML structure: " . print_r(array_keys((array)$xml), true));
+        getServerLogger()->warning("Auto Feed: Unknown feed format - root element: " . $xml->getName());
+        getServerLogger()->warning("Auto Feed: XML structure: " . print_r(array_keys((array)$xml), true));
     }
 
     return $articles;

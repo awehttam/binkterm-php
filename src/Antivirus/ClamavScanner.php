@@ -15,6 +15,7 @@
 
 namespace BinktermPHP\Antivirus;
 
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
 
 /**
@@ -32,14 +33,16 @@ class ClamavScanner implements ScannerInterface
 {
     private ?string $clamdscanPath;
     private bool $enabled;
+    private Logger $logger;
 
     public function __construct()
     {
+        $this->logger        = new Logger(Config::getLogPath('server.log'), Logger::LEVEL_INFO, false);
         $this->clamdscanPath = $this->findClamdscan();
         $this->enabled       = !empty($this->clamdscanPath) && $this->isClamdRunning();
 
         if (!$this->enabled) {
-            error_log('ClamavScanner: clamdscan not available or clamd not running — ClamAV scanning disabled');
+            $this->logger->warning('ClamavScanner: clamdscan not available or clamd not running — ClamAV scanning disabled');
         }
     }
 

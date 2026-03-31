@@ -54,7 +54,7 @@ class BbsConfig
             return $example;
         }
         // We shouldn't get here..
-        error_log("example bbs.json.example missing or corrupt?");
+        getServerLogger()->warning("example bbs.json.example missing or corrupt?");
         return [
             'features' => [
                 'webdoors' => true,
@@ -79,7 +79,7 @@ class BbsConfig
         if ($config === null) {
             self::$config = $defaults;
             if(self::$config==null){
-                error_log("Unable to load ANY bbs configuration");
+                getServerLogger()->error("Unable to load ANY bbs configuration");
                 throw new \Exception("Unable to load any BBS configuration");
             }
             return;

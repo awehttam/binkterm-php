@@ -548,7 +548,7 @@ class Template
             try {
                 return $this->render('systemnews.twig', $variables);
             } catch (\Exception $e) {
-                error_log("Failed to render systemnews.twig: " . $e->getMessage());
+                getServerLogger()->error("Failed to render systemnews.twig: " . $e->getMessage());
             }
         }
 
