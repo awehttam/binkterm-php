@@ -38,6 +38,9 @@ Make sure you have a current backup of your database and files before upgrading.
 **Robots**
 - The echomail robot processor type previously displayed as "Auto-Reply" is now displayed as "TEST Area Auto Responder" to better describe its purpose. No configuration changes are required; the internal processor type identifier (`auto_reply`) is unchanged.
 
+**Documentation**
+- `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.
+
 **Real-time Events (BinkStream)**
 - Dashboard stats notifications are now targeted per user. Echomail events are sent only to users subscribed to the affected echo area who are currently online; netmail events go only to the recipient if online; file events go to all online users. Previously all events were broadcast to every connected user regardless of subscriptions.
 - Browser-side BinkStream transport selection in `auto` mode now prefers the configured public WebSocket endpoint instead of relying on local PID-file visibility from the web process. This prevents deployments that run the realtime server outside the PHP process namespace from incorrectly starting in SSE mode.

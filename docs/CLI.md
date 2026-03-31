@@ -34,6 +34,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
 - [Fix Date Received](#fix-date-received)
+- [Import BBS List](#import-bbs-list)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -948,6 +949,68 @@ Options:
 - `--domain` and `--tag` combined — selects only areas matching both filters (intersection).
 - `--all` — Apply to every echo area on the system.
 - `--dry-run` — Show how many rows would be updated without making any changes.
+
+## Import BBS List
+
+Imports a BBS list from a ZIP archive containing `bbslist.csv` into the BBS Directory. Entries are upserted by name (case-insensitive); no deletions are performed.
+
+```bash
+# Import from a ZIP file
+php scripts/import_bbslist.php /path/to/bbslist.zip
+
+# Preview rows without writing to the database
+php scripts/import_bbslist.php /path/to/bbslist.zip --dry-run
+
+# Suppress per-row output (summary still printed)
+php scripts/import_bbslist.php /path/to/bbslist.zip --quiet
+```
+
+Options:
+- `--dry-run` — Parse and display rows without writing to the database
+- `--quiet` — Suppress per-row output (summary still printed)
+- `--help, -h` — Show usage
+
+The ZIP must contain a file named `bbslist.csv` (case-insensitive). Expected CSV columns:
+
+| Column | Stored as |
+|---|---|
+| `bbsName` | `name` |
+| `bbsSysop` | `sysop` |
+| `TelnetAddress` | `telnet_host` |
+| `bbsPort` | `telnet_port` |
+| `sshPort` | `ssh_port` |
+| `WebAddress` | `website` |
+| `location` | `location` |
+| `software` | `software` |
+| `newLogin` | _(not stored)_ |
+| `Modem` | _(not stored)_ |
+
+Exit codes: `0` = success, `1` = error (missing file, bad ZIP, no CSV found, database error).
+
+### How Imports Handle Entries You've Edited Locally
+
+Each import is a merge, not a replacement. The script matches incoming entries against what's already in the BBS Directory and updates them in place rather than wiping and re-adding everything. Here's what that means for data you've touched:
+
+**Entries marked as local (`is_local`) are never touched.** If you've flagged a BBS as a local entry — for example, your own system — the importer skips it completely, every time.
+
+**If the import file leaves a field blank, your existing value is kept.** The importer only writes a field when the incoming CSV actually has something in it. An empty sysop name in the CSV, for instance, will not blank out a sysop name you added yourself.
+
+**If the import file has a value for a field, it overwrites yours.** There is no "local wins" logic for regular entries. If you corrected a telnet address and the next import has a different one, the import wins. The same applies to most text fields (name, sysop, location, website, software).
+
+**Coordinates are always recalculated on import** and cannot be protected by editing them manually. They are derived from the location string, so if you want different coordinates, change the location field instead.
+
+**The one partial exception: the `source` field.** If a record was marked as manually added (`source = manual`), that flag is preserved across imports even when other fields get updated. This is an internal marker rather than a data-protection mechanism — it does not prevent the data itself from being overwritten.
+
+**The safest way to protect a BBS entry from ever being changed by an import is to mark it as local** via the BBS Directory admin interface. Everything else is fair game for the next import that has a value for that field.
+
+### File Area Rule Automation
+
+You can trigger this script automatically whenever a matching ZIP arrives in a file area by configuring a file area rule:
+
+```
+pattern: /bbslist.*\.zip$/i
+script:  php %basedir%/scripts/import_bbslist.php %filepath%
+```
 
 ## Admin Client
 
