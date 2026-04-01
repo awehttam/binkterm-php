@@ -1528,6 +1528,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['qwk']['bbs_id'] = $bbsId;
                 }
 
+                if (array_key_exists('outgoing_charset', $config)) {
+                    $allowedCharsets = array_column(\BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(), 'value');
+                    $charset = strtoupper(trim((string)$config['outgoing_charset']));
+                    if (!in_array($charset, $allowedCharsets, true)) {
+                        throw new Exception('Invalid outgoing charset');
+                    }
+                    $config['outgoing_charset'] = $charset;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {

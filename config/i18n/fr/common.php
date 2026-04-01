@@ -679,6 +679,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.binkp_config.uplinks.modal.default_help'                  => 'Marque cet uplink comme uplink par défaut lorsqu\'aucune route plus spécifique ne correspond',
     'ui.admin.binkp_config.uplinks.modal.allow_insecure_echomail'       => 'Autoriser la livraison d\'echomail non sécurisée',
     'ui.admin.binkp_config.uplinks.modal.allow_insecure_echomail_help'  => 'Autorise ce nœud à livrer de l\'echomail sans s\'authentifier. À utiliser lorsque le système distant ne supporte pas les mots de passe mais est un uplink de confiance.',
+    'ui.admin.binkp_config.uplinks.modal.default_charset'      => 'Substitution du jeu de caractères par défaut',
+    'ui.admin.binkp_config.uplinks.modal.default_charset_help' => 'Si défini, les messages sortants via cet uplink utilisent ce jeu de caractères au lieu de celui configuré globalement. Laisser vide pour utiliser le défaut BBS.',
+    'ui.admin.binkp_config.uplinks.modal.charset_use_bbs_default' => 'Défaut BBS',
     'ui.admin.binkp_config.uplinks.modal.save_uplink' => 'Enregistrer l\'uplink',
     'ui.admin.binkp_config.validation.system_required' => 'Le nom du système, l\'adresse et le sysop sont requis.',
     'ui.admin.binkp_config.validation.port_range' => 'Le port Binkp doit être compris entre 1 et 65535.',
@@ -3395,6 +3398,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     // BBS Settings - Features
     'ui.admin.bbs_settings.features.dashboard_ad_rotate_interval' => 'Intervalle de rotation des annonces du tableau de bord',
     'ui.admin.bbs_settings.features.dashboard_ad_rotate_interval_help' => 'Fréquence de rotation automatique des annonces du tableau de bord, en secondes (5-300). La valeur par défaut est 20 secondes.',
+    'ui.admin.bbs_settings.features.outgoing_charset' => 'Jeu de caractères sortant par défaut',
+    'ui.admin.bbs_settings.features.outgoing_charset_help' => 'Jeu de caractères utilisé pour les nouveaux messages FTN sortants lorsqu\'aucune substitution par uplink n\'est définie. Les réponses héritent du jeu de caractères du message original dans la mesure du possible.',
     'ui.admin.bbs_settings.features.enable_public_files_index' => 'Activer l\'index des fichiers publics',
     'ui.admin.bbs_settings.features.enable_qwk' => 'Activer le courrier hors ligne QWK',
     'ui.admin.bbs_settings.features.qwk_bbs_id' => 'ID BBS QWK',

@@ -119,6 +119,19 @@ class BbsConfig
         self::$config = null;
     }
 
+    /**
+     * Return the configured default outgoing packet charset.
+     * Defaults to CP437 if not set in bbs.json.
+     *
+     * @return string Canonical charset name (e.g. "CP437", "UTF-8")
+     */
+    public static function getOutgoingCharset(): string
+    {
+        self::load();
+        $charset = strtoupper(trim((string)(self::$config['outgoing_charset'] ?? 'CP437')));
+        return $charset ?: 'CP437';
+    }
+
     public static function isFeatureEnabled(string $feature): bool
     {
         self::load();

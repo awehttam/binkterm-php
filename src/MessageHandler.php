@@ -1336,12 +1336,21 @@ class MessageHandler
                 }
             }
         } else {
-            $packetCharset = 'UTF-8';
+            // Determine default charset: check per-uplink override, then BBS global default.
+            $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+            $destDomain = $binkpConfig->getDomainByAddress($toAddress);
+            if ($destDomain) {
+                $uplink = $binkpConfig->getUplinkByDomain($destDomain);
+                if ($uplink && !empty($uplink['default_charset'])) {
+                    $defaultCharset = strtoupper($uplink['default_charset']);
+                }
+            }
+            $packetCharset = $defaultCharset;
             if (!empty($replyToId)) {
                 $csStmt = $this->db->prepare("SELECT message_charset FROM netmail WHERE id = ?");
                 $csStmt->execute([$replyToId]);
                 $originalCharset = $csStmt->fetchColumn();
-                if ($originalCharset && strtoupper($originalCharset) !== 'UTF-8') {
+                if ($originalCharset) {
                     $candidate = strtoupper($originalCharset);
                     $testConvert = @iconv('UTF-8', $candidate . '//IGNORE', $messageText);
                     if ($testConvert !== false && strlen($testConvert) > 0) {
@@ -1740,12 +1749,23 @@ class MessageHandler
                 }
             }
         } else {
-            $packetCharset = 'UTF-8';
+            // Local areas are stored only in the database (no FTN packet encoding), so UTF-8 is
+            // always the right choice regardless of the BBS-wide or per-uplink charset default.
+            if ($isLocalArea) {
+                $defaultCharset = 'UTF-8';
+            } else {
+                $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+                $uplink = $binkpConfig->getUplinkByDomain((string)$domain);
+                if ($uplink && !empty($uplink['default_charset'])) {
+                    $defaultCharset = strtoupper($uplink['default_charset']);
+                }
+            }
+            $packetCharset = $defaultCharset;
             if (!empty($replyToId)) {
                 $csStmt = $this->db->prepare("SELECT message_charset FROM echomail WHERE id = ?");
                 $csStmt->execute([$replyToId]);
                 $originalCharset = $csStmt->fetchColumn();
-                if ($originalCharset && strtoupper($originalCharset) !== 'UTF-8') {
+                if ($originalCharset) {
                     $candidate = strtoupper($originalCharset);
                     $testConvert = @iconv('UTF-8', $candidate . '//IGNORE', $messageText);
                     if ($testConvert !== false && strlen($testConvert) > 0) {

@@ -22,11 +22,17 @@ Make sure you have a current backup of your database and files before upgrading.
 - [File Previewer](#file-previewer)
   - [SID Music Previewer](#sid-music-previewer)
   - [Archive Listing Size Limit](#archive-listing-size-limit)
+- [Outgoing Message Charset](#outgoing-message-charset)
+  - [Default Changed to CP437](#default-changed-to-cp437)
+  - [Per-Uplink Charset Override](#per-uplink-charset-override)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+**Outgoing Message Charset**
+- Outgoing FTN messages now default to CP437 (IBM PC / DOS) instead of UTF-8. This minimizes text display issues on legacy networks such as FidoNet where many nodes run software that does not support UTF-8 encoding. The default can be changed in Admin → BBS Settings, and individual uplinks can override it with their own charset setting. Local echo areas always use UTF-8 regardless of this setting. Replies still inherit the charset of the message being replied to when possible.
 
 **Security Fixes**
 - The optional MCP server now updates its `path-to-regexp` dependency from `8.3.0` to `8.4.0`.
@@ -183,6 +189,34 @@ ARCHIVE_LIST_MAX_SIZE=52428800
 ```
 
 No database migration is required.
+
+## Outgoing Message Charset
+
+### Default Changed to CP437
+
+Outgoing FTN message packets previously used UTF-8 as the default character encoding for all new messages. The default has been changed to CP437 (IBM PC / DOS).
+
+FidoNet and many other legacy FTN networks were built around CP437 as the standard encoding. A significant number of nodes on these networks run software that was written before UTF-8 became common, and those systems display UTF-8 encoded text as garbled characters. Defaulting to CP437 ensures that messages are readable across the widest range of nodes, including older DOS-era BBS software, hardware terminals, and modern clients that present an authentic retro experience.
+
+The encoding used for a specific message is always written into the outgoing packet as a `CHRS` kludge line so that receiving software that does support UTF-8 can still decode the message correctly.
+
+The default charset is configurable in Admin → BBS Settings under the **Default Outgoing Charset** selector. Supported values are CP437, CP850, CP852, CP866, CP1252, ISO-8859-1, ISO-8859-2, and UTF-8.
+
+Local echo areas (areas that are not distributed to any uplink) always store and display messages as UTF-8 regardless of this setting, since no FTN packet encoding is involved.
+
+When composing a reply, the charset of the original message is inherited when possible, so responses to a UTF-8 message will remain UTF-8 even if the BBS default is CP437.
+
+No database migration is required. Existing stored messages are unaffected; only new outgoing packets use the updated default.
+
+### Per-Uplink Charset Override
+
+Individual uplinks can override the BBS-wide default with their own charset setting. This is useful when one uplink connects to a network that requires or recommends a specific encoding — for example, a network that mandates UTF-8 — while other uplinks continue to use the global default.
+
+The per-uplink charset is configured in Admin → BinkP Configuration by editing an uplink and selecting a value from the **Default Charset Override** dropdown. Leaving the field set to **Use BBS default** means the uplink inherits the BBS-wide setting.
+
+When composing echomail, the charset selector in the compose form is automatically pre-set to the correct encoding for the selected echo area's network, updating dynamically as the user switches between areas.
+
+No configuration changes are required for existing setups. If you want to keep the previous UTF-8 default, set **Default Outgoing Charset** in BBS Settings to UTF-8.
 
 ## Upgrade Instructions
 

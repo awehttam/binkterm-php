@@ -1901,10 +1901,20 @@ class BinkdProcessor
             $dt = new \DateTime('now', new \DateTimeZone($systemTimezone));
             $fidonetDate = $dt->format('d M y  H:i:s');
         }
+        // Convert header strings to packet charset (same encoding applied to the body above)
+        $toNamePkt   = $message['to_name']   ?? '';
+        $fromNamePkt = $message['from_name'] ?? '';
+        $subjectPkt  = $message['subject']   ?? '';
+        if ($packetBodyCharset !== 'UTF-8') {
+            $c = $packetBodyCharset . '//IGNORE';
+            $toNamePkt   = @iconv('UTF-8', $c, $toNamePkt)   ?: $toNamePkt;
+            $fromNamePkt = @iconv('UTF-8', $c, $fromNamePkt) ?: $fromNamePkt;
+            $subjectPkt  = @iconv('UTF-8', $c, $subjectPkt)  ?: $subjectPkt;
+        }
         fwrite($handle, $fidonetDate . "\0");
-        fwrite($handle, substr($message['to_name'], 0, 35) . "\0");
-        fwrite($handle, substr($message['from_name'], 0, 35) . "\0");
-        fwrite($handle, substr($message['subject'], 0, 71) . "\0");
+        fwrite($handle, substr($toNamePkt,   0, 35) . "\0");
+        fwrite($handle, substr($fromNamePkt, 0, 35) . "\0");
+        fwrite($handle, substr($subjectPkt,  0, 71) . "\0");
         
         // Add appropriate kludge lines based on message type
         $kludgeLines = '';

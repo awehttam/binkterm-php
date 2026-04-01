@@ -1239,6 +1239,26 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
     $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
 
+    // Determine the default charset for new messages (may be overridden by reply_charset for replies).
+    // Build a domain→charset map so the compose page can update the selector when the echo area changes.
+    $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+    $domainCharsets = [];  // domain => charset override (only entries that differ from BBS default)
+    try {
+        $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        foreach ($binkpCfg->getUplinks() as $uplink) {
+            $uplinkDomain = strtolower($uplink['domain'] ?? '');
+            if ($uplinkDomain !== '' && !empty($uplink['default_charset'])) {
+                $domainCharsets[$uplinkDomain] = strtoupper($uplink['default_charset']);
+            }
+        }
+        // Apply override for initial charset if domain is already known from GET param
+        if ($domainParam && isset($domainCharsets[strtolower($domainParam)])) {
+            $defaultCharset = $domainCharsets[strtolower($domainParam)];
+        }
+    } catch (\Exception $e) {
+        // Config unavailable; fall back to BBS default
+    }
+
     $templateVars = [
         'type' => $type,
         'current_user' => $user,
@@ -1258,6 +1278,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'interest_slug' => $interestSlug,
         'interest_name' => $interestData ? $interestData['name'] : null,
         'interest_echoareas' => $interestEchoareas,
+        'default_charset' => $defaultCharset,
+        'domain_charsets' => $domainCharsets,
     ];
 
       if ($replyId) {

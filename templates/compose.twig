@@ -676,15 +676,17 @@ let mdPreviewTimer = null;
 let scToolbarActive = false;
 let hardWrapLimit = 79; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
-const replyCharset    = {{ reply_charset|default("UTF-8")|json_encode|raw }};
+const defaultCharset  = {{ default_charset|default("CP437")|json_encode|raw }};
+const replyCharset    = {{ reply_charset|default("")|json_encode|raw }};
+const domainCharsets  = {{ domain_charsets|default({})|json_encode|raw }};
 
-// Pre-select the charset from the reply context (or default to UTF-8 for new messages)
+// Pre-select the charset from the reply context, or the configured default for new messages
 (function() {
     const sel = document.getElementById('charsetSelect');
-    if (sel && replyCharset) {
-        sel.value = replyCharset;
-        // If the value didn't match any option, fall back to UTF-8
-        if (!sel.value) { sel.value = 'UTF-8'; }
+    if (sel) {
+        sel.value = replyCharset || defaultCharset;
+        // If the value didn't match any option, fall back to the configured default
+        if (!sel.value) { sel.value = defaultCharset; }
     }
 })();
 
@@ -1747,7 +1749,7 @@ function populateEchoareaSelect(areas, preselect) {
     allEchoareas = areas;
     areas.forEach(function(area) {
         const val = area.domain ? area.tag + '@' + area.domain : area.tag;
-        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}">${val}</option>`);
+        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}" data-is-local="${area.is_local ? '1' : ''}">${val}</option>`);
     });
     select.on('change', function() {
         const color = $(this).find('option:selected').data('color');
@@ -1755,6 +1757,21 @@ function populateEchoareaSelect(areas, preselect) {
         populateCrossPostAreas();
         refreshMarkdownSupportForEchomail();
         updateEchomailGuidelinesPostingName();
+        // Update charset selector based on area type and per-uplink override
+        if (!replyCharset) {
+            const isLocal = !!$(this).find('option:selected').data('is-local');
+            const val = $(this).val() || '';
+            const atPos = val.indexOf('@');
+            const domain = atPos !== -1 ? val.substring(atPos + 1).toLowerCase() : '';
+            let charset;
+            if (isLocal) {
+                charset = 'UTF-8';
+            } else {
+                charset = (domain && domainCharsets[domain]) ? domainCharsets[domain] : defaultCharset;
+            }
+            const sel = document.getElementById('charsetSelect');
+            if (sel) { sel.value = charset; if (!sel.value) sel.value = defaultCharset; }
+        }
     });
     if (preselect) {
         select.val(preselect);

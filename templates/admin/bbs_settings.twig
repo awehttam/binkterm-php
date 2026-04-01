@@ -141,6 +141,15 @@
                             <input type="number" class="form-control" id="bbsDashboardAdRotateInterval" min="5" max="300" step="1" value="20">
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval_help', {}, locale, ['common']) }}</small>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsOutgoingCharset">{{ t('ui.admin.bbs_settings.features.outgoing_charset', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bbsOutgoingCharset">
+                                {% for cs in supported_charsets %}
+                                <option value="{{ cs.value }}">{{ cs.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.outgoing_charset_help', {}, locale, ['common']) }}</small>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, locale, ['common']) }}</button>
                     </form>
                 </div>
@@ -314,6 +323,7 @@ function loadBbsSettings() {
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
+            document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
@@ -397,7 +407,8 @@ function saveBbsSettings() {
                 qwk: Object.assign({}, currentQwk, { bbs_id: qwkBbsIdRaw }),
                 max_cross_post_areas: maxCrossPost,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
-                default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value
+                default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
+                outgoing_charset: document.getElementById('bbsOutgoingCharset').value
             };
 
             return fetch('/admin/api/bbs-settings', {
