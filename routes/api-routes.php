@@ -3846,6 +3846,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // Non-ZIP listing requires shelling out to 7z which can be slow on large files.
+        // Enforce a configurable size cap; ZIP is exempt because it reads only the index.
+        if ($type !== 'zip') {
+            $maxBytes = (int)\BinktermPHP\Config::env('ARCHIVE_LIST_MAX_SIZE', '20971520');
+            if ($maxBytes > 0 && filesize($storagePath) > $maxBytes) {
+                http_response_code(413);
+                echo json_encode([
+                    'error'    => 'file_too_large',
+                    'max_size' => $maxBytes,
+                    'type'     => $type,
+                    'label'    => \BinktermPHP\ArchiveReader::typeLabel($type),
+                ]);
+                return;
+            }
+        }
+
         $result = \BinktermPHP\ArchiveReader::listContents($storagePath, $type);
 
         if (!empty($result['tool_unavailable'])) {

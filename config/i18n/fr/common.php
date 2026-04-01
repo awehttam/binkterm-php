@@ -3934,6 +3934,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.no_prgs_in_d64' => 'Aucun fichier PRG trouvé dans l\'image de disque',
     'ui.files.post_comment' => 'Publier un commentaire',
     'ui.files.preview_failed' => 'Échec du chargement de l\'aperçu',
+    'ui.files.sid_track' => 'Piste',
     'ui.files.preview_title' => 'Aperçu du fichier',
     'ui.files.prg_no_preview' => 'Aperçu indisponible — programme en code machine',
     'ui.files.prg_run_c64' => 'Exécuter sur C64',
@@ -3961,6 +3962,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.zip_truncated' => 'Affichage des {count} premières entrées',
     'ui.files.archive_empty' => 'L\'archive est vide',
     'ui.files.archive_tool_unavailable' => 'L\'outil d\'archive (7z) n\'est pas disponible sur ce serveur.',
+    'ui.files.archive_too_large' => 'Cette archive est trop volumineuse pour être listée ({size}). Seules les archives ZIP peuvent être parcourues au-delà de cette limite.',
     'ui.files.download_archive' => 'Télécharger l\'archive',
 
     // Footer

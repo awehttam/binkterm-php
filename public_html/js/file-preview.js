@@ -23,6 +23,7 @@ const previewD64Exts           = ['d64'];
 const previewRipExts           = ['rip'];
 const previewPCBoardExts       = ['bbs'];
 const previewArchiveExts       = ['zip','rar','r00','7z','tar','gz','tgz','bz2','tbz2','xz','txz','lzh','lha','arc','arj','cab'];
+const previewSidExts           = ['sid'];
 
 function getFileType(filename) {
     const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
@@ -42,6 +43,7 @@ function getFileType(filename) {
     if (previewRipExts.includes(ext))            return 'rip';
     if (previewPCBoardExts.includes(ext))        return 'pcboard';
     if (previewArchiveExts.includes(ext))        return 'archive';
+    if (previewSidExts.includes(ext))            return 'sid';
     return 'download';
 }
 
@@ -94,6 +96,9 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
         try { window._modPlayer.unload(); } catch (e) {}
         window._modPlayer = null;
     }
+    if (window._sidPlayerReady) {
+        try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+    }
 
     if (type === 'image') {
         body.css('background', '#1a1a1a').html(`
@@ -129,6 +134,9 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
 
     } else if (type === 'mod') {
         renderModPlayer(body, previewUrl, filename);
+
+    } else if (type === 'sid') {
+        renderSidPlayer(body, previewUrl, filename);
 
     } else if (type === 'text') {
         const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
@@ -696,6 +704,194 @@ function renderModPlayer(container, url, label) {
 }
 
 // ---------------------------------------------------------------------------
+// SID (Commodore 64) music player — powered by wothke/websid
+// ---------------------------------------------------------------------------
+
+/**
+ * Load a classic (non-module) script tag once; resolves immediately if already loaded.
+ * @param {string} src
+ * @returns {Promise<void>}
+ */
+function _loadClassicScript(src) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${CSS.escape(src)}"], script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Failed to load script: ' + src));
+        document.head.appendChild(s);
+    });
+}
+
+/**
+ * Parse a SID file header.
+ * @param {Uint8Array} data
+ * @returns {{ title: string, author: string, released: string, numSongs: number, startSong: number, valid: boolean }}
+ */
+function _parseSidHeader(data) {
+    const dec = new TextDecoder('iso-8859-1');
+    const magic = dec.decode(data.slice(0, 4));
+    if (magic !== 'PSID' && magic !== 'RSID') {
+        return { title: '', author: '', released: '', numSongs: 1, startSong: 1, valid: false };
+    }
+    return {
+        valid:     true,
+        numSongs:  (data[14] << 8) | data[15],
+        startSong: ((data[16] << 8) | data[17]) || 1,
+        title:     dec.decode(data.slice(22, 54)).replace(/\0.*/, '').trim(),
+        author:    dec.decode(data.slice(54, 86)).replace(/\0.*/, '').trim(),
+        released:  dec.decode(data.slice(86, 118)).replace(/\0.*/, '').trim(),
+    };
+}
+
+/**
+ * Load websid scripts and initialise ScriptNodePlayer with the SID backend.
+ * Safe to call multiple times — only initialises once.
+ * @returns {Promise<void>}
+ */
+function _ensureSidPlayerReady() {
+    if (window._sidPlayerReady) return Promise.resolve();
+    if (window._sidPlayerLoading) return window._sidPlayerLoading;
+
+    window._sidPlayerLoading = _loadClassicScript('/vendor/websid/stdlib/scriptprocessor_player.min.js')
+        .then(() => {
+            window.WASM_SEARCH_PATH = '/vendor/websid/';
+            return _loadClassicScript('/vendor/websid/backend_websid.js');
+        })
+        .then(() => new Promise((resolve, reject) => {
+            // ROMs are optional — non-BASIC SID files (the vast majority) work without them.
+            // The emulator will log a console warning for the rare BASIC songs that need them.
+            const backend = new SIDBackendAdapter(null, null, null);
+            ScriptNodePlayer.initialize(backend, function () {}, [], true, undefined)
+                .then(() => {
+                    window._sidPlayerReady = true;
+                    window._sidPlayerLoading = null;
+                    resolve();
+                })
+                .catch(reject);
+        }));
+
+    return window._sidPlayerLoading;
+}
+
+/**
+ * Render a Commodore 64 SID music file player.
+ * @param {jQuery} container
+ * @param {string} url        - URL to fetch the SID file from
+ * @param {string} label      - Display name (filename)
+ */
+function renderSidPlayer(container, url, label) {
+    if (window._sidPlayerReady) {
+        try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+    }
+
+    container.css('background', '').html(`
+        <div class="p-4 text-center" id="sidPlayerUI">
+            <i class="fas fa-microchip fa-3x text-muted mb-3 d-block"></i>
+            <p class="text-muted mb-1 fw-semibold">${escapeHtml(label)}</p>
+            <div class="text-center py-3"><i class="fas fa-spinner fa-spin text-muted"></i></div>
+        </div>
+    `);
+
+    fetch(url)
+        .then(r => r.arrayBuffer())
+        .then(buf => {
+            const meta = _parseSidHeader(new Uint8Array(buf));
+            const displayTitle = meta.title || label;
+
+            return _ensureSidPlayerReady().then(() => {
+                let currentTrack = meta.startSong - 1; // ScriptNodePlayer uses 0-based track index
+
+                const loadTrack = (track) => {
+                    return ScriptNodePlayer.loadMusicFromURL(url, { track: track, timeout: -1 }, () => {}, () => {});
+                };
+
+                const setPlayingState = (playing) => {
+                    const btn = container.find('#sidPlayBtn');
+                    if (playing) {
+                        btn.html('<i class="fas fa-pause"></i>').removeClass('btn-primary').addClass('btn-warning');
+                    } else {
+                        btn.html('<i class="fas fa-play"></i>').removeClass('btn-warning').addClass('btn-primary');
+                    }
+                };
+
+                let subtuneSel = '';
+                if (meta.numSongs > 1) {
+                    const opts = Array.from({ length: meta.numSongs }, (_, i) =>
+                        `<option value="${i}" ${i === currentTrack ? 'selected' : ''}>${i + 1}</option>`
+                    ).join('');
+                    subtuneSel = `
+                        <div class="d-flex align-items-center justify-content-center gap-2 mb-3">
+                            <label class="text-muted small mb-0" for="sidSubtune">${_fpT('ui.files.sid_track', 'Track')}:</label>
+                            <select id="sidSubtune" class="form-select form-select-sm" style="width:auto;">${opts}</select>
+                        </div>`;
+                }
+
+                container.find('#sidPlayerUI').html(`
+                    <i class="fas fa-microchip fa-3x text-muted mb-3 d-block"></i>
+                    <p class="text-muted mb-1 fw-semibold">${escapeHtml(displayTitle)}</p>
+                    ${meta.author   ? `<p class="text-muted small mb-0">${escapeHtml(meta.author)}</p>` : ''}
+                    ${meta.released ? `<p class="text-muted small mb-3">${escapeHtml(meta.released)}</p>` : '<div class="mb-3"></div>'}
+                    ${subtuneSel}
+                    <div class="d-flex justify-content-center align-items-center gap-3 mb-4">
+                        <button id="sidPlayBtn" class="btn btn-primary btn-lg" style="min-width:56px;">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button id="sidStopBtn" class="btn btn-outline-secondary">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                        <i class="fas fa-volume-low text-muted"></i>
+                        <input type="range" id="sidVolume" class="form-range" style="width:160px;" min="0" max="255" value="200">
+                        <i class="fas fa-volume-high text-muted"></i>
+                    </div>
+                `);
+
+                // Auto-start
+                loadTrack(currentTrack).then(() => setPlayingState(true));
+
+                container.find('#sidPlayBtn').on('click', function () {
+                    const p = ScriptNodePlayer.getInstance();
+                    if (!p) return;
+                    if ($(this).hasClass('btn-warning')) {
+                        p.pause();
+                        setPlayingState(false);
+                    } else {
+                        p.resume();
+                        setPlayingState(true);
+                    }
+                });
+
+                container.find('#sidStopBtn').on('click', function () {
+                    try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+                    setPlayingState(false);
+                });
+
+                container.find('#sidVolume').on('input', function () {
+                    try { ScriptNodePlayer.getInstance().setVolume(parseInt(this.value, 10) / 255); } catch (e) {}
+                });
+
+                if (meta.numSongs > 1) {
+                    container.find('#sidSubtune').on('change', function () {
+                        currentTrack = parseInt(this.value, 10);
+                        loadTrack(currentTrack).then(() => setPlayingState(true));
+                    });
+                }
+            });
+        })
+        .catch(e => {
+            console.error('SID player load failed:', e);
+            container.css('background', '').html(
+                `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load SID file')}</div>`
+            );
+        });
+}
+
+// ---------------------------------------------------------------------------
 // ZIP file browser
 // ---------------------------------------------------------------------------
 
@@ -707,6 +903,7 @@ function zipEntryIcon(type) {
         case 'audio':          return 'fa-music';
         case 'html':           return 'fa-code';
         case 'mod':            return 'fa-music';
+        case 'sid':            return 'fa-microchip';
         case 'text_probe':     return 'fa-file-lines';
         case 'text':           return 'fa-file-lines';
         case 'ansi':           return 'fa-terminal';
@@ -732,10 +929,32 @@ function renderArchiveBrowser(container, fileId, shareQs) {
     const contentsUrl = `/api/files/${fileId}/archive-contents` + shareQs;
 
     fetch(contentsUrl, {credentials: 'same-origin'})
-        .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+        .then(r => {
+            if (r.status === 413) {
+                // Too large for 7z listing — read JSON for details but fall back gracefully
+                return r.json().catch(() => ({ error: 'file_too_large' }));
+            }
+            return r.ok ? r.json() : Promise.reject('HTTP ' + r.status);
+        })
         .then(data => {
             if (data.error === 'tool_unavailable') {
                 renderArchiveToolUnavailableNotice(container, fileId, data.label || '', shareQs);
+                return;
+            }
+
+            if (data.error === 'file_too_large') {
+                const sizeStr = _fpBytes(data.max_size || 0);
+                const label   = data.label || '';
+                container.css('background', '').html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-file-zipper fa-3x mb-3 d-block"></i>
+                        <p class="mb-3">${_fpT('ui.files.archive_too_large', 'This archive is too large to list ({size}). Only ZIP archives can be browsed above this limit.', {size: sizeStr})}</p>
+                        ${label ? `<p class="small mb-3"><span class="badge bg-secondary">${_fpEsc(label)}</span></p>` : ''}
+                        <a href="/api/files/${fileId}/download" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-download me-1"></i>${_fpT('ui.files.download_archive', 'Download archive')}
+                        </a>
+                    </div>
+                `);
                 return;
             }
 
@@ -926,10 +1145,13 @@ function renderArchiveEntry(container, fileId, entryPath, entryName, shareQs, on
     const previewArea = $('<div>').css({ minHeight: '200px' })
         .html(`<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`);
 
-    // Unload any active MOD player before switching entries
+    // Unload any active MOD/SID player before switching entries
     if (window._modPlayer) {
         try { window._modPlayer.unload(); } catch(e) {}
         window._modPlayer = null;
+    }
+    if (window._sidPlayerReady) {
+        try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
     }
 
     container.empty().append(backBar, previewArea);
@@ -964,6 +1186,9 @@ function renderArchiveEntry(container, fileId, entryPath, entryName, shareQs, on
 
     } else if (type === 'mod') {
         renderModPlayer(previewArea, entryUrl, entryName);
+
+    } else if (type === 'sid') {
+        renderSidPlayer(previewArea, entryUrl, entryName);
 
     } else if (type === 'text') {
         const ext2     = entryName.includes('.') ? entryName.split('.').pop().toLowerCase() : '';

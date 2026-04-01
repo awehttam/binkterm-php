@@ -33,6 +33,11 @@
 - **Author:** Sebastian Bergmann
 - Unit testing framework.
 
+### wothke/websid
+- **License:** CC BY-NC-SA 4.0
+- **Author:** Juergen Wothke
+- WebAssembly SID emulator used to play Commodore 64 SID music files in the browser file previewer.
+
 ## AI Tooling
 
 BinktermPHP was developed with the assistance of AI language models. We gratefully acknowledge:

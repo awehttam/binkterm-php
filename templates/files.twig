@@ -602,6 +602,9 @@ $(document).ready(function() {
             try { window._modPlayer.unload(); } catch (e) {}
             window._modPlayer = null;
         }
+        if (window._sidPlayerReady) {
+            try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+        }
         $('#previewModalBody').css('background', '#1a1a1a').html(
             '<div class="py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
         );

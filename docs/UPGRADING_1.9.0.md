@@ -19,6 +19,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Message List Refresh on Page Restore](#message-list-refresh-on-page-restore)
 - [Caddy Configuration](#caddy-configuration)
   - [Static File Serving Fix](#static-file-serving-fix)
+- [File Previewer](#file-previewer)
+  - [SID Music Previewer](#sid-music-previewer)
+  - [Archive Listing Size Limit](#archive-listing-size-limit)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -42,6 +45,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Caddy Configuration**
 - The recommended Caddy configuration has been updated. If you use Caddy, a one-time manual edit to your Caddyfile is required to ensure static files and subdirectories with `index.html` (such as WebDoors and the C64 emulator) are served correctly instead of being routed through PHP.
+
+**File Previewer**
+- The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
+- Non-ZIP archive listing (RAR, 7-Zip, TAR, LZH, etc.) now enforces a configurable maximum file size before invoking the 7z tool. Archives that exceed the limit display a message and a download link instead of timing out. The limit defaults to 20 MB and is controlled by `ARCHIVE_LIST_MAX_SIZE` in `.env`. ZIP archives are not affected because their file listing reads only the central directory index and does not require 7z.
 
 **Documentation**
 - `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.
@@ -151,6 +158,31 @@ php_fastcgi unix//run/php/php8.2-fpm.sock {
 Remove the bare `file_server` line that was previously listed after `php_fastcgi` — it is no longer needed. The updated full Caddy example is in `README.md`.
 
 This change is required if you use Caddy. nginx users are unaffected; the existing `try_files` directive in the nginx example already handles this correctly.
+
+## File Previewer
+
+### SID Music Previewer
+
+The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the [wothke/websid](https://bitbucket.org/wothke/websid) WebAssembly SID emulator.
+
+The player reads the standard PSID/RSID file header to display the embedded song title, author, and release year. Files that contain multiple subtunes expose a track selector so listeners can navigate between them. Playback stops automatically when the preview modal is closed or a different file is opened. SID files stored inside ZIP archives are also playable directly from the archive browser without extracting them first.
+
+The websid emulator files are included under `public_html/vendor/websid/` and require no additional installation steps. No database migration is required.
+
+### Archive Listing Size Limit
+
+Listing the contents of non-ZIP archives (RAR, 7-Zip, TAR, LZH, ARJ, CAB, and similar formats) requires running the 7z command-line tool, which must read and decompress part of the archive to produce the file list. On large archives this can be slow enough to cause browser timeouts or visibly stall the page.
+
+A size cap is now enforced before 7z is invoked. Archives that exceed the limit are not listed; the file area previewer displays a message explaining the limit and offers a direct download link instead. ZIP archives are exempt because their listing reads only the central directory index, which is fast regardless of archive size.
+
+The default limit is 20 MB. To change it, set `ARCHIVE_LIST_MAX_SIZE` in `.env` to the desired number of bytes. Set it to `0` to disable the limit entirely.
+
+```
+# .env — raise limit to 50 MB
+ARCHIVE_LIST_MAX_SIZE=52428800
+```
+
+No database migration is required.
 
 ## Upgrade Instructions
 
