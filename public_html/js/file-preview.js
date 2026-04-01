@@ -783,7 +783,79 @@ function _ensureSidPlayerReady() {
  * @param {string} url        - URL to fetch the SID file from
  * @param {string} label      - Display name (filename)
  */
+/**
+ * Draw one frame of the SID spectrum visualizer onto the given canvas.
+ * Reads FFT data when window._sidVizPlaying is true; decays bars to zero otherwise.
+ * @param {HTMLCanvasElement} canvas
+ */
+function _drawSidViz(canvas) {
+    const numBars = 48;
+    if (!window._sidVizLevels) window._sidVizLevels = new Float32Array(numBars);
+
+    const p = ScriptNodePlayer.getInstance();
+    const data = window._sidVizPlaying && p ? p.getFreqByteData() : null;
+    const binCount = data ? Math.floor(data.length / 3) : 0;
+
+    for (let i = 0; i < numBars; i++) {
+        if (data) {
+            const binStart = Math.floor(i * binCount / numBars);
+            const binEnd   = Math.max(binStart + 1, Math.floor((i + 1) * binCount / numBars));
+            let sum = 0;
+            for (let b = binStart; b < binEnd; b++) sum += data[b];
+            const target = (sum / (binEnd - binStart)) / 255;
+            // Smooth toward the target level
+            window._sidVizLevels[i] = window._sidVizLevels[i] * 0.7 + target * 0.3;
+        } else {
+            // Decay toward zero (falling bars effect)
+            window._sidVizLevels[i] *= 0.92;
+        }
+    }
+
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const slotW = w / numBars;
+    const barW  = slotW - 1;
+
+    for (let i = 0; i < numBars; i++) {
+        const barH = Math.round(window._sidVizLevels[i] * h);
+        if (barH < 1) continue;
+        // Gradient: cyan at bottom → green at top (C64-ish palette)
+        const grad = ctx.createLinearGradient(0, h, 0, h - barH);
+        grad.addColorStop(0, '#00cfcf');
+        grad.addColorStop(1, '#00ff41');
+        ctx.fillStyle = grad;
+        ctx.fillRect(i * slotW, h - barH, barW, barH);
+    }
+}
+
+/**
+ * Start the visualizer animation loop. Runs continuously until _stopSidViz().
+ * @param {HTMLCanvasElement} canvas
+ */
+function _startSidViz(canvas) {
+    _stopSidViz();
+    const loop = () => {
+        _drawSidViz(canvas);
+        window._sidVizFrameId = requestAnimationFrame(loop);
+    };
+    window._sidVizFrameId = requestAnimationFrame(loop);
+}
+
+/** Stop the visualizer animation loop. */
+function _stopSidViz() {
+    if (window._sidVizFrameId) {
+        cancelAnimationFrame(window._sidVizFrameId);
+        window._sidVizFrameId = null;
+    }
+    window._sidVizPlaying = false;
+}
+
 function renderSidPlayer(container, url, label) {
+    _stopSidViz();
+    window._sidVizLevels = null;
     if (window._sidPlayerReady) {
         try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
     }
@@ -810,6 +882,7 @@ function renderSidPlayer(container, url, label) {
                 };
 
                 const setPlayingState = (playing) => {
+                    window._sidVizPlaying = playing;
                     const btn = container.find('#sidPlayBtn');
                     if (playing) {
                         btn.html('<i class="fas fa-pause"></i>').removeClass('btn-primary').addClass('btn-warning');
@@ -836,6 +909,7 @@ function renderSidPlayer(container, url, label) {
                     ${meta.author   ? `<p class="text-muted small mb-0">${escapeHtml(meta.author)}</p>` : ''}
                     ${meta.released ? `<p class="text-muted small mb-3">${escapeHtml(meta.released)}</p>` : '<div class="mb-3"></div>'}
                     ${subtuneSel}
+                    <canvas id="sidVizCanvas" height="60" style="width:100%;max-width:320px;display:block;margin:0 auto 16px;border-radius:4px;background:#111;"></canvas>
                     <div class="d-flex justify-content-center align-items-center gap-3 mb-4">
                         <button id="sidPlayBtn" class="btn btn-primary btn-lg" style="min-width:56px;">
                             <i class="fas fa-play"></i>
@@ -851,8 +925,17 @@ function renderSidPlayer(container, url, label) {
                     </div>
                 `);
 
-                // Auto-start
-                loadTrack(currentTrack).then(() => setPlayingState(true));
+                // Sync canvas pixel width to its rendered CSS width for crisp drawing
+                const vizCanvas = container.find('#sidVizCanvas')[0];
+                if (vizCanvas) vizCanvas.width = vizCanvas.offsetWidth || 320;
+
+                // Load track, then immediately pause — user must press Play
+                loadTrack(currentTrack).then(() => {
+                    try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+                    setPlayingState(false);
+                    const canvas = container.find('#sidVizCanvas')[0];
+                    if (canvas) _startSidViz(canvas);
+                });
 
                 container.find('#sidPlayBtn').on('click', function () {
                     const p = ScriptNodePlayer.getInstance();
@@ -878,7 +961,11 @@ function renderSidPlayer(container, url, label) {
                 if (meta.numSongs > 1) {
                     container.find('#sidSubtune').on('change', function () {
                         currentTrack = parseInt(this.value, 10);
-                        loadTrack(currentTrack).then(() => setPlayingState(true));
+                        loadTrack(currentTrack).then(() => {
+                            try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+                            window._sidVizLevels = null;
+                            setPlayingState(false);
+                        });
                     });
                 }
             });

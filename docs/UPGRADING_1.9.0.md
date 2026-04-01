@@ -21,6 +21,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Static File Serving Fix](#static-file-serving-fix)
 - [File Previewer](#file-previewer)
   - [SID Music Previewer](#sid-music-previewer)
+  - [SID Player Visualizer and Controls](#sid-player-visualizer-and-controls)
   - [Archive Listing Size Limit](#archive-listing-size-limit)
 - [Outgoing Message Charset](#outgoing-message-charset)
   - [Default Changed to CP437](#default-changed-to-cp437)
@@ -54,6 +55,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **File Previewer**
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
+- The SID player now includes a real-time spectrum visualizer showing 48 frequency bars that decay smoothly when playback is paused or stopped. Playback is manual — the player loads ready to play and waits for the user to press Play.
 - Non-ZIP archive listing (RAR, 7-Zip, TAR, LZH, etc.) now enforces a configurable maximum file size before invoking the 7z tool. Archives that exceed the limit display a message and a download link instead of timing out. The limit defaults to 20 MB and is controlled by `ARCHIVE_LIST_MAX_SIZE` in `.env`. ZIP archives are not affected because their file listing reads only the central directory index and does not require 7z.
 
 **Documentation**
@@ -174,6 +176,14 @@ The file area previewer now supports Commodore 64 SID music files (`.sid`). Clic
 The player reads the standard PSID/RSID file header to display the embedded song title, author, and release year. Files that contain multiple subtunes expose a track selector so listeners can navigate between them. Playback stops automatically when the preview modal is closed or a different file is opened. SID files stored inside ZIP archives are also playable directly from the archive browser without extracting them first.
 
 The websid emulator files are included under `public_html/vendor/websid/` and require no additional installation steps. No database migration is required.
+
+### SID Player Visualizer and Controls
+
+The SID music player now includes a real-time spectrum visualizer rendered on an HTML5 canvas directly below the song metadata. The visualizer reads frequency data from the Web Audio AnalyserNode that the websid player framework maintains internally and draws 48 bars across the full width of the player. Each bar uses a cyan-to-green gradient. When playback is paused or stopped, the bars decay smoothly to zero rather than cutting out instantly.
+
+Playback is manual: the player loads the file and waits for the user to press Play. This avoids unexpected audio starting when browsing a file listing.
+
+No installation steps or configuration changes are required. No database migration is required.
 
 ### Archive Listing Size Limit
 

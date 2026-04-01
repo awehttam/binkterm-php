@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v729';
+const CACHE_NAME = 'binkcache-v731';
 
 // Static assets to precache
 const staticAssets = [
@@ -15,7 +15,6 @@ const staticAssets = [
     '/js/binkstream-worker-v2.js',
     '/js/ansisys.js',
     '/js/ansi-editor.js',
-    '/js/file-preview.js',
     '/js/pcboard.js',
     '/css/ansisys.css',
     '/css/chat-page.css',
