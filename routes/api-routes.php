@@ -10957,19 +10957,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     // Returns { success, url, filename }
     // -----------------------------------------------------------------
     SimpleRouter::get('/markdown-images', function() {
-        $user   = RouteHelper::requireAuth();
-        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $user     = RouteHelper::requireAuth();
+        $userId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $username = (string)($user['username'] ?? '');
         header('Content-Type: application/json');
 
         try {
             $manager = new \BinktermPHP\FileAreaManager();
             $images  = $manager->listMarkdownImages($userId);
 
-            $result = array_map(function(array $img): array {
+            $result = array_map(function(array $img) use ($username): array {
+                $urlSlug = $img['url_slug'] ?? null;
+                $imgUser = $img['username'] ?? $username;
+                $url = $urlSlug
+                    ? \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . rawurlencode($imgUser) . '/' . rawurlencode($urlSlug)
+                    : \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $img['file_hash'];
                 return [
-                    'hash'       => $img['file_hash'],
                     'filename'   => $img['filename'],
-                    'url'        => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $img['file_hash'],
+                    'url'        => $url,
                     'created_at' => $img['created_at'],
                 ];
             }, $images);
@@ -10982,8 +10987,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/markdown-images', function() {
-        $user   = RouteHelper::requireAuth();
-        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $user     = RouteHelper::requireAuth();
+        $userId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $username = (string)($user['username'] ?? '');
         header('Content-Type: application/json');
 
         $uploadError = $_FILES['image']['error'] ?? -1;
@@ -11006,17 +11012,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         try {
-            $manager = new \BinktermPHP\FileAreaManager();
-            $result  = $manager->storeMarkdownImage(
-                $userId,
-                $_FILES['image']['tmp_name'],
-                basename($_FILES['image']['name'])
-            );
+            $manager  = new \BinktermPHP\FileAreaManager();
+            $origName = basename($_FILES['image']['name']);
+            $result   = $manager->storeMarkdownImage($userId, $_FILES['image']['tmp_name'], $origName);
+
+            $url = \BinktermPHP\Config::getSiteUrl()
+                . '/echomail-images/'
+                . rawurlencode($username)
+                . '/'
+                . rawurlencode($result['url_slug']);
 
             echo json_encode([
                 'success'  => true,
-                'url'      => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $result['hash'],
-                'filename' => basename($_FILES['image']['name']),
+                'url'      => $url,
+                'filename' => $origName,
             ]);
         } catch (\Exception $e) {
             http_response_code(500);

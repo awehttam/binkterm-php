@@ -2721,6 +2721,40 @@ class FileAreaManager
      * @return array{hash: string, file_id: int}
      * @throws \Exception on filesystem or database failure
      */
+    /**
+     * Build a human-readable URL slug for a markdown image.
+     * Format: {sanitized-name}-{12char_sha256}.{ext}
+     * Example: retro-screenshot-07e6d7ea3e66.png
+     *
+     * @param  string $filename Original client-supplied filename
+     * @param  string $hash     64-character SHA-256 hex string
+     * @return string
+     */
+    public static function slugifyMarkdownImageFilename(string $filename, string $hash): string
+    {
+        $base = pathinfo($filename, PATHINFO_FILENAME);
+
+        $slug = strtolower($base);
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+        $slug = trim($slug, '-');
+        $slug = (string)substr($slug, 0, 50);
+        $slug = rtrim($slug, '-');
+        if ($slug === '') {
+            $slug = 'image';
+        }
+
+        return $slug . '-' . substr($hash, 0, 12);
+    }
+
+    /**
+     * Store a user-uploaded image for use in markdown post bodies.
+     *
+     * @param  int    $userId
+     * @param  string $tempPath PHP upload temp file path
+     * @param  string $filename Original client-supplied filename
+     * @return array{hash: string, url_slug: string, file_id: int}
+     * @throws \Exception on filesystem or database failure
+     */
     public function storeMarkdownImage(int $userId, string $tempPath, string $filename): array
     {
         $fileArea = $this->getOrCreatePrivateFileArea($userId);
@@ -2729,7 +2763,7 @@ class FileAreaManager
 
         // Return existing record if the same image was already uploaded
         $stmt = $this->db->prepare("
-            SELECT id, file_hash FROM files
+            SELECT id, file_hash, url_slug FROM files
             WHERE file_area_id = ? AND file_hash = ? AND subfolder = 'markdown-images'
             LIMIT 1
         ");
@@ -2737,10 +2771,14 @@ class FileAreaManager
         $existing = $stmt->fetch();
 
         if ($existing) {
-            return ['hash' => (string)$existing['file_hash'], 'file_id' => (int)$existing['id']];
+            return [
+                'hash'     => (string)$existing['file_hash'],
+                'url_slug' => (string)$existing['url_slug'],
+                'file_id'  => (int)$existing['id'],
+            ];
         }
 
-        // Store under a hash-named file to prevent directory enumeration
+        $urlSlug     = self::slugifyMarkdownImageFilename($filename, $fileHash);
         $ext         = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         $storageName = $fileHash . ($ext !== '' ? '.' . $ext : '');
         $areaDir     = $this->getAreaStorageDir($fileArea);
@@ -2757,17 +2795,17 @@ class FileAreaManager
         $stmt = $this->db->prepare("
             INSERT INTO files (
                 file_area_id, filename, filesize, file_hash, storage_path,
-                source_type, short_description, owner_id, subfolder, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, 'markdown_image', 'Markdown post image', ?, 'markdown-images', 'approved', NOW())
+                source_type, short_description, owner_id, subfolder, status, url_slug, created_at
+            ) VALUES (?, ?, ?, ?, ?, 'markdown_image', 'Markdown post image', ?, 'markdown-images', 'approved', ?, NOW())
             RETURNING id
         ");
-        $stmt->execute([$fileArea['id'], $filename, $fileSize, $fileHash, $storagePath, $userId]);
+        $stmt->execute([$fileArea['id'], $filename, $fileSize, $fileHash, $storagePath, $userId, $urlSlug]);
         $row    = $stmt->fetch();
         $fileId = (int)$row['id'];
 
         $this->updateFileAreaStats($fileArea['id']);
 
-        return ['hash' => $fileHash, 'file_id' => $fileId];
+        return ['hash' => $fileHash, 'url_slug' => $urlSlug, 'file_id' => $fileId];
     }
 
     /**
@@ -2780,9 +2818,11 @@ class FileAreaManager
     public function listMarkdownImages(int $userId, int $limit = 60): array
     {
         $stmt = $this->db->prepare("
-            SELECT f.id, f.filename, f.file_hash, f.filesize, f.created_at
+            SELECT f.id, f.filename, f.file_hash, f.url_slug, f.filesize, f.created_at,
+                   u.username
             FROM files f
             JOIN file_areas fa ON fa.id = f.file_area_id
+            JOIN users u ON u.id = f.owner_id
             WHERE fa.tag = ?
               AND f.subfolder = 'markdown-images'
               AND f.status = 'approved'
@@ -2817,6 +2857,30 @@ class FileAreaManager
         $stmt->execute([$hash]);
         $row = $stmt->fetch();
 
+        return $row ?: null;
+    }
+
+    /**
+     * Look up a markdown post image by owner username and url_slug for inline serving.
+     *
+     * @param  string     $username
+     * @param  string     $slug     url_slug value (e.g. "retro-screenshot-07e6d7ea3e66.png")
+     * @return array|null           File row including storage_path, or null if not found
+     */
+    public function getMarkdownImageBySlug(string $username, string $slug): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.*
+            FROM files f
+            JOIN users u ON u.id = f.owner_id
+            WHERE u.username = ?
+              AND f.url_slug  = ?
+              AND f.subfolder = 'markdown-images'
+              AND f.status    = 'approved'
+            LIMIT 1
+        ");
+        $stmt->execute([$username, $slug]);
+        $row = $stmt->fetch();
         return $row ?: null;
     }
 

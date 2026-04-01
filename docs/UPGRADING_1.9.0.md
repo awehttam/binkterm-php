@@ -23,6 +23,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [SID Music Previewer](#sid-music-previewer)
   - [SID Player Visualizer and Controls](#sid-player-visualizer-and-controls)
   - [Archive Listing Size Limit](#archive-listing-size-limit)
+- [Markdown Images](#markdown-images)
+  - [Human-Readable Image URLs](#human-readable-image-urls)
 - [Outgoing Message Charset](#outgoing-message-charset)
   - [Default Changed to CP437](#default-changed-to-cp437)
   - [Per-Uplink Charset Override](#per-uplink-charset-override)
@@ -52,6 +54,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Caddy Configuration**
 - The recommended Caddy configuration has been updated. If you use Caddy, a one-time manual edit to your Caddyfile is required to ensure static files and subdirectories with `index.html` (such as WebDoors and the C64 emulator) are served correctly instead of being routed through PHP.
+
+**Markdown Images**
+- Images uploaded through the echomail message editor are now served at human-readable URLs in the form `/echomail-images/{username}/{name}-{hash}.png` instead of a raw SHA-256 hash path. Existing embedded images continue to resolve through the old hash-based URL so no message editing is required. A one-time database migration backfills the new URL slug for existing uploaded images.
 
 **File Previewer**
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
@@ -199,6 +204,30 @@ ARCHIVE_LIST_MAX_SIZE=52428800
 ```
 
 No database migration is required.
+
+## Markdown Images
+
+### Human-Readable Image URLs
+
+Images uploaded through the echomail message editor are now served at URLs that include the uploader's username and a descriptive slug derived from the original filename:
+
+```
+/echomail-images/{username}/{sanitized-name}-{12char-hash}
+```
+
+For example, an image originally named `retro-screenshot.png` uploaded by the user `sysop` is now accessible at a URL such as:
+
+```
+/echomail-images/sysop/retro-screenshot-07e6d7ea3e66
+```
+
+Previously all uploaded markdown images were served at `/echomail-images/{sha256-hash}`, which produced URLs that were opaque and difficult to read in plain-text message rendering.
+
+Existing embedded image URLs (the old hash-based form) continue to resolve correctly, so messages that contain already-embedded images do not need to be edited. The two URL forms coexist permanently.
+
+A database migration (`v1.11.0.68`) adds a `url_slug` column to the `files` table and backfills a slug for every existing markdown image. A second migration (`v1.11.0.69`) corrects any slugs that were written with a file extension by an earlier run of the backfill. Both migrations run automatically when `php scripts/setup.php` is executed.
+
+No configuration changes are required.
 
 ## Outgoing Message Charset
 

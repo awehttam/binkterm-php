@@ -1740,13 +1740,13 @@ SimpleRouter::post('/qwk/upload', function() {
     }
 });
 
-// Serve a markdown post image inline by its SHA-256 hash token.
-// No authentication required — images are embedded in public posts.
-SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
-    $manager = new \BinktermPHP\FileAreaManager();
-    $file    = $manager->getMarkdownImageByHash($hash);
-
-    if (!$file || !file_exists($file['storage_path'])) {
+/**
+ * Serve a markdown post image file to the browser.
+ * @param array $file File row from FileAreaManager (must include storage_path, filename)
+ */
+function serveMarkdownImage(array $file): void
+{
+    if (!file_exists($file['storage_path'])) {
         http_response_code(404);
         echo 'Image not found';
         return;
@@ -1761,16 +1761,44 @@ SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
         'webp' => 'image/webp',
     ];
     $contentType = $mimes[$ext] ?? (mime_content_type($file['storage_path']) ?: 'application/octet-stream');
+    $safeName    = addslashes(basename((string)$file['filename']));
 
-    $fileSize = filesize($file['storage_path']);
-    $safeName = addslashes(basename((string)$file['filename']));
     header('Content-Type: ' . $contentType);
-    header('Content-Length: ' . $fileSize);
+    header('Content-Length: ' . filesize($file['storage_path']));
     header('Content-Disposition: inline; filename="' . $safeName . '"');
     header('Cache-Control: public, max-age=86400');
     header('X-Content-Type-Options: nosniff');
     readfile($file['storage_path']);
     exit;
+}
+
+// Serve a markdown post image by human-readable slug: /echomail-images/{username}/{slug}
+// No authentication required — images are embedded in public posts.
+SimpleRouter::get('/echomail-images/{username}/{slug}', function(string $username, string $slug) {
+    $manager = new \BinktermPHP\FileAreaManager();
+    $file    = $manager->getMarkdownImageBySlug($username, $slug);
+
+    if (!$file) {
+        http_response_code(404);
+        echo 'Image not found';
+        return;
+    }
+
+    serveMarkdownImage($file);
+});
+
+// Legacy route: serve by SHA-256 hash for URLs embedded in older posts.
+SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
+    $manager = new \BinktermPHP\FileAreaManager();
+    $file    = $manager->getMarkdownImageByHash($hash);
+
+    if (!$file) {
+        http_response_code(404);
+        echo 'Image not found';
+        return;
+    }
+
+    serveMarkdownImage($file);
 });
 
 // Include local/custom routes if they exist
