@@ -7,6 +7,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Message Posting Tool](#message-posting-tool)
 - [Weather Report Generator](#weather-report-generator)
 - [New Files Report](#new-files-report)
+- [Echomail Traffic Report](#echomail-traffic-report)
 - [Activity Digest Generator](#activity-digest-generator)
 - [Activity Report Sender](#activity-report-sender)
 - [Echomail Maintenance Utility](#echomail-maintenance-utility)
@@ -108,6 +109,34 @@ Options:
 - `--public` - Only report files from file areas where `is_public = true`
 - `--domain=NAME` - Only report files from file areas in the specified domain
 - `--help` - Show usage
+
+## Echomail Traffic Report
+Generate a raw traffic report showing how much activity each echo area is getting over the last 30 days by default. The report includes total messages, new threads, replies, per-area averages, and daily totals.
+
+```bash
+# Default: last 30 days
+php scripts/echomail_stats.php
+
+# Limit to one domain
+php scripts/echomail_stats.php --domain=fidonet
+
+# Limit to one echo area
+php scripts/echomail_stats.php --area=GENERAL
+
+# Custom window
+php scripts/echomail_stats.php --from=2026-03-01 --to=2026-03-31
+```
+
+Options:
+- `--days=N` - Look back N days (default: `30`)
+- `--from=YYYY-MM-DD` - Start date
+- `--to=YYYY-MM-DD` - End date (defaults to now when used with `--from`)
+- `--domain=NAME` - Only include echo areas in the specified domain
+- `--area=TAG` - Only include the specified echo area tag
+- `--top=N` - Limit the ranked per-area table to the top N areas
+- `--help` - Show usage
+
+Unlike `scripts/echomail_summary.php`, this script does not perform any AI analysis or narrative summarization. It prints raw traffic statistics only.
 
 ## Activity Digest Generator
 Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:
