@@ -1005,11 +1005,20 @@ Each import is a merge, not a replacement. The script matches incoming entries a
 
 ### File Area Rule Automation
 
-You can trigger this script automatically whenever a matching ZIP arrives in a file area by configuring a file area rule:
+You can trigger this script automatically whenever a matching ZIP arrives in a file area by adding a rule to `config/filearea_rules.json`. The example below matches the [Telnet BBS Guide](https://www.telnetbbsguide.com/) distribution format (`IBBS0426.ZIP`, etc.):
 
-```
-pattern: /bbslist.*\.zip$/i
-script:  php %basedir%/scripts/import_bbslist.php %filepath%
+```json
+"BBSLISTS@fidonet": [
+  {
+    "name": "Telnet Guide BBS List",
+    "enabled": true,
+    "pattern": "/^IBBS\\d{4}\\.ZIP$/i",
+    "script": "php %basedir%/scripts/import_bbslist.php %filepath%",
+    "timeout": 600,
+    "success_action": "keep",
+    "fail_action": "keep+notify"
+  }
+]
 ```
 
 ## Admin Client
