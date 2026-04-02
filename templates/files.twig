@@ -758,8 +758,8 @@ function displayRecentFiles(files) {
         html += `
             <tr>
                 <td style="word-break: break-all;">
-                    ${scanIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge0}
+                    ${scanIcon}${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge0}
                 </td>
                 <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
@@ -1292,8 +1292,8 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
         html += `
             <tr>
                 <td style="word-break: break-all;">
-                    ${scanIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge1}
+                    ${scanIcon}${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge1}
                 </td>
                 <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
