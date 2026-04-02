@@ -138,6 +138,121 @@ class WeatherReportGenerator
     {
         return $this->config;
     }
+
+    /**
+     * Get configured OpenWeatherMap units mode.
+     */
+    private function getUnits(): string
+    {
+        $units = strtolower((string)($this->settings['units'] ?? 'metric'));
+        return in_array($units, ['metric', 'imperial', 'standard'], true) ? $units : 'metric';
+    }
+
+    /**
+     * Return the display suffix for temperatures.
+     */
+    private function getTemperatureUnitLabel(): string
+    {
+        return match ($this->getUnits()) {
+            'imperial' => '°F',
+            'standard' => 'K',
+            default => '°C',
+        };
+    }
+
+    /**
+     * Return the display suffix for wind speed.
+     */
+    private function getWindUnitLabel(): string
+    {
+        return match ($this->getUnits()) {
+            'imperial' => 'mph',
+            'standard' => 'm/s',
+            default => 'km/h',
+        };
+    }
+
+    /**
+     * Format an API temperature value for display.
+     */
+    private function formatTemperature(float $temperature): string
+    {
+        return round($temperature) . $this->getTemperatureUnitLabel();
+    }
+
+    /**
+     * Convert API wind speed to the configured display units.
+     */
+    private function formatWindSpeed(float $apiWindSpeed): string
+    {
+        $speed = match ($this->getUnits()) {
+            'imperial' => $apiWindSpeed,
+            'standard' => $apiWindSpeed,
+            default => $apiWindSpeed * 3.6,
+        };
+
+        return number_format($speed, 1) . ' ' . $this->getWindUnitLabel();
+    }
+
+    /**
+     * Convert API visibility meters to the configured display units.
+     */
+    private function formatVisibility(int $visibilityMeters): string
+    {
+        if ($this->getUnits() === 'imperial') {
+            return number_format($visibilityMeters / 1609.344, 1) . ' mi';
+        }
+
+        return number_format($visibilityMeters / 1000, 1) . ' km';
+    }
+
+    /**
+     * Normalize API temperature to Celsius for narrative thresholds.
+     */
+    private function normalizeTemperatureForLogic(float $temperature): float
+    {
+        return match ($this->getUnits()) {
+            'imperial' => ($temperature - 32) * 5 / 9,
+            'standard' => $temperature - 273.15,
+            default => $temperature,
+        };
+    }
+
+    /**
+     * Normalize API wind speed to km/h for narrative thresholds.
+     */
+    private function normalizeWindSpeedForLogic(float $apiWindSpeed): float
+    {
+        return match ($this->getUnits()) {
+            'imperial' => $apiWindSpeed * 1.609344,
+            'standard' => $apiWindSpeed * 3.6,
+            default => $apiWindSpeed * 3.6,
+        };
+    }
+
+    /**
+     * Convert a Celsius demo temperature to the configured unit system.
+     */
+    private function convertDemoTemperature(float $celsius): float
+    {
+        return match ($this->getUnits()) {
+            'imperial' => ($celsius * 9 / 5) + 32,
+            'standard' => $celsius + 273.15,
+            default => $celsius,
+        };
+    }
+
+    /**
+     * Convert a km/h demo wind speed to the configured API/display unit.
+     */
+    private function convertDemoWindSpeed(float $kmh): float
+    {
+        return match ($this->getUnits()) {
+            'imperial' => $kmh / 1.609344,
+            'standard' => $kmh / 3.6,
+            default => $kmh / 3.6,
+        };
+    }
     
     /**
      * Generate weather report for all locations
@@ -190,14 +305,17 @@ class WeatherReportGenerator
                 throw new Exception("Unable to getCurrentWeather");
 
             if ($currentWeather) {
-                $temp = round($currentWeather['main']['temp']);
-                $feelsLike = round($currentWeather['main']['feels_like']);
+                $entryStart = strlen($conditions);
+                $temp = $this->formatTemperature((float)$currentWeather['main']['temp']);
+                $feelsLike = $this->formatTemperature((float)$currentWeather['main']['feels_like']);
                 $description = ucfirst($currentWeather['weather'][0]['description']);
                 $humidity = $currentWeather['main']['humidity'];
                 $pressure = $currentWeather['main']['pressure'];
-                $windSpeed = round($currentWeather['wind']['speed'] * 3.6, 1); // Convert m/s to km/h
+                $windSpeed = $this->formatWindSpeed((float)$currentWeather['wind']['speed']);
                 $windDir = $currentWeather['wind']['deg'] ?? 0;
-                $visibility = isset($currentWeather['visibility']) ? round($currentWeather['visibility'] / 1000, 1) : null;
+                $visibility = isset($currentWeather['visibility'])
+                    ? $this->formatVisibility((int)$currentWeather['visibility'])
+                    : null;
                 $cloudiness = $currentWeather['clouds']['all'] ?? 0;
                 
                 // Enhanced descriptive text
@@ -213,6 +331,22 @@ class WeatherReportGenerator
                 }
                 if ($visibility !== null) {
                     $conditions .= ", Visibility {$visibility} km";
+                }
+                $conditions .= "\n\n";
+
+                $conditions = substr($conditions, 0, $entryStart);
+                $conditions .= "{$locationName}: {$temp} - {$description}\n";
+                $conditions .= "  {$this->generateCurrentConditionsDescription($currentWeather)}\n";
+                $conditions .= "  Details: Feels like {$feelsLike}, Humidity {$humidity}%, Wind {$windSpeed}";
+                if ($windDir > 0) {
+                    $conditions .= " from " . $this->getWindDirection($windDir);
+                }
+                $conditions .= "\n  Pressure {$pressure} hPa";
+                if ($cloudiness > 0) {
+                    $conditions .= ", Cloud cover {$cloudiness}%";
+                }
+                if ($visibility !== null) {
+                    $conditions .= ", Visibility {$visibility}";
                 }
                 $conditions .= "\n\n";
             } else {
@@ -246,7 +380,8 @@ class WeatherReportGenerator
      */
     private function getCurrentWeather(float $lat, float $lon): ?array 
     {
-        $url = "https://api.openweathermap.org/data/2.5/weather?lat={$lat}&lon={$lon}&appid={$this->apiKey}&units=metric";
+        $units = $this->getUnits();
+        $url = "https://api.openweathermap.org/data/2.5/weather?lat={$lat}&lon={$lon}&appid={$this->apiKey}&units={$units}";
         
         return $this->makeApiRequest($url);
     }
@@ -256,7 +391,8 @@ class WeatherReportGenerator
      */
     private function getLocationForecast(string $locationName, float $lat, float $lon): string 
     {
-        $url = "https://api.openweathermap.org/data/2.5/forecast?lat={$lat}&lon={$lon}&appid={$this->apiKey}&units=metric";
+        $units = $this->getUnits();
+        $url = "https://api.openweathermap.org/data/2.5/forecast?lat={$lat}&lon={$lon}&appid={$this->apiKey}&units={$units}";
         
         $data = $this->makeApiRequest($url);
         
@@ -293,8 +429,13 @@ class WeatherReportGenerator
         
         foreach ($days as $date => $dayData) {
             $dayName = date('D M j', $dayData['dt']);
+            $entryStart = strlen($locationForecast);
             $high = round(max($dayData['temps']));
             $low = round(min($dayData['temps']));
+            $highRaw = (float)max($dayData['temps']);
+            $lowRaw = (float)min($dayData['temps']);
+            $highDisplay = $this->formatTemperature($highRaw);
+            $lowDisplay = $this->formatTemperature($lowRaw);
             
             // Get most common weather condition for the day
             $conditionCounts = array_count_values($dayData['conditions']);
@@ -303,9 +444,11 @@ class WeatherReportGenerator
             
             $avgHumidity = round(array_sum($dayData['humidity']) / count($dayData['humidity']));
             $avgWindSpeed = round((array_sum($dayData['wind_speed']) / count($dayData['wind_speed'])) * 3.6, 1);
+            $avgWindSpeedRaw = (float)(array_sum($dayData['wind_speed']) / count($dayData['wind_speed']));
+            $avgWindSpeedDisplay = $this->formatWindSpeed($avgWindSpeedRaw);
             
             // Generate detailed forecast description
-            $forecastDesc = $this->generateForecastDescription($mostCommonCondition, $high, $low, $avgHumidity, $avgWindSpeed);
+            $forecastDesc = $this->generateForecastDescription($mostCommonCondition, $highRaw, $lowRaw, $avgHumidity, $avgWindSpeedRaw);
             
             $locationForecast .= sprintf(
                 "%s: %s, High %d°C, Low %d°C\n",
@@ -316,6 +459,17 @@ class WeatherReportGenerator
             );
             $locationForecast .= "  " . $forecastDesc . "\n";
             $locationForecast .= sprintf("  Details: Humidity %d%%, Wind %s km/h\n\n", $avgHumidity, $avgWindSpeed);
+
+            $locationForecast = substr($locationForecast, 0, $entryStart);
+            $locationForecast .= sprintf(
+                "%s: %s, High %s, Low %s\n",
+                $dayName,
+                $description,
+                $highDisplay,
+                $lowDisplay
+            );
+            $locationForecast .= "  " . $forecastDesc . "\n";
+            $locationForecast .= sprintf("  Details: Humidity %d%%, Wind %s\n\n", $avgHumidity, $avgWindSpeedDisplay);
         }
         
         return $locationForecast;
@@ -373,9 +527,9 @@ class WeatherReportGenerator
     {
         $description = strtolower($weather['weather'][0]['description']);
         $main = strtolower($weather['weather'][0]['main']);
-        $temp = round($weather['main']['temp']);
+        $temp = round($this->normalizeTemperatureForLogic((float)$weather['main']['temp']));
         $humidity = $weather['main']['humidity'];
-        $windSpeed = round($weather['wind']['speed'] * 3.6, 1);
+        $windSpeed = round($this->normalizeWindSpeedForLogic((float)$weather['wind']['speed']), 1);
         $cloudiness = $weather['clouds']['all'] ?? 0;
         
         $desc = "";
@@ -479,9 +633,12 @@ class WeatherReportGenerator
     /**
      * Generate descriptive forecast text
      */
-    private function generateForecastDescription(string $condition, int $high, int $low, int $humidity, float $windSpeed): string
+    private function generateForecastDescription(string $condition, float $high, float $low, int $humidity, float $windSpeed): string
     {
         $condition = strtolower($condition);
+        $high = round($this->normalizeTemperatureForLogic($high));
+        $low = round($this->normalizeTemperatureForLogic($low));
+        $windSpeed = round($this->normalizeWindSpeedForLogic($windSpeed), 1);
         $tempRange = $high - $low;
         
         $desc = "";
@@ -571,6 +728,7 @@ class WeatherReportGenerator
     private function generateDemoConditionsDescription(string $condition, int $temp, int $humidity, float $windSpeed): string
     {
         $condition = strtolower($condition);
+        $windSpeed = round($this->normalizeWindSpeedForLogic($windSpeed), 1);
         
         $desc = "";
         
@@ -624,24 +782,33 @@ class WeatherReportGenerator
         
         // Use configured locations with sample data
         $sampleData = [
-            ['temp' => 18, 'desc' => 'Light rain', 'feels' => 17, 'humidity' => 78, 'wind' => 15.2, 'pressure' => 1013],
-            ['temp' => 16, 'desc' => 'Overcast', 'feels' => 15, 'humidity' => 82, 'wind' => 12.8, 'pressure' => 1011],
-            ['temp' => 17, 'desc' => 'Light rain', 'feels' => 16, 'humidity' => 80, 'wind' => 14.3, 'pressure' => 1012],
-            ['temp' => 19, 'desc' => 'Partly cloudy', 'feels' => 19, 'humidity' => 68, 'wind' => 9.7, 'pressure' => 1015],
-            ['temp' => 21, 'desc' => 'Clear', 'feels' => 22, 'humidity' => 55, 'wind' => 8.1, 'pressure' => 1018],
-            ['temp' => 14, 'desc' => 'Cloudy', 'feels' => 13, 'humidity' => 71, 'wind' => 11.5, 'pressure' => 1016]
+            ['temp' => 18.0, 'desc' => 'Light rain', 'feels' => 17.0, 'humidity' => 78, 'wind' => 15.2, 'pressure' => 1013],
+            ['temp' => 16.0, 'desc' => 'Overcast', 'feels' => 15.0, 'humidity' => 82, 'wind' => 12.8, 'pressure' => 1011],
+            ['temp' => 17.0, 'desc' => 'Light rain', 'feels' => 16.0, 'humidity' => 80, 'wind' => 14.3, 'pressure' => 1012],
+            ['temp' => 19.0, 'desc' => 'Partly cloudy', 'feels' => 19.0, 'humidity' => 68, 'wind' => 9.7, 'pressure' => 1015],
+            ['temp' => 21.0, 'desc' => 'Clear', 'feels' => 22.0, 'humidity' => 55, 'wind' => 8.1, 'pressure' => 1018],
+            ['temp' => 14.0, 'desc' => 'Cloudy', 'feels' => 13.0, 'humidity' => 71, 'wind' => 11.5, 'pressure' => 1016]
         ];
         
         $index = 0;
         foreach ($this->locations as $locationName => $coords) {
             $data = $sampleData[$index % count($sampleData)];
+            $entryStart = strlen($conditions);
+            $tempValue = $this->convertDemoTemperature($data['temp']);
+            $feelsValue = $this->convertDemoTemperature($data['feels']);
+            $windValue = $this->convertDemoWindSpeed($data['wind']);
             
             $conditions .= "{$locationName}: {$data['temp']}°C - {$data['desc']}\n";
             
             // Generate demo descriptive text
-            $demoDesc = $this->generateDemoConditionsDescription($data['desc'], $data['temp'], $data['humidity'], $data['wind']);
+            $demoDesc = $this->generateDemoConditionsDescription($data['desc'], (int)round($tempValue), $data['humidity'], $windValue);
             $conditions .= "  {$demoDesc}\n";
             $conditions .= "  Details: Feels like {$data['feels']}°C, Humidity {$data['humidity']}%, Wind {$data['wind']} km/h\n";
+            $conditions .= "  Pressure {$data['pressure']} hPa\n\n";
+            $conditions = substr($conditions, 0, $entryStart);
+            $conditions .= "{$locationName}: " . $this->formatTemperature($tempValue) . " - {$data['desc']}\n";
+            $conditions .= "  {$demoDesc}\n";
+            $conditions .= "  Details: Feels like " . $this->formatTemperature($feelsValue) . ", Humidity {$data['humidity']}%, Wind " . $this->formatWindSpeed($windValue) . "\n";
             $conditions .= "  Pressure {$data['pressure']} hPa\n\n";
             
             $index++;
@@ -680,12 +847,20 @@ class WeatherReportGenerator
             $days = ['Fri Sep 6', 'Sat Sep 7', 'Sun Sep 8'];
             for ($i = 0; $i < 3; $i++) {
                 $day = $dataSet[$i];
+                $entryStart = strlen($forecast);
+                $highValue = $this->convertDemoTemperature((float)$day['high']);
+                $lowValue = $this->convertDemoTemperature((float)$day['low']);
+                $windValue = $this->convertDemoWindSpeed((float)$day['wind']);
                 $forecast .= "{$days[$i]}: {$day['desc']}, High {$day['high']}°C, Low {$day['low']}°C\n";
                 
                 // Generate demo forecast description
-                $demoForecastDesc = $this->generateForecastDescription($day['desc'], $day['high'], $day['low'], $day['humidity'], $day['wind']);
+                $demoForecastDesc = $this->generateForecastDescription($day['desc'], $highValue, $lowValue, $day['humidity'], $windValue);
                 $forecast .= "  {$demoForecastDesc}\n";
                 $forecast .= "  Details: Humidity {$day['humidity']}%, Wind {$day['wind']} km/h\n\n";
+                $forecast = substr($forecast, 0, $entryStart);
+                $forecast .= "{$days[$i]}: {$day['desc']}, High " . $this->formatTemperature($highValue) . ", Low " . $this->formatTemperature($lowValue) . "\n";
+                $forecast .= "  {$demoForecastDesc}\n";
+                $forecast .= "  Details: Humidity {$day['humidity']}%, Wind " . $this->formatWindSpeed($windValue) . "\n\n";
             }
             $forecast .= "\n";
             
@@ -902,7 +1077,8 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
 
     // --debug: test API connectivity
     if ($debugMode) {
-        $testUrl = "https://api.openweathermap.org/data/2.5/weather?lat=49.2827&lon=-123.1207&appid=" . $generator->getApiKey() . "&units=metric";
+        $units = $generator->getConfig()['settings']['units'] ?? 'metric';
+        $testUrl = "https://api.openweathermap.org/data/2.5/weather?lat=49.2827&lon=-123.1207&appid=" . $generator->getApiKey() . "&units=" . rawurlencode($units);
         echo "DEBUG: Testing API connectivity\n";
         echo "URL: {$testUrl}\n\n";
 
