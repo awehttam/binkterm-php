@@ -3217,6 +3217,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'flac' => 'audio/flac', 'aac' => 'audio/aac', 'm4a' => 'audio/mp4',
             'opus' => 'audio/ogg',
         ];
+        $binaryInlineMimes = [
+            'torrent' => 'application/x-bittorrent',
+        ];
         $textExts = [
             'txt', 'log', 'nfo', 'diz', 'asc', 'cfg', 'ini', 'conf', 'lsm',
             'json', 'xml', 'bat', 'sh', 'readme', 'ans', 'bbs',
@@ -3269,6 +3272,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 header('Cache-Control: private, max-age=3600');
                 readfile($storagePath);
             }
+            exit;
+        }
+
+        if (isset($binaryInlineMimes[$ext])) {
+            // Torrent previews need the exact on-disk bytes for bencode parsing
+            // and info-hash generation. Never run them through text heuristics
+            // or charset conversion.
+            header('Content-Type: ' . $binaryInlineMimes[$ext]);
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('Content-Length: ' . $fileSize);
+            header('Cache-Control: private, max-age=3600');
+            header('X-Content-Type-Options: nosniff');
+            readfile($storagePath);
             exit;
         }
 
