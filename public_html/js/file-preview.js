@@ -150,6 +150,7 @@ function parseTorrentMeta(buffer) {
         if (!torrent || typeof torrent !== 'object' || !torrent.info) return null;
 
         const info = torrent.info;
+        const isPaddingPath = (path) => /(?:^|\/)\.____padding_file\/\d+$/i.test(path);
 
         const name        = typeof info.name === 'string' ? info.name.trim() : '';
         const comment     = typeof torrent.comment === 'string' ? torrent.comment.trim() : '';
@@ -180,9 +181,12 @@ function parseTorrentMeta(buffer) {
             files = info.files.map(f => {
                 const path = Array.isArray(f.path) ? f.path.filter(p => typeof p === 'string').join('/') : '';
                 const size = typeof f.length === 'number' ? f.length : 0;
-                totalSize += size;
                 return { path, size };
-            }).filter(f => f.path);
+            }).filter(f => {
+                if (!f.path || isPaddingPath(f.path)) return false;
+                totalSize += f.size;
+                return true;
+            });
         } else if (typeof info.length === 'number') {
             totalSize = info.length;
         }
