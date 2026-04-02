@@ -203,6 +203,114 @@ function parseTorrentMeta(buffer) {
 }
 
 /**
+ * Extract the raw bytes of the bencoded `info` dictionary from a .torrent
+ * ArrayBuffer. Returns a Uint8Array slice, or null if not found.
+ *
+ * @param {ArrayBuffer} buffer
+ * @returns {Uint8Array|null}
+ */
+function findInfoBytes(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let pos = 0;
+
+    function skipValue() {
+        const ch = bytes[pos];
+        if (ch === 105) { // integer i...e
+            pos++;
+            while (pos < bytes.length && bytes[pos] !== 101) pos++;
+            pos++;
+        } else if (ch === 108) { // list l...e
+            pos++;
+            while (pos < bytes.length && bytes[pos] !== 101) skipValue();
+            pos++;
+        } else if (ch === 100) { // dict d...e
+            pos++;
+            while (pos < bytes.length && bytes[pos] !== 101) { skipValue(); skipValue(); }
+            pos++;
+        } else { // byte string len:data
+            let lenStr = '';
+            while (pos < bytes.length && bytes[pos] !== 58) lenStr += String.fromCharCode(bytes[pos++]);
+            pos++; // ':'
+            pos += parseInt(lenStr, 10);
+        }
+    }
+
+    if (bytes[pos] !== 100) return null; // top level must be a dict
+    pos++; // skip 'd'
+
+    while (pos < bytes.length && bytes[pos] !== 101) { // 'e'
+        let lenStr = '';
+        while (pos < bytes.length && bytes[pos] !== 58) lenStr += String.fromCharCode(bytes[pos++]);
+        pos++; // ':'
+        const keyLen = parseInt(lenStr, 10);
+        const key    = new TextDecoder().decode(bytes.slice(pos, pos + keyLen));
+        pos += keyLen;
+
+        if (key === 'info') {
+            const start = pos;
+            skipValue();
+            return bytes.slice(start, pos);
+        }
+        skipValue();
+    }
+    return null;
+}
+
+/**
+ * Compute the magnet link for a .torrent file by SHA-1 hashing the raw
+ * `info` dict bytes extracted from the buffer.
+ *
+ * @param {ArrayBuffer} buffer
+ * @param {object}      meta    Return value of parseTorrentMeta()
+ * @returns {Promise<string|null>}
+ */
+async function computeMagnetLink(buffer, meta) {
+    const infoBytes = findInfoBytes(buffer);
+    if (!infoBytes) return null;
+
+    const hashBuf  = await crypto.subtle.digest('SHA-1', infoBytes);
+    const infoHash = Array.from(new Uint8Array(hashBuf))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+
+    let magnet = `magnet:?xt=urn:btih:${infoHash}`;
+    if (meta.name) magnet += `&dn=${encodeURIComponent(meta.name)}`;
+    meta.trackers.forEach(t => { magnet += `&tr=${encodeURIComponent(t)}`; });
+
+    return magnet;
+}
+
+/**
+ * Inject a computed magnet link into the [data-torrent-magnet] placeholder
+ * inside the given container element.
+ *
+ * @param {Element} containerEl
+ * @param {string|null} magnet
+ */
+function injectMagnetLink(containerEl, magnet) {
+    const el = containerEl.querySelector('[data-torrent-magnet]');
+    if (!el) return;
+
+    if (!magnet) {
+        el.innerHTML = '<span class="text-muted small">unavailable</span>';
+        return;
+    }
+
+    // Show the btih hash prominently; full link available via copy button
+    const hashMatch = magnet.match(/btih:([0-9a-f]+)/i);
+    const hashDisplay = hashMatch
+        ? `<code class="small">${escapeHtml(hashMatch[1])}</code>`
+        : '';
+
+    el.innerHTML = `
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1 me-1"
+                title="Copy magnet link"
+                data-magnet="${escapeHtml(magnet)}"
+                onclick="navigator.clipboard.writeText(this.dataset.magnet)">
+            <i class="fas fa-copy fa-sm"></i>
+        </button>${hashDisplay}`;
+}
+
+/**
  * Build the HTML for a torrent metadata card. Used by both the upload
  * form preview and the file preview modal.
  *
@@ -226,15 +334,15 @@ function buildTorrentPreviewHtml(meta) {
         const pieceInfo = meta.pieceCount ? `${pieceSz} &times; ${meta.pieceCount} pieces` : pieceSz;
         addRow('Piece size', pieceInfo);
     }
-    if (meta.trackers.length) {
-        addRow(
-            meta.trackers.length > 1 ? 'Trackers' : 'Tracker',
-            meta.trackers.map(t => `<code class="small">${escapeHtml(t)}</code>`).join('<br>')
-        );
-    }
     if (meta.isPrivate) {
         addRow('Private', '<span class="badge bg-warning text-dark">Yes &mdash; DHT/PEX disabled</span>');
     }
+
+    // Magnet link row — filled in asynchronously by computeMagnetLink after render
+    rows.push(`<tr>
+        <th class="text-nowrap pe-3" style="width:1%">Magnet</th>
+        <td><span data-torrent-magnet><i class="fas fa-spinner fa-spin fa-sm text-muted"></i></span></td>
+    </tr>`);
 
     let html = `<table class="table table-sm mb-0">${rows.join('')}</table>`;
 
@@ -251,6 +359,20 @@ function buildTorrentPreviewHtml(meta) {
             </div>
             <div style="max-height:220px;overflow-y:auto;">
                 <table class="table table-sm mb-0"><tbody>${fileRows}</tbody></table>
+            </div>
+        </div>`;
+    }
+
+    if (meta.trackers.length) {
+        const trackerRows = meta.trackers.map(t =>
+            `<tr><td class="font-monospace small">${escapeHtml(t)}</td></tr>`
+        ).join('');
+        html += `<div class="border-top">
+            <div class="px-3 py-2 fw-semibold small">
+                ${_fpT('ui.files.torrent_trackers', meta.trackers.length > 1 ? 'Trackers' : 'Tracker')} (${meta.trackers.length})
+            </div>
+            <div style="max-height:120px;overflow-y:auto;">
+                <table class="table table-sm mb-0"><tbody>${trackerRows}</tbody></table>
             </div>
         </div>`;
     }
@@ -523,6 +645,16 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
                     return;
                 }
                 body.html(`<div class="p-2">${buildTorrentPreviewHtml(meta)}</div>`);
+                computeMagnetLink(buf, meta).then(magnet => {
+                    injectMagnetLink(body[0], magnet);
+                    if (magnet) {
+                        const btn = document.getElementById('previewMagnetBtn');
+                        if (btn) {
+                            btn.dataset.magnet = magnet;
+                            btn.classList.remove('d-none');
+                        }
+                    }
+                });
             })
             .catch(() => {
                 body.html(`

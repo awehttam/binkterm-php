@@ -150,6 +150,9 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openDetailsFromPreview()" title="{{ t('ui.files.file_info', {}, 'common') }}">
                         <i class="fas fa-info-circle"></i>
                     </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="previewMagnetBtn" title="{{ t('ui.files.copy_magnet_link', {}, 'common') }}">
+                        <i class="fas fa-magnet"></i>
+                    </button>
                     <a class="btn btn-outline-success btn-sm" id="previewDownloadBtn" href="#" download title="{{ t('ui.files.download', {}, 'common') }}">
                         <i class="fas fa-download"></i>
                     </a>
@@ -1541,6 +1544,7 @@ function previewFile(fileId, filename) {
     const position = getPreviewPositionHtml(fileIndex);
     $('#previewModalTitle').html(escapeHtml(filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
+    $('#previewMagnetBtn').addClass('d-none').removeData('magnet');
     updatePreviewNavButtons();
     renderPreviewContent(fileId, filename, $('#previewModalBody'));
 
@@ -1580,6 +1584,7 @@ function navigatePreview(direction) {
     const position = getPreviewPositionHtml(currentFileIndex);
     $('#previewModalTitle').html(escapeHtml(file.filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
+    $('#previewMagnetBtn').addClass('d-none').removeData('magnet');
     updatePreviewNavButtons();
     renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
 
@@ -1672,9 +1677,10 @@ function escapeAttribute(value) {
  * container. Delegates HTML generation to buildTorrentPreviewHtml() in
  * file-preview.js (loaded before this inline script).
  *
- * @param {object} meta  Return value of parseTorrentMeta()
+ * @param {object}      meta    Return value of parseTorrentMeta()
+ * @param {ArrayBuffer} buffer  Raw .torrent bytes for magnet link computation
  */
-function renderTorrentPreview(meta) {
+function renderTorrentPreview(meta, buffer) {
     const html = `<div class="card mb-3">
         <div class="card-header py-2">
             <strong><i class="fas fa-magnet me-1"></i> Torrent Info</strong>
@@ -1682,6 +1688,9 @@ function renderTorrentPreview(meta) {
         <div class="card-body p-0">${buildTorrentPreviewHtml(meta)}</div>
     </div>`;
     $('#uploadTorrentPreviewContainer').html(html);
+    computeMagnetLink(buffer, meta).then(magnet => {
+        injectMagnetLink($('#uploadTorrentPreviewContainer')[0], magnet);
+    });
 }
 
 function resetUploadDescriptions() {
@@ -1708,7 +1717,7 @@ function rebuildUploadDescriptions() {
                     if (meta) {
                         if (meta.shortDesc) $('#uploadDescription').val(meta.shortDesc);
                         if (meta.longDesc)  $('#uploadLongDescription').val(meta.longDesc);
-                        renderTorrentPreview(meta);
+                        renderTorrentPreview(meta, e.target.result);
                     } else {
                         $('#uploadTorrentPreviewContainer').empty();
                         if (!$('#uploadDescription').val().trim()) $('#uploadDescription').val(file.name);
@@ -1868,6 +1877,11 @@ async function uploadFile() {
 }
 
 $('#uploadFile').on('change', rebuildUploadDescriptions);
+
+$('#previewMagnetBtn').on('click', function () {
+    const magnet = $(this).data('magnet');
+    if (magnet) navigator.clipboard.writeText(magnet);
+});
 
 function rehatchFile() {
     if (!currentFileId) return;

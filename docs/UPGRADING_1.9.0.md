@@ -23,7 +23,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [SID Music Previewer](#sid-music-previewer)
   - [SID Player Visualizer and Controls](#sid-player-visualizer-and-controls)
   - [Archive Listing Size Limit](#archive-listing-size-limit)
-  - [Torrent File Preview](#torrent-file-preview)
+  - [Torrent File Preview and Magnet Links](#torrent-file-preview-and-magnet-links)
 - [File Upload](#file-upload)
   - [Torrent Metadata Pre-fill](#torrent-metadata-pre-fill)
 - [Markdown Images](#markdown-images)
@@ -67,7 +67,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
 - The SID player now includes a real-time spectrum visualizer showing 48 frequency bars that decay smoothly when playback is paused or stopped. Playback is manual — the player loads ready to play and waits for the user to press Play.
 - Non-ZIP archive listing (RAR, 7-Zip, TAR, LZH, etc.) now enforces a configurable maximum file size before invoking the 7z tool. Archives that exceed the limit display a message and a download link instead of timing out. The limit defaults to 20 MB and is controlled by `ARCHIVE_LIST_MAX_SIZE` in `.env`. ZIP archives are not affected because their file listing reads only the central directory index and does not require 7z.
-- The file area previewer now supports `.torrent` files. Clicking a torrent file displays a metadata card showing the torrent name, total size, comment, creation date, software that created it, piece size and count, tracker URLs, and whether DHT/PEX is disabled. Multi-file torrents also list every file contained in the torrent with individual sizes.
+- The file area previewer now supports `.torrent` files. Clicking a torrent file displays a metadata card showing the torrent name, total size, comment, creation date, software that created it, piece size and count, tracker URLs, whether DHT/PEX is disabled, and a computed magnet link. Multi-file torrents also list every file contained in the torrent with individual sizes. A magnet icon button appears in the preview toolbar next to the download button and copies the magnet link to the clipboard when clicked.
 
 **File Upload**
 - When a `.torrent` file is selected in the upload dialog, the short description field is automatically pre-filled from the torrent's name (or comment, if the name is absent and the comment is not a URL). For multi-file torrents, the long description field is pre-filled with one file path per line. A torrent metadata preview card is also shown in the dialog so the contents can be verified before submitting.
@@ -217,7 +217,7 @@ ARCHIVE_LIST_MAX_SIZE=52428800
 
 No database migration is required.
 
-### Torrent File Preview
+### Torrent File Preview and Magnet Links
 
 The file area previewer now recognises `.torrent` files and displays their contents as a structured metadata card rather than offering no preview.
 
@@ -231,8 +231,15 @@ The card shows:
 - **Piece size** — the BitTorrent piece length and total piece count
 - **Tracker(s)** — all announce URLs from the primary tracker and the multi-tracker list
 - **Private** — a warning badge if DHT and PEX are disabled for this torrent
+- **Magnet** — the computed magnet link with a copy-to-clipboard button
 
 Multi-file torrents additionally list every file path and its individual size in a scrollable table below the metadata.
+
+The magnet link is computed entirely client-side: the raw `info` dictionary bytes are extracted from the `.torrent` file already fetched for the preview, SHA-1 hashed using the browser's built-in `crypto.subtle` API, and assembled into a standard `magnet:?xt=urn:btih:...` URI with all tracker announce URLs appended. No additional server request is made.
+
+A **magnet icon button** also appears in the preview modal toolbar to the left of the green download button whenever a `.torrent` file is open. Clicking it copies the full magnet link to the clipboard. The button is hidden for all other file types.
+
+The same magnet row (with copy button and info hash display) appears in the torrent metadata preview card shown in the upload dialog.
 
 No configuration changes or database migrations are required.
 
@@ -245,7 +252,7 @@ When a `.torrent` file is selected in the upload dialog, two fields are filled i
 - **Short description** — set to `info.name` (the torrent's root name). If the name is absent, the `comment` field is used as a fallback, provided it does not look like a URL. Many torrent clients embed their own website in the comment field; that case is detected and skipped automatically.
 - **Long description** — for multi-file torrents, one relative file path per line. Single-file torrents leave the long description unchanged.
 
-A torrent metadata preview card also appears in the dialog immediately below the file picker, showing the same information as the file area previewer. This allows the sysop to confirm the torrent contents before submitting the upload. The card disappears when the dialog is closed or a different file is selected.
+A torrent metadata preview card also appears in the dialog immediately below the file picker, showing the same information as the file area previewer — including a computed magnet link with a copy button. This allows the sysop to confirm the torrent contents before submitting the upload. The card disappears when the dialog is closed or a different file is selected.
 
 No configuration changes or database migrations are required.
 

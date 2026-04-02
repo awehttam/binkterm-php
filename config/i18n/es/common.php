@@ -2605,6 +2605,7 @@ return [
     'ui.files.from' => 'De',
     'ui.files.virus_scan' => 'Escaneo de virus',
     'ui.files.download' => 'Descargar',
+    'ui.files.copy_magnet_link' => 'Copiar enlace magnet',
     'ui.files.share_file' => 'Compartir archivo',
     'ui.files.link_expiry' => 'Vencimiento del enlace',
     'ui.files.share_link' => 'Enlace para compartir',

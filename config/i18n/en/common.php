@@ -2599,6 +2599,7 @@ return [
     'ui.files.from' => 'From',
     'ui.files.virus_scan' => 'Virus Scan',
     'ui.files.download' => 'Download',
+    'ui.files.copy_magnet_link' => 'Copy magnet link',
     'ui.files.share_file' => 'Share File',
     'ui.files.link_expiry' => 'Link Expiry',
     'ui.files.share_link' => 'Share Link',

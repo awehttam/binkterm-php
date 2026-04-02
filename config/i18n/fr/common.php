@@ -2086,6 +2086,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.from' => 'De',
     'ui.files.virus_scan' => 'Analyse antivirus',
     'ui.files.download' => 'Télécharger',
+    'ui.files.copy_magnet_link' => 'Copier le lien magnet',
     'ui.files.share_file' => 'Partager le fichier',
     'ui.files.link_expiry' => 'Expiration du lien',
     'ui.files.share_link' => 'Lien de partage',
