@@ -21,8 +21,8 @@
  *   php scripts/import_bbslist.php <path-to-zip>
  *   php scripts/import_bbslist.php --help
  *
- * File area rule example (match any .zip file in a specific area):
- *   pattern:  /bbslist.*\.zip$/i
+ * File area rule example (matches Telnet BBS Guide distribution files, e.g. IBBS0426.ZIP):
+ *   pattern:  /^IBBS\d{4}\.ZIP$/i
  *   script:   php %basedir%/scripts/import_bbslist.php %filepath%
  *
  * CSV format (bbslist.csv inside the zip):
@@ -62,8 +62,8 @@ CSV columns expected inside bbslist.csv:
   bbsName, bbsSysop, newLogin, TelnetAddress, bbsPort, sshPort,
   WebAddress, location, Modem, software
 
-File area rule example:
-  pattern: /bbslist.*\\.zip\$/i
+File area rule example (Telnet BBS Guide distribution files, e.g. IBBS0426.ZIP):
+  pattern: /^IBBS\\d{4}\\.ZIP\$/i
   script:  php %basedir%/scripts/import_bbslist.php %filepath%
 
 Exit codes:

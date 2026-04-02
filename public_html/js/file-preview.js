@@ -24,6 +24,7 @@ const previewRipExts           = ['rip'];
 const previewPCBoardExts       = ['bbs'];
 const previewArchiveExts       = ['zip','rar','r00','7z','tar','gz','tgz','bz2','tbz2','xz','txz','lzh','lha','arc','arj','cab'];
 const previewSidExts           = ['sid'];
+const previewTorrentExts       = ['torrent'];
 
 function getFileType(filename) {
     const ext = (filename.includes('.') ? filename.split('.').pop() : '').toLowerCase();
@@ -44,6 +45,7 @@ function getFileType(filename) {
     if (previewPCBoardExts.includes(ext))        return 'pcboard';
     if (previewArchiveExts.includes(ext))        return 'archive';
     if (previewSidExts.includes(ext))            return 'sid';
+    if (previewTorrentExts.includes(ext))        return 'torrent';
     return 'download';
 }
 
@@ -72,6 +74,189 @@ function renderHtmlPreview(container, url) {
     `);
 }
 
+
+/**
+ * Minimal bencoding decoder. Returns JS objects/arrays/numbers/strings.
+ * Binary strings that are not valid UTF-8 are returned as Uint8Array.
+ *
+ * @param {ArrayBuffer} buffer
+ * @returns {*}
+ */
+function bencodeDecode(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let pos = 0;
+
+    function readAsciiUntil(charCode) {
+        let s = '';
+        while (pos < bytes.length && bytes[pos] !== charCode) {
+            s += String.fromCharCode(bytes[pos++]);
+        }
+        return s;
+    }
+
+    function decode() {
+        const ch = bytes[pos];
+        if (ch === 105) { // 'i'
+            pos++;
+            const n = readAsciiUntil(101); // 'e'
+            pos++;
+            return parseInt(n, 10);
+        }
+        if (ch === 108) { // 'l'
+            pos++;
+            const list = [];
+            while (bytes[pos] !== 101) list.push(decode()); // 'e'
+            pos++;
+            return list;
+        }
+        if (ch === 100) { // 'd'
+            pos++;
+            const dict = {};
+            while (bytes[pos] !== 101) { // 'e'
+                const key = decode();
+                dict[key] = decode();
+            }
+            pos++;
+            return dict;
+        }
+        if (ch >= 48 && ch <= 57) { // '0'-'9'
+            const lenStr = readAsciiUntil(58); // ':'
+            pos++;
+            const len = parseInt(lenStr, 10);
+            const slice = bytes.slice(pos, pos + len);
+            pos += len;
+            try {
+                return new TextDecoder('utf-8', { fatal: true }).decode(slice);
+            } catch (e) {
+                return slice; // binary field (e.g. pieces) — return raw bytes
+            }
+        }
+        throw new Error('bencodeDecode: unexpected byte ' + ch + ' at position ' + pos);
+    }
+
+    return decode();
+}
+
+/**
+ * Parse a .torrent ArrayBuffer and return structured metadata.
+ *
+ * @param {ArrayBuffer} buffer
+ * @returns {object|null}
+ */
+function parseTorrentMeta(buffer) {
+    try {
+        const torrent = bencodeDecode(buffer);
+        if (!torrent || typeof torrent !== 'object' || !torrent.info) return null;
+
+        const info = torrent.info;
+
+        const name        = typeof info.name === 'string' ? info.name.trim() : '';
+        const comment     = typeof torrent.comment === 'string' ? torrent.comment.trim() : '';
+        const createdBy   = typeof torrent['created by'] === 'string' ? torrent['created by'].trim() : '';
+        const createdDate = typeof torrent['creation date'] === 'number'
+            ? new Date(torrent['creation date'] * 1000).toLocaleString()
+            : '';
+        const isPrivate   = info.private === 1 || info.private === '1';
+        const pieceLength = typeof info['piece length'] === 'number' ? info['piece length'] : 0;
+
+        // Trackers
+        const trackers = [];
+        if (typeof torrent.announce === 'string') trackers.push(torrent.announce);
+        if (Array.isArray(torrent['announce-list'])) {
+            torrent['announce-list'].forEach(tier => {
+                if (Array.isArray(tier)) {
+                    tier.forEach(url => {
+                        if (typeof url === 'string' && !trackers.includes(url)) trackers.push(url);
+                    });
+                }
+            });
+        }
+
+        // Files
+        let files = [];
+        let totalSize = 0;
+        if (Array.isArray(info.files)) {
+            files = info.files.map(f => {
+                const path = Array.isArray(f.path) ? f.path.filter(p => typeof p === 'string').join('/') : '';
+                const size = typeof f.length === 'number' ? f.length : 0;
+                totalSize += size;
+                return { path, size };
+            }).filter(f => f.path);
+        } else if (typeof info.length === 'number') {
+            totalSize = info.length;
+        }
+
+        const pieceCount  = pieceLength > 0 && totalSize > 0 ? Math.ceil(totalSize / pieceLength) : 0;
+        const commentIsUrl = /^https?:\/\//i.test(comment);
+        const shortDesc   = name || (!commentIsUrl ? comment : '');
+        const longDesc    = files.length ? files.map(f => f.path).join('\n') : '';
+
+        return {
+            name, comment, createdBy, createdDate, isPrivate,
+            pieceLength, pieceCount, trackers, files, totalSize,
+            shortDesc, longDesc,
+            isMultiFile: files.length > 0,
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Build the HTML for a torrent metadata card. Used by both the upload
+ * form preview and the file preview modal.
+ *
+ * @param {object} meta  Return value of parseTorrentMeta()
+ * @returns {string}
+ */
+function buildTorrentPreviewHtml(meta) {
+    const rows = [];
+
+    const addRow = (label, value) => {
+        rows.push(`<tr><th class="text-nowrap pe-3" style="width:1%">${escapeHtml(label)}</th><td>${value}</td></tr>`);
+    };
+
+    if (meta.name)        addRow('Name',      escapeHtml(meta.name));
+    if (meta.totalSize)   addRow('Size',       escapeHtml(_fpBytes(meta.totalSize)));
+    if (meta.comment)     addRow('Comment',    escapeHtml(meta.comment));
+    if (meta.createdBy)   addRow('Created by', escapeHtml(meta.createdBy));
+    if (meta.createdDate) addRow('Created',    escapeHtml(meta.createdDate));
+    if (meta.pieceLength) {
+        const pieceSz = escapeHtml(_fpBytes(meta.pieceLength));
+        const pieceInfo = meta.pieceCount ? `${pieceSz} &times; ${meta.pieceCount} pieces` : pieceSz;
+        addRow('Piece size', pieceInfo);
+    }
+    if (meta.trackers.length) {
+        addRow(
+            meta.trackers.length > 1 ? 'Trackers' : 'Tracker',
+            meta.trackers.map(t => `<code class="small">${escapeHtml(t)}</code>`).join('<br>')
+        );
+    }
+    if (meta.isPrivate) {
+        addRow('Private', '<span class="badge bg-warning text-dark">Yes &mdash; DHT/PEX disabled</span>');
+    }
+
+    let html = `<table class="table table-sm mb-0">${rows.join('')}</table>`;
+
+    if (meta.files.length) {
+        const fileRows = meta.files.map(f =>
+            `<tr>
+                <td class="font-monospace small">${escapeHtml(f.path)}</td>
+                <td class="text-end text-nowrap small text-muted">${escapeHtml(_fpBytes(f.size))}</td>
+            </tr>`
+        ).join('');
+        html += `<div class="border-top">
+            <div class="px-3 py-2 fw-semibold small">
+                ${_fpT('ui.files.torrent_files', 'Files')} (${meta.files.length})
+            </div>
+            <div style="max-height:220px;overflow-y:auto;">
+                <table class="table table-sm mb-0"><tbody>${fileRows}</tbody></table>
+            </div>
+        </div>`;
+    }
+
+    return html;
+}
 
 /**
  * Render a file preview into the given jQuery container.
@@ -315,6 +500,39 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
 
     } else if (type === 'rip') {
         renderRipPreview(body, previewUrl);
+
+    } else if (type === 'torrent') {
+        body.css('background', '').html(
+            `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`
+        );
+        fetch(previewUrl, { credentials: 'same-origin' })
+            .then(r => {
+                if (!r.ok) throw new Error('fetch failed');
+                return r.arrayBuffer();
+            })
+            .then(buf => {
+                const meta = parseTorrentMeta(buf);
+                if (!meta) {
+                    body.html(`
+                        <div class="p-5 text-center text-muted">
+                            <i class="fas fa-magnet fa-3x mb-3 d-block"></i>
+                            <p class="mb-2">${escapeHtml(filename)}</p>
+                            <p class="small">${_fpT('ui.files.torrent_parse_error', 'Could not parse torrent file')}</p>
+                        </div>
+                    `);
+                    return;
+                }
+                body.html(`<div class="p-2">${buildTorrentPreviewHtml(meta)}</div>`);
+            })
+            .catch(() => {
+                body.html(`
+                    <div class="p-5 text-center text-muted">
+                        <i class="fas fa-magnet fa-3x mb-3 d-block"></i>
+                        <p class="mb-2">${escapeHtml(filename)}</p>
+                        <p class="small">${_fpT('ui.files.no_preview', 'No preview available for this file type')}</p>
+                    </div>
+                `);
+            });
 
     } else if (type === 'archive') {
         body.css('background', '').html(

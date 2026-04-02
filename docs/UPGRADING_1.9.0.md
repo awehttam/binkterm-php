@@ -23,6 +23,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [SID Music Previewer](#sid-music-previewer)
   - [SID Player Visualizer and Controls](#sid-player-visualizer-and-controls)
   - [Archive Listing Size Limit](#archive-listing-size-limit)
+  - [Torrent File Preview](#torrent-file-preview)
+- [File Upload](#file-upload)
+  - [Torrent Metadata Pre-fill](#torrent-metadata-pre-fill)
 - [Markdown Images](#markdown-images)
   - [Human-Readable Image URLs](#human-readable-image-urls)
 - [Outgoing Message Charset](#outgoing-message-charset)
@@ -64,6 +67,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
 - The SID player now includes a real-time spectrum visualizer showing 48 frequency bars that decay smoothly when playback is paused or stopped. Playback is manual — the player loads ready to play and waits for the user to press Play.
 - Non-ZIP archive listing (RAR, 7-Zip, TAR, LZH, etc.) now enforces a configurable maximum file size before invoking the 7z tool. Archives that exceed the limit display a message and a download link instead of timing out. The limit defaults to 20 MB and is controlled by `ARCHIVE_LIST_MAX_SIZE` in `.env`. ZIP archives are not affected because their file listing reads only the central directory index and does not require 7z.
+- The file area previewer now supports `.torrent` files. Clicking a torrent file displays a metadata card showing the torrent name, total size, comment, creation date, software that created it, piece size and count, tracker URLs, and whether DHT/PEX is disabled. Multi-file torrents also list every file contained in the torrent with individual sizes.
+
+**File Upload**
+- When a `.torrent` file is selected in the upload dialog, the short description field is automatically pre-filled from the torrent's name (or comment, if the name is absent and the comment is not a URL). For multi-file torrents, the long description field is pre-filled with one file path per line. A torrent metadata preview card is also shown in the dialog so the contents can be verified before submitting.
 
 **Bug Fixes**
 - Opening a saved netmail message in the message modal and clicking the save button unsaved it correctly from the message list, but the same button inside the modal always showed "Save" instead of "Saved" and would re-save rather than unsave. The single-message API query for netmail was missing the `saved_messages` join, so `is_saved` was never included in the response. The join has been added so the modal reflects the correct saved state on open.
@@ -209,6 +216,38 @@ ARCHIVE_LIST_MAX_SIZE=52428800
 ```
 
 No database migration is required.
+
+### Torrent File Preview
+
+The file area previewer now recognises `.torrent` files and displays their contents as a structured metadata card rather than offering no preview.
+
+The card shows:
+
+- **Name** — the torrent's root name (`info.name`)
+- **Size** — total content size across all files
+- **Comment** — the embedded comment field, if present
+- **Created by** — the software that generated the torrent file
+- **Created** — the creation timestamp, if embedded
+- **Piece size** — the BitTorrent piece length and total piece count
+- **Tracker(s)** — all announce URLs from the primary tracker and the multi-tracker list
+- **Private** — a warning badge if DHT and PEX are disabled for this torrent
+
+Multi-file torrents additionally list every file path and its individual size in a scrollable table below the metadata.
+
+No configuration changes or database migrations are required.
+
+## File Upload
+
+### Torrent Metadata Pre-fill
+
+When a `.torrent` file is selected in the upload dialog, two fields are filled in automatically from the torrent's embedded metadata:
+
+- **Short description** — set to `info.name` (the torrent's root name). If the name is absent, the `comment` field is used as a fallback, provided it does not look like a URL. Many torrent clients embed their own website in the comment field; that case is detected and skipped automatically.
+- **Long description** — for multi-file torrents, one relative file path per line. Single-file torrents leave the long description unchanged.
+
+A torrent metadata preview card also appears in the dialog immediately below the file picker, showing the same information as the file area previewer. This allows the sysop to confirm the torrent contents before submitting the upload. The card disappears when the dialog is closed or a different file is selected.
+
+No configuration changes or database migrations are required.
 
 ## Markdown Images
 

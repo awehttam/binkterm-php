@@ -445,6 +445,8 @@
                         <div class="form-text">{{ t('ui.files.maximum_file_size', {}, 'common') }}: <span id="maxFileSize">10 MB</span></div>
                     </div>
 
+                    <div id="uploadTorrentPreviewContainer"></div>
+
                     <div class="mb-3" id="uploadDescriptionGroup">
                         <label for="uploadDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
@@ -1650,6 +1652,7 @@ function showUploadModal() {
 
     $('#uploadFileForm')[0].reset();
     resetUploadDescriptions();
+    $('#uploadTorrentPreviewContainer').empty();
     $('#uploadProgress').hide();
     $('#uploadProgress .progress-bar').css('width', '0%');
     $('#uploadErrorBox').addClass('d-none').text('');
@@ -1662,6 +1665,23 @@ function escapeAttribute(value) {
         .replaceAll('"', '&quot;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;');
+}
+
+/**
+ * Render the torrent metadata preview card into the upload form's preview
+ * container. Delegates HTML generation to buildTorrentPreviewHtml() in
+ * file-preview.js (loaded before this inline script).
+ *
+ * @param {object} meta  Return value of parseTorrentMeta()
+ */
+function renderTorrentPreview(meta) {
+    const html = `<div class="card mb-3">
+        <div class="card-header py-2">
+            <strong><i class="fas fa-magnet me-1"></i> Torrent Info</strong>
+        </div>
+        <div class="card-body p-0">${buildTorrentPreviewHtml(meta)}</div>
+    </div>`;
+    $('#uploadTorrentPreviewContainer').html(html);
 }
 
 function resetUploadDescriptions() {
@@ -1679,8 +1699,28 @@ function rebuildUploadDescriptions() {
         $('#uploadBatchDescriptionsBody').empty();
         $('#uploadDescriptionGroup').removeClass('d-none');
         $('#uploadDescription').prop('required', true);
-        if (files.length === 1 && !$('#uploadDescription').val().trim()) {
-            $('#uploadDescription').val(files[0].name);
+        if (files.length === 1) {
+            const file = files[0];
+            if (file.name.toLowerCase().endsWith('.torrent')) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const meta = parseTorrentMeta(e.target.result);
+                    if (meta) {
+                        if (meta.shortDesc) $('#uploadDescription').val(meta.shortDesc);
+                        if (meta.longDesc)  $('#uploadLongDescription').val(meta.longDesc);
+                        renderTorrentPreview(meta);
+                    } else {
+                        $('#uploadTorrentPreviewContainer').empty();
+                        if (!$('#uploadDescription').val().trim()) $('#uploadDescription').val(file.name);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                $('#uploadTorrentPreviewContainer').empty();
+                if (!$('#uploadDescription').val().trim()) $('#uploadDescription').val(file.name);
+            }
+        } else {
+            $('#uploadTorrentPreviewContainer').empty();
         }
         return;
     }
