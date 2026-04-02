@@ -131,7 +131,8 @@ function bencodeDecode(buffer) {
                 return slice; // binary field (e.g. pieces) — return raw bytes
             }
         }
-        throw new Error('bencodeDecode: unexpected byte ' + ch + ' at position ' + pos);
+        const ctx = Array.from(bytes.slice(Math.max(0, pos - 16), pos + 16)).join(',');
+        throw new Error(`bencodeDecode: unexpected byte ${ch} at position ${pos}, context [-16..+16]: [${ctx}]`);
     }
 
     return decode();
@@ -198,6 +199,7 @@ function parseTorrentMeta(buffer) {
             isMultiFile: files.length > 0,
         };
     } catch (e) {
+        console.error('parseTorrentMeta failed:', e);
         return null;
     }
 }
