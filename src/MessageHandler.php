@@ -1113,7 +1113,9 @@ class MessageHandler
             if (!empty($myAddresses)) {
                 $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail n
+                    SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                    FROM netmail n
+                    LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
                     WHERE n.id = ?
                       AND (
                         n.user_id = ?
@@ -1122,7 +1124,7 @@ class MessageHandler
                       AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
                                ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
                 ");
-                $params = [$messageId, $userId, $user['username'], $user['real_name']];
+                $params = [$userId, $messageId, $userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
                 $params[] = $userId;
                 $params[] = $user['username'];
@@ -1131,12 +1133,14 @@ class MessageHandler
             } else {
                 // Fallback if no addresses are configured - mirror the inbox fallback.
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail n
+                    SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                    FROM netmail n
+                    LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
                     WHERE n.id = ?
                       AND n.user_id = ?
                       AND n.deleted_by_sender = FALSE
                 ");
-                $stmt->execute([$messageId, $userId]);
+                $stmt->execute([$userId, $messageId, $userId]);
             }
         } else {
             // Echomail is public, so no user restriction needed

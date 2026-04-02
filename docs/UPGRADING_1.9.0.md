@@ -28,6 +28,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Outgoing Message Charset](#outgoing-message-charset)
   - [Default Changed to CP437](#default-changed-to-cp437)
   - [Per-Uplink Charset Override](#per-uplink-charset-override)
+- [Bug Fixes](#bug-fixes)
+  - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -62,6 +64,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
 - The SID player now includes a real-time spectrum visualizer showing 48 frequency bars that decay smoothly when playback is paused or stopped. Playback is manual — the player loads ready to play and waits for the user to press Play.
 - Non-ZIP archive listing (RAR, 7-Zip, TAR, LZH, etc.) now enforces a configurable maximum file size before invoking the 7z tool. Archives that exceed the limit display a message and a download link instead of timing out. The limit defaults to 20 MB and is controlled by `ARCHIVE_LIST_MAX_SIZE` in `.env`. ZIP archives are not affected because their file listing reads only the central directory index and does not require 7z.
+
+**Bug Fixes**
+- Opening a saved netmail message in the message modal and clicking the save button unsaved it correctly from the message list, but the same button inside the modal always showed "Save" instead of "Saved" and would re-save rather than unsave. The single-message API query for netmail was missing the `saved_messages` join, so `is_saved` was never included in the response. The join has been added so the modal reflects the correct saved state on open.
 
 **Documentation**
 - `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.
@@ -256,6 +261,18 @@ The per-uplink charset is configured in Admin → BinkP Configuration by editing
 When composing echomail, the charset selector in the compose form is automatically pre-set to the correct encoding for the selected echo area's network, updating dynamically as the user switches between areas.
 
 No configuration changes are required for existing setups. If you want to keep the previous UTF-8 default, set **Default Outgoing Charset** in BBS Settings to UTF-8.
+
+## Bug Fixes
+
+### Netmail Unsave in Message Modal
+
+When a netmail message was saved and then opened in the message modal, the save button inside the modal always displayed "Save" rather than "Saved". Clicking it would save the message a second time instead of unsaving it. The bookmark icon in the modal header had the same problem.
+
+The root cause was that the single-message API endpoint for netmail (`GET /api/messages/netmail/{id}`) queried the `netmail` table without joining `saved_messages`, so the `is_saved` field was never included in the response. The modal's save button reads `is_saved` to decide whether to issue a DELETE (unsave) or POST (save), so with no `is_saved` value it always defaulted to POST.
+
+The query now joins `saved_messages` for the current user and includes `is_saved` in the result, matching the behaviour already present in the message list and in the equivalent echomail single-message query.
+
+No configuration changes or database migrations are required.
 
 ## Upgrade Instructions
 
