@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [BinkP](#binkp)
   - [Exact Uplink Address Matching](#exact-uplink-address-matching)
   - [FTS-0001 Compliant Outbound Line Terminators](#fts-0001-compliant-outbound-line-terminators)
+  - [Queue List Auto-Refresh](#queue-list-auto-refresh)
 - [Robots](#robots)
   - [TEST Area Auto Responder Rename](#test-area-auto-responder-rename)
 - [Real-time Events (BinkStream)](#real-time-events-binkstream)
@@ -60,6 +61,7 @@ Make sure you have a current backup of your database and files before upgrading.
 **BinkP**
 - Outbound routing now checks for an exact configured uplink address match before falling back to network-based uplink selection. This allows multiple uplinks on the same FTN network, so messages explicitly addressed to a specific uplink node can be routed through that uplink instead of being matched only by shared network patterns.
 - Outbound FTN packet message bodies now use bare CR (`\r`, 0x0D) as the line separator, as required by FTS-0001. Previously all line terminators were written as CRLF (`\r\n`), which caused interoperability problems with remote nodes that enforce strict FTS-0001 parsing — most visibly a spurious LF after the `* Origin:` line.
+- The inbound and outbound queue lists on the BinkP administration page now refresh automatically every 15 seconds. Files that are processed or transferred while the page is open are removed from the list without requiring a manual refresh.
 
 **Robots**
 - The echomail robot processor type previously displayed as "Auto-Reply" is now displayed as "TEST Area Auto Responder" to better describe its purpose. No configuration changes are required; the internal processor type identifier (`auto_reply`) is unchanged.
@@ -137,6 +139,14 @@ FTS-0001 defines CR (0x0D) as the sole line separator in FTN packet message bodi
 All line terminators in outbound packet bodies are now written as bare CR. This covers kludge lines (`\x01TZUTC`, `\x01MSGID`, `\x01PID`, etc.), the `AREA:` control line, the tearline, the blank line preceding the tearline, the `* Origin:` line, `SEEN-BY:`, `\x01PATH:`, and any stored kludge or Via lines read from the database. The message body text from the database is also normalized to bare CR before being written into the packet.
 
 No database migration is required. The change affects only what is written into outbound `.pkt` files; incoming packet parsing is unchanged.
+
+### Queue List Auto-Refresh
+
+The inbound and outbound queue lists on the BinkP administration page previously showed the state of the queues at the moment the page was loaded. Files processed or transferred during that session were not removed from the display until the page was manually refreshed.
+
+Both queue lists now poll the server every 15 seconds. The file counts in the overview cards at the top of the page are also updated on each poll. No user action is required to keep the view current.
+
+No configuration changes or database migrations are required.
 
 ## Robots
 

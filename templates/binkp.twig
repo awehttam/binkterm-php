@@ -442,6 +442,10 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshQueues();
         refreshLogs();
         CronBuilder.init('pollScheduleInput');
+        setInterval(function() {
+            refreshQueues();
+            refreshBinkpOverview();
+        }, 15000);
     });
     document.getElementById('addUplinkModal').addEventListener('shown.bs.modal', function () {
         CronBuilder.refresh('pollScheduleInput');
