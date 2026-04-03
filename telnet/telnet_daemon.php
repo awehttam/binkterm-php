@@ -16,6 +16,14 @@ require_once __DIR__ . '/src/DoorHandler.php';
 require_once __DIR__ . '/src/ZmodemTransfer.php';
 require_once __DIR__ . '/src/FileHandler.php';
 require_once __DIR__ . '/src/TerminalSettingsHandler.php';
+require_once __DIR__ . '/src/AnsiFormField.php';
+require_once __DIR__ . '/src/AnsiSelectField.php';
+require_once __DIR__ . '/src/AnsiToggleField.php';
+require_once __DIR__ . '/src/AnsiTextField.php';
+require_once __DIR__ . '/src/AnsiActionField.php';
+require_once __DIR__ . '/src/AnsiForm.php';
+require_once __DIR__ . '/src/AnsiTabComponent.php';
+require_once __DIR__ . '/src/SettingsHandler.php';
 require_once __DIR__ . '/src/InterestsHandler.php';
 require_once __DIR__ . '/src/QwkMenuHandler.php';
 

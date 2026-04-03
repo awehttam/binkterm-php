@@ -7079,13 +7079,68 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     // User profile API endpoints
+    SimpleRouter::get('/user/profile', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        echo json_encode([
+            'success' => true,
+            'profile' => [
+                'email' => (string)($user['email'] ?? ''),
+                'location' => (string)($user['location'] ?? ''),
+                'about_me' => (string)($user['about_me'] ?? ''),
+            ]
+        ]);
+    });
+
+    SimpleRouter::post('/user/change-password', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+            $currentPassword = (string)($input['old_password'] ?? '');
+            $newPassword = (string)($input['new_password'] ?? '');
+
+            if ($currentPassword === '' || $newPassword === '') {
+                apiError('errors.settings.invalid_input', apiLocalizedText('errors.settings.invalid_input', 'Invalid input', $user), 400);
+                return;
+            }
+
+            if (!password_verify($currentPassword, (string)($user['password_hash'] ?? ''))) {
+                apiError('errors.user.profile.current_password_incorrect', apiLocalizedText('errors.user.profile.current_password_incorrect', 'Current password is incorrect', $user), 400);
+                return;
+            }
+
+            if (strlen($newPassword) < 6) {
+                apiError('errors.user.profile.new_password_too_short', apiLocalizedText('errors.user.profile.new_password_too_short', 'New password must be at least 6 characters long', $user), 400);
+                return;
+            }
+
+            $db = Database::getInstance()->getPdo();
+            $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+            $stmt->execute([$newPasswordHash, $user['user_id']]);
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.profile.updated_successfully'
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.user.profile.update_failed', apiLocalizedText('errors.user.profile.update_failed', 'Failed to update profile', $user), 500);
+        }
+    });
+
     SimpleRouter::post('/user/profile', function() {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
         try {
-            $input = $_POST;
+            $jsonInput = json_decode(file_get_contents('php://input'), true);
+            $input = is_array($jsonInput) ? $jsonInput : $_POST;
 
             $db = Database::getInstance()->getPdo();
 
@@ -8609,6 +8664,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
                 $settings['image_load_mode'] = $meta->getValue((int)$userId, 'image_load_mode') ?? 'click';
             }
+
+            $settings['license_valid'] = \BinktermPHP\License::isValid();
 
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {

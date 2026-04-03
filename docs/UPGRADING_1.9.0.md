@@ -28,6 +28,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Torrent Metadata Pre-fill](#torrent-metadata-pre-fill)
 - [Markdown Images](#markdown-images)
   - [Human-Readable Image URLs](#human-readable-image-urls)
+- [Terminal Server Settings](#terminal-server-settings)
+  - [Tabbed Settings Screen Parity and Workflow](#tabbed-settings-screen-parity-and-workflow)
 - [Outgoing Message Charset](#outgoing-message-charset)
   - [Default Changed to CP437](#default-changed-to-cp437)
   - [Per-Uplink Charset Override](#per-uplink-charset-override)
@@ -64,6 +66,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Markdown Images**
 - Images uploaded through the echomail message editor are now served at human-readable URLs in the form `/echomail-images/{username}/{name}-{hash}.png` instead of a raw SHA-256 hash path. Existing embedded images continue to resolve through the old hash-based URL so no message editing is required. A one-time database migration backfills the new URL slug for existing uploaded images.
+
+**Terminal Server Settings**
+- The telnet/SSH terminal server now includes a dedicated settings screen so users can change their own preferences and account password directly from the text interface. The screen includes tabbed navigation, in-place save behavior, centered save/discard feedback, and a full-screen signature editor with signature-specific wording.
 
 **File Previewer**
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
@@ -336,6 +341,26 @@ The root cause was that the single-message API endpoint for netmail (`GET /api/m
 The query now joins `saved_messages` for the current user and includes `is_saved` in the result, matching the behaviour already present in the message list and in the equivalent echomail single-message query.
 
 No configuration changes or database migrations are required.
+
+## Terminal Server Settings
+
+### Tabbed Settings Screen Parity and Workflow
+
+The terminal server now includes a dedicated settings screen for telnet and SSH users. This allows users to manage their own preferences and change their password directly from the text interface instead of needing to switch back to the web UI.
+
+Changes in this area include:
+
+- **User settings management**: users can edit terminal, display, messaging, and account settings directly from the terminal server interface.
+- **Password management**: users can change their account password directly from the Account tab in the terminal settings screen.
+- **Tabbed navigation**: `]` advances to the next tab, `[` moves to the previous tab, `Tab` advances, and `Shift+Tab` goes backward.
+- **Messages-per-page parity**: the terminal settings screen now recognises the same messages_per_page values as the web settings page, including 250 and 500.
+- **Reliable select-state restoration**: terminal select controls now preserve numeric-looking option keys correctly, so saved values are shown accurately when the settings screen is reopened.
+- **In-place save workflow**: pressing `S` saves the current settings and returns to the same settings screen instead of exiting back to the main menu.
+- **Centered save feedback**: save and discard notices now appear in a centered modal-style dialog instead of replacing the screen with a plain status message.
+- **Registered-feature presentation**: registered-only settings such as netmail forwarding and echomail digests now follow the same locked-state presentation as the web interface more closely.
+- **Signature editor wording**: editing the signature field still opens the full-screen editor, but that editor now uses signature-specific text such as "Editing signature" and "Save changes" instead of message-sending copy.
+
+No database migration is required for these terminal settings changes.
 
 ## Upgrade Instructions
 
