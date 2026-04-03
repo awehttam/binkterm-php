@@ -254,7 +254,8 @@ class BbsSession
             while ($loginResult === null) {
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (R) Register new account', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.reset_password', '  (R) Reset lost password', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (N) Register new account', [], $state['locale']));
                 if ($showQwkTransfer) {
                     $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.qwk_transfer', '  (K) QWK transfer', [], $state['locale']));
                 }
@@ -274,6 +275,12 @@ class BbsSession
                 }
 
                 if ($normalizedChoice === 'r') {
+                    $this->attemptLostPasswordReset($conn, $state);
+                    $this->writeLine($conn, '');
+                    continue;
+                }
+
+                if ($normalizedChoice === 'n') {
                     $registered = $this->attemptRegistration($conn, $state);
                     if ($registered) {
                         $this->writeLine($conn, $this->t('ui.terminalserver.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
@@ -1503,6 +1510,122 @@ class BbsSession
             $this->writeLine($conn, '');
             return false;
         }
+    }
+
+    /**
+     * Begin the lost-password reset flow used by the web form.
+     */
+    private function attemptLostPasswordReset($conn, array &$state): void
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize(
+            $this->t('ui.terminalserver.server.reset_password.title', '=== Password Reset ===', [], $state['locale']),
+            self::ANSI_CYAN . self::ANSI_BOLD
+        ));
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->t(
+            'ui.terminalserver.server.reset_password.intro',
+            'Enter your username, real name, or email address and we will email you a password reset link if the account exists.',
+            [],
+            $state['locale']
+        ));
+        $this->writeLine($conn, $this->colorize(
+            $this->t('ui.terminalserver.server.reset_password.cancel_hint', '(Press Enter on a blank prompt to cancel)', [], $state['locale']),
+            self::ANSI_DIM
+        ));
+        $this->writeLine($conn, '');
+
+        $identifier = $this->prompt(
+            $conn,
+            $state,
+            $this->t(
+                'ui.terminalserver.server.reset_password.identifier_prompt',
+                'Username, real name, or email: ',
+                [],
+                $state['locale']
+            ),
+            true
+        );
+
+        if ($identifier === null || trim($identifier) === '') {
+            return;
+        }
+
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->t(
+            'ui.terminalserver.server.reset_password.submitting',
+            'Requesting password reset...',
+            [],
+            $state['locale']
+        ));
+
+        try {
+            $result = $this->apiRequest('POST', '/api/auth/forgot-password', [
+                'usernameOrEmail' => trim($identifier),
+            ], null);
+        } catch (\Throwable $e) {
+            $this->log("Password reset request failed: " . $e->getMessage());
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t(
+                    'ui.terminalserver.server.reset_password.failed',
+                    'Failed to process password reset request.',
+                    [],
+                    $state['locale']
+                ),
+                self::ANSI_RED
+            ));
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+                self::ANSI_YELLOW
+            ));
+            $this->readRawChar($conn, $state);
+            return;
+        }
+
+        if ($result['status'] >= 200 && $result['status'] < 300 && !empty($result['data']['success'])) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t(
+                    'ui.terminalserver.server.reset_password.success',
+                    'If an account with that username, real name, or email exists, a password reset link has been sent.',
+                    [],
+                    $state['locale']
+                ),
+                self::ANSI_GREEN
+            ));
+            $this->writeLine($conn, $this->t(
+                'ui.terminalserver.server.reset_password.check_email',
+                'Please check your email inbox and spam folder for the reset link.',
+                [],
+                $state['locale']
+            ));
+        } else {
+            $errorMessage = trim((string)($result['data']['error'] ?? ''));
+            $this->log(
+                'Password reset request failed'
+                . ($result['status'] ? " (HTTP {$result['status']})" : '')
+                . ($errorMessage !== '' ? ": {$errorMessage}" : '')
+            );
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t(
+                    'ui.terminalserver.server.reset_password.failed',
+                    'Failed to process password reset request.',
+                    [],
+                    $state['locale']
+                ),
+                self::ANSI_RED
+            ));
+        }
+
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize(
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+            self::ANSI_YELLOW
+        ));
+        $this->readRawChar($conn, $state);
     }
 
     /**

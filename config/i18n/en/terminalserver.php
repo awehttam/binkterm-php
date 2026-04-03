@@ -9,7 +9,8 @@ return [
     // --- Login / register menu (pre-auth) ---
     'ui.terminalserver.server.login_menu.prompt'       => 'Would you like to:',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Login to existing account',
-    'ui.terminalserver.server.login_menu.register'     => '  (R) Register new account',
+    'ui.terminalserver.server.login_menu.reset_password' => '  (R) Reset lost password',
+    'ui.terminalserver.server.login_menu.register'     => '  (N) Register new account',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK transfer',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Quit',
     'ui.terminalserver.server.login_menu.choice'       => 'Your choice: ',
@@ -23,6 +24,16 @@ return [
     'ui.terminalserver.server.login.success'           => 'Login successful.',
     'ui.terminalserver.server.login.failed_remaining'  => 'Login failed. {remaining} attempt(s) remaining.',
     'ui.terminalserver.server.login.failed_max'        => 'Login failed. Maximum attempts exceeded.',
+
+    // --- Lost password reset ---
+    'ui.terminalserver.server.reset_password.title'    => '=== Password Reset ===',
+    'ui.terminalserver.server.reset_password.intro'    => 'Enter your username, real name, or email address and we will email you a password reset link if the account exists.',
+    'ui.terminalserver.server.reset_password.cancel_hint' => '(Press Enter on a blank prompt to cancel)',
+    'ui.terminalserver.server.reset_password.identifier_prompt' => 'Username, real name, or email: ',
+    'ui.terminalserver.server.reset_password.submitting' => 'Requesting password reset...',
+    'ui.terminalserver.server.reset_password.success'  => 'If an account with that username, real name, or email exists, a password reset link has been sent.',
+    'ui.terminalserver.server.reset_password.check_email' => 'Please check your email inbox and spam folder for the reset link.',
+    'ui.terminalserver.server.reset_password.failed'   => 'Failed to process password reset request.',
 
     // --- Registration ---
     'ui.terminalserver.server.registration.title'          => '=== New User Registration ===',

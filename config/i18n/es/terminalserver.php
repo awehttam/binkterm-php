@@ -9,7 +9,8 @@ return [
     // --- Login / register menu (pre-auth) ---
     'ui.terminalserver.server.login_menu.prompt'       => '¿Qué desea hacer?',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Iniciar sesión en cuenta existente',
-    'ui.terminalserver.server.login_menu.register'     => '  (R) Registrar nueva cuenta',
+    'ui.terminalserver.server.login_menu.reset_password' => '  (R) Restablecer contraseña perdida',
+    'ui.terminalserver.server.login_menu.register'     => '  (N) Registrar nueva cuenta',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) Transferencia QWK',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Salir',
     'ui.terminalserver.server.login_menu.choice'       => 'Su elección: ',
@@ -23,6 +24,14 @@ return [
     'ui.terminalserver.server.login.success'           => 'Inicio de sesión exitoso.',
     'ui.terminalserver.server.login.failed_remaining'  => 'Error de inicio de sesión. {remaining} intento(s) restante(s).',
     'ui.terminalserver.server.login.failed_max'        => 'Error de inicio de sesión. Máximo de intentos superado.',
+    'ui.terminalserver.server.reset_password.title'    => '=== Restablecimiento de contraseña ===',
+    'ui.terminalserver.server.reset_password.intro'    => 'Ingrese su usuario, nombre real o correo electrónico y enviaremos un enlace de restablecimiento si la cuenta existe.',
+    'ui.terminalserver.server.reset_password.cancel_hint' => '(Presione Enter en un aviso en blanco para cancelar)',
+    'ui.terminalserver.server.reset_password.identifier_prompt' => 'Usuario, nombre real o correo electrónico: ',
+    'ui.terminalserver.server.reset_password.submitting' => 'Solicitando restablecimiento de contraseña...',
+    'ui.terminalserver.server.reset_password.success'  => 'Si existe una cuenta con ese usuario, nombre real o correo, se ha enviado un enlace de restablecimiento.',
+    'ui.terminalserver.server.reset_password.check_email' => 'Revise su bandeja de entrada y carpeta de spam para el enlace de restablecimiento.',
+    'ui.terminalserver.server.reset_password.failed'   => 'No se pudo procesar la solicitud de restablecimiento de contraseña.',
 
     // --- Registration ---
     'ui.terminalserver.server.registration.title'          => '=== Registro de Nuevo Usuario ===',

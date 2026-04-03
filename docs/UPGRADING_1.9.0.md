@@ -69,7 +69,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Images uploaded through the echomail message editor are now served at human-readable URLs in the form `/echomail-images/{username}/{name}-{hash}.png` instead of a raw SHA-256 hash path. Existing embedded images continue to resolve through the old hash-based URL so no message editing is required. A one-time database migration backfills the new URL slug for existing uploaded images.
 
 **Terminal Server Settings**
-- The telnet/SSH terminal server now includes a dedicated settings screen so users can change their own preferences and account password directly from the text interface. The screen includes tabbed navigation, in-place save behavior, centered save/discard feedback, and a full-screen signature editor with signature-specific wording.
+- The telnet/SSH terminal server now includes a dedicated settings screen so users can change their own preferences, profile details, and account password directly from the text interface. The terminal login screen also now includes a lost-password reset path that starts the same email reset flow as the web form, including support for username, real name, or email address lookup. The settings screen includes tabbed navigation, in-place save behavior, centered save/discard feedback, and a full-screen signature editor with signature-specific wording.
 
 **File Previewer**
 - The file area previewer now supports Commodore 64 SID music files (`.sid`). Clicking a SID file opens an in-browser player powered by the bundled wothke/websid WebAssembly emulator. The player displays the embedded title, author, and release year from the SID header and supports multi-subtune files via a track selector. SID files inside ZIP archives are also playable from the archive browser.
@@ -356,12 +356,15 @@ No configuration changes or database migrations are required.
 
 ### Tabbed Settings Screen Parity and Workflow
 
-The terminal server now includes a dedicated settings screen for telnet and SSH users. This allows users to manage their own preferences and change their password directly from the text interface instead of needing to switch back to the web UI.
+The terminal server now includes a dedicated settings screen for telnet and SSH users. This allows users to manage their own preferences, update profile fields, and change their password directly from the text interface instead of needing to switch back to the web UI.
 
 Changes in this area include:
 
 - **User settings management**: users can edit terminal, display, messaging, and account settings directly from the terminal server interface.
+- **Profile management**: users can edit email address, location, and About Me text from the Profile tab while password change remains on the Account tab.
 - **Password management**: users can change their account password directly from the Account tab in the terminal settings screen.
+- **Lost-password reset from terminal login**: the pre-login terminal menu now includes a reset option that starts the same password-reset request flow as the web forgot-password form.
+- **Identifier parity for reset requests**: password reset requests now accept username, real name, or email address, matching the login flexibility more closely.
 - **Tabbed navigation**: `]` advances to the next tab, `[` moves to the previous tab, `Tab` advances, and `Shift+Tab` goes backward.
 - **Messages-per-page parity**: the terminal settings screen now recognises the same messages_per_page values as the web settings page, including 250 and 500.
 - **Reliable select-state restoration**: terminal select controls now preserve numeric-looking option keys correctly, so saved values are shown accurately when the settings screen is reopened.
