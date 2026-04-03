@@ -347,6 +347,11 @@
             var hb = document.getElementById('historyBody_' + r);
             if (hb) hb.innerHTML = '';
         });
+
+        // Reload history for the currently active tab
+        var activeTab = document.querySelector('#robotTabs a.active');
+        var activeRobot = (activeTab && activeTab.getAttribute('href') === '#filefixTab') ? 'filefix' : 'areafix';
+        loadHistory(activeRobot);
     };
 
     // ── Quick Action buttons ──────────────────────────────────────────────────
