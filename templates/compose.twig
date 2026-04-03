@@ -763,6 +763,10 @@ function updateMarkdownSection(allowed) {
     if (!allowed && replyMarkupType) {
         allowed = true;
     }
+    // Loading a draft with a saved markup type: same treatment.
+    if (!allowed && window.draftMeta && window.draftMeta.markup_type) {
+        allowed = true;
+    }
     const section = $('#markdownSection');
     if (allowed) {
         section.show();
@@ -772,6 +776,15 @@ function updateMarkdownSection(allowed) {
             if (replyMarkupType === 'markdown') {
                 initMarkdownEditor();
             } else if (replyMarkupType === 'stylecodes') {
+                initStyleCodesToolbar();
+            }
+        } else if (window.draftMeta && window.draftMeta.markup_type && !markdownPrefilled) {
+            const mt = window.draftMeta.markup_type;
+            $('#markupType').val(mt);
+            markdownPrefilled = true;
+            if (mt === 'markdown') {
+                initMarkdownEditor();
+            } else if (mt === 'stylecodes') {
                 initStyleCodesToolbar();
             }
         }
@@ -1777,6 +1790,26 @@ function populateEchoareaSelect(areas, preselect) {
         $('#crossPostSection').show();
         populateCrossPostAreas();
     }
+
+    // Restore draft meta fields that depend on echoarea selection completing.
+    // This runs after all synchronous calls to populateCrossPostAreas() and after
+    // the echoarea change handler (which may override charset) has finished.
+    // window.draftMeta is kept alive here so the async updateMarkdownSection()
+    // callback can still read markup_type after fetchMarkdownSupport resolves.
+    if (window.draftMeta) {
+        const meta = window.draftMeta;
+        // Re-apply charset — the echoarea change handler may have overridden it.
+        if (meta.charset) $('#charsetSelect').val(meta.charset);
+        // Restore cross-post selections.
+        if (Array.isArray(meta.cross_post_areas) && meta.cross_post_areas.length > 0) {
+            meta.cross_post_areas.forEach(function(area) {
+                $('#crossPostList .cross-post-check[value="' + area + '"]').prop('checked', true);
+            });
+            enforceCrossPostLimit();
+        }
+        // markup_type is restored asynchronously inside updateMarkdownSection()
+        // once fetchMarkdownSupport() resolves and the section becomes visible.
+    }
 }
 
 function loadEchoareas() {
@@ -2032,6 +2065,13 @@ function sendMessage() {
 
 function saveDraft(silent = false) {
     syncEditorToTextarea();
+
+    // Collect cross-post areas for echomail drafts
+    const crossPostAreas = [];
+    $('.cross-post-check:checked').each(function() {
+        crossPostAreas.push($(this).val());
+    });
+
     const formData = {
         type: $('#messageType').val(),
         to_address: $('#toAddress').val(),
@@ -2039,7 +2079,14 @@ function saveDraft(silent = false) {
         echoarea: $('#echoarea').val(),
         subject: $('#subject').val(),
         message_text: $('#messageText').val(),
-        reply_to_id: $('#replyToId').val() || null
+        reply_to_id: $('#replyToId').val() || null,
+        meta: {
+            cross_post_areas: crossPostAreas,
+            charset: $('#charsetSelect').val() || null,
+            markup_type: $('#markupType').val() || null,
+            hard_wrap: hardWrapLimit,
+            tagline: $('#taglineSelect').val() || null
+        }
     };
 
     // Only save if there's actual content
@@ -2120,6 +2167,25 @@ function loadDraft(draftId) {
                         window.draftEchoarea = draft.echoarea;
                     }
                     if (draft.reply_to_id) $('#replyToId').val(draft.reply_to_id);
+
+                    // Preserve meta so populateEchoareaSelect() and
+                    // updateMarkdownSection() can restore echomail-dependent fields
+                    // after the area selection fires its async callbacks.
+                    if (draft.meta) {
+                        window.draftMeta = draft.meta;
+                        // Fields not overridden by echoarea selection: restore immediately.
+                        if (draft.meta.tagline !== undefined && draft.meta.tagline !== null) {
+                            $('#taglineSelect').val(draft.meta.tagline);
+                        }
+                        if (draft.meta.hard_wrap !== undefined && draft.meta.hard_wrap !== null) {
+                            hardWrapLimit = parseInt(draft.meta.hard_wrap, 10) || 0;
+                            $('#hardWrapSelect').val(String(hardWrapLimit));
+                        }
+                        // Charset: apply now for netmail (no echoarea override).
+                        // populateEchoareaSelect() will re-apply for echomail after
+                        // the area change handler overwrites it.
+                        if (draft.meta.charset) $('#charsetSelect').val(draft.meta.charset);
+                    }
 
                     // Store draft ID for potential deletion after sending
                     window.currentDraftId = draftId;

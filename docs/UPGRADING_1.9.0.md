@@ -33,6 +33,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Outgoing Message Charset](#outgoing-message-charset)
   - [Default Changed to CP437](#default-changed-to-cp437)
   - [Per-Uplink Charset Override](#per-uplink-charset-override)
+- [Message Composer](#message-composer)
+  - [Draft State Now Fully Preserved](#draft-state-now-fully-preserved)
 - [Bug Fixes](#bug-fixes)
   - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
   - [AreaFix History Not Reloading on Uplink Change](#areafix-history-not-reloading-on-uplink-change)
@@ -79,6 +81,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **File Upload**
 - When a `.torrent` file is selected in the upload dialog, the short description field is automatically pre-filled from the torrent's name (or comment, if the name is absent and the comment is not a URL). For multi-file torrents, the long description field is pre-filled with one file path per line. A torrent metadata preview card is also shown in the dialog so the contents can be verified before submitting.
+
+**Message Composer**
+- Saving an echomail or netmail draft now preserves the full compose state: message encoding (charset), markup format (plain, Markdown, Style Codes), hard-wrap setting, tagline selection, and cross-posted echo areas. When the draft is reopened, all of these fields are restored to the values that were in effect when the draft was saved. Previously, only the primary echo area, message text, subject, and recipient fields were saved; the encoding, markup type, wrap setting, tagline, and cross-post selections were silently discarded. A database migration (`v1.11.0.70`) adds a `meta` JSONB column to the `drafts` table to hold this additional state.
 
 **Bug Fixes**
 - Switching to a different uplink in the AreaFix Manager now automatically reloads the message history for the active tab. Previously the history panel was cleared but not repopulated, leaving it blank until the Refresh button was clicked manually.
@@ -322,6 +327,24 @@ The per-uplink charset is configured in Admin → BinkP Configuration by editing
 When composing echomail, the charset selector in the compose form is automatically pre-set to the correct encoding for the selected echo area's network, updating dynamically as the user switches between areas.
 
 No configuration changes are required for existing setups. If you want to keep the previous UTF-8 default, set **Default Outgoing Charset** in BBS Settings to UTF-8.
+
+## Message Composer
+
+### Draft State Now Fully Preserved
+
+Saving a message draft (echomail or netmail) now captures the full compose state at the time the draft is saved. When the draft is reopened, all of the following fields are restored:
+
+- **Message encoding (charset)** — the character set selected in the compose form (e.g. CP437, UTF-8).
+- **Markup format** — whether the message was being written in plain text, Markdown, or Style Codes. When the selected markup format requires a rich editor (Markdown or Style Codes), that editor is also re-initialised on load.
+- **Hard-wrap setting** — the column width at which the composer automatically breaks long lines, or the disabled state if wrapping was turned off.
+- **Tagline** — the tagline selected from the tagline dropdown at the time the draft was saved.
+- **Cross-posted echo areas** — the set of additional echo areas that were checked for cross-posting when the draft was saved.
+
+Previously, only the primary echo area, message body, subject line, and recipient fields were saved. The encoding, markup type, hard-wrap setting, tagline, and cross-post selections were lost when the draft was stored and were not restored when it was opened again.
+
+A database migration (`v1.11.0.70`) adds a `meta` JSONB column to the `drafts` table. This column stores the additional composer state as a JSON object alongside the existing draft fields. No existing draft data is altered; drafts saved before this migration simply have no `meta` value and continue to open normally.
+
+Run `php scripts/setup.php` to apply the migration.
 
 ## Bug Fixes
 

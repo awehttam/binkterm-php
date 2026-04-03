@@ -6428,6 +6428,14 @@ class MessageHandler
             // Check if draft already exists for this user and type with same content
             $existingDraft = $this->findExistingDraft($userId, $draftData);
 
+            // Encode meta (e.g. cross_post_areas) as JSON; only include the key
+            // when the caller provides it so existing drafts without meta are
+            // not needlessly touched.
+            $metaJson = null;
+            if (isset($draftData['meta']) && is_array($draftData['meta'])) {
+                $metaJson = json_encode($draftData['meta']);
+            }
+
             if ($existingDraft) {
                 // Update existing draft
                 $stmt = $this->db->prepare("
@@ -6438,6 +6446,7 @@ class MessageHandler
                         subject = ?,
                         message_text = ?,
                         reply_to_id = ?,
+                        meta = ?::jsonb,
                         updated_at = NOW() AT TIME ZONE 'UTC'
                     WHERE id = ?
                 ");
@@ -6449,6 +6458,7 @@ class MessageHandler
                     $draftData['subject'] ?? null,
                     $draftData['message_text'] ?? null,
                     $draftData['reply_to_id'] ?? null,
+                    $metaJson,
                     $existingDraft['id']
                 ]);
 
@@ -6456,8 +6466,8 @@ class MessageHandler
             } else {
                 // Create new draft
                 $stmt = $this->db->prepare("
-                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
+                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, meta, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
                     RETURNING id
                 ");
 
@@ -6469,7 +6479,8 @@ class MessageHandler
                     $draftData['echoarea'] ?? null,
                     $draftData['subject'] ?? null,
                     $draftData['message_text'] ?? null,
-                    $draftData['reply_to_id'] ?? null
+                    $draftData['reply_to_id'] ?? null,
+                    $metaJson
                 ]);
                 $insertedDraft = $stmt->fetch(\PDO::FETCH_ASSOC);
                 $draftId = $insertedDraft ? (int)$insertedDraft['id'] : 0;
@@ -6510,6 +6521,20 @@ class MessageHandler
     }
 
     /**
+     * Decode the meta JSONB column on a draft row into a PHP array.
+     *
+     * @param array $row Raw row from PDO fetch
+     * @return array Row with meta decoded (or null when absent)
+     */
+    private function decodeDraftMeta(array $row): array
+    {
+        if (isset($row['meta']) && is_string($row['meta'])) {
+            $row['meta'] = json_decode($row['meta'], true) ?? null;
+        }
+        return $row;
+    }
+
+    /**
      * Get user's drafts
      */
     public function getUserDrafts($userId, $type = null)
@@ -6528,7 +6553,8 @@ class MessageHandler
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
 
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return array_map([$this, 'decodeDraftMeta'], $rows);
         } catch (\Exception $e) {
             $this->logger->error("Error getting user drafts: " . $e->getMessage());
             return [];
@@ -6547,7 +6573,8 @@ class MessageHandler
             ");
 
             $stmt->execute([$draftId, $userId]);
-            return $stmt->fetch(\PDO::FETCH_ASSOC);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $row ? $this->decodeDraftMeta($row) : null;
         } catch (\Exception $e) {
             $this->logger->error("Error getting draft: " . $e->getMessage());
             return null;
