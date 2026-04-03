@@ -85,6 +85,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Users can now log in using their real name as well as their username. Both fields are case-insensitive and unique, so there is no ambiguity.
 - Opening a saved netmail message in the message modal and clicking the save button unsaved it correctly from the message list, but the same button inside the modal always showed "Save" instead of "Saved" and would re-save rather than unsave. The single-message API query for netmail was missing the `saved_messages` join, so `is_saved` was never included in the response. The join has been added so the modal reflects the correct saved state on open.
 - Deleting a file from the web file browser now keeps the user in the same file area and subfolder after the page refreshes its sidebar state, instead of returning to the main `/files` index.
+- Cross-posted echomail copies now preserve the same markup context as the primary post, so Markdown posts continue to carry their outbound markup kludge and formatting metadata on every selected destination instead of only the first area.
 
 **Documentation**
 - `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.

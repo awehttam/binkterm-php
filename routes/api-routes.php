@@ -6396,7 +6396,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 null,
                                 $input['tagline'] ?? null,
                                 true,
-                                $markupType
+                                $markupType,
+                                '',
+                                null,
+                                $charset
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
