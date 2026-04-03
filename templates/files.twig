@@ -1038,15 +1038,36 @@ function renderFileAreaList(areas) {
 
     $('#fileAreasList').html(html);
 
-    // Auto-select area from server-supplied tag (e.g. /files/AREATAG)
-    // or legacy ?area= query param for backwards compatibility
+    // Preserve the active selection when the area list is refreshed after an
+    // in-page action like delete/rename/upload.
+    if (currentViewMode === 'my_uploads' && currentUserId !== null) {
+        selectMyUploads();
+        return;
+    }
+    if (currentViewMode === 'area' && currentAreaId !== null) {
+        const activeArea = allFileAreas.find(a => a.id === currentAreaId);
+        if (activeArea) {
+            selectFileArea(currentAreaId, currentSubfolder);
+            return;
+        }
+    }
+
+    // Auto-select area from the current URL path (e.g. /files/AREATAG), the
+    // server-supplied initial tag, or legacy ?area= query param.
     const initialTag = {{ initial_area_tag is defined ? initial_area_tag|json_encode|raw : 'null' }};
     const params = new URLSearchParams(window.location.search);
     if (params.get('view') === 'my-uploads' && currentUserId !== null) {
         selectMyUploads();
         return;
     }
-    const areaParam = initialTag || params.get('area');
+
+    let pathAreaTag = null;
+    const pathMatch = window.location.pathname.match(/^\/files\/([^\/?#]+)$/);
+    if (pathMatch && pathMatch[1]) {
+        pathAreaTag = decodeURIComponent(pathMatch[1]);
+    }
+
+    const areaParam = pathAreaTag || initialTag || params.get('area');
     const searchParam = params.get('search');
     if (areaParam) {
         const targetId = parseInt(areaParam, 10);

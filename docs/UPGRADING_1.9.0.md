@@ -37,6 +37,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
   - [AreaFix History Not Reloading on Uplink Change](#areafix-history-not-reloading-on-uplink-change)
   - [Login with Real Name](#login-with-real-name)
+  - [File Area Delete Stays in the Current Area](#file-area-delete-stays-in-the-current-area)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -83,6 +84,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Switching to a different uplink in the AreaFix Manager now automatically reloads the message history for the active tab. Previously the history panel was cleared but not repopulated, leaving it blank until the Refresh button was clicked manually.
 - Users can now log in using their real name as well as their username. Both fields are case-insensitive and unique, so there is no ambiguity.
 - Opening a saved netmail message in the message modal and clicking the save button unsaved it correctly from the message list, but the same button inside the modal always showed "Save" instead of "Saved" and would re-save rather than unsave. The single-message API query for netmail was missing the `saved_messages` join, so `is_saved` was never included in the response. The join has been added so the modal reflects the correct saved state on open.
+- Deleting a file from the web file browser now keeps the user in the same file area and subfolder after the page refreshes its sidebar state, instead of returning to the main `/files` index.
 
 **Documentation**
 - `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.
@@ -339,6 +341,14 @@ When a netmail message was saved and then opened in the message modal, the save 
 The root cause was that the single-message API endpoint for netmail (`GET /api/messages/netmail/{id}`) queried the `netmail` table without joining `saved_messages`, so the `is_saved` field was never included in the response. The modal's save button reads `is_saved` to decide whether to issue a DELETE (unsave) or POST (save), so with no `is_saved` value it always defaulted to POST.
 
 The query now joins `saved_messages` for the current user and includes `is_saved` in the result, matching the behaviour already present in the message list and in the equivalent echomail single-message query.
+
+No configuration changes or database migrations are required.
+
+### File Area Delete Stays in the Current Area
+
+The web file browser now preserves the currently selected file area and subfolder after in-page actions that rebuild the file area list, including file deletion.
+
+This means that after deleting a file from an area such as `CDM_95_1`, the page remains anchored to that same area instead of falling back to the main `/files` view.
 
 No configuration changes or database migrations are required.
 
