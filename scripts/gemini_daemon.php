@@ -842,6 +842,9 @@ function handleBbsDirectoryList($socket, string $geminiHost): void
                 $telnetHost = trim((string)($entry['telnet_host'] ?? ''));
                 $telnetPort = (int)($entry['telnet_port'] ?? 23);
                 $website = trim((string)($entry['website'] ?? ''));
+                if ($website !== '' && !preg_match('#^[a-zA-Z][a-zA-Z0-9+\-.]*://#', $website)) {
+                    $website = 'https://' . $website;
+                }
                 $telnetLabel = ($telnetPort > 0 && $telnetPort !== 23)
                     ? "{$telnetHost}:{$telnetPort}"
                     : $telnetHost;
