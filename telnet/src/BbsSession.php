@@ -1420,7 +1420,8 @@ class BbsSession
             $state,
             'SYSTEM NEWS',
             $lines,
-            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale'])
+            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']),
+            4
         );
     }
 

@@ -22,13 +22,13 @@ class TerminalBoxRenderer
      * @param string $title
      * @param string[] $lines
      */
-    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt): void
+    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2): void
     {
         $cols = max(40, (int)($state['cols'] ?? 80));
         $rows = max(12, (int)($state['rows'] ?? 24));
         $boxWidth = max(38, min($cols - 4, 96));
         $contentWidth = max(20, $boxWidth - 4);
-        $boxHeight = max(8, $rows - 2);
+        $boxHeight = max(8, $rows - max(2, $verticalMargin));
         $contentHeight = max(3, $boxHeight - 4);
         $leftPad = str_repeat(' ', max(0, (int)floor(($cols - $boxWidth) / 2)));
         $topPadCount = max(0, (int)floor(($rows - $boxHeight - 1) / 2));
