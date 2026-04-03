@@ -476,6 +476,13 @@ yourdomain.com {
         header_up X-Real-IP {remote_host}
     }
 
+    @php path *.php
+    handle @php {
+        php_fastcgi unix//run/php/php8.2-fpm.sock {
+            capture_stderr
+        }
+    }
+
     @static file {
         try_files {path} {path}/index.html
     }
@@ -483,10 +490,6 @@ yourdomain.com {
         file_server {
             index index.html
         }
-    }
-
-    php_fastcgi unix//run/php/php8.2-fpm.sock {
-        capture_stderr
     }
 
     log {

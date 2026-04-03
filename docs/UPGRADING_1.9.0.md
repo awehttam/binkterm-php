@@ -163,9 +163,16 @@ No configuration changes are required.
 
 The previous recommended Caddy configuration passed all requests through `php_fastcgi`, including requests for static files and subdirectories that contain their own `index.html` entry point (WebDoors, the C64 emulator, and any future static content). When a directory with an `index.html` was requested by URL without specifying the filename, PHP received the request, found no matching route, and returned a 404.
 
-The fix is to add a `@static` matcher block before `php_fastcgi` so that Caddy serves real files and HTML index directories directly, without involving PHP:
+The fix is to handle PHP files explicitly first, then serve static files. Because Caddy's `handle` blocks are mutually exclusive and first-match wins, PHP files are passed to `php_fastcgi` and never reach the static file handler:
 
 ```
+@php path *.php
+handle @php {
+    php_fastcgi unix//run/php/php8.2-fpm.sock {
+        capture_stderr
+    }
+}
+
 @static file {
     try_files {path} {path}/index.html
 }
@@ -173,10 +180,6 @@ handle @static {
     file_server {
         index index.html
     }
-}
-
-php_fastcgi unix//run/php/php8.2-fpm.sock {
-    capture_stderr
 }
 ```
 
