@@ -57,10 +57,10 @@ class Auth
         $stmt = $this->db->prepare('
             SELECT id, username, real_name, email, is_admin, password_hash, created_at, last_login, location, fidonet_address
             FROM users
-            WHERE LOWER(username) = LOWER(?) AND is_active = TRUE
+            WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND is_active = TRUE
             LIMIT 1
         ');
-        $stmt->execute([$username]);
+        $stmt->execute([$username, $username]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {

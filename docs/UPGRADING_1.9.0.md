@@ -34,6 +34,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Bug Fixes](#bug-fixes)
   - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
   - [AreaFix History Not Reloading on Uplink Change](#areafix-history-not-reloading-on-uplink-change)
+  - [Login with Real Name](#login-with-real-name)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -75,6 +76,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Bug Fixes**
 - Switching to a different uplink in the AreaFix Manager now automatically reloads the message history for the active tab. Previously the history panel was cleared but not repopulated, leaving it blank until the Refresh button was clicked manually.
+- Users can now log in using their real name as well as their username. Both fields are case-insensitive and unique, so there is no ambiguity.
 - Opening a saved netmail message in the message modal and clicking the save button unsaved it correctly from the message list, but the same button inside the modal always showed "Save" instead of "Saved" and would re-save rather than unsave. The single-message API query for netmail was missing the `saved_messages` join, so `is_saved` was never included in the response. The join has been added so the modal reflects the correct saved state on open.
 
 **Documentation**
@@ -320,6 +322,10 @@ No configuration changes are required for existing setups. If you want to keep t
 When a different uplink was selected in the AreaFix Manager dropdown, the message history panel was cleared but a new history fetch was never triggered. The panel remained blank until the Refresh button was clicked manually. The uplink selector now automatically reloads the history for the currently active tab (AreaFix or FileFix) whenever the selection changes.
 
 No configuration changes are required.
+
+### Login with Real Name
+
+Users can now log in using their real name in addition to their username. Both fields are unique and matched case-insensitively, so there is no ambiguity between accounts. No configuration changes are required.
 
 ### Netmail Unsave in Message Modal
 
