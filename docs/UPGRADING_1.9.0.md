@@ -103,6 +103,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Documentation**
 - `scripts/import_bbslist.php` is now documented in `docs/CLI.md`, including how imports merge with locally-edited BBS Directory entries.
+- A FAQ entry has been added clarifying that the "AI assistant mode in BinktermPHP 2.0" referenced in some discussions was an April Fools Day prank. No such feature exists and there are no plans to add it. BinktermPHP 2.0 does not exist.
 
 **Real-time Events (BinkStream)**
 - Dashboard stats notifications are now targeted per user. Echomail events are sent only to users subscribed to the affected echo area who are currently online; netmail events go only to the recipient if online; file events go to all online users. Previously all events were broadcast to every connected user regardless of subscriptions.

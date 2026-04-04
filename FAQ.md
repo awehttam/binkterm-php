@@ -16,6 +16,7 @@
 - [LovlyNet Network](#lovlynet-network)
 - [Database](#database)
 - [WebDoors](#webdoors)
+- [General](#general)
 
 ## Troubleshooting
 
@@ -733,5 +734,13 @@ In those cases, review the actual queries and consider adding a targeted index. 
 - **SSH**: Requires username and password upfront before establishing connection.
 
 Once configured, users can access your BBS through the WebDoors menu at `/games` on your BinktermPHP site.
+
+---
+
+## General
+
+### Q: What is AI assistant mode in BinktermPHP 2.0?
+
+**A:** It was an April Fools Day prank that raised awareness about the concerns of AI automated posting to echomail groups. We have no plans to add such functionality. Also, BinktermPHP 2.0 does not exist — at the time of this writing, we were only at version 1.9!
 
 **Note**: This requires an external terminal proxy server (such as terminalgateway) configured via `TERMINAL_ENABLED`, `TERMINAL_PROXY_HOST`, and `TERMINAL_PROXY_PORT` in your `.env` file.
