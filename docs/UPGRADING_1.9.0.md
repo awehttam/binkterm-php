@@ -39,6 +39,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Dashboard](#dashboard)
   - [Shoutbox Profile Links](#shoutbox-profile-links)
   - [Today's Callers in Its Own Card](#todays-callers-in-its-own-card)
+  - [Today's Callers Persists After Logout](#todays-callers-persists-after-logout)
 - [BBS Directory](#bbs-directory)
   - [Individual BBS Information Pages](#individual-bbs-information-pages)
   - [SEO Improvements](#seo-improvements)
@@ -101,6 +102,7 @@ Make sure you have a current backup of your database and files before upgrading.
 **Dashboard**
 - Usernames in the shoutbox are now clickable links that navigate to the user's profile page.
 - The Today's Callers list (visible to admins) has been moved out of the System Information card into its own dedicated card. Usernames in the list are now clickable links to each user's profile page.
+- Today's Callers now sources its data from the login activity log rather than active sessions. Users who have logged out are no longer removed from the list. The column previously labelled "Last seen" has been renamed to "Last Call".
 
 **Bug Fixes**
 - Switching to a different uplink in the AreaFix Manager now automatically reloads the message history for the active tab. Previously the history panel was cleared but not repopulated, leaving it blank until the Refresh button was clicked manually.
@@ -385,6 +387,16 @@ No configuration changes or database migrations are required.
 The Today's Callers table (shown to admins on the dashboard) was previously embedded inside the System Information card as part of its definition list. It is now displayed in a separate card below the System Information card, giving the caller list more visual breathing room and making it easier to scan at a glance.
 
 Usernames in the list are now rendered as clickable links that navigate to each user's profile page at `/profile/<username>`.
+
+No configuration changes or database migrations are required.
+
+### Today's Callers Persists After Logout
+
+The Today's Callers list was previously built from active session records. When a user logged out, their session row was deleted and they were immediately removed from the list, even though they had genuinely called the system that day.
+
+The list now queries the login activity log (`user_activity_log`) instead. A login event is written at the moment of login and is never deleted, so a user who logs out remains visible in Today's Callers for the rest of the day. The count shown in the "Active Today" stat on the dashboard is derived from the same source.
+
+The "Last Call" column (previously "Last seen") shows the most recent session activity time for users who are currently online, or the login time for users who have since logged out.
 
 No configuration changes or database migrations are required.
 
