@@ -134,6 +134,34 @@ function fetchOverview(DateTimeImmutable $from, DateTimeImmutable $to, array $wh
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 }
 
+/**
+ * Fetch total echomail storage in bytes across all messages (not date-filtered).
+ * Sums the octet length of the primary text columns: message_text and kludge_lines.
+ */
+function fetchTotalStorage(array $where, array $params): int
+{
+    $db = Database::getInstance()->getPdo();
+    $sql = "
+        SELECT
+            COALESCE(SUM(
+                octet_length(COALESCE(em.message_text, '')) +
+                octet_length(COALESCE(em.kludge_lines, ''))
+            ), 0) AS total_bytes
+        FROM echomail em
+        INNER JOIN echoareas ea ON ea.id = em.echoarea_id
+    ";
+
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return (int)($row['total_bytes'] ?? 0);
+}
+
 function fetchAreaStats(DateTimeImmutable $from, DateTimeImmutable $to, array $where, array $params, int $top): array
 {
     $db = Database::getInstance()->getPdo();
@@ -145,7 +173,11 @@ function fetchAreaStats(DateTimeImmutable $from, DateTimeImmutable $to, array $w
             COUNT(*) FILTER (WHERE em.reply_to_id IS NULL) AS threads,
             COUNT(*) FILTER (WHERE em.reply_to_id IS NOT NULL) AS replies,
             COUNT(DISTINCT DATE(em.date_received AT TIME ZONE 'UTC')) AS active_days,
-            MAX(em.date_received) AS last_received
+            MAX(em.date_received) AS last_received,
+            COALESCE(SUM(
+                octet_length(COALESCE(em.message_text, '')) +
+                octet_length(COALESCE(em.kludge_lines, ''))
+            ), 0) AS storage_bytes
         FROM echomail em
         INNER JOIN echoareas ea ON ea.id = em.echoarea_id
         WHERE em.date_received >= ?
@@ -228,7 +260,22 @@ function formatAreaName(array $row): string
     return $label;
 }
 
-function printOverview(array $overview, DateTimeImmutable $from, DateTimeImmutable $to): void
+function formatBytes(int $bytes): string
+{
+    if ($bytes >= 1024 * 1024 * 1024) {
+        return number_format($bytes / (1024 * 1024 * 1024), 2) . ' GB';
+    }
+    if ($bytes >= 1024 * 1024) {
+        return number_format($bytes / (1024 * 1024), 2) . ' MB';
+    }
+    if ($bytes >= 1024) {
+        return number_format($bytes / 1024, 2) . ' KB';
+    }
+
+    return $bytes . ' B';
+}
+
+function printOverview(array $overview, DateTimeImmutable $from, DateTimeImmutable $to, int $totalStorageBytes): void
 {
     $days = max(1, (int)$from->diff($to)->days);
     $messages = (int)($overview['total_messages'] ?? 0);
@@ -246,15 +293,16 @@ function printOverview(array $overview, DateTimeImmutable $from, DateTimeImmutab
     echo "Active domains : " . (int)($overview['active_domains'] ?? 0) . "\n";
     echo "Msgs / day     : " . number_format($messages / $days, 1) . "\n";
     echo "Threads / day  : " . number_format($threads / $days, 1) . "\n";
+    echo "Total storage  : " . formatBytes($totalStorageBytes) . " (all-time, message text)\n";
     echo "\n";
 }
 
 function printAreaTable(array $rows, int $days): void
 {
     echo "By Echo Area\n";
-    echo str_repeat('-', 94) . "\n";
-    echo sprintf("%-28s %8s %8s %8s %8s %10s %10s\n", 'Area', 'Msgs', 'Threads', 'Replies', 'ActDays', 'Msgs/Day', 'Last Msg');
-    echo str_repeat('-', 94) . "\n";
+    echo str_repeat('-', 106) . "\n";
+    echo sprintf("%-28s %8s %8s %8s %8s %10s %10s %10s\n", 'Area', 'Msgs', 'Threads', 'Replies', 'ActDays', 'Msgs/Day', 'Last Msg', 'Size');
+    echo str_repeat('-', 106) . "\n";
 
     if ($rows === []) {
         echo "No echomail activity found in the selected window.\n\n";
@@ -264,14 +312,15 @@ function printAreaTable(array $rows, int $days): void
     foreach ($rows as $row) {
         $messages = (int)$row['messages'];
         echo sprintf(
-            "%-28s %8d %8d %8d %8d %10.1f %10s\n",
+            "%-28s %8d %8d %8d %8d %10.1f %10s %10s\n",
             mb_strimwidth(formatAreaName($row), 0, 28, '…'),
             $messages,
             (int)$row['threads'],
             (int)$row['replies'],
             (int)$row['active_days'],
             $messages / max(1, $days),
-            formatTimestamp($row['last_received'] ?? null)
+            formatTimestamp($row['last_received'] ?? null),
+            formatBytes((int)($row['storage_bytes'] ?? 0))
         );
     }
 
@@ -320,9 +369,10 @@ try {
     $overview = fetchOverview($from, $to, $where, $params);
     $areaRows = fetchAreaStats($from, $to, $where, $params, $top);
     $dailyRows = fetchDailyStats($from, $to, $where, $params);
+    $totalStorageBytes = fetchTotalStorage($where, $params);
     $days = max(1, (int)$from->diff($to)->days);
 
-    printOverview($overview, $from, $to);
+    printOverview($overview, $from, $to, $totalStorageBytes);
     printAreaTable($areaRows, $days);
     printDailyTable($dailyRows);
     exit(0);
