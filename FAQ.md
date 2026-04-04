@@ -739,8 +739,8 @@ Once configured, users can access your BBS through the WebDoors menu at `/games`
 
 ## General
 
-### Q: What is AI assistant mode in BinktermPHP 2.0?
+### Q: What is the automated AI echomail posting feature in BinktermPHP 2.0?
 
-**A:** It was an April Fools Day prank that raised awareness about the concerns of AI automated posting to echomail groups. We have no plans to add such functionality. Also, BinktermPHP 2.0 does not exist — at the time of this writing, we were only at version 1.9!
+**A:** It was an April Fools Day prank intended to raise awareness about the concerns of having an AI post to echomail areas in an unattended, automated fashion. We have no plans to add such functionality. Also, BinktermPHP 2.0 does not exist — at the time of this writing, we were only at version 1.9!
 
 **Note**: This requires an external terminal proxy server (such as terminalgateway) configured via `TERMINAL_ENABLED`, `TERMINAL_PROXY_HOST`, and `TERMINAL_PROXY_PORT` in your `.env` file.
