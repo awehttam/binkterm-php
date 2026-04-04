@@ -36,6 +36,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Per-Uplink Charset Override](#per-uplink-charset-override)
 - [Message Composer](#message-composer)
   - [Draft State Now Fully Preserved](#draft-state-now-fully-preserved)
+- [Dashboard](#dashboard)
+  - [Shoutbox Profile Links](#shoutbox-profile-links)
 - [Bug Fixes](#bug-fixes)
   - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
   - [AreaFix History Not Reloading on Uplink Change](#areafix-history-not-reloading-on-uplink-change)
@@ -86,6 +88,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Message Composer**
 - Saving an echomail or netmail draft now preserves the full compose state: message encoding (charset), markup format (plain, Markdown, Style Codes), hard-wrap setting, tagline selection, and cross-posted echo areas. When the draft is reopened, all of these fields are restored to the values that were in effect when the draft was saved. Previously, only the primary echo area, message text, subject, and recipient fields were saved; the encoding, markup type, wrap setting, tagline, and cross-post selections were silently discarded. A database migration (`v1.11.0.70`) adds a `meta` JSONB column to the `drafts` table to hold this additional state.
+
+**Dashboard**
+- Usernames in the shoutbox are now clickable links that navigate to the user's profile page.
 
 **Bug Fixes**
 - Switching to a different uplink in the AreaFix Manager now automatically reloads the message history for the active tab. Previously the history panel was cleared but not repopulated, leaving it blank until the Refresh button was clicked manually.
@@ -355,6 +360,14 @@ Previously, only the primary echo area, message body, subject line, and recipien
 A database migration (`v1.11.0.70`) adds a `meta` JSONB column to the `drafts` table. This column stores the additional composer state as a JSON object alongside the existing draft fields. No existing draft data is altered; drafts saved before this migration simply have no `meta` value and continue to open normally.
 
 Run `php scripts/setup.php` to apply the migration.
+
+## Dashboard
+
+### Shoutbox Profile Links
+
+Usernames displayed in the shoutbox on the web dashboard are now rendered as hyperlinks. Clicking a username navigates to that user's profile page at `/profile/<username>`. Previously usernames were displayed as plain bold text with no link.
+
+No configuration changes or database migrations are required.
 
 ## Bug Fixes
 
