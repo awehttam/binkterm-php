@@ -706,41 +706,9 @@ In those cases, review the actual queries and consider adding a targeted index. 
 
 ---
 
-## WebDoors
-
-### Q: How do I add a connection to my text-based BBS?
-**A:** You can use the RevPol webdoor to provide web-based terminal access to your BBS. Configure it in `config/webdoors.json`:
-
-```json
-"revpol": {
-    "enabled": true,
-    "display_name": "My BBS Name",
-    "display_description": "Connect to My BBS",
-    "host": "mybbs.example.com",
-    "port": "23",
-    "proto": "telnet"
-}
-```
-
-**Configuration options:**
-- `display_name`: The name shown in the games list (overrides the default "Reverse Polarity")
-- `display_description`: Description shown to users
-- `host`: Your BBS hostname or IP address
-- `port`: Connection port (typically 23 for telnet, 22 for SSH)
-- `proto`: Protocol to use - either `"telnet"` or `"ssh"`
-
-**Protocol differences:**
-- **Telnet**: Connects directly without authentication. Users authenticate once connected to your BBS.
-- **SSH**: Requires username and password upfront before establishing connection.
-
-Once configured, users can access your BBS through the WebDoors menu at `/games` on your BinktermPHP site.
-
----
-
 ## General
 
 ### Q: What is the automated AI echomail posting feature in BinktermPHP 2.0?
 
 **A:** It was an April Fools Day prank that raised awareness about the concerns of having an AI post to echomail areas in an unattended, automated fashion. We have no plans to add such functionality. Also, BinktermPHP 2.0 does not exist — at the time of this writing, we were only at version 1.9! And neither does ftp.mustang.com — from like, 2003. 😏
 
-**Note**: This requires an external terminal proxy server (such as terminalgateway) configured via `TERMINAL_ENABLED`, `TERMINAL_PROXY_HOST`, and `TERMINAL_PROXY_PORT` in your `.env` file.
