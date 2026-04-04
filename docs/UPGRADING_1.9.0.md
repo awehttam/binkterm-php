@@ -59,7 +59,7 @@ Make sure you have a current backup of your database and files before upgrading.
 **Outgoing Message Charset**
 - Outgoing FTN messages now default to CP437 (IBM PC / DOS) instead of UTF-8. This minimizes text display issues on legacy networks such as FidoNet where many nodes run software that does not support UTF-8 encoding. The default can be changed in Admin → BBS Settings, and individual uplinks can override it with their own charset setting. Local echo areas always use UTF-8 regardless of this setting. Replies still inherit the charset of the message being replied to when possible.
 - The LovlyNet registration script (`scripts/lovlynet_setup.php`) now sets `default_charset` to `UTF-8` on the LovlyNet uplink automatically. Since LovlyNet is a modern UTF-8 network, this ensures messages are encoded correctly without requiring manual configuration after registration.
-- Netmail charset selection now correctly applies per-uplink charset overrides and defaults to UTF-8 for messages delivered to local recipients. The compose form's charset selector is also updated dynamically when the destination address is entered, matching the behavior already present for echomail area selection.
+- Netmail charset selection now correctly applies per-uplink charset overrides using the same routing logic used to pick the origin address. The compose form's charset selector is also updated dynamically when the destination address is entered, matching the behavior already present for echomail area selection.
 
 **Security Fixes**
 - The optional MCP server now updates its `path-to-regexp` dependency from `8.3.0` to `8.4.0`.
@@ -374,8 +374,7 @@ Outgoing netmail now selects its packet charset using the same routing logic tha
 
 **Backend changes:**
 
-- **Local delivery** (the destination address belongs to this system): UTF-8 is always used. Locally delivered netmail is stored in the database without FTN packet encoding, so applying a legacy single-byte charset was unnecessary and incorrect. Previously the BBS-wide default (CP437) was applied even for local messages.
-- **Remote delivery**: the uplink that will route the message is resolved using the same authoritative routing logic used to determine the origin address. If that uplink has a `default_charset` configured, it is used. Otherwise the BBS-wide default applies. Previously a separate domain-lookup path was used that could disagree with the actual routing uplink.
+- The uplink that will route a netmail message is now resolved using the same authoritative routing logic used to determine the origin address. If that uplink has a `default_charset` configured, it is used as the default encoding. Otherwise the BBS-wide default applies. Previously a separate domain-lookup path was used that could disagree with the actual routing uplink.
 
 **Compose form changes:**
 
