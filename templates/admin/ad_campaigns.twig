@@ -1013,7 +1013,7 @@ function previewCampaignAd(event, id) {
     event?.preventDefault();
     event?.stopPropagation();
 
-    fetch(`/admin/api/ads/${encodeURIComponent(id)}`).then(readJsonResponse).then(({ response, data }) => {
+    fetch(`/admin/api/ads/${encodeURIComponent(id)}/preview`).then(readJsonResponse).then(({ response, data }) => {
         if (!response.ok || data.error_code) {
             throw new Error(apiError(data, uiT('ui.admin.ads.load_one_failed', 'Failed to load advertisement')));
         }

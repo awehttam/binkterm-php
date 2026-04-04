@@ -23,12 +23,34 @@ use BinktermPHP\Config;
 
 class AdminDaemonServer
 {
+    private const UDP_LEVEL_MAP = [
+        0 => 'DEBUG',
+        1 => 'INFO',
+        2 => 'WARNING',
+        3 => 'ERROR',
+    ];
+
+    /** Allowlist of log filenames the UDP logger is permitted to write. */
+    private const UDP_ALLOWED_LOG_FILES = [
+        'server.log',
+        'packets.log',
+        'multiplexing-server.log',
+        'binkp_poll.log',
+        'binkp_server.log',
+        'binkp_scheduler.log',
+        'admin_daemon.log',
+        'mrc_daemon.log',
+        'crashmail.log',
+        'dosdoor.log',
+    ];
+
     private string $socketTarget;
     private string $secret;
     private Logger $logger;
     private ?string $pidFile;
     private ?string $socketPerms;
     private $serverSocket;
+    private $udpLogSocket = null;
     private bool $shutdownRequested = false;
 
     /** @var resource|null Raw pg_* connection used for sse_events cleanup */
@@ -54,9 +76,15 @@ class AdminDaemonServer
         }
 
         $this->serverSocket = $this->createServerSocket($this->socketTarget);
+        $this->udpLogSocket = $this->createUdpLogSocket($this->socketTarget);
         $this->writePidFile();
 
         $this->logger->info('Admin daemon started', ['socket' => $this->socketTarget]);
+        if (is_resource($this->udpLogSocket)) {
+            $this->logger->info('Admin daemon UDP logger started', [
+                'socket' => @stream_socket_get_name($this->udpLogSocket, false) ?: 'udp://unknown'
+            ]);
+        }
 
         $this->initPgConnection();
 
@@ -93,6 +121,8 @@ class AdminDaemonServer
             if (++$this->loopIteration % 600 === 0) {
                 $this->pruneSSEEvents();
             }
+
+            $this->handleUdpLogSocket();
 
             $client = @stream_socket_accept($this->serverSocket, 0.1);
             if ($client === false) {
@@ -132,6 +162,9 @@ class AdminDaemonServer
         if (is_resource($this->serverSocket)) {
             fclose($this->serverSocket);
         }
+        if (is_resource($this->udpLogSocket)) {
+            fclose($this->udpLogSocket);
+        }
 
         $this->cleanupPidFile();
     }
@@ -159,6 +192,27 @@ class AdminDaemonServer
         }
 
         return $server;
+    }
+
+    private function createUdpLogSocket(string $socketTarget)
+    {
+        $endpoint = $this->getUdpEndpointForSocketTarget($socketTarget);
+        if ($endpoint === null) {
+            $this->logger->warning('Admin daemon UDP logger disabled: unsupported socket target', ['socket' => $socketTarget]);
+            return null;
+        }
+
+        $socket = @stream_socket_server($endpoint, $errno, $errstr, STREAM_SERVER_BIND);
+        if (!$socket) {
+            $this->logger->warning('Admin daemon UDP logger disabled: bind failed', [
+                'socket' => $endpoint,
+                'error' => "{$errstr} ({$errno})",
+            ]);
+            return null;
+        }
+
+        stream_set_blocking($socket, false);
+        return $socket;
     }
 
     private function applySocketPerms(string $path): void
@@ -1031,6 +1085,165 @@ class AdminDaemonServer
         $line .= "\n";
 
         @file_put_contents($logPath, $line, FILE_APPEND | LOCK_EX);
+    }
+
+    private function handleUdpLogSocket(): void
+    {
+        if (!is_resource($this->udpLogSocket)) {
+            return;
+        }
+
+        while (true) {
+            $peer = '';
+            $packet = @stream_socket_recvfrom($this->udpLogSocket, 2048, 0, $peer);
+            if (!is_string($packet) || $packet === '') {
+                break;
+            }
+
+            if (!$this->isTrustedUdpPeer($peer)) {
+                $this->logger->warning('Admin daemon UDP logger rejected non-local packet', ['peer' => $peer]);
+                continue;
+            }
+
+            try {
+                $decoded = $this->decodeUdpLogPacket($packet);
+                $this->appendUdpLog(
+                    $decoded['log_file'],
+                    $decoded['level'],
+                    $decoded['pid'],
+                    $decoded['message'],
+                    $decoded['timestamp']
+                );
+            } catch (\Throwable $e) {
+                $this->logger->warning('Admin daemon UDP logger rejected malformed packet', [
+                    'peer' => $peer,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    private function decodeUdpLogPacket(string $packet): array
+    {
+        // Fixed header: uint64 timestamp(8) | uint8 level(1) | uint32 pid(4) | uint8 filenameLen(1) = 14 bytes
+        if (strlen($packet) < 14) {
+            throw new \RuntimeException('packet_too_short');
+        }
+
+        $header = unpack('Nts_hi/Nts_lo/Clevel/Npid/Cfilename_len', substr($packet, 0, 14));
+        if (!is_array($header)) {
+            throw new \RuntimeException('unpack_failed');
+        }
+
+        $filenameLen = (int)$header['filename_len'];
+        $filenameOffset = 14;
+        $msgLenOffset = $filenameOffset + $filenameLen;
+
+        if (strlen($packet) < $msgLenOffset + 2) {
+            throw new \RuntimeException('packet_too_short_for_filename');
+        }
+
+        $logFile = $filenameLen > 0 ? substr($packet, $filenameOffset, $filenameLen) : 'server.log';
+
+        $msgLenParts = unpack('nmsg_len', substr($packet, $msgLenOffset, 2));
+        if (!is_array($msgLenParts)) {
+            throw new \RuntimeException('unpack_msg_len_failed');
+        }
+
+        $msgLen = (int)$msgLenParts['msg_len'];
+        $msgOffset = $msgLenOffset + 2;
+
+        if (strlen($packet) - $msgOffset < $msgLen) {
+            throw new \RuntimeException('invalid_message_length');
+        }
+
+        $message = substr($packet, $msgOffset, $msgLen);
+        if (!mb_check_encoding($message, 'UTF-8')) {
+            throw new \RuntimeException('invalid_utf8');
+        }
+
+        $timestampMs = (((int)$header['ts_hi']) << 32) | (int)$header['ts_lo'];
+
+        return [
+            'timestamp' => $timestampMs,
+            'log_file'  => basename($logFile),
+            'level'     => self::UDP_LEVEL_MAP[(int)$header['level']] ?? 'INFO',
+            'pid'       => (int)$header['pid'],
+            'message'   => $message,
+        ];
+    }
+
+    private function appendUdpLog(string $logFile, string $level, int $pid, string $message, int $timestampMs): void
+    {
+        $allowed = in_array($logFile, self::UDP_ALLOWED_LOG_FILES, true);
+        if (!$allowed) {
+            $this->logger->warning('Admin daemon UDP logger rejected unknown log file', [
+                'log_file' => $logFile,
+                'pid'      => $pid,
+            ]);
+            $logFile = 'server.log';
+        }
+
+        $logPath = Config::getLogPath($logFile);
+
+        $this->logger->debug('Admin daemon UDP log received', [
+            'level'    => $level,
+            'pid'      => $pid,
+            'log_file' => $logFile,
+            'message'  => $message,
+        ]);
+
+        // $message is a pre-formatted log line from Logger — write it verbatim.
+        @file_put_contents($logPath, $message . "\n", FILE_APPEND | LOCK_EX);
+    }
+
+    private function formatUdpTimestamp(int $timestampMs): string
+    {
+        if ($timestampMs <= 0) {
+            return date('Y-m-d H:i:s');
+        }
+
+        $seconds = intdiv($timestampMs, 1000);
+        $millis = $timestampMs % 1000;
+        return date('Y-m-d H:i:s', $seconds) . '.' . str_pad((string)$millis, 3, '0', STR_PAD_LEFT);
+    }
+
+    private function isTrustedUdpPeer(string $peer): bool
+    {
+        $peer = trim($peer);
+        if ($peer === '') {
+            return false;
+        }
+
+        $host = $peer;
+        if ($host[0] === '[') {
+            $end = strpos($host, ']');
+            if ($end !== false) {
+                $host = substr($host, 1, $end - 1);
+            }
+        } else {
+            $colon = strrpos($host, ':');
+            if ($colon !== false) {
+                $host = substr($host, 0, $colon);
+            }
+        }
+
+        return in_array($host, ['127.0.0.1', '::1', 'localhost'], true);
+    }
+
+    private function getUdpEndpointForSocketTarget(string $socketTarget): ?string
+    {
+        if (preg_match('#^tcp://([^:]+):(\\d+)$#', $socketTarget, $matches) !== 1) {
+            return null;
+        }
+
+        $host = $matches[1];
+        $port = (int)$matches[2];
+        if ($port <= 0 || $port > 65535) {
+            return null;
+        }
+
+        return "udp://{$host}:{$port}";
     }
 
     private function sanitizeLogData(array $data): array

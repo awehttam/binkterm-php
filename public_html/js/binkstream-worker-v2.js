@@ -34,12 +34,7 @@ let wsConnectTimer = null;
 let wsRetryProbeTimer = null;
 let wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
 let lastCursor = '';
-
-// Events received while no ports are connected (e.g. during a single-tab refresh)
-// are buffered here and replayed to the first port that reconnects.
-// TTL prevents stale replays if the worker was genuinely idle for a long time.
-const ORPHAN_EVENT_TTL_MS = 30000;
-const orphanEvents = [];
+let isInitialized = false;
 
 function debugLog() {
     if (typeof console === 'undefined' || typeof console.log !== 'function') {
@@ -57,6 +52,7 @@ self.onconnect = function (e) {
         switch (data.action) {
             case 'init':
                 initializeConfig(data.config || {});
+                isInitialized = true;
                 ensureTransport();
                 break;
             case 'subscribe':
@@ -73,23 +69,21 @@ self.onconnect = function (e) {
 
     port.start();
 
-    // Replay any events that arrived while no ports were connected (e.g. single-tab
-    // refresh). Discard events older than the TTL to avoid stale replays.
-    if (orphanEvents.length > 0) {
-        const cutoff = Date.now() - ORPHAN_EVENT_TTL_MS;
-        const fresh = orphanEvents.filter(function (ev) { return ev.at >= cutoff; });
-        orphanEvents.length = 0;
-        fresh.forEach(function (ev) {
-            try {
-                port.postMessage({ type: ev.type, data: ev.data });
-            } catch (_) {}
-        });
+    // Push the current cursor to this port immediately so that UserStorage is
+    // up-to-date as soon as the page connects, even if no new events arrive
+    // before the next reconnect cycle.  Without this, a refresh where the
+    // SharedWorker survives but no events fire leaves UserStorage pointing at
+    // a stale position, causing replay if the worker is later restarted.
+    if (lastCursor) {
+        try {
+            port.postMessage({ type: '__cursor', data: { cursor: lastCursor } });
+        } catch (_) {}
     }
-
-    ensureTransport();
 };
 
 function initializeConfig(config) {
+    const rawTransportMode = String(config.transportMode || 'sse');
+    const rawPreferredTransportMode = String(config.preferredTransportMode || 'sse');
     const mode = String(config.transportMode || 'sse').toLowerCase();
     transportMode = ['auto', 'sse', 'ws'].includes(mode) ? mode : 'sse';
     const preferred = String(config.preferredTransportMode || 'sse').toLowerCase();
@@ -105,6 +99,9 @@ function initializeConfig(config) {
         wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
     }
     debugLog('[BinkStream worker] init', {
+        rawTransportMode: rawTransportMode,
+        rawPreferredTransportMode: rawPreferredTransportMode,
+        rawWsUrl: typeof config.wsUrl === 'string' ? config.wsUrl : '(missing)',
         configuredTransportMode: transportMode,
         preferredTransportMode: preferredTransportMode,
         wsUrl: wsUrl || '(default)',
@@ -117,6 +114,9 @@ function effectiveTransportMode() {
 }
 
 function ensureTransport() {
+    if (!isInitialized) {
+        return;
+    }
     if (ports.size === 0) {
         closeTransport();
         return;
@@ -288,6 +288,18 @@ function connectSse() {
     current.addEventListener('error', function () {
         if (current !== es) {
             return;
+        }
+        // Sync cursor from the browser's native lastEventId before closing.
+        // The browser advances lastEventId for every SSE id: field regardless
+        // of whether a named-event listener is registered, so this ensures the
+        // cursor advances past events whose types are not currently subscribed
+        // (e.g. admin events on a non-admin page, or events the page hasn't
+        // subscribed to yet).  Without this, unsubscribed events are replayed
+        // on every reconnect because lastCursor never moves past them.
+        const nativeId = current.lastEventId;
+        if (nativeId && nativeId !== lastCursor) {
+            lastCursor = nativeId;
+            broadcastCursor(lastCursor);
         }
         current.close();
         es = null;
@@ -555,12 +567,6 @@ function broadcast(type, data) {
         ports.delete(port);
     });
     if (ports.size === 0) {
-        // Buffer the event so it can be replayed to the next port that connects
-        // (e.g. the same tab finishing a page refresh). Skip internal transport
-        // events — only buffer application-level events.
-        if (type !== '__transport') {
-            orphanEvents.push({ type: type, data: data, at: Date.now() });
-        }
         closeTransport();
     }
 }

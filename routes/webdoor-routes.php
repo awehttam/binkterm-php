@@ -256,7 +256,7 @@ SimpleRouter::get('/games', function() {
             ];
         }
     } catch (\Throwable $e) {
-        error_log('Failed to load WebDoor leaderboard: ' . $e->getMessage());
+        getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
     }
 
     $template = new Template();

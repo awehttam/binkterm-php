@@ -57,10 +57,10 @@ class Auth
         $stmt = $this->db->prepare('
             SELECT id, username, real_name, email, is_admin, password_hash, created_at, last_login, location, fidonet_address
             FROM users
-            WHERE LOWER(username) = LOWER(?) AND is_active = TRUE
+            WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND is_active = TRUE
             LIMIT 1
         ');
-        $stmt->execute([$username]);
+        $stmt->execute([$username, $username]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
@@ -174,7 +174,7 @@ class Auth
                             UserCredit::processDaily((int)$userId);
                             UserCredit::process14DayReturn((int)$userId);
                         } catch (\Throwable $e) {
-                            error_log('[CREDITS] Daily processing failed: ' . $e->getMessage());
+                            getServerLogger()->error('[CREDITS] Daily processing failed: ' . $e->getMessage());
                         }
                     }
 
@@ -332,29 +332,50 @@ class Auth
     }
 
     /**
-     * Get count of distinct users active since midnight UTC today
+     * Get count of distinct active users today (UTC midnight to now).
+     * Counts users who either logged in today or have an active session with activity today,
+     * so users with long-lived cookies who did not re-login are included.
      *
      * @return int
      */
     public function getActiveTodayCount(): int
     {
-        $stmt = $this->db->query("
-            SELECT COUNT(DISTINCT s.user_id) AS count
-            FROM user_sessions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.last_activity >= CURRENT_DATE
-              AND u.is_active = TRUE
+        $stmt = $this->db->prepare("
+            SELECT COUNT(DISTINCT u.id) AS count
+            FROM users u
+            WHERE u.is_active = TRUE
+              AND (
+                EXISTS (
+                    SELECT 1 FROM user_activity_log al
+                    WHERE al.user_id = u.id
+                      AND al.activity_type_id = ?
+                      AND al.created_at >= CURRENT_DATE
+                )
+                OR EXISTS (
+                    SELECT 1 FROM user_sessions s
+                    WHERE s.user_id = u.id
+                      AND s.last_activity >= CURRENT_DATE
+                      AND s.expires_at > NOW()
+                )
+              )
         ");
+        $stmt->execute([ActivityTracker::TYPE_LOGIN]);
         $result = $stmt->fetch(\PDO::FETCH_ASSOC);
         return (int) ($result['count'] ?? 0);
     }
 
     /**
-     * Get list of distinct users who have had an active session today (since midnight in the given timezone).
-     * Returns one row per user with last_activity converted to the given timezone.
+     * Get list of distinct users who were active today (since midnight in the given timezone).
+     *
+     * A user qualifies if they logged in today (login event persists after logout) or have
+     * an active session with activity today (covers long-lived cookie users who did not
+     * explicitly re-login). The two sources are unioned so neither case is missed.
+     *
+     * Returns one row per user ordered by first activity today, with last_activity showing
+     * the most recent session activity (or login time if no active session remains).
      *
      * @param string $timezone A valid PHP/IANA timezone name, e.g. 'America/New_York'
-     * @return array Array of ['username', 'last_activity'] rows ordered by first seen today
+     * @return array Array of ['username', 'last_activity', 'is_online'] rows
      */
     public function getTodaysCallers(string $timezone = 'UTC'): array
     {
@@ -366,18 +387,52 @@ class Auth
         }
 
         $stmt = $this->db->prepare("
+            WITH today_start AS (
+                SELECT date_trunc('day', NOW() AT TIME ZONE :tz_name) AT TIME ZONE :tz_name2 AS ts
+            ),
+            callers AS (
+                SELECT al.user_id, MIN(al.created_at) AS first_seen
+                FROM user_activity_log al, today_start
+                WHERE al.activity_type_id = :type
+                  AND al.created_at >= today_start.ts
+                GROUP BY al.user_id
+
+                UNION ALL
+
+                SELECT s.user_id, MIN(s.last_activity) AS first_seen
+                FROM user_sessions s, today_start
+                WHERE s.last_activity >= today_start.ts
+                  AND s.expires_at > NOW()
+                GROUP BY s.user_id
+            ),
+            caller_first AS (
+                SELECT user_id, MIN(first_seen) AS first_seen
+                FROM callers
+                GROUP BY user_id
+            )
             SELECT u.username,
-                   MAX(s.last_activity) AT TIME ZONE :tz AS last_activity,
+                   COALESCE(
+                       MAX(s.last_activity),
+                       MAX(al.created_at)
+                   ) AT TIME ZONE :tz AS last_activity,
                    BOOL_OR(s.last_activity > NOW() - INTERVAL '15 minutes'
                            AND s.expires_at > NOW()) AS is_online
-            FROM user_sessions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.last_activity >= date_trunc('day', NOW() AT TIME ZONE :tz2) AT TIME ZONE :tz3
-              AND u.is_active = TRUE
-            GROUP BY u.id, u.username
-            ORDER BY MIN(s.last_activity) ASC
+            FROM caller_first cf
+            JOIN users u ON u.id = cf.user_id AND u.is_active = TRUE
+            LEFT JOIN user_sessions s ON s.user_id = u.id
+            LEFT JOIN user_activity_log al ON al.user_id = u.id
+                AND al.activity_type_id = :type2
+                AND al.created_at >= (SELECT ts FROM today_start)
+            GROUP BY u.id, u.username, cf.first_seen
+            ORDER BY cf.first_seen ASC
         ");
-        $stmt->execute([':tz' => $timezone, ':tz2' => $timezone, ':tz3' => $timezone]);
+        $stmt->execute([
+            ':tz_name'  => $timezone,
+            ':tz_name2' => $timezone,
+            ':type'     => ActivityTracker::TYPE_LOGIN,
+            ':type2'    => ActivityTracker::TYPE_LOGIN,
+            ':tz'       => $timezone,
+        ]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 

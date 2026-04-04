@@ -4,7 +4,8 @@ return [
     'ui.terminalserver.server.rate_limited' => 'Trop de tentatives de connexion échouées. Veuillez réessayer plus tard.',
     'ui.terminalserver.server.login_menu.prompt' => 'Que souhaitez-vous faire :',
     'ui.terminalserver.server.login_menu.login' => '  (L) Se connecter à un compte existant',
-    'ui.terminalserver.server.login_menu.register' => '  (R) Créer un nouveau compte',
+    'ui.terminalserver.server.login_menu.reset_password' => '  (R) Réinitialiser un mot de passe perdu',
+    'ui.terminalserver.server.login_menu.register' => '  (N) Créer un nouveau compte',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) Transfert QWK',
     'ui.terminalserver.server.login_menu.quit' => '  (Q) Quitter',
     'ui.terminalserver.server.login_menu.choice' => 'Votre choix : ',
@@ -16,6 +17,14 @@ return [
     'ui.terminalserver.server.login.success' => 'Connexion réussie.',
     'ui.terminalserver.server.login.failed_remaining' => 'Échec de la connexion. {remaining} tentative(s) restante(s).',
     'ui.terminalserver.server.login.failed_max' => 'Échec de la connexion. Nombre maximum de tentatives dépassé.',
+    'ui.terminalserver.server.reset_password.title' => '=== Réinitialisation du mot de passe ===',
+    'ui.terminalserver.server.reset_password.intro' => 'Entrez votre nom d\'utilisateur, votre nom réel ou votre adresse e-mail et nous enverrons un lien de réinitialisation si le compte existe.',
+    'ui.terminalserver.server.reset_password.cancel_hint' => '(Appuyez sur Entrée sur une invite vide pour annuler)',
+    'ui.terminalserver.server.reset_password.identifier_prompt' => 'Nom d\'utilisateur, nom réel ou e-mail : ',
+    'ui.terminalserver.server.reset_password.submitting' => 'Demande de réinitialisation du mot de passe...',
+    'ui.terminalserver.server.reset_password.success' => 'Si un compte avec ce nom d\'utilisateur, ce nom réel ou cet e-mail existe, un lien de réinitialisation a été envoyé.',
+    'ui.terminalserver.server.reset_password.check_email' => 'Veuillez vérifier votre boîte de réception et votre dossier spam pour le lien de réinitialisation.',
+    'ui.terminalserver.server.reset_password.failed' => 'Impossible de traiter la demande de réinitialisation du mot de passe.',
     'ui.terminalserver.server.registration.title' => '=== Inscription d\'un nouvel utilisateur ===',
     'ui.terminalserver.server.registration.intro' => 'Veuillez fournir les informations suivantes pour créer votre compte.',
     'ui.terminalserver.server.registration.cancel_hint' => '(Tapez "cancel" à n\'importe quelle invite pour annuler l\'inscription)',
@@ -155,7 +164,80 @@ return [
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Paramètres du terminal',
 
-    // --- Terminal settings page ---
+    // --- Menu principal ---
+    'ui.terminalserver.server.menu.settings'           => 'T) Paramètres',
+
+    // --- Écran de paramètres à onglets ---
+    'ui.terminalserver.settings.tab_title'             => 'Paramètres BBS',
+    'ui.terminalserver.settings.tab_terminal'          => 'Terminal',
+    'ui.terminalserver.settings.tab_display'           => 'Affichage',
+    'ui.terminalserver.settings.tab_messaging'         => 'Messagerie',
+    'ui.terminalserver.settings.tab_account'           => 'Compte',
+    'ui.terminalserver.settings.tab_ai'                => 'IA',
+    'ui.terminalserver.settings.hint_navigate'         => '  ↑↓ Déplacer   ◄► Modifier   [ ] Onglets   S) Enreg.   Q) Quitter',
+    'ui.terminalserver.settings.hint_navigate_ascii'   => '  Haut/Bas Déplacer   G/D Modifier   [/] Onglets   S) Enreg.   Q) Quitter',
+    'ui.terminalserver.settings.discarded'             => 'Modifications abandonnées.',
+
+    // Onglet Terminal
+    'ui.terminalserver.settings.terminal.charset'      => 'Jeu de caractères',
+    'ui.terminalserver.settings.terminal.ansi_color'   => 'Couleur ANSI',
+    'ui.terminalserver.settings.terminal.run_wizard'   => 'Assistant de détection',
+
+    // Onglet Affichage
+    'ui.terminalserver.settings.display.messages_per_page' => 'Messages par page',
+    'ui.terminalserver.settings.display.timezone'          => 'Fuseau horaire',
+    'ui.terminalserver.settings.display.language'          => 'Langue',
+    'ui.terminalserver.settings.display.date_format'       => 'Format de date',
+    'ui.terminalserver.settings.display.default_echo_list' => 'Liste de zones par défaut',
+    'ui.terminalserver.settings.display.echo_list_system'  => 'Par défaut système',
+    'ui.terminalserver.settings.display.echo_list_reader'  => 'Lecteur',
+    'ui.terminalserver.settings.display.echo_list_all'     => 'Toutes les zones',
+
+    // Onglet Messagerie
+    'ui.terminalserver.settings.messaging.signature'        => 'Signature',
+    'ui.terminalserver.settings.messaging.signature_hint'   => 'ENTRER pour modifier (4 lignes max)',
+    'ui.terminalserver.settings.messaging.tagline'          => 'Slogan par défaut',
+    'ui.terminalserver.settings.messaging.tagline_none'     => '(Aucun slogan)',
+    'ui.terminalserver.settings.messaging.tagline_random'   => '(Aléatoire)',
+    'ui.terminalserver.settings.messaging.threaded_echo'    => 'Vue en fil (Echomail)',
+    'ui.terminalserver.settings.messaging.threaded_net'     => 'Vue en fil (Netmail)',
+    'ui.terminalserver.settings.messaging.quote_coloring'   => 'Coloriser les citations',
+    'ui.terminalserver.settings.messaging.forward_netmail'  => 'Transférer le Netmail par e-mail',
+    'ui.terminalserver.settings.messaging.echomail_digest'  => 'Résumé Echomail',
+    'ui.terminalserver.settings.messaging.digest_none'      => 'Aucun',
+    'ui.terminalserver.settings.messaging.digest_daily'     => 'Quotidien',
+    'ui.terminalserver.settings.messaging.digest_weekly'    => 'Hebdomadaire',
+
+    // Onglet Compte
+    'ui.terminalserver.settings.account.change_password'        => 'Changer le mot de passe',
+    'ui.terminalserver.settings.account.view_sessions'          => 'Voir les sessions actives',
+    'ui.terminalserver.settings.account.reset_onboarding'       => 'Réinitialiser l\'accueil Echomail',
+    'ui.terminalserver.settings.account.sessions_title'         => 'Sessions actives',
+    'ui.terminalserver.settings.account.no_sessions'            => '  Aucune session active trouvée.',
+    'ui.terminalserver.settings.account.sessions_hint'          => 'Numéro de session à révoquer, ou Q pour revenir : ',
+    'ui.terminalserver.settings.account.old_password_prompt'    => 'Mot de passe actuel : ',
+    'ui.terminalserver.settings.account.new_password_prompt'    => 'Nouveau mot de passe : ',
+    'ui.terminalserver.settings.account.confirm_password_prompt' => 'Confirmer le nouveau mot de passe : ',
+    'ui.terminalserver.settings.account.password_mismatch'      => 'Les mots de passe ne correspondent pas.',
+    'ui.terminalserver.settings.account.password_changed'       => 'Mot de passe modifié avec succès.',
+    'ui.terminalserver.settings.account.password_failed'        => 'Échec du changement de mot de passe.',
+    'ui.terminalserver.settings.account.onboarding_reset'       => 'Accueil Echomail réinitialisé. L\'assistant de sélection s\'affichera lors de votre prochaine visite.',
+    'ui.terminalserver.settings.account.onboarding_reset_failed' => 'Échec de la réinitialisation.',
+
+    // Onglet IA
+    'ui.terminalserver.settings.ai.generate_key'       => 'Générer une clé MCP',
+    'ui.terminalserver.settings.ai.regenerate_key'     => 'Régénérer la clé MCP',
+    'ui.terminalserver.settings.ai.regenerate_confirm' => 'La régénération invalidera la clé existante. Continuer ? (O/N) : ',
+    'ui.terminalserver.settings.ai.revoke_key'         => 'Révoquer la clé MCP',
+    'ui.terminalserver.settings.ai.revoke_confirm'     => 'Révoquer la clé MCP ? Tout client IA connecté sera déconnecté. (O/N) : ',
+    'ui.terminalserver.settings.ai.mcp_key_exists'     => 'Clé active : {preview}',
+    'ui.terminalserver.settings.ai.mcp_no_key'         => 'Aucune clé générée',
+    'ui.terminalserver.settings.ai.key_generated'      => 'Clé MCP générée. Copiez-la maintenant — elle ne sera plus affichée :',
+    'ui.terminalserver.settings.ai.generate_failed'    => 'Échec de la génération de clé.',
+    'ui.terminalserver.settings.ai.key_revoked'        => 'Clé MCP révoquée.',
+    'ui.terminalserver.settings.ai.revoke_failed'      => 'Échec de la révocation.',
+
+    // --- Ancienne page de paramètres du terminal ---
     'ui.terminalserver.settings.title'                 => '=== Paramètres du terminal ===',
     'ui.terminalserver.settings.charset_label'         => 'Jeu de caractères : {value}',
     'ui.terminalserver.settings.ansi_label'            => 'Couleur ANSI      : {value}',

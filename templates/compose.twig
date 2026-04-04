@@ -676,15 +676,17 @@ let mdPreviewTimer = null;
 let scToolbarActive = false;
 let hardWrapLimit = 79; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
-const replyCharset    = {{ reply_charset|default("UTF-8")|json_encode|raw }};
+const defaultCharset  = {{ default_charset|default("CP437")|json_encode|raw }};
+const replyCharset    = {{ reply_charset|default("")|json_encode|raw }};
+const domainCharsets  = {{ domain_charsets|default({})|json_encode|raw }};
 
-// Pre-select the charset from the reply context (or default to UTF-8 for new messages)
+// Pre-select the charset from the reply context, or the configured default for new messages
 (function() {
     const sel = document.getElementById('charsetSelect');
-    if (sel && replyCharset) {
-        sel.value = replyCharset;
-        // If the value didn't match any option, fall back to UTF-8
-        if (!sel.value) { sel.value = 'UTF-8'; }
+    if (sel) {
+        sel.value = replyCharset || defaultCharset;
+        // If the value didn't match any option, fall back to the configured default
+        if (!sel.value) { sel.value = defaultCharset; }
     }
 })();
 
@@ -761,6 +763,10 @@ function updateMarkdownSection(allowed) {
     if (!allowed && replyMarkupType) {
         allowed = true;
     }
+    // Loading a draft with a saved markup type: same treatment.
+    if (!allowed && window.draftMeta && window.draftMeta.markup_type) {
+        allowed = true;
+    }
     const section = $('#markdownSection');
     if (allowed) {
         section.show();
@@ -770,6 +776,15 @@ function updateMarkdownSection(allowed) {
             if (replyMarkupType === 'markdown') {
                 initMarkdownEditor();
             } else if (replyMarkupType === 'stylecodes') {
+                initStyleCodesToolbar();
+            }
+        } else if (window.draftMeta && window.draftMeta.markup_type && !markdownPrefilled) {
+            const mt = window.draftMeta.markup_type;
+            $('#markupType').val(mt);
+            markdownPrefilled = true;
+            if (mt === 'markdown') {
+                initMarkdownEditor();
+            } else if (mt === 'stylecodes') {
                 initStyleCodesToolbar();
             }
         }
@@ -806,6 +821,12 @@ function fetchMarkdownSupport(params) {
                 updateNetmailGuidelinesPostingName((response && response.posting_name_policy) || 'real_name');
                 currentAddressIsLocal = !!response.is_local_address;
                 updateCrashmailForAttachment();
+                // Update the charset selector to match the destination's uplink charset,
+                // unless the user is composing a reply (where the original charset takes precedence).
+                if (!replyCharset && response.default_charset) {
+                    const sel = document.getElementById('charsetSelect');
+                    if (sel) { sel.value = response.default_charset; if (!sel.value) sel.value = defaultCharset; }
+                }
             }
         })
         .fail(function() {
@@ -890,7 +911,11 @@ function refreshMarkdownSupportForNetmail() {
         updateMarkdownSection(false);
         currentAddressIsLocal = true; // blank address routes to local system
         updateCrashmailForAttachment();
-        // No address yet — leave the server-rendered (translated) guideline text untouched.
+        // Blank address = local delivery — default charset to UTF-8 (no FTN packet encoding needed).
+        if (!replyCharset) {
+            const sel = document.getElementById('charsetSelect');
+            if (sel) sel.value = 'UTF-8';
+        }
         return;
     }
     fetchMarkdownSupport({ address: address });
@@ -1346,7 +1371,7 @@ function mdImageInsert() {
         const opt = sel.options[sel.selectedIndex];
         const url = sel.value;
         const filename = opt ? opt.dataset.filename : '';
-        const alt = document.getElementById('mdImageAltPicker').value.trim() || filename.replace(/\.[^.]+$/, '');
+        const alt = document.getElementById('mdImageAltPicker').value.trim();
         mdImageDoInsert(url, alt);
     } else if (uploadTabActive) {
         const file = document.getElementById('mdImageFile').files[0];
@@ -1391,14 +1416,6 @@ function mdImageLoadPicker() {
                 opt.dataset.filename = img.filename;
                 opt.textContent      = img.filename;
                 sel.appendChild(opt);
-            });
-            // Pre-fill alt text when selection changes
-            sel.addEventListener('change', function() {
-                const altField = document.getElementById('mdImageAltPicker');
-                if (!altField.value) {
-                    const chosen = sel.options[sel.selectedIndex];
-                    altField.value = chosen ? chosen.dataset.filename.replace(/\.[^.]+$/, '') : '';
-                }
             });
         })
         .fail(function() {
@@ -1747,7 +1764,7 @@ function populateEchoareaSelect(areas, preselect) {
     allEchoareas = areas;
     areas.forEach(function(area) {
         const val = area.domain ? area.tag + '@' + area.domain : area.tag;
-        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}">${val}</option>`);
+        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}" data-is-local="${area.is_local ? '1' : ''}">${val}</option>`);
     });
     select.on('change', function() {
         const color = $(this).find('option:selected').data('color');
@@ -1755,6 +1772,21 @@ function populateEchoareaSelect(areas, preselect) {
         populateCrossPostAreas();
         refreshMarkdownSupportForEchomail();
         updateEchomailGuidelinesPostingName();
+        // Update charset selector based on area type and per-uplink override
+        if (!replyCharset) {
+            const isLocal = !!$(this).find('option:selected').data('is-local');
+            const val = $(this).val() || '';
+            const atPos = val.indexOf('@');
+            const domain = atPos !== -1 ? val.substring(atPos + 1).toLowerCase() : '';
+            let charset;
+            if (isLocal) {
+                charset = 'UTF-8';
+            } else {
+                charset = (domain && domainCharsets[domain]) ? domainCharsets[domain] : defaultCharset;
+            }
+            const sel = document.getElementById('charsetSelect');
+            if (sel) { sel.value = charset; if (!sel.value) sel.value = defaultCharset; }
+        }
     });
     if (preselect) {
         select.val(preselect);
@@ -1767,6 +1799,26 @@ function populateEchoareaSelect(areas, preselect) {
     if (!replyToId && allEchoareas.length > 1) {
         $('#crossPostSection').show();
         populateCrossPostAreas();
+    }
+
+    // Restore draft meta fields that depend on echoarea selection completing.
+    // This runs after all synchronous calls to populateCrossPostAreas() and after
+    // the echoarea change handler (which may override charset) has finished.
+    // window.draftMeta is kept alive here so the async updateMarkdownSection()
+    // callback can still read markup_type after fetchMarkdownSupport resolves.
+    if (window.draftMeta) {
+        const meta = window.draftMeta;
+        // Re-apply charset — the echoarea change handler may have overridden it.
+        if (meta.charset) $('#charsetSelect').val(meta.charset);
+        // Restore cross-post selections.
+        if (Array.isArray(meta.cross_post_areas) && meta.cross_post_areas.length > 0) {
+            meta.cross_post_areas.forEach(function(area) {
+                $('#crossPostList .cross-post-check[value="' + area + '"]').prop('checked', true);
+            });
+            enforceCrossPostLimit();
+        }
+        // markup_type is restored asynchronously inside updateMarkdownSection()
+        // once fetchMarkdownSupport() resolves and the section becomes visible.
     }
 }
 
@@ -2023,6 +2075,13 @@ function sendMessage() {
 
 function saveDraft(silent = false) {
     syncEditorToTextarea();
+
+    // Collect cross-post areas for echomail drafts
+    const crossPostAreas = [];
+    $('.cross-post-check:checked').each(function() {
+        crossPostAreas.push($(this).val());
+    });
+
     const formData = {
         type: $('#messageType').val(),
         to_address: $('#toAddress').val(),
@@ -2030,7 +2089,14 @@ function saveDraft(silent = false) {
         echoarea: $('#echoarea').val(),
         subject: $('#subject').val(),
         message_text: $('#messageText').val(),
-        reply_to_id: $('#replyToId').val() || null
+        reply_to_id: $('#replyToId').val() || null,
+        meta: {
+            cross_post_areas: crossPostAreas,
+            charset: $('#charsetSelect').val() || null,
+            markup_type: $('#markupType').val() || null,
+            hard_wrap: hardWrapLimit,
+            tagline: $('#taglineSelect').val() || null
+        }
     };
 
     // Only save if there's actual content
@@ -2111,6 +2177,25 @@ function loadDraft(draftId) {
                         window.draftEchoarea = draft.echoarea;
                     }
                     if (draft.reply_to_id) $('#replyToId').val(draft.reply_to_id);
+
+                    // Preserve meta so populateEchoareaSelect() and
+                    // updateMarkdownSection() can restore echomail-dependent fields
+                    // after the area selection fires its async callbacks.
+                    if (draft.meta) {
+                        window.draftMeta = draft.meta;
+                        // Fields not overridden by echoarea selection: restore immediately.
+                        if (draft.meta.tagline !== undefined && draft.meta.tagline !== null) {
+                            $('#taglineSelect').val(draft.meta.tagline);
+                        }
+                        if (draft.meta.hard_wrap !== undefined && draft.meta.hard_wrap !== null) {
+                            hardWrapLimit = parseInt(draft.meta.hard_wrap, 10) || 0;
+                            $('#hardWrapSelect').val(String(hardWrapLimit));
+                        }
+                        // Charset: apply now for netmail (no echoarea override).
+                        // populateEchoareaSelect() will re-apply for echomail after
+                        // the area change handler overwrites it.
+                        if (draft.meta.charset) $('#charsetSelect').val(draft.meta.charset);
+                    }
 
                     // Store draft ID for potential deletion after sending
                     window.currentDraftId = draftId;

@@ -15,6 +15,8 @@
 
 namespace BinktermPHP\Mrc;
 
+use BinktermPHP\Binkp\Logger;
+
 /**
  * MRC Protocol Client
  *
@@ -38,10 +40,12 @@ class MrcClient
     private $receiveBuffer = '';
     private $connected = false;
     private bool $debug = false;
+    private Logger $logger;
 
-    public function __construct(MrcConfig $config)
+    public function __construct(MrcConfig $config, ?Logger $logger = null)
     {
         $this->config = $config;
+        $this->logger = $logger ?? new Logger(\BinktermPHP\Config::getLogPath('mrc_daemon.log'), Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -62,7 +66,7 @@ class MrcClient
     private function debugLog(string $message): void
     {
         if ($this->debug) {
-            error_log("MRC [DEBUG] " . $message);
+            $this->logger->debug("MRC [DEBUG] " . $message);
         }
     }
 
@@ -105,7 +109,7 @@ class MrcClient
             );
 
             if (!$this->socket) {
-                error_log("MRC: Connection failed to {$connectionString}: {$errstr} ({$errno})");
+                $this->logger->error("MRC: Connection failed to {$connectionString}: {$errstr} ({$errno})");
                 return false;
             }
 
@@ -118,19 +122,19 @@ class MrcClient
             $written = fwrite($this->socket, $handshake);
 
             if ($written === false) {
-                error_log("MRC: Failed to send handshake");
+                $this->logger->error("MRC: Failed to send handshake");
                 $this->disconnect();
                 return false;
             }
 
             $this->connected = true;
             $this->lastPing = time();
-            error_log("MRC: Connected to {$host}:{$port}" . ($useSSL ? " (SSL)" : ""));
+            $this->logger->info("MRC: Connected to {$host}:{$port}" . ($useSSL ? " (SSL)" : ""));
 
             return true;
 
         } catch (\Exception $e) {
-            error_log("MRC: Connection exception: " . $e->getMessage());
+            $this->logger->error("MRC: Connection exception: " . $e->getMessage());
             $this->disconnect();
             return false;
         }
@@ -156,7 +160,7 @@ class MrcClient
         $this->socket = null;
         $this->connected = false;
         $this->receiveBuffer = '';
-        error_log("MRC: Disconnected");
+        $this->logger->info("MRC: Disconnected");
     }
 
     /**
@@ -195,7 +199,7 @@ class MrcClient
     public function sendPacket(string $f1, string $f2, string $f3, string $f4, string $f5, string $f6, string $f7): bool
     {
         if (!$this->isConnected()) {
-            error_log("MRC: Cannot send packet - not connected");
+            $this->logger->error("MRC: Cannot send packet - not connected");
             return false;
         }
 
@@ -219,7 +223,7 @@ class MrcClient
         $written = @fwrite($this->socket, $packet);
 
         if ($written === false) {
-            error_log("MRC: Failed to write packet to socket");
+            $this->logger->error("MRC: Failed to write packet to socket");
             $this->connected = false;
             return false;
         }
@@ -246,7 +250,7 @@ class MrcClient
 
         if ($data === false) {
             // Read error
-            error_log("MRC: Socket read error");
+            $this->logger->warning("MRC: Socket read error");
             $this->connected = false;
             return $packets;
         }
@@ -302,7 +306,7 @@ class MrcClient
         if ($partCount === 7) {
             $parts[] = ''; // synthesize missing trailing empty field
         } elseif ($partCount !== 8) {
-            error_log("MRC: Invalid packet format (expected 8 parts, got {$partCount}): " . substr($line, 0, 100));
+            $this->logger->warning("MRC: Invalid packet format (expected 8 parts, got {$partCount}): " . substr($line, 0, 100));
             return null;
         }
 

@@ -542,7 +542,8 @@ function doRegistration($isUpdate = false) {
                 'enabled' => true,
                 'compression' => false,
                 'crypt' => true,
-                'poll_schedule' => '*/15 * * * *'
+                'poll_schedule' => '*/15 * * * *',
+                'default_charset' => 'UTF-8',
             ]);
         } else {
             // Add new uplink
@@ -559,7 +560,8 @@ function doRegistration($isUpdate = false) {
                     'allow_markup' => true,
                     'compression' => false,
                     'crypt' => true,
-                    'poll_schedule' => '*/15 * * * *'
+                    'poll_schedule' => '*/15 * * * *',
+                    'default_charset' => 'UTF-8',
                 ]
             );
         }

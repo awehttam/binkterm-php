@@ -29,19 +29,25 @@ class PasswordResetController
     /**
      * Request a password reset token
      *
-     * @param string $usernameOrEmail Username or email address
+     * @param string $usernameOrEmail Username, real name, or email address
      * @return array Result with success status and message
      */
     public function requestPasswordReset($usernameOrEmail)
     {
-        // Find user by username or email
+        $usernameOrEmail = trim((string)$usernameOrEmail);
+
+        // Find user by username, real name, or email
         $stmt = $this->db->prepare('
             SELECT u.id, u.username, u.email, u.real_name, u.is_active, us.locale
             FROM users u
             LEFT JOIN user_settings us ON us.user_id = u.id
-            WHERE (u.username = ? OR u.email = ?) AND u.is_active = TRUE
+            WHERE (
+                LOWER(u.username) = LOWER(?)
+                OR LOWER(u.real_name) = LOWER(?)
+                OR LOWER(u.email) = LOWER(?)
+            ) AND u.is_active = TRUE
         ');
-        $stmt->execute([$usernameOrEmail, $usernameOrEmail]);
+        $stmt->execute([$usernameOrEmail, $usernameOrEmail, $usernameOrEmail]);
         $user = $stmt->fetch();
 
         // Always return success message for security (don't reveal if user exists)
@@ -195,7 +201,7 @@ class PasswordResetController
 
         } catch (\Exception $e) {
             $this->db->rollBack();
-            error_log("Password reset failed: " . $e->getMessage());
+            getServerLogger()->error("Password reset failed: " . $e->getMessage());
 
             return [
                 'success' => false,
@@ -242,7 +248,7 @@ class PasswordResetController
         $mail = new Mail();
 
         if (!$mail->isEnabled()) {
-            error_log("Password reset requested but email is not configured");
+            getServerLogger()->warning("Password reset requested but email is not configured");
             return;
         }
 
@@ -297,7 +303,6 @@ class PasswordResetController
         $ifNotRequestedText = htmlspecialchars($t('ui.password_reset_email.if_not_requested'), ENT_QUOTES, 'UTF-8');
         $passwordUnchangedText = htmlspecialchars($t('ui.password_reset_email.password_unchanged_notice'), ENT_QUOTES, 'UTF-8');
         $footerAutomatedText = htmlspecialchars($t('ui.password_reset_email.footer_automated', ['system_name' => $systemName]), ENT_QUOTES, 'UTF-8');
-        $footerNoReplyText = htmlspecialchars($t('ui.password_reset_email.footer_no_reply'), ENT_QUOTES, 'UTF-8');
 
         // HTML version
         $htmlText = "
@@ -346,7 +351,11 @@ class PasswordResetController
                     <p>{$clickLinkText}</p>
 
                     <p style='text-align: center;'>
-                        <a href='$resetUrl' class='button'>{$buttonText}</a>
+                        <a
+                            href='$resetUrl'
+                            class='button'
+                            style='display:inline-block;padding:12px 24px;background-color:#0066cc;color:#ffffff !important;text-decoration:none;border-radius:4px;margin:20px 0;font-weight:bold;border:1px solid #0052a3;'
+                        >{$buttonText}</a>
                     </p>
 
                     <p>{$copyLinkText}</p>
@@ -368,8 +377,7 @@ class PasswordResetController
                     <p>{$ifNotRequestedText}<br>{$passwordUnchangedText}</p>
                 </div>
                 <div class='footer'>
-                    <p>{$footerAutomatedText}<br>
-                    {$footerNoReplyText}</p>
+                    <p>{$footerAutomatedText}</p>
                 </div>
             </div>
         </body>

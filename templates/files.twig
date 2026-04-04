@@ -150,6 +150,9 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openDetailsFromPreview()" title="{{ t('ui.files.file_info', {}, 'common') }}">
                         <i class="fas fa-info-circle"></i>
                     </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="previewMagnetBtn" title="{{ t('ui.files.copy_magnet_link', {}, 'common') }}">
+                        <i class="fas fa-magnet"></i>
+                    </button>
                     <a class="btn btn-outline-success btn-sm" id="previewDownloadBtn" href="#" download title="{{ t('ui.files.download', {}, 'common') }}">
                         <i class="fas fa-download"></i>
                     </a>
@@ -445,6 +448,8 @@
                         <div class="form-text">{{ t('ui.files.maximum_file_size', {}, 'common') }}: <span id="maxFileSize">10 MB</span></div>
                     </div>
 
+                    <div id="uploadTorrentPreviewContainer"></div>
+
                     <div class="mb-3" id="uploadDescriptionGroup">
                         <label for="uploadDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
@@ -602,6 +607,9 @@ $(document).ready(function() {
             try { window._modPlayer.unload(); } catch (e) {}
             window._modPlayer = null;
         }
+        if (window._sidPlayerReady) {
+            try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+        }
         $('#previewModalBody').css('background', '#1a1a1a').html(
             '<div class="py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
         );
@@ -755,8 +763,8 @@ function displayRecentFiles(files) {
         html += `
             <tr>
                 <td style="word-break: break-all;">
-                    ${scanIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge0}
+                    ${scanIcon}${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge0}
                 </td>
                 <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
@@ -1030,15 +1038,36 @@ function renderFileAreaList(areas) {
 
     $('#fileAreasList').html(html);
 
-    // Auto-select area from server-supplied tag (e.g. /files/AREATAG)
-    // or legacy ?area= query param for backwards compatibility
+    // Preserve the active selection when the area list is refreshed after an
+    // in-page action like delete/rename/upload.
+    if (currentViewMode === 'my_uploads' && currentUserId !== null) {
+        selectMyUploads();
+        return;
+    }
+    if (currentViewMode === 'area' && currentAreaId !== null) {
+        const activeArea = allFileAreas.find(a => a.id === currentAreaId);
+        if (activeArea) {
+            selectFileArea(currentAreaId, currentSubfolder);
+            return;
+        }
+    }
+
+    // Auto-select area from the current URL path (e.g. /files/AREATAG), the
+    // server-supplied initial tag, or legacy ?area= query param.
     const initialTag = {{ initial_area_tag is defined ? initial_area_tag|json_encode|raw : 'null' }};
     const params = new URLSearchParams(window.location.search);
     if (params.get('view') === 'my-uploads' && currentUserId !== null) {
         selectMyUploads();
         return;
     }
-    const areaParam = initialTag || params.get('area');
+
+    let pathAreaTag = null;
+    const pathMatch = window.location.pathname.match(/^\/files\/([^\/?#]+)$/);
+    if (pathMatch && pathMatch[1]) {
+        pathAreaTag = decodeURIComponent(pathMatch[1]);
+    }
+
+    const areaParam = pathAreaTag || initialTag || params.get('area');
     const searchParam = params.get('search');
     if (areaParam) {
         const targetId = parseInt(areaParam, 10);
@@ -1289,8 +1318,8 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
         html += `
             <tr>
                 <td style="word-break: break-all;">
-                    ${scanIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${shareIcon}${commentBadge1}
+                    ${scanIcon}${shareIcon}
+                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge1}
                 </td>
                 <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>
@@ -1536,6 +1565,7 @@ function previewFile(fileId, filename) {
     const position = getPreviewPositionHtml(fileIndex);
     $('#previewModalTitle').html(escapeHtml(filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
+    $('#previewMagnetBtn').addClass('d-none').removeData('magnet');
     updatePreviewNavButtons();
     renderPreviewContent(fileId, filename, $('#previewModalBody'));
 
@@ -1575,6 +1605,7 @@ function navigatePreview(direction) {
     const position = getPreviewPositionHtml(currentFileIndex);
     $('#previewModalTitle').html(escapeHtml(file.filename) + position);
     $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
+    $('#previewMagnetBtn').addClass('d-none').removeData('magnet');
     updatePreviewNavButtons();
     renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
 
@@ -1647,6 +1678,7 @@ function showUploadModal() {
 
     $('#uploadFileForm')[0].reset();
     resetUploadDescriptions();
+    $('#uploadTorrentPreviewContainer').empty();
     $('#uploadProgress').hide();
     $('#uploadProgress .progress-bar').css('width', '0%');
     $('#uploadErrorBox').addClass('d-none').text('');
@@ -1659,6 +1691,27 @@ function escapeAttribute(value) {
         .replaceAll('"', '&quot;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;');
+}
+
+/**
+ * Render the torrent metadata preview card into the upload form's preview
+ * container. Delegates HTML generation to buildTorrentPreviewHtml() in
+ * file-preview.js (loaded before this inline script).
+ *
+ * @param {object}      meta    Return value of parseTorrentMeta()
+ * @param {ArrayBuffer} buffer  Raw .torrent bytes for magnet link computation
+ */
+function renderTorrentPreview(meta, buffer) {
+    const html = `<div class="card mb-3">
+        <div class="card-header py-2">
+            <strong><i class="fas fa-magnet me-1"></i> Torrent Info</strong>
+        </div>
+        <div class="card-body p-0">${buildTorrentPreviewHtml(meta)}</div>
+    </div>`;
+    $('#uploadTorrentPreviewContainer').html(html);
+    computeMagnetLink(buffer, meta).then(magnet => {
+        injectMagnetLink($('#uploadTorrentPreviewContainer')[0], magnet);
+    });
 }
 
 function resetUploadDescriptions() {
@@ -1676,8 +1729,28 @@ function rebuildUploadDescriptions() {
         $('#uploadBatchDescriptionsBody').empty();
         $('#uploadDescriptionGroup').removeClass('d-none');
         $('#uploadDescription').prop('required', true);
-        if (files.length === 1 && !$('#uploadDescription').val().trim()) {
-            $('#uploadDescription').val(files[0].name);
+        if (files.length === 1) {
+            const file = files[0];
+            if (file.name.toLowerCase().endsWith('.torrent')) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const meta = parseTorrentMeta(e.target.result);
+                    if (meta) {
+                        if (meta.shortDesc) $('#uploadDescription').val(meta.shortDesc);
+                        if (meta.longDesc)  $('#uploadLongDescription').val(meta.longDesc);
+                        renderTorrentPreview(meta, e.target.result);
+                    } else {
+                        $('#uploadTorrentPreviewContainer').empty();
+                        if (!$('#uploadDescription').val().trim()) $('#uploadDescription').val(file.name);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                $('#uploadTorrentPreviewContainer').empty();
+                if (!$('#uploadDescription').val().trim()) $('#uploadDescription').val(file.name);
+            }
+        } else {
+            $('#uploadTorrentPreviewContainer').empty();
         }
         return;
     }
@@ -1825,6 +1898,11 @@ async function uploadFile() {
 }
 
 $('#uploadFile').on('change', rebuildUploadDescriptions);
+
+$('#previewMagnetBtn').on('click', function () {
+    const magnet = $(this).data('magnet');
+    if (magnet) navigator.clipboard.writeText(magnet);
+});
 
 function rehatchFile() {
     if (!currentFileId) return;

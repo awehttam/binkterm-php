@@ -28,6 +28,7 @@ class Logger
     private $logFile;
     private $logToConsole;
     private $dateFormat;
+    private ?\BinktermPHP\Admin\AdminDaemonClient $udpClient = null;
     
     public function __construct($logFile = null, $logLevel = self::LEVEL_INFO, $logToConsole = true)
     {
@@ -79,11 +80,26 @@ class Logger
             try {
                 $result = @file_put_contents($this->logFile, $logMessage . "\n", FILE_APPEND | LOCK_EX);
                 if ($result === false) {
-                    error_log('LOG FALLBACK: ' . $logMessage);
+                    if (!$this->sendUdpFallback($levelStr, $logMessage)) {
+                        error_log('UDPLOG FAIL FALLBACK: ' . $logMessage);
+                    }
                 }
             } catch (\Throwable $e) {
-                error_log('LOG FALLBACK: ' . $logMessage . ' [write failed: ' . $e->getMessage() . ']');
+                $fallbackMessage = $logMessage . ' [write failed: ' . $e->getMessage() . ']';
+                if (!$this->sendUdpFallback($levelStr, $fallbackMessage)) {
+                    error_log('UDPLOG FAIL FALLBACK: ' . $fallbackMessage);
+                }
             }
+        }
+    }
+
+    private function sendUdpFallback(string $level, string $logMessage): bool
+    {
+        try {
+            $this->udpClient ??= new \BinktermPHP\Admin\AdminDaemonClient();
+            return $this->udpClient->udpLog(basename((string)$this->logFile), $level, $logMessage);
+        } catch (\Throwable $e) {
+            return false;
         }
     }
     

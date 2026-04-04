@@ -14,6 +14,26 @@
  */
 
 
+/**
+ * Return a shared Logger instance writing to server.log.
+ *
+ * Calling code in route files, static helpers, and classes without a
+ * dedicated logger property should use this rather than error_log().
+ * The instance is created once per process and reused on subsequent calls.
+ */
+function getServerLogger(): \BinktermPHP\Binkp\Logger
+{
+    static $logger = null;
+    if ($logger === null) {
+        $logger = new \BinktermPHP\Binkp\Logger(
+            \BinktermPHP\Config::getLogPath('server.log'),
+            \BinktermPHP\Binkp\Logger::LEVEL_INFO,
+            false
+        );
+    }
+    return $logger;
+}
+
 // Helper function to filter kludge lines from message text
 function filterKludgeLines($messageText) {
     // First normalize line endings - split on both \r\n, \n, and \r

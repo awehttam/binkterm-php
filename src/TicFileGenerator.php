@@ -28,11 +28,13 @@ class TicFileGenerator
 {
     private BinkpConfig $config;
     private string $outboundPath;
+    private \BinktermPHP\Binkp\Logger $logger;
 
     public function __construct()
     {
-        $this->config = BinkpConfig::getInstance();
+        $this->config       = BinkpConfig::getInstance();
         $this->outboundPath = $this->config->getOutboundPath();
+        $this->logger       = new \BinktermPHP\Binkp\Logger(\BinktermPHP\Config::getLogPath('server.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -58,7 +60,7 @@ class TicFileGenerator
         $uplinks = $this->getUplinksForDomain($domain);
 
         if (empty($uplinks)) {
-            error_log("No uplinks found for domain: {$domain}");
+            $this->logger->warning("No uplinks found for domain: {$domain}");
             return [];
         }
 
@@ -71,7 +73,7 @@ class TicFileGenerator
                     $createdTics[] = $ticPath;
                 }
             } catch (\Exception $e) {
-                error_log("Failed to create TIC for uplink {$uplink['address']}: " . $e->getMessage());
+                $this->logger->error("Failed to create TIC for uplink {$uplink['address']}: " . $e->getMessage());
             }
         }
 
@@ -157,7 +159,7 @@ class TicFileGenerator
             throw new \Exception("Failed to write TIC file: {$ticPath}");
         }
 
-        error_log("Created TIC file for {$uplinkAddress}: {$ticPath}");
+        $this->logger->info("Created TIC file for {$uplinkAddress}: {$ticPath}");
 
         return $ticPath;
     }

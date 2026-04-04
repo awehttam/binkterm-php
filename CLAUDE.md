@@ -13,7 +13,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Frontend: jQuery, Bootstrap 5
  - Backend: PHP, SimpleRouter request library, Twig templates
  - Database: Postgres
- 
+
 
 ## Code Conventions
 
@@ -22,6 +22,64 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - 4 space indents
  - **Environment Variables**: Always use `Config::env('VAR_NAME', 'default')` to read from .env file. Do NOT use `getenv()` or `$_ENV` directly.
  - **Client-side storage**: Always use `UserStorage` (from `public_html/js/user-storage.js`) instead of `localStorage` directly. `UserStorage` automatically scopes keys by the logged-in user's ID so that different accounts on the same browser cannot share state. When not logged in it falls back to `sessionStorage` to avoid persisting anonymous state.
+
+## Logging
+
+**Never use `error_log()` for application logging** (except inside `src/Binkp/Logger.php` itself and `src/Admin/AdminDaemonClient.php` where it is the last-resort fallback). All logging must go through `BinktermPHP\Binkp\Logger`, which writes to named files under `data/logs/` and falls back to UDP via the admin daemon when the web process cannot write the log file directly.
+
+### Log files
+
+| File | Purpose |
+|---|---|
+| `server.log` | General application, web requests, background tasks |
+| `packets.log` | FTN packet processing |
+| `dosdoor.log` | Door game session setup (DoorSessionManager, door routes) |
+| `multiplexing-server.log` | Door execution activity (the multiplexing bridge) |
+| `binkp_server.log` | Binkp server daemon |
+| `binkp_poll.log` | Binkp polling daemon |
+| `binkp_scheduler.log` | Binkp scheduler |
+| `admin_daemon.log` | Admin daemon |
+| `mrc_daemon.log` | MRC daemon |
+| `crashmail.log` | CrashMail processing |
+
+### Patterns by context
+
+**In a class with a constructor** — inject or create a Logger property:
+```php
+private \BinktermPHP\Binkp\Logger $logger;
+
+public function __construct()
+{
+    $this->logger = new \BinktermPHP\Binkp\Logger(
+        \BinktermPHP\Config::getLogPath('server.log'),
+        \BinktermPHP\Binkp\Logger::LEVEL_INFO,
+        false
+    );
+}
+```
+Then call `$this->logger->info(...)`, `->warning(...)`, `->error(...)`, etc.
+
+**In a route file or static context** — use the `getServerLogger()` helper from `src/functions.php`:
+```php
+getServerLogger()->error("Something went wrong: " . $e->getMessage());
+```
+This returns a shared Logger instance writing to `server.log`. Route files that need `dosdoor.log` should define their own local helper (see `getDoorLogger()` in `routes/door-routes.php`).
+
+**In a CLI script** — `src/functions.php` must be included (all CLI scripts should already include it). Then use `getServerLogger()` or create a Logger inline for script-specific log files.
+
+### Log levels
+
+- `debug()` — detailed diagnostic info, only useful when actively debugging
+- `info()` — normal operational events (session started, file created, email sent)
+- `warning()` — unexpected but recoverable situations
+- `error()` — failures that need attention but didn't crash the process
+- `critical()` — severe failures
+
+### Adding a new log file
+
+If you introduce a new log file (e.g., `myfeature.log`):
+1. Use `Config::getLogPath('myfeature.log')` when constructing the Logger.
+2. Add the filename to the `UDP_ALLOWED_LOG_FILES` allowlist in `src/Admin/AdminDaemonServer.php` so the UDP fallback can write to it when the web process can't.
 
 ## Project Structure
 
@@ -40,6 +98,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
  - telnet/ - the telnet BBS server (separate from the web interface)
    - **IMPORTANT**: `telnet/telnet_daemon.php` and `ssh/ssh_daemon.php` manually `require_once` telnet-side classes from `telnet/src/`. New classes under `telnet/src/` are **not** Composer-autoloaded for those daemons. When adding a class there, update the `require_once` lists in both daemon entrypoints as needed.
+   - **IMPORTANT**: Keep the SSH daemon include list in sync with the telnet daemon include list for shared terminal-side classes. If `telnet/telnet_daemon.php` gains a new `telnet/src/` include that SSH sessions also use, add the same include to `ssh/ssh_daemon.php`.
 
 ## Credits
 
@@ -52,6 +111,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - This is for FTN style networks and forums
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.7.5_description.sql
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
+ - **User settings parity**: When adding a new setting to `user_settings`, try to keep parity between the web UI/API flow and the term server flow. Check both the web-side handlers (for example `src/MessageHandler.php`, `routes/api-routes.php`, `public_html/js/app.js`) and the term-side settings path (`telnet/src/SettingsHandler.php`) so the setting is available and persisted consistently where appropriate.
  - **Premium features**: When adding, changing, or removing any registered-only / premium feature gated by `License::isValid()` or `License::hasFeature()`, update the "Currently Implemented Premium Features" table in `docs/proposals/PremiumFeatures.md` and remove it from the future ideas list if it was listed there.
  - Leave the vendor directory alone. It's managed by composer only
  - **Composer Dependencies**: When adding a new required package to composer.json, the UPGRADING_x.x.x.md document for that version MUST include instructions to run `composer install` before `php scripts/setup.php`. Without this, the upgrade will fail because `vendor/autoload.php` is loaded before setup.php runs.
@@ -60,92 +120,15 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - **Upgrade doc voice**: Write UPGRADING documents as if the reader has no prior exposure to the development work, branch discussions, or the problems being fixed. Every change must be described self-contained — no phrases like "the previous issue with X", "as discussed", or "the fix for the problem where...". State what changed, why it matters, and what action the upgrader needs to take.
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
  - **Theme-safe background colors**: Never use Bootstrap 5.3+ utility classes like `bg-body-tertiary` or `bg-body-secondary` — they have no theme overrides and will render incorrectly on dark/amber/greenterm/cyberpunk themes. Use `bg-light` instead, which all themes override via `.bg-light { background-color: var(--theme-var) !important; }`.
- - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks.
- - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php).
+ - Database migrations are handled through scripts/setup.php. setup.php will also call upgrade.php which handles other upgrade related tasks.
+ - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). See `docs/DEVELOPER_GUIDE.md` for PHP migration patterns (direct execution vs callable).
  - **Migration version numbers**: Before creating a new migration, always check the highest existing version in `database/migrations/` (e.g., `ls database/migrations/ | sort -V | tail -5`). The new migration must be one increment higher than the highest version found — do NOT guess or use a version from a different branch of the version tree. For example, if the latest is `v1.11.0.5_*`, the next is `v1.11.0.6_*`, not `v1.10.19_*`.
- - **No duplicate indexes**: Do NOT create an explicit `CREATE INDEX` on a column that already has a `UNIQUE` constraint — PostgreSQL automatically creates a unique index for every `UNIQUE` constraint, which serves lookups identically to a plain index. Adding a second index on the same column wastes disk space and doubles write overhead with no benefit.
+ - **No duplicate indexes**: Do NOT create an explicit `CREATE INDEX` on a column that already has a `UNIQUE` constraint — PostgreSQL automatically creates a unique index for every `UNIQUE` constraint, which serves lookups identically to a plain index.
  - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
-
-### PHP Migration Patterns
-
-PHP migrations support two patterns, both are valid and the upgrade script handles both automatically:
-
-**Pattern 1: Direct Execution** (for simple migrations)
-- Migration executes immediately when included
-- Uses `$db` PDO variable available in scope
-- Returns `true` on success or throws exception on failure
-- Example use case: Creating tables, simple data operations
-
-```php
-<?php
-/**
- * Migration: 1.9.3 - Create example table
- */
-
-// $db is available in scope when this file is included
-$db->exec("
-    CREATE TABLE IF NOT EXISTS example_table (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL
-    )
-");
-
-$db->exec("CREATE INDEX IF NOT EXISTS idx_example_name ON example_table(name)");
-
-return true;
-```
-
-**Pattern 2: Callable Function** (for complex migrations with logic)
-- Migration returns a closure/function
-- Function receives `$db` as parameter
-- Better for migrations with loops, conditionals, or complex logic
-- Example use case: Data transformations, backfilling, complex updates
-
-```php
-<?php
-/**
- * Migration: 1.9.3.3 - Generate referral codes for existing users
- */
-
-function generateReferralCode(): string {
-    $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-    $code = '';
-    for ($i = 0; $i < 8; $i++) {
-        $code .= $characters[random_int(0, strlen($characters) - 1)];
-    }
-    return $code;
-}
-
-// Return a callable that receives $db as parameter
-return function($db) {
-    $stmt = $db->query("SELECT id FROM users WHERE referral_code IS NULL");
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $updateStmt = $db->prepare("UPDATE users SET referral_code = ? WHERE id = ?");
-
-    foreach ($users as $user) {
-        $code = generateReferralCode();
-        $updateStmt->execute([$code, $user['id']]);
-    }
-
-    echo "Generated referral codes for " . count($users) . " users\n";
-    return true;
-};
-```
-
-**How the upgrade script handles both patterns:**
-1. Includes the migration file with `$db` in scope
-2. If the result is callable, calls it with `$db` as parameter
-3. If the result is not callable, uses it directly (Pattern 1 already executed)
-4. Validates that result is not `false` (anything else passes)
-
-**When to use each pattern:**
-- Use **Pattern 1** (direct execution) for simple SQL operations
-- Use **Pattern 2** (callable) for migrations needing helper functions, loops, or complex logic
  - See FAQ.md for common questions and troubleshooting
- - To get a database connection use $db = Database::getInstance()->getPdo()
- - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
- - Avoid duplicating code.  Whenever possible centralize methods using a class.
+ - To get a database connection use `$db = Database::getInstance()->getPdo()`
+ - Don't edit postgres_schema.sql unless specifically instructed to. Database changes are typically migration based.
+ - Avoid duplicating code. Whenever possible centralize methods using a class.
  - **Git Workflow**: Do NOT stage or commit changes until explicitly instructed. Changes should be tested first before committing to git.
  - When writing out a proposal document state in the preamble that the proposal is a draft, was generated by AI and may not have been reviewed for accuracy.
  - When writing proposal or other documentation files, use repo-relative paths like `src/Foo.php` or `docs/Bar.md` in the document text; do not use full filesystem paths.
@@ -156,6 +139,21 @@ return function($db) {
  - **date_written vs date_received**: On `echomail` and `netmail`, `date_written` is derived from the FTN packet header (local time converted to UTC via the TZUTC kludge) and reflects when the sender composed the message — it can be wrong or in the future if the remote sysop's clock is incorrect. `date_received` is set server-side via `NOW() AT TIME ZONE 'UTC'` and is always reliable. Future-dated `date_written` values are hidden from message list queries until they are no longer in the future. When displaying dates to users, prefer `date_received` for ordering/display by default; show `date_written` with a tooltip that also includes `date_received` so discrepancies are visible.
  - **Charset columns**: The `message_charset` column on `echomail` and `netmail` stores the canonical iconv-compatible charset name (e.g. `CP437`, `UTF-8`) as normalized by `BinkpConfig::normalizeCharset()`. The raw `CHRS` value from the original FTN packet is preserved as-is in the `kludge_lines` column and may differ (e.g. `IBMPC`, `ASCII`). Always use `message_charset` for encoding/decoding operations and pre-selecting the charset UI; read `kludge_lines` only when you need the original wire value.
  - Write phpDoc blocks when possible
+
+## PostgreSQL Gotchas
+
+ - **Boolean handling:** When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
+ - **Insert IDs:** Do not use `PDO::lastInsertId()`. On PostgreSQL it calls `lastval()` which returns the last sequence value used in the **current session** — from *any* sequence, not necessarily the row you just inserted. Always use `RETURNING id` and fetch the returned row directly:
+   ```php
+   // WRONG — do not rely on session-wide lastval()/lastInsertId()
+   $stmt->execute();
+   $id = $this->db->lastInsertId();
+
+   // CORRECT — fetch the inserted row's id directly
+   $stmt->execute();
+   $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+   $id = $row ? (int)$row['id'] : 0;
+   ```
 
 ## Internationalization (i18n) & Encoding Policy
 - **Strict UTF-8 (No BOM):** All i18n catalogs and source files must be saved as UTF-8 without a Byte Order Mark.
@@ -212,15 +210,6 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
   2. Add that key to every locale's `errors.php` file under `config/i18n/`.
   3. Use `getApiErrorMessage` in UI handling.
 
-### Locale Resolution / Config
-- Locale is resolved server-side through `LocaleResolver`/`Translator`.
-- Supported locales are exposed to Twig as `supported_locales`.
-- Environment settings used by i18n:
-  - `I18N_DEFAULT_LOCALE`
-  - `I18N_SUPPORTED_LOCALES` (optional; auto-discovers locale folders if unset)
-  - `I18N_LOG_MISSING_KEYS`
-  - `I18N_MISSING_KEYS_LOG_FILE`
-
 ### Required Validation After i18n Changes
 - Run:
   - `php scripts/check_i18n_hardcoded_strings.php`
@@ -238,346 +227,79 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
 5. Run both i18n check scripts before commit.
 
 ## URL Construction
-When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** use the centralized `Config::getSiteUrl()` method:
 
-### Why This Matters
-- The application may be behind an HTTPS proxy/load balancer
-- In this scenario, `$_SERVER['HTTPS']` may not be set even though the public-facing URL uses HTTPS
-- The `SITE_URL` environment variable ensures correct URL generation regardless of proxy configuration
-- Using the centralized method prevents code duplication and ensures consistent behavior
+Always use `Config::getSiteUrl()` for full URL construction — it correctly handles HTTPS proxies via the `SITE_URL` env var:
 
-### Usage Pattern
 ```php
-// Build URL using centralized method
 $url = \BinktermPHP\Config::getSiteUrl() . '/path/to/resource';
 ```
 
-The `getSiteUrl()` method:
-1. Checks `SITE_URL` environment variable first (handles proxies correctly)
-2. Falls back to protocol detection using `$_SERVER['HTTPS']` and `$_SERVER['HTTP_HOST']`
-3. Returns the base URL without trailing slash
-
-### Examples in Codebase
-- `MessageHandler::buildShareUrl()` - share link generation
-- `routes/web-routes.php` - shared message page
-- `PasswordResetController` - password reset emails
-
 ## Admin Daemon
 
-The admin daemon (scripts/admin_daemon.php) is a critical system management component.  It provides an API to the web interface
-for retrieving and setting configuration elements through various commands as well as polling and other tasks.
+**The web server process cannot write config files.** Any feature that needs to write `config/lovlynet.json`, `config/binkp.json`, `data/bbs.json`, or similar **must** do so via a command to the admin daemon (`scripts/admin_daemon.php`) — never by calling `file_put_contents()` directly from a route or controller.
 
-**CRITICAL: The web server process cannot write config files.** The web server runs as a restricted user without write access to `config/` or other config locations. Any feature that needs to write or modify a config file (e.g. `config/lovlynet.json`, `config/binkp.json`, `data/bbs.json`) **must** do so via a command to the admin daemon — never by calling `file_put_contents()` or similar directly from a route or controller. The admin daemon runs as a user with the appropriate permissions to write those files.
-
-When adding new configuration settings you'll be working with the configuration daemon that performs the actual work.  The web interface will make an API request.
-
-You may need to add new commands, or update existing ones depending on the context of the setting being added.  Be sure to clarify and confirm this.
-
-## Changelog Workflow
+When adding new configuration settings, you may need to add or update admin daemon commands. Clarify this before implementing.
 
 ## Credits System Workflow
-When adding new UserCredit credit/reward types or debit types, you must update configuration, code defaults, and admin interface:
 
-### Required Updates
-1. **Update Code Defaults**: Add the new credit type with fallback values in `src/UserCredit.php`
-   - The `UserCredit` class contains hardcoded default values in the `getCreditsConfig()` method
-   - Add your new credit type to the `$defaults` array
-   - Add validation for the new field in the `$merged` array processing
-   - These defaults ensure the system works even if bbs.json is not fully configured
-   - Code defaults serve as the ultimate fallback and should be sensible values
+When adding new `UserCredit` credit/reward types, update these five places (see `docs/CreditSystem.md` for full details):
+1. Code defaults in `src/UserCredit.php` (`getCreditsConfig()` → `$defaults` array)
+2. `bbs.json.example` credits section
+3. Admin twig template: `templates/admin/bbs_settings.twig` (form field + `loadBbsSettings()` + `saveBbsCredits()`)
+4. Admin API endpoint: POST `/admin/api/bbs-settings` in `routes/admin-routes.php`
+5. `README.md` credits documentation
 
-2. **Update bbs.json.example**: Add the new credit type to the `credits` section
-   - This ensures new installations have the credit type properly documented
-   - Values in bbs.json.example should match or override code defaults with production-ready values
-   - Include comments explaining what the credit type does
-
-3. **Update Admin Credit Settings Page**: Add the new credit type to the admin interface
-   - Location: `templates/admin/bbs_settings.twig` in the Credits System Configuration section
-   - Add appropriate form fields within the credit configuration section
-   - Add JavaScript to load the value in `loadBbsSettings()` function
-   - Add JavaScript validation in `saveBbsCredits()` function
-   - Add the field to the config object being sent to the API
-   - Ensure field names match the keys in bbs.json
-   - The admin page allows runtime configuration which gets saved to data/bbs.json
-
-4. **Update Admin API Endpoint**: Add backend validation and saving in `routes/admin-routes.php`
-   - Location: The POST `/admin/api/bbs-settings` endpoint handler
-   - Add validation for the new credit field (check if numeric, non-negative, etc.)
-   - Add the field to the `$config['credits']` array that gets saved
-   - Ensure proper type casting (int for costs/rewards, float for percentages)
-   - After code changes, restart services using `scripts/restart_daemons.sh` or just restart binkp_server
-
-5. **Update README.md**: Document the new credit type in the README
-   - Add the new credit type to the credits system documentation section
-   - Explain what the credit type does and when it's awarded/charged
-   - Include the default value for reference
-
-### Configuration Priority
-The system uses this priority order for credit values:
-1. Runtime configuration in `data/bbs.json` (highest priority - set via admin interface)
-2. Default template in `bbs.json.example` (used during initial setup)
-3. Code defaults in `src/UserCredit.php` (lowest priority - fallback values)
-
-### Example Credit Types
-- Login rewards (daily login bonus)
-- Message posting rewards (credits per netmail/echomail)
-- WebDoor game costs (credits charged to play games)
-- File download costs
-- Premium feature access costs
-
-### Important Notes
-- Always add code defaults first so the system remains functional even without configuration files
-- Credit values should be sensible defaults that work for most installations
-- Document the purpose of each credit type in comments within bbs.json.example
-- Ensure the admin interface provides clear descriptions of what each credit type does
-- Test both new installations (using defaults) and existing installations (manual config) when adding new credit types
-- When updating a template to add information about user credits use the credits_enabled variable in the twig template to determine whether to show the information
+Configuration priority: `data/bbs.json` > `bbs.json.example` > code defaults in `src/UserCredit.php`.
 
 ### Credit Transaction Security
-**CRITICAL SECURITY REQUIREMENT**: Credit balance modifications must ONLY occur server-side in PHP. Client-side JavaScript can never initiate, request, or perform credit transactions.
 
-**Core Principle:**
-JavaScript requests **business actions** (play game, buy item, send message). The server decides if those actions involve credits and handles all credit operations internally. JavaScript never explicitly requests credit modifications.
+**CRITICAL**: Credit balance modifications must ONLY occur server-side in PHP. JavaScript requests business actions; the server decides whether credits are involved and performs all transactions internally.
 
-**What JavaScript CAN do:**
-- Request business actions: `POST /api/webdoor/netrealm/buy-turns`
-- Update credit display with balance returned by server
-- Communicate display updates to parent window via `postMessage`
-
-**What JavaScript CANNOT do:**
-- Request credit operations (no endpoints like `/api/credits/deduct` or `/api/credits/add`)
-- Tell server to modify credit balances in any way
-- Perform any credit calculations or transactions
-
-**Secure Server-Side Pattern:**
-```php
-// WebDoor API endpoint - /api/webdoor/netrealm/buy-turns
-// JavaScript requests a business action, server handles credits internally
-$userCredit = new UserCredit($userId);
-if ($userCredit->deductCredits($cost, 'netrealm_extra_turns')) {
-    // Perform the business action
-    $game->addTurns(5);
-    // Return new balance for display only
-    return ['success' => true, 'balance' => $userCredit->getBalance()];
-}
-```
-
-**WebDoors and Credits:**
-- WebDoors run in iframes and communicate via `postMessage` API
-- WebDoor JavaScript calls business action endpoints (not credit endpoints)
-- Server validates, performs credit transaction if needed, returns new balance
-- WebDoor updates its display and notifies parent to update header display
-- Parent window only updates display with server-provided values
-
-**Example - Correct Flow:**
-```javascript
-// WebDoor requests business action (buying turns)
-fetch('/api/webdoor/netrealm/buy-turns', {
-    method: 'POST',
-    body: JSON.stringify({turns: 5})
-})
-.then(response => response.json())
-.then(data => {
-    if (data.success) {
-        // Server decided cost, performed transaction, returned new balance
-        // Update parent window display with server's balance
-        window.parent.postMessage({
-            type: 'binkterm:updateCredits',
-            credits: data.balance  // From server, not calculated by JS
-        }, window.location.origin);
-    }
-});
-```
-
-**Never expose credit-specific endpoints to JavaScript:**
 ```text
-❌ POST /api/credits/deduct
-❌ POST /api/credits/add
-❌ POST /api/credits/set
-✅ POST /api/webdoor/game/buy-item (server handles credits internally)
-✅ POST /api/games/play-turn (server handles credits internally)
+❌ POST /api/credits/deduct   (never expose credit endpoints to JS)
+✅ POST /api/webdoor/game/buy-item  (server handles credits internally, returns new balance)
 ```
 
-## Recent Features Added
+JS may display the balance value returned by the server and communicate it to parent windows via `postMessage`. It must never calculate or request credit modifications.
 
-### WebDoors System
-WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification as used by BinktermPHP is documented in `docs/WebDoors.md`.
+## WebDoors
 
-A draft status specification with ideas we can draw upon is in `docs/proposals/WebDoor_Proposal.md` however it does not reflect the current state of implementation.
+WebDoors are HTML5/JavaScript games embedded in the BBS. See `docs/WebDoors.md` for the full specification.
 
-**Current Implementation:**
-- **Game Manifest System**: Each WebDoor includes a `webdoor.json` manifest describing capabilities, requirements, and configuration
-- **Auto-Discovery**: System automatically scans `public_html/webdoors/` for games with manifests
-- **Drop-In Installation**: Games can be installed by simply copying to the webdoors directory
-- **Configuration Merging**: Manifest config defaults are automatically applied when enabling a door
-- **Admin Interface**: Web-based configuration UI for enabling/disabling doors and adjusting settings
-- **Credits Integration**: Games can integrate with the BBS credits economy system
-
-**Key Classes:**
-- `WebDoorManifest` - Scans and parses webdoor.json manifests from installed games
-- `GameConfig` - Manages per-door configuration from config/webdoors.json
-- `WebDoorController` - Handles game session management and API endpoints
-
-**WebDoor SDK (`public_html/webdoors/_doorsdk/`):**
-- The `_doorsdk` directory contains common reusable functions (SDK) for WebDoors to use
-- **JavaScript SDK**: Shared client-side utilities for API calls, postMessage communication, credit display, etc.
-- **PHP SDK**: Server-side helper functions and bootstrap code that WebDoors should include
-  - **Bootstrap**: The PHP SDK (`php/helpers.php`) automatically handles BinktermPHP initialization:
-    - Defines `BINKTERMPHP_BASEDIR` constant
-    - Loads `vendor/autoload.php`
-    - Initializes database connection
-    - Starts PHP session
-  - **Usage**: WebDoors should include the SDK as the first require: `require_once __DIR__ . '/../_doorsdk/php/helpers.php';`
-  - **Important**: WebDoors should NOT directly require `vendor/autoload.php` - use the SDK instead
-- WebDoors should use SDK functions instead of duplicating common logic
-- The SDK provides standardized interfaces for BBS integration (credits, user info, messaging, etc.)
-- When adding new common functionality that multiple WebDoors might use, consider adding it to the SDK
-- The underscore prefix (`_doorsdk`) indicates this is a system directory, not a game
-
-**Important Notes:**
-- When adding WebDoor API functionality or making changes to the WebDoor system (not individual webdoors themselves), update `docs/WebDoors.md` to reflect new features
-- WebDoor specification is evolving - keep documentation synchronized with implementation
-- All WebDoor games must include a valid `webdoor.json` manifest
-- Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
-- Games access BBS functionality through REST API endpoints at `/api/webdoor/*`
-- **WebDoor API Independence**: Each WebDoor must implement its own API routes and backend logic. Do NOT modify `routes/api-routes.php`, `routes/web-routes.php`, or other core BBS APIs to add WebDoor functionality unless explicitly instructed. WebDoor APIs should be self-contained within the WebDoor's own route files (e.g., `routes/webdoor-netrealm-routes.php`) or handled by `WebDoorController`. This keeps WebDoors modular and prevents pollution of core application routes.
-
-### Multi-Network Support
-- **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing
-- **Local Echo Areas**: `is_local` flag identifies echoareas for local use only (messages not transmitted to uplinks)
-- **ANSI Decoder**: Javascript renderer for ANSI art in echomail messages
-- **Hyperlink Detection**: Automatic URL detection and linking in message display
-
-### Gateway Tokens
-- **External Authentication**: Gateway tokens provide temporary SSO-like authentication for external services
-- **One-Time Use**: Tokens are single-use with configurable expiration (default 5 minutes)
-- **API Verification**: External services can verify tokens via API with X-API-Key authentication
-
-### User Management Improvements
-- **Unique Real Names**: Case-insensitive unique constraint on real names prevents impersonation
-- **Registration Validation**: Duplicate checking for both username and real name during registration
-
-### Packet Logging
-- **Dedicated Log File**: Packet processing now logs to `data/logs/packets.log` instead of PHP error log
-
-### Webshare Feature
-- **Message Sharing**: Users can share echomail messages via secure web links
-- **Privacy Controls**: Public (anonymous access) vs private (login required) sharing options
-- **Expiration Settings**: Links can expire after 1 hour, 24 hours, 1 week, 30 days, or never
-- **Access Management**: Share revocation, access statistics, and usage tracking
-
-### Character Encoding Improvements
-- **Enhanced CP437 Support**: Added iconv fallback for better DOS codepage handling
-- **FidoNet Compatibility**: Improved handling of legacy character encodings in message packets
-
-### Date Parsing Fixes
-- **Regex Pattern Improvements**: Fixed date parsing for FidoNet timestamps
-- **Timezone Processing**: Enhanced TZUTC offset calculations
-
-## Known Issues
- - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
- - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
- - **PostgreSQL boolean handling:** PostgreSQL is strict about boolean types. When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
- - **PostgreSQL insert IDs:** Treat `PDO::lastInsertId()` as unsafe in this project. On PostgreSQL, `lastInsertId()` without a sequence name calls `lastval()`, which returns the last sequence value used in the **current session** — from *any* sequence, not necessarily the row you just inserted. Triggers are the common way this breaks (for example, an INSERT trigger writing to `sse_events`), but the rule should be simpler: **do not use `lastInsertId()` for application inserts. Always use `RETURNING id` and fetch the returned row directly.** Do this even if there are no known triggers on the table today, because triggers or other sequence-using side effects may be added later.
-   ```php
-   // WRONG — do not rely on session-wide lastval()/lastInsertId()
-   $stmt->execute();
-   $id = $this->db->lastInsertId();
-
-   // CORRECT — fetch the inserted row's id directly
-   // Add RETURNING id to the INSERT SQL, then:
-   $stmt->execute();
-   $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-   $id = $row ? (int)$row['id'] : 0;
-   ```
-
-## Future Plans
- - More BBS-like features such as multi-user interaction, messaging, games, etc.
- - Continued bug fixes and stability improvements
+**Rules when working on WebDoors:**
+- Each WebDoor must include a valid `webdoor.json` manifest.
+- WebDoors must include the SDK as their first require: `require_once __DIR__ . '/../_doorsdk/php/helpers.php';` — do NOT require `vendor/autoload.php` directly.
+- **API Independence**: Each WebDoor implements its own API routes. Do NOT add WebDoor functionality to `routes/api-routes.php` or `routes/web-routes.php` unless explicitly instructed. WebDoor APIs belong in their own route files (e.g. `routes/webdoor-netrealm-routes.php`) or `WebDoorController`.
+- When changing the WebDoor system (not individual games), update `docs/WebDoors.md`.
 
 ## Version Management
 
-### Overview
-BinktermPHP uses a centralized application version management system that ensures consistent version numbers across:
-- Message tearlines in FidoNet packets
-- Web interface footer display
-- Package metadata (composer.json)
-- API responses and system information
-
-- Database version is separate from application version.  Database versions are reflected in the database schema migration files.
-- Database versions can be in the format of 1.2.3 or 1.2.3.4
-- Application versions can be in the format of 1.2.3
-
+Application version (`src/Version.php`) and database migration versions (`database/migrations/`) are independent. Database versions can be `1.2.3` or `1.2.3.4`; application versions use `1.2.3`.
 
 ### How to Update the Version
 
-When releasing a new version of BinktermPHP, follow these steps:
-
 #### 1. Update the Version Constant
 Edit `src/Version.php` and change the `VERSION` constant:
-
 ```php
 private const VERSION = '1.4.3';  // Update this line
 ```
+Everything else (tearlines, footer, API responses, Twig templates) picks it up automatically.
 
-#### 2. Update composer.json (Optional but Recommended)
-Edit `composer.json` to match the new version:
-
+#### 2. Update composer.json
 ```json
 {
     "name": "binkterm-php/fidonet-web",
-    "version": "1.4.3",  // Update this line
+    "version": "1.4.3",
     ...
 }
 ```
 
-
-#### 3. Commit and Tag
-Commit your changes. Do NOT create a tag.
-
+#### 3. Commit — do NOT create a tag
 ```bash
-git add src/Version.php composer.json 
+git add src/Version.php composer.json
 git commit -m "Bump version to 1.4.3"
-git push origin main 
+git push origin main
 ```
 
-#### 4. Update UPGRADING_x.x.x.md documentation
-
-For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions.  Link the new document from the Upgrading section of README.md.
-
-### What Updates Automatically
-
-Once you change the version in `src/Version.php`, the following will automatically use the new version:
-
-- **Message Tearlines**: All outbound FidoNet messages will include `--- BinktermPHP v1.4.3`
-- **Web Interface Footer**: All web pages will show "BinktermPHP v1.4.3 on Github"
-- **API Responses**: Any code using `Version::getVersionInfo()` will return current version
-- **Template Variables**: All Twig templates have access to `{{ app_version }}`, `{{ app_full_version }}`, etc.
-
-### Version Format
-
-BinktermPHP follows semantic versioning (semver):
-- **MAJOR.MINOR.PATCH** format (e.g., 1.4.2)
-- **Major**: Breaking changes
-- **Minor**: New features, backwards compatible
-- **Patch**: Bug fixes, backwards compatible
-
-### Version Class Methods
-
-The `Version` class provides several methods for different use cases:
-
-```php
-Version::getVersion()        // "1.4.2"
-Version::getAppName()        // "BinktermPHP"  
-Version::getFullVersion()    // "BinktermPHP v1.4.2"
-Version::getTearline()       // "--- BinktermPHP v1.4.2"
-Version::getVersionInfo()    // Complete array with all info
-Version::compareVersion('1.4.1')  // Version comparison
-```
-
-### Notes
-- Only edit the version in `src/Version.php` - all other locations will update automatically
-- The tearline format follows FidoNet standards (starts with "---" and under 79 characters)
-- Version is displayed to users, so keep it professional and consistent
-- Database migrations have their own versioning system (v1.7.x_description.sql) separate from application version
-- Application version and database migration version are independent and do not need to match
+#### 4. Create UPGRADING doc
+Create `docs/UPGRADING_x.x.x.md` with upgrade instructions. Link it from `README.md` and the Upgrading section of `docs/index.md`.

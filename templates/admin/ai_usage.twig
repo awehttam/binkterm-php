@@ -58,6 +58,15 @@
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.ai_usage.summary_tokens', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold text-gray-800">{{ report.summary.total_tokens|number_format }}</div>
+                    <div class="small text-muted mt-1">
+                        {{ t('ui.admin.ai_usage.input_tokens', {}, locale, ['common']) }}: {{ report.summary.input_tokens|number_format }}
+                        &middot;
+                        {{ t('ui.admin.ai_usage.output_tokens', {}, locale, ['common']) }}: {{ report.summary.output_tokens|number_format }}
+                        {% if report.summary.cached_input_tokens > 0 %}
+                        &middot;
+                        {{ t('ui.admin.ai_usage.cached_tokens', {}, locale, ['common']) }}: {{ report.summary.cached_input_tokens|number_format }}
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -75,6 +84,8 @@
                                     <th>{{ t('ui.admin.ai_usage.feature', {}, locale, ['common']) }}</th>
                                     <th class="text-end">{{ t('ui.admin.ai_usage.requests', {}, locale, ['common']) }}</th>
                                     <th class="text-end">{{ t('ui.admin.ai_usage.failures', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.input_tokens', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.output_tokens', {}, locale, ['common']) }}</th>
                                     <th class="text-end">{{ t('ui.admin.ai_usage.cost', {}, locale, ['common']) }}</th>
                                 </tr>
                             </thead>
@@ -85,11 +96,13 @@
                                         <td><code>{{ row.feature }}</code></td>
                                         <td class="text-end">{{ row.requests|number_format }}</td>
                                         <td class="text-end">{{ row.failures|number_format }}</td>
+                                        <td class="text-end">{{ row.input_tokens|number_format }}</td>
+                                        <td class="text-end">{{ row.output_tokens|number_format }}</td>
                                         <td class="text-end">${{ row.estimated_cost_usd|number_format(4) }}</td>
                                     </tr>
                                     {% endfor %}
                                 {% else %}
-                                    <tr><td colspan="4" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
+                                    <tr><td colspan="6" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>
@@ -109,6 +122,8 @@
                                     <th>{{ t('ui.admin.ai_usage.provider_model', {}, locale, ['common']) }}</th>
                                     <th class="text-end">{{ t('ui.admin.ai_usage.requests', {}, locale, ['common']) }}</th>
                                     <th class="text-end">{{ t('ui.admin.ai_usage.failures', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.input_tokens', {}, locale, ['common']) }}</th>
+                                    <th class="text-end">{{ t('ui.admin.ai_usage.output_tokens', {}, locale, ['common']) }}</th>
                                     <th class="text-end">{{ t('ui.admin.ai_usage.cost', {}, locale, ['common']) }}</th>
                                 </tr>
                             </thead>
@@ -119,11 +134,13 @@
                                         <td><code>{{ row.provider }}</code><div class="small text-muted">{{ row.model }}</div></td>
                                         <td class="text-end">{{ row.requests|number_format }}</td>
                                         <td class="text-end">{{ row.failures|number_format }}</td>
+                                        <td class="text-end">{{ row.input_tokens|number_format }}</td>
+                                        <td class="text-end">{{ row.output_tokens|number_format }}</td>
                                         <td class="text-end">${{ row.estimated_cost_usd|number_format(4) }}</td>
                                     </tr>
                                     {% endfor %}
                                 {% else %}
-                                    <tr><td colspan="4" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
+                                    <tr><td colspan="6" class="text-center text-muted py-3">{{ t('ui.admin.ai_usage.no_data', {}, locale, ['common']) }}</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>
@@ -196,7 +213,7 @@
                                             {% else %}
                                                 <span class="badge bg-danger">{{ row.status }}</span>
                                             {% endif %}
-                                            <div class="small text-muted">{{ row.total_tokens|number_format }} {{ t('ui.admin.ai_usage.tokens', {}, locale, ['common']) }}</div>
+                                            <div class="small text-muted">{{ t('ui.admin.ai_usage.token_breakdown', {'input': row.input_tokens|number_format, 'output': row.output_tokens|number_format}) }}</div>
                                         </td>
                                         <td class="text-end">${{ row.estimated_cost_usd|number_format(4) }}</td>
                                     </tr>

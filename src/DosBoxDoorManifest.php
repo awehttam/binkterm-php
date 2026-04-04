@@ -21,6 +21,7 @@ class DosBoxDoorManifest
     private $basePath;
     private $doorsBasePath;
     private $manifestCache = [];
+    private \BinktermPHP\Binkp\Logger $logger;
 
     /**
      * Constructor
@@ -35,6 +36,7 @@ class DosBoxDoorManifest
 
         // Base path for DOS doors (uppercase - Linux is case-sensitive)
         $this->doorsBasePath = $this->basePath . '/dosbox-bridge/dos/DOORS';
+        $this->logger = new \BinktermPHP\Binkp\Logger(\BinktermPHP\Config::getLogPath('dosdoor.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -65,7 +67,7 @@ class DosBoxDoorManifest
                     }
                 } catch (Exception $e) {
                     // Skip doors with invalid manifests
-                    error_log("Invalid door manifest at $manifestPath: " . $e->getMessage());
+                    $this->logger->warning("Invalid door manifest at $manifestPath: " . $e->getMessage());
                 }
             }
         }
@@ -112,7 +114,7 @@ class DosBoxDoorManifest
             $this->manifestCache[$doorId] = $manifest;
             return $manifest;
         } catch (Exception $e) {
-            error_log("Error reading door manifest for $doorId: " . $e->getMessage());
+            $this->logger->warning("Error reading door manifest for $doorId: " . $e->getMessage());
             return null;
         }
     }

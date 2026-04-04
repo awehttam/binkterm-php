@@ -324,7 +324,7 @@ class Translator
             return;
         }
 
-        error_log($message);
+        getServerLogger()->warning($message);
     }
 
     private function parseBooleanEnv(string $value): bool

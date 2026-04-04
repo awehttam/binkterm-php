@@ -433,7 +433,7 @@ function renderAdsTable(ads) {
 }
 
 function previewAd(id) {
-    fetch(`/admin/api/ads/${id}`)
+    fetch(`/admin/api/ads/${id}/preview`)
         .then(response => readJsonResponse(response))
         .then(({ response, data }) => {
             if (!response.ok || data['error_code'] || ('error' in data)) {

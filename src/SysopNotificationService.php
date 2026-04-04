@@ -68,7 +68,7 @@ class SysopNotificationService
             $systemName = $binkpConfig->getSystemName();
 
             if (empty($sysopName)) {
-                error_log("[SysopNotificationService] Sysop name not configured");
+                getServerLogger()->warning("[SysopNotificationService] Sysop name not configured");
                 return false;
             }
 
@@ -88,7 +88,7 @@ class SysopNotificationService
                 $sysopUser = $stmt->fetch();
 
                 if (!$sysopUser) {
-                    error_log("[SysopNotificationService] No sysop or admin user found");
+                    getServerLogger()->warning("[SysopNotificationService] No sysop or admin user found");
                     return false;
                 }
             }
@@ -133,7 +133,7 @@ class SysopNotificationService
             return $result;
 
         } catch (\Exception $e) {
-            error_log("[SysopNotificationService] Error sending notice to sysop: " . $e->getMessage());
+            getServerLogger()->error("[SysopNotificationService] Error sending notice to sysop: " . $e->getMessage());
             return false;
         }
     }

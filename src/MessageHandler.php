@@ -24,10 +24,12 @@ class MessageHandler
 
     private $db;
     private $pendingImmediateOutboundPolls = [];
+    private \BinktermPHP\Binkp\Logger $logger;
 
     public function __construct()
     {
-        $this->db = Database::getInstance()->getPdo();
+        $this->db     = Database::getInstance()->getPdo();
+        $this->logger = new \BinktermPHP\Binkp\Logger(Config::getLogPath('server.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
     private function getEchomailDateField(): string
@@ -1111,7 +1113,9 @@ class MessageHandler
             if (!empty($myAddresses)) {
                 $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail n
+                    SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                    FROM netmail n
+                    LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
                     WHERE n.id = ?
                       AND (
                         n.user_id = ?
@@ -1120,7 +1124,7 @@ class MessageHandler
                       AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
                                ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
                 ");
-                $params = [$messageId, $userId, $user['username'], $user['real_name']];
+                $params = [$userId, $messageId, $userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
                 $params[] = $userId;
                 $params[] = $user['username'];
@@ -1129,12 +1133,14 @@ class MessageHandler
             } else {
                 // Fallback if no addresses are configured - mirror the inbox fallback.
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail n
+                    SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                    FROM netmail n
+                    LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
                     WHERE n.id = ?
                       AND n.user_id = ?
                       AND n.deleted_by_sender = FALSE
                 ");
-                $stmt->execute([$messageId, $userId]);
+                $stmt->execute([$userId, $messageId, $userId]);
             }
         } else {
             // Echomail is public, so no user restriction needed
@@ -1279,7 +1285,7 @@ class MessageHandler
             if (!$originAddress) {
                 // No uplink can route to this destination - fall back to default
                 $originAddress = $binkpConfig->getSystemAddress();
-                error_log("[NETMAIL] WARNING: No specific uplink for destination {$toAddress}, using system address");
+                $this->logger->warning("[NETMAIL] No specific uplink for destination {$toAddress}, using system address");
             }
         } catch (\Exception $e) {
             throw new \Exception('Cannot determine origin address: ' . $e->getMessage());
@@ -1290,7 +1296,7 @@ class MessageHandler
         if ($toAddress !== $originAddress) {
             $outboundPath = $binkpConfig->getOutboundPath();
             if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
-                error_log("[NETMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+                $this->logger->error("[NETMAIL] Outbound directory not writable: {$outboundPath}");
                 throw new \Exception('Message delivery system unavailable. Please try again later.');
             }
         }
@@ -1315,7 +1321,7 @@ class MessageHandler
             $routeInfo = $crashmailService->resolveDestination($toAddress);
 
             if (empty($routeInfo['hostname'])) {
-                error_log("[NETMAIL] Crashmail destination not resolvable: {$toAddress}");
+                $this->logger->warning("[NETMAIL] Crashmail destination not resolvable: {$toAddress}");
                 throw new \Exception("Cannot send crashmail to {$toAddress}: destination not found in nodelist. The node may not have an internet address listed, or may not exist. Try sending without crashmail to route via your hub.");
             }
         }
@@ -1334,12 +1340,20 @@ class MessageHandler
                 }
             }
         } else {
-            $packetCharset = 'UTF-8';
+            // Determine default charset: check per-uplink override, then BBS global default.
+            // Use getUplinkForDestination() — the same routing logic used to pick the origin
+            // address — so the charset lookup is always consistent with packet routing.
+            $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+            $uplink = $binkpConfig->getUplinkForDestination($toAddress);
+            if ($uplink && !empty($uplink['default_charset'])) {
+                $defaultCharset = strtoupper($uplink['default_charset']);
+            }
+            $packetCharset = $defaultCharset;
             if (!empty($replyToId)) {
                 $csStmt = $this->db->prepare("SELECT message_charset FROM netmail WHERE id = ?");
                 $csStmt->execute([$replyToId]);
                 $originalCharset = $csStmt->fetchColumn();
-                if ($originalCharset && strtoupper($originalCharset) !== 'UTF-8') {
+                if ($originalCharset) {
                     $candidate = strtoupper($originalCharset);
                     $testConvert = @iconv('UTF-8', $candidate . '//IGNORE', $messageText);
                     if ($testConvert !== false && strlen($testConvert) > 0) {
@@ -1426,7 +1440,7 @@ class MessageHandler
                         if ($senderIsDifferent) {
                             $senderCopyPath = $attachment['file_path'] . '.sendercopy';
                             if (!copy($attachment['file_path'], $senderCopyPath)) {
-                                error_log("[NETMAIL] Failed to copy attachment for sender copy on message {$messageId}; sender will not have a copy.");
+                                $this->logger->error("[NETMAIL] Failed to copy attachment for sender copy on message {$messageId}; sender will not have a copy.");
                                 $senderCopyPath = null;
                             }
                         }
@@ -1441,7 +1455,7 @@ class MessageHandler
                                 $originAddress
                             );
                         } catch (\Exception $e) {
-                            error_log("[NETMAIL] Failed to store local attachment for message {$messageId}: " . $e->getMessage());
+                            $this->logger->error("[NETMAIL] Failed to store local attachment for message {$messageId}: " . $e->getMessage());
                             @unlink($attachment['file_path']);
                             @unlink($senderCopyPath);
                             $senderCopyPath = null;
@@ -1461,12 +1475,12 @@ class MessageHandler
                                     "Sent to {$toName}"
                                 );
                             } catch (\Exception $e) {
-                                error_log("[NETMAIL] Failed to store sender copy for message {$messageId}: " . $e->getMessage());
+                                $this->logger->error("[NETMAIL] Failed to store sender copy for message {$messageId}: " . $e->getMessage());
                                 @unlink($senderCopyPath);
                             }
                         }
                     } else {
-                        error_log("[NETMAIL] Could not find recipient '{$toName}' for local attachment on message {$messageId}; file dropped.");
+                        $this->logger->warning("[NETMAIL] Could not find recipient '{$toName}' for local attachment on message {$messageId}; file dropped.");
                         @unlink($attachment['file_path']);
                     }
                 } else {
@@ -1550,7 +1564,7 @@ class MessageHandler
                         $crashmailService->queueCrashmail($messageId);
                     } catch (\Exception $e) {
                         // If crashmail queue fails, fall back to normal spooling
-                        error_log("[NETMAIL] Crashmail queue failed, falling back to normal delivery: " . $e->getMessage());
+                        $this->logger->warning("[NETMAIL] Crashmail queue failed, falling back to normal delivery: " . $e->getMessage());
                         $this->spoolOutboundNetmail($messageId);
                     }
                 } else {
@@ -1653,7 +1667,7 @@ class MessageHandler
                         $systemAddress
                     );
                 } catch (\Exception $e) {
-                    error_log("[NETMAIL] Failed to store local sysop attachment for message {$messageId}: " . $e->getMessage());
+                    $this->logger->error("[NETMAIL] Failed to store local sysop attachment for message {$messageId}: " . $e->getMessage());
                     @unlink($attachment['file_path']);
                 }
             }
@@ -1706,7 +1720,7 @@ class MessageHandler
         if (!$isLocalArea) {
             $outboundPath = $binkpConfig->getOutboundPath();
             if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
-                error_log("[ECHOMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+                $this->logger->error("[ECHOMAIL] Outbound directory not writable: {$outboundPath}");
                 throw new \Exception('Message delivery system unavailable. Please try again later.');
             }
         }
@@ -1738,12 +1752,23 @@ class MessageHandler
                 }
             }
         } else {
-            $packetCharset = 'UTF-8';
+            // Local areas are stored only in the database (no FTN packet encoding), so UTF-8 is
+            // always the right choice regardless of the BBS-wide or per-uplink charset default.
+            if ($isLocalArea) {
+                $defaultCharset = 'UTF-8';
+            } else {
+                $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+                $uplink = $binkpConfig->getUplinkByDomain((string)$domain);
+                if ($uplink && !empty($uplink['default_charset'])) {
+                    $defaultCharset = strtoupper($uplink['default_charset']);
+                }
+            }
+            $packetCharset = $defaultCharset;
             if (!empty($replyToId)) {
                 $csStmt = $this->db->prepare("SELECT message_charset FROM echomail WHERE id = ?");
                 $csStmt->execute([$replyToId]);
                 $originalCharset = $csStmt->fetchColumn();
-                if ($originalCharset && strtoupper($originalCharset) !== 'UTF-8') {
+                if ($originalCharset) {
                     $candidate = strtoupper($originalCharset);
                     $testConvert = @iconv('UTF-8', $candidate . '//IGNORE', $messageText);
                     if ($testConvert !== false && strlen($testConvert) > 0) {
@@ -1808,7 +1833,7 @@ class MessageHandler
                         UserCredit::TYPE_SYSTEM_REWARD
                     );
                     if (!$rewarded) {
-                        error_log('[CREDITS] Echomail reward failed.');
+                        $this->logger->error('[CREDITS] Echomail reward failed.');
                     }
                 }
             }
@@ -2466,7 +2491,7 @@ class MessageHandler
         if (!empty($message['spooled_at'])) {
             $spooledAt = (string)$message['spooled_at'];
             $complaint = "[SPOOL] REFUSING to respool netmail #{$messageId}: already spooled at {$spooledAt}. This is a bug, not a retry path.";
-            error_log($complaint);
+            $this->logger->error($complaint);
             \BinktermPHP\Admin\AdminDaemonClient::log('ERROR', 'duplicate netmail spool prevented', [
                 'message_id' => $messageId,
                 'spooled_at' => $spooledAt,
@@ -2532,7 +2557,7 @@ class MessageHandler
             //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
-            error_log("[SPOOL] Failed to spool netmail #{$messageId} (from=\"{$fromName}\" subject=\"{$subject}\"): " . $e->getMessage());
+            $this->logger->error("[SPOOL] Failed to spool netmail #{$messageId} (from=\"{$fromName}\" subject=\"{$subject}\"): " . $e->getMessage());
             throw $e;
         }
     }
@@ -2580,7 +2605,7 @@ class MessageHandler
                     $originAddress, $toAddress, $sysopName, $filePath, $filename
                 );
                 $crashService->queueCrashmail($netmailId);
-                error_log("[FREQ] Response to {$toAddress} queued for crashmail: {$filename}");
+                $this->logger->info("[FREQ] Response to {$toAddress} queued for crashmail: {$filename}");
                 return;
             }
         }
@@ -2589,7 +2614,7 @@ class MessageHandler
         // Delivered when either side initiates a session with the requesting node.
         $this->spoolFreqAttachToHold($originAddress, $toAddress, $sysopName, $filePath, $filename);
         $this->sendFreqPickupNotification($originAddress, $toAddress, $sysopName, $filename);
-        error_log("[FREQ] Response to {$toAddress} staged in hold for pick-up: {$filename}");
+        $this->logger->info("[FREQ] Response to {$toAddress} staged in hold for pick-up: {$filename}");
     }
 
     /**
@@ -2771,7 +2796,7 @@ class MessageHandler
         if (!empty($message['spooled_at'])) {
             $spooledAt = (string)$message['spooled_at'];
             $complaint = "[SPOOL] REFUSING to respool echomail #{$messageId} ({$echoareaTag}): already spooled at {$spooledAt}. This is a bug, not a retry path.";
-            error_log($complaint);
+            $this->logger->error($complaint);
             \BinktermPHP\Admin\AdminDaemonClient::log('ERROR', 'duplicate echomail spool prevented', [
                 'message_id' => $messageId,
                 'area'       => $echoareaTag,
@@ -2838,14 +2863,14 @@ class MessageHandler
 
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
-                error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
+                $this->logger->warning("[SPOOL] No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
                 return false;
             }
 
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
-            error_log("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
+            $this->logger->error("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
             return false;
         }
     }
@@ -2880,7 +2905,7 @@ class MessageHandler
                 }
             } catch (\Exception $e) {
                 // Log error but continue with hardcoded fallback
-                error_log("Failed to get default uplink for domain " . $e->getMessage());
+                $this->logger->error("Failed to get default uplink for domain " . $e->getMessage());
             }
         }
         // Fall back to default uplink from JSON config
@@ -2892,7 +2917,7 @@ class MessageHandler
             }
         } catch (\Exception $e) {
             // Log error but continue with hardcoded fallback
-            error_log("Failed to get default uplink from config: " . $e->getMessage());
+            $this->logger->error("Failed to get default uplink from config: " . $e->getMessage());
         }
         
         // Ultimate fallback if config fails (was '1:123/1';
@@ -2932,13 +2957,13 @@ class MessageHandler
                     $contexts[] = "{$context} via {$uplinkAddress}";
                 }
             }
-            error_log("[SPOOL] Could not trigger immediate outbound poll for " . implode(', ', $contexts) . ": " . $e->getMessage());
+            $this->logger->warning("[SPOOL] Could not trigger immediate outbound poll for " . implode(', ', $contexts) . ": " . $e->getMessage());
         } finally {
             if (isset($client) && is_object($client)) {
                 try {
                     $client->close();
                 } catch (\Throwable $closeEx) {
-                    error_log("[SPOOL] Error closing admin daemon client: " . $closeEx->getMessage());
+                    $this->logger->warning("[SPOOL] Error closing admin daemon client: " . $closeEx->getMessage());
                 }
             }
             $this->pendingImmediateOutboundPolls = [];
@@ -2951,7 +2976,7 @@ class MessageHandler
         
         // Validate input
         if (empty($messageIds) || !is_array($messageIds)) {
-            error_log("MessageHandler::deleteEchomail - Invalid input");
+            $this->logger->warning("MessageHandler::deleteEchomail - Invalid input");
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.echomail.bulk_delete.invalid_input',
@@ -2963,7 +2988,7 @@ class MessageHandler
         $user = $this->getUserById($userId);
         //error_log("MessageHandler::deleteEchomail - Retrieved user: " . print_r($user, true));
         if (!$user) {
-            error_log("MessageHandler::deleteEchomail - User not found for ID: $userId");
+            $this->logger->warning("MessageHandler::deleteEchomail - User not found for ID: $userId");
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.echomail.bulk_delete.user_not_found',
@@ -2992,8 +3017,8 @@ class MessageHandler
                 $isOwner = ($message['from_name'] === $user['real_name'] || $message['from_name'] === $user['username']);
                 $isAdmin = $this->isAdmin($user);
                 
-                error_log("Permission check for message $messageId: isOwner=$isOwner, isAdmin=$isAdmin");
-                error_log("Message from_name: '{$message['from_name']}', User real_name: '{$user['real_name']}', User username: '{$user['username']}'");
+                $this->logger->debug("Permission check for message $messageId: isOwner=$isOwner, isAdmin=$isAdmin");
+                $this->logger->debug("Message from_name: '{$message['from_name']}', User real_name: '{$user['real_name']}', User username: '{$user['username']}'");
                 
                 if (!$isOwner && !$isAdmin) {
                     $errors[] = "Not authorized to delete message ID $messageId";
@@ -3475,7 +3500,7 @@ class MessageHandler
                     );
                 }
             } catch (\Throwable $e) {
-                error_log('[CREDITS] Failed to grant approval bonus: ' . $e->getMessage());
+                $this->logger->error('[CREDITS] Failed to grant approval bonus: ' . $e->getMessage());
             }
 
             // Award referral bonus if applicable
@@ -3497,7 +3522,7 @@ class MessageHandler
                         );
                     }
                 } catch (\Throwable $e) {
-                    error_log('[CREDITS] Failed to grant referral bonus: ' . $e->getMessage());
+                    $this->logger->error('[CREDITS] Failed to grant referral bonus: ' . $e->getMessage());
                 }
             }
             
@@ -3599,14 +3624,14 @@ class MessageHandler
                 if ($mailer->isEnabled()) {
                     $emailSent = $mailer->sendWelcomeEmail($user['email'], $username, $realName);
                     if ($emailSent) {
-                        error_log("Welcome email sent successfully to {$user['email']} for user $username");
+                        $this->logger->info("Welcome email sent successfully to {$user['email']} for user $username");
                     } else {
-                        error_log("Failed to send welcome email to {$user['email']} for user $username");
+                        $this->logger->warning("Failed to send welcome email to {$user['email']} for user $username");
                     }
                 }
             }
         } catch (\Exception $e) {
-            error_log("Error sending welcome email for user $username: " . $e->getMessage());
+            $this->logger->error("Error sending welcome email for user $username: " . $e->getMessage());
         }
     }
 
@@ -6288,7 +6313,7 @@ class MessageHandler
                 }
             }
         } catch (\Exception $e) {
-            error_log("Error sending reminder email for user " . $user['username'] . ": " . $e->getMessage());
+            $this->logger->error("Error sending reminder email for user " . $user['username'] . ": " . $e->getMessage());
         }
 
         // Update last_reminded timestamp since reminder was sent successfully
@@ -6296,11 +6321,11 @@ class MessageHandler
             $updateStmt = $this->db->prepare("UPDATE users SET last_reminded = NOW() WHERE id = ?");
             $updateResult = $updateStmt->execute([$user['id']]);
             $rowsUpdated = $updateStmt->rowCount();
-            
-            error_log("[REMINDER] Updated last_reminded for user ID {$user['id']} ({$user['username']}): success=" . ($updateResult ? 'true' : 'false') . ", rows_affected=$rowsUpdated");
+
+            $this->logger->info("[REMINDER] Updated last_reminded for user ID {$user['id']} ({$user['username']}): success=" . ($updateResult ? 'true' : 'false') . ", rows_affected=$rowsUpdated");
         } catch (\Exception $e) {
-            error_log("[REMINDER] Failed to update last_reminded for user {$user['username']}: " . $e->getMessage());
-            error_log("[REMINDER] This likely means the database migration v1.4.8_add_last_reminded_field.sql has not been run");
+            $this->logger->error("[REMINDER] Failed to update last_reminded for user {$user['username']}: " . $e->getMessage());
+            $this->logger->warning("[REMINDER] This likely means the database migration v1.4.8_add_last_reminded_field.sql has not been run");
         }
 
         return [
@@ -6402,6 +6427,14 @@ class MessageHandler
             // Check if draft already exists for this user and type with same content
             $existingDraft = $this->findExistingDraft($userId, $draftData);
 
+            // Encode meta (e.g. cross_post_areas) as JSON; only include the key
+            // when the caller provides it so existing drafts without meta are
+            // not needlessly touched.
+            $metaJson = null;
+            if (isset($draftData['meta']) && is_array($draftData['meta'])) {
+                $metaJson = json_encode($draftData['meta']);
+            }
+
             if ($existingDraft) {
                 // Update existing draft
                 $stmt = $this->db->prepare("
@@ -6412,6 +6445,7 @@ class MessageHandler
                         subject = ?,
                         message_text = ?,
                         reply_to_id = ?,
+                        meta = ?::jsonb,
                         updated_at = NOW() AT TIME ZONE 'UTC'
                     WHERE id = ?
                 ");
@@ -6423,6 +6457,7 @@ class MessageHandler
                     $draftData['subject'] ?? null,
                     $draftData['message_text'] ?? null,
                     $draftData['reply_to_id'] ?? null,
+                    $metaJson,
                     $existingDraft['id']
                 ]);
 
@@ -6430,8 +6465,8 @@ class MessageHandler
             } else {
                 // Create new draft
                 $stmt = $this->db->prepare("
-                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
+                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, meta, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
                     RETURNING id
                 ");
 
@@ -6443,14 +6478,15 @@ class MessageHandler
                     $draftData['echoarea'] ?? null,
                     $draftData['subject'] ?? null,
                     $draftData['message_text'] ?? null,
-                    $draftData['reply_to_id'] ?? null
+                    $draftData['reply_to_id'] ?? null,
+                    $metaJson
                 ]);
                 $insertedDraft = $stmt->fetch(\PDO::FETCH_ASSOC);
                 $draftId = $insertedDraft ? (int)$insertedDraft['id'] : 0;
                 return ['success' => true, 'draft_id' => $draftId, 'created' => true];
             }
         } catch (\Exception $e) {
-            error_log("Error saving draft: " . $e->getMessage());
+            $this->logger->error("Error saving draft: " . $e->getMessage());
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.drafts.save_failed',
@@ -6478,9 +6514,23 @@ class MessageHandler
             $stmt->execute([$userId, $draftData['type']]);
             return $stmt->fetch(\PDO::FETCH_ASSOC);
         } catch (\Exception $e) {
-            error_log("Error finding existing draft: " . $e->getMessage());
+            $this->logger->error("Error finding existing draft: " . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Decode the meta JSONB column on a draft row into a PHP array.
+     *
+     * @param array $row Raw row from PDO fetch
+     * @return array Row with meta decoded (or null when absent)
+     */
+    private function decodeDraftMeta(array $row): array
+    {
+        if (isset($row['meta']) && is_string($row['meta'])) {
+            $row['meta'] = json_decode($row['meta'], true) ?? null;
+        }
+        return $row;
     }
 
     /**
@@ -6502,9 +6552,10 @@ class MessageHandler
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
 
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return array_map([$this, 'decodeDraftMeta'], $rows);
         } catch (\Exception $e) {
-            error_log("Error getting user drafts: " . $e->getMessage());
+            $this->logger->error("Error getting user drafts: " . $e->getMessage());
             return [];
         }
     }
@@ -6521,9 +6572,10 @@ class MessageHandler
             ");
 
             $stmt->execute([$draftId, $userId]);
-            return $stmt->fetch(\PDO::FETCH_ASSOC);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $row ? $this->decodeDraftMeta($row) : null;
         } catch (\Exception $e) {
-            error_log("Error getting draft: " . $e->getMessage());
+            $this->logger->error("Error getting draft: " . $e->getMessage());
             return null;
         }
     }
@@ -6542,7 +6594,7 @@ class MessageHandler
             $stmt->execute([$draftId, $userId]);
             return ['success' => true];
         } catch (\Exception $e) {
-            error_log("Error deleting draft: " . $e->getMessage());
+            $this->logger->error("Error deleting draft: " . $e->getMessage());
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.drafts.delete_failed',

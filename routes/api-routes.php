@@ -369,7 +369,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $logAttemptStmt->execute([$ipAddress]);
 
         } catch (Exception $e) {
-            error_log("Rate limit check failed: " . $e->getMessage());
+            getServerLogger()->error("Rate limit check failed: " . $e->getMessage());
             // Continue with registration if rate limit check fails
         }
 
@@ -459,6 +459,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $insertStmt = $db->prepare("
                 INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
             ");
 
             $insertStmt->execute([
@@ -474,7 +475,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $referrerId
             ]);
 
-            $pendingUserId = $db->lastInsertId();
+            $pendingUserRow = $insertStmt->fetch(\PDO::FETCH_ASSOC);
+            $pendingUserId = $pendingUserRow ? (int)$pendingUserRow['id'] : 0;
 
             // Send notification to sysop
             try {
@@ -482,7 +484,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
             } catch (Exception $e) {
                 // Log error but don't fail registration
-                error_log("Failed to send registration notification: " . $e->getMessage());
+                getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
             }
 
             // Mark registration attempt as successful
@@ -490,13 +492,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $updateAttemptStmt = $db->prepare("
                     UPDATE registration_attempts
                     SET success = TRUE
-                    WHERE ip_address = ?
-                    ORDER BY attempt_time DESC
-                    LIMIT 1
+                    WHERE id = (
+                        SELECT id
+                        FROM registration_attempts
+                        WHERE ip_address = ?
+                        ORDER BY attempt_time DESC
+                        LIMIT 1
+                    )
                 ");
                 $updateAttemptStmt->execute([$ipAddress]);
             } catch (Exception $e) {
-                error_log("Failed to update registration attempt: " . $e->getMessage());
+                getServerLogger()->error("Failed to update registration attempt: " . $e->getMessage());
             }
 
             echo json_encode([
@@ -505,7 +511,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (Exception $e) {
-            error_log("Registration error: " . $e->getMessage());
+            getServerLogger()->error("Registration error: " . $e->getMessage());
             apiError('errors.register.failed', apiLocalizedText('errors.register.failed', 'Registration failed. Please try again later.'), 500);
         }
     });
@@ -545,7 +551,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
         } catch (Exception $e) {
-            error_log("Account reminder error: " . $e->getMessage());
+            getServerLogger()->error("Account reminder error: " . $e->getMessage());
             apiError('errors.reminder.send_failed', apiLocalizedText('errors.reminder.send_failed', 'Failed to send reminder. Please try again later.'), 500);
         }
     });
@@ -1350,7 +1356,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         if ($roomId) {
-            error_log('[CHAT SEND] user_id=' . $userId . ' room_id=' . $roomId);
+            getServerLogger()->debug('[CHAT SEND] user_id=' . $userId . ' room_id=' . $roomId);
             $roomStmt = $db->prepare("SELECT id FROM chat_rooms WHERE id = ? AND is_active = TRUE");
             $roomStmt->execute([$roomId]);
             if (!$roomStmt->fetch()) {
@@ -1366,7 +1372,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
             $banStmt->execute([$roomId, $userId]);
             $banHit = $banStmt->fetchColumn();
-            error_log('[CHAT SEND] ban_hit=' . ($banHit ? '1' : '0'));
+            getServerLogger()->debug('[CHAT SEND] ban_hit=' . ($banHit ? '1' : '0'));
             if ($banHit) {
                 http_response_code(403);
                 apiError('errors.chat.user_banned', apiLocalizedText('errors.chat.user_banned', 'You are banned from this room', $user));
@@ -1404,7 +1410,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         $result = $stmt->fetch();
         if (!$result) {
-            error_log('[CHAT SEND] insert blocked by ban');
+            getServerLogger()->info('[CHAT SEND] insert blocked by ban');
             http_response_code(403);
             apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
             return;
@@ -2470,7 +2476,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]);
 
         } catch (\Exception $e) {
-            error_log('[FileArea create] ' . $e->getMessage());
+            getServerLogger()->error('[FileArea create] ' . $e->getMessage());
             http_response_code(400);
             apiError('errors.fileareas.create_failed', apiLocalizedText('errors.fileareas.create_failed', 'Failed to create file area', $user));
         }
@@ -2544,7 +2550,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $preview = $manager->previewIsoImport((int)$id, $flat, $catalogueOnly);
             echo json_encode(['success' => true] + $preview);
         } catch (\Exception $e) {
-            error_log('[IsoPreview] ' . $e->getMessage());
+            getServerLogger()->error('[IsoPreview] ' . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => $e->getMessage()]);
         }
@@ -2576,7 +2582,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $counters = $manager->importIsoFiles((int)$id, true, null, $flat, $overrides, $catalogueOnly);
             echo json_encode(['success' => true, 'counters' => $counters]);
         } catch (\Exception $e) {
-            error_log('[IsoReindex] ' . $e->getMessage());
+            getServerLogger()->error('[IsoReindex] ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.fileareas.reindex_failed', apiLocalizedText('errors.fileareas.reindex_failed', 'Failed to re-index ISO area', $user));
         }
@@ -2606,7 +2612,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $deleted = $manager->deleteSubfolder((int)$id, $subfolder);
             echo json_encode(['success' => true, 'deleted' => $deleted]);
         } catch (\Exception $e) {
-            error_log('[SubfolderDelete] ' . $e->getMessage());
+            getServerLogger()->error('[SubfolderDelete] ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.delete_failed', 'Failed to delete subfolder');
         }
@@ -2906,7 +2912,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode(['success' => true, 'result' => $result['result'] ?? []]);
         } catch (\Throwable $e) {
-            error_log('[Rehatch] ' . $e->getMessage());
+            getServerLogger()->error('[Rehatch] ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.rehatch_failed', apiLocalizedText('errors.files.rehatch_failed', 'Rehatch failed', $user));
         }
@@ -3024,7 +3030,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     UserCredit::TYPE_SYSTEM_REWARD
                 );
                 if (!$creditSuccess) {
-                    error_log("Failed to award file download credits for user {$userId} and file {$id}");
+                    getServerLogger()->error("Failed to award file download credits for user {$userId} and file {$id}");
                 }
             }
 
@@ -3211,6 +3217,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'flac' => 'audio/flac', 'aac' => 'audio/aac', 'm4a' => 'audio/mp4',
             'opus' => 'audio/ogg',
         ];
+        $binaryInlineMimes = [
+            'torrent' => 'application/x-bittorrent',
+        ];
         $textExts = [
             'txt', 'log', 'nfo', 'diz', 'asc', 'cfg', 'ini', 'conf', 'lsm',
             'json', 'xml', 'bat', 'sh', 'readme', 'ans', 'bbs',
@@ -3263,6 +3272,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 header('Cache-Control: private, max-age=3600');
                 readfile($storagePath);
             }
+            exit;
+        }
+
+        if (isset($binaryInlineMimes[$ext])) {
+            // Torrent previews need the exact on-disk bytes for bencode parsing
+            // and info-hash generation. Never run them through text heuristics
+            // or charset conversion.
+            header('Content-Type: ' . $binaryInlineMimes[$ext]);
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
+            header('Content-Length: ' . $fileSize);
+            header('Cache-Control: private, max-age=3600');
+            header('X-Content-Type-Options: nosniff');
+            readfile($storagePath);
             exit;
         }
 
@@ -3840,6 +3862,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // Non-ZIP listing requires shelling out to 7z which can be slow on large files.
+        // Enforce a configurable size cap; ZIP is exempt because it reads only the index.
+        if ($type !== 'zip') {
+            $maxBytes = (int)\BinktermPHP\Config::env('ARCHIVE_LIST_MAX_SIZE', '20971520');
+            if ($maxBytes > 0 && filesize($storagePath) > $maxBytes) {
+                http_response_code(413);
+                echo json_encode([
+                    'error'    => 'file_too_large',
+                    'max_size' => $maxBytes,
+                    'type'     => $type,
+                    'label'    => \BinktermPHP\ArchiveReader::typeLabel($type),
+                ]);
+                return;
+            }
+        }
+
         $result = \BinktermPHP\ArchiveReader::listContents($storagePath, $type);
 
         if (!empty($result['tool_unavailable'])) {
@@ -4198,7 +4236,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     UserCredit::TYPE_SYSTEM_REWARD
                 );
                 if (!$creditSuccess) {
-                    error_log("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
+                    getServerLogger()->error("Failed to award file upload credits for user {$ownerId} and file {$fileId}");
                 }
             }
 
@@ -4252,7 +4290,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 http_response_code(422);
                 apiError('errors.files.upload.virus_detected', apiLocalizedText('errors.files.upload.virus_detected', 'File rejected: virus detected', $user));
             } else {
-                error_log("File upload error: " . $message);
+                getServerLogger()->error("File upload error: " . $message);
                 apiError('errors.files.upload.failed', apiLocalizedText('errors.files.upload.failed', 'Failed to upload file', $user));
             }
         }
@@ -4433,7 +4471,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'scanned'   => $result['scanned'] ?? false,
             ]);
         } catch (\Exception $e) {
-            error_log('[FileScan] Exception: ' . $e->getMessage());
+            getServerLogger()->error('[FileScan] Exception: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.scan_failed', apiLocalizedText('errors.files.scan_failed', 'Virus scan failed', $user));
         }
@@ -5319,7 +5357,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
-            error_log('[echomail bulk read] Failed to persist read status: ' . $e->getMessage());
+            getServerLogger()->error('[echomail bulk read] Failed to persist read status: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.echomail.bulk_read.failed', apiLocalizedText('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read', $user));
             return;
@@ -5333,7 +5371,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'message_type' => 'echomail',
             ], $userId);
         } catch (\Throwable $e) {
-            error_log('[echomail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+            getServerLogger()->warning('[echomail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
         }
 
         echo json_encode([
@@ -6180,7 +6218,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         if (empty($_FILES['file'])) {
-            error_log('[netmail/attachment/upload] No file in $_FILES');
+            getServerLogger()->warning('[netmail/attachment/upload] No file in $_FILES');
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6189,7 +6227,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $file = $_FILES['file'];
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
-            error_log('[netmail/attachment/upload] PHP upload error code: ' . $file['error']);
+            getServerLogger()->warning('[netmail/attachment/upload] PHP upload error code: ' . $file['error']);
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6197,7 +6235,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $maxBytes = (int)\BinktermPHP\Config::env('NETMAIL_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024);
         if ($file['size'] > $maxBytes) {
-            error_log('[netmail/attachment/upload] File too large: ' . $file['size'] . ' bytes (max ' . $maxBytes . ')');
+            getServerLogger()->warning('[netmail/attachment/upload] File too large: ' . $file['size'] . ' bytes (max ' . $maxBytes . ')');
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6214,7 +6252,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $destDir = __DIR__ . '/../data/netmail_attachments';
         if (!is_dir($destDir)) {
             if (!mkdir($destDir, 0777, true)) {
-                error_log('[netmail/attachment/upload] Failed to create directory: ' . $destDir);
+                getServerLogger()->error('[netmail/attachment/upload] Failed to create directory: ' . $destDir);
                 http_response_code(500);
                 apiError('', apiLocalizedText('', ''));
                 return;
@@ -6223,7 +6261,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $destPath = $destDir . '/' . $token . '_' . $safeName;
 
         if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-            error_log('[netmail/attachment/upload] move_uploaded_file failed: tmp=' . $file['tmp_name'] . ' dest=' . $destPath . ' dir_writable=' . (is_writable($destDir) ? 'yes' : 'no'));
+            getServerLogger()->error('[netmail/attachment/upload] move_uploaded_file failed: tmp=' . $file['tmp_name'] . ' dest=' . $destPath . ' dir_writable=' . (is_writable($destDir) ? 'yes' : 'no'));
             http_response_code(500);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -6358,11 +6396,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 null,
                                 $input['tagline'] ?? null,
                                 true,
-                                $markupType
+                                $markupType,
+                                '',
+                                null,
+                                $charset
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
-                            error_log("[CROSSPOST] Failed to cross-post to {$areaTag}: " . $e->getMessage());
+                            getServerLogger()->error("[CROSSPOST] Failed to cross-post to {$areaTag}: " . $e->getMessage());
                         }
                     }
                 }
@@ -6398,7 +6439,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.messages.send.failed', apiLocalizedText('errors.messages.send.failed', 'Failed to send message', $user));
             }
         } catch (Exception $e) {
-            error_log('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            getServerLogger()->error('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
             apiError('errors.messages.send.exception', apiLocalizedText('errors.messages.send.exception', 'Failed to send message', $user));
         }
@@ -6458,8 +6499,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } elseif (!empty($address)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
                 $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDestination((string)$address);
-                $systemAddress = $binkpConfig->getSystemAddress();
-                $isLocalAddress = (trim((string)$address) === trim((string)$systemAddress));
+                $isLocalAddress = $binkpConfig->isMyAddress(trim((string)$address));
+
+                // Determine the default charset for this destination so the compose
+                // form can update its charset selector without a separate API call.
+                if ($isLocalAddress) {
+                    $defaultCharsetForDest = 'UTF-8';
+                } else {
+                    $defaultCharsetForDest = \BinktermPHP\BbsConfig::getOutgoingCharset();
+                    $destUplink = $binkpConfig->getUplinkForDestination((string)$address);
+                    if ($destUplink && !empty($destUplink['default_charset'])) {
+                        $defaultCharsetForDest = strtoupper($destUplink['default_charset']);
+                    }
+                }
             }
         } catch (\Exception $e) {
             $allowed = false;
@@ -6470,6 +6522,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'allowed'            => $allowed,
             'posting_name_policy' => $postingNamePolicy,
             'is_local_address'   => $isLocalAddress,
+            'default_charset'    => $defaultCharsetForDest ?? null,
         ]);
     });
 
@@ -6910,7 +6963,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $result = $stmt->execute([$userId, (int)$id, $type]);
         } catch (\Throwable $e) {
-            error_log('[message read] Failed to persist read status for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
+            getServerLogger()->error('[message read] Failed to persist read status for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.messages.read.mark_failed', apiLocalizedText('errors.messages.read.mark_failed', 'Failed to mark message as read', $user));
             return;
@@ -6930,7 +6983,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'message_type' => $type,
             ], (int)$userId);
         } catch (\Throwable $e) {
-            error_log('[message read] SSE notification failed after read status persisted for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
+            getServerLogger()->warning('[message read] SSE notification failed after read status persisted for user ' . (int)$userId . ', type ' . $type . ', id ' . (int)$id . ': ' . $e->getMessage());
         }
 
         echo json_encode(['success' => true]);
@@ -7041,13 +7094,68 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     // User profile API endpoints
+    SimpleRouter::get('/user/profile', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        echo json_encode([
+            'success' => true,
+            'profile' => [
+                'email' => (string)($user['email'] ?? ''),
+                'location' => (string)($user['location'] ?? ''),
+                'about_me' => (string)($user['about_me'] ?? ''),
+            ]
+        ]);
+    });
+
+    SimpleRouter::post('/user/change-password', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+            $currentPassword = (string)($input['old_password'] ?? '');
+            $newPassword = (string)($input['new_password'] ?? '');
+
+            if ($currentPassword === '' || $newPassword === '') {
+                apiError('errors.settings.invalid_input', apiLocalizedText('errors.settings.invalid_input', 'Invalid input', $user), 400);
+                return;
+            }
+
+            if (!password_verify($currentPassword, (string)($user['password_hash'] ?? ''))) {
+                apiError('errors.user.profile.current_password_incorrect', apiLocalizedText('errors.user.profile.current_password_incorrect', 'Current password is incorrect', $user), 400);
+                return;
+            }
+
+            if (strlen($newPassword) < 6) {
+                apiError('errors.user.profile.new_password_too_short', apiLocalizedText('errors.user.profile.new_password_too_short', 'New password must be at least 6 characters long', $user), 400);
+                return;
+            }
+
+            $db = Database::getInstance()->getPdo();
+            $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+            $stmt->execute([$newPasswordHash, $user['user_id']]);
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.profile.updated_successfully'
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.user.profile.update_failed', apiLocalizedText('errors.user.profile.update_failed', 'Failed to update profile', $user), 500);
+        }
+    });
+
     SimpleRouter::post('/user/profile', function() {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
         try {
-            $input = $_POST;
+            $jsonInput = json_decode(file_get_contents('php://input'), true);
+            $input = is_array($jsonInput) ? $jsonInput : $_POST;
 
             $db = Database::getInstance()->getPdo();
 
@@ -8165,6 +8273,87 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         readfile($filepath);
     });
 
+    SimpleRouter::get('/binkp/kept-packets/bundle/list', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->listBundleContents($type, $date, $filename));
+    });
+
+    SimpleRouter::get('/binkp/kept-packets/bundle/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $bundle   = $_GET['bundle']   ?? '';
+        $pkt      = $_GET['pkt']      ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($bundle) || empty($pkt)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectBundlePacket($type, $date, $bundle, $pkt));
+    });
+
+    SimpleRouter::get('/binkp/kept-packets/bundle/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packet files requires registration', $user), 403);
+            return;
+        }
+
+        $type     = $_GET['type']     ?? 'inbound';
+        $date     = $_GET['date']     ?? '';
+        $filename = $_GET['filename'] ?? '';
+
+        if (!in_array($type, ['inbound', 'outbound'], true) || empty($filename)) {
+            apiError('errors.binkp.kept_packets.invalid_type', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $filepath = $controller->getKeptBundleDownloadPath($type, $date, $filename);
+        if ($filepath === null) {
+            apiError('errors.binkp.kept_packets.inspect_failed', 'File not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($filepath));
+        header('Content-Disposition: attachment; filename="' . basename($filepath) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($filepath);
+    });
+
     SimpleRouter::get('/binkp/kept-packets', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
@@ -8490,6 +8679,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
                 $settings['image_load_mode'] = $meta->getValue((int)$userId, 'image_load_mode') ?? 'click';
             }
+
+            $settings['license_valid'] = \BinktermPHP\License::isValid();
 
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
@@ -9414,7 +9605,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
         } catch (Exception $e) {
-            error_log("Admin reminder error: " . $e->getMessage());
+            getServerLogger()->error("Admin reminder error: " . $e->getMessage());
             http_response_code(500);
             apiError('', apiLocalizedText('', ''));
         }
@@ -9857,7 +10048,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
             ]);
 
         } catch (Exception $e) {
-            error_log("Referral stats error: " . $e->getMessage());
+            getServerLogger()->error("Referral stats error: " . $e->getMessage());
             http_response_code(500);
             apiError('errors.referrals.stats_failed', apiLocalizedText('errors.referrals.stats_failed', 'Failed to load referral statistics'));
         }
@@ -9916,7 +10107,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
             ]);
 
         } catch (Exception $e) {
-            error_log("Admin referral stats error: " . $e->getMessage());
+            getServerLogger()->error("Admin referral stats error: " . $e->getMessage());
             http_response_code(500);
             apiError('errors.referrals.admin_stats_failed', apiLocalizedText('errors.referrals.admin_stats_failed', 'Failed to load admin referral statistics', $user));
         }
@@ -10027,7 +10218,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             http_response_code(403);
             echo htmlspecialchars($e->getMessage());
         } catch (\Exception $e) {
-            error_log('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] buildPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
         }
@@ -10071,7 +10262,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             http_response_code(403);
             apiError('errors.qwk.disabled', $e->getMessage());
         } catch (\Exception $e) {
-            error_log('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] processRepPacket failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.qwk.processing_failed', 'Failed to process REP packet: ' . $e->getMessage());
         }
@@ -10230,7 +10421,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
                 'has_custom_selection' => $hasCustomSelection,
             ]);
         } catch (\Exception $e) {
-            error_log('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] status failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.qwk.status_failed', 'Failed to retrieve QWK status: ' . $e->getMessage());
         }
@@ -10295,7 +10486,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
 
             echo json_encode(['success' => true]);
         } catch (\Exception $e) {
-            error_log('[QWK] reset failed for user ' . $userId . ': ' . $e->getMessage());
+            getServerLogger()->error('[QWK] reset failed for user ' . $userId . ': ' . $e->getMessage());
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
@@ -10428,7 +10619,7 @@ SimpleRouter::group(['prefix' => '/api/qwk'], function() {
             $db->commit();
         } catch (\Exception $e) {
             $db->rollBack();
-            error_log('[QWK] area-selections save failed: ' . $e->getMessage());
+            getServerLogger()->error('[QWK] area-selections save failed: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.qwk.save_failed', 'Failed to save area selections.');
             return;
@@ -10854,19 +11045,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     // Returns { success, url, filename }
     // -----------------------------------------------------------------
     SimpleRouter::get('/markdown-images', function() {
-        $user   = RouteHelper::requireAuth();
-        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $user     = RouteHelper::requireAuth();
+        $userId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $username = (string)($user['username'] ?? '');
         header('Content-Type: application/json');
 
         try {
             $manager = new \BinktermPHP\FileAreaManager();
             $images  = $manager->listMarkdownImages($userId);
 
-            $result = array_map(function(array $img): array {
+            $result = array_map(function(array $img) use ($username): array {
+                $urlSlug = $img['url_slug'] ?? null;
+                $imgUser = $img['username'] ?? $username;
+                $url = $urlSlug
+                    ? \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . rawurlencode($imgUser) . '/' . rawurlencode($urlSlug)
+                    : \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $img['file_hash'];
                 return [
-                    'hash'       => $img['file_hash'],
                     'filename'   => $img['filename'],
-                    'url'        => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $img['file_hash'],
+                    'url'        => $url,
                     'created_at' => $img['created_at'],
                 ];
             }, $images);
@@ -10879,8 +11075,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/markdown-images', function() {
-        $user   = RouteHelper::requireAuth();
-        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $user     = RouteHelper::requireAuth();
+        $userId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $username = (string)($user['username'] ?? '');
         header('Content-Type: application/json');
 
         $uploadError = $_FILES['image']['error'] ?? -1;
@@ -10903,17 +11100,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         try {
-            $manager = new \BinktermPHP\FileAreaManager();
-            $result  = $manager->storeMarkdownImage(
-                $userId,
-                $_FILES['image']['tmp_name'],
-                basename($_FILES['image']['name'])
-            );
+            $manager  = new \BinktermPHP\FileAreaManager();
+            $origName = basename($_FILES['image']['name']);
+            $result   = $manager->storeMarkdownImage($userId, $_FILES['image']['tmp_name'], $origName);
+
+            $url = \BinktermPHP\Config::getSiteUrl()
+                . '/echomail-images/'
+                . rawurlencode($username)
+                . '/'
+                . rawurlencode($result['url_slug']);
 
             echo json_encode([
                 'success'  => true,
-                'url'      => \BinktermPHP\Config::getSiteUrl() . '/echomail-images/' . $result['hash'],
-                'filename' => basename($_FILES['image']['name']),
+                'url'      => $url,
+                'filename' => $origName,
             ]);
         } catch (\Exception $e) {
             http_response_code(500);

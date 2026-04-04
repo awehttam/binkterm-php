@@ -9,7 +9,8 @@ return [
     // --- Login / register menu (pre-auth) ---
     'ui.terminalserver.server.login_menu.prompt'       => 'Would you like to:',
     'ui.terminalserver.server.login_menu.login'        => '  (L) Login to existing account',
-    'ui.terminalserver.server.login_menu.register'     => '  (R) Register new account',
+    'ui.terminalserver.server.login_menu.reset_password' => '  (R) Reset lost password',
+    'ui.terminalserver.server.login_menu.register'     => '  (N) Register new account',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK transfer',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Quit',
     'ui.terminalserver.server.login_menu.choice'       => 'Your choice: ',
@@ -23,6 +24,16 @@ return [
     'ui.terminalserver.server.login.success'           => 'Login successful.',
     'ui.terminalserver.server.login.failed_remaining'  => 'Login failed. {remaining} attempt(s) remaining.',
     'ui.terminalserver.server.login.failed_max'        => 'Login failed. Maximum attempts exceeded.',
+
+    // --- Lost password reset ---
+    'ui.terminalserver.server.reset_password.title'    => '=== Password Reset ===',
+    'ui.terminalserver.server.reset_password.intro'    => 'Enter your username, real name, or email address and we will email you a password reset link if the account exists.',
+    'ui.terminalserver.server.reset_password.cancel_hint' => '(Press Enter on a blank prompt to cancel)',
+    'ui.terminalserver.server.reset_password.identifier_prompt' => 'Username, real name, or email: ',
+    'ui.terminalserver.server.reset_password.submitting' => 'Requesting password reset...',
+    'ui.terminalserver.server.reset_password.success'  => 'If an account with that username, real name, or email exists, a password reset link has been sent.',
+    'ui.terminalserver.server.reset_password.check_email' => 'Please check your email inbox and spam folder for the reset link.',
+    'ui.terminalserver.server.reset_password.failed'   => 'Failed to process password reset request.',
 
     // --- Registration ---
     'ui.terminalserver.server.registration.title'          => '=== New User Registration ===',
@@ -203,7 +214,80 @@ return [
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Terminal Settings',
 
-    // --- Terminal settings page ---
+    // --- Main menu ---
+    'ui.terminalserver.server.menu.settings'           => 'T) Settings',
+
+    // --- Tabbed settings screen (AnsiTabComponent / SettingsHandler) ---
+    'ui.terminalserver.settings.tab_title'             => 'BBS Settings',
+    'ui.terminalserver.settings.tab_terminal'          => 'Terminal',
+    'ui.terminalserver.settings.tab_display'           => 'Display',
+    'ui.terminalserver.settings.tab_messaging'         => 'Messaging',
+    'ui.terminalserver.settings.tab_account'           => 'Account',
+    'ui.terminalserver.settings.tab_ai'                => 'AI',
+    'ui.terminalserver.settings.hint_navigate'         => '  ↑↓ Move   ◄► Change   [ ] Tabs   S) Save   Q) Quit',
+    'ui.terminalserver.settings.hint_navigate_ascii'   => '  Up/Dn Move   Left/Rt Change   [/] Tabs   S) Save   Q) Quit',
+    'ui.terminalserver.settings.discarded'             => 'Changes discarded.',
+
+    // Terminal tab fields
+    'ui.terminalserver.settings.terminal.charset'      => 'Character Set',
+    'ui.terminalserver.settings.terminal.ansi_color'   => 'ANSI Color',
+    'ui.terminalserver.settings.terminal.run_wizard'   => 'Run Detection Wizard',
+
+    // Display tab fields
+    'ui.terminalserver.settings.display.messages_per_page' => 'Messages Per Page',
+    'ui.terminalserver.settings.display.timezone'          => 'Timezone',
+    'ui.terminalserver.settings.display.language'          => 'Language',
+    'ui.terminalserver.settings.display.date_format'       => 'Date Format',
+    'ui.terminalserver.settings.display.default_echo_list' => 'Default Echo List',
+    'ui.terminalserver.settings.display.echo_list_system'  => 'System Default',
+    'ui.terminalserver.settings.display.echo_list_reader'  => 'Reader',
+    'ui.terminalserver.settings.display.echo_list_all'     => 'All Areas',
+
+    // Messaging tab fields
+    'ui.terminalserver.settings.messaging.signature'        => 'Signature',
+    'ui.terminalserver.settings.messaging.signature_hint'   => 'ENTER to edit (4 lines max)',
+    'ui.terminalserver.settings.messaging.tagline'          => 'Default Tagline',
+    'ui.terminalserver.settings.messaging.tagline_none'     => '(No tagline)',
+    'ui.terminalserver.settings.messaging.tagline_random'   => '(Random)',
+    'ui.terminalserver.settings.messaging.threaded_echo'    => 'Threaded Echomail View',
+    'ui.terminalserver.settings.messaging.threaded_net'     => 'Threaded Netmail View',
+    'ui.terminalserver.settings.messaging.quote_coloring'   => 'Color Quoted Text',
+    'ui.terminalserver.settings.messaging.forward_netmail'  => 'Forward Netmail to Email',
+    'ui.terminalserver.settings.messaging.echomail_digest'  => 'Echomail Digest',
+    'ui.terminalserver.settings.messaging.digest_none'      => 'None',
+    'ui.terminalserver.settings.messaging.digest_daily'     => 'Daily',
+    'ui.terminalserver.settings.messaging.digest_weekly'    => 'Weekly',
+
+    // Account tab actions
+    'ui.terminalserver.settings.account.change_password'        => 'Change Password',
+    'ui.terminalserver.settings.account.view_sessions'          => 'View Active Sessions',
+    'ui.terminalserver.settings.account.reset_onboarding'       => 'Reset Echomail Onboarding',
+    'ui.terminalserver.settings.account.sessions_title'         => 'Active Sessions',
+    'ui.terminalserver.settings.account.no_sessions'            => '  No active sessions found.',
+    'ui.terminalserver.settings.account.sessions_hint'          => 'Enter session number to revoke, or Q to return: ',
+    'ui.terminalserver.settings.account.old_password_prompt'    => 'Current password: ',
+    'ui.terminalserver.settings.account.new_password_prompt'    => 'New password: ',
+    'ui.terminalserver.settings.account.confirm_password_prompt' => 'Confirm new password: ',
+    'ui.terminalserver.settings.account.password_mismatch'      => 'Passwords do not match.',
+    'ui.terminalserver.settings.account.password_changed'       => 'Password changed successfully.',
+    'ui.terminalserver.settings.account.password_failed'        => 'Failed to change password.',
+    'ui.terminalserver.settings.account.onboarding_reset'       => 'Echomail onboarding reset. You will be guided through interest selection on next visit.',
+    'ui.terminalserver.settings.account.onboarding_reset_failed' => 'Failed to reset onboarding.',
+
+    // AI/MCP tab
+    'ui.terminalserver.settings.ai.generate_key'      => 'Generate MCP Key',
+    'ui.terminalserver.settings.ai.regenerate_key'    => 'Regenerate MCP Key',
+    'ui.terminalserver.settings.ai.regenerate_confirm' => 'Regenerating will invalidate the existing key. Continue? (Y/N): ',
+    'ui.terminalserver.settings.ai.revoke_key'        => 'Revoke MCP Key',
+    'ui.terminalserver.settings.ai.revoke_confirm'    => 'Revoke MCP key? Any connected AI client will be disconnected. (Y/N): ',
+    'ui.terminalserver.settings.ai.mcp_key_exists'    => 'Key active: {preview}',
+    'ui.terminalserver.settings.ai.mcp_no_key'        => 'No key generated yet',
+    'ui.terminalserver.settings.ai.key_generated'     => 'MCP key generated. Copy it now — it will not be shown again:',
+    'ui.terminalserver.settings.ai.generate_failed'   => 'Failed to generate key.',
+    'ui.terminalserver.settings.ai.key_revoked'       => 'MCP key revoked.',
+    'ui.terminalserver.settings.ai.revoke_failed'     => 'Failed to revoke key.',
+
+    // --- Legacy terminal settings page (kept for TerminalSettingsHandler compatibility) ---
     'ui.terminalserver.settings.title'                 => '=== Terminal Settings ===',
     'ui.terminalserver.settings.charset_label'         => 'Character set : {value}',
     'ui.terminalserver.settings.ansi_label'            => 'ANSI color    : {value}',

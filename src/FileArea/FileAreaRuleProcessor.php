@@ -140,7 +140,7 @@ class FileAreaRuleProcessor
         $data = json_decode($content, true);
 
         if (!is_array($data)) {
-            error_log('FileAreaRuleProcessor: invalid JSON in filearea_rules.json');
+            getServerLogger()->error('FileAreaRuleProcessor: invalid JSON in filearea_rules.json');
             return [
                 'global_rules' => [],
                 'area_rules' => []
@@ -189,7 +189,7 @@ class FileAreaRuleProcessor
 
             $result = @preg_match($pattern, $filename);
             if ($result === false) {
-                error_log("FileAreaRuleProcessor: invalid regex pattern: {$pattern}");
+                getServerLogger()->warning("FileAreaRuleProcessor: invalid regex pattern: {$pattern}");
                 continue;
             }
 

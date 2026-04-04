@@ -80,7 +80,7 @@ class AiUsageReport
     }
 
     /**
-     * @return array{requests:int,estimated_cost_usd:float,failures:int,total_tokens:int}
+     * @return array{requests:int,estimated_cost_usd:float,failures:int,total_tokens:int,input_tokens:int,output_tokens:int,cached_input_tokens:int}
      */
     private function getSummary(?string $cutoff): array
     {
@@ -92,7 +92,10 @@ class AiUsageReport
                 COUNT(*) AS requests,
                 COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd,
                 COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0) AS failures,
-                COALESCE(SUM(total_tokens), 0) AS total_tokens
+                COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens
             FROM ai_requests
             {$where}
         ");
@@ -104,6 +107,9 @@ class AiUsageReport
             'estimated_cost_usd' => (float)($row['estimated_cost_usd'] ?? 0),
             'failures' => (int)($row['failures'] ?? 0),
             'total_tokens' => (int)($row['total_tokens'] ?? 0),
+            'input_tokens' => (int)($row['input_tokens'] ?? 0),
+            'output_tokens' => (int)($row['output_tokens'] ?? 0),
+            'cached_input_tokens' => (int)($row['cached_input_tokens'] ?? 0),
         ];
     }
 
@@ -121,7 +127,10 @@ class AiUsageReport
                 COUNT(*) AS requests,
                 COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd,
                 COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0) AS failures,
-                COALESCE(SUM(total_tokens), 0) AS total_tokens
+                COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens
             FROM ai_requests
             {$where}
             GROUP BY feature
@@ -147,7 +156,10 @@ class AiUsageReport
                 COUNT(*) AS requests,
                 COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd,
                 COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0) AS failures,
-                COALESCE(SUM(total_tokens), 0) AS total_tokens
+                COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens
             FROM ai_requests
             {$where}
             GROUP BY provider, model
@@ -187,7 +199,9 @@ class AiUsageReport
         $where = $this->buildCutoffWhere($cutoff, $params);
 
         $stmt = $this->db->prepare("
-            SELECT created_at, feature, provider, model, operation, status, total_tokens, estimated_cost_usd
+            SELECT created_at, feature, provider, model, operation, status,
+                   total_tokens, input_tokens, output_tokens, cached_input_tokens,
+                   estimated_cost_usd
             FROM ai_requests
             {$where}
             ORDER BY created_at DESC

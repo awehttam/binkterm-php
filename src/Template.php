@@ -243,7 +243,9 @@ class Template
         }
         $effectiveRealtimeTransportMode = $configuredRealtimeTransportMode;
         if ($configuredRealtimeTransportMode === 'auto') {
-            $effectiveRealtimeTransportMode = $this->isRealtimeDaemonAvailable() ? 'ws' : 'sse';
+            // Browser-side transport preference should follow the publicly
+            // reachable WS endpoint, not local PID visibility from php-fpm.
+            $effectiveRealtimeTransportMode = ($realtimeWsUrl !== '' && $realtimeWsUrl !== '/ws') ? 'ws' : 'sse';
         }
         $this->twig->addGlobal('configured_realtime_transport_mode', $configuredRealtimeTransportMode);
         $this->twig->addGlobal('effective_realtime_transport_mode', $effectiveRealtimeTransportMode);
@@ -546,7 +548,7 @@ class Template
             try {
                 return $this->render('systemnews.twig', $variables);
             } catch (\Exception $e) {
-                error_log("Failed to render systemnews.twig: " . $e->getMessage());
+                getServerLogger()->error("Failed to render systemnews.twig: " . $e->getMessage());
             }
         }
 

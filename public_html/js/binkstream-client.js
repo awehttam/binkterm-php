@@ -19,6 +19,8 @@
     let workerPort = null;
     let requestSeq = 0;
     let currentTransportMode = 'poll';
+    let initCursorSaved = false;
+    let lastKnownCursor = '';
 
     function getConfiguredTransportMode() {
         const mode = String(window.siteConfig?.configuredRealtimeTransportMode || window.siteConfig?.realtimeTransportMode || window.siteConfig?.sseTransportMode || 'sse').toLowerCase();
@@ -155,7 +157,7 @@
     }
 
     try {
-        const WORKER_BUILD = 4;
+        const WORKER_BUILD = 8;
         const worker = new SharedWorker('/js/binkstream-worker-v2.js?v=' + WORKER_BUILD, { name: 'binkstream-v' + WORKER_BUILD });
         workerPort = worker.port;
         workerPort.onmessage = function (e) {
@@ -172,7 +174,22 @@
             if (msg.type === '__cursor' && msg.data && msg.data.cursor) {
                 // Persist the stream cursor so a new worker instance can resume
                 // from the same position rather than replaying old events.
-                try { UserStorage.setItem('binkstream_cursor', String(msg.data.cursor)); } catch (_) {}
+                // A timestamp is saved alongside so stale cursors are discarded
+                // on worker restart rather than flooding the client with old events.
+                lastKnownCursor = String(msg.data.cursor);
+                try {
+                    UserStorage.setItem('binkstream_cursor', lastKnownCursor);
+                    UserStorage.setItem('binkstream_cursor_ts', String(Date.now()));
+                } catch (_) {}
+                // Capture the first cursor received on this page load as the
+                // init cursor for diagnostics (admin terminal "stream" command).
+                // Done here rather than at script init time so UserStorage is
+                // guaranteed to be available and the worker's actual starting
+                // position is used rather than the pre-TTL-check stored value.
+                if (!initCursorSaved) {
+                    initCursorSaved = true;
+                    try { sessionStorage.setItem('binkstream_cursor_init', String(msg.data.cursor)); } catch (_) {}
+                }
                 return;
             }
             if (msg.type === 'command_result' && msg.requestId) {
@@ -203,12 +220,37 @@
                 preferredTransportMode: getPreferredTransportMode(),
                 wsUrl: getWsUrl(),
                 csrfToken: getCsrfToken(),
-                cursor: (function () { try { return UserStorage.getItem('binkstream_cursor') || ''; } catch (_) { return ''; } })()
+                cursor: (function () {
+                    try {
+                        const c = UserStorage.getItem('binkstream_cursor') || '';
+                        const ts = parseInt(UserStorage.getItem('binkstream_cursor_ts') || '0', 10);
+                        // Discard the cursor if it is older than 5 minutes.  A stale cursor
+                        // causes the worker to replay a large backlog of old events when
+                        // reconnecting after a long absence (browser close/reopen, sleep/wake).
+                        // Within-session reconnects (page refresh, tab close/reopen) happen
+                        // in seconds so they are well within the window.
+                        const CURSOR_TTL_MS = 5 * 60 * 1000;
+                        return (c && ts && (Date.now() - ts) < CURSOR_TTL_MS) ? c : '';
+                    } catch (_) { return ''; }
+                })()
             }
         });
 
         Object.keys(listeners).forEach(function (type) {
             workerPort.postMessage({ action: 'subscribe', type: type });
+        });
+
+        // Flush the most recent cursor to UserStorage synchronously on page
+        // unload so the next worker start seeds from an accurate position.
+        // __cursor messages flow through the port asynchronously and may be
+        // dropped if the page unloads before they are processed, leaving
+        // UserStorage lagging behind the worker's true cursor.
+        window.addEventListener('beforeunload', function () {
+            if (!lastKnownCursor) { return; }
+            try {
+                UserStorage.setItem('binkstream_cursor', lastKnownCursor);
+                UserStorage.setItem('binkstream_cursor_ts', String(Date.now()));
+            } catch (_) {}
         });
     } catch (_) {
         workerPort = null;

@@ -7,6 +7,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Message Posting Tool](#message-posting-tool)
 - [Weather Report Generator](#weather-report-generator)
 - [New Files Report](#new-files-report)
+- [Echomail Traffic Report](#echomail-traffic-report)
 - [Activity Digest Generator](#activity-digest-generator)
 - [Activity Report Sender](#activity-report-sender)
 - [Echomail Maintenance Utility](#echomail-maintenance-utility)
@@ -34,6 +35,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
 - [Fix Date Received](#fix-date-received)
+- [Import BBS List](#import-bbs-list)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -107,6 +109,35 @@ Options:
 - `--public` - Only report files from file areas where `is_public = true`
 - `--domain=NAME` - Only report files from file areas in the specified domain
 - `--help` - Show usage
+
+## Echomail Traffic Report
+Generate a raw traffic report showing how much activity each echo area is getting over the last 30 days by default. The report includes total messages, new threads, replies, per-area averages, and daily totals.
+
+```bash
+# Default: last 30 days
+php scripts/echomail_stats.php
+
+# Limit to one domain
+php scripts/echomail_stats.php --domain=fidonet
+
+# Limit to one echo area
+php scripts/echomail_stats.php --area=GENERAL
+
+# Custom window
+php scripts/echomail_stats.php --from=2026-03-01 --to=2026-03-31
+```
+
+Options:
+- `--days=N` - Look back N days (default: `30`)
+- `--from=YYYY-MM-DD` - Start date
+- `--to=YYYY-MM-DD` - End date (defaults to now when used with `--from`)
+- `--domain=NAME` - Only include echo areas in the specified domain
+- `--area=TAG` - Only include the specified echo area tag
+- `--top=N` - Limit the ranked per-area table to the top N areas (default: `50`)
+- `--sort=FIELD` - Sort the per-area table by one of: `msgs` (default), `threads`, `replies`, `actdays`, `msgsday`, `lastmsg`, `size`
+- `--help` - Show usage
+
+Unlike `scripts/echomail_summary.php`, this script does not perform any AI analysis or narrative summarization. It prints raw traffic statistics only.
 
 ## Activity Digest Generator
 Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:
@@ -948,6 +979,77 @@ Options:
 - `--domain` and `--tag` combined — selects only areas matching both filters (intersection).
 - `--all` — Apply to every echo area on the system.
 - `--dry-run` — Show how many rows would be updated without making any changes.
+
+## Import BBS List
+
+Imports a BBS list from a ZIP archive containing `bbslist.csv` into the BBS Directory. Entries are upserted by name (case-insensitive); no deletions are performed.
+
+```bash
+# Import from a ZIP file
+php scripts/import_bbslist.php /path/to/bbslist.zip
+
+# Preview rows without writing to the database
+php scripts/import_bbslist.php /path/to/bbslist.zip --dry-run
+
+# Suppress per-row output (summary still printed)
+php scripts/import_bbslist.php /path/to/bbslist.zip --quiet
+```
+
+Options:
+- `--dry-run` — Parse and display rows without writing to the database
+- `--quiet` — Suppress per-row output (summary still printed)
+- `--help, -h` — Show usage
+
+The ZIP must contain a file named `bbslist.csv` (case-insensitive). Expected CSV columns:
+
+| Column | Stored as |
+|---|---|
+| `bbsName` | `name` |
+| `bbsSysop` | `sysop` |
+| `TelnetAddress` | `telnet_host` |
+| `bbsPort` | `telnet_port` |
+| `sshPort` | `ssh_port` |
+| `WebAddress` | `website` |
+| `location` | `location` |
+| `software` | `software` |
+| `newLogin` | _(not stored)_ |
+| `Modem` | _(not stored)_ |
+
+Exit codes: `0` = success, `1` = error (missing file, bad ZIP, no CSV found, database error).
+
+### How Imports Handle Entries You've Edited Locally
+
+Each import is a merge, not a replacement. The script matches incoming entries against what's already in the BBS Directory and updates them in place rather than wiping and re-adding everything. Here's what that means for data you've touched:
+
+**Entries marked as local (`is_local`) are never touched.** If you've flagged a BBS as a local entry — for example, your own system — the importer skips it completely, every time.
+
+**If the import file leaves a field blank, your existing value is kept.** The importer only writes a field when the incoming CSV actually has something in it. An empty sysop name in the CSV, for instance, will not blank out a sysop name you added yourself.
+
+**If the import file has a value for a field, it overwrites yours.** There is no "local wins" logic for regular entries. If you corrected a telnet address and the next import has a different one, the import wins. The same applies to most text fields (name, sysop, location, website, software).
+
+**Coordinates are always recalculated on import** and cannot be protected by editing them manually. They are derived from the location string, so if you want different coordinates, change the location field instead.
+
+**The one partial exception: the `source` field.** If a record was marked as manually added (`source = manual`), that flag is preserved across imports even when other fields get updated. This is an internal marker rather than a data-protection mechanism — it does not prevent the data itself from being overwritten.
+
+**The safest way to protect a BBS entry from ever being changed by an import is to mark it as local** via the BBS Directory admin interface. Everything else is fair game for the next import that has a value for that field.
+
+### File Area Rule Automation
+
+You can trigger this script automatically whenever a matching ZIP arrives in a file area by adding a rule to `config/filearea_rules.json`. The example below matches the [Telnet BBS Guide](https://www.telnetbbsguide.com/) distribution format (`IBBS0426.ZIP`, etc.):
+
+```json
+"BBSLISTS@fidonet": [
+  {
+    "name": "Telnet Guide BBS List",
+    "enabled": true,
+    "pattern": "/^IBBS\\d{4}\\.ZIP$/i",
+    "script": "php %basedir%/scripts/import_bbslist.php %filepath%",
+    "timeout": 600,
+    "success_action": "keep",
+    "fail_action": "keep+notify"
+  }
+]
+```
 
 ## Admin Client
 

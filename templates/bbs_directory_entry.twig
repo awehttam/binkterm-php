@@ -1,0 +1,140 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.bbs_directory.entry_page_title', {'name': entry.name}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block meta_tags %}
+{% set meta_desc %}{% if entry.notes %}{{ entry.notes | striptags | slice(0, 160) | trim }}{% if entry.notes | length > 160 %}...{% endif %}{% else %}{{ entry.name }}{% if entry.location %}, {{ entry.location }}{% endif %} — {{ t('ui.bbs_directory.entry_page_title', {'name': entry.name}, 'common') }}{% endif %}{% endset %}
+<meta name="description" content="{{ meta_desc | e }}">
+<meta property="og:title" content="{{ t('ui.bbs_directory.entry_page_title', {'name': entry.name}, 'common') | e }}">
+<meta property="og:description" content="{{ meta_desc | e }}">
+<meta property="og:url" content="{{ site_url }}/bbs-directory/{{ entry.id }}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": {{ entry.name | json_encode | raw }}{% if entry.website %},
+    "url": {{ entry.website | json_encode | raw }}{% endif %}{% if entry.notes %},
+    "description": {{ entry.notes | json_encode | raw }}{% endif %}{% if entry.location %},
+    "address": {{ entry.location | json_encode | raw }}{% endif %}
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/bbs-directory" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>{{ t('ui.bbs_directory.entry_back', {}, 'common') }}
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <h1 class="h3 mb-1">
+                    <i class="fas fa-server me-2 text-muted"></i>{{ entry.name | e }}
+                </h1>
+                {% if entry.location %}
+                <p class="text-muted mb-3">
+                    <i class="fas fa-map-marker-alt me-1"></i>{{ entry.location | e }}
+                </p>
+                {% endif %}
+
+                {% if entry.notes %}
+                <p class="mb-4">{{ entry.notes | e | nl2br }}</p>
+                {% endif %}
+
+                <h2 class="h6 text-uppercase text-muted mb-3">{{ t('ui.bbs_directory.entry_connection', {}, 'common') }}</h2>
+                <dl class="row mb-0">
+                    {% if entry.telnet_host %}
+                    <dt class="col-sm-3">{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</dt>
+                    <dd class="col-sm-9">
+                        <a href="telnet://{{ entry.telnet_host | e }}:{{ entry.telnet_port }}" class="font-monospace">
+                            {{ entry.telnet_host | e }}{% if entry.telnet_port != 23 %}:{{ entry.telnet_port }}{% endif %}
+                        </a>
+                    </dd>
+                    {% endif %}
+
+                    {% if entry.ssh_port %}
+                    <dt class="col-sm-3">{{ t('ui.bbs_directory.entry_col_ssh', {}, 'common') }}</dt>
+                    <dd class="col-sm-9">
+                        <span class="font-monospace">{{ entry.telnet_host | e }}:{{ entry.ssh_port }}</span>
+                    </dd>
+                    {% endif %}
+
+                    {% if entry.website %}
+                    <dt class="col-sm-3">{{ t('ui.bbs_directory.col_website', {}, 'common') }}</dt>
+                    <dd class="col-sm-9">
+                        <a href="{{ entry.website | e }}" target="_blank" rel="noopener noreferrer">{{ entry.website | e }}</a>
+                    </dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    {% if entry.sysop %}
+                    <dt class="col-5">{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</dt>
+                    <dd class="col-7">{{ entry.sysop | e }}</dd>
+                    {% endif %}
+
+                    {% if entry.software %}
+                    <dt class="col-5">{{ t('ui.bbs_directory.entry_col_software', {}, 'common') }}</dt>
+                    <dd class="col-7">{{ entry.software | e }}</dd>
+                    {% endif %}
+
+                    {% if entry.os %}
+                    <dt class="col-5">{{ t('ui.bbs_directory.col_os', {}, 'common') }}</dt>
+                    <dd class="col-7">{{ entry.os | e }}</dd>
+                    {% endif %}
+
+                    {% if entry.last_seen %}
+                    <dt class="col-5">{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</dt>
+                    <dd class="col-7">{{ entry.last_seen | date('Y-m-d') }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+
+        {% if entry.latitude is not null and entry.longitude is not null %}
+        <div class="card mt-3">
+            <div class="card-body p-2">
+                <div id="bbsEntryMap" style="height:200px; border-radius: 0.375rem;"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+{% if entry.latitude is not null and entry.longitude is not null %}
+    <link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if entry.latitude is not null and entry.longitude is not null %}
+<script src="/assets/leaflet/leaflet.js"></script>
+<script>
+(function() {
+    const lat = {{ entry.latitude }};
+    const lon = {{ entry.longitude }};
+    const map = L.map('bbsEntryMap', { zoomControl: true, scrollWheelZoom: false }).setView([lat, lon], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.marker([lat, lon])
+        .addTo(map)
+        .bindPopup({{ entry.name | json_encode | raw }});
+})();
+</script>
+{% endif %}
+{% endblock %}

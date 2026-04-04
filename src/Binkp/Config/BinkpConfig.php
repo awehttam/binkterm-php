@@ -564,8 +564,18 @@ class BinkpConfig
      */
     public function getUplinkForDestination(string $destAddr): ?array
     {
-        // Build one combined router across all uplinks so FtnRouter's
-        // specificity ordering (point > node > net > zone > default) applies
+        // Highest priority: if the destination exactly matches a configured
+        // uplink's address, route directly to that uplink without consulting
+        // network patterns. This ensures packets explicitly addressed to a
+        // specific uplink node are never stolen by another uplink's wildcard.
+        foreach ($this->getUplinks() as $uplink) {
+            if (($uplink['enabled'] ?? true) && $uplink['address'] === $destAddr) {
+                return $uplink;
+            }
+        }
+
+        // Fall back to network pattern matching with global specificity ordering
+        // so FtnRouter's specificity (point > node > net > zone > default) applies
         // globally, not just within each uplink's own pattern list.
         $rt = new FtnRouter();
         foreach ($this->getUplinks() as $uplink) {
@@ -610,6 +620,20 @@ class BinkpConfig
      */
     public function isDestinationForUplink(string $destAddr, array $uplink): bool
     {
+        // Highest priority: exact match against this uplink's address.
+        if ($uplink['address'] === $destAddr) {
+            return true;
+        }
+
+        // If the destination exactly matches a *different* uplink's address,
+        // this uplink should not claim it — let the exact-match uplink handle it.
+        foreach ($this->getUplinks() as $other) {
+            if ($other['address'] !== $uplink['address'] && $other['address'] === $destAddr) {
+                return false;
+            }
+        }
+
+        // Fall back to network pattern matching.
         $rt = new FtnRouter();
         $networks = $uplink['networks'] ?? [];
         foreach ($networks as $network) {

@@ -25,6 +25,11 @@ class MarkdownRenderer
         // Normalise line endings
         $text = str_replace(["\r\n", "\r"], "\n", $markdown);
 
+        // Normalise non-breaking space (U+00A0, UTF-8: 0xC2 0xA0) to regular space.
+        // Copy-paste from browsers and some editors substitutes NBSP for ASCII space,
+        // which breaks list detection because PHP's \s does not match NBSP without /u.
+        $text = str_replace("\xc2\xa0", ' ', $text);
+
         $lines  = explode("\n", $text);
         $output = [];
         $i      = 0;

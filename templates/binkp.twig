@@ -442,6 +442,10 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshQueues();
         refreshLogs();
         CronBuilder.init('pollScheduleInput');
+        setInterval(function() {
+            refreshQueues();
+            refreshBinkpOverview();
+        }, 15000);
     });
     document.getElementById('addUplinkModal').addEventListener('shown.bs.modal', function () {
         CronBuilder.refresh('pollScheduleInput');
@@ -931,17 +935,28 @@ function renderKeptPackets(type, data) {
             const size = pkt.size < 1024 ? pkt.size + ' B'
                        : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
                        : (pkt.size / 1048576).toFixed(2) + ' MB';
-            const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
             const escDate = encodeURIComponent(group.date);
             const escFile = encodeURIComponent(pkt.filename);
-            html += `<tr>
-                <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
-                <td>${pkt.orig_address}</td>
-                <td>${pkt.dest_address}</td>
-                <td>${msgs}</td>
-                <td>${size}</td>
-                <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
-            </tr>`;
+
+            if (pkt.file_type === 'bundle') {
+                html += `<tr>
+                    <td><a href="#" class="font-monospace text-decoration-none" onclick="openBundleInspector('${type}','${escDate}','${escFile}');return false;"><i class="fas fa-file-archive me-1 text-warning"></i>${pkt.filename}</a></td>
+                    <td colspan="2"><span class="text-muted small">{{ t('ui.binkp.bundle_arcmail', {}, 'Arcmail bundle') }}</span></td>
+                    <td>—</td>
+                    <td>${size}</td>
+                    <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
+                </tr>`;
+            } else {
+                const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
+                html += `<tr>
+                    <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
+                    <td>${pkt.orig_address}</td>
+                    <td>${pkt.dest_address}</td>
+                    <td>${msgs}</td>
+                    <td>${size}</td>
+                    <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
+                </tr>`;
+            }
         });
 
         html += `</tbody></table></div></div></div>`;
@@ -972,6 +987,103 @@ function openPacketInspector(type, date, filename) {
             renderPacketInspector(data);
         })
         .catch(err => {
+            document.getElementById('pktModalBody').innerHTML =
+                `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function openBundleInspector(type, date, filename) {
+    const decoded = decodeURIComponent(filename);
+    document.getElementById('pktModalTitle').innerHTML =
+        `<i class="fas fa-file-archive me-2 text-warning"></i>${decoded}`;
+    document.getElementById('pktModalBody').innerHTML =
+        '<div class="text-center py-4"><span class="spinner-border"></span></div>';
+    document.getElementById('pktDownloadBtn').href =
+        `/api/binkp/kept-packets/bundle/download?type=${type}&date=${date}&filename=${filename}`;
+    document.getElementById('pktDownloadBtn').style.display = '';
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('packetInspectorModal'));
+    modal.show();
+
+    fetch(`/api/binkp/kept-packets/bundle/list?type=${type}&date=${date}&filename=${filename}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('pktModalBody').innerHTML =
+                    `<div class="alert alert-danger">${data.error || window.t('ui.binkp.bundle_open_failed', {}, 'Failed to open bundle.')}</div>`;
+                return;
+            }
+            renderBundleContents(type, date, filename, data);
+        })
+        .catch(err => {
+            document.getElementById('pktModalBody').innerHTML =
+                `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function renderBundleContents(type, date, bundleFilename, data) {
+    const bundleSizeKb = data.bundle_size < 1024 ? data.bundle_size + ' B'
+                       : data.bundle_size < 1048576 ? (data.bundle_size / 1024).toFixed(1) + ' KB'
+                       : (data.bundle_size / 1048576).toFixed(2) + ' MB';
+
+    let html = `<p class="text-muted small mb-3">`;
+    if (!data.packets || !data.packets.length) {
+        html += window.t('ui.binkp.bundle_empty', {}, 'No .pkt files found in this bundle.') + `</p>`;
+        document.getElementById('pktModalBody').innerHTML = html;
+        return;
+    }
+
+    const countLabel = window.t('ui.binkp.bundle_packet_count', { count: data.packets.length }, `${data.packets.length} packet(s) in bundle`);
+    html += `${countLabel} &mdash; ${bundleSizeKb}</p>`;
+
+    html += `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+        <thead><tr>
+            <th>{{ t('ui.common.filename') }}</th>
+            <th>{{ t('ui.common.size') }}</th>
+            <th></th>
+        </tr></thead><tbody>`;
+
+    data.packets.forEach(pkt => {
+        const pktSize = pkt.size < 1024 ? pkt.size + ' B'
+                      : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
+                      : (pkt.size / 1048576).toFixed(2) + ' MB';
+        const escBundle = encodeURIComponent(bundleFilename);
+        const escPkt    = encodeURIComponent(pkt.filename);
+        html += `<tr>
+            <td><code>${pkt.filename}</code></td>
+            <td><small class="text-muted">${pktSize}</small></td>
+            <td><a href="#" class="btn btn-sm btn-outline-primary py-0"
+                   onclick="openBundlePacketInspector('${type}','${encodeURIComponent(date)}','${escBundle}','${escPkt}');return false;">
+                <i class="fas fa-search me-1"></i>{{ t('ui.binkp.bundle_view_packet') }}</a></td>
+        </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    document.getElementById('pktModalBody').innerHTML = html;
+}
+
+function openBundlePacketInspector(type, date, bundleFilename, pktFilename) {
+    const decodedBundle = decodeURIComponent(bundleFilename);
+    const decodedPkt    = decodeURIComponent(pktFilename);
+    document.getElementById('pktModalTitle').innerHTML =
+        `<a href="#" class="text-decoration-none me-1" onclick="openBundleInspector('${type}','${date}','${bundleFilename}');return false;" title="{{ t('ui.binkp.bundle_back') }}"><i class="fas fa-arrow-left"></i></a><i class="fas fa-file-archive me-1 text-warning"></i>${decodedBundle} / <span class="font-monospace">${decodedPkt}</span>`;
+    document.getElementById('pktModalBody').innerHTML =
+        '<div class="text-center py-4"><span class="spinner-border"></span></div>';
+    document.getElementById('pktDownloadBtn').style.display = 'none';
+
+    fetch(`/api/binkp/kept-packets/bundle/inspect?type=${type}&date=${date}&bundle=${bundleFilename}&pkt=${pktFilename}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('pktDownloadBtn').style.display = '';
+            if (!data.success) {
+                document.getElementById('pktModalBody').innerHTML =
+                    `<div class="alert alert-danger">${data.error || window.t('ui.binkp.pkt_load_failed', {}, 'Failed to load packet.')}</div>`;
+                return;
+            }
+            renderPacketInspector(data);
+        })
+        .catch(err => {
+            document.getElementById('pktDownloadBtn').style.display = '';
             document.getElementById('pktModalBody').innerHTML =
                 `<div class="alert alert-danger">${err.message}</div>`;
         });

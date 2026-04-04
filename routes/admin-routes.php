@@ -1528,6 +1528,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['qwk']['bbs_id'] = $bbsId;
                 }
 
+                if (array_key_exists('outgoing_charset', $config)) {
+                    $allowedCharsets = array_column(\BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(), 'value');
+                    $charset = strtoupper(trim((string)$config['outgoing_charset']));
+                    if (!in_array($charset, $allowedCharsets, true)) {
+                        throw new Exception('Invalid outgoing charset');
+                    }
+                    $config['outgoing_charset'] = $charset;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
@@ -2782,7 +2791,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     return;
                 }
 
-                error_log('File approval failed: ' . $message);
+                getServerLogger()->error('File approval failed: ' . $message);
                 http_response_code(500);
                 apiError('errors.admin.file_approvals.approve_failed', apiLocalizedText('errors.admin.file_approvals.approve_failed', 'Failed to approve file upload'));
             }
@@ -2825,7 +2834,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     return;
                 }
 
-                error_log('File rejection failed: ' . $message);
+                getServerLogger()->error('File rejection failed: ' . $message);
                 http_response_code(500);
                 apiError('errors.admin.file_approvals.reject_failed', apiLocalizedText('errors.admin.file_approvals.reject_failed', 'Failed to reject file upload'));
             }
@@ -2897,6 +2906,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $ads = new \BinktermPHP\Advertising();
                 $ad = $ads->getAdById((int)$id);
+                if (!$ad) {
+                    http_response_code(404);
+                    apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
+                    return;
+                }
+
+                echo json_encode(['ad' => $ad]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ads.load_one_failed', apiLocalizedText('errors.admin.ads.load_one_failed', 'Failed to load advertisement'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::get('/ads/{id}/preview', function($id) {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+
+            try {
+                $ads = new \BinktermPHP\Advertising();
+                $ad = $ads->previewAdById((int)$id);
                 if (!$ad) {
                     http_response_code(404);
                     apiError('errors.admin.ads.not_found', apiLocalizedText('errors.admin.ads.not_found', 'Advertisement not found'), 404);
@@ -6266,7 +6296,7 @@ SimpleRouter::post('/admin/api/lovlynet/update-registration', function() {
     $regData = $result['data']['data'] ?? $result['data'] ?? [];
     $regData['is_passive'] = $isPassive;
     if (!$client->saveRegistrationUpdate($regData)) {
-        error_log('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
+        getServerLogger()->error('LovlyNet: saveRegistrationUpdate failed to write config/lovlynet.json');
     }
 
     echo json_encode(['success' => true]);
@@ -6310,7 +6340,7 @@ SimpleRouter::get('/admin/api/lovlynet/checklist', function() {
             }
         }
     } catch (\Exception $e) {
-        error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+        getServerLogger()->error('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
         $nodelistRuleDaemonError = true;
     }
 
@@ -6494,7 +6524,7 @@ SimpleRouter::get('/admin/api/lovlynet/checklist/{id}', function(string $id) {
                     }
                 }
             } catch (\Exception $e) {
-                error_log('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
+                getServerLogger()->error('LovlyNet checklist: failed to load file area rules: ' . $e->getMessage());
                 $nodelistRuleDaemonError = true;
             }
             echo json_encode(['success' => true, 'item' => [
@@ -6589,7 +6619,7 @@ SimpleRouter::post('/admin/api/lovlynet/checklist/fix-nodelist-rule', function()
 
         echo json_encode(['success' => true]);
     } catch (\Exception $e) {
-        error_log('LovlyNet checklist fix-nodelist-rule failed: ' . $e->getMessage());
+        getServerLogger()->error('LovlyNet checklist fix-nodelist-rule failed: ' . $e->getMessage());
         http_response_code(500);
         apiError('errors.admin.lovlynet.checklist_fix_failed', $e->getMessage());
     }

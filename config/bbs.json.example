@@ -14,6 +14,7 @@
     "default_echo_interface": "echolist",
     "dashboard_ad_rotate_interval_seconds": 20,
     "max_cross_post_areas": 5,
+    "outgoing_charset": "CP437",
     "qwk": {
         "bbs_id": "",
         "max_messages_per_download": 2500

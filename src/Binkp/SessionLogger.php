@@ -23,6 +23,7 @@
 namespace BinktermPHP\Binkp;
 
 use BinktermPHP\Database;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 
 class SessionLogger
 {
@@ -369,8 +370,10 @@ class SessionLogger
         }
 
         if (!empty($filters['remote_address'])) {
-            $where[] = 'remote_address LIKE ?';
-            $params[] = '%' . $filters['remote_address'] . '%';
+            $where[] = '(remote_address LIKE ? OR remote_ip::text LIKE ?)';
+            $needle = '%' . $filters['remote_address'] . '%';
+            $params[] = $needle;
+            $params[] = $needle;
         }
 
         if (!empty($filters['is_inbound'])) {
@@ -398,7 +401,7 @@ class SessionLogger
         ");
         $stmt->execute($params);
 
-        return $stmt->fetchAll();
+        return array_map([self::class, 'enrichSessionRow'], $stmt->fetchAll());
     }
 
     public static function getSessionById(int $id): ?array
@@ -416,7 +419,38 @@ class SessionLogger
         $stmt->execute([$id]);
         $row = $stmt->fetch();
 
-        return $row ?: null;
+        return $row ? self::enrichSessionRow($row) : null;
+    }
+
+    /**
+     * Add derived display fields for session consumers.
+     *
+     * @param array $row
+     * @return array
+     */
+    private static function enrichSessionRow(array $row): array
+    {
+        $remoteAddress = trim((string)($row['remote_address'] ?? ''));
+        $remoteDomain = '';
+
+        if ($remoteAddress !== '') {
+            $atPos = strrpos($remoteAddress, '@');
+            if ($atPos !== false && $atPos > 0 && $atPos < strlen($remoteAddress) - 1) {
+                $remoteDomain = substr($remoteAddress, $atPos + 1);
+            } else {
+                try {
+                    $resolved = BinkpConfig::getInstance()->getDomainByAddress($remoteAddress);
+                    if ($resolved !== false) {
+                        $remoteDomain = (string)$resolved;
+                    }
+                } catch (\Throwable $e) {
+                    $remoteDomain = '';
+                }
+            }
+        }
+
+        $row['remote_domain'] = $remoteDomain !== '' ? $remoteDomain : null;
+        return $row;
     }
 
     /**

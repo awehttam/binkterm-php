@@ -77,11 +77,11 @@ class Mail
             }
             
             $mail->send();
-            error_log("Sent Email to $to re: $subject");
+            getServerLogger()->info("Sent Email to $to re: $subject");
             return true;
             
         } catch (Exception $e) {
-            error_log("Mail sending failed: " . $mail->ErrorInfo);
+            getServerLogger()->error("Mail sending failed: " . $mail->ErrorInfo);
             try {
                 SysopNotificationService::sendNoticeToSysop(
                     'Email sending failure',
@@ -331,11 +331,11 @@ class Mail
             $mail->AltBody = $plainText;
 
             $mail->send();
-            error_log("[NETMAIL FORWARD] Forwarded netmail to {$toEmail} re: {$subject}");
+            getServerLogger()->info("[NETMAIL FORWARD] Forwarded netmail to {$toEmail} re: {$subject}");
             return true;
 
         } catch (Exception $e) {
-            error_log("[NETMAIL FORWARD] Failed to forward netmail to {$toEmail}: " . $mail->ErrorInfo);
+            getServerLogger()->error("[NETMAIL FORWARD] Failed to forward netmail to {$toEmail}: " . $mail->ErrorInfo);
             return false;
         }
     }
@@ -399,7 +399,7 @@ class Mail
             );
 
         } catch (\Exception $e) {
-            error_log("[NETMAIL FORWARD] Error in maybeForwardNetmail for user {$recipientUserId}: " . $e->getMessage());
+            getServerLogger()->error("[NETMAIL FORWARD] Error in maybeForwardNetmail for user {$recipientUserId}: " . $e->getMessage());
         }
     }
 

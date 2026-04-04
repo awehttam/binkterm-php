@@ -15,6 +15,7 @@
 
 namespace BinktermPHP\Antivirus;
 
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
 
 /**
@@ -37,10 +38,12 @@ class VirusTotalScanner implements ScannerInterface
     private const POLL_TIMEOUT  = 90;  // seconds before giving up
 
     private string $apiKey;
+    private Logger $logger;
 
     public function __construct(?string $apiKey = null)
     {
-        $this->apiKey = $apiKey ?? (string)Config::env('VIRUSTOTAL_API_KEY', '');
+        $this->apiKey  = $apiKey ?? (string)Config::env('VIRUSTOTAL_API_KEY', '');
+        $this->logger  = new Logger(Config::getLogPath('server.log'), Logger::LEVEL_INFO, false);
     }
 
     public function getName(): string
@@ -75,45 +78,45 @@ class VirusTotalScanner implements ScannerInterface
         $basename = basename($filePath);
         $hash     = $sha256 ?? hash_file('sha256', $filePath);
 
-        error_log("[VirusTotal] Scan started: {$basename} (sha256={$hash})");
+        $this->logger->info("[VirusTotal] Scan started: {$basename} (sha256={$hash})");
 
         // Step 1: hash lookup — returns immediately if VT already knows the file
-        error_log("[VirusTotal] Hash lookup: {$hash}");
+        $this->logger->debug("[VirusTotal] Hash lookup: {$hash}");
         $known = $this->hashLookup($hash);
         if ($known !== null) {
             $resultLabel = $known['result'] ?? 'unknown';
             $signature   = $known['signature'] ? " signature={$known['signature']}" : '';
             $permalink   = $known['permalink'] ? " url={$known['permalink']}" : '';
-            error_log("[VirusTotal] Hash known — result={$resultLabel}{$signature}{$permalink}");
+            $this->logger->info("[VirusTotal] Hash known — result={$resultLabel}{$signature}{$permalink}");
             return $known;
         }
 
-        error_log("[VirusTotal] Hash not found in database");
+        $this->logger->debug("[VirusTotal] Hash not found in database");
 
         // Step 2: upload if within size limit
         if (filesize($filePath) > self::MAX_FILE_SIZE) {
-            error_log("[VirusTotal] Skipped upload: {$basename} exceeds 32 MB limit");
+            $this->logger->info("[VirusTotal] Skipped upload: {$basename} exceeds 32 MB limit");
             return $this->result(false, 'skipped', null,
                 'errors.virustotal.file_too_large',
                 'File exceeds 32 MB VirusTotal upload limit; hash not found in database');
         }
 
-        error_log("[VirusTotal] Uploading file: {$basename}");
+        $this->logger->info("[VirusTotal] Uploading file: {$basename}");
         $analysisId = $this->uploadFile($filePath);
         if ($analysisId === null) {
-            error_log("[VirusTotal] Upload failed: {$basename}");
+            $this->logger->error("[VirusTotal] Upload failed: {$basename}");
             return $this->result(false, 'error', null,
                 'errors.virustotal.upload_failed', 'Failed to upload file to VirusTotal');
         }
 
-        error_log("[VirusTotal] Upload successful, analysis ID: {$analysisId}");
+        $this->logger->info("[VirusTotal] Upload successful, analysis ID: {$analysisId}");
 
         // Step 3: poll for completed analysis
         $result = $this->pollAnalysis($analysisId);
         $resultLabel = $result['result'] ?? 'unknown';
         $signature   = $result['signature'] ? " signature={$result['signature']}" : '';
         $permalink   = $result['permalink'] ? " url={$result['permalink']}" : '';
-        error_log("[VirusTotal] Analysis complete: {$basename} result={$resultLabel}{$signature}{$permalink}");
+        $this->logger->info("[VirusTotal] Analysis complete: {$basename} result={$resultLabel}{$signature}{$permalink}");
         return $result;
     }
 
@@ -167,7 +170,7 @@ class VirusTotalScanner implements ScannerInterface
         curl_close($ch);
 
         if ($body === false || $httpCode < 200 || $httpCode >= 300) {
-            error_log("[VirusTotal] Upload HTTP error: {$httpCode}");
+            $this->logger->error("[VirusTotal] Upload HTTP error: {$httpCode}");
             return null;
         }
 
@@ -198,7 +201,7 @@ class VirusTotalScanner implements ScannerInterface
             sleep(self::POLL_INTERVAL);
         }
 
-        error_log("[VirusTotal] Poll timeout after " . self::POLL_TIMEOUT . "s for analysis ID: {$analysisId}");
+        $this->logger->warning("[VirusTotal] Poll timeout after " . self::POLL_TIMEOUT . "s for analysis ID: {$analysisId}");
         return $this->result(false, 'pending', null,
             'errors.virustotal.analysis_pending', 'Analysis still in progress; re-scan later');
     }
@@ -284,7 +287,7 @@ class VirusTotalScanner implements ScannerInterface
         }
 
         if ($httpCode === 429) {
-            error_log('[VirusTotal] Rate limit exceeded (429)');
+            $this->logger->warning('[VirusTotal] Rate limit exceeded (429)');
             return ['error' => ['code' => 'QuotaExceededError', 'message' => 'API quota exceeded']];
         }
 

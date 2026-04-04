@@ -178,7 +178,7 @@ final class License
 
         if (!$signatureOk) {
             if (Config::env('LICENSE_LOG_INVALID', 'false') === 'true') {
-                error_log('[License] Signature verification failed for: ' . $path);
+                getServerLogger()->warning('[License] Signature verification failed for: ' . $path);
             }
             return array_merge($base, ['reason' => 'invalid_signature']);
         }

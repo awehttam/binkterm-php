@@ -49,6 +49,7 @@ class BbsSession
     private const KEY_DELETE = "\033[3~";
     private const KEY_PGUP   = "\033[5~";
     private const KEY_PGDOWN = "\033[6~";
+    private const KEY_SHIFT_TAB = "\033[Z";
 
     // ===== ANSI COLOR CONSTANTS =====
     private const ANSI_RESET   = "\033[0m";
@@ -253,7 +254,8 @@ class BbsSession
             while ($loginResult === null) {
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (R) Register new account', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.reset_password', '  (R) Reset lost password', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (N) Register new account', [], $state['locale']));
                 if ($showQwkTransfer) {
                     $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.qwk_transfer', '  (K) QWK transfer', [], $state['locale']));
                 }
@@ -273,6 +275,12 @@ class BbsSession
                 }
 
                 if ($normalizedChoice === 'r') {
+                    $this->attemptLostPasswordReset($conn, $state);
+                    $this->writeLine($conn, '');
+                    continue;
+                }
+
+                if ($normalizedChoice === 'n') {
                     $registered = $this->attemptRegistration($conn, $state);
                     if ($registered) {
                         $this->writeLine($conn, $this->t('ui.terminalserver.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
@@ -392,6 +400,7 @@ class BbsSession
         // Load saved terminal settings and apply them to the session
         $terminalSettingsHandler = new TerminalSettingsHandler($this, $this->apiBase);
         $terminalSettingsHandler->loadSettings($conn, $state, $session);
+        $settingsHandler = new SettingsHandler($this, $this->apiBase);
 
         // Run first-time detection wizard if no terminal settings have been saved yet
         if (($state['terminal_charset'] ?? null) === null && empty($state['qwk_transfer_mode'])) {
@@ -530,7 +539,7 @@ class BbsSession
                     $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('F', $o, $menuWidth, $state));
                     $filesOption = 'f';
                 }
-                $o = $this->t('ui.terminalserver.server.menu.terminal_settings', 'T) Terminal Settings', [], $locale);
+                $o = $this->t('ui.terminalserver.server.menu.settings', 'T) Settings', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('T', $o, $menuWidth, $state));
 
                 $o = $this->t('ui.terminalserver.server.menu.quit', 'Q) Quit', [], $locale);
@@ -602,8 +611,8 @@ class BbsSession
                 $this->log("Menu: {$username} -> Who's Online");
                 $this->showWhosOnline($conn, $state, $session);
             } elseif ($choice === 't') {
-                $this->log("Menu: {$username} -> Terminal Settings");
-                $terminalSettingsHandler->show($conn, $state, $session);
+                $this->log("Menu: {$username} -> Settings");
+                $settingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
                 TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
                 $this->writeLine($conn, '');
@@ -667,7 +676,7 @@ class BbsSession
     /**
      * Write a CRLF-terminated line.
      */
-    private function writeLine($conn, string $text = ''): void
+    public function writeLine($conn, string $text = ''): void
     {
         $this->safeWrite($conn, $text . "\r\n");
     }
@@ -1411,7 +1420,8 @@ class BbsSession
             $state,
             'SYSTEM NEWS',
             $lines,
-            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale'])
+            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']),
+            4
         );
     }
 
@@ -1501,6 +1511,122 @@ class BbsSession
             $this->writeLine($conn, '');
             return false;
         }
+    }
+
+    /**
+     * Begin the lost-password reset flow used by the web form.
+     */
+    private function attemptLostPasswordReset($conn, array &$state): void
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize(
+            $this->t('ui.terminalserver.server.reset_password.title', '=== Password Reset ===', [], $state['locale']),
+            self::ANSI_CYAN . self::ANSI_BOLD
+        ));
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->t(
+            'ui.terminalserver.server.reset_password.intro',
+            'Enter your username, real name, or email address and we will email you a password reset link if the account exists.',
+            [],
+            $state['locale']
+        ));
+        $this->writeLine($conn, $this->colorize(
+            $this->t('ui.terminalserver.server.reset_password.cancel_hint', '(Press Enter on a blank prompt to cancel)', [], $state['locale']),
+            self::ANSI_DIM
+        ));
+        $this->writeLine($conn, '');
+
+        $identifier = $this->prompt(
+            $conn,
+            $state,
+            $this->t(
+                'ui.terminalserver.server.reset_password.identifier_prompt',
+                'Username, real name, or email: ',
+                [],
+                $state['locale']
+            ),
+            true
+        );
+
+        if ($identifier === null || trim($identifier) === '') {
+            return;
+        }
+
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->t(
+            'ui.terminalserver.server.reset_password.submitting',
+            'Requesting password reset...',
+            [],
+            $state['locale']
+        ));
+
+        try {
+            $result = $this->apiRequest('POST', '/api/auth/forgot-password', [
+                'usernameOrEmail' => trim($identifier),
+            ], null);
+        } catch (\Throwable $e) {
+            $this->log("Password reset request failed: " . $e->getMessage());
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t(
+                    'ui.terminalserver.server.reset_password.failed',
+                    'Failed to process password reset request.',
+                    [],
+                    $state['locale']
+                ),
+                self::ANSI_RED
+            ));
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+                self::ANSI_YELLOW
+            ));
+            $this->readRawChar($conn, $state);
+            return;
+        }
+
+        if ($result['status'] >= 200 && $result['status'] < 300 && !empty($result['data']['success'])) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t(
+                    'ui.terminalserver.server.reset_password.success',
+                    'If an account with that username, real name, or email exists, a password reset link has been sent.',
+                    [],
+                    $state['locale']
+                ),
+                self::ANSI_GREEN
+            ));
+            $this->writeLine($conn, $this->t(
+                'ui.terminalserver.server.reset_password.check_email',
+                'Please check your email inbox and spam folder for the reset link.',
+                [],
+                $state['locale']
+            ));
+        } else {
+            $errorMessage = trim((string)($result['data']['error'] ?? ''));
+            $this->log(
+                'Password reset request failed'
+                . ($result['status'] ? " (HTTP {$result['status']})" : '')
+                . ($errorMessage !== '' ? ": {$errorMessage}" : '')
+            );
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize(
+                $this->t(
+                    'ui.terminalserver.server.reset_password.failed',
+                    'Failed to process password reset request.',
+                    [],
+                    $state['locale']
+                ),
+                self::ANSI_RED
+            ));
+        }
+
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize(
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+            self::ANSI_YELLOW
+        ));
+        $this->readRawChar($conn, $state);
     }
 
     /**
@@ -1629,8 +1755,10 @@ class BbsSession
         if ($char === self::KEY_END)    { return ['END',    false, false]; }
         if ($char === self::KEY_PGUP)   { return ['PGUP',   false, false]; }
         if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
+        if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
 
         $ord = ord($char[0]);
+        if ($ord === 9)                          { return ['TAB',       false, false]; }
         if ($ord === 13) {
             $read = [$conn]; $write = $except = null;
             if (@stream_select($read, $write, $except, 0, 50000) > 0) {
@@ -1770,10 +1898,10 @@ class BbsSession
     /**
      * Read multiline input: full-screen editor if terminal is tall enough, else line-by-line.
      */
-    public function readMultiline($conn, array &$state, int $cols, string $initialText = ''): string
+    public function readMultiline($conn, array &$state, int $cols, string $initialText = '', array $editorContext = []): string
     {
         if (($state['rows'] ?? 0) >= 15) {
-            return $this->fullScreenEditor($conn, $state, $initialText);
+            return $this->fullScreenEditor($conn, $state, $initialText, $editorContext);
         }
 
         if ($initialText !== '') {
@@ -1802,7 +1930,7 @@ class BbsSession
     /**
      * Full-screen vi-style message editor.
      */
-    private function fullScreenEditor($conn, array &$state, string $initialText = ''): string
+    private function fullScreenEditor($conn, array &$state, string $initialText = '', array $editorContext = []): string
     {
         $rows = $state['rows'] ?? 24;
         $cols = $state['cols'] ?? 80;
@@ -1811,12 +1939,15 @@ class BbsSession
         $this->safeWrite($conn, "\033[2J\033[H\033[?25h");
         $width     = min($cols - 2, 70);
         $separator = str_repeat('=', $width);
+        $title     = $editorContext['title'] ?? $this->t('ui.terminalserver.editor.title', 'MESSAGE EDITOR - FULL SCREEN MODE', [], $state['locale']);
+        $shortcuts = $editorContext['shortcuts'] ?? $this->t('ui.terminalserver.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']);
+        $saved     = $editorContext['saved'] ?? $this->t('ui.terminalserver.editor.saved', 'Message saved and ready to send.', [], $state['locale']);
 
         $headerLines = 0;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.title',     'MESSAGE EDITOR - FULL SCREEN MODE',   [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($title, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']), self::ANSI_YELLOW)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($shortcuts, self::ANSI_YELLOW)); $headerLines++;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
 
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
@@ -1857,7 +1988,7 @@ class BbsSession
                 else { $lines[0] = ''; $cursorCol = 0; }
                 continue;
             }
-            if ($ord === 11) { $this->showEditorHelp($conn, $state); continue; }  // Ctrl+K
+            if ($ord === 11) { $this->showEditorHelp($conn, $state, $editorContext); continue; }  // Ctrl+K
             if ($ord === 1)  { $cursorCol = 0; continue; }  // Ctrl+A
             if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); continue; }  // Ctrl+E
 
@@ -1912,7 +2043,7 @@ class BbsSession
         $this->setEcho($conn, $state, true);
         $this->safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.saved', 'Message saved and ready to send.', [], $state['locale']), self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize($saved, self::ANSI_GREEN));
         $this->writeLine($conn, '');
 
         while (count($lines) > 0 && trim($lines[count($lines) - 1]) === '') { array_pop($lines); }
@@ -1922,10 +2053,13 @@ class BbsSession
     /**
      * Display editor help overlay and wait for a keypress.
      */
-    private function showEditorHelp($conn, array &$state): void
+    private function showEditorHelp($conn, array &$state, array $editorContext = []): void
     {
         $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.title',       'MESSAGE EDITOR HELP',                  [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
+        $helpTitle = $editorContext['help_title'] ?? $this->t('ui.terminalserver.editor.help.title', 'MESSAGE EDITOR HELP', [], $state['locale']);
+        $helpSave = $editorContext['help_save'] ?? $this->t('ui.terminalserver.editor.help.save', 'Ctrl+Z = Save message and send', [], $state['locale']);
+        $helpCancel = $editorContext['help_cancel'] ?? $this->t('ui.terminalserver.editor.help.cancel', 'Ctrl+C = Cancel and discard message', [], $state['locale']);
+        $this->writeLine($conn, $this->colorize($helpTitle, self::ANSI_CYAN . self::ANSI_BOLD));
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.separator',   '-------------------',                  [], $state['locale']), self::ANSI_CYAN));
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.navigate',    'Arrow Keys = Navigate cursor',         [], $state['locale']), self::ANSI_YELLOW));
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.edit',        'Backspace/Delete = Edit text',         [], $state['locale']), self::ANSI_YELLOW));
@@ -1933,8 +2067,8 @@ class BbsSession
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.start_of_line','Ctrl+A = Start of line',             [], $state['locale']), self::ANSI_YELLOW));
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line',                [], $state['locale']), self::ANSI_YELLOW));
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.save',        'Ctrl+Z = Save message and send',      [], $state['locale']), self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.cancel',      'Ctrl+C = Cancel and discard message', [], $state['locale']), self::ANSI_RED));
+        $this->writeLine($conn, $this->colorize($helpSave, self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize($helpCancel, self::ANSI_RED));
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
         $this->readRawChar($conn, $state);
@@ -2119,6 +2253,14 @@ class BbsSession
     private function log(string $message): void
     {
         $this->logger?->info($message);
+    }
+
+    /**
+     * Public wrapper for INFO-level session logging from handler classes.
+     */
+    public function logInfo(string $message): void
+    {
+        $this->log($message);
     }
 
     /**

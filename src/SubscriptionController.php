@@ -121,13 +121,8 @@ class SubscriptionController
             }
             
             if ($action === 'set_default') {
-                // Debug: log what we're receiving
-                error_log("DEBUG: is_default raw value: " . var_export($input['is_default'] ?? 'NOT SET', true));
-                error_log("DEBUG: is_default type: " . gettype($input['is_default'] ?? null));
-
                 // Convert to integer (0 or 1) for PostgreSQL boolean compatibility
                 $isDefault = !empty($input['is_default']) ? 1 : 0;
-                error_log("DEBUG: isDefault after conversion: " . var_export($isDefault, true));
 
                 $success = $this->subscriptionManager->setEchoareaAsDefault($echoareaId, $isDefault);
                 $response = ['success' => $success];

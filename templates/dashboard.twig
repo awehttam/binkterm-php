@@ -167,41 +167,45 @@
                     </dd>
                     {% endif %}
 
-                    {% if current_user.is_admin and todays_callers is not null %}
-                    <dt class="col-12 mb-1">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-12">
-                        {% if todays_callers|length > 0 %}
-                            <table class="table table-sm table-borderless mb-0 small callers-table w-100">
-                                <thead>
-                                    <tr>
-                                        <th class="ps-0">{{ t('ui.dashboard.callers_col_user', {}, locale, ['common']) }}</th>
-                                        <th>{{ t('ui.dashboard.callers_col_time', {}, locale, ['common']) }}</th>
-                                        <th class="text-center">{{ t('ui.dashboard.callers_col_online', {}, locale, ['common']) }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for caller in todays_callers %}
-                                <tr>
-                                    <td class="ps-0">{{ caller.username }}</td>
-                                    <td class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</td>
-                                    <td class="text-center">
-                                        {% if caller.is_online %}
-                                            <span class="badge bg-success" title="{{ t('ui.dashboard.callers_online_now', {}, locale, ['common']) }}">●</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                        {% else %}
-                            <span class="text-muted small">{{ t('ui.dashboard.no_callers_today', {}, locale, ['common']) }}</span>
-                        {% endif %}
-                    </dd>
-                    {% endif %}
-
                 </dl>
             </div>
         </div>
+
+        {% if current_user.is_admin and todays_callers is not null %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}</h6>
+            </div>
+            <div class="card-body p-0">
+                {% if todays_callers|length > 0 %}
+                    <table class="table table-sm table-borderless mb-0 small callers-table w-100">
+                        <thead>
+                            <tr>
+                                <th class="ps-2">{{ t('ui.dashboard.callers_col_user', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.dashboard.callers_col_time', {}, locale, ['common']) }}</th>
+                                <th class="text-center pe-2">{{ t('ui.dashboard.callers_col_online', {}, locale, ['common']) }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for caller in todays_callers %}
+                        <tr>
+                            <td class="ps-2"><a href="/profile/{{ caller.username|url_encode }}" class="text-decoration-none">{{ caller.username }}</a></td>
+                            <td class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</td>
+                            <td class="text-center pe-2">
+                                {% if caller.is_online %}
+                                    <span class="badge bg-success" title="{{ t('ui.dashboard.callers_online_now', {}, locale, ['common']) }}">●</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="p-3 text-muted small">{{ t('ui.dashboard.no_callers_today', {}, locale, ['common']) }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         {% if bbs_feature_enabled('voting_booth') %}
         <div class="card mt-4" id="votingBoothCard">
@@ -566,7 +570,7 @@ function loadShoutbox() {
             items.forEach(function(msg) {
                 html += `
                     <div class="mb-2">
-                        <strong>${escapeHtml(msg.username)}</strong>
+                        <strong><a href="/profile/${encodeURIComponent(msg.username)}">${escapeHtml(msg.username)}</a></strong>
                         <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         <div>${escapeHtml(msg.message)}</div>
                     </div>
@@ -598,7 +602,7 @@ function loadMoreShouts() {
             items.forEach(function(msg) {
                 html += `
                     <div class="mb-2">
-                        <strong>${escapeHtml(msg.username)}</strong>
+                        <strong><a href="/profile/${encodeURIComponent(msg.username)}">${escapeHtml(msg.username)}</a></strong>
                         <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         <div>${escapeHtml(msg.message)}</div>
                     </div>

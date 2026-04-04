@@ -54,7 +54,7 @@ class BbsConfig
             return $example;
         }
         // We shouldn't get here..
-        error_log("example bbs.json.example missing or corrupt?");
+        getServerLogger()->warning("example bbs.json.example missing or corrupt?");
         return [
             'features' => [
                 'webdoors' => true,
@@ -79,7 +79,7 @@ class BbsConfig
         if ($config === null) {
             self::$config = $defaults;
             if(self::$config==null){
-                error_log("Unable to load ANY bbs configuration");
+                getServerLogger()->error("Unable to load ANY bbs configuration");
                 throw new \Exception("Unable to load any BBS configuration");
             }
             return;
@@ -117,6 +117,19 @@ class BbsConfig
     {
         self::$loaded = false;
         self::$config = null;
+    }
+
+    /**
+     * Return the configured default outgoing packet charset.
+     * Defaults to CP437 if not set in bbs.json.
+     *
+     * @return string Canonical charset name (e.g. "CP437", "UTF-8")
+     */
+    public static function getOutgoingCharset(): string
+    {
+        self::load();
+        $charset = strtoupper(trim((string)(self::$config['outgoing_charset'] ?? 'CP437')));
+        return $charset ?: 'CP437';
     }
 
     public static function isFeatureEnabled(string $feature): bool

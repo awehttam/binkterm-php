@@ -45,7 +45,7 @@ class Advertising
      *
      * Allowed commands are:
      *  - Any file inside the project's content_commands/ directory
-     *  - scripts/weather_report.php, scripts/report_newfiles.php, and scripts/generate_ad.php (whitelisted scripts)
+     *  - scripts/weather_report.php, scripts/report_newfiles.php, scripts/generate_ad.php, scripts/echomail_summary.php, and scripts/echomail_stats.php (whitelisted scripts)
      *
      * Values are repo-relative paths (e.g. "content_commands/my_script.php").
      *
@@ -76,6 +76,8 @@ class Advertising
             'scripts/weather_report.php',
             'scripts/report_newfiles.php',
             'scripts/generate_ad.php',
+            'scripts/echomail_summary.php',
+            'scripts/echomail_stats.php',
         ];
         foreach ($whitelisted as $rel) {
             if (file_exists($base . '/' . $rel)) {
@@ -96,6 +98,8 @@ class Advertising
             'scripts/weather_report.php',
             'scripts/report_newfiles.php',
             'scripts/generate_ad.php',
+            'scripts/echomail_summary.php',
+            'scripts/echomail_stats.php',
         ] as $path) {
             $aliases[$path] = $path;
             $aliases[basename($path)] = $path;
@@ -369,7 +373,7 @@ class Advertising
         $stmt = $this->db->query($sql);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         return array_map(function (array $row): array {
-            return $this->resolveAdContent($this->hydrateAd($row));
+            return $this->resolveAdContent($this->hydrateAd($row), false);
         }, $rows);
     }
 
@@ -403,7 +407,24 @@ class Advertising
         ");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->resolveAdContent($this->hydrateAd($row)) : null;
+        return $row ? $this->resolveAdContent($this->hydrateAd($row), false) : null;
+    }
+
+    public function previewAdById(int $id): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT a.*,
+                   COALESCE(STRING_AGG(t.name, ', ' ORDER BY LOWER(t.name)), '') AS tags_csv,
+                   OCTET_LENGTH(a.content) AS size_bytes
+            FROM advertisements a
+            LEFT JOIN advertisement_tag_map atm ON atm.advertisement_id = a.id
+            LEFT JOIN advertisement_tags t ON t.id = atm.tag_id
+            WHERE a.id = ?
+            GROUP BY a.id
+        ");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? $this->resolveAdContent($this->hydrateAd($row), true) : null;
     }
 
     public function getAdBySlug(string $slug): ?array
@@ -1041,10 +1062,10 @@ class Advertising
         return $deduped;
     }
 
-    private function resolveAdContent(array $ad): array
+    private function resolveAdContent(array $ad, bool $execute = true): array
     {
         $contentCommand = trim((string)($ad['content_command'] ?? ''));
-        if ($contentCommand === '') {
+        if ($contentCommand === '' || !$execute) {
             return $ad;
         }
 
@@ -1249,14 +1270,16 @@ class Advertising
 
     private function syncCampaignSchedules(int $campaignId, array $schedules): void
     {
-        $delete = $this->db->prepare("DELETE FROM advertisement_campaign_schedules WHERE campaign_id = ?");
-        $delete->execute([$campaignId]);
-
         if ($schedules === []) {
+            $this->db->prepare("DELETE FROM advertisement_campaign_schedules WHERE campaign_id = ?")
+                ->execute([$campaignId]);
             return;
         }
 
-        $insert = $this->db->prepare("
+        // Upsert each schedule by its logical identity (campaign + days_mask + time_of_day + timezone)
+        // so that last_triggered_at is preserved on existing rows. This prevents a campaign save
+        // within the 15-minute trigger window from resetting the trigger guard and causing a duplicate run.
+        $upsert = $this->db->prepare("
             INSERT INTO advertisement_campaign_schedules (
                 campaign_id,
                 days_mask,
@@ -1264,16 +1287,38 @@ class Advertising
                 timezone,
                 is_active
             ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (campaign_id, days_mask, time_of_day, timezone)
+            DO UPDATE SET is_active = EXCLUDED.is_active
         ");
 
+        $keys = [];
         foreach ($schedules as $schedule) {
-            $insert->execute([
+            $daysMask = (int)$schedule['days_mask'];
+            $timeOfDay = (string)$schedule['time_of_day'];
+            $timezone  = (string)$schedule['timezone'];
+            $upsert->execute([
                 $campaignId,
-                (int)$schedule['days_mask'],
-                $schedule['time_of_day'],
-                $schedule['timezone'],
+                $daysMask,
+                $timeOfDay,
+                $timezone,
                 $this->asPgBool(!empty($schedule['is_active']))
             ]);
+            $keys[] = $daysMask . '|' . $timeOfDay . '|' . $timezone;
+        }
+
+        // Delete any schedule rows that are no longer in the new set
+        $existing = $this->db->prepare("
+            SELECT id, days_mask, time_of_day, timezone
+            FROM advertisement_campaign_schedules
+            WHERE campaign_id = ?
+        ");
+        $existing->execute([$campaignId]);
+        foreach ($existing->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $rowKey = ((int)$row['days_mask']) . '|' . $row['time_of_day'] . '|' . $row['timezone'];
+            if (!in_array($rowKey, $keys, true)) {
+                $this->db->prepare("DELETE FROM advertisement_campaign_schedules WHERE id = ?")
+                    ->execute([(int)$row['id']]);
+            }
         }
     }
 

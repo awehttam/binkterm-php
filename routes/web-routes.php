@@ -1239,6 +1239,39 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
     $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
 
+    // Determine the default charset for new messages (may be overridden by reply_charset for replies).
+    // Build a domain→charset map so the compose page can update the selector when the echo area changes.
+    $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+    $domainCharsets = [];  // domain => charset override (only entries that differ from BBS default)
+    try {
+        $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        foreach ($binkpCfg->getUplinks() as $uplink) {
+            $uplinkDomain = strtolower($uplink['domain'] ?? '');
+            if ($uplinkDomain !== '' && !empty($uplink['default_charset'])) {
+                $domainCharsets[$uplinkDomain] = strtoupper($uplink['default_charset']);
+            }
+        }
+        // Apply override for initial charset if domain is already known from GET param (echomail)
+        if ($domainParam && isset($domainCharsets[strtolower($domainParam)])) {
+            $defaultCharset = $domainCharsets[strtolower($domainParam)];
+        }
+        // For netmail with a pre-filled destination address, resolve the uplink at render time
+        // so the charset selector is correct on page load without waiting for the JS to call
+        // the markdown-support API.
+        if ($type === 'netmail' && !empty($toAddress) && !$replyId) {
+            if ($binkpCfg->isMyAddress(trim((string)$toAddress))) {
+                $defaultCharset = 'UTF-8';
+            } else {
+                $destUplink = $binkpCfg->getUplinkForDestination((string)$toAddress);
+                if ($destUplink && !empty($destUplink['default_charset'])) {
+                    $defaultCharset = strtoupper($destUplink['default_charset']);
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        // Config unavailable; fall back to BBS default
+    }
+
     $templateVars = [
         'type' => $type,
         'current_user' => $user,
@@ -1258,6 +1291,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'interest_slug' => $interestSlug,
         'interest_name' => $interestData ? $interestData['name'] : null,
         'interest_echoareas' => $interestEchoareas,
+        'default_charset' => $defaultCharset,
+        'domain_charsets' => $domainCharsets,
     ];
 
       if ($replyId) {
@@ -1526,6 +1561,35 @@ SimpleRouter::get('/bbs-directory', function() {
     $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
 });
 
+// Individual BBS detail page
+SimpleRouter::get('/bbs-directory/{id}', function($id) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
+    $id = (int)$id;
+    if ($id <= 0) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
+    $db        = \BinktermPHP\Database::getInstance()->getPdo();
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    $entry     = $directory->getActiveEntryById($id);
+
+    if (!$entry) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('bbs_directory_entry.twig', ['entry' => $entry]);
+});
+
 // Submit a BBS listing (authenticated users only — creates pending entry)
 SimpleRouter::post('/api/bbs-directory/submit', function() {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
@@ -1680,7 +1744,7 @@ SimpleRouter::match([\Pecee\Http\Request::REQUEST_TYPE_GET, \Pecee\Http\Request:
         http_response_code(403);
         echo htmlspecialchars($e->getMessage());
     } catch (\Throwable $e) {
-        error_log('[QWK] basic-auth download failed for user ' . $userId . ': ' . $e->getMessage());
+        getServerLogger()->error('[QWK] basic-auth download failed for user ' . $userId . ': ' . $e->getMessage());
         http_response_code(500);
         echo 'Failed to build QWK packet: ' . htmlspecialchars($e->getMessage());
     }
@@ -1709,7 +1773,7 @@ SimpleRouter::post('/qwk/upload', function() {
             'error' => $e->getMessage(),
         ]);
     } catch (\Throwable $e) {
-        error_log('[QWK] basic-auth upload failed for user ' . $userId . ': ' . $e->getMessage());
+        getServerLogger()->error('[QWK] basic-auth upload failed for user ' . $userId . ': ' . $e->getMessage());
         http_response_code(500);
         echo json_encode([
             'success' => false,
@@ -1718,13 +1782,13 @@ SimpleRouter::post('/qwk/upload', function() {
     }
 });
 
-// Serve a markdown post image inline by its SHA-256 hash token.
-// No authentication required — images are embedded in public posts.
-SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
-    $manager = new \BinktermPHP\FileAreaManager();
-    $file    = $manager->getMarkdownImageByHash($hash);
-
-    if (!$file || !file_exists($file['storage_path'])) {
+/**
+ * Serve a markdown post image file to the browser.
+ * @param array $file File row from FileAreaManager (must include storage_path, filename)
+ */
+function serveMarkdownImage(array $file): void
+{
+    if (!file_exists($file['storage_path'])) {
         http_response_code(404);
         echo 'Image not found';
         return;
@@ -1739,16 +1803,44 @@ SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
         'webp' => 'image/webp',
     ];
     $contentType = $mimes[$ext] ?? (mime_content_type($file['storage_path']) ?: 'application/octet-stream');
+    $safeName    = addslashes(basename((string)$file['filename']));
 
-    $fileSize = filesize($file['storage_path']);
-    $safeName = addslashes(basename((string)$file['filename']));
     header('Content-Type: ' . $contentType);
-    header('Content-Length: ' . $fileSize);
+    header('Content-Length: ' . filesize($file['storage_path']));
     header('Content-Disposition: inline; filename="' . $safeName . '"');
     header('Cache-Control: public, max-age=86400');
     header('X-Content-Type-Options: nosniff');
     readfile($file['storage_path']);
     exit;
+}
+
+// Serve a markdown post image by human-readable slug: /echomail-images/{username}/{slug}
+// No authentication required — images are embedded in public posts.
+SimpleRouter::get('/echomail-images/{username}/{slug}', function(string $username, string $slug) {
+    $manager = new \BinktermPHP\FileAreaManager();
+    $file    = $manager->getMarkdownImageBySlug($username, $slug);
+
+    if (!$file) {
+        http_response_code(404);
+        echo 'Image not found';
+        return;
+    }
+
+    serveMarkdownImage($file);
+});
+
+// Legacy route: serve by SHA-256 hash for URLs embedded in older posts.
+SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
+    $manager = new \BinktermPHP\FileAreaManager();
+    $file    = $manager->getMarkdownImageByHash($hash);
+
+    if (!$file) {
+        http_response_code(404);
+        echo 'Image not found';
+        return;
+    }
+
+    serveMarkdownImage($file);
 });
 
 // Include local/custom routes if they exist
