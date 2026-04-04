@@ -30,6 +30,8 @@ function printUsage(): void
     echo "  --domain=NAME       Limit to a single echomail domain\n";
     echo "  --area=TAG          Limit to a single echo area tag\n";
     echo "  --top=N             Show top N areas in the ranked table (default: 50)\n";
+    echo "  --sort=FIELD        Sort area table by: msgs, threads, replies, actdays,\n";
+    echo "                        msgsday, lastmsg, size (default: msgs)\n";
     echo "  --help              Show this help message\n";
 }
 
@@ -162,7 +164,25 @@ function fetchTotalStorage(array $where, array $params): int
     return (int)($row['total_bytes'] ?? 0);
 }
 
-function fetchAreaStats(DateTimeImmutable $from, DateTimeImmutable $to, array $where, array $params, int $top): array
+/**
+ * Resolve a user-supplied sort key to a SQL ORDER BY clause.
+ *
+ * @return string Safe, whitelisted ORDER BY expression
+ */
+function resolveSortOrder(string $sort): string
+{
+    return match (strtolower(trim($sort))) {
+        'threads'  => 'threads DESC, messages DESC, ea.tag ASC',
+        'replies'  => 'replies DESC, messages DESC, ea.tag ASC',
+        'actdays'  => 'active_days DESC, messages DESC, ea.tag ASC',
+        'msgsday'  => 'messages DESC, active_days DESC, ea.tag ASC',
+        'lastmsg'  => 'last_received DESC NULLS LAST, ea.tag ASC',
+        'size'     => 'storage_bytes DESC, messages DESC, ea.tag ASC',
+        default    => 'messages DESC, threads DESC, ea.tag ASC',  // 'msgs' and unknown values
+    };
+}
+
+function fetchAreaStats(DateTimeImmutable $from, DateTimeImmutable $to, array $where, array $params, int $top, string $sort = 'msgs'): array
 {
     $db = Database::getInstance()->getPdo();
     $sql = "
@@ -188,9 +208,10 @@ function fetchAreaStats(DateTimeImmutable $from, DateTimeImmutable $to, array $w
         $sql .= ' AND ' . implode(' AND ', $where);
     }
 
+    $orderBy = resolveSortOrder($sort);
     $sql .= "
         GROUP BY ea.id, ea.tag, ea.domain
-        ORDER BY messages DESC, threads DESC, ea.tag ASC
+        ORDER BY {$orderBy}
         LIMIT ?
     ";
 
@@ -366,8 +387,10 @@ try {
         throw new RuntimeException('--top must be greater than 0');
     }
 
+    $sort = isset($args['sort']) ? (string)$args['sort'] : 'msgs';
+
     $overview = fetchOverview($from, $to, $where, $params);
-    $areaRows = fetchAreaStats($from, $to, $where, $params, $top);
+    $areaRows = fetchAreaStats($from, $to, $where, $params, $top, $sort);
     $dailyRows = fetchDailyStats($from, $to, $where, $params);
     $totalStorageBytes = fetchTotalStorage($where, $params);
     $days = max(1, (int)$from->diff($to)->days);
