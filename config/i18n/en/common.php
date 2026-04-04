@@ -3827,9 +3827,11 @@ return [
     'ui.base.admin.bbs_directory' => 'BBS Directory',
 
     // BBS Directory (public page)
-    'ui.bbs_directory.page_title' => 'BBS Directory',
+    'ui.bbs_directory.page_title' => 'BBS Directory — Telnet Bulletin Board Systems',
     'ui.bbs_directory.heading' => 'BBS Directory',
     'ui.bbs_directory.description' => 'A list of BBS systems known to this BBS, automatically discovered through various sources and supplemented by manually curated entries.',
+    'ui.bbs_directory.og_title' => '{name}\'s List of Bulletin Board Systems',
+    'ui.bbs_directory.og_description' => 'Browse telnet bulletin board systems (BBS) from around the world. Discover active BBS systems, their sysops, locations, and connection details.',
     'ui.bbs_directory.col_name' => 'BBS Name',
     'ui.bbs_directory.col_sysop' => 'Sysop',
     'ui.bbs_directory.col_location' => 'Location',
@@ -3856,6 +3858,12 @@ return [
     'ui.bbs_directory.submit_success' => 'Your listing has been submitted and is pending review. Thank you!',
     'ui.bbs_directory.col_notes' => 'Notes',
     'ui.bbs_directory.col_telnet_port' => 'Port',
+    'ui.bbs_directory.entry_page_title' => '{name} — Bulletin Board System',
+    'ui.bbs_directory.entry_back' => 'Back to BBS Directory',
+    'ui.bbs_directory.entry_connection' => 'Connection',
+    'ui.bbs_directory.entry_col_ssh' => 'SSH',
+    'ui.bbs_directory.entry_col_software' => 'Software',
+    'ui.bbs_directory.entry_not_found' => 'BBS listing not found.',
 
     // Echomail Robots (standalone admin page)
     'ui.admin.echomail_robots.page_title' => 'Echomail Robots',

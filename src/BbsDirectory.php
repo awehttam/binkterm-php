@@ -183,6 +183,21 @@ class BbsDirectory
     }
 
     /**
+     * Get a single active (publicly visible) entry by ID.
+     * Returns null if the entry does not exist or is not active.
+     *
+     * @param int $id
+     * @return array|null
+     */
+    public function getActiveEntryById(int $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM bbs_directory WHERE id = ? AND status = 'active'");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
      * Upsert a BBS entry by telnet address (preferred) or name (fallback).
      * Sets source='auto' and updates last_seen. Used by robot processors and import scripts.
      *

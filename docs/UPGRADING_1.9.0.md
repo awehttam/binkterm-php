@@ -39,6 +39,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Dashboard](#dashboard)
   - [Shoutbox Profile Links](#shoutbox-profile-links)
   - [Today's Callers in Its Own Card](#todays-callers-in-its-own-card)
+- [BBS Directory](#bbs-directory)
+  - [Individual BBS Information Pages](#individual-bbs-information-pages)
+  - [SEO Improvements](#seo-improvements)
 - [Bug Fixes](#bug-fixes)
   - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
   - [AreaFix History Not Reloading on Uplink Change](#areafix-history-not-reloading-on-uplink-change)
@@ -89,6 +92,11 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Message Composer**
 - Saving an echomail or netmail draft now preserves the full compose state: message encoding (charset), markup format (plain, Markdown, Style Codes), hard-wrap setting, tagline selection, and cross-posted echo areas. When the draft is reopened, all of these fields are restored to the values that were in effect when the draft was saved. Previously, only the primary echo area, message text, subject, and recipient fields were saved; the encoding, markup type, wrap setting, tagline, and cross-post selections were silently discarded. A database migration (`v1.11.0.70`) adds a `meta` JSONB column to the `drafts` table to hold this additional state.
+
+**BBS Directory**
+- Each BBS listing now has its own dedicated information page at `/bbs-directory/{id}`. The page displays the BBS name, sysop, location, telnet and SSH addresses, website, software, OS, notes, and last-seen date. A small map is shown when coordinates are available. BBS names in the main directory listing now link to their detail pages.
+- The BBS directory page now carries its own meta description, Open Graph tags, Twitter Card tag, and a `CollectionPage` JSON-LD structured data block. The page title has been updated to include "Telnet Bulletin Board Systems" for better keyword coverage.
+- The Notes field label in the admin BBS directory edit form has been updated to "Notes about what this system offers (public)" to make clear that the field is user-facing.
 
 **Dashboard**
 - Usernames in the shoutbox are now clickable links that navigate to the user's profile page.
@@ -377,6 +385,48 @@ No configuration changes or database migrations are required.
 The Today's Callers table (shown to admins on the dashboard) was previously embedded inside the System Information card as part of its definition list. It is now displayed in a separate card below the System Information card, giving the caller list more visual breathing room and making it easier to scan at a glance.
 
 Usernames in the list are now rendered as clickable links that navigate to each user's profile page at `/profile/<username>`.
+
+No configuration changes or database migrations are required.
+
+## BBS Directory
+
+### Individual BBS Information Pages
+
+Each entry in the BBS directory now has its own public detail page at `/bbs-directory/{id}`. Clicking a BBS name in the directory listing opens this page rather than launching a telnet connection directly.
+
+The detail page displays all available information for that BBS:
+
+- **BBS name**, **sysop**, and **location**
+- **Notes** — free-text description of what the system offers, written by the sysop or admin
+- **Telnet address** — as a clickable `telnet://` link
+- **SSH port** — shown when configured
+- **Website** — shown when configured
+- **Software** and **OS** — the BBS software package and operating system, when known
+- **Last seen** — the date the system was last observed active
+- **Map** — a small Leaflet map pinpointing the BBS location when coordinates are on file
+
+Pages for pending or rejected entries return 404 to prevent unapproved submissions from being publicly indexed.
+
+The Notes field label in the admin BBS directory edit form has been updated to "Notes about what this system offers (public)" to make clear that the field contents appear on the public-facing detail page.
+
+No database migration is required.
+
+### SEO Improvements
+
+The BBS directory page (`/bbs-directory`) now carries dedicated per-page metadata instead of falling back to the global site appearance settings:
+
+- A `<meta name="description">` tag describing the directory.
+- Open Graph tags (`og:title`, `og:description`, `og:url`, `og:type`) so social media shares display a meaningful preview.
+- A Twitter Card tag (`twitter:card`).
+- A `CollectionPage` JSON-LD structured data block that tells search engines the page is a curated collection and includes the total number of listed systems.
+
+The page title now reads "BBS Directory — Telnet Bulletin Board Systems" to include search-relevant terms alongside the site name.
+
+Individual BBS detail pages carry their own per-page metadata as well:
+
+- `<meta name="description">` — derived from the BBS's notes field, falling back to the BBS name and location.
+- Open Graph and Twitter Card tags.
+- An `Organization` JSON-LD block with the BBS name, website URL, description, and location.
 
 No configuration changes or database migrations are required.
 

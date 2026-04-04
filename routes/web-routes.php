@@ -1548,6 +1548,35 @@ SimpleRouter::get('/bbs-directory', function() {
     $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
 });
 
+// Individual BBS detail page
+SimpleRouter::get('/bbs-directory/{id}', function($id) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
+    $id = (int)$id;
+    if ($id <= 0) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
+    $db        = \BinktermPHP\Database::getInstance()->getPdo();
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    $entry     = $directory->getActiveEntryById($id);
+
+    if (!$entry) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('bbs_directory_entry.twig', ['entry' => $entry]);
+});
+
 // Submit a BBS listing (authenticated users only — creates pending entry)
 SimpleRouter::post('/api/bbs-directory/submit', function() {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {

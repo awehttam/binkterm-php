@@ -3829,9 +3829,11 @@ return [
     'ui.base.admin.bbs_directory' => 'Directorio BBS',
 
     // BBS Directory (public page)
-    'ui.bbs_directory.page_title' => 'Directorio BBS',
+    'ui.bbs_directory.page_title' => 'Directorio BBS — Sistemas de tablón de anuncios telnet',
     'ui.bbs_directory.heading' => 'Directorio BBS',
     'ui.bbs_directory.description' => 'Una lista de sistemas BBS conocidos por este BBS, descubiertos automáticamente a través de diversas fuentes y complementados con entradas curadas manualmente.',
+    'ui.bbs_directory.og_title' => 'La lista de sistemas de tablón de anuncios de {name}',
+    'ui.bbs_directory.og_description' => 'Explora sistemas de tablón de anuncios (BBS) telnet de todo el mundo. Descubre BBS activos, sus sysops, ubicaciones y datos de conexión.',
     'ui.bbs_directory.col_name' => 'Nombre BBS',
     'ui.bbs_directory.col_sysop' => 'Sysop',
     'ui.bbs_directory.col_location' => 'Ubicacion',
@@ -3858,6 +3860,12 @@ return [
     'ui.bbs_directory.submit_success' => 'Tu listado ha sido enviado y esta pendiente de revision. ¡Gracias!',
     'ui.bbs_directory.col_notes' => 'Notas',
     'ui.bbs_directory.col_telnet_port' => 'Puerto',
+    'ui.bbs_directory.entry_page_title' => '{name} — Sistema de tablón de anuncios',
+    'ui.bbs_directory.entry_back' => 'Volver al directorio BBS',
+    'ui.bbs_directory.entry_connection' => 'Conexión',
+    'ui.bbs_directory.entry_col_ssh' => 'SSH',
+    'ui.bbs_directory.entry_col_software' => 'Software',
+    'ui.bbs_directory.entry_not_found' => 'Listado BBS no encontrado.',
 
     // Echomail Robots (standalone admin page)
     'ui.admin.echomail_robots.page_title' => 'Robots de Echomail',
