@@ -38,6 +38,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Draft State Now Fully Preserved](#draft-state-now-fully-preserved)
 - [Dashboard](#dashboard)
   - [Shoutbox Profile Links](#shoutbox-profile-links)
+  - [Today's Callers in Its Own Card](#todays-callers-in-its-own-card)
 - [Bug Fixes](#bug-fixes)
   - [Netmail Unsave in Message Modal](#netmail-unsave-in-message-modal)
   - [AreaFix History Not Reloading on Uplink Change](#areafix-history-not-reloading-on-uplink-change)
@@ -91,6 +92,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Dashboard**
 - Usernames in the shoutbox are now clickable links that navigate to the user's profile page.
+- The Today's Callers list (visible to admins) has been moved out of the System Information card into its own dedicated card. Usernames in the list are now clickable links to each user's profile page.
 
 **Bug Fixes**
 - Switching to a different uplink in the AreaFix Manager now automatically reloads the message history for the active tab. Previously the history panel was cleared but not repopulated, leaving it blank until the Refresh button was clicked manually.
@@ -366,6 +368,14 @@ Run `php scripts/setup.php` to apply the migration.
 ### Shoutbox Profile Links
 
 Usernames displayed in the shoutbox on the web dashboard are now rendered as hyperlinks. Clicking a username navigates to that user's profile page at `/profile/<username>`. Previously usernames were displayed as plain bold text with no link.
+
+No configuration changes or database migrations are required.
+
+### Today's Callers in Its Own Card
+
+The Today's Callers table (shown to admins on the dashboard) was previously embedded inside the System Information card as part of its definition list. It is now displayed in a separate card below the System Information card, giving the caller list more visual breathing room and making it easier to scan at a glance.
+
+Usernames in the list are now rendered as clickable links that navigate to each user's profile page at `/profile/<username>`.
 
 No configuration changes or database migrations are required.
 
