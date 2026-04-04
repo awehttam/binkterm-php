@@ -821,6 +821,12 @@ function fetchMarkdownSupport(params) {
                 updateNetmailGuidelinesPostingName((response && response.posting_name_policy) || 'real_name');
                 currentAddressIsLocal = !!response.is_local_address;
                 updateCrashmailForAttachment();
+                // Update the charset selector to match the destination's uplink charset,
+                // unless the user is composing a reply (where the original charset takes precedence).
+                if (!replyCharset && response.default_charset) {
+                    const sel = document.getElementById('charsetSelect');
+                    if (sel) { sel.value = response.default_charset; if (!sel.value) sel.value = defaultCharset; }
+                }
             }
         })
         .fail(function() {
@@ -905,7 +911,11 @@ function refreshMarkdownSupportForNetmail() {
         updateMarkdownSection(false);
         currentAddressIsLocal = true; // blank address routes to local system
         updateCrashmailForAttachment();
-        // No address yet — leave the server-rendered (translated) guideline text untouched.
+        // Blank address = local delivery — default charset to UTF-8 (no FTN packet encoding needed).
+        if (!replyCharset) {
+            const sel = document.getElementById('charsetSelect');
+            if (sel) sel.value = 'UTF-8';
+        }
         return;
     }
     fetchMarkdownSupport({ address: address });

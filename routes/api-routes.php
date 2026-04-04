@@ -6499,8 +6499,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } elseif (!empty($address)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
                 $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDestination((string)$address);
-                $systemAddress = $binkpConfig->getSystemAddress();
-                $isLocalAddress = (trim((string)$address) === trim((string)$systemAddress));
+                $isLocalAddress = $binkpConfig->isMyAddress(trim((string)$address));
+
+                // Determine the default charset for this destination so the compose
+                // form can update its charset selector without a separate API call.
+                if ($isLocalAddress) {
+                    $defaultCharsetForDest = 'UTF-8';
+                } else {
+                    $defaultCharsetForDest = \BinktermPHP\BbsConfig::getOutgoingCharset();
+                    $destUplink = $binkpConfig->getUplinkForDestination((string)$address);
+                    if ($destUplink && !empty($destUplink['default_charset'])) {
+                        $defaultCharsetForDest = strtoupper($destUplink['default_charset']);
+                    }
+                }
             }
         } catch (\Exception $e) {
             $allowed = false;
@@ -6511,6 +6522,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'allowed'            => $allowed,
             'posting_name_policy' => $postingNamePolicy,
             'is_local_address'   => $isLocalAddress,
+            'default_charset'    => $defaultCharsetForDest ?? null,
         ]);
     });
 

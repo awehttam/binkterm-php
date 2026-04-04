@@ -183,8 +183,12 @@ class BinkpController
                 'enabled' => $data['enabled'] ?? true,
                 'compression' => $data['compression'] ?? false,
                 'crypt' => $data['crypt'] ?? false,
-                'poll_schedule' => $data['poll_schedule'] ?? '0 */4 * * *'
+                'poll_schedule' => $data['poll_schedule'] ?? '0 */4 * * *',
             ];
+
+            if (isset($data['default_charset']) && $data['default_charset'] !== '') {
+                $options['default_charset'] = strtoupper(trim((string)$data['default_charset']));
+            }
             
             $this->config->addUplink($address, $hostname, $port, $password, $options);
             

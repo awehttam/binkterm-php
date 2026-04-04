@@ -34,6 +34,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Outgoing Message Charset](#outgoing-message-charset)
   - [Default Changed to CP437](#default-changed-to-cp437)
   - [Per-Uplink Charset Override](#per-uplink-charset-override)
+  - [LovlyNet Registration Defaults to UTF-8](#lovlynet-registration-defaults-to-utf-8)
+  - [Netmail Charset Respects Uplink and Local Delivery Rules](#netmail-charset-respects-uplink-and-local-delivery-rules)
 - [Message Composer](#message-composer)
   - [Draft State Now Fully Preserved](#draft-state-now-fully-preserved)
 - [Dashboard](#dashboard)
@@ -56,6 +58,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **Outgoing Message Charset**
 - Outgoing FTN messages now default to CP437 (IBM PC / DOS) instead of UTF-8. This minimizes text display issues on legacy networks such as FidoNet where many nodes run software that does not support UTF-8 encoding. The default can be changed in Admin → BBS Settings, and individual uplinks can override it with their own charset setting. Local echo areas always use UTF-8 regardless of this setting. Replies still inherit the charset of the message being replied to when possible.
+- The LovlyNet registration script (`scripts/lovlynet_setup.php`) now sets `default_charset` to `UTF-8` on the LovlyNet uplink automatically. Since LovlyNet is a modern UTF-8 network, this ensures messages are encoded correctly without requiring manual configuration after registration.
+- Netmail charset selection now correctly applies per-uplink charset overrides and defaults to UTF-8 for messages delivered to local recipients. The compose form's charset selector is also updated dynamically when the destination address is entered, matching the behavior already present for echomail area selection.
 
 **Security Fixes**
 - The optional MCP server now updates its `path-to-regexp` dependency from `8.3.0` to `8.4.0`.
@@ -355,6 +359,32 @@ The per-uplink charset is configured in Admin → BinkP Configuration by editing
 When composing echomail, the charset selector in the compose form is automatically pre-set to the correct encoding for the selected echo area's network, updating dynamically as the user switches between areas.
 
 No configuration changes are required for existing setups. If you want to keep the previous UTF-8 default, set **Default Outgoing Charset** in BBS Settings to UTF-8.
+
+### LovlyNet Registration Defaults to UTF-8
+
+The LovlyNet registration and renewal script (`scripts/lovlynet_setup.php`) now sets `default_charset` to `UTF-8` on the LovlyNet uplink when running for the first time or re-registering. LovlyNet is a modern network that uses UTF-8 throughout, so outbound messages should be encoded as UTF-8 for that uplink. Previously the script did not write a `default_charset` field, which caused the LovlyNet uplink to inherit the BBS-wide default (CP437 as of this release), resulting in garbled text on the receiving end.
+
+If you have already registered with LovlyNet, re-run `php scripts/lovlynet_setup.php` to add the field to your existing uplink entry. Alternatively, open Admin → BinkP Configuration, edit your LovlyNet uplink, and set the **Default Charset Override** to **UTF-8** manually.
+
+No database migration is required.
+
+### Netmail Charset Respects Uplink and Local Delivery Rules
+
+Outgoing netmail now selects its packet charset using the same routing logic that determines which uplink will carry the message, and the compose form's charset selector reflects the correct encoding before the message is sent.
+
+**Backend changes:**
+
+- **Local delivery** (the destination address belongs to this system): UTF-8 is always used. Locally delivered netmail is stored in the database without FTN packet encoding, so applying a legacy single-byte charset was unnecessary and incorrect. Previously the BBS-wide default (CP437) was applied even for local messages.
+- **Remote delivery**: the uplink that will route the message is resolved using the same authoritative routing logic used to determine the origin address. If that uplink has a `default_charset` configured, it is used. Otherwise the BBS-wide default applies. Previously a separate domain-lookup path was used that could disagree with the actual routing uplink.
+
+**Compose form changes:**
+
+- When a destination address is entered or pre-filled in the netmail compose form, the charset selector is updated to match the destination uplink's configured charset (or UTF-8 for local addresses). This mirrors the existing behaviour for echomail, where the selector updates whenever the echo area is changed.
+- When the destination address field is blank (which routes the message to the local system sysop), the selector defaults to UTF-8.
+- When a destination address is pre-filled via URL parameter (for example, when composing from a nodelist entry or address book contact), the correct charset is applied at server render time so the selector shows the right value immediately without waiting for JavaScript.
+- Charset is not overridden automatically when composing a reply; replies inherit the original message's encoding as before.
+
+No configuration changes or database migrations are required.
 
 ## Message Composer
 

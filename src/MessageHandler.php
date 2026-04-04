@@ -1340,11 +1340,15 @@ class MessageHandler
                 }
             }
         } else {
-            // Determine default charset: check per-uplink override, then BBS global default.
-            $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
-            $destDomain = $binkpConfig->getDomainByAddress($toAddress);
-            if ($destDomain) {
-                $uplink = $binkpConfig->getUplinkByDomain($destDomain);
+            // Local delivery — message stays in the database, no FTN packet encoding needed.
+            if ($toAddress === $originAddress) {
+                $defaultCharset = 'UTF-8';
+            } else {
+                // Determine default charset: check per-uplink override, then BBS global default.
+                // Use getUplinkForDestination() — the same routing logic used to pick the origin
+                // address — so the charset lookup is always consistent with packet routing.
+                $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
+                $uplink = $binkpConfig->getUplinkForDestination($toAddress);
                 if ($uplink && !empty($uplink['default_charset'])) {
                     $defaultCharset = strtoupper($uplink['default_charset']);
                 }

@@ -1251,9 +1251,22 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 $domainCharsets[$uplinkDomain] = strtoupper($uplink['default_charset']);
             }
         }
-        // Apply override for initial charset if domain is already known from GET param
+        // Apply override for initial charset if domain is already known from GET param (echomail)
         if ($domainParam && isset($domainCharsets[strtolower($domainParam)])) {
             $defaultCharset = $domainCharsets[strtolower($domainParam)];
+        }
+        // For netmail with a pre-filled destination address, resolve the uplink at render time
+        // so the charset selector is correct on page load without waiting for the JS to call
+        // the markdown-support API.
+        if ($type === 'netmail' && !empty($toAddress) && !$replyId) {
+            if ($binkpCfg->isMyAddress(trim((string)$toAddress))) {
+                $defaultCharset = 'UTF-8';
+            } else {
+                $destUplink = $binkpCfg->getUplinkForDestination((string)$toAddress);
+                if ($destUplink && !empty($destUplink['default_charset'])) {
+                    $defaultCharset = strtoupper($destUplink['default_charset']);
+                }
+            }
         }
     } catch (\Exception $e) {
         // Config unavailable; fall back to BBS default
