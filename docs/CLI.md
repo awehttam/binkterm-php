@@ -133,7 +133,8 @@ Options:
 - `--to=YYYY-MM-DD` - End date (defaults to now when used with `--from`)
 - `--domain=NAME` - Only include echo areas in the specified domain
 - `--area=TAG` - Only include the specified echo area tag
-- `--top=N` - Limit the ranked per-area table to the top N areas
+- `--top=N` - Limit the ranked per-area table to the top N areas (default: `50`)
+- `--sort=FIELD` - Sort the per-area table by one of: `msgs` (default), `threads`, `replies`, `actdays`, `msgsday`, `lastmsg`, `size`
 - `--help` - Show usage
 
 Unlike `scripts/echomail_summary.php`, this script does not perform any AI analysis or narrative summarization. It prints raw traffic statistics only.
