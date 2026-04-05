@@ -41,6 +41,11 @@
         .file-approvals-menu-link.unread {
             color: #ffc107 !important;
         }
+        .echomail-moderation-menu-link.unread,
+        .area-management-menu-link.unread,
+        .admin-menu-link.unread {
+            color: #ffc107 !important;
+        }
 
         /* Nested dropdown submenu styles */
         .dropdown-submenu {
@@ -244,7 +249,7 @@
 
                         {% if current_user.is_admin %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle admin-menu-link" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-cog"></i> {{ t('ui.base.admin', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
@@ -255,7 +260,7 @@
                                 <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> {{ t('ui.base.admin.manage_users', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> {{ t('ui.base.admin.area_management', {}, 'common') }}</a>
+                                    <a class="dropdown-item dropdown-toggle area-management-menu-link" href="#"><i class="fas fa-folder-tree"></i> {{ t('ui.base.admin.area_management', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> {{ t('ui.base.admin.echo_areas', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
