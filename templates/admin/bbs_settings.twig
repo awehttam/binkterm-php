@@ -137,6 +137,11 @@
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.max_cross_post_help', {}, locale, ['common']) }}</small>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label" for="bbsEchomailModerationThreshold">{{ t('ui.admin.bbs_settings.features.echomail_moderation_threshold', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsEchomailModerationThreshold" min="0" step="1" value="0">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.echomail_moderation_threshold_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label" for="bbsDashboardAdRotateInterval">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="bbsDashboardAdRotateInterval" min="5" max="300" step="1" value="20">
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval_help', {}, locale, ['common']) }}</small>
@@ -321,6 +326,8 @@ function loadBbsSettings() {
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
             const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
+            const echomailModerationThreshold = parseInt(data.config?.echomail_moderation_threshold, 10);
+            document.getElementById('bbsEchomailModerationThreshold').value = Number.isNaN(echomailModerationThreshold) ? 0 : echomailModerationThreshold;
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
@@ -370,6 +377,12 @@ function saveBbsSettings() {
         return;
     }
 
+    const echomailModerationThreshold = parseInt(document.getElementById('bbsEchomailModerationThreshold').value, 10);
+    if (Number.isNaN(echomailModerationThreshold) || echomailModerationThreshold < 0) {
+        showBbsSettingsAlert(uiT('ui.admin.bbs_settings.validation.echomail_moderation_threshold_range', 'Echomail moderation threshold must be 0 or higher (0 = disabled).'), 'danger');
+        return;
+    }
+
     const dashboardAdRotateInterval = parseInt(document.getElementById('bbsDashboardAdRotateInterval').value, 10);
     if (Number.isNaN(dashboardAdRotateInterval) || dashboardAdRotateInterval < 5 || dashboardAdRotateInterval > 300) {
         showBbsSettingsAlert(uiT('ui.admin.bbs_settings.validation.dashboard_ad_rotate_interval_range', 'Dashboard ad rotation interval must be an integer between 5 and 300 seconds.'), 'danger');
@@ -406,6 +419,7 @@ function saveBbsSettings() {
                 credits: credits,
                 qwk: Object.assign({}, currentQwk, { bbs_id: qwkBbsIdRaw }),
                 max_cross_post_areas: maxCrossPost,
+                echomail_moderation_threshold: echomailModerationThreshold,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
                 outgoing_charset: document.getElementById('bbsOutgoingCharset').value

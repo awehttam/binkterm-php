@@ -4354,4 +4354,33 @@ return [
     'ui.admin.ad_campaigns.run_now_confirm' => 'Ejecutar {name} ahora mismo?',
     'ui.admin.ad_campaigns.this_campaign' => 'esta campana',
     'ui.admin.wall.incoming'              => 'Mensaje entrante de {from}',
+
+    // Echomail moderation queue
+    'ui.admin.echomail_moderation.page_title'               => 'Moderación de echomail',
+    'ui.admin.echomail_moderation.heading'                  => 'Cola de moderación de echomail',
+    'ui.admin.echomail_moderation.about_title'              => 'Acerca de la moderación',
+    'ui.admin.echomail_moderation.about_text'               => 'Los nuevos usuarios que publican en áreas echo de red se retienen aquí para revisión antes de que sus mensajes se transmitan aguas arriba.',
+    'ui.admin.echomail_moderation.threshold_hint'           => 'Configure el umbral de aprobación en',
+    'ui.admin.echomail_moderation.bbs_settings_link'        => 'Configuración BBS',
+    'ui.admin.echomail_moderation.empty_queue'              => 'No hay mensajes pendientes de moderación.',
+    'ui.admin.echomail_moderation.col_area'                 => 'Área',
+    'ui.admin.echomail_moderation.col_author'               => 'Autor',
+    'ui.admin.echomail_moderation.col_subject'              => 'Asunto',
+    'ui.admin.echomail_moderation.col_date'                 => 'Fecha',
+    'ui.admin.echomail_moderation.col_actions'              => 'Acciones',
+    'ui.admin.echomail_moderation.action_approve'           => 'Aprobar',
+    'ui.admin.echomail_moderation.action_reject'            => 'Rechazar',
+    'ui.admin.echomail_moderation.approved_success'         => 'Mensaje aprobado y puesto en cola para transmisión.',
+    'ui.admin.echomail_moderation.rejected_success'         => 'Mensaje rechazado.',
+
+    // BBS settings - echomail moderation threshold
+    'ui.admin.bbs_settings.features.echomail_moderation_threshold'      => 'Umbral de moderación de echomail',
+    'ui.admin.bbs_settings.features.echomail_moderation_threshold_help' => 'Número de publicaciones de echomail de red aprobadas necesarias antes de que un nuevo usuario pueda publicar sin moderación. Establezca 0 para deshabilitar la moderación.',
+    'ui.admin.bbs_settings.validation.echomail_moderation_threshold_range' => 'El umbral de moderación debe ser 0 o mayor (0 = deshabilitado).',
+
+    // Nav
+    'ui.base.admin.echomail_moderation' => 'Moderación echomail',
+
+    // Pending moderation post response
+    'ui.api.messages.pending_moderation' => 'Su mensaje ha sido enviado y está pendiente de aprobación del moderador antes de ser enviado a la red.',
 ];

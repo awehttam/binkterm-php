@@ -1505,6 +1505,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                // Validate echomail_moderation_threshold if provided
+                if (array_key_exists('echomail_moderation_threshold', $config)) {
+                    $threshold = (int)$config['echomail_moderation_threshold'];
+                    if ($threshold < 0) {
+                        throw new Exception('Echomail moderation threshold must be a non-negative integer');
+                    }
+                    $config['echomail_moderation_threshold'] = $threshold;
+                }
+
                 // Validate max_cross_post_areas if provided
                 if (array_key_exists('max_cross_post_areas', $config)) {
                     $maxCrossPost = (int)$config['max_cross_post_areas'];
@@ -4967,6 +4976,12 @@ SimpleRouter::get('/admin/echomail-robots', function() {
     $template->renderResponse('admin/echomail_robots.twig');
 });
 
+SimpleRouter::get('/admin/echomail-moderation', function() {
+    RouteHelper::requireAdmin();
+    $template = new Template();
+    $template->renderResponse('admin/echomail_moderation.twig');
+});
+
 // BBS Directory API - list entries (paged + search)
 SimpleRouter::get('/admin/api/bbs-directory/entries', function() {
     RouteHelper::requireAdmin();
@@ -5354,6 +5369,64 @@ SimpleRouter::post('/admin/api/bbs-directory/robots/{id}/run', function($id) {
         http_response_code(500);
         apiError('errors.admin.bbs_directory.run_failed', $e->getMessage());
     }
+});
+
+// -----------------------------------------------------------------------
+// Echomail Moderation Queue API
+// -----------------------------------------------------------------------
+
+SimpleRouter::get('/admin/api/echomail-moderation', function() {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $stmt = $db->prepare("
+        SELECT em.id, em.subject, em.from_name, em.date_written, em.date_received,
+               em.message_text,
+               ea.tag AS echoarea_tag,
+               u.username AS author_username
+        FROM echomail em
+        JOIN echoareas ea ON em.echoarea_id = ea.id
+        LEFT JOIN users u ON em.user_id = u.id
+        WHERE em.moderation_status = 'pending'
+        ORDER BY em.date_received ASC
+    ");
+    $stmt->execute();
+    $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode(['success' => true, 'messages' => $messages]);
+});
+
+SimpleRouter::post('/admin/api/echomail/{id}/approve', function($id) {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $handler = new \BinktermPHP\MessageHandler();
+    $result  = $handler->approveEchomail((int)$id);
+
+    if (!$result) {
+        http_response_code(404);
+        apiError('errors.admin.echomail_moderation.not_found', apiLocalizedText('errors.admin.echomail_moderation.not_found', 'Message not found or not pending'));
+        return;
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+SimpleRouter::post('/admin/api/echomail/{id}/reject', function($id) {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $handler = new \BinktermPHP\MessageHandler();
+    $result  = $handler->rejectEchomail((int)$id);
+
+    if (!$result) {
+        http_response_code(404);
+        apiError('errors.admin.echomail_moderation.not_found', apiLocalizedText('errors.admin.echomail_moderation.not_found', 'Message not found or not pending'));
+        return;
+    }
+
+    echo json_encode(['success' => true]);
 });
 
 // BBS Directory API - get registered processor types

@@ -4350,4 +4350,33 @@ return [
     'ui.terminalserver.qwk.format_saved'             => 'Format changed to {format}.',
     'ui.terminalserver.qwk.format_failed'            => 'Failed to change format.',
     'ui.admin.wall.incoming'                         => 'Incoming message from {from}',
+
+    // Echomail moderation queue
+    'ui.admin.echomail_moderation.page_title'               => 'Echomail Moderation',
+    'ui.admin.echomail_moderation.heading'                  => 'Echomail Moderation Queue',
+    'ui.admin.echomail_moderation.about_title'              => 'About Moderation',
+    'ui.admin.echomail_moderation.about_text'               => 'New users posting to networked echo areas are held here for review before their messages are transmitted upstream.',
+    'ui.admin.echomail_moderation.threshold_hint'           => 'Configure the approval threshold in',
+    'ui.admin.echomail_moderation.bbs_settings_link'        => 'BBS Settings',
+    'ui.admin.echomail_moderation.empty_queue'              => 'No messages pending moderation.',
+    'ui.admin.echomail_moderation.col_area'                 => 'Area',
+    'ui.admin.echomail_moderation.col_author'               => 'Author',
+    'ui.admin.echomail_moderation.col_subject'              => 'Subject',
+    'ui.admin.echomail_moderation.col_date'                 => 'Date',
+    'ui.admin.echomail_moderation.col_actions'              => 'Actions',
+    'ui.admin.echomail_moderation.action_approve'           => 'Approve',
+    'ui.admin.echomail_moderation.action_reject'            => 'Reject',
+    'ui.admin.echomail_moderation.approved_success'         => 'Message approved and queued for transmission.',
+    'ui.admin.echomail_moderation.rejected_success'         => 'Message rejected.',
+
+    // BBS settings - echomail moderation threshold
+    'ui.admin.bbs_settings.features.echomail_moderation_threshold'      => 'Echomail Moderation Threshold',
+    'ui.admin.bbs_settings.features.echomail_moderation_threshold_help' => 'Number of approved networked echomail posts required before a new user can post without moderation. Set to 0 to disable moderation entirely.',
+    'ui.admin.bbs_settings.validation.echomail_moderation_threshold_range' => 'Echomail moderation threshold must be 0 or higher (0 = disabled).',
+
+    // Nav
+    'ui.base.admin.echomail_moderation' => 'Echomail Moderation',
+
+    // Pending moderation post response
+    'ui.api.messages.pending_moderation' => 'Your message has been submitted and is pending moderator approval before it is sent to the network.',
 ];

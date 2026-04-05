@@ -4261,4 +4261,33 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.ad_campaigns.run_now_confirm' => 'Exécuter {name} tout de suite ?',
     'ui.admin.ad_campaigns.this_campaign' => 'cette campagne',
     'ui.admin.wall.incoming'              => 'Message entrant de {from}',
+
+    // Echomail moderation queue
+    'ui.admin.echomail_moderation.page_title'               => 'Modération des echomail',
+    'ui.admin.echomail_moderation.heading'                  => 'File de modération des echomail',
+    'ui.admin.echomail_moderation.about_title'              => 'À propos de la modération',
+    'ui.admin.echomail_moderation.about_text'               => 'Les nouveaux utilisateurs qui publient dans des zones echo réseau sont retenus ici pour examen avant que leurs messages ne soient transmis en amont.',
+    'ui.admin.echomail_moderation.threshold_hint'           => 'Configurez le seuil d\'approbation dans les',
+    'ui.admin.echomail_moderation.bbs_settings_link'        => 'Paramètres BBS',
+    'ui.admin.echomail_moderation.empty_queue'              => 'Aucun message en attente de modération.',
+    'ui.admin.echomail_moderation.col_area'                 => 'Zone',
+    'ui.admin.echomail_moderation.col_author'               => 'Auteur',
+    'ui.admin.echomail_moderation.col_subject'              => 'Sujet',
+    'ui.admin.echomail_moderation.col_date'                 => 'Date',
+    'ui.admin.echomail_moderation.col_actions'              => 'Actions',
+    'ui.admin.echomail_moderation.action_approve'           => 'Approuver',
+    'ui.admin.echomail_moderation.action_reject'            => 'Rejeter',
+    'ui.admin.echomail_moderation.approved_success'         => 'Message approuvé et mis en file d\'attente pour transmission.',
+    'ui.admin.echomail_moderation.rejected_success'         => 'Message rejeté.',
+
+    // BBS settings - echomail moderation threshold
+    'ui.admin.bbs_settings.features.echomail_moderation_threshold'      => 'Seuil de modération des echomail',
+    'ui.admin.bbs_settings.features.echomail_moderation_threshold_help' => 'Nombre de publications echomail réseau approuvées requises avant qu\'un nouvel utilisateur puisse publier sans modération. Mettez 0 pour désactiver la modération.',
+    'ui.admin.bbs_settings.validation.echomail_moderation_threshold_range' => 'Le seuil de modération doit être 0 ou plus (0 = désactivé).',
+
+    // Nav
+    'ui.base.admin.echomail_moderation' => 'Modération echomail',
+
+    // Pending moderation post response
+    'ui.api.messages.pending_moderation' => 'Votre message a été soumis et est en attente d\'approbation par un modérateur avant d\'être envoyé au réseau.',
 ];

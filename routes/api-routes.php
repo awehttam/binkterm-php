@@ -6420,9 +6420,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 } elseif ($type === 'echomail') {
                     ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
                 }
+                $isPending = ($result === 'pending');
                 echo json_encode([
                     'success' => true,
-                    'message_code' => 'ui.api.messages.sent',
+                    'message_code' => $isPending ? 'ui.api.messages.pending_moderation' : 'ui.api.messages.sent',
+                    'pending_moderation' => $isPending,
                     'areas_posted' => $totalAreas
                 ]);
 

@@ -623,4 +623,7 @@ return [
     'errors.admin.msg.empty_message'     => 'El mensaje no puede estar vacio.',
     'errors.admin.msg.message_too_long'  => 'Mensaje demasiado largo (maximo 1000 caracteres).',
     'errors.admin.msg.user_not_found'    => 'Usuario no encontrado.',
+
+    // Echomail moderation
+    'errors.admin.echomail_moderation.not_found' => 'Mensaje no encontrado o no está pendiente de moderación.',
 ];
