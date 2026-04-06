@@ -389,7 +389,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Validate username format
+        // Validate username format. Spaces are intentionally disallowed so that usernames
+        // cannot be made to look like real names by using multiple words separated by spaces.
         if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
             apiError('errors.register.invalid_username_format', apiLocalizedText('errors.register.invalid_username_format', 'Username must be 3-20 characters, letters, numbers, and underscores only'), 400);
             return;
