@@ -1,0 +1,201 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.echomail_moderation.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-shield-alt"></i>
+        {{ t('ui.admin.echomail_moderation.heading', {}, 'common') }}
+        <span class="badge bg-warning text-dark ms-2" id="pendingCountBadge" style="display:none;"></span>
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-body p-0">
+                <div id="queueContainer">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i> {{ t('ui.common.loading', {}, 'common') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">{{ t('ui.admin.echomail_moderation.about_title', {}, 'common') }}</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    {{ t('ui.admin.echomail_moderation.about_text', {}, 'common') }}
+                </p>
+                <p class="small text-muted mb-0">
+                    {{ t('ui.admin.echomail_moderation.threshold_hint', {}, 'common') }}
+                    <a href="/admin/bbs-settings">{{ t('ui.admin.echomail_moderation.bbs_settings_link', {}, 'common') }}</a>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Message Preview Modal ───────────────────────────────────────────────── #}
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row small mb-3">
+                    <dt class="col-sm-3">{{ t('ui.admin.echomail_moderation.col_area', {}, 'common') }}</dt>
+                    <dd class="col-sm-9 font-monospace" id="previewArea"></dd>
+                    <dt class="col-sm-3">{{ t('ui.admin.echomail_moderation.col_author', {}, 'common') }}</dt>
+                    <dd class="col-sm-9" id="previewAuthor"></dd>
+                    <dt class="col-sm-3">{{ t('ui.admin.echomail_moderation.col_date', {}, 'common') }}</dt>
+                    <dd class="col-sm-9" id="previewDate"></dd>
+                </dl>
+                <pre id="previewBody" class="bg-light p-3 rounded" style="white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow-y:auto;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
+                <button type="button" class="btn btn-danger" id="previewRejectBtn">
+                    <i class="fas fa-ban me-1"></i>{{ t('ui.admin.echomail_moderation.action_reject', {}, 'common') }}
+                </button>
+                <button type="button" class="btn btn-success" id="previewApproveBtn">
+                    <i class="fas fa-check me-1"></i>{{ t('ui.admin.echomail_moderation.action_approve', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uiT(key, fallback, params) {
+    return window.t ? window.t(key, params || {}, fallback) : fallback;
+}
+
+function apiErr(payload, fallback) {
+    return window.getApiErrorMessage ? window.getApiErrorMessage(payload, fallback) : (payload?.error || fallback);
+}
+
+let pendingMessages = [];
+let currentPreviewId = null;
+
+$(document).ready(function() {
+    const init = function() { loadQueue(); };
+    if (typeof loadUserSettings === 'function') {
+        loadUserSettings().finally(init);
+    } else {
+        init();
+    }
+});
+
+function loadQueue() {
+    $('#queueContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> ' + uiT('ui.common.loading', 'Loading...') + '</div>');
+
+    $.get('/admin/api/echomail-moderation')
+        .done(function(data) {
+            pendingMessages = data.messages || [];
+            renderQueue(pendingMessages);
+        })
+        .fail(function(xhr) {
+            $('#queueContainer').html('<div class="text-center text-danger py-4">' + apiErr(xhr.responseJSON, 'Failed to load moderation queue') + '</div>');
+        });
+}
+
+function renderQueue(messages) {
+    const container = $('#queueContainer');
+
+    if (!messages || messages.length === 0) {
+        $('#pendingCountBadge').hide();
+        container.html('<div class="text-center text-muted py-5"><i class="fas fa-check-circle fa-2x mb-3 d-block text-success"></i>' + uiT('ui.admin.echomail_moderation.empty_queue', 'No messages pending moderation.') + '</div>');
+        return;
+    }
+
+    $('#pendingCountBadge').text(messages.length).show();
+
+    let html = '<div class="table-responsive"><table class="table table-hover mb-0"><thead><tr>' +
+        '<th>' + uiT('ui.admin.echomail_moderation.col_area', 'Area') + '</th>' +
+        '<th>' + uiT('ui.admin.echomail_moderation.col_author', 'Author') + '</th>' +
+        '<th>' + uiT('ui.admin.echomail_moderation.col_subject', 'Subject') + '</th>' +
+        '<th>' + uiT('ui.admin.echomail_moderation.col_date', 'Date') + '</th>' +
+        '<th>' + uiT('ui.admin.echomail_moderation.col_actions', 'Actions') + '</th>' +
+        '</tr></thead><tbody>';
+
+    messages.forEach(function(m) {
+        const date = m.date_received ? new Date(m.date_received).toLocaleString() : '';
+        html += '<tr>' +
+            '<td><span class="font-monospace small">' + escapeHtml(m.echoarea_tag || '') + '</span></td>' +
+            '<td>' + escapeHtml(m.author_username || m.from_name || '') + '</td>' +
+            '<td><a href="#" class="text-decoration-none" onclick="showPreview(' + m.id + '); return false;">' + escapeHtml(m.subject || '') + '</a></td>' +
+            '<td><small>' + escapeHtml(date) + '</small></td>' +
+            '<td>' +
+                '<div class="btn-group" role="group">' +
+                    '<button class="btn btn-sm btn-outline-success" onclick="approveMessage(' + m.id + ')" title="' + uiT('ui.admin.echomail_moderation.action_approve', 'Approve') + '">' +
+                        '<i class="fas fa-check"></i>' +
+                    '</button>' +
+                    '<button class="btn btn-sm btn-outline-danger" onclick="rejectMessage(' + m.id + ')" title="' + uiT('ui.admin.echomail_moderation.action_reject', 'Reject') + '">' +
+                        '<i class="fas fa-ban"></i>' +
+                    '</button>' +
+                '</div>' +
+            '</td>' +
+        '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    container.html(html);
+}
+
+function showPreview(id) {
+    const m = pendingMessages.find(function(x) { return x.id == id; });
+    if (!m) return;
+
+    currentPreviewId = id;
+    $('#previewModalTitle').text(escapeHtml(m.subject || ''));
+    $('#previewArea').text(m.echoarea_tag || '');
+    $('#previewAuthor').text(m.author_username || m.from_name || '');
+    $('#previewDate').text(m.date_received ? new Date(m.date_received).toLocaleString() : '');
+    $('#previewBody').text(m.message_text || '');
+
+    $('#previewApproveBtn').off('click').on('click', function() {
+        $('#previewModal').modal('hide');
+        approveMessage(id);
+    });
+    $('#previewRejectBtn').off('click').on('click', function() {
+        $('#previewModal').modal('hide');
+        rejectMessage(id);
+    });
+
+    $('#previewModal').modal('show');
+}
+
+function approveMessage(id) {
+    $.post('/admin/api/echomail/' + id + '/approve')
+        .done(function() {
+            showSuccess(uiT('ui.admin.echomail_moderation.approved_success', 'Message approved and queued for transmission.'));
+            loadQueue();
+        })
+        .fail(function(xhr) {
+            showError(apiErr(xhr.responseJSON, 'Failed to approve message'));
+        });
+}
+
+function rejectMessage(id) {
+    $.post('/admin/api/echomail/' + id + '/reject')
+        .done(function() {
+            showSuccess(uiT('ui.admin.echomail_moderation.rejected_success', 'Message rejected.'));
+            loadQueue();
+        })
+        .fail(function(xhr) {
+            showError(apiErr(xhr.responseJSON, 'Failed to reject message'));
+        });
+}
+</script>
+{% endblock %}

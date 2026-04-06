@@ -580,6 +580,9 @@ return [
     'errors.admin.msg.empty_message'     => 'Le message ne peut pas etre vide.',
     'errors.admin.msg.message_too_long'  => 'Message trop long (maximum 1000 caracteres).',
     'errors.admin.msg.user_not_found'    => 'Utilisateur introuvable.',
+
+    // Echomail moderation
+    'errors.admin.echomail_moderation.not_found' => 'Message introuvable ou n\'est pas en attente de modération.',
 ];
 
 

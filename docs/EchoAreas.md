@@ -113,8 +113,62 @@ Character encoding is detected via the `CHRS` kludge and converted to UTF-8 for 
 
 1. A user posts a message through the web interface or terminal server.
 2. The message is stored in the `echomail` table.
-3. At the next binkp poll, `BinkdProcessor` selects pending outbound messages for areas where `is_local = false` and `is_active = true`, and bundles them into a packet destined for the configured uplink.
-4. The posting name in the outbound packet is determined by the area's `posting_name_policy` (or the uplink's default policy if the area policy is unset).
+3. If echomail moderation is enabled and the user has not yet earned unmoderated posting rights, the message is stored with `moderation_status = 'pending'` and held for sysop review (see [Echomail Moderation](#echomail-moderation) below). Otherwise it proceeds immediately.
+4. At the next binkp poll, `BinkdProcessor` selects pending outbound messages for areas where `is_local = false` and `is_active = true`, and bundles them into a packet destined for the configured uplink.
+5. The posting name in the outbound packet is determined by the area's `posting_name_policy` (or the uplink's default policy if the area policy is unset).
+
+---
+
+## Echomail Moderation
+
+BinktermPHP includes an optional hold-for-approval queue for echomail posted by users who have not yet established a posting history. Once a user accumulates enough approved posts they are promoted automatically and never moderated again.
+
+Moderation applies only to **networked** areas (`is_local = false`). Posts to local areas are always stored immediately regardless of the user's moderation status.
+
+### Enabling Moderation
+
+Moderation is controlled by a single threshold in **Admin → BBS Settings**:
+
+- **Echomail Moderation Threshold** (`echomail_moderation_threshold` in `bbs.json`) — the number of approved networked echomail posts a user must accumulate before they can post without moderation. The default is **0**, which disables the feature entirely. Set this to a positive integer (e.g. `5` or `10`) to enable the queue.
+
+### Who Is Affected
+
+| User type | Behaviour |
+|-----------|-----------|
+| Admin users (`is_admin = true`) | Always bypass moderation |
+| Users with `can_post_netecho_unmoderated = true` | Post immediately |
+| New users (flag is `false`) | Held for review when threshold > 0 |
+
+All users who had at least one active session at the time the migration ran are grandfathered in with `can_post_netecho_unmoderated = true`, so existing accounts are never disrupted when the feature is first enabled. Only accounts created after the migration are subject to moderation.
+
+### The Pending Queue
+
+When a post is held, the message is stored in the `echomail` table with `moderation_status = 'pending'`. No outbound packet is written and no poll is triggered.
+
+The author can see their own pending message in the message list with a **Pending Approval** indicator, so they know it was received. Other users cannot see it until it is approved.
+
+### Sysop Moderation Page
+
+The admin moderation queue is at **Admin → Area Management → Echomail Moderation** (`/admin/echomail-moderation`). It lists all pending messages with the area tag, author, subject, and submission date. Clicking a subject line opens a preview of the full message body.
+
+Per-message actions:
+
+- **Approve** — marks the message `approved`, spools it into an outbound packet, and triggers an immediate poll. Also checks whether the author should be auto-promoted (see below).
+- **Reject** — marks the message `rejected`. The message is permanently suppressed; it is never transmitted and is no longer visible to the author.
+
+### Automatic Promotion
+
+Each time a message is approved, BinktermPHP counts that user's total approved networked echomail posts. If the count reaches or exceeds `echomail_moderation_threshold`, the user's `can_post_netecho_unmoderated` flag is set to `true` and they are never moderated again. No scheduled job is needed — the check runs at approval time.
+
+### Database Columns
+
+The following columns support this feature:
+
+| Table | Column | Description |
+|-------|--------|-------------|
+| `echomail` | `user_id` | The local user account that submitted the message (nullable; NULL for messages received from remote systems). |
+| `echomail` | `moderation_status` | `approved` (default), `pending`, or `rejected`. |
+| `users` | `can_post_netecho_unmoderated` | When `true` the user bypasses the moderation gate. |
 
 ---
 
