@@ -696,7 +696,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             SELECT id, question
             FROM polls
             WHERE is_active = TRUE
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
         ");
         $pollStmt->execute();
         $polls = $pollStmt->fetchAll();
@@ -765,7 +765,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        $payload = [];
+        $unvoted = [];
+        $voted   = [];
         foreach ($polls as $poll) {
             $pollId = (int)$poll['id'];
             $hasVoted = isset($votedLookup[$pollId]);
@@ -778,11 +779,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($hasVoted) {
                 $entry['results'] = $resultsByPoll[$pollId] ?? [];
                 $entry['total_votes'] = $totalVotesByPoll[$pollId] ?? 0;
+                $voted[] = $entry;
+            } else {
+                $unvoted[] = $entry;
             }
-            $payload[] = $entry;
         }
 
-        echo json_encode(['polls' => $payload]);
+        echo json_encode(['polls' => array_merge($unvoted, $voted)]);
     });
 
     SimpleRouter::post('/polls/{id}/vote', function($id) {

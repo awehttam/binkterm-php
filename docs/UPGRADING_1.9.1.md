@@ -5,6 +5,8 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Echomail Moderation](#echomail-moderation)
+- [Polls](#polls)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -19,6 +21,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - The Admin menu and the Echomail Moderation item highlight in yellow when posts are waiting for review.
 - Existing users who have previously logged in are grandfathered in and bypass moderation automatically.
 - Admins always bypass moderation regardless of post count.
+
+### Polls
+
+- The poll list now shows unvoted polls before polls the user has already voted on, so newly created polls always appear at the top.
+- Within each group, polls are ordered newest first.
 
 ## Echomail Moderation
 
@@ -37,6 +44,15 @@ The approval threshold is set under **Admin → BBS Settings**. The default valu
 **Upgrading**
 
 The database migration adds `moderation_status` and `user_id` columns to the `echomail` table, and a `can_post_netecho_unmoderated` column to the `users` table. All users who have previously logged in are marked as unmoderated automatically so existing community members are not affected. Run `php scripts/setup.php` to apply the migration.
+
+## Polls
+
+The order in which polls appear has changed. Previously all polls were returned oldest-first regardless of voting status. Now:
+
+- Polls the user has **not yet voted on** appear first, ordered newest first, so freshly created polls are always visible at the top.
+- Polls the user **has already voted on** appear afterward, also ordered newest first.
+
+No configuration or database changes are required for this behaviour.
 
 ## Upgrade Instructions
 
