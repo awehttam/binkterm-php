@@ -2727,6 +2727,18 @@ return [
     'ui.files.comment_post_failed' => 'Error al publicar el comentario',
     'ui.files.comment_posted' => 'Comentario publicado',
     'ui.files.login_to_comment' => 'Inicia sesión para leer y publicar comentarios',
+    'ui.files.add_link' => 'Agregar enlace',
+    'ui.files.add_link_tab' => 'Agregar enlace',
+    'ui.files.upload_file_tab' => 'Subir archivo',
+    'ui.files.link_url_required' => 'URL *',
+    'ui.files.link_url_help' => 'Ingresa una URL completa (https://...) hacia un recurso externo.',
+    'ui.files.fetch_info' => 'Obtener info',
+    'ui.files.fetching_info' => 'Obteniendo…',
+    'ui.files.fetch_info_failed' => 'No se pudo obtener la información de la URL',
+    'ui.files.link_added' => 'Enlace agregado correctamente',
+    'ui.files.link_url' => 'URL',
+    'ui.files.visit_link' => 'Visitar',
+    'ui.files.link_url_edit' => 'URL',
 
     // Polls Page
     'ui.polls.title' => 'Encuestas',

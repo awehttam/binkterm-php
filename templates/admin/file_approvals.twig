@@ -308,16 +308,20 @@ function rejectPendingFile(fileId) {
 }
 
 function buildResponsiveApprovalActions(file) {
-    return `
-        <div class="d-flex flex-wrap gap-2 justify-content-end">
-            <a class="btn btn-outline-secondary" href="/admin/api/files/${file.id}/download" title="${uiT('ui.files.download', 'Download')}">
-                <i class="fas fa-download"></i>
-            </a>
+    const isUrlLink = file.source_type === 'url';
+    const primaryBtn = isUrlLink
+        ? `<a class="btn btn-outline-secondary" href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" title="${uiT('ui.files.visit_link', 'Visit')}"><i class="fas fa-external-link-alt"></i></a>`
+        : `<a class="btn btn-outline-secondary" href="/admin/api/files/${file.id}/download" title="${uiT('ui.files.download', 'Download')}"><i class="fas fa-download"></i></a>`;
+    const scanBtn = (!isUrlLink) ? `
             {% if not virus_scan_disabled %}
             <button class="btn btn-outline-primary" type="button" onclick="scanPendingFile(${file.id}, this)" title="${uiT('ui.files.virus_scan_now', 'Virus Scan')}">
                 <i class="fas fa-shield-alt"></i>
             </button>
-            {% endif %}
+            {% endif %}` : '';
+    return `
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            ${primaryBtn}
+            ${scanBtn}
             <button class="btn btn-success" type="button" onclick="approvePendingFile(${file.id})" title="${uiT('ui.admin.file_approvals.approve', 'Approve')}">
                 <i class="fas fa-check"></i>
             </button>
@@ -343,6 +347,7 @@ renderPendingFiles = function(files) {
     badge.removeClass('d-none').text(files.length);
 
     const tableRows = files.map(function(file) {
+        const isUrlLink = file.source_type === 'url';
         const uploader = escapeHtml(file.owner_username || file.uploaded_from_address || '—');
         const area = escapeHtml(file.area_tag || '');
         const domain = file.domain ? `<span class="text-muted small d-block">${escapeHtml(file.domain)}</span>` : '';
@@ -350,10 +355,14 @@ renderPendingFiles = function(files) {
         const longDescription = file.long_description
             ? `<div class="small text-muted mt-1">${escapeHtml(file.long_description)}</div>`
             : '';
+        const filenameCell = isUrlLink
+            ? `<i class="fas fa-link text-info me-1"></i><strong>${escapeHtml(file.filename)}</strong><div class="small text-muted text-break">${escapeHtml(file.url || '')}</div>`
+            : `<strong>${escapeHtml(file.filename)}</strong>`;
+        const sizeCell = isUrlLink ? '—' : formatBytes(parseInt(file.filesize || 0, 10));
         return `
             <tr>
                 <td class="file-approvals-filename">
-                    <strong>${escapeHtml(file.filename)}</strong>
+                    ${filenameCell}
                     <div class="small text-muted">${description}</div>
                     ${longDescription}
                 </td>
@@ -362,15 +371,16 @@ renderPendingFiles = function(files) {
                     ${domain}
                 </td>
                 <td class="file-approvals-uploader">${uploader}</td>
-                <td class="file-approvals-size">${formatBytes(parseInt(file.filesize || 0, 10))}</td>
+                <td class="file-approvals-size">${sizeCell}</td>
                 <td class="file-approvals-uploaded">${formatDateTime(file.created_at)}</td>
-                <td class="file-approvals-scan">${scanBadge(file)}</td>
+                <td class="file-approvals-scan">${isUrlLink ? '—' : scanBadge(file)}</td>
                 <td class="file-approvals-actions text-end">${buildResponsiveApprovalActions(file)}</td>
             </tr>
         `;
     }).join('');
 
     const mobileCards = files.map(function(file) {
+        const isUrlLink = file.source_type === 'url';
         const uploader = escapeHtml(file.owner_username || file.uploaded_from_address || '—');
         const area = escapeHtml(file.area_tag || '');
         const domain = file.domain ? `<span class="text-muted small d-block">${escapeHtml(file.domain)}</span>` : '';
@@ -378,17 +388,21 @@ renderPendingFiles = function(files) {
         const longDescription = file.long_description
             ? `<div class="small text-muted mt-1">${escapeHtml(file.long_description)}</div>`
             : '';
+        const urlLine = isUrlLink && file.url
+            ? `<div class="small text-muted text-break mt-1"><i class="fas fa-link me-1"></i>${escapeHtml(file.url)}</div>`
+            : '';
         return `
             <div class="border-bottom p-3 d-lg-none">
-                <div class="fw-semibold" style="word-break: break-all;">${escapeHtml(file.filename)}</div>
+                <div class="fw-semibold" style="word-break: break-all;">${isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : ''}${escapeHtml(file.filename)}</div>
+                ${urlLine}
                 <div class="small text-muted mt-1">${description}</div>
                 ${longDescription}
                 <div class="mt-3 small">
                     <div><span class="text-muted">${uiT('ui.files.area', 'Area')}:</span> <span class="font-monospace">${area}</span>${domain}</div>
                     <div><span class="text-muted">${uiT('ui.admin.file_approvals.uploader', 'Uploader')}:</span> ${uploader}</div>
-                    <div><span class="text-muted">${uiT('ui.files.size', 'Size')}:</span> ${formatBytes(parseInt(file.filesize || 0, 10))}</div>
+                    <div><span class="text-muted">${uiT('ui.files.size', 'Size')}:</span> ${isUrlLink ? '—' : formatBytes(parseInt(file.filesize || 0, 10))}</div>
                     <div><span class="text-muted">${uiT('ui.files.uploaded', 'Uploaded')}:</span> ${formatDateTime(file.created_at)}</div>
-                    <div><span class="text-muted">${uiT('ui.files.virus_scan', 'Virus Scan')}:</span> ${scanBadge(file)}</div>
+                    ${!isUrlLink ? `<div><span class="text-muted">${uiT('ui.files.virus_scan', 'Virus Scan')}:</span> ${scanBadge(file)}</div>` : ''}
                 </div>
                 <div class="mt-3 d-flex justify-content-end">${buildResponsiveApprovalActions(file)}</div>
             </div>

@@ -2987,6 +2987,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // URL-type links redirect to the external URL instead of streaming a file
+        if (($file['source_type'] ?? '') === 'url') {
+            $externalUrl = $file['url'] ?? '';
+            if ($externalUrl === '') {
+                http_response_code(404);
+                echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+                return;
+            }
+            header('Location: ' . $externalUrl, true, 302);
+            return;
+        }
+
         // Resolve path at request time (ISO-backed areas reconstruct from mount point)
         $storagePath = $manager->resolveFilePath($file);
         if (!file_exists($storagePath)) {
@@ -4300,6 +4312,240 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    /**
+     * POST /api/files/add-link
+     * Add an external URL link to a file area.
+     */
+    SimpleRouter::post('/files/add-link', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $ownerId          = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $uploadCostCharged = false;
+        $uploadCost       = 0;
+
+        try {
+            $body             = json_decode(file_get_contents('php://input'), true) ?? [];
+            $fileAreaId       = (int)($body['file_area_id'] ?? 0);
+            $url              = trim($body['url'] ?? '');
+            $shortDescription = trim($body['short_description'] ?? '');
+            $longDescription  = trim($body['long_description'] ?? '');
+
+            if (!$fileAreaId) {
+                throw new \Exception('File area ID is required');
+            }
+
+            if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+                throw new \Exception('A valid URL is required');
+            }
+
+            if (empty($shortDescription)) {
+                throw new \Exception('Short description is required');
+            }
+
+            $manager    = new \BinktermPHP\FileAreaManager();
+            $fileArea   = $manager->getFileAreaById($fileAreaId);
+
+            if (!$fileArea) {
+                throw new \Exception('File area not found');
+            }
+
+            $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+            $isAdmin          = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
+
+            if (!$manager->canAccessFileArea($fileAreaId, $ownerId, $isAdmin)) {
+                throw new \Exception('Access denied to this file area');
+            }
+
+            if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
+                throw new \Exception('This file area is read-only. Uploads are not permitted.');
+            } elseif ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_ADMIN_ONLY && !$isAdmin) {
+                throw new \Exception('Only administrators can upload files to this area.');
+            }
+
+            $uploadedBy    = $user['username'] ?? 'Unknown';
+            $uploadCost    = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
+            $uploadReward  = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+            $isOwnPrivateArea = !empty($fileArea['is_private']) && (string)($fileArea['tag'] ?? '') === ('PRIVATE_USER_' . $ownerId);
+            $initialStatus = ($isAdmin || $isOwnPrivateArea) ? 'approved' : 'pending';
+
+            if ($uploadCost > 0) {
+                $uploadCostCharged = UserCredit::debit(
+                    $ownerId,
+                    $uploadCost,
+                    'Added link: ' . $url,
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$uploadCostCharged) {
+                    throw new \Exception('Insufficient credits for file upload');
+                }
+            }
+
+            $fileId = $manager->addUrlLink(
+                $fileAreaId,
+                $url,
+                $shortDescription,
+                $longDescription,
+                $uploadedBy,
+                $ownerId,
+                $initialStatus
+            );
+
+            if ($uploadReward > 0 && $initialStatus === 'approved') {
+                $creditSuccess = UserCredit::credit(
+                    $ownerId,
+                    $uploadReward,
+                    'Link reward: ' . $url,
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    getServerLogger()->error("Failed to award link upload credits for user {$ownerId} and file {$fileId}");
+                }
+            }
+
+            ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $url, ['file_area_id' => $fileAreaId]);
+
+            echo json_encode([
+                'success'          => true,
+                'file_id'          => $fileId,
+                'status'           => $initialStatus,
+                'approval_required' => $initialStatus === 'pending',
+                'message_code'     => $initialStatus === 'pending'
+                    ? 'ui.files.upload_pending_approval'
+                    : 'ui.files.link_added',
+            ]);
+
+        } catch (\Exception $e) {
+            if ($uploadCostCharged && $uploadCost > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $uploadCost,
+                    'Refund: Link add failed',
+                    null,
+                    UserCredit::TYPE_REFUND
+                );
+            }
+
+            http_response_code(400);
+            $message = $e->getMessage();
+            if ($message === 'File area ID is required') {
+                apiError('errors.files.upload.area_id_required', apiLocalizedText('errors.files.upload.area_id_required', 'File area ID is required', $user));
+            } elseif ($message === 'A valid URL is required') {
+                apiError('errors.files.link.invalid_url', apiLocalizedText('errors.files.link.invalid_url', 'A valid URL is required', $user));
+            } elseif ($message === 'Short description is required') {
+                apiError('errors.files.upload.short_description_required', apiLocalizedText('errors.files.upload.short_description_required', 'Short description is required', $user));
+            } elseif ($message === 'File area not found') {
+                apiError('errors.files.upload.area_not_found', apiLocalizedText('errors.files.upload.area_not_found', 'File area not found', $user));
+            } elseif ($message === 'This file area is read-only. Uploads are not permitted.') {
+                apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
+            } elseif ($message === 'Only administrators can upload files to this area.') {
+                apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Access denied to this file area') {
+                apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user), 403);
+            } elseif ($message === 'Insufficient credits for file upload') {
+                apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
+            } else {
+                getServerLogger()->error("Add link error: " . $message);
+                apiError('errors.files.link.add_failed', apiLocalizedText('errors.files.link.add_failed', 'Failed to add link', $user));
+            }
+        }
+    });
+
+    /**
+     * POST /api/files/fetch-url-meta
+     * Fetch title and description metadata for a URL (server-side to avoid CORS).
+     * Returns short_description (page title) and long_description (og:description).
+     */
+    SimpleRouter::post('/files/fetch-url-meta', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $url  = trim($body['url'] ?? '');
+
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            http_response_code(400);
+            apiError('errors.files.link.invalid_url', apiLocalizedText('errors.files.link.invalid_url', 'A valid URL is required', $user));
+            return;
+        }
+
+        // Fetch the URL with a short timeout
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout'         => 8,
+                'follow_location' => true,
+                'max_redirects'   => 5,
+                'user_agent'      => 'BinktermPHP/1.0 (URL metadata fetch)',
+                'method'          => 'GET',
+            ],
+            'ssl' => [
+                'verify_peer'      => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+
+        $html = @file_get_contents($url, false, $ctx);
+
+        if ($html === false || $html === '') {
+            echo json_encode(['success' => true, 'short_description' => '', 'long_description' => '']);
+            return;
+        }
+
+        // Parse HTML for title and og:description
+        $shortDescription = '';
+        $longDescription  = '';
+
+        $doc = new \DOMDocument();
+        @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+
+        // <title>
+        $titles = $doc->getElementsByTagName('title');
+        if ($titles->length > 0) {
+            $shortDescription = trim($titles->item(0)->textContent);
+        }
+
+        // <meta name="og:description"> or <meta property="og:description">
+        $metas = $doc->getElementsByTagName('meta');
+        foreach ($metas as $meta) {
+            $prop    = strtolower((string)$meta->getAttribute('property'));
+            $name    = strtolower((string)$meta->getAttribute('name'));
+            $content = trim((string)$meta->getAttribute('content'));
+
+            if (($prop === 'og:description' || $name === 'og:description' || $name === 'description') && $content !== '') {
+                $longDescription = $content;
+                if ($prop === 'og:description' || $name === 'og:description') {
+                    break; // prefer og:description over plain description
+                }
+            }
+        }
+
+        // Truncate to fit db columns
+        $shortDescription = mb_substr($shortDescription, 0, 255);
+        $longDescription  = mb_substr($longDescription, 0, 2000);
+
+        echo json_encode([
+            'success'           => true,
+            'short_description' => $shortDescription,
+            'long_description'  => $longDescription,
+        ]);
+    });
+
     SimpleRouter::delete('/files/{id}/delete', function($id) {
         $user = RouteHelper::requireAuth();
 
@@ -4361,6 +4607,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $shortDesc     = isset($body['short_description']) ? trim($body['short_description']) : null;
         $longDesc      = isset($body['long_description'])  ? (trim($body['long_description']) ?: null) : null;
         $targetAreaId  = isset($body['file_area_id']) ? (int)$body['file_area_id'] : null;
+        $newUrl        = array_key_exists('url', $body) ? trim($body['url']) : null;
 
         // Validate: filename must not be blank if provided
         if ($newFilename !== null && $newFilename === '') {
@@ -4414,6 +4661,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($targetAreaId !== null) {
                 $manager->moveFile((int)$id, $targetAreaId, $isAdmin);
                 $response['file_area_id'] = $targetAreaId;
+            }
+
+            if ($newUrl !== null && $isAdmin) {
+                $manager->updateFileUrl((int)$id, $newUrl, $isAdmin);
+                $response['url'] = $newUrl;
             }
 
             echo json_encode($response);

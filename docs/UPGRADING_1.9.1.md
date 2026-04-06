@@ -5,15 +5,19 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+  - [Echomail Moderation](#summary-echomail-moderation)
+  - [Polls](#summary-polls)
+  - [File Area URL Links](#summary-file-area-url-links)
 - [Echomail Moderation](#echomail-moderation)
 - [Polls](#polls)
+- [File Area URL Links](#file-area-url-links)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-### Echomail Moderation
+### Echomail Moderation {#summary-echomail-moderation}
 
 - New users' echomail posts can be held for admin review before being distributed to the network. This feature is disabled by default and must be enabled by the sysop.
 - An admin-configurable approval threshold automatically promotes users to unmoderated posting once they have accumulated a sufficient number of approved posts.
@@ -22,10 +26,20 @@ Make sure you have a current backup of your database and files before upgrading.
 - Existing users who have previously logged in are grandfathered in and bypass moderation automatically.
 - Admins always bypass moderation regardless of post count.
 
-### Polls
+### Polls {#summary-polls}
 
 - The poll list now shows unvoted polls before polls the user has already voted on, so newly created polls always appear at the top.
 - Within each group, polls are ordered newest first.
+
+### File Area URL Links {#summary-file-area-url-links}
+
+- File areas now support external URL links in addition to uploaded files.
+- The upload modal has a new **Add Link** tab where a URL can be submitted with a short and long description.
+- A **Fetch Info** button retrieves the page title and description from the URL automatically to pre-fill the description fields.
+- URL links appear in file listings alongside regular files, marked with a link icon. Clicking the filename opens a preview card showing the descriptions and a Visit button.
+- URL links go through the same approval workflow and credit system as file uploads.
+- Admins can edit the URL of a link record from the file edit dialog.
+- The database migration relaxes the `NOT NULL` constraints on `file_hash` and `storage_path` in the `files` table, as URL records have no physical file. Run `php scripts/setup.php` to apply.
 
 ## Echomail Moderation
 
@@ -53,6 +67,38 @@ The order in which polls appear has changed. Previously all polls were returned 
 - Polls the user **has already voted on** appear afterward, also ordered newest first.
 
 No configuration or database changes are required for this behaviour.
+
+## File Area URL Links
+
+File areas can now contain entries that point to external URLs rather than stored files. This allows sysops and users to catalogue links to GitHub repositories, project pages, documentation, or any other web resource alongside regular file uploads.
+
+**Adding a link**
+
+The upload modal on the File Areas page has a new **Add Link** tab. Enter a full URL (e.g. `https://github.com/owner/repo`) and optionally click **Fetch Info** to have the server retrieve the page title and Open Graph description automatically. The short and long description fields are pre-filled from the fetched metadata and can be edited before submitting.
+
+**How links appear**
+
+URL entries appear in file listings with a link icon instead of a file icon. Clicking the filename opens the preview modal, which displays the short description, long description, and a **Visit** button that opens the URL in a new tab. The download button in the preview modal header also navigates to the URL. The file size column shows a dash for URL entries since there is no file to measure.
+
+**Approval and credits**
+
+URL links use the same pending/approved workflow as file uploads. When a user submits a link in an area that requires approval, it enters the admin approval queue at **Admin → File Approvals**. The queue displays the URL alongside the description so admins can review it before approving or rejecting. The credit system treats link submissions identically to file uploads — the same upload cost and upload reward apply.
+
+**Admin editing**
+
+Admins can edit the URL of a link record at any time through the standard file edit dialog (the pencil button in the file details modal). The URL field is only shown for link-type records.
+
+**Database changes**
+
+Migration `v1.11.0.72` makes the following schema changes to the `files` table:
+
+- Adds a `url TEXT` column (nullable) to store the external URL for link records.
+- Drops the `NOT NULL` constraint from `file_hash`, since link records have no file to hash.
+- Drops the `NOT NULL` constraint from `storage_path`, since link records have no physical storage path.
+
+The existing unique constraint on `(file_area_id, file_hash)` continues to work correctly — PostgreSQL treats `NULL` values as distinct in unique indexes, so multiple link records in the same area do not conflict with each other.
+
+Run `php scripts/setup.php` to apply the migration.
 
 ## Upgrade Instructions
 

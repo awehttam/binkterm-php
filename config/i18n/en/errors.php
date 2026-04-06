@@ -169,6 +169,8 @@ return [
     'errors.files.upload.virus_detected' => 'File rejected: virus detected',
     'errors.files.upload.insufficient_credits' => 'Insufficient credits to upload this file',
     'errors.files.upload.failed' => 'Failed to upload file',
+    'errors.files.link.invalid_url' => 'A valid URL is required',
+    'errors.files.link.add_failed' => 'Failed to add link',
     'errors.admin.file_approvals.load_failed' => 'Failed to load pending file approvals',
     'errors.admin.file_approvals.not_found' => 'Pending file not found',
     'errors.admin.file_approvals.not_pending' => 'File is not awaiting approval',

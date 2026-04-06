@@ -121,6 +121,8 @@ return [
     'errors.files.upload.virus_detected' => 'Fichier rejeté : virus détecté',
     'errors.files.upload.insufficient_credits' => 'Crédits insuffisants pour téléverser ce fichier',
     'errors.files.upload.failed' => 'Échec du téléversement du fichier',
+    'errors.files.link.invalid_url' => 'Une URL valide est requise',
+    'errors.files.link.add_failed' => 'Impossible d\'ajouter le lien',
     'errors.admin.file_approvals.load_failed' => 'Échec du chargement des approbations de fichiers en attente',
     'errors.admin.file_approvals.not_found' => 'Fichier en attente introuvable',
     'errors.admin.file_approvals.not_pending' => 'Le fichier n\'est pas en attente d\'approbation',

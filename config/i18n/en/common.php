@@ -2721,6 +2721,18 @@ return [
     'ui.files.comment_post_failed' => 'Failed to post comment',
     'ui.files.comment_posted' => 'Comment posted',
     'ui.files.login_to_comment' => 'Log in to read and post comments',
+    'ui.files.add_link' => 'Add Link',
+    'ui.files.add_link_tab' => 'Add Link',
+    'ui.files.upload_file_tab' => 'Upload File',
+    'ui.files.link_url_required' => 'URL *',
+    'ui.files.link_url_help' => 'Enter a full URL (https://...) to link to an external resource.',
+    'ui.files.fetch_info' => 'Fetch Info',
+    'ui.files.fetching_info' => 'Fetching…',
+    'ui.files.fetch_info_failed' => 'Could not fetch URL metadata',
+    'ui.files.link_added' => 'Link added successfully',
+    'ui.files.link_url' => 'URL',
+    'ui.files.visit_link' => 'Visit',
+    'ui.files.link_url_edit' => 'URL',
 
     // Polls Page
     'ui.polls.title' => 'Polls',
