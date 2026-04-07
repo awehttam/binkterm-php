@@ -13,6 +13,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Polls](#polls)
 - [File Area URL Links](#file-area-url-links)
 - [URL Link Open Graph Image Preview](#url-link-open-graph-image-preview)
+- [MCP Server Memory Leak Fix](#mcp-server-memory-leak-fix)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -42,6 +43,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - File areas now support external URL links in addition to uploaded files.
 - URL link entries display a link icon, show a dash for file size, and present a Visit button instead of a download button throughout all file listing views (area files, recent uploads, My Uploads, and file search results).
 - The file information modal on the echomail page shows a Visit button for URL link entries.
+
+### MCP Server {#summary-mcp-server}
+
+- The MCP server (`mcp-server/server.js`) had a memory leak where each request allocated a new `McpServer` instance that was never explicitly closed, causing memory to grow steadily over time. The server is now properly closed when the HTTP response ends.
 
 ### URL Link Open Graph Image Preview {#summary-og-image}
 
@@ -117,6 +122,12 @@ Run `php scripts/setup.php` to apply the migration.
 When a URL link entry's preview card is opened — either in the file area preview modal or the file information modal on the echomail page — the system fetches the linked page server-side and parses the `og:image` meta tag. If an image URL is found, it is displayed above the description as a preview thumbnail. The fetch is performed server-side, so no browser CORS restrictions apply. If no OG image is present or the image cannot be loaded, the preview displays only the description and Visit button.
 
 No configuration or database changes are required for this feature.
+
+## MCP Server Memory Leak Fix
+
+The MCP server (`mcp-server/server.js`) handles each incoming request by creating a new `McpServer` instance paired with a `StreamableHTTPServerTransport`. Previously, only the transport was closed when the HTTP response ended — the `McpServer` itself was never closed. Because the SDK registers internal listeners that cause the transport to hold a reference back to the server, these instances accumulated in memory rather than being garbage collected, causing the process's RAM usage to grow steadily over time.
+
+The server is now explicitly closed alongside the transport when each response ends. No configuration or database changes are required. Restarting the MCP server daemon picks up the fix automatically.
 
 ## Upgrade Instructions
 
