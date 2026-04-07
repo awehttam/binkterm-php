@@ -7480,23 +7480,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
 
-        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
-        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
-        $netmailStmt->execute([$user['user_id']]);
-        $netmailCount = $netmailStmt->fetch()['count'];
-
-        // For echomail, we need to count by system address since users don't have individual addresses
+        // Count netmail composed by this user. Matches from_name (username or real_name) and
+        // from_address (local system addresses) so that pending/unspooled messages are included.
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
-
-            $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_address = ?");
-            $echomailStmt->execute([$systemAddress]);
-            $echomailCount = $echomailStmt->fetch()['count'];
+            $myAddresses = array_unique(array_merge(
+                $binkpConfig->getMyAddresses(),
+                [$binkpConfig->getSystemAddress()]
+            ));
         } catch (\Exception $e) {
-            $echomailCount = 0;
+            $myAddresses = [];
         }
+
+        if (!empty($myAddresses)) {
+            $addrPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $netmailParams = [$user['username'], $user['real_name']];
+            $netmailParams = array_merge($netmailParams, $myAddresses);
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addrPlaceholders)");
+            $netmailStmt->execute($netmailParams);
+        } else {
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))");
+            $netmailStmt->execute([$user['username'], $user['real_name']]);
+        }
+        $netmailCount = $netmailStmt->fetch()['count'];
+
+        $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE user_id = ?");
+        $echomailStmt->execute([$user['user_id']]);
+        $echomailCount = $echomailStmt->fetch()['count'];
 
         // File transfer counts from activity log (type 6 = download, 7 = upload)
         $fileStmt = $db->prepare("
@@ -7535,32 +7545,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         // Verify target user exists and is active
-        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt = $db->prepare("SELECT id, username, real_name FROM users WHERE id = ? AND is_active = TRUE");
         $userStmt->execute([$userId]);
-        if (!$userStmt->fetch()) {
+        $targetUser = $userStmt->fetch();
+        if (!$targetUser) {
             http_response_code(404);
             apiError('errors.user.stats.user_not_found', apiLocalizedText('errors.user.stats.user_not_found', 'User not found', $user));
             return;
         }
 
-        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
-        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
-        $netmailStmt->execute([$userId]);
+        // Count netmail composed by this user. Matches from_name (username or real_name) and
+        // from_address (local system addresses) so that pending/unspooled messages are included.
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = array_unique(array_merge(
+                $binkpConfig->getMyAddresses(),
+                [$binkpConfig->getSystemAddress()]
+            ));
+        } catch (\Exception $e) {
+            $myAddresses = [];
+        }
+
+        if (!empty($myAddresses)) {
+            $addrPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $netmailParams = [$targetUser['username'], $targetUser['real_name']];
+            $netmailParams = array_merge($netmailParams, $myAddresses);
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addrPlaceholders)");
+            $netmailStmt->execute($netmailParams);
+        } else {
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))");
+            $netmailStmt->execute([$targetUser['username'], $targetUser['real_name']]);
+        }
         $netmailCount = $netmailStmt->fetch()['count'];
 
-        // For echomail, count messages from this user based on their username
-        // We need to get the user's real name to match echomail posts
-        $userInfoStmt = $db->prepare("SELECT real_name FROM users WHERE id = ?");
-        $userInfoStmt->execute([$userId]);
-        $userInfo = $userInfoStmt->fetch();
-
-        $echomailCount = 0;
-        if ($userInfo && !empty($userInfo['real_name'])) {
-            $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_name = ?");
-            $echomailStmt->execute([$userInfo['real_name']]);
-            $echomailCount = $echomailStmt->fetch()['count'];
-        }
+        $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE user_id = ?");
+        $echomailStmt->execute([$userId]);
+        $echomailCount = $echomailStmt->fetch()['count'];
 
         // File transfer counts from activity log (type 6 = download, 7 = upload)
         $fileStmt = $db->prepare("
