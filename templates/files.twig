@@ -924,13 +924,22 @@ function displayMyUploads(files) {
     files.forEach(function(file) {
         const uploadDate = formatDate(file.created_at);
         const canDelete = canDeleteFileRecord(file);
+        const isUrlLink = file.source_type === 'url';
         const areaTag = file.area_tag
             ? escapeHtml(file.area_tag) + (file.domain ? `<span class="text-muted">@${escapeHtml(file.domain)}</span>` : '')
             : '&mdash;';
+        const fileIcon = isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : '';
+        const primaryAction = isUrlLink
+            ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}">
+                   <i class="fas fa-external-link-alt"></i>
+               </a>`
+            : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                   <i class="fas fa-download"></i>
+               </a>`;
         html += `
             <tr>
                 <td style="word-break: break-all;">
-                    <a href="#" class="file-preview-link fw-bold" onclick="showFileDetails(${file.id}); return false;">${escapeHtml(file.filename)}</a>
+                    ${fileIcon}<a href="#" class="file-preview-link fw-bold" onclick="showFileDetails(${file.id}); return false;">${escapeHtml(file.filename)}</a>
                     <div class="small text-muted">${escapeHtml(file.short_description || '')}</div>
                 </td>
                 <td>${areaTag}</td>
@@ -940,9 +949,7 @@ function displayMyUploads(files) {
                     <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
                         <i class="fas fa-info-circle"></i>
                     </button>
-                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
-                        <i class="fas fa-download"></i>
-                    </a>
+                    ${primaryAction}
                     ${canDelete ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
                         <i class="fas fa-trash"></i>
@@ -1669,21 +1676,44 @@ function renderUrlLinkPreview(file, $target) {
         ? `<pre class="mt-3 mb-0 text-start text-wrap" style="white-space:pre-wrap;word-break:break-word;">${escapeHtml(file.long_description)}</pre>`
         : '';
 
+    const visitBtn = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+        <i class="fas fa-external-link-alt me-2"></i>${uiT('ui.files.visit_link', 'Visit')}
+    </a>`;
+
     $target.css('background', '').html(`
         <div class="p-4 text-start">
             <div class="d-flex align-items-center gap-2 mb-3">
                 <i class="fas fa-link fa-lg text-info"></i>
                 <span class="fw-semibold fs-5">${shortDesc || url}</span>
             </div>
+            <div id="urlLinkOgImage"></div>
             ${longDesc}
             <div class="mt-4">
-                <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                    <i class="fas fa-external-link-alt me-2"></i>${uiT('ui.files.visit_link', 'Visit')}
-                </a>
+                ${visitBtn}
                 <div class="mt-2 small text-muted text-break">${url}</div>
             </div>
         </div>
     `);
+
+    // Fetch og:image from the server-side meta endpoint (avoids CORS)
+    if (file.url) {
+        $.ajax({
+            url: '/api/files/fetch-url-meta',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ url: file.url }),
+            timeout: 10000,
+        }).done(function(data) {
+            if (data.og_image_url) {
+                const img = $('<img>')
+                    .attr('src', data.og_image_url)
+                    .attr('alt', '')
+                    .css({ maxWidth: '100%', maxHeight: '300px', borderRadius: '6px', display: 'block', marginBottom: '12px' })
+                    .on('error', function() { $(this).parent().remove(); });
+                $('#urlLinkOgImage').html('').append(img);
+            }
+        });
+    }
 }
 
 function previewFile(fileId, filename) {
@@ -2879,20 +2909,25 @@ function displaySearchResults(results, query) {
     `;
 
     results.forEach(function(file) {
+        const isUrlLink  = file.source_type === 'url';
         const filename   = escapeHtml(file.filename);
         const desc       = escapeHtml(file.short_description || '');
         const areaTag    = escapeHtml(file.area_tag || '');
-        const size       = formatBytes(file.filesize || 0);
+        const size       = isUrlLink ? '—' : formatBytes(file.filesize || 0);
         const uploaded   = formatDate(file.created_at);
         const subfolder  = file.subfolder ? escapeHtml(file.subfolder) : null;
         const areaOnclick = subfolder
             ? `selectFileArea(${file.area_id}, '${subfolder}'); clearFileSearch();`
             : `selectFileArea(${file.area_id}, null); clearFileSearch();`;
+        const fileIcon = isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : '';
+        const primaryAction = isUrlLink
+            ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}"><i class="fas fa-external-link-alt"></i></a>`
+            : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}"><i class="fas fa-download"></i></a>`;
 
         html += `
             <tr>
                 <td class="font-monospace small">
-                    <a href="#" onclick="previewFile(${file.id}, ${escapeHtml(JSON.stringify(file.filename))}); return false;">${filename}</a>
+                    ${fileIcon}<a href="#" onclick="previewFile(${file.id}, ${escapeHtml(JSON.stringify(file.filename))}); return false;">${filename}</a>
                 </td>
                 <td class="small">
                     <a href="#" onclick="${areaOnclick} return false;" class="text-muted">${areaTag}</a>
@@ -2904,9 +2939,7 @@ function displaySearchResults(results, query) {
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="showFileDetails(${file.id})" title="${uiT('ui.files.file_info', 'File info')}">
                         <i class="fas fa-info-circle"></i>
                     </button>
-                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}">
-                        <i class="fas fa-download"></i>
-                    </a>
+                    ${primaryAction}
                 </td>
             </tr>
         `;

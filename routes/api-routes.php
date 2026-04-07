@@ -4507,9 +4507,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Parse HTML for title and og:description
+        // Parse HTML for title, og:description, and og:image
         $shortDescription = '';
         $longDescription  = '';
+        $ogImageUrl       = '';
 
         $doc = new \DOMDocument();
         @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
@@ -4520,17 +4521,25 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $shortDescription = trim($titles->item(0)->textContent);
         }
 
-        // <meta name="og:description"> or <meta property="og:description">
+        // <meta property="og:*"> or <meta name="og:*">
         $metas = $doc->getElementsByTagName('meta');
         foreach ($metas as $meta) {
             $prop    = strtolower((string)$meta->getAttribute('property'));
             $name    = strtolower((string)$meta->getAttribute('name'));
             $content = trim((string)$meta->getAttribute('content'));
 
-            if (($prop === 'og:description' || $name === 'og:description' || $name === 'description') && $content !== '') {
+            if ($content === '') {
+                continue;
+            }
+
+            if ($prop === 'og:description' || $name === 'og:description') {
                 $longDescription = $content;
-                if ($prop === 'og:description' || $name === 'og:description') {
-                    break; // prefer og:description over plain description
+            } elseif ($name === 'description' && $longDescription === '') {
+                $longDescription = $content;
+            } elseif (($prop === 'og:image' || $name === 'og:image') && $ogImageUrl === '') {
+                // Validate it looks like a URL before returning it
+                if (filter_var($content, FILTER_VALIDATE_URL)) {
+                    $ogImageUrl = $content;
                 }
             }
         }
@@ -4543,6 +4552,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'success'           => true,
             'short_description' => $shortDescription,
             'long_description'  => $longDescription,
+            'og_image_url'      => $ogImageUrl,
         ]);
     });
 

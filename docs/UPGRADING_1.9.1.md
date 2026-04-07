@@ -8,12 +8,18 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echomail Moderation](#summary-echomail-moderation)
   - [Polls](#summary-polls)
   - [File Area URL Links](#summary-file-area-url-links)
+  - [URL Link Open Graph Image Preview](#summary-og-image)
 - [Echomail Moderation](#echomail-moderation)
 - [Polls](#polls)
 - [File Area URL Links](#file-area-url-links)
+- [URL Link Open Graph Image Preview](#url-link-open-graph-image-preview)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
+
+
+
+
 
 ## Summary of Changes
 
@@ -34,6 +40,12 @@ Make sure you have a current backup of your database and files before upgrading.
 ### File Area URL Links {#summary-file-area-url-links}
 
 - File areas now support external URL links in addition to uploaded files.
+- URL link entries display a link icon, show a dash for file size, and present a Visit button instead of a download button throughout all file listing views (area files, recent uploads, My Uploads, and file search results).
+- The file information modal on the echomail page shows a Visit button for URL link entries.
+
+### URL Link Open Graph Image Preview {#summary-og-image}
+
+- When a URL link's preview is opened, the system fetches the linked page's `og:image` meta tag server-side and displays the image above the description.
 - The upload modal has a new **Add Link** tab where a URL can be submitted with a short and long description.
 - A **Fetch Info** button retrieves the page title and description from the URL automatically to pre-fill the description fields.
 - URL links appear in file listings alongside regular files, marked with a link icon. Clicking the filename opens a preview card showing the descriptions and a Visit button.
@@ -78,7 +90,7 @@ The upload modal on the File Areas page has a new **Add Link** tab. Enter a full
 
 **How links appear**
 
-URL entries appear in file listings with a link icon instead of a file icon. Clicking the filename opens the preview modal, which displays the short description, long description, and a **Visit** button that opens the URL in a new tab. The download button in the preview modal header also navigates to the URL. The file size column shows a dash for URL entries since there is no file to measure.
+URL entries appear in all file listing views — the area file list, the recent uploads list, My Uploads, and file search results — with a link icon instead of a file icon, a dash in the size column, and a Visit button in the actions column. Clicking the filename opens the preview modal, which displays the short description, long description, and a **Visit** button that opens the URL in a new tab. The download button in the preview modal header also navigates to the URL. The file information modal accessible from the echomail page likewise shows a Visit button for URL link entries.
 
 **Approval and credits**
 
@@ -99,6 +111,12 @@ Migration `v1.11.0.72` makes the following schema changes to the `files` table:
 The existing unique constraint on `(file_area_id, file_hash)` continues to work correctly — PostgreSQL treats `NULL` values as distinct in unique indexes, so multiple link records in the same area do not conflict with each other.
 
 Run `php scripts/setup.php` to apply the migration.
+
+## URL Link Open Graph Image Preview
+
+When a URL link entry's preview card is opened — either in the file area preview modal or the file information modal on the echomail page — the system fetches the linked page server-side and parses the `og:image` meta tag. If an image URL is found, it is displayed above the description as a preview thumbnail. The fetch is performed server-side, so no browser CORS restrictions apply. If no OG image is present or the image cannot be loaded, the preview displays only the description and Visit button.
+
+No configuration or database changes are required for this feature.
 
 ## Upgrade Instructions
 
