@@ -1941,6 +1941,11 @@ function openFileInfoModal(fileId, shareParams) {
                 mediaEl.pause();
                 mediaEl.src = '';
             });
+            // Stop SID player (uses AudioContext/ScriptProcessor, not a media element)
+            if (window._sidPlayerReady) {
+                try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+            }
+            _stopSidViz();
             previewBody.innerHTML = '';
             document.getElementById('fpSharedMetaBody').innerHTML = '';
             document.getElementById('fpSharedModalTitle').textContent = '';
