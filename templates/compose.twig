@@ -987,8 +987,14 @@ function initMarkdownEditor() {
         toolbarItems: [],
         events: {
             change: function() {
-                if (tuiEditor) {
-                    $('#messageText').val(sanitizeTuiMarkdown(tuiEditor.getMarkdown()));
+                if (!tuiEditor) return;
+                const raw     = tuiEditor.getMarkdown();
+                const cleaned = sanitizeTuiMarkdown(raw);
+                $('#messageText').val(cleaned);
+                // When in markdown source mode, push the cleaned content back into
+                // the editor so the user never sees raw TUI artefacts like <br>.
+                if (tuiEditor.isMarkdownMode() && cleaned !== raw) {
+                    tuiEditor.setMarkdown(cleaned, false);
                 }
             }
         }
