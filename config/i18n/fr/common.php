@@ -4302,4 +4302,10 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
 
     // Pending moderation post response
     'ui.api.messages.pending_moderation' => 'Votre message a été soumis et est en attente d\'approbation par un modérateur avant d\'être envoyé au réseau.',
+
+    // User Guide
+    'ui.base.user_guide' => 'Guide utilisateur',
+    'ui.userguide.page_title' => 'Guide utilisateur',
+    'ui.userguide.heading' => 'Guide utilisateur',
+    'ui.userguide.not_found' => 'Guide utilisateur introuvable.',
 ];

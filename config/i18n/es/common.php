@@ -4395,4 +4395,10 @@ return [
 
     // Pending moderation post response
     'ui.api.messages.pending_moderation' => 'Su mensaje ha sido enviado y está pendiente de aprobación del moderador antes de ser enviado a la red.',
+
+    // User Guide
+    'ui.base.user_guide' => 'Guia del usuario',
+    'ui.userguide.page_title' => 'Guia del usuario',
+    'ui.userguide.heading' => 'Guia del usuario',
+    'ui.userguide.not_found' => 'Guia del usuario no encontrada.',
 ];

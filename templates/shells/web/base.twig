@@ -261,6 +261,7 @@
                         </li>
                         {% endif %}
 
+
                         {# Custom navigation links (1-3 inline, 4+ as dropdown) #}
                         {% set customLinks = appearance.navigation.custom_links %}
                         {% if customLinks | length > 0 and customLinks | length <= 3 %}
@@ -448,12 +449,14 @@
                                 <i class="fas fa-user"></i> {{ current_user.username }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/profile">{{ t('ui.base.profile', {}, 'common') }}</a></li>
-                                <li><a class="dropdown-item" href="/settings">{{ t('ui.base.settings', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/profile"><i class="fas fa-id-card me-1"></i> {{ t('ui.base.profile', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/settings"><i class="fas fa-sliders-h me-1"></i> {{ t('ui.base.settings', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.subscriptions', {}, 'common') }}</a></li>
                                 {% if interests_enabled and has_active_interests %}
                                 <li><a class="dropdown-item" href="/interests"><i class="fas fa-layer-group"></i> {{ t('ui.interests.nav_label', {}, 'common') }}</a></li>
                                 {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/user-guide"><i class="fas fa-book-open me-1"></i> {{ t('ui.base.user_guide', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="logout()">{{ t('ui.base.logout', {}, 'common') }}</a></li>
                             </ul>

@@ -1843,6 +1843,17 @@ SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
     serveMarkdownImage($file);
 });
 
+// User guide
+SimpleRouter::get('/user-guide', function() {
+    $path = __DIR__ . '/../docs/userguide/index.md';
+    $content = null;
+    if (file_exists($path)) {
+        $content = \BinktermPHP\MarkdownRenderer::toHtml(file_get_contents($path), 0, true);
+    }
+    $template = new Template();
+    $template->renderResponse('userguide.twig', ['content' => $content]);
+});
+
 // Include local/custom routes if they exist
 $localRoutes = __DIR__ . '/web-routes.local.php';
 if (file_exists($localRoutes)) {

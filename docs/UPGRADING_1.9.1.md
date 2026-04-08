@@ -10,12 +10,14 @@ Make sure you have a current backup of your database and files before upgrading.
   - [File Area URL Links](#summary-file-area-url-links)
   - [URL Link Open Graph Image Preview](#summary-og-image)
   - [Optional Spaces in Usernames](#summary-spaces-in-usernames)
+  - [User Guide](#summary-user-guide)
 - [Echomail Moderation](#echomail-moderation)
 - [Polls](#polls)
 - [File Area URL Links](#file-area-url-links)
 - [URL Link Open Graph Image Preview](#url-link-open-graph-image-preview)
 - [MCP Server Memory Leak Fix](#mcp-server-memory-leak-fix)
 - [Optional Spaces in Usernames](#optional-spaces-in-usernames)
+- [User Guide](#user-guide)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -53,6 +55,12 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Optional Spaces in Usernames {#summary-spaces-in-usernames}
 
 - A new `.env` setting, `USERNAMES_ALLOW_SPACES`, controls whether usernames may contain single internal spaces (e.g. `Phantom of Doom`). The setting defaults to `false`; existing behaviour is unchanged unless you opt in.
+
+### User Guide {#summary-user-guide}
+
+- A built-in User Guide is now available at `/user-guide`, covering the dashboard, echomail, netmail, doors, file areas, and exploring BBS networks.
+- The guide is linked from the user dropdown menu under **User Guide**, grouped with a divider above the Logout option.
+- No configuration or database changes are required.
 - When enabled, the registration form accepts handles containing single spaces between word characters. Leading and trailing spaces are trimmed automatically, and consecutive spaces are collapsed to one before validation runs.
 - The admin terminal `finger` and `msg` commands now handle multi-word usernames correctly. The `msg` command accepts a quoted username syntax (`msg "Dark Knight" hello`) for names that contain spaces.
 - The `rename_user.php` script now also updates the `cwn_networks.submitted_by_username` column when a user is renamed.
@@ -189,6 +197,16 @@ The `rename_user.php` CLI script, which renames a local user account across all 
 - Usernames with spaces are visually similar to real names. The existing uniqueness constraint prevents an exact case-insensitive match between a username and any real name, but it does not prevent near-matches.
 - Some older FTN node software reads name fields with whitespace-delimited parsers and may truncate a spaced handle at the first space when routing netmail to this system.
 - If you have users who registered with underscores under the old rules and wish to switch to a spaced form, use `scripts/rename_user.php` to rename them.
+
+## User Guide
+
+A built-in User Guide has been added at `/user-guide`. It introduces new and returning users to the main features of the BBS: the dashboard, echomail and how FTN forums work, netmail, doors, file areas, and how to explore the broader BBS network through the Nodelist and BBS Directory.
+
+The guide is accessible to both guests and logged-in users. A **User Guide** link appears in the user dropdown menu (the menu opened by clicking your username in the navigation bar), grouped between a divider and the Logout option. Profile and Settings items in the same menu now display icons for easier scanning.
+
+The guide source lives at `docs/userguide/index.md` and is rendered server-side using the existing Markdown renderer. To customise the text for your BBS, edit that file directly — no code changes are required.
+
+No configuration or database changes are required.
 
 ## Upgrade Instructions
 

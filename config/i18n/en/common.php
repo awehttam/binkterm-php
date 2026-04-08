@@ -4391,4 +4391,10 @@ return [
 
     // Pending moderation post response
     'ui.api.messages.pending_moderation' => 'Your message has been submitted and is pending moderator approval before it is sent to the network.',
+
+    // User Guide
+    'ui.base.user_guide' => 'User Guide',
+    'ui.userguide.page_title' => 'User Guide',
+    'ui.userguide.heading' => 'User Guide',
+    'ui.userguide.not_found' => 'User guide not found.',
 ];
