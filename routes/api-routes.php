@@ -6816,6 +6816,120 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['html' => $html]);
     });
 
+    // Fetch Open Graph / meta preview for a URL (used by the WYSIWYG unfurl prompt)
+    SimpleRouter::get('/url-preview', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $url = trim($_GET['url'] ?? '');
+
+        if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.invalid_url', 'error' => 'Invalid URL.']);
+            return;
+        }
+
+        // SSRF guard: block private/loopback ranges
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host === false || $host === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.invalid_url', 'error' => 'Invalid URL.']);
+            return;
+        }
+        $ip = @gethostbyname($host);
+        if ($ip !== false) {
+            $long = ip2long($ip);
+            $privateRanges = [
+                [ip2long('10.0.0.0'),     ip2long('10.255.255.255')],
+                [ip2long('172.16.0.0'),   ip2long('172.31.255.255')],
+                [ip2long('192.168.0.0'),  ip2long('192.168.255.255')],
+                [ip2long('127.0.0.0'),    ip2long('127.255.255.255')],
+                [ip2long('169.254.0.0'),  ip2long('169.254.255.255')],
+            ];
+            foreach ($privateRanges as [$start, $end]) {
+                if ($long >= $start && $long <= $end) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.fetch_failed', 'error' => 'URL not allowed.']);
+                    return;
+                }
+            }
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; BinktermBot/1.0; +https://lovelybits.org/binktermphp)',
+            CURLOPT_HTTPHEADER     => ['Accept: text/html,application/xhtml+xml'],
+            CURLOPT_ENCODING       => 'gzip, deflate',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_MAXFILESIZE    => 2 * 1024 * 1024, // 2 MB cap on download
+        ]);
+        $html = curl_exec($ch);
+        $errno = curl_errno($ch);
+        curl_close($ch);
+
+        if ($errno !== CURLE_OK || $html === false || $html === '') {
+            echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.fetch_failed', 'error' => 'Could not fetch that URL.']);
+            return;
+        }
+
+        // Parse meta tags with libxml suppressing errors on real-world HTML
+        libxml_use_internal_errors(true);
+        $doc = new \DOMDocument();
+        $doc->loadHTML(mb_convert_encoding(substr($html, 0, 500000), 'HTML-ENTITIES', 'UTF-8'));
+        libxml_clear_errors();
+
+        $title       = '';
+        $description = '';
+        $image       = '';
+
+        // Prefer Open Graph, fall back to standard meta/title
+        $metas = $doc->getElementsByTagName('meta');
+        foreach ($metas as $meta) {
+            $prop    = strtolower($meta->getAttribute('property'));
+            $name    = strtolower($meta->getAttribute('name'));
+            $content = trim($meta->getAttribute('content'));
+            if ($prop === 'og:title'       && $title       === '') { $title       = $content; }
+            if ($prop === 'og:description' && $description === '') { $description = $content; }
+            if ($prop === 'og:image'       && $image       === '') { $image       = $content; }
+            if ($name  === 'description'   && $description === '') { $description = $content; }
+            if ($name  === 'twitter:title'       && $title === '') { $title       = $content; }
+            if ($name  === 'twitter:description' && $description === '') { $description = $content; }
+            if ($name  === 'twitter:image'       && $image === '') { $image       = $content; }
+        }
+        if ($title === '') {
+            $titles = $doc->getElementsByTagName('title');
+            if ($titles->length > 0) {
+                $title = trim($titles->item(0)->textContent);
+            }
+        }
+
+        // Sanitize: strip tags, truncate
+        $title       = htmlspecialchars_decode(strip_tags($title),       ENT_QUOTES);
+        $description = htmlspecialchars_decode(strip_tags($description), ENT_QUOTES);
+        $title       = mb_substr($title,       0, 200);
+        $description = mb_substr($description, 0, 400);
+
+        // Only pass through http(s) image URLs to avoid data: or javascript: schemes
+        if ($image !== '' && !preg_match('/^https?:\/\//i', $image)) {
+            $image = '';
+        }
+
+        echo json_encode([
+            'success'     => true,
+            'title'       => $title,
+            'description' => $description,
+            'image'       => $image,
+            'url'         => $url,
+        ]);
+    });
+
     // Save message draft
     SimpleRouter::post('/messages/draft', function() {
         $user = RouteHelper::requireAuth();

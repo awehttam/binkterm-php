@@ -586,6 +586,10 @@ return [
 
     // Echomail moderation
     'errors.admin.echomail_moderation.not_found' => 'Message introuvable ou n\'est pas en attente de modération.',
+
+    // URL preview (unfurl)
+    'errors.url_preview.invalid_url'   => 'URL invalide.',
+    'errors.url_preview.fetch_failed'  => 'Impossible d\'obtenir un aperçu de cette URL.',
 ];
 
 

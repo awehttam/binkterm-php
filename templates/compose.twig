@@ -3,6 +3,8 @@
 {% block title %}{{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }} - {{ parent() }}{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="/vendor/toastui-editor-3.2.2/toastui-editor.css">
+<link rel="stylesheet" href="/vendor/toastui-editor-3.2.2/toastui-editor-dark.css">
 <style>
 .md-paste-area {
     border: 2px dashed var(--bs-border-color);
@@ -19,6 +21,27 @@
 }
 .md-paste-area.paste-ready {
     border-color: var(--bs-success);
+}
+/* TUI Editor — hide its own toolbar, we use our Bootstrap toolbar */
+.toastui-editor-defaultUI-toolbar,
+.toastui-editor-toolbar {
+    display: none !important;
+}
+/* Override the dark theme's fixed backgrounds so the page background shows through */
+#tuiEditorEl .toastui-editor-dark.toastui-editor-defaultUI,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-ww-container,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-md-container,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch .tab-item.active {
+    background-color: transparent !important;
+    background: transparent !important;
+}
+#tuiEditorEl .toastui-editor-dark.toastui-editor-defaultUI {
+    border-color: var(--bs-border-color) !important;
+}
+/* Inline code */
+#tuiEditorEl .toastui-editor-contents code {
+    background-color: rgba(128,128,128,0.2) !important;
 }
 </style>
 {% endblock %}
@@ -226,20 +249,11 @@
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-secondary" onclick="mdAction('hr')" title="{{ t('ui.compose.markdown.horizontal_rule_title', {}, locale, ['common']) }}">&#8212;</button>
                             </div>
-                            <div class="btn-group btn-group-sm ms-auto">
-                                <button type="button" class="btn btn-secondary" id="mdEditBtn" onclick="mdSetMode('edit')" title="{{ t('ui.compose.markdown.edit_mode_title', {}, locale, ['common']) }}">{{ t('ui.common.edit', {}, locale, ['common']) }}</button>
-                                <button type="button" class="btn btn-outline-secondary" id="mdPreviewBtn" onclick="mdSetMode('preview')" title="{{ t('ui.compose.markdown.preview_rendered_title', {}, locale, ['common']) }}">{{ t('ui.common.preview', {}, locale, ['common']) }}</button>
-                            </div>
-                            <div class="btn-group btn-group-sm">
+                                <div class="btn-group btn-group-sm ms-auto">
                                 <button type="button" class="btn btn-outline-secondary" onclick="showMarkdownHelp()" title="{{ t('ui.compose.markdown.quick_reference_title', {}, locale, ['common']) }}"><i class="fas fa-question-circle"></i></button>
                             </div>
                         </div>
-                        <div class="md-editor-body">
-                            <textarea class="md-editor-textarea" id="mdEditorText" spellcheck="true" placeholder="{{ t('ui.compose.markdown.write_placeholder', {}, locale, ['common']) }}"></textarea>
-                            <div class="md-preview-pane" id="mdPreviewPane" style="display: none;">
-                                <span class="text-muted small fst-italic">{{ t('ui.compose.markdown.click_preview_hint', {}, locale, ['common']) }}</span>
-                            </div>
-                        </div>
+                        <div id="tuiEditorEl"></div>
                     </div>
                     <div class="form-text"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 128" style="width:1.25em;height:0.75em;vertical-align:-0.125em" class="me-1" aria-hidden="true" fill="currentColor"><rect width="208" height="128" rx="16" fill="none" stroke="currentColor" stroke-width="10"/><path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"/></svg>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
                 </div>
@@ -380,6 +394,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/vendor/toastui-editor-3.2.2/toastui-editor-all.min.js"></script>
 <script>
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -672,7 +687,7 @@ let markdownSupportTimer = null;
 
 let markdownPrefilled = false;
 let mdEditorActive = false;
-let mdPreviewTimer = null;
+let tuiEditor = null;
 let scToolbarActive = false;
 let hardWrapLimit = 79; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
@@ -750,8 +765,8 @@ $('#insertFileInput').on('change', function() {
         ta.focus();
 
         // Keep the hidden textarea in sync if the markdown editor is active
-        if (mdEditorActive) {
-            $('#mdEditorText').val(ta.value);
+        if (mdEditorActive && tuiEditor) {
+            tuiEditor.setMarkdown(ta.value, false);
         }
     };
     reader.readAsArrayBuffer(file);
@@ -934,103 +949,92 @@ function updateNetmailGuidelinesPostingName(policy) {
 }
 
 /**
- * Initialize the markdown split-pane editor, replacing the plain textarea.
+ * Strip HTML that TUI Editor's WYSIWYG mode injects into its markdown output.
+ * <br> → newline; all other tags removed.
+ * @param {string} md
+ * @returns {string}
+ */
+function sanitizeTuiMarkdown(md) {
+    return md
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        // TUI's WYSIWYG serializer escapes heading markers (e.g. ## -> \#\#) inside
+        // blockquotes. Undo that so quoted markdown headings round-trip correctly.
+        .replace(/^(>+[ ]*)((?:\\#)+)( )/gm, (m, prefix, hashes, sp) =>
+            prefix + hashes.replace(/\\#/g, '#') + sp
+        );
+}
+
+/**
+ * Initialize the TUI WYSIWYG markdown editor, replacing the plain textarea.
  */
 function initMarkdownEditor() {
     if (mdEditorActive) return;
     mdEditorActive = true;
 
-    // Apply critical layout styles inline so they work regardless of CSS cache state
-    const editorHeight = $('#messageText').outerHeight() || 300;
-    $('#mdEditorText').css({
-        display: 'block',
-        width: '100%',
-        height: editorHeight + 'px',
-        resize: 'none',
-        boxSizing: 'border-box',
-        overflowX: 'auto'
-    }).attr('wrap', 'off');
-    $('#mdPreviewPane').css({
-        display: 'none',  // mdSetMode('edit') will manage visibility
-        width: '100%',
-        height: editorHeight + 'px',
-        overflowY: 'auto',
-        boxSizing: 'border-box'
-    });
+    const editorHeight = ($('#messageText').outerHeight() || 300);
 
-    // Copy current plain textarea content into the editor
-    $('#mdEditorText').val($('#messageText').val());
-
-    // Start in edit mode
-    mdSetMode('edit');
-
-    // Swap visibility
+    // Swap visibility first so TUI can measure the container
     $('#messageTextGroup').hide();
     $('#markdownEditorContainer').show();
 
-    // Set up input handler (sync to hidden textarea only — preview updates on tab switch)
-    $('#mdEditorText').off('input.md').on('input.md', function() {
-        $('#messageText').val($(this).val());
+    tuiEditor = new toastui.Editor({
+        el: document.querySelector('#tuiEditorEl'),
+        height: editorHeight + 'px',
+        initialEditType: 'wysiwyg',
+        previewStyle: 'tab',
+        initialValue: $('#messageText').val(),
+        toolbarItems: [],
+        events: {
+            change: function() {
+                if (tuiEditor) {
+                    $('#messageText').val(sanitizeTuiMarkdown(tuiEditor.getMarkdown()));
+                }
+            }
+        }
     });
 
-    // Keyboard shortcuts
-    $('#mdEditorText').off('keydown.md').on('keydown.md', function(e) {
-        if (e.ctrlKey || e.metaKey) {
-            if (e.key === 'b') { e.preventDefault(); mdAction('bold'); return; }
-            if (e.key === 'i') { e.preventDefault(); mdAction('italic'); return; }
-            if (e.key === 'k') { e.preventDefault(); mdAction('link'); return; }
-        }
-        // Tab key: insert 4 spaces
-        if (e.key === 'Tab') {
+    // Ctrl+K for link (TUI editor handles Ctrl+B and Ctrl+I natively in WYSIWYG)
+    document.querySelector('#tuiEditorEl').addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            const ta = this;
-            const s = ta.selectionStart;
-            const end = ta.selectionEnd;
-            ta.value = ta.value.substring(0, s) + '    ' + ta.value.substring(end);
-            ta.selectionStart = ta.selectionEnd = s + 4;
-            $('#messageText').val(ta.value);
+            e.stopPropagation();
+            mdAction('link');
         }
-    });
+    }, true);
 
-    $('#mdEditorText').trigger('focus');
-}
+    // Intercept paste of bare URLs for unfurl prompt
+    document.querySelector('#tuiEditorEl').addEventListener('paste', function(e) {
+        const text = ((e.clipboardData || window.clipboardData) || {getData: function(){return '';}}).getData('text/plain').trim();
+        if (/^https?:\/\/\S+$/.test(text)) {
+            // Let TUI handle the paste (inserts text/link), then prompt to unfurl
+            pendingUnfurlUrl = text;
+            setTimeout(function() { showUnfurlPrompt(); }, 100);
+        }
+    }, true);
 
-/**
- * Switch between Edit and Preview tabs in the markdown editor.
- * @param {string} mode - 'edit' or 'preview'
- */
-function mdSetMode(mode) {
-    if (mode === 'preview') {
-        $('#mdEditorText').hide();
-        $('#mdPreviewPane').show();
-        $('#mdEditBtn').removeClass('btn-secondary').addClass('btn-outline-secondary');
-        $('#mdPreviewBtn').removeClass('btn-outline-secondary').addClass('btn-secondary');
-        updateMarkdownPreview();
-    } else {
-        $('#mdPreviewPane').hide();
-        $('#mdEditorText').show();
-        $('#mdEditBtn').removeClass('btn-outline-secondary').addClass('btn-secondary');
-        $('#mdPreviewBtn').removeClass('btn-secondary').addClass('btn-outline-secondary');
-        $('#mdEditorText').trigger('focus');
+    // Apply TUI's own dark theme by adding its class — this gives proper light text
+    // color (#eee) via TUI's own CSS rather than fighting the cascade ourselves.
+    const editorUI = document.querySelector('#tuiEditorEl .toastui-editor-defaultUI');
+    if (editorUI) {
+        editorUI.classList.add('toastui-editor-dark');
     }
+
+    tuiEditor.focus();
 }
 
 /**
- * Tear down the markdown editor and restore the plain textarea.
+ * Tear down the TUI editor and restore the plain textarea.
  */
 function destroyMarkdownEditor() {
     if (!mdEditorActive) return;
 
-    // Sync content back to the plain textarea
-    $('#messageText').val($('#mdEditorText').val());
+    if (tuiEditor) {
+        $('#messageText').val(sanitizeTuiMarkdown(tuiEditor.getMarkdown()));
+        tuiEditor.destroy();
+        tuiEditor = null;
+    }
 
-    // Remove event handlers and restore wrapping
-    $('#mdEditorText').off('input.md keydown.md').removeAttr('wrap').css('overflowX', '');
-
-    // Reset to edit mode for next time
-    mdSetMode('edit');
-
-    // Swap visibility
     $('#markdownEditorContainer').hide();
     $('#messageTextGroup').show();
 
@@ -1101,230 +1105,45 @@ function scAction(action) {
  * Ensure the hidden #messageText textarea has the latest editor content.
  */
 function syncEditorToTextarea() {
-    if (mdEditorActive) {
-        $('#messageText').val($('#mdEditorText').val());
+    if (mdEditorActive && tuiEditor) {
+        $('#messageText').val(sanitizeTuiMarkdown(tuiEditor.getMarkdown()));
     }
 }
 
 /**
- * Fetch a live preview from the server and update the preview pane.
- */
-function updateMarkdownPreview() {
-    const text = $('#mdEditorText').val();
-    const preview = $('#mdPreviewPane');
-
-    if (!text.trim()) {
-        preview.html('<span class="text-muted small fst-italic">Preview will appear here as you type\u2026</span>');
-        return;
-    }
-
-    preview.addClass('md-preview-loading');
-
-    $.ajax({
-        url: '/api/messages/markdown-preview',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({ text: text }),
-        success: function(response) {
-            preview.removeClass('md-preview-loading');
-            preview.html(response.html || '<span class="text-muted small fst-italic">Nothing to preview.</span>');
-        },
-        error: function() {
-            preview.removeClass('md-preview-loading');
-        }
-    });
-}
-
-/**
- * Apply a markdown toolbar action to the editor textarea.
+ * Apply a markdown toolbar action via the TUI editor.
  * @param {string} action
  */
 function mdAction(action) {
-    const ta = document.getElementById('mdEditorText');
-    if (!ta) return;
-
-    const start = ta.selectionStart;
-    const end   = ta.selectionEnd;
-    const sel   = ta.value.substring(start, end);
-    const before = ta.value.substring(0, start);
-    const after  = ta.value.substring(end);
-
-    let newStart = start;
-    let newEnd   = end;
-
+    if (!tuiEditor) return;
     switch (action) {
-        case 'bold':
-            if (sel) {
-                ta.value = before + '**' + sel + '**' + after;
-                newStart = start + 2; newEnd = end + 2;
-            } else {
-                ta.value = before + '**bold text**' + after;
-                newStart = start + 2; newEnd = start + 11;
-            }
-            break;
-
-        case 'italic':
-            if (sel) {
-                ta.value = before + '*' + sel + '*' + after;
-                newStart = start + 1; newEnd = end + 1;
-            } else {
-                ta.value = before + '*italic text*' + after;
-                newStart = start + 1; newEnd = start + 12;
-            }
-            break;
-
-        case 'code':
-            if (sel) {
-                ta.value = before + '`' + sel + '`' + after;
-                newStart = start + 1; newEnd = end + 1;
-            } else {
-                ta.value = before + '`code`' + after;
-                newStart = start + 1; newEnd = start + 5;
-            }
-            break;
-
-        case 'codeblock': {
-            const cbPre = (before.length === 0 || before.endsWith('\n')) ? '' : '\n';
-            const cbPost = (after.length === 0 || after.startsWith('\n')) ? '' : '\n';
-            if (sel) {
-                ta.value = before + cbPre + '```\n' + sel + '\n```' + cbPost + after;
-                newStart = start + cbPre.length + 4;
-                newEnd   = newStart + sel.length;
-            } else {
-                ta.value = before + cbPre + '```\ncode here\n```' + cbPost + after;
-                newStart = start + cbPre.length + 4;
-                newEnd   = start + cbPre.length + 13;
-            }
-            break;
-        }
-
-        case 'link':
-            if (sel) {
-                ta.value = before + '[' + sel + '](url)' + after;
-                newStart = end + 3; newEnd = end + 6; // select 'url'
-            } else {
-                ta.value = before + '[link text](url)' + after;
-                newStart = start + 1; newEnd = start + 10;
-            }
-            break;
-
-        case 'h1':
-            mdToggleLinePrefix(ta, '# ');
-            $('#messageText').val(ta.value);
-            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-            ta.focus();
-            return;
-
-        case 'h2':
-            mdToggleLinePrefix(ta, '## ');
-            $('#messageText').val(ta.value);
-            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-            ta.focus();
-            return;
-
-        case 'h3':
-            mdToggleLinePrefix(ta, '### ');
-            $('#messageText').val(ta.value);
-            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-            ta.focus();
-            return;
-
-        case 'ul':
-            mdToggleLinePrefix(ta, '- ');
-            $('#messageText').val(ta.value);
-            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-            ta.focus();
-            return;
-
-        case 'ol':
-            mdToggleLinePrefix(ta, '1. ');
-            $('#messageText').val(ta.value);
-            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-            ta.focus();
-            return;
-
-        case 'quote':
-            mdToggleLinePrefix(ta, '> ');
-            $('#messageText').val(ta.value);
-            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-            ta.focus();
-            return;
-
-        case 'hr': {
-            const hrPre  = (before.length === 0 || before.endsWith('\n')) ? '' : '\n';
-            const hrPost = (after.length === 0 || after.startsWith('\n')) ? '' : '\n';
-            ta.value = before + hrPre + '---' + hrPost + after;
-            newStart = newEnd = start + hrPre.length + 3;
-            break;
-        }
-
-        default:
-            return;
+        case 'bold':      tuiEditor.exec('bold'); break;
+        case 'italic':    tuiEditor.exec('italic'); break;
+        case 'code':      tuiEditor.exec('code'); break;
+        case 'codeblock': tuiEditor.exec('codeBlock'); break;
+        case 'h1':        tuiEditor.exec('heading', { level: 1 }); break;
+        case 'h2':        tuiEditor.exec('heading', { level: 2 }); break;
+        case 'h3':        tuiEditor.exec('heading', { level: 3 }); break;
+        case 'ul':        tuiEditor.exec('bulletList'); break;
+        case 'ol':        tuiEditor.exec('orderedList'); break;
+        case 'quote':     tuiEditor.exec('blockQuote'); break;
+        case 'hr':        tuiEditor.exec('hr'); break;
+        case 'link':      showMdLinkModal(); return;
+        default:          return;
     }
-
-    ta.selectionStart = newStart;
-    ta.selectionEnd   = newEnd;
-    ta.focus();
-
-    // Sync and schedule preview
-    $('#messageText').val(ta.value);
-    if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
-    mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+    tuiEditor.focus();
 }
 
-/**
- * Toggle a line prefix on the line containing the cursor.
- * @param {HTMLTextAreaElement} ta
- * @param {string} prefix
- */
-function mdToggleLinePrefix(ta, prefix) {
-    const pos  = ta.selectionStart;
-    const text = ta.value;
-
-    const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
-    let   lineEnd   = text.indexOf('\n', pos);
-    if (lineEnd === -1) lineEnd = text.length;
-
-    const line       = text.substring(lineStart, lineEnd);
-    const beforeLine = text.substring(0, lineStart);
-    const afterLine  = text.substring(lineEnd);
-
-    let newLine, cursorDelta;
-    if (line.startsWith(prefix)) {
-        newLine     = line.substring(prefix.length);
-        cursorDelta = -prefix.length;
-    } else {
-        newLine     = prefix + line;
-        cursorDelta = prefix.length;
-    }
-
-    ta.value = beforeLine + newLine + afterLine;
-    const newPos = Math.max(lineStart, pos + cursorDelta);
-    ta.selectionStart = ta.selectionEnd = newPos;
-}
-
-// Saved textarea selection for restoring after the image modal closes
-let mdImageSavedStart = 0, mdImageSavedEnd = 0;
 // Whether the picker has been loaded for this modal open
 let mdImagePickerLoaded = false;
 // File captured via paste on the Paste tab
 let mdImagePastedFile = null;
 
 /**
- * Open the insert-image modal, saving the current cursor position first.
+ * Open the insert-image modal.
+ * The TUI editor preserves selection state internally; exec('addImage') inserts at the last cursor position.
  */
 function showMdImageModal() {
-    const ta = document.getElementById('mdEditorText');
-    if (ta) {
-        mdImageSavedStart = ta.selectionStart;
-        mdImageSavedEnd   = ta.selectionEnd;
-    }
     // Reset modal state
     document.getElementById('mdImageUrl').value       = '';
     document.getElementById('mdImageAltUrl').value    = '';
@@ -1487,27 +1306,14 @@ function mdImageUpload(file, altOverride) {
 }
 
 /**
- * Insert ![alt](url) at the saved cursor position in the markdown textarea.
+ * Insert an image into the TUI editor at the current cursor position.
  * @param {string} url
  * @param {string} alt
  */
 function mdImageDoInsert(url, alt) {
-    const ta = document.getElementById('mdEditorText');
-    if (!ta) return;
-
-    const before  = ta.value.substring(0, mdImageSavedStart);
-    const after   = ta.value.substring(mdImageSavedEnd);
-    const snippet = '![' + alt + '](' + url + ')';
-    ta.value = before + snippet + after;
-
-    const newPos = mdImageSavedStart + snippet.length;
-    ta.selectionStart = ta.selectionEnd = newPos;
-    ta.focus();
-
-    $('#messageText').val(ta.value);
-    if (typeof mdPreviewTimer !== 'undefined' && mdPreviewTimer) clearTimeout(mdPreviewTimer);
-    mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
-
+    if (!tuiEditor) return;
+    tuiEditor.exec('addImage', { imageUrl: url, altText: alt || 'image' });
+    tuiEditor.focus();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('mdImageModal')).hide();
 }
 
@@ -1622,6 +1428,177 @@ function initHardWrap() {
 function showMarkdownHelp() {
     $('#markdownHelpModal').modal('show');
 }
+
+// ── Link Insert Modal ─────────────────────────────────────────────────────────
+
+/**
+ * Open the link-insert modal, pre-filling the text field with any current
+ * DOM selection (works in WYSIWYG mode via window.getSelection).
+ */
+function showMdLinkModal() {
+    const selectedText = window.getSelection ? window.getSelection().toString().trim() : '';
+    document.getElementById('mdLinkUrl').value  = '';
+    document.getElementById('mdLinkText').value = selectedText;
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('mdLinkModal'));
+    // Focus URL field after shown
+    document.getElementById('mdLinkModal').addEventListener('shown.bs.modal', function() {
+        document.getElementById('mdLinkUrl').focus();
+    }, { once: true });
+    modal.show();
+}
+
+(function() {
+    function doInsertLink() {
+        const url  = (document.getElementById('mdLinkUrl').value  || '').trim();
+        const text = (document.getElementById('mdLinkText').value || '').trim();
+        if (!url || !tuiEditor) return;
+        tuiEditor.exec('addLink', { linkUrl: url, linkText: text || url });
+        tuiEditor.focus();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('mdLinkModal')).hide();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('mdLinkInsertBtn');
+        if (btn) {
+            btn.addEventListener('click', doInsertLink);
+        }
+        const urlInput = document.getElementById('mdLinkUrl');
+        if (urlInput) {
+            urlInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); doInsertLink(); }
+            });
+        }
+    });
+})();
+
+// ── URL Unfurl Prompt ─────────────────────────────────────────────────────────
+
+let pendingUnfurlUrl = null;
+let unfurlData       = null;
+let unfurlHandled    = false;
+
+/**
+ * Show the unfurl prompt modal for a URL that was just pasted.
+ * The URL has already been inserted into the editor by the browser paste.
+ */
+function showUnfurlPrompt() {
+    if (!pendingUnfurlUrl) return;
+    unfurlData    = null;
+    unfurlHandled = false;
+
+    document.getElementById('unfurlUrlDisplay').textContent = pendingUnfurlUrl;
+    document.getElementById('unfurlLoading').classList.add('d-none');
+    document.getElementById('unfurlPreview').classList.add('d-none');
+    document.getElementById('unfurlError').classList.add('d-none');
+    document.getElementById('unfurlFetchBtn').classList.remove('d-none');
+    document.getElementById('unfurlInsertBtn').classList.add('d-none');
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('urlUnfurlModal')).show();
+}
+
+/**
+ * Fetch OG/meta preview for the pending URL and display the preview card.
+ */
+function fetchUnfurlPreview() {
+    if (!pendingUnfurlUrl) return;
+    const fetchBtn  = document.getElementById('unfurlFetchBtn');
+    const loadingEl = document.getElementById('unfurlLoading');
+    const errorEl   = document.getElementById('unfurlError');
+
+    fetchBtn.classList.add('d-none');
+    errorEl.classList.add('d-none');
+    loadingEl.classList.remove('d-none');
+
+    $.get('/api/url-preview', { url: pendingUnfurlUrl })
+        .done(function(data) {
+            loadingEl.classList.add('d-none');
+            if (data.success) {
+                unfurlData = data;
+                document.getElementById('unfurlTitle').textContent = data.title || pendingUnfurlUrl;
+                document.getElementById('unfurlDesc').textContent  = data.description || '';
+
+                const thumbCol  = document.getElementById('unfurlThumbCol');
+                const infoCol   = document.getElementById('unfurlInfoCol');
+                if (data.image) {
+                    document.getElementById('unfurlThumb').src = data.image;
+                    thumbCol.style.display = '';
+                    infoCol.className = 'col-9';
+                } else {
+                    thumbCol.style.display = 'none';
+                    infoCol.className = 'col';
+                }
+
+                document.getElementById('unfurlPreview').classList.remove('d-none');
+                document.getElementById('unfurlInsertBtn').classList.remove('d-none');
+            } else {
+                const msg = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(data, uiT('errors.url_preview.fetch_failed', 'Could not fetch a preview for that URL.'))
+                    : (data.error || uiT('errors.url_preview.fetch_failed', 'Could not fetch a preview for that URL.'));
+                errorEl.textContent = msg;
+                errorEl.classList.remove('d-none');
+                fetchBtn.classList.remove('d-none');
+            }
+        })
+        .fail(function() {
+            loadingEl.classList.add('d-none');
+            errorEl.textContent = uiT('errors.url_preview.fetch_failed', 'Could not fetch a preview for that URL.');
+            errorEl.classList.remove('d-none');
+            fetchBtn.classList.remove('d-none');
+        });
+}
+
+/**
+ * Replace the bare pasted URL in the editor with a rich unfurled markdown block.
+ */
+function insertUnfurledPreview() {
+    if (!tuiEditor || !unfurlData || !pendingUnfurlUrl) return;
+
+    const title = (unfurlData.title || pendingUnfurlUrl).replace(/\[|\]/g, '');
+    const url   = pendingUnfurlUrl;
+    const desc  = unfurlData.description || '';
+    const image = unfurlData.image || '';
+
+    // Replace the raw URL that the browser inserted during paste
+    const currentMd = sanitizeTuiMarkdown(tuiEditor.getMarkdown());
+    let richMd = '';
+    if (image) {
+        richMd += '[![' + title + '](' + image + ')](' + url + ')\n\n';
+    }
+    richMd += '**[' + title + '](' + url + ')**';
+    if (desc) {
+        richMd += '\n> ' + desc.substring(0, 200);
+    }
+
+    // Try to swap the bare URL; fall back to appending if not found as plain text
+    const replaced = currentMd.replace(url, richMd);
+    tuiEditor.setMarkdown(replaced !== currentMd ? replaced : currentMd + '\n\n' + richMd, false);
+
+    unfurlHandled = true;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('urlUnfurlModal')).hide();
+    tuiEditor.focus();
+}
+
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        const unfurlModal = document.getElementById('urlUnfurlModal');
+        if (!unfurlModal) return;
+
+        document.getElementById('unfurlFetchBtn').addEventListener('click', fetchUnfurlPreview);
+        document.getElementById('unfurlInsertBtn').addEventListener('click', insertUnfurledPreview);
+
+        // "Keep as URL" — URL was already inserted by the browser; just close
+        document.getElementById('unfurlKeepBtn').addEventListener('click', function() {
+            unfurlHandled = true;
+            bootstrap.Modal.getOrCreateInstance(unfurlModal).hide();
+        });
+
+        // If modal is dismissed without action, URL stays as-is (already inserted)
+        unfurlModal.addEventListener('hidden.bs.modal', function() {
+            pendingUnfurlUrl = null;
+            unfurlData = null;
+        });
+    });
+})();
 
 $(document).ready(function() {
     const messageType = $('#messageType').val();
@@ -2555,6 +2532,72 @@ function saveComposeAddressBookEntry() {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" id="mdImageInsertBtn" onclick="mdImageInsert()">{{ t('ui.compose.markdown.image_modal.insert', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Link Insert Modal -->
+<div class="modal fade" id="mdLinkModal" tabindex="-1" aria-labelledby="mdLinkModalLabel">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="mdLinkModalLabel"><i class="fas fa-link me-2"></i>{{ t('ui.compose.markdown.link_modal.title', {}, locale, ['common']) }}</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-2">
+                <div class="mb-2">
+                    <label class="form-label form-label-sm mb-1" for="mdLinkUrl">{{ t('ui.compose.markdown.link_modal.url_label', {}, locale, ['common']) }}</label>
+                    <input type="url" class="form-control form-control-sm" id="mdLinkUrl" placeholder="https://">
+                </div>
+                <div class="mb-0">
+                    <label class="form-label form-label-sm mb-1" for="mdLinkText">{{ t('ui.compose.markdown.link_modal.text_label', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control form-control-sm" id="mdLinkText" placeholder="{{ t('ui.compose.markdown.link_modal.text_placeholder', {}, locale, ['common']) }}">
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mdLinkInsertBtn">{{ t('ui.compose.markdown.link_modal.insert', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- URL Unfurl Prompt Modal -->
+<div class="modal fade" id="urlUnfurlModal" tabindex="-1" aria-labelledby="urlUnfurlModalLabel">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="urlUnfurlModalLabel"><i class="fas fa-link me-2"></i>{{ t('ui.compose.markdown.unfurl.modal_title', {}, locale, ['common']) }}</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">{{ t('ui.compose.markdown.unfurl.description', {}, locale, ['common']) }}</p>
+                <div id="unfurlUrlDisplay" class="font-monospace small text-break bg-light rounded px-2 py-1 mb-3"></div>
+                <div id="unfurlLoading" class="text-center d-none py-2">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>{{ t('ui.compose.markdown.unfurl.fetching', {}, locale, ['common']) }}
+                </div>
+                <div id="unfurlPreview" class="d-none">
+                    <div class="card">
+                        <div class="row g-0">
+                            <div class="col-3" id="unfurlThumbCol" style="display:none;">
+                                <img id="unfurlThumb" src="" class="img-fluid rounded-start" style="object-fit:cover;height:100%;max-height:100px;" alt="">
+                            </div>
+                            <div class="col" id="unfurlInfoCol">
+                                <div class="card-body py-2 px-3">
+                                    <h6 class="card-title mb-1 small fw-bold" id="unfurlTitle"></h6>
+                                    <p class="card-text text-muted small mb-0" id="unfurlDesc"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="unfurlError" class="text-danger small d-none mt-2"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" id="unfurlKeepBtn">{{ t('ui.compose.markdown.unfurl.keep_as_url', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary btn-sm" id="unfurlFetchBtn">{{ t('ui.compose.markdown.unfurl.fetch_preview', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-success btn-sm d-none" id="unfurlInsertBtn">{{ t('ui.compose.markdown.unfurl.insert_preview', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>

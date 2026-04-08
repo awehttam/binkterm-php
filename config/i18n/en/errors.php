@@ -629,4 +629,8 @@ return [
 
     // Echomail moderation
     'errors.admin.echomail_moderation.not_found' => 'Message not found or not pending moderation.',
+
+    // URL preview (unfurl)
+    'errors.url_preview.invalid_url'   => 'Invalid URL.',
+    'errors.url_preview.fetch_failed'  => 'Could not fetch a preview for that URL.',
 ];

@@ -613,6 +613,19 @@ a.file-preview-link:hover {
     color: var(--text-color);
 }
 
+/* Markdown heading borders in message bodies */
+.message-text h1 {
+    border-bottom: 3px double var(--border-color);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.75em;
+}
+
+.message-text h2 {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.75em;
+}
+
 /* Legacy message text styles - enhanced for mobile */
 .message-text pre {
     background-color: var(--message-bg);

@@ -5,12 +5,16 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+  - [Markdown WYSIWYG Compose Editor](#summary-markdown-editor)
+  - [Markdown Heading Rendering](#summary-markdown-headings)
   - [Echomail Moderation](#summary-echomail-moderation)
   - [Polls](#summary-polls)
   - [File Area URL Links](#summary-file-area-url-links)
   - [URL Link Open Graph Image Preview](#summary-og-image)
   - [Optional Spaces in Usernames](#summary-spaces-in-usernames)
   - [User Guide](#summary-user-guide)
+- [Markdown WYSIWYG Compose Editor](#markdown-wysiwyg-compose-editor)
+- [Markdown Heading Rendering](#markdown-heading-rendering)
 - [Echomail Moderation](#echomail-moderation)
 - [Polls](#polls)
 - [File Area URL Links](#file-area-url-links)
@@ -27,6 +31,18 @@ Make sure you have a current backup of your database and files before upgrading.
 
 
 ## Summary of Changes
+
+### Markdown WYSIWYG Compose Editor {#summary-markdown-editor}
+
+- When composing a Markdown message, the plain textarea is replaced by a rich editor with a formatting toolbar and side-by-side Edit/Preview tabs.
+- Toolbar buttons cover bold, italic, H1–H3, inline code, code block, link, image, unordered and ordered lists, blockquote, and horizontal rule. Keyboard shortcuts Ctrl+B, Ctrl+I, and Ctrl+K are supported.
+- Pasting a bare URL into the editor prompts the user to fetch an Open Graph preview and insert a formatted link card in place of the raw URL.
+- The Preview tab renders a pixel-accurate preview using the same server-side `MarkdownRenderer` that readers use, so the output matches exactly what recipients will see.
+
+### Markdown Heading Rendering {#summary-markdown-headings}
+
+- H1 headings in rendered Markdown messages now display with a double underline; H2 headings display with a single underline, matching the visual convention used by the compose editor's preview.
+- Heading font sizes now scale proportionally with the user's configured message font size instead of being collapsed to the same size as body text.
 
 ### Echomail Moderation {#summary-echomail-moderation}
 
@@ -75,6 +91,72 @@ Make sure you have a current backup of your database and files before upgrading.
 - URL links go through the same approval workflow and credit system as file uploads.
 - Admins can edit the URL of a link record from the file edit dialog.
 - The database migration relaxes the `NOT NULL` constraints on `file_hash` and `storage_path` in the `files` table, as URL records have no physical file. Run `php scripts/setup.php` to apply.
+
+## Markdown WYSIWYG Compose Editor
+
+When the Markup Format selector is set to **Markdown**, the compose form's plain textarea is replaced by a full WYSIWYG editor built on Toast UI Editor. The editor presents two tabs — **Edit** and **Preview** — and a formatting toolbar above the editing area.
+
+**Toolbar**
+
+The toolbar contains buttons for the most common Markdown constructs:
+
+| Button | Effect |
+|---|---|
+| **B** | Bold |
+| *I* | Italic |
+| H1 / H2 / H3 | Heading levels 1–3 |
+| `</>` | Inline code |
+| Code block | Fenced code block |
+| Link | Insert or wrap selection in a link |
+| Image | Open the image insert dialog (URL, upload, paste, or My Images) |
+| List / Ordered List | Unordered or numbered list |
+| Blockquote | Block quote |
+| — | Horizontal rule |
+
+**Keyboard shortcuts**
+
+- **Ctrl+B** — bold
+- **Ctrl+I** — italic
+- **Ctrl+K** — insert link
+
+**Preview tab**
+
+The Preview tab sends the current Markdown source to `POST /api/messages/markdown-preview` and renders the result using the same server-side `MarkdownRenderer` that echomail and netmail readers use. The preview is therefore pixel-accurate — what you see in the Preview tab is what recipients will see when they read the message.
+
+**URL unfurl on paste**
+
+When a bare URL (a plain `https://…` string with no surrounding text) is pasted into the editor, a prompt appears offering to fetch Open Graph metadata from the page. If the user confirms, the editor replaces the raw URL with a formatted Markdown link card: an optional thumbnail image, a bold linked title, and a blockquote description. The fetch is performed server-side so CORS restrictions do not apply. Dismissing the prompt leaves the URL as plain text.
+
+**Replies to Markdown messages**
+
+When replying to a message that was written in Markdown, the quoted text is wrapped in standard Markdown blockquote syntax (`> `). Heading markers that appear inside the quoted block (`## Heading`, `### Sub-heading`, etc.) are preserved correctly so they display as headings when the reply is read.
+
+No configuration or database changes are required for the WYSIWYG editor. The editor activates automatically whenever the Markup Format is set to Markdown in the compose form.
+
+## Markdown Heading Rendering
+
+Rendered Markdown messages now display headings with visual hierarchy that matches the compose editor's preview.
+
+**Heading borders**
+
+H1 headings have a double underline and H2 headings have a single underline, applied below each heading element in the message body. This mirrors the convention used by the Markdown compose editor's Preview tab and by widely used Markdown renderers such as GitHub.
+
+**Heading size hierarchy**
+
+Previously, the user's configured message font size was applied uniformly to all content inside the message body, which caused H1 through H6 headings to render at the same size as body text. Headings now scale proportionally:
+
+| Heading | Size relative to body text |
+|---|---|
+| H1 | 1.5× |
+| H2 | 1.3× |
+| H3 | 1.15× |
+| H4 | 1.0× |
+| H5 | 0.9× |
+| H6 | 0.85× |
+
+The sizes track the user's font size preference — a larger configured font size produces proportionally larger headings.
+
+No configuration or database changes are required.
 
 ## Echomail Moderation
 

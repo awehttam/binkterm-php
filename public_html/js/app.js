@@ -1149,6 +1149,16 @@ function applyFontSettings() {
             font-family: ${fontFamily} !important;
             font-size: ${fontSize}px !important;
         }
+        .message-text h1, .message-text h2, .message-text h3,
+        .message-text h4, .message-text h5, .message-text h6 {
+            font-weight: bold !important;
+        }
+        .message-text h1 { font-size: ${Math.round(fontSize * 1.5)}px !important; }
+        .message-text h2 { font-size: ${Math.round(fontSize * 1.3)}px !important; }
+        .message-text h3 { font-size: ${Math.round(fontSize * 1.15)}px !important; }
+        .message-text h4 { font-size: ${Math.round(fontSize * 1.0)}px !important; }
+        .message-text h5 { font-size: ${Math.round(fontSize * 0.9)}px !important; }
+        .message-text h6 { font-size: ${Math.round(fontSize * 0.85)}px !important; }
     `;
     
     $('<style>').prop('type', 'text/css').prop('id', 'dynamicFontStyles').html(css).appendTo('head');
