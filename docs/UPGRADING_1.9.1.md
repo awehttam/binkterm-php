@@ -37,7 +37,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - When composing a Markdown message, the plain textarea is replaced by a rich editor with a formatting toolbar and side-by-side Edit/Preview tabs.
 - Toolbar buttons cover bold, italic, H1–H3, inline code, code block, link, image, unordered and ordered lists, blockquote, and horizontal rule. Keyboard shortcuts Ctrl+B, Ctrl+I, and Ctrl+K are supported.
 - Pasting a bare URL into the editor prompts the user to fetch an Open Graph preview and insert a formatted link card in place of the raw URL.
-- The Preview tab renders a pixel-accurate preview using the same server-side `MarkdownRenderer` that readers use, so the output matches exactly what recipients will see.
+- The Preview tab renders a close approximation of how the message will appear to recipients.
 
 ### Markdown Heading Rendering {#summary-markdown-headings}
 
@@ -121,7 +121,7 @@ The toolbar contains buttons for the most common Markdown constructs:
 
 **Preview tab**
 
-The Preview tab sends the current Markdown source to `POST /api/messages/markdown-preview` and renders the result using the same server-side `MarkdownRenderer` that echomail and netmail readers use. The preview is therefore pixel-accurate — what you see in the Preview tab is what recipients will see when they read the message.
+The Preview tab renders the current Markdown source using the editor's built-in renderer. The output is a close approximation of how the message will appear to recipients, though minor differences in styling may exist compared to the reader.
 
 **URL unfurl on paste**
 
