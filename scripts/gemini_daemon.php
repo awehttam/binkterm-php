@@ -1198,9 +1198,9 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
     } elseif ($path === '/bbs-directory/' || $path === '/bbs-directory') {
         handleBbsDirectoryList($socket, $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/$#', $path, $m)) {
-        handleUserIndex($socket, $m[1], $geminiHost);
+        handleUserIndex($socket, rawurldecode($m[1]), $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/([^/]+)$#', $path, $m)) {
-        handleUserFile($socket, $m[1], $m[2]);
+        handleUserFile($socket, rawurldecode($m[1]), rawurldecode($m[2]));
     } elseif ($path === '/echomail/' || $path === '/echomail') {
         handleEchoAreaList($socket, $geminiHost);
     } elseif (preg_match('#^/echomail/([A-Za-z0-9._-]+)@([A-Za-z0-9._-]+)/$#', $path, $m)) {
