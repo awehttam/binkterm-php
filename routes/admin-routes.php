@@ -837,7 +837,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         });
 
         // Finger a user by username — used by the admin terminal
-        SimpleRouter::get('/finger/{username}', function($username) {
+        SimpleRouter::get('/finger', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
 
@@ -845,6 +845,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $adminController->requireAdmin($user);
 
             header('Content-Type: application/json');
+
+            $username = trim($_GET['username'] ?? '');
+            if ($username === '') {
+                http_response_code(400);
+                echo json_encode(['error' => 'username parameter required']);
+                return;
+            }
 
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare("

@@ -512,7 +512,7 @@
                     return;
                 }
                 logLine('\x1b[90mLooking up ' + escapeForTerminal(username) + '…\x1b[0m');
-                fetch('/admin/api/finger/' + encodeURIComponent(username), { credentials: 'same-origin' })
+                fetch('/admin/api/finger?username=' + encodeURIComponent(username), { credentials: 'same-origin' })
                     .then(function (r) {
                         if (r.status === 404) { throw new Error('not_found'); }
                         if (!r.ok) { throw new Error('error'); }
