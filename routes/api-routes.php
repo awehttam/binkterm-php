@@ -389,10 +389,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Validate username format. Spaces are intentionally disallowed so that usernames
-        // cannot be made to look like real names by using multiple words separated by spaces.
-        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
-            apiError('errors.register.invalid_username_format', apiLocalizedText('errors.register.invalid_username_format', 'Username must be 3-20 characters, letters, numbers, and underscores only'), 400);
+        // Normalize and validate username format. Spaces are allowed only when
+        // USERNAMES_ALLOW_SPACES=true is set in .env (defaults to false).
+        $username = \BinktermPHP\Config::normalizeUsername($username);
+        $usernameFormatKey = \BinktermPHP\Config::allowSpacesInUsernames()
+            ? 'errors.register.invalid_username_format_spaces'
+            : 'errors.register.invalid_username_format';
+        if (!preg_match(\BinktermPHP\Config::getUsernameRegex(), $username)) {
+            apiError($usernameFormatKey, apiLocalizedText($usernameFormatKey, 'Username must be 3-20 characters, letters, numbers, and underscores only'), 400);
             return;
         }
 
@@ -9742,10 +9746,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            // Validate username format
-            if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+            // Normalize and validate username format
+            $username = \BinktermPHP\Config::normalizeUsername($username);
+            $usernameFormatKey = \BinktermPHP\Config::allowSpacesInUsernames()
+                ? 'errors.register.invalid_username_format_spaces'
+                : 'errors.register.invalid_username_format';
+            if (!preg_match(\BinktermPHP\Config::getUsernameRegex(), $username)) {
                 http_response_code(400);
-                apiError('', apiLocalizedText('', ''));
+                apiError($usernameFormatKey, apiLocalizedText($usernameFormatKey, 'Invalid username format'));
                 return;
             }
 

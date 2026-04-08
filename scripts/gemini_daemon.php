@@ -363,7 +363,7 @@ function handleHomePage($socket, string $geminiHost): void
             $lines[] = 'No capsules have been published yet.';
         } else {
             foreach ($users as $username) {
-                $lines[] = "=> gemini://{$geminiHost}/home/{$username}/ {$username}";
+                $lines[] = "=> gemini://{$geminiHost}/home/" . rawurlencode($username) . "/ {$username}";
             }
         }
 
@@ -537,7 +537,7 @@ function handleUserIndex($socket, string $username, string $geminiHost): void
             '',
         ];
         foreach ($files as $filename) {
-            $lines[] = "=> /home/{$username}/{$filename} {$filename}";
+            $lines[] = "=> /home/" . rawurlencode($username) . "/{$filename} {$filename}";
         }
 
         geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");

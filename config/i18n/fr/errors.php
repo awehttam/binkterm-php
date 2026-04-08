@@ -22,6 +22,7 @@ return [
     'errors.register.rate_limited' => 'Trop de tentatives d\'inscription. Veuillez réessayer plus tard.',
     'errors.register.required_fields' => 'Le nom d\'utilisateur, le mot de passe et le nom réel sont requis',
     'errors.register.invalid_username_format' => 'Le nom d\'utilisateur doit comporter entre 3 et 20 caractères, lettres, chiffres et underscores uniquement',
+    'errors.register.invalid_username_format_spaces' => 'Le nom d\'utilisateur doit comporter entre 3 et 20 caractères, lettres, chiffres, underscores et espaces simples entre les mots uniquement',
     'errors.register.restricted_name' => 'Ce nom d\'utilisateur ou nom réel n\'est pas autorisé',
     'errors.register.weak_password' => 'Le mot de passe doit comporter au moins 8 caractères',
     'errors.register.user_exists' => 'Un utilisateur avec ce nom d\'utilisateur ou ce nom existe déjà. Veuillez vous connecter ou contacter le sysop pour obtenir de l\'aide.',

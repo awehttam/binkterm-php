@@ -183,6 +183,7 @@ echo "  mrc_local_handles.username    (by user_id FK)\n";
 echo "  mrc_local_presence.username   (by user_id FK)\n";
 echo "  mrc_users.username            (is_local=true rows only)\n";
 echo "  echoareas.moderator           (where moderator matches old name)\n";
+echo "  cwn_networks.submitted_by_username (by submitted_by user_id FK)\n";
 
 if (!empty($localAddresses)) {
     $addrList = implode(', ', $localAddresses);
@@ -261,7 +262,15 @@ try {
     $stmt->execute([$newUsername, $oldUsername]);
     $echoareasUpdated = $stmt->rowCount();
 
-    // 7. netmail.to_name — update rows addressed to a local FTN address only.
+    // 7. cwn_networks.submitted_by_username — denormalized string written at
+    //    submission time and read directly by the CWN WebDoor (SELECT *, no join).
+    //    Keyed by submitted_by (user_id FK) to avoid false positives from name
+    //    collisions with remote submissions stored in the same table.
+    $stmt = $db->prepare("UPDATE cwn_networks SET submitted_by_username = ? WHERE submitted_by = ?");
+    $stmt->execute([$newUsername, $userId]);
+    $cwnUpdated = $stmt->rowCount();
+
+    // 8. netmail.to_name — update rows addressed to a local FTN address only.
     //    The inbox query matches on to_name for the 'received' filter view and
     //    as a fallback for messages without a user_id stamp. Without this update
     //    those messages would disappear from the renamed user's inbox.
@@ -281,7 +290,7 @@ try {
         $netmailToUpdated = $stmt->rowCount();
     }
 
-    // 8. netmail.from_name — update rows sent from a local FTN address only.
+    // 9. netmail.from_name — update rows sent from a local FTN address only.
     //    The sent-messages filter matches on from_name; without this update the
     //    user's sent history would vanish from the 'sent' filter view.
     //    Scoping by from_address IN (local addresses) ensures we only touch
@@ -323,6 +332,7 @@ echo "  mrc_local_handles      : $mrcHandlesUpdated row(s)\n";
 echo "  mrc_local_presence     : $mrcPresenceUpdated row(s)\n";
 echo "  mrc_users (local)      : $mrcUsersUpdated row(s)\n";
 echo "  echoareas.moderator    : $echoareasUpdated row(s)\n";
+echo "  cwn_networks           : $cwnUpdated row(s)\n";
 echo "  netmail.to_name        : $netmailToUpdated row(s)\n";
 echo "  netmail.from_name      : $netmailFromUpdated row(s)\n";
 
@@ -331,6 +341,7 @@ $logger->info(
     . " [users=$usersUpdated, pending=$pendingUpdated"
     . ", mrc_handles=$mrcHandlesUpdated, mrc_presence=$mrcPresenceUpdated"
     . ", mrc_users=$mrcUsersUpdated, echoareas=$echoareasUpdated"
+    . ", cwn_networks=$cwnUpdated"
     . ", netmail_to=$netmailToUpdated, netmail_from=$netmailFromUpdated]"
 );
 
@@ -367,6 +378,7 @@ What is updated:
   mrc_local_presence.username WebDoor MRC presence, keyed by user_id FK
   mrc_users.username          active MRC session rows where is_local=true
   echoareas.moderator         echoarea moderator assignments stored by name
+  cwn_networks.submitted_by_username  CWN WebDoor submission author, keyed by user_id FK
   netmail.to_name             rows where to_address is a local FTN address
   netmail.from_name           rows where from_address is a local FTN address
 

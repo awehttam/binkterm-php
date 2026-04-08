@@ -9,11 +9,13 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Polls](#summary-polls)
   - [File Area URL Links](#summary-file-area-url-links)
   - [URL Link Open Graph Image Preview](#summary-og-image)
+  - [Optional Spaces in Usernames](#summary-spaces-in-usernames)
 - [Echomail Moderation](#echomail-moderation)
 - [Polls](#polls)
 - [File Area URL Links](#file-area-url-links)
 - [URL Link Open Graph Image Preview](#url-link-open-graph-image-preview)
 - [MCP Server Memory Leak Fix](#mcp-server-memory-leak-fix)
+- [Optional Spaces in Usernames](#optional-spaces-in-usernames)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -47,6 +49,14 @@ Make sure you have a current backup of your database and files before upgrading.
 ### MCP Server {#summary-mcp-server}
 
 - The MCP server (`mcp-server/server.js`) had a memory leak where each request allocated a new `McpServer` instance that was never explicitly closed, causing memory to grow steadily over time. The server is now properly closed when the HTTP response ends.
+
+### Optional Spaces in Usernames {#summary-spaces-in-usernames}
+
+- A new `.env` setting, `USERNAMES_ALLOW_SPACES`, controls whether usernames may contain single internal spaces (e.g. `Phantom of Doom`). The setting defaults to `false`; existing behaviour is unchanged unless you opt in.
+- When enabled, the registration form accepts handles containing single spaces between word characters. Leading and trailing spaces are trimmed automatically, and consecutive spaces are collapsed to one before validation runs.
+- The admin terminal `finger` and `msg` commands now handle multi-word usernames correctly. The `msg` command accepts a quoted username syntax (`msg "Dark Knight" hello`) for names that contain spaces.
+- The `rename_user.php` script now also updates the `cwn_networks.submitted_by_username` column when a user is renamed.
+- No database migration is required.
 
 ### URL Link Open Graph Image Preview {#summary-og-image}
 
@@ -128,6 +138,57 @@ No configuration or database changes are required for this feature.
 The MCP server (`mcp-server/server.js`) handles each incoming request by creating a new `McpServer` instance paired with a `StreamableHTTPServerTransport`. Previously, only the transport was closed when the HTTP response ended — the `McpServer` itself was never closed. Because the SDK registers internal listeners that cause the transport to hold a reference back to the server, these instances accumulated in memory rather than being garbage collected, causing the process's RAM usage to grow steadily over time.
 
 The server is now explicitly closed alongside the transport when each response ends. No configuration or database changes are required. Restarting the MCP server daemon picks up the fix automatically.
+
+## Optional Spaces in Usernames
+
+Usernames have historically been restricted to letters, numbers, and underscores. This restriction is unchanged by default. A new `.env` variable, `USERNAMES_ALLOW_SPACES`, allows the sysop to relax this rule so that handles like `Phantom of Doom` or `Dark Knight` can be registered.
+
+**Enabling the feature**
+
+Add the following line to your `.env` file:
+
+```
+USERNAMES_ALLOW_SPACES=true
+```
+
+Restart the web server and the telnet/SSH daemons after making this change. No database migration is required.
+
+**Validation rules when enabled**
+
+- The username must be between 3 and 20 characters in total length.
+- Word groups must consist of letters, digits, or underscores — the same characters permitted previously.
+- Words may be separated by a single space. Double spaces, leading spaces, and trailing spaces are all rejected. The registration form trims and collapses whitespace before applying the rule, so a user who accidentally types two spaces between words receives a corrected name rather than an error.
+- Only the ASCII space character (U+0020) is permitted. Tabs and other Unicode whitespace are not matched and remain forbidden.
+
+**MRC display**
+
+Users who register with a spaced handle will appear in MRC chat with spaces converted to underscores (e.g. `Phantom_of_Doom`). This is a constraint of the MRC wire protocol, not a bug. The stored username retains the space; only the transmitted form is altered.
+
+**Admin terminal**
+
+The `finger` command in the admin terminal now accepts multi-word usernames directly:
+
+```
+finger Dark Knight
+```
+
+The `msg` command requires the username to be quoted when it contains spaces:
+
+```
+msg "Dark Knight" Your account has been reviewed.
+```
+
+The unquoted single-word form continues to work as before.
+
+**rename_user.php**
+
+The `rename_user.php` CLI script, which renames a local user account across all tables that store the username as a string, now also updates the `cwn_networks.submitted_by_username` column. This column stores the submitter's name at the time a CWN WiFi network entry was created and is read directly by the CWN WebDoor without a live join to the users table.
+
+**Considerations before enabling**
+
+- Usernames with spaces are visually similar to real names. The existing uniqueness constraint prevents an exact case-insensitive match between a username and any real name, but it does not prevent near-matches.
+- Some older FTN node software reads name fields with whitespace-delimited parsers and may truncate a spaced handle at the first space when routing netmail to this system.
+- If you have users who registered with underscores under the old rules and wish to switch to a spaced form, use `scripts/rename_user.php` to rename them.
 
 ## Upgrade Instructions
 

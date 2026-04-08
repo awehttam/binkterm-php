@@ -27,6 +27,7 @@ return [
     'errors.register.rate_limited' => 'Demasiados intentos de registro. Intentelo de nuevo mas tarde.',
     'errors.register.required_fields' => 'Se requieren nombre de usuario, contrasena y nombre real',
     'errors.register.invalid_username_format' => 'El nombre de usuario debe tener 3-20 caracteres, solo letras, numeros y guiones bajos',
+    'errors.register.invalid_username_format_spaces' => 'El nombre de usuario debe tener 3-20 caracteres, solo letras, numeros, guiones bajos y espacios simples entre palabras',
     'errors.register.restricted_name' => 'Este nombre de usuario o nombre real no esta permitido',
     'errors.register.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.register.user_exists' => 'Ya existe un usuario con ese nombre de usuario o nombre. Intente iniciar sesion o contacte al sysop para obtener ayuda.',

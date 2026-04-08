@@ -115,6 +115,12 @@ class AdminController
             throw new \Exception('Username and password are required');
         }
 
+        // Normalize and validate username format (same rules as public registration).
+        $data['username'] = \BinktermPHP\Config::normalizeUsername($data['username']);
+        if (!preg_match(\BinktermPHP\Config::getUsernameRegex(), $data['username'])) {
+            throw new \Exception('Invalid username format');
+        }
+
         // Check for username/real_name uniqueness including cross-collisions.
         // A username must not match any existing username or real_name, and vice versa,
         // to prevent netmail misrouting.
@@ -174,6 +180,14 @@ class AdminController
         $user = $this->getUser($userId);
         if (!$user) {
             throw new \Exception('User not found');
+        }
+
+        // Normalize and validate username format if it is being changed.
+        if (isset($data['username'])) {
+            $data['username'] = \BinktermPHP\Config::normalizeUsername($data['username']);
+            if (!preg_match(\BinktermPHP\Config::getUsernameRegex(), $data['username'])) {
+                throw new \Exception('Invalid username format');
+            }
         }
 
         // Check if username is being changed — must not collide with any existing

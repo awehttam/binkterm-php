@@ -506,7 +506,7 @@
             cmd: 'finger',
             desc: 'finger <username>  —  Show user info and online status',
             run: function (parts) {
-                var username = parts[1];
+                var username = parts.slice(1).join(' ');
                 if (!username) {
                     logLine('\x1b[31mUsage: finger <username>\x1b[0m');
                     return;
@@ -625,12 +625,26 @@
         },
         {
             cmd: 'msg',
-            desc: 'msg <username> <message>  —  Send a private message to a specific user',
+            desc: 'msg <username> <message>  —  Send a private message to a specific user (quote username if it contains spaces)',
             run: function (parts) {
-                var username = parts[1];
-                var message = parts.slice(2).join(' ');
+                var username, message;
+                var cmdRest = parts.slice(1).join(' ');
+                if (parts[1] && parts[1].charAt(0) === '"') {
+                    // Quoted username: msg "Dark Knight" hello world
+                    var closeQuote = cmdRest.indexOf('"', 1);
+                    if (closeQuote === -1) {
+                        logLine('\x1b[31mUsage: msg "<username>" <message>\x1b[0m');
+                        return;
+                    }
+                    username = cmdRest.slice(1, closeQuote);
+                    message = cmdRest.slice(closeQuote + 1).trim();
+                } else {
+                    // Unquoted username (no spaces): msg DarkKnight hello world
+                    username = parts[1];
+                    message = parts.slice(2).join(' ');
+                }
                 if (!username || !message) {
-                    logLine('\x1b[31mUsage: msg <username> <message>\x1b[0m');
+                    logLine('\x1b[31mUsage: msg <username> <message>  or  msg "<username with spaces>" <message>\x1b[0m');
                     return;
                 }
                 fetch('/admin/api/msg', {

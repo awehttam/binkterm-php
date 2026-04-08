@@ -1445,7 +1445,7 @@ class BbsSession
         $this->writeLine($conn, '');
 
         $fields = [
-            ['key' => 'ui.terminalserver.server.registration.username', 'fallback' => 'Username (3-20 chars, letters/numbers/underscore): ', 'echo' => true,  'var' => 'username'],
+            ['key' => 'ui.terminalserver.server.registration.username', 'fallback' => \BinktermPHP\Config::allowSpacesInUsernames() ? 'Username (3-20 chars, letters/numbers/underscore/spaces): ' : 'Username (3-20 chars, letters/numbers/underscore): ', 'echo' => true,  'var' => 'username'],
             ['key' => 'ui.terminalserver.server.registration.password', 'fallback' => 'Password (min 8 characters): ',                        'echo' => false, 'var' => 'password'],
             ['key' => 'ui.terminalserver.server.registration.confirm',  'fallback' => 'Confirm password: ',                                   'echo' => false, 'var' => 'confirm'],
         ];
