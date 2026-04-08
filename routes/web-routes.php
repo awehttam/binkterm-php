@@ -785,7 +785,7 @@ SimpleRouter::get('/profile/{username}', function($username) {
 
     $template = new Template();
     $template->renderResponse('user_profile.twig', $templateVars);
-});
+})->where(['username' => '[\w ]+']); // [\w ]+ allows spaces: default [\w-]+ rejects decoded spaces in path
 
 SimpleRouter::get('/settings', function() {
     $auth = new Auth();
@@ -1827,7 +1827,7 @@ SimpleRouter::get('/echomail-images/{username}/{slug}', function(string $usernam
     }
 
     serveMarkdownImage($file);
-});
+})->where(['username' => '[\w ]+']); // [\w ]+ allows spaces: default [\w-]+ rejects decoded spaces in path
 
 // Legacy route: serve by SHA-256 hash for URLs embedded in older posts.
 SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
