@@ -42,6 +42,7 @@ return [
     'errors.settings.invalid_input' => 'Entrada invalida',
     'errors.settings.update_failed' => 'No se pudo actualizar la configuracion',
     'errors.settings.exception' => 'No se pudo actualizar la configuracion',
+    'errors.dashboard.invalid_layout' => 'Datos de diseño no válidos.',
 
     // Messages
     'errors.messages.share_create_failed' => 'No se pudo crear el enlace compartido',
@@ -346,6 +347,7 @@ return [
     'errors.admin.appearance.term_server.upload.file_too_large' => 'El archivo de pantalla del servidor terminal supera el limite de tamano',
     'errors.admin.appearance.term_server.delete.failed' => 'No se pudo eliminar la pantalla del servidor terminal',
     'errors.admin.appearance.message_reader.save_failed' => 'No se pudo guardar la configuracion del lector de mensajes',
+    'errors.admin.appearance.dashboard.save_failed' => 'No se pudo guardar el diseno del panel',
     'errors.admin.appearance.markdown_preview.failed' => 'No se pudo renderizar la vista previa de markdown',
     'errors.admin.appearance.splash.license_required' => 'Se requiere una licencia valida para configurar las paginas de inicio',
     'errors.admin.appearance.splash.save_failed' => 'No se pudo guardar la configuracion de las paginas de inicio',

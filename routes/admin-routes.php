@@ -465,7 +465,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/appearance.twig', [
-            'available_themes' => \BinktermPHP\Config::getThemes(),
+            'available_themes'  => \BinktermPHP\Config::getThemes(),
+            'dashboard_cards'   => \BinktermPHP\DashboardCardRegistry::getAllCards(),
         ]);
     });
 
@@ -1931,6 +1932,76 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.shell.save_failed', apiLocalizedText('errors.admin.appearance.shell.save_failed', 'Failed to save shell settings'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/dashboard', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+
+                // Support explicit reset to built-in defaults
+                if (!empty($payload['reset'])) {
+                    $config = \BinktermPHP\AppearanceConfig::getConfig();
+                    $config['dashboard']['default_layout'] = null;
+                    $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                    $client->setAppearanceConfig($config);
+                    \BinktermPHP\AppearanceConfig::reload();
+                    echo json_encode(['success' => true, 'message_code' => 'ui.common.saved_short']);
+                    return;
+                }
+
+                $layout = $payload['layout'] ?? null;
+                if (!is_array($layout) || !isset($layout['main'], $layout['sidebar'], $layout['hidden'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.dashboard.save_failed', apiLocalizedText('errors.admin.appearance.dashboard.save_failed', 'Failed to save dashboard layout'));
+                    return;
+                }
+
+                // Validate card IDs against the full card catalogue
+                $allCards = \BinktermPHP\DashboardCardRegistry::getAllCards();
+                $allIds = array_keys($allCards);
+
+                $main    = array_values(array_filter((array)$layout['main'],    fn($id) => is_string($id) && in_array($id, $allIds, true)));
+                $sidebar = array_values(array_filter((array)$layout['sidebar'], fn($id) => is_string($id) && in_array($id, $allIds, true)));
+                $hidden  = array_values(array_filter((array)$layout['hidden'],  fn($id) => is_string($id) && in_array($id, $allIds, true)));
+
+                // Required cards cannot be hidden
+                foreach ($allCards as $id => $card) {
+                    if (!empty($card['required'])) {
+                        $hidden = array_values(array_filter($hidden, fn($h) => $h !== $id));
+                    }
+                }
+
+                // Every card must appear in exactly one of main/sidebar
+                $placed = array_merge($main, $sidebar);
+                foreach ($allIds as $id) {
+                    if (!in_array($id, $placed, true)) {
+                        if ($allCards[$id]['default_zone'] === 'main') {
+                            $main[] = $id;
+                        } else {
+                            $sidebar[] = $id;
+                        }
+                    }
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['dashboard']['default_layout'] = [
+                    'main'    => $main,
+                    'sidebar' => $sidebar,
+                    'hidden'  => $hidden,
+                ];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true, 'message_code' => 'ui.common.saved_short']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.dashboard.save_failed', apiLocalizedText('errors.admin.appearance.dashboard.save_failed', 'Failed to save dashboard layout'));
             }
         });
 

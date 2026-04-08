@@ -42,6 +42,7 @@ return [
     'errors.settings.invalid_input' => 'Invalid input',
     'errors.settings.update_failed' => 'Failed to update settings',
     'errors.settings.exception' => 'Failed to update settings',
+    'errors.dashboard.invalid_layout' => 'Invalid layout data.',
 
     // Messages
     'errors.messages.share_create_failed' => 'Failed to create share link',
@@ -346,6 +347,7 @@ return [
     'errors.admin.appearance.term_server.upload.file_too_large' => 'Terminal screen file exceeds size limit',
     'errors.admin.appearance.term_server.delete.failed' => 'Failed to delete terminal screen',
     'errors.admin.appearance.message_reader.save_failed' => 'Failed to save message reader settings',
+    'errors.admin.appearance.dashboard.save_failed' => 'Failed to save dashboard layout',
     'errors.admin.appearance.markdown_preview.failed' => 'Failed to render markdown preview',
     'errors.admin.appearance.splash.license_required' => 'A valid license is required to configure splash pages',
     'errors.admin.appearance.splash.save_failed' => 'Failed to save splash settings',

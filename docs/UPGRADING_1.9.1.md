@@ -13,6 +13,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [URL Link Open Graph Image Preview](#summary-og-image)
   - [Optional Spaces in Usernames](#summary-spaces-in-usernames)
   - [User Guide](#summary-user-guide)
+  - [Dashboard Layout Customization](#summary-dashboard-layout)
+  - [Sysop Default Dashboard Layout](#summary-sysop-dashboard-layout)
 - [Markdown WYSIWYG Compose Editor](#markdown-wysiwyg-compose-editor)
 - [Markdown Heading Rendering](#markdown-heading-rendering)
 - [Echomail Moderation](#echomail-moderation)
@@ -22,6 +24,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [MCP Server Memory Leak Fix](#mcp-server-memory-leak-fix)
 - [Optional Spaces in Usernames](#optional-spaces-in-usernames)
 - [User Guide](#user-guide)
+- [Dashboard Layout Customization](#dashboard-layout-customization)
+- [Sysop Default Dashboard Layout](#sysop-default-dashboard-layout)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -77,6 +81,21 @@ Make sure you have a current backup of your database and files before upgrading.
 - A built-in User Guide is now available at `/user-guide`, covering the dashboard, echomail, netmail, doors, file areas, and exploring BBS networks.
 - The guide is linked from the user dropdown menu under **User Guide**, grouped with a divider above the Logout option.
 - No configuration or database changes are required.
+
+### Dashboard Layout Customization {#summary-dashboard-layout}
+
+- Users can now reorder and rearrange dashboard cards to suit their preferences using a **Customize Dashboard** button at the top of the dashboard.
+- Cards can be dragged between the main column and the sidebar, reordered within each column, and individually shown or hidden. The "Unread Mail" card is always visible and cannot be hidden.
+- Layout preferences are saved per user and persist across sessions. A **Reset to Default** option restores the original layout.
+- A database migration adds a `dashboard_layout` column to `user_settings`. Run `php scripts/setup.php` to apply.
+
+### Sysop Default Dashboard Layout {#summary-sysop-dashboard-layout}
+
+- Sysops can now configure the default card layout that users see before they have saved a custom layout of their own.
+- The setting is in **Admin → Appearance & Content** on a new **Dashboard** tab, which appears first in the tab list.
+- Cards are arranged by drag-and-drop into three columns: Main Column, Sidebar Column, and Hidden by Default.
+- Cards labelled Admin Only or marked with a feature badge will still only appear for users with the appropriate access level, regardless of where the sysop places them.
+- No database migration is required. The layout is stored in `data/appearance.json`.
 - When enabled, the registration form accepts handles containing single spaces between word characters. Leading and trailing spaces are trimmed automatically, and consecutive spaces are collapsed to one before validation runs.
 - The admin terminal `finger` and `msg` commands now handle multi-word usernames correctly. The `msg` command accepts a quoted username syntax (`msg "Dark Knight" hello`) for names that contain spaces.
 - The `rename_user.php` script now also updates the `cwn_networks.submitted_by_username` column when a user is renamed.
@@ -289,6 +308,62 @@ The guide is accessible to both guests and logged-in users. A **User Guide** lin
 The guide source lives at `docs/userguide/index.md` and is rendered server-side using the existing Markdown renderer. To customise the text for your BBS, edit that file directly — no code changes are required.
 
 No configuration or database changes are required.
+
+## Dashboard Layout Customization
+
+The dashboard now supports per-user layout customization. A **Customize Dashboard** button appears at the top right of the dashboard page and opens a modal showing all available cards organized into two columns — the wide main column and the narrow sidebar.
+
+**What users can do**
+
+- Drag cards up or down within a column to change the order they appear on the dashboard.
+- Drag a card from one column to the other to move it between the main area and the sidebar.
+- Click the eye icon on any card to hide it. Clicking again makes it visible. The "Unread Mail" card cannot be hidden because it is the primary navigation element of the dashboard.
+- Click **Save** to apply the changes immediately without a page reload.
+- Click **Reset to Default** to discard all customization and return to the system default layout.
+
+**Default layout**
+
+The default card layout can be configured by the sysop from **Admin → Appearance & Content → Dashboard** (see [Sysop Default Dashboard Layout](#sysop-default-dashboard-layout) below). When no sysop layout has been saved, the order falls back to the built-in defaults defined in `src/DashboardCardRegistry.php`, where the `default_zone` field on each card entry determines which column it starts in.
+
+Cards that are gated behind BBS features (shoutbox, voting booth, advertising) or the referral credits system only appear in the customize modal when those features are active. The admin-only "Today's Callers" card is only shown to admin users.
+
+**Database changes**
+
+Migration `v1.11.0.73` adds a `dashboard_layout` column of type `jsonb` to the `user_settings` table. Run `php scripts/setup.php` to apply.
+
+## Sysop Default Dashboard Layout
+
+Sysops can now define the card layout that users see when they first visit the dashboard — or after clicking Reset to Default — without editing PHP source files.
+
+**Where to find it**
+
+The setting is under **Admin → Appearance & Content**. A new **Dashboard** tab appears first in the tab list. Opening it reveals three columns:
+
+- **Main Column** — cards that occupy the wide left column.
+- **Sidebar Column** — cards that occupy the narrow right column.
+- **Hidden by Default** — cards hidden from view unless the user explicitly shows them.
+
+**How to configure it**
+
+Drag any card chip from one column to another to reposition it. Cards can also be reordered within a column by dragging them up or down. Click **Save Dashboard Layout** when done. Changes take effect immediately for any user who has not saved their own custom layout. Users who have already customized their dashboard are unaffected.
+
+**Badges on card chips**
+
+Each chip may carry one or more badges:
+
+| Badge | Meaning |
+|---|---|
+| Required | Card cannot be placed in Hidden by Default (the "Unread Mail" card) |
+| Admin Only | Card is only rendered for users with admin access |
+| Feature name | Card is only rendered when the named BBS feature is enabled |
+
+Moving an Admin Only or feature-gated card to any column is harmless — the card will simply not appear for users who lack the required access, regardless of where it is placed.
+
+**Reset to Defaults**
+
+Clicking **Reset to Defaults** removes the saved sysop layout and restores the built-in defaults from `src/DashboardCardRegistry.php`.
+
+No database migration is required. The layout is stored in `data/appearance.json` alongside other appearance settings.
 
 ## Upgrade Instructions
 
