@@ -19,12 +19,48 @@
     #dashboardAdContainer .dashboard-ad-scaled::-webkit-scrollbar {
         display: none;
     }
+
+    .dash-card-wrapper + .dash-card-wrapper {
+        margin-top: 1.5rem;
+    }
+
+    /* Customize modal drag styles */
+    .dash-chip {
+        cursor: grab;
+        user-select: none;
+        transition: opacity 0.15s;
+    }
+    .dash-chip.dragging {
+        opacity: 0.4;
+        cursor: grabbing;
+    }
+    .dash-chip.drag-over {
+        border-top: 2px solid var(--bs-primary) !important;
+    }
+    .dash-drop-zone {
+        min-height: 60px;
+        border: 2px dashed transparent;
+        border-radius: 6px;
+        transition: border-color 0.15s;
+    }
+    .dash-drop-zone.drag-active {
+        border-color: var(--bs-primary);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+        <i class="fas fa-tachometer-alt me-2"></i>{{ t('ui.dashboard.title', {}, locale, ['common']) }}
+    </h5>
+    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="openDashboardCustomize()" title="{{ t('ui.dashboard.customize.title', {}, locale, ['common']) }}">
+        <i class="fas fa-sliders-h me-1"></i>{{ t('ui.dashboard.customize.title', {}, locale, ['common']) }}
+    </button>
+</div>
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-8" id="dashMainCards">
+        <div class="dash-card-wrapper" data-card-id="unread">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
@@ -63,8 +99,10 @@
                 </div>
             </div>
         </div>
+        </div>{# /dash-card-wrapper unread #}
 
-        <div class="card mt-4">
+        <div class="dash-card-wrapper" data-card-id="system_news">
+        <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-newspaper me-2"></i>
@@ -77,9 +115,11 @@
                 </div>
             </div>
         </div>
+        </div>{# /dash-card-wrapper system_news #}
 
         {% if bbs_feature_enabled('shoutbox') %}
-        <div class="card mt-4">
+        <div class="dash-card-wrapper" data-card-id="shoutbox">
+        <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-bullhorn me-2"></i>
@@ -105,10 +145,12 @@
                 <div class="form-text text-muted">{{ t('ui.shoutbox.max_chars', {}, locale, ['common']) }}</div>
             </div>
         </div>
+        </div>{# /dash-card-wrapper shoutbox #}
         {% endif %}
 
         {% if dashboard_ad and bbs_feature_enabled('advertising') %}
-        <div class="card mt-4">
+        <div class="dash-card-wrapper" data-card-id="advertising">
+        <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="fas fa-ad me-2"></i>
@@ -142,10 +184,12 @@
                 {% endif %}
             </div>
         </div>
+        </div>{# /dash-card-wrapper advertising #}
         {% endif %}
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-4" id="dashSidebarCards">
+        <div class="dash-card-wrapper" data-card-id="system_info">
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">{{ t('ui.dashboard.system_information', {}, locale, ['common']) }}</h6>
@@ -170,9 +214,11 @@
                 </dl>
             </div>
         </div>
+        </div>{# /dash-card-wrapper system_info #}
 
         {% if current_user.is_admin and todays_callers is not null %}
-        <div class="card mt-4">
+        <div class="dash-card-wrapper" data-card-id="todays_callers">
+        <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}</h6>
             </div>
@@ -205,10 +251,12 @@
                 {% endif %}
             </div>
         </div>
+        </div>{# /dash-card-wrapper todays_callers #}
         {% endif %}
 
         {% if bbs_feature_enabled('voting_booth') %}
-        <div class="card mt-4" id="votingBoothCard">
+        <div class="dash-card-wrapper" data-card-id="voting_booth">
+        <div class="card" id="votingBoothCard">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="fas fa-vote-yea me-2"></i>
@@ -235,10 +283,12 @@
                 </a>
             </div>
         </div>
+        </div>{# /dash-card-wrapper voting_booth #}
         {% endif %}
 
         {% if referral_enabled %}
-        <div class="card mt-4">
+        <div class="dash-card-wrapper" data-card-id="referral">
+        <div class="card">
             <div class="card-header">
                 <h6 class="mb-0"><i class="fas fa-user-plus me-2"></i>{{ t('ui.dashboard.my_referral_link', {}, locale, ['common']) }}</h6>
             </div>
@@ -268,13 +318,14 @@
                 <div id="referralList" class="mt-3"></div>
             </div>
         </div>
+        </div>{# /dash-card-wrapper referral #}
         {% endif %}
 
-        <div class="card mt-4">
+        <div class="dash-card-wrapper" data-card-id="echo_areas">
+        <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">{{ t('ui.echomail.echo_areas', {}, locale, ['common']) }}</h6>
                 <a href="/subscriptions"><i class="fa-solid fa-wrench"></i></a>
-                </a>
             </div>
             <div class="card-body">
                 <div id="echoareaList">
@@ -282,6 +333,45 @@
                         <i class="fas fa-spinner fa-spin"></i>
                         {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
                     </div>
+                </div>
+            </div>
+        </div>
+        </div>{# /dash-card-wrapper echo_areas #}
+    </div>
+</div>
+
+{# Dashboard Customize Modal #}
+<div class="modal fade" id="dashboardCustomizeModal" tabindex="-1" aria-labelledby="dashboardCustomizeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dashboardCustomizeModalLabel">
+                    <i class="fas fa-sliders-h me-2"></i>{{ t('ui.dashboard.customize.title', {}, locale, ['common']) }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{{ t('ui.dashboard.customize.hint', {}, locale, ['common']) }}</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="fw-semibold mb-2"><i class="fas fa-columns me-1"></i>{{ t('ui.dashboard.customize.zone_main', {}, locale, ['common']) }}</div>
+                        <div id="customizeMainList" class="dash-drop-zone border rounded p-2"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="fw-semibold mb-2"><i class="fas fa-sidebar me-1"></i>{{ t('ui.dashboard.customize.zone_sidebar', {}, locale, ['common']) }}</div>
+                        <div id="customizeSidebarList" class="dash-drop-zone border rounded p-2"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetDashboardLayout()">
+                    <i class="fas fa-undo me-1"></i>{{ t('ui.dashboard.customize.reset', {}, locale, ['common']) }}
+                </button>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                    <button type="button" class="btn btn-primary ms-2" onclick="saveDashboardLayout()">
+                        <i class="fas fa-save me-1"></i>{{ t('ui.common.save', {}, locale, ['common']) }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -295,6 +385,9 @@
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
 <script>
+const DASHBOARD_LAYOUT = {{ dashboard_layout|json_encode|raw }};
+const DASHBOARD_CARDS = {{ dashboard_available_cards|json_encode|raw }};
+
 let votingPolls = [];
 let votingPollIndex = 0;
 let shoutboxOffset = 0;
@@ -320,6 +413,7 @@ let dashboardAdIndex = 0;
 const dashboardAdImpressionsSent = new Set();
 
 $(document).ready(function() {
+    applyDashboardLayout(DASHBOARD_LAYOUT);
     loadI18nNamespaces(['common', 'errors']).then(function() {
     loadDashboardData();
     {% if bbs_feature_enabled('voting_booth') %}
@@ -815,6 +909,226 @@ function showDashboardAd(delta) {
     updateDashboardAdPosition();
 }
 
+/* ── Dashboard layout ───────────────────────────────────────────────── */
+
+/**
+ * Applies a saved layout to the live DOM.
+ * Hidden cards are hidden; cards are reordered within their zone containers.
+ */
+function applyDashboardLayout(layout) {
+    if (!layout || typeof layout !== 'object') return;
+
+    const mainEl    = document.getElementById('dashMainCards');
+    const sidebarEl = document.getElementById('dashSidebarCards');
+    if (!mainEl || !sidebarEl) return;
+
+    const hiddenIds = new Set(layout.hidden || []);
+
+    function applyZone(containerEl, orderedIds) {
+        if (!Array.isArray(orderedIds)) return;
+        orderedIds.forEach(function(cardId) {
+            const wrapper = document.querySelector(`[data-card-id="${cardId}"]`);
+            if (!wrapper) return;
+            containerEl.appendChild(wrapper);
+            wrapper.style.display = hiddenIds.has(cardId) ? 'none' : '';
+        });
+    }
+
+    applyZone(mainEl,    layout.main);
+    applyZone(sidebarEl, layout.sidebar);
+}
+
+/* ── Customize modal ────────────────────────────────────────────────── */
+
+let customizeModal = null;
+let dragSrcId = null;
+let dragSrcList = null;
+
+function openDashboardCustomize() {
+    customizeModal = customizeModal || new bootstrap.Modal(document.getElementById('dashboardCustomizeModal'));
+
+    buildCustomizeList('customizeMainList',    'main');
+    buildCustomizeList('customizeSidebarList', 'sidebar');
+
+    customizeModal.show();
+}
+
+function buildCustomizeList(containerId, zone) {
+    const mainEl    = document.getElementById('dashMainCards');
+    const sidebarEl = document.getElementById('dashSidebarCards');
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Derive current order from the live DOM
+    const sourceEl = zone === 'main' ? mainEl : sidebarEl;
+    const wrappers = Array.from(sourceEl.querySelectorAll(':scope > .dash-card-wrapper'));
+
+    wrappers.forEach(function(wrapper) {
+        const cardId = wrapper.getAttribute('data-card-id');
+        if (!cardId) return;
+        const cardDef = DASHBOARD_CARDS[cardId] || {};
+        const isRequired = !!cardDef.required;
+        const isHidden = wrapper.style.display === 'none';
+        const label = window.t ? window.t(cardDef.label_key || '', {}, cardId) : cardId;
+
+        const chip = document.createElement('div');
+        chip.className = 'dash-chip d-flex align-items-center justify-content-between border rounded px-3 py-2 mb-2 bg-light';
+        chip.setAttribute('data-card-id', cardId);
+        chip.setAttribute('data-hidden', isHidden ? '1' : '0');
+        chip.setAttribute('draggable', 'true');
+        chip.innerHTML = `
+            <span class="me-2"><i class="fas fa-grip-vertical text-muted me-2"></i>${escapeHtml(label)}</span>
+            ${isRequired
+                ? '<span class="badge bg-secondary">' + (window.t ? window.t('ui.dashboard.customize.required', {}, 'Required') : 'Required') + '</span>'
+                : `<button type="button" class="btn btn-sm p-0 border-0 bg-transparent" onclick="toggleCardVisibility(this,'${cardId}')" title="${isHidden ? (window.t ? window.t('ui.dashboard.customize.show', {}, 'Show') : 'Show') : (window.t ? window.t('ui.dashboard.customize.hide', {}, 'Hide') : 'Hide')}">
+                    <i class="fas ${isHidden ? 'fa-eye-slash text-muted' : 'fa-eye text-primary'}"></i>
+                   </button>`}
+        `;
+
+        chip.addEventListener('dragstart', onChipDragStart);
+        chip.addEventListener('dragend',   onChipDragEnd);
+        chip.addEventListener('dragover',  onChipDragOver);
+        chip.addEventListener('drop',      onChipDrop);
+
+        container.appendChild(chip);
+    });
+
+    // Wire drop zone events on the container itself for empty-list drops
+    container.addEventListener('dragover',  onZoneDragOver);
+    container.addEventListener('dragleave', onZoneDragLeave);
+    container.addEventListener('drop',      onZoneDrop);
+}
+
+function toggleCardVisibility(btn, cardId) {
+    const icon = btn.querySelector('i');
+    const isNowHidden = icon.classList.contains('fa-eye');
+    icon.classList.toggle('fa-eye',       !isNowHidden);
+    icon.classList.toggle('fa-eye-slash',  isNowHidden);
+    icon.classList.toggle('text-primary', !isNowHidden);
+    icon.classList.toggle('text-muted',    isNowHidden);
+    btn.title = isNowHidden
+        ? (window.t ? window.t('ui.dashboard.customize.show', {}, 'Show') : 'Show')
+        : (window.t ? window.t('ui.dashboard.customize.hide', {}, 'Hide') : 'Hide');
+    // Store hidden state on the chip itself for readback
+    btn.closest('.dash-chip').setAttribute('data-hidden', isNowHidden ? '1' : '0');
+}
+
+/* ── Drag-and-drop helpers ──────────────────────────────────────────── */
+
+function onChipDragStart(e) {
+    dragSrcId   = this.getAttribute('data-card-id');
+    dragSrcList = this.closest('.dash-drop-zone');
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragSrcId);
+}
+
+function onChipDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.dash-chip.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.dash-drop-zone.drag-active').forEach(el => el.classList.remove('drag-active'));
+}
+
+function onChipDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.dash-chip.drag-over').forEach(el => { if (el !== this) el.classList.remove('drag-over'); });
+    this.classList.add('drag-over');
+}
+
+function onZoneDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('drag-active');
+}
+
+function onZoneDragLeave(e) {
+    if (!this.contains(e.relatedTarget)) {
+        this.classList.remove('drag-active');
+    }
+}
+
+function onZoneDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-active');
+    const srcId = e.dataTransfer.getData('text/plain');
+    const srcChip = document.querySelector(`.dash-chip[data-card-id="${srcId}"]`);
+    if (!srcChip) return;
+    // Dropped onto the zone itself (not a chip) — append to end
+    this.appendChild(srcChip);
+}
+
+function onChipDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.classList.remove('drag-over');
+    const srcId = e.dataTransfer.getData('text/plain');
+    if (srcId === this.getAttribute('data-card-id')) return;
+    const srcChip = document.querySelector(`.dash-chip[data-card-id="${srcId}"]`);
+    if (!srcChip) return;
+    const targetList = this.closest('.dash-drop-zone');
+    targetList.insertBefore(srcChip, this);
+}
+
+/* ── Save / Reset ───────────────────────────────────────────────────── */
+
+function readCustomizeLayout() {
+    const layout = { main: [], sidebar: [], hidden: [] };
+    ['main', 'sidebar'].forEach(function(zone) {
+        const listId   = zone === 'main' ? 'customizeMainList' : 'customizeSidebarList';
+        const listEl   = document.getElementById(listId);
+        if (!listEl) return;
+        listEl.querySelectorAll('.dash-chip[data-card-id]').forEach(function(chip) {
+            const cardId = chip.getAttribute('data-card-id');
+            layout[zone].push(cardId);
+            if (chip.getAttribute('data-hidden') === '1') {
+                layout.hidden.push(cardId);
+            }
+        });
+    });
+    return layout;
+}
+
+function saveDashboardLayout() {
+    const layout = readCustomizeLayout();
+
+    fetch('/api/dashboard/layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layout)
+    })
+    .then(r => r.json())
+    .then(function(data) {
+        if (data.success) {
+            applyDashboardLayout(layout);
+            if (customizeModal) customizeModal.hide();
+        } else {
+            alert(window.getApiErrorMessage ? window.getApiErrorMessage(data, uiT('ui.dashboard.customize.save_failed', 'Failed to save layout.')) : 'Failed to save layout.');
+        }
+    })
+    .catch(function() {
+        alert(uiT('ui.dashboard.customize.save_failed', 'Failed to save layout.'));
+    });
+}
+
+function resetDashboardLayout() {
+    fetch('/api/dashboard/layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ main: [], sidebar: [], hidden: [], reset: true })
+    })
+    .then(r => r.json())
+    .then(function(data) {
+        if (data.success) {
+            if (customizeModal) customizeModal.hide();
+            window.location.reload();
+        }
+    })
+    .catch(function() {
+        alert(uiT('ui.dashboard.customize.save_failed', 'Failed to reset layout.'));
+    });
+}
 
 </script>
 

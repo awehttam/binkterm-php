@@ -3311,7 +3311,8 @@ class MessageHandler
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE',
             'forward_netmail_email' => 'BOOLEAN',
-            'echomail_digest' => 'DIGEST_FREQUENCY'
+            'echomail_digest' => 'DIGEST_FREQUENCY',
+            'dashboard_layout' => 'DASHBOARD_LAYOUT',
         ];
 
         $updates = [];
@@ -3366,6 +3367,18 @@ class MessageHandler
                 case 'DIGEST_FREQUENCY':
                     $freq = trim((string)$value);
                     $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
+                    break;
+                case 'DASHBOARD_LAYOUT':
+                    if ($value === null) {
+                        $params[] = null;
+                    } elseif (is_array($value)) {
+                        $params[] = json_encode($value);
+                    } elseif (is_string($value)) {
+                        $decoded = json_decode($value, true);
+                        $params[] = is_array($decoded) ? $value : null;
+                    } else {
+                        $params[] = null;
+                    }
                     break;
                 default:
                     $params[] = $value;

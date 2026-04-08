@@ -149,20 +149,37 @@ SimpleRouter::get('/', function() {
     $onlineCount = $auth->getOnlineUserCount(15);
     $activeTodayCount = $auth->getActiveTodayCount();
     $adminTimezone = 'UTC';
+    $handler = new \BinktermPHP\MessageHandler();
+    $userId = (int)($user['user_id'] ?? $user['id']);
+    $userSettings = $handler->getUserSettings($userId);
     if (!empty($user['is_admin'])) {
-        try {
-            $handler = new \BinktermPHP\MessageHandler();
-            $adminSettings = $handler->getUserSettings((int)($user['user_id'] ?? $user['id']));
-            $tz = $adminSettings['timezone'] ?? '';
-            if ($tz !== '') {
+        $tz = $userSettings['timezone'] ?? '';
+        if ($tz !== '') {
+            try {
                 new \DateTimeZone($tz); // validate
                 $adminTimezone = $tz;
+            } catch (\Throwable $e) {
+                // fall back to UTC
             }
-        } catch (\Throwable $e) {
-            // fall back to UTC
         }
     }
     $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
+
+    // Build dashboard card registry and layout
+    $creditsConfig = $bbsConfig['credits'] ?? [];
+    $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
+    $cardConditions = ['referral_enabled' => $referralEnabled];
+    $availableCards = \BinktermPHP\DashboardCardRegistry::getAvailableCards($user, $cardConditions);
+    $savedLayoutRaw = $userSettings['dashboard_layout'] ?? null;
+    if ($savedLayoutRaw) {
+        $savedLayout = is_string($savedLayoutRaw) ? json_decode($savedLayoutRaw, true) : $savedLayoutRaw;
+        $dashboardLayout = \BinktermPHP\DashboardCardRegistry::mergeLayout(
+            is_array($savedLayout) ? $savedLayout : [],
+            $availableCards
+        );
+    } else {
+        $dashboardLayout = \BinktermPHP\DashboardCardRegistry::getDefaultLayout($availableCards);
+    }
 
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
@@ -173,6 +190,8 @@ SimpleRouter::get('/', function() {
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
         'todays_callers' => $todaysCallers,
+        'dashboard_layout' => $dashboardLayout,
+        'dashboard_available_cards' => $availableCards,
     ]);
 });
 

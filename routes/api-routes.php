@@ -689,6 +689,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode((new \BinktermPHP\DashboardStatsService($db))->getStats($user));
     });
 
+    SimpleRouter::post('/dashboard/layout', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            apiError('errors.dashboard.invalid_layout', apiLocalizedText('errors.dashboard.invalid_layout', 'Invalid layout data.', $user), 400);
+            return;
+        }
+
+        $handler = new MessageHandler();
+
+        // Reset flag: clear saved layout so defaults are used on next load
+        if (!empty($body['reset'])) {
+            $handler->updateUserSettings($userId, ['dashboard_layout' => null]);
+            echo json_encode(['success' => true]);
+            return;
+        }
+
+        $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+        $creditsConfig = $bbsConfig['credits'] ?? [];
+        $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
+        $conditions = ['referral_enabled' => $referralEnabled];
+        $availableCards = \BinktermPHP\DashboardCardRegistry::getAvailableCards($user, $conditions);
+
+        $layout = \BinktermPHP\DashboardCardRegistry::validateLayout($body, $availableCards);
+        if ($layout === null) {
+            apiError('errors.dashboard.invalid_layout', apiLocalizedText('errors.dashboard.invalid_layout', 'Invalid layout data.', $user), 400);
+            return;
+        }
+
+        $handler->updateUserSettings($userId, ['dashboard_layout' => $layout]);
+
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/polls/active', function() {
         $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
