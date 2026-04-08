@@ -1606,7 +1606,7 @@ function hasPipeCodes(text) {
     // Requires uppercase letters for both hex and letter codes — all real BBS software
     // produces uppercase pipe codes, and the case-insensitive version causes false positives
     // on natural English text (e.g. |Advertise → |Ad matches as a Mystic hex color code).
-    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-F]{2}(?![0-9A-Fa-f])|[A-Z]{2}(?![A-Z]))/.test(normalized);
+    return /\|(?:[0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F])|[A-Z]{2}(?![A-Z]))/.test(normalized);
 }
 
 /**
@@ -1690,7 +1690,7 @@ function convertPipeCodesToAnsi(text) {
     // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background.
     // Mystic-style hex codes (|0A = bright green, |1F = blue bg + white fg, etc.) are also
     // handled: codes with letters A-F are parsed as hex nibbles.
-    text = text.replace(/\|([0-9](?![0-9A-Fa-f])|[0-9A-F]{2}(?![0-9A-Fa-f]))/g, (match, codeStr) => {
+    text = text.replace(/\|([0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F]))/g, (match, codeStr) => {
         if (codeStr.length === 1) {
             const ansiFg = pipeToAnsiFg[parseInt(codeStr, 10)] || 37;
             return `\x1b[${ansiFg}m`;
