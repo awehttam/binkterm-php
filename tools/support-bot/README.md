@@ -60,27 +60,6 @@ curl -X POST -H 'Content-Type: application/json' \
 Re-run `build_index.py` any time the upstream documentation changes. It drops and
 recreates the database from scratch on each run.
 
-## Enabling `loadExtension()` in PHP
-
-By default PHP disables SQLite extension loading. To enable it, add the following
-to your `php.ini`:
-
-```ini
-[sqlite3]
-sqlite3.extension_dir = /path/to/sqlite-extensions
-```
-
-The sqlite-vec shared library path is located automatically at runtime via:
-
-```bash
-python3 -c "import sqlite_vec; print(sqlite_vec.loadable_path())"
-```
-
-The directory containing that file is what `sqlite3.extension_dir` should point to.
-
-On some systems you may also need to build PHP with `--with-sqlite3` and ensure
-`SQLITE_ENABLE_LOAD_EXTENSION` is set. If this is not feasible on your host,
-consider wrapping the entire retrieval step in a second Python helper script.
 
 ## Optional: persistent embedding daemon
 
