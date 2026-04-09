@@ -82,6 +82,53 @@ On some systems you may also need to build PHP with `--with-sqlite3` and ensure
 `SQLITE_ENABLE_LOAD_EXTENSION` is set. If this is not feasible on your host,
 consider wrapping the entire retrieval step in a second Python helper script.
 
+## Optional: persistent embedding daemon
+
+By default `query_embed.py` loads the model in-process on every call, which takes
+roughly 15 seconds on a cold start. Running `embed_server.py` as a background
+daemon eliminates this delay: the model is loaded once at startup and subsequent
+calls return in milliseconds.
+
+`query_embed.py` detects the daemon automatically — no flags or config required.
+If the daemon is unreachable it silently falls back to the in-process path.
+
+### Starting the daemon manually
+
+```bash
+python3 embed_server.py &
+# Listens on http://127.0.0.1:5001 (loopback only)
+```
+
+### Installing as a systemd user service
+
+A ready-made unit file is provided at `embed_server.service`.
+
+1. **Edit the paths** in the unit file to match your setup:
+   - `WorkingDirectory` — absolute path to this directory
+   - `ExecStart` — absolute path to the Python interpreter in your virtualenv
+     (find it with `which python3` after activating the venv, or adjust to use
+     the system Python if you installed dependencies globally)
+
+2. **Install and enable:**
+
+   ```bash
+   mkdir -p ~/.config/systemd/user
+   cp embed_server.service ~/.config/systemd/user/
+   systemctl --user daemon-reload
+   systemctl --user enable --now embed_server
+   ```
+
+3. **Verify:**
+
+   ```bash
+   systemctl --user status embed_server
+   curl http://127.0.0.1:5001/health   # should return {"status":"ok"}
+   ```
+
+The service restarts automatically on failure. It runs as your user account, not
+root, so it can access the same virtualenv and model cache that you use
+interactively.
+
 ## Troubleshooting
 
 **`Error: could not locate the sqlite-vec shared library`**
