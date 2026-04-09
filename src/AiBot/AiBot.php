@@ -89,7 +89,7 @@ class AiBot
      */
     public static function fromRow(array $row, ?\PDO $db = null): self
     {
-        return new self(
+        $bot = new self(
             id:               (int)$row['id'],
             userId:           (int)$row['user_id'],
             name:             (string)$row['name'],
@@ -102,5 +102,9 @@ class AiBot
             isActive:         (bool)$row['is_active'],
             db:               $db
         );
+        // Populate spend from the database immediately so that isUnderBudget()
+        // returns an accurate result even before the first AI call this session.
+        $bot->refreshCachedSpend();
+        return $bot;
     }
 }
