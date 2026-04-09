@@ -255,31 +255,14 @@ class AiBotRepository
     }
 
     /**
-     * Delete a bot and its system user.
+     * Delete a bot record and its activities. The associated system user is
+     * intentionally preserved so that chat history and message attribution
+     * remain intact after deletion.
      */
     public function deleteBot(int $id): void
     {
-        $this->db->beginTransaction();
-        try {
-            // Get user_id first
-            $stmt = $this->db->prepare("SELECT user_id FROM ai_bots WHERE id = ?");
-            $stmt->execute([$id]);
-            $userId = (int)$stmt->fetchColumn();
-
-            // Delete bot (activities cascade)
-            $stmt = $this->db->prepare("DELETE FROM ai_bots WHERE id = ?");
-            $stmt->execute([$id]);
-
-            // Delete system user if one was found
-            if ($userId > 0) {
-                $stmt = $this->db->prepare("DELETE FROM users WHERE id = ? AND is_system = TRUE");
-                $stmt->execute([$userId]);
-            }
-
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+        // ai_bot_activities cascade-delete when the bot row is removed.
+        $stmt = $this->db->prepare("DELETE FROM ai_bots WHERE id = ?");
+        $stmt->execute([$id]);
     }
 }

@@ -104,7 +104,7 @@ A `bot_id` column (FK → `ai_bots.id`, ON DELETE SET NULL) was added so spend c
 
 Each bot is backed by an entry in the `users` table with `is_system = TRUE`. This account has a randomly generated locked password (`password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT)`) and cannot be logged into through the normal auth flow.
 
-When a bot is created via the admin UI, the system checks whether a system user with the requested username already exists. If one does it is reused; otherwise a new one is created. When a bot is deleted its system user is removed as well.
+When a bot is created via the admin UI, the system checks whether a system user with the requested username already exists. If one does it is reused; otherwise a new one is created. When a bot is deleted its system user is intentionally preserved so that chat history and message attribution remain intact.
 
 Bots always appear in the chat online users list (`/api/chat/online`) regardless of whether they have an active session, and are marked `is_bot: true` so the UI renders them with a robot icon.
 
