@@ -30,11 +30,41 @@ except ImportError:
     sys.exit(1)
 
 
-DOCS_URLS = [
-    ("README.md",    "https://raw.githubusercontent.com/awehttam/binkterm-php/main/README.md"),
-    ("FAQ.md",       "https://raw.githubusercontent.com/awehttam/binkterm-php/main/FAQ.md"),
-    ("docs/index.md","https://raw.githubusercontent.com/awehttam/binkterm-php/main/docs/index.md"),
-]
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com/awehttam/binkterm-php/main"
+
+# Root-level files always included.
+ROOT_DOCS = ["README.md", "FAQ.md"]
+
+
+def discover_docs_urls() -> list[tuple[str, str]]:
+    """
+    Fetch docs/index.md from GitHub and extract every linked .md file.
+    Returns a list of (label, raw_url) pairs, starting with the root docs
+    then the docs/ directory files in index order.
+    """
+    urls: list[tuple[str, str]] = []
+
+    # Root docs first.
+    for name in ROOT_DOCS:
+        urls.append((name, f"{GITHUB_RAW_BASE}/{name}"))
+
+    # Parse docs/index.md for linked filenames.
+    index_url = f"{GITHUB_RAW_BASE}/docs/index.md"
+    print(f"  Discovering docs from {index_url}...")
+    resp = requests.get(index_url, timeout=30)
+    resp.raise_for_status()
+
+    seen: set[str] = set(ROOT_DOCS)
+    # Match markdown links: [text](Filename.md) or [text](Filename.md#anchor)
+    for m in re.finditer(r'\[.*?\]\(([^)]+\.md)(?:#[^)]*)?\)', resp.text):
+        filename = m.group(1)
+        if filename in seen:
+            continue
+        seen.add(filename)
+        label = f"docs/{filename}"
+        urls.append((label, f"{GITHUB_RAW_BASE}/docs/{filename}"))
+
+    return urls
 
 DB_PATH        = "binkterm_knowledge.db"
 MODEL_NAME     = "all-MiniLM-L6-v2"
@@ -134,12 +164,16 @@ def pack_vector(vec: list[float]) -> bytes:
 
 def build_index() -> None:
     # ------------------------------------------------------------------
-    # 1. Fetch documents and produce chunks
+    # 1. Discover and fetch documents
     # ------------------------------------------------------------------
+    print("Discovering documentation sources...")
+    docs_urls = discover_docs_urls()
+    print(f"  Found {len(docs_urls)} documents to index.\n")
+
     print("Fetching documentation...")
     all_chunks: list[dict] = []
 
-    for label, url in DOCS_URLS:
+    for label, url in docs_urls:
         try:
             text = fetch_markdown(label, url)
             doc_chunks = chunk_markdown(text, label)
