@@ -17,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Sysop Default Dashboard Layout](#summary-sysop-dashboard-layout)
   - [AI Bots](#summary-ai-bots)
   - [Chat Markdown Rendering](#summary-chat-markdown)
+  - [MCP Server Dependency Updates](#summary-mcp-server-deps)
 - [Markdown WYSIWYG Compose Editor](#markdown-wysiwyg-compose-editor)
 - [Markdown Heading Rendering](#markdown-heading-rendering)
 - [Echomail Moderation](#echomail-moderation)
@@ -30,6 +31,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Sysop Default Dashboard Layout](#sysop-default-dashboard-layout)
 - [AI Bots](#ai-bots)
 - [Chat Markdown Rendering](#chat-markdown-rendering)
+- [MCP Server Dependency Updates](#mcp-server-dependency-updates)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -109,6 +111,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - Managed from **Admin → Community → AI Bots**.
 - Three database migrations are required. Run `php scripts/setup.php` to apply.
 - A new background daemon, `scripts/ai_bot_daemon.php`, must be started and kept running for bots to respond.
+
+### MCP Server Dependency Updates {#summary-mcp-server-deps}
+
+- The `@hono/node-server` package in `mcp-server/` has been updated from 1.19.11 to 1.19.13.
+- The `hono` package in `mcp-server/` has been updated from 4.12.9 to 4.12.12.
+- These are transitive dependencies pulled in by `@modelcontextprotocol/sdk`. No code changes are required; restart the MCP server daemon to pick up the updated packages.
 
 ### Chat Markdown Rendering {#summary-chat-markdown}
 
@@ -455,6 +463,17 @@ Supported formatting includes bold (`**text**`), italic (`*text*`), inline code 
 Rendering is performed server-side by the same `MarkdownRenderer` used for echomail and netmail. The rendered HTML is delivered alongside the plain-text body in API responses and in real-time SSE events, so no client-side Markdown library is needed.
 
 No configuration or database changes are required.
+
+## MCP Server Dependency Updates
+
+The `mcp-server/` directory's lock file has been updated to pull in newer patch releases of two packages used by `@modelcontextprotocol/sdk`:
+
+| Package | Previous | Updated |
+|---|---|---|
+| `@hono/node-server` | 1.19.11 | 1.19.13 |
+| `hono` | 4.12.9 | 4.12.12 |
+
+Both are transitive dependencies; neither is listed directly in `mcp-server/package.json`. No code changes are required. If you are running the MCP server daemon, restart it after updating to ensure the new packages are loaded.
 
 ## Upgrade Instructions
 
