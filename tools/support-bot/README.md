@@ -1,7 +1,11 @@
-# BinktermPHP RAG Support Bot
+# BinktermPHP RAG Support Tools
+
+Called by an AI Bot using the RagPromptInjectorMiddleware.php.  
 
 Answers sysop questions about BinktermPHP by retrieving relevant passages from the
 official documentation and passing them as context to Claude Haiku.
+
+This can be used as an example for writing your own RAG indexer.
 
 ## How it works
 
