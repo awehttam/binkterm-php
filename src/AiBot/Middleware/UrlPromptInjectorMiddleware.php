@@ -12,6 +12,13 @@ use BinktermPHP\Binkp\Logger;
  * The fetched content is cached in the system temp directory for the
  * configured TTL to avoid an outbound HTTP request on every message.
  *
+ * WARNING: Every byte injected into the system prompt is sent to the AI
+ * provider on every single request and counted as input tokens. Large fetched
+ * documents can dramatically increase API costs — a 50 KB page injected on
+ * every message can cost orders of magnitude more than a short prompt alone.
+ * Always set `max_bytes` to cap the injected content, and monitor spend via
+ * the AI Usage dashboard.
+ *
  * Configuration:
  *
  *   {
@@ -21,7 +28,8 @@ use BinktermPHP\Binkp\Logger;
  *       "position":  "append",
  *       "separator": "\n\n---\n\n",
  *       "ttl":       3600,
- *       "timeout":   5
+ *       "timeout":   5,
+ *       "max_bytes": 4000
  *     }
  *   }
  *
@@ -32,6 +40,7 @@ use BinktermPHP\Binkp\Logger;
  *               (default: two newlines)
  *   ttl       — cache lifetime in seconds (default: 3600); set to 0 to disable
  *   timeout   — HTTP request timeout in seconds (default: 5)
+ *   max_bytes — truncate injected content to this many bytes (recommended)
  *
  * If the fetch fails or the URL is empty the middleware passes through without
  * modifying the prompt.

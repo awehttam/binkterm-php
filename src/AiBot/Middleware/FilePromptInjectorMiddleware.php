@@ -13,6 +13,11 @@ use BinktermPHP\Binkp\Logger;
  * current pricing, etc.) in plain files that can be edited without touching
  * bot configuration.
  *
+ * WARNING: Every byte injected into the system prompt is sent to the AI
+ * provider on every single request and counted as input tokens. Large files
+ * can dramatically increase API costs. Keep injected content as concise as
+ * possible, and monitor spend via the AI Usage dashboard.
+ *
  * Configuration:
  *
  *   {

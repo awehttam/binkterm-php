@@ -1,6 +1,6 @@
 # AI Bots
 
-AI bots are chat personas driven by an external AI provider. Each bot has its own system user account, a configurable system prompt, and a set of activities that determine when and how it responds. Bots are managed from **Admin → BBS Settings → AI Bots**.
+AI bots are chat personas driven by an external AI provider. Each bot has its own system user account, a configurable system prompt, and a set of activities that determine when and how it responds. Bots are managed from **Admin → Community → AI Bots**.
 
 ---
 
@@ -410,7 +410,7 @@ class WeatherMiddleware implements BotMiddlewareInterface
 
 ## Configuring Middleware in the Admin UI
 
-On the bot edit page (**Admin → BBS Settings → AI Bots → Edit**), scroll to the **Activities** section. Below the Local Chat toggles is the **Middleware Pipeline** panel.
+On the bot edit page (**Admin → Community → AI Bots → Edit**), scroll to the **Activities** section. Below the Local Chat toggles is the **Middleware Pipeline** panel.
 
 - Click **Add Step** to append a new entry.
 - Select a class from the dropdown. Built-in classes are listed by name; choose **Custom...** to type a fully-qualified class name.

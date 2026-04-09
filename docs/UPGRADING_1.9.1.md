@@ -106,7 +106,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Sysops can create AI-powered bot personas that participate in local chat.
 - Each bot has its own system user account, a configurable system prompt, a choice of AI provider and model, and a weekly API cost budget.
 - Bots appear in the chat online users list with a robot icon and respond to direct messages and @mentions in rooms.
-- Managed from **Admin → BBS Settings → AI Bots**.
+- Managed from **Admin → Community → AI Bots**.
 - Three database migrations are required. Run `php scripts/setup.php` to apply.
 - A new background daemon, `scripts/ai_bot_daemon.php`, must be started and kept running for bots to respond.
 
@@ -390,7 +390,7 @@ AI bots are chat personas driven by an external AI provider. Each bot has its ow
 
 **Creating and managing bots**
 
-Bots are managed under **Admin → BBS Settings → AI Bots**. The list shows all configured bots with their current-week API spend as a percentage of the weekly budget. Colour coding indicates budget headroom: green for under 75 %, amber for 75–99 %, and red when the budget has been reached.
+Bots are managed under **Admin → Community → AI Bots**. The list shows all configured bots with their current-week API spend as a percentage of the weekly budget. Colour coding indicates budget headroom: green for under 75 %, amber for 75–99 %, and red when the budget has been reached.
 
 The create/edit form covers:
 
