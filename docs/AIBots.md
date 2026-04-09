@@ -20,6 +20,7 @@ AI bots are chat personas driven by an external AI provider. Each bot has its ow
   - [FilePromptInjectorMiddleware](#filepromptinjectoriddleware)
   - [UrlPromptInjectorMiddleware](#urlpromptinjectoriddleware)
   - [RegexFilterMiddleware](#regexfiltermiddleware)
+  - [RagPromptInjectorMiddleware](#ragpromptinjectormiddleware)
 - [Writing Custom Middleware](#writing-custom-middleware)
 - [Configuring Middleware in the Admin UI](#configuring-middleware-in-the-admin-ui)
 - [Cost Management](#cost-management)
@@ -52,7 +53,8 @@ PostgreSQL trigger → pg_notify('binkstream', sse_event_id)
        ├── SlashCommandMiddleware  ──► short-circuit with static reply
        ├── FilePromptInjectorMiddleware ──► modify system prompt
        ├── UrlPromptInjectorMiddleware  ──► modify system prompt
-       ├── RegexFilterMiddleware   ──► abort or rewrite message
+       ├── RegexFilterMiddleware        ──► abort or rewrite message
+       ├── RagPromptInjectorMiddleware  ──► inject retrieved doc chunks
        │
        ▼
  AiService::generateText()  (if not short-circuited)
@@ -337,6 +339,43 @@ Tests the incoming message against a PCRE pattern and takes one of three actions
 | `rewrite` | Replaces `$ctx->incomingMessage` via `preg_replace()` and continues the chain |
 
 An invalid regex is silently ignored and the middleware passes through.
+
+### RagPromptInjectorMiddleware
+
+Retrieves relevant documentation chunks from a sqlite-vec knowledge base and injects them into the system prompt before the AI call. The incoming chat message is used as the search query. This is the recommended way to give a bot grounded knowledge of BinktermPHP's documentation without injecting the entire docs into every request.
+
+Requires the `tools/support-bot` knowledge base to be built first:
+
+```bash
+cd tools/support-bot
+pip install -r requirements.txt
+python3 build_index.py
+```
+
+```json
+{
+  "class": "RagPromptInjectorMiddleware",
+  "config": {
+    "db_path":     "tools/support-bot/binkterm_knowledge.db",
+    "script_path": "tools/support-bot/query_retrieve.py",
+    "top_k":       4,
+    "position":    "append",
+    "separator":   "\n\n"
+  }
+}
+```
+
+| Config key | Default | Description |
+|---|---|---|
+| `db_path` | `tools/support-bot/binkterm_knowledge.db` | Path to the sqlite-vec knowledge base, relative to project root or absolute |
+| `script_path` | `tools/support-bot/query_retrieve.py` | Path to `query_retrieve.py`, relative or absolute |
+| `top_k` | `4` | Number of chunks to retrieve per message |
+| `position` | `append` | `append` or `prepend` |
+| `separator` | `\n\n` | String between existing prompt and injected context |
+
+If the database or script is missing, or no relevant chunks are found, the middleware passes through without modifying the system prompt. All activity is logged at debug level to `ai_bot_daemon.log`.
+
+The retrieved chunks include their source filename and heading breadcrumb, giving the model accurate attribution for its answers. Pair this middleware with a system prompt that instructs the bot to answer only from the provided context.
 
 ---
 

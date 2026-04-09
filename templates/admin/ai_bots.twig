@@ -165,6 +165,7 @@ const MIDDLEWARE_HINTS = {
     FilePromptInjectorMiddleware: '{"path":"config/bots/mybot/context.md","position":"append"}',
     UrlPromptInjectorMiddleware:  '{"url":"https://example.com/context.txt","ttl":3600,"max_bytes":4000}',
     RegexFilterMiddleware:        '{"pattern":"/^!nobot/i","action":"abort"}',
+    RagPromptInjectorMiddleware:  '{"db_path":"tools/support-bot/binkterm_knowledge.db","script_path":"tools/support-bot/query_retrieve.py","top_k":4}',
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -256,6 +257,7 @@ function addMiddlewareEntry(classVal, configJson) {
                         <option value="FilePromptInjectorMiddleware">FilePromptInjectorMiddleware</option>
                         <option value="UrlPromptInjectorMiddleware">UrlPromptInjectorMiddleware</option>
                         <option value="RegexFilterMiddleware">RegexFilterMiddleware</option>
+                        <option value="RagPromptInjectorMiddleware">RagPromptInjectorMiddleware</option>
                         <option value="_custom">${uiT('ui.admin.ai_bots.middleware_custom_class', 'Custom...')}</option>
                     </select>
                     <input type="text" class="form-control form-control-sm mb-2 mw-custom-class d-none"
