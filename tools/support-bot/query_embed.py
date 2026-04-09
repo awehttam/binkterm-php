@@ -51,13 +51,13 @@ def _embed_via_server(text: str) -> list | None:
 def _embed_local(text: str) -> list:
     """Load the model in-process and return the embedding."""
     try:
-        from sentence_transformers import SentenceTransformer
+        from fastembed import TextEmbedding
     except ImportError:
-        print("Error: sentence-transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
+        print("Error: fastembed not installed. Run: pip install -r requirements.txt", file=sys.stderr)
         sys.exit(1)
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    return model.encode(text, convert_to_numpy=True).tolist()
+    model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
+    return next(iter(model.embed([text]))).tolist()
 
 
 if __name__ == "__main__":

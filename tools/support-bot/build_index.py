@@ -24,9 +24,9 @@ except ImportError:
     sys.exit(1)
 
 try:
-    from sentence_transformers import SentenceTransformer
+    from fastembed import TextEmbedding
 except ImportError:
-    print("Error: sentence-transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
+    print("Error: fastembed not installed. Run: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
 
@@ -67,7 +67,7 @@ def discover_docs_urls() -> list[tuple[str, str]]:
     return urls
 
 DB_PATH        = "binkterm_knowledge.db"
-MODEL_NAME     = "all-MiniLM-L6-v2"
+MODEL_NAME     = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM  = 384
 CHUNK_TOKENS   = 500
 OVERLAP_TOKENS = 100
@@ -192,11 +192,11 @@ def build_index() -> None:
     # 2. Embed all chunks
     # ------------------------------------------------------------------
     print(f"Loading embedding model ({MODEL_NAME})...")
-    model = SentenceTransformer(MODEL_NAME)
+    model = TextEmbedding(MODEL_NAME)
 
     print("Generating embeddings (this may take a minute)...")
     texts      = [c["full_text"] for c in all_chunks]
-    embeddings = model.encode(texts, show_progress_bar=True, convert_to_numpy=True)
+    embeddings = list(model.embed(texts))
 
     # ------------------------------------------------------------------
     # 3. Write SQLite database with sqlite-vec virtual table

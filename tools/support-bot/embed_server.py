@@ -16,16 +16,16 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
-    from sentence_transformers import SentenceTransformer
+    from fastembed import TextEmbedding
 except ImportError:
-    print("Error: sentence-transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
+    print("Error: fastembed not installed. Run: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
 HOST = "127.0.0.1"
 PORT = 5001
 
 print(f"Loading all-MiniLM-L6-v2...", flush=True)
-_model = SentenceTransformer("all-MiniLM-L6-v2")
+_model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
 print(f"Model ready. Listening on http://{HOST}:{PORT}", flush=True)
 
 
@@ -68,7 +68,7 @@ class EmbedHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "missing or empty 'text' field"})
             return
 
-        embedding = _model.encode(text, convert_to_numpy=True)
+        embedding = next(iter(_model.embed([text])))
         self._send_json(200, embedding.tolist())
 
 
