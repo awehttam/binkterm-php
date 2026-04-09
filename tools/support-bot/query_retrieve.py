@@ -13,6 +13,8 @@ import os
 import sqlite3
 import struct
 import sys
+import urllib.request
+import urllib.error
 
 try:
     import sqlite_vec
@@ -20,18 +22,44 @@ except ImportError:
     print("Error: sqlite_vec not installed. Run: pip install sqlite-vec", file=sys.stderr)
     sys.exit(1)
 
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    print("Error: sentence-transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
-    sys.exit(1)
-
 DEFAULT_DB   = os.path.join(os.path.dirname(__file__), "binkterm_knowledge.db")
 MODEL_NAME   = "all-MiniLM-L6-v2"
+EMBED_SERVER = "http://127.0.0.1:5001"
 
 
 def pack_vector(vec: list[float]) -> bytes:
     return struct.pack(f"{len(vec)}f", *vec)
+
+
+def embed_via_server(text: str) -> list | None:
+    """Return embedding from the daemon, or None if unreachable."""
+    try:
+        urllib.request.urlopen(f"{EMBED_SERVER}/health", timeout=1).close()
+    except (urllib.error.URLError, OSError):
+        return None
+    payload = json.dumps({"text": text}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{EMBED_SERVER}/embed",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        return None
+
+
+def embed_local(text: str) -> list:
+    """Load the model in-process and return the embedding."""
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        print("Error: sentence-transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
+        sys.exit(1)
+    model = SentenceTransformer(MODEL_NAME)
+    return model.encode(text, convert_to_numpy=True).tolist()
 
 
 if __name__ == "__main__":
@@ -47,9 +75,14 @@ if __name__ == "__main__":
         print(f"Error: database not found: {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    model     = SentenceTransformer(MODEL_NAME)
-    embedding = model.encode(question, convert_to_numpy=True)
-    blob      = pack_vector(embedding.tolist())
+    vec = embed_via_server(question)
+    if vec is None:
+        print("embed_server not reachable, loading model locally (this takes ~15s)", file=sys.stderr)
+        vec = embed_local(question)
+    else:
+        print("embed_server hit OK", file=sys.stderr)
+
+    blob = pack_vector(vec)
 
     con = sqlite3.connect(db_path)
     con.enable_load_extension(True)
