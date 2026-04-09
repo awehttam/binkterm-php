@@ -68,6 +68,9 @@ if __name__ == "__main__":
     question  = sys.argv[1]
     embedding = _embed_via_server(question)
     if embedding is None:
+        print("embed_server not reachable, loading model locally (this takes ~15s)", file=sys.stderr)
         embedding = _embed_local(question)
+    else:
+        print("embed_server hit OK", file=sys.stderr)
 
     print(json.dumps(embedding))

@@ -31,8 +31,7 @@ print(f"Model ready. Listening on http://{HOST}:{PORT}", flush=True)
 
 class EmbedHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        # Suppress per-request access logs; errors still go to stderr.
-        pass
+        print(f"[embed_server] {self.address_string()} {format % args}", file=sys.stderr, flush=True)
 
     def _send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload).encode("utf-8")
