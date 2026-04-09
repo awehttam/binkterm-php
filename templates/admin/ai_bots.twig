@@ -1,0 +1,446 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.ai_bots.page_title', {}, 'common') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.ai_bots.heading', {}, 'common') }}</h1>
+        <button type="button" class="btn btn-primary" onclick="showCreateBotModal()">
+            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.ai_bots.add_bot', {}, 'common') }}
+        </button>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="aiBotsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{{ t('ui.common.name', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.ai_bots.username', {}, 'common') }}</th>
+                            <th>{{ t('ui.common.description', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.ai_bots.weekly_spend', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.ai_bots.status', {}, 'common') }}</th>
+                            <th>{{ t('ui.admin.ai_bots.actions', {}, 'common') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aiBotsTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create / Edit modal -->
+<div class="modal fade" id="aiBotModal" tabindex="-1" aria-labelledby="aiBotModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiBotModalLabel">{{ t('ui.admin.ai_bots.add_bot_title', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'common') }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="aiBotForm">
+                    <input type="hidden" id="aiBotId" name="aiBotId">
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="aiBotName" class="form-label">{{ t('ui.common.name', {}, 'common') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="aiBotName" name="name" maxlength="100" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="aiBotUsername" class="form-label">{{ t('ui.admin.ai_bots.username', {}, 'common') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="aiBotUsername" name="username" maxlength="50"
+                                   pattern="[A-Za-z0-9_]+" title="Alphanumeric and underscore only" required>
+                            <div class="form-text" id="aiBotUsernameNote">{{ t('ui.admin.ai_bots.username_note', {}, 'common') }}</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="aiBotDescription" class="form-label">{{ t('ui.common.description', {}, 'common') }}</label>
+                        <input type="text" class="form-control" id="aiBotDescription" name="description">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="aiBotSystemPrompt" class="form-label">{{ t('ui.admin.ai_bots.system_prompt', {}, 'common') }} <span class="text-danger">*</span></label>
+                        <textarea class="form-control font-monospace" id="aiBotSystemPrompt" name="system_prompt" rows="6" required></textarea>
+                        <div class="form-text">{{ t('ui.admin.ai_bots.system_prompt_note', {}, 'common') }}</div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label for="aiBotProvider" class="form-label">{{ t('ui.admin.ai_bots.provider', {}, 'common') }}</label>
+                            <select class="form-select" id="aiBotProvider" name="provider">
+                                <option value="">{{ t('ui.admin.ai_bots.provider_default', {}, 'common') }}</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="aiBotModel" class="form-label">{{ t('ui.admin.ai_bots.model', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="aiBotModel" name="model" placeholder="{{ t('ui.admin.ai_bots.model_placeholder', {}, 'common') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="aiBotBudget" class="form-label">{{ t('ui.admin.ai_bots.weekly_budget', {}, 'common') }} ($)</label>
+                            <input type="number" class="form-control" id="aiBotBudget" name="weekly_budget_usd"
+                                   min="0" step="0.01" value="1.00" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="aiBotContextMessages" class="form-label">{{ t('ui.admin.ai_bots.context_messages', {}, 'common') }}</label>
+                            <input type="number" class="form-control" id="aiBotContextMessages" name="context_messages"
+                                   min="1" max="50" value="10" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="aiBotActive" name="is_active" checked>
+                            <label class="form-check-label" for="aiBotActive">{{ t('ui.admin.ai_bots.active', {}, 'common') }}</label>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6>{{ t('ui.admin.ai_bots.activities', {}, 'common') }}</h6>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="actLocalChatEnabled" checked>
+                            <label class="form-check-label fw-semibold" for="actLocalChatEnabled">{{ t('ui.admin.ai_bots.activity_local_chat', {}, 'common') }}</label>
+                        </div>
+                        <div class="ms-4 border-start ps-3" id="actLocalChatConfig">
+                            <div class="row g-2 mb-3">
+                                <div class="col-auto">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="actChatRespondDm" checked>
+                                        <label class="form-check-label" for="actChatRespondDm">{{ t('ui.admin.ai_bots.chat_respond_dm', {}, 'common') }}</label>
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="actChatRespondRooms" checked>
+                                        <label class="form-check-label" for="actChatRespondRooms">{{ t('ui.admin.ai_bots.chat_respond_rooms', {}, 'common') }}</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-semibold small">{{ t('ui.admin.ai_bots.middleware_pipeline', {}, 'common') }}</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addMiddlewareEntry()">
+                                    <i class="fas fa-plus me-1"></i>{{ t('ui.admin.ai_bots.middleware_add', {}, 'common') }}
+                                </button>
+                            </div>
+                            <div id="middlewareList" class="mb-2"></div>
+                            <div class="form-text">{{ t('ui.admin.ai_bots.middleware_pipeline_note', {}, 'common') }}</div>
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveBot()">{{ t('ui.admin.ai_bots.save_bot', {}, 'common') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+function apiErr(payload, fallback) {
+    return window.getApiErrorMessage ? window.getApiErrorMessage(payload, fallback) : (payload?.error || fallback);
+}
+
+// Preserved from the loaded bot so we don't clobber fields not exposed in the UI.
+let _chatAllowedRoomIds = [];
+let _chatBlockedUserIds = [];
+
+// Config hints shown as textarea placeholder for each built-in class.
+const MIDDLEWARE_HINTS = {
+    SlashCommandMiddleware:       '{"commands":{"/help":"Help text here","/ping":"Pong!"}}',
+    FilePromptInjectorMiddleware: '{"path":"config/bots/mybot/context.md","position":"append"}',
+    UrlPromptInjectorMiddleware:  '{"url":"https://example.com/context.txt","ttl":3600,"max_bytes":4000}',
+    RegexFilterMiddleware:        '{"pattern":"/^!nobot/i","action":"abort"}',
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(() => loadBots());
+
+    // Auto-suggest username from name on create
+    document.getElementById('aiBotName').addEventListener('input', function() {
+        const usernameField = document.getElementById('aiBotUsername');
+        if (!document.getElementById('aiBotId').value) {
+            usernameField.value = this.value.replace(/[^A-Za-z0-9_]/g, '_').toLowerCase();
+        }
+    });
+});
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    setTimeout(() => alertDiv.remove(), 6000);
+}
+
+function spendBadge(spend, budget) {
+    const pct = budget > 0 ? (spend / budget) * 100 : 0;
+    const color = pct >= 90 ? 'danger' : (pct >= 60 ? 'warning' : 'success');
+    return `<span class="badge bg-${color}">$${spend.toFixed(4)} / $${budget.toFixed(2)}</span>`;
+}
+
+function loadBots() {
+    fetch('/admin/api/ai-bots')
+        .then(r => r.json())
+        .then(data => displayBots(data.bots || []))
+        .catch(() => showAlert(uiT('ui.admin.ai_bots.load_failed', 'Error loading bots'), 'danger'));
+}
+
+function displayBots(bots) {
+    const tbody = document.getElementById('aiBotsTableBody');
+    tbody.innerHTML = '';
+    if (bots.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">${uiT('ui.admin.ai_bots.no_bots', 'No bots configured.')}</td></tr>`;
+        return;
+    }
+    bots.forEach(bot => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${escHtml(bot.name)}</strong></td>
+            <td><code>@${escHtml(bot.username)}</code></td>
+            <td>${escHtml(bot.description || '')}</td>
+            <td>${spendBadge(bot.weekly_spend_usd, bot.weekly_budget_usd)}</td>
+            <td><span class="badge bg-${bot.is_active ? 'success' : 'secondary'}">
+                ${bot.is_active ? uiT('ui.admin.ai_bots.active', 'Active') : uiT('ui.admin.ai_bots.inactive', 'Inactive')}
+            </span></td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="editBot(${bot.id})" title="${uiT('ui.common.edit','Edit')}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteBot(${bot.id})" title="${uiT('ui.common.delete','Delete')}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// ── Middleware editor ────────────────────────────────────────────────────────
+
+function addMiddlewareEntry(classVal, configJson) {
+    const list = document.getElementById('middlewareList');
+    const idx  = list.children.length;
+    const entry = document.createElement('div');
+    entry.className = 'middleware-entry card mb-2';
+    entry.innerHTML = `
+        <div class="card-body p-2">
+            <div class="d-flex gap-2 align-items-start">
+                <div class="flex-grow-1">
+                    <label class="form-label small mb-1">${uiT('ui.admin.ai_bots.middleware_class', 'Class')}</label>
+                    <select class="form-select form-select-sm mb-2 mw-class-select" onchange="onMiddlewareClassChange(this)">
+                        <option value="SlashCommandMiddleware">SlashCommandMiddleware</option>
+                        <option value="FilePromptInjectorMiddleware">FilePromptInjectorMiddleware</option>
+                        <option value="UrlPromptInjectorMiddleware">UrlPromptInjectorMiddleware</option>
+                        <option value="RegexFilterMiddleware">RegexFilterMiddleware</option>
+                        <option value="_custom">${uiT('ui.admin.ai_bots.middleware_custom_class', 'Custom...')}</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm mb-2 mw-custom-class d-none"
+                           placeholder="${uiT('ui.admin.ai_bots.middleware_custom_class', 'Custom class (fully qualified)')}">
+                    <label class="form-label small mb-1">${uiT('ui.admin.ai_bots.middleware_config', 'Config (JSON)')}</label>
+                    <textarea class="form-control form-control-sm font-monospace mw-config" rows="2"></textarea>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger mt-4 flex-shrink-0"
+                        onclick="this.closest('.middleware-entry').remove()" title="Remove">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>`;
+    list.appendChild(entry);
+
+    const sel = entry.querySelector('.mw-class-select');
+    const cfg = entry.querySelector('.mw-config');
+
+    if (classVal && classVal !== '_custom' && MIDDLEWARE_HINTS[classVal] !== undefined) {
+        sel.value = classVal;
+    } else if (classVal) {
+        sel.value = '_custom';
+        entry.querySelector('.mw-custom-class').classList.remove('d-none');
+        entry.querySelector('.mw-custom-class').value = classVal;
+    }
+
+    cfg.placeholder = MIDDLEWARE_HINTS[sel.value] || '{}';
+    if (configJson !== undefined && configJson !== null) {
+        cfg.value = typeof configJson === 'string' ? configJson : JSON.stringify(configJson, null, 2);
+    }
+}
+
+function onMiddlewareClassChange(sel) {
+    const entry  = sel.closest('.middleware-entry');
+    const custom = entry.querySelector('.mw-custom-class');
+    const cfg    = entry.querySelector('.mw-config');
+    if (sel.value === '_custom') {
+        custom.classList.remove('d-none');
+        cfg.placeholder = '{}';
+    } else {
+        custom.classList.add('d-none');
+        cfg.placeholder = MIDDLEWARE_HINTS[sel.value] || '{}';
+    }
+}
+
+function populateMiddleware(middlewareArray) {
+    document.getElementById('middlewareList').innerHTML = '';
+    (middlewareArray || []).forEach(entry => {
+        const cfg = entry.config !== undefined ? entry.config : null;
+        addMiddlewareEntry(entry.class || '', cfg);
+    });
+}
+
+function collectMiddleware() {
+    const entries = [];
+    document.querySelectorAll('#middlewareList .middleware-entry').forEach(entry => {
+        const sel    = entry.querySelector('.mw-class-select');
+        const custom = entry.querySelector('.mw-custom-class');
+        const cfgRaw = entry.querySelector('.mw-config').value.trim();
+
+        const className = sel.value === '_custom' ? custom.value.trim() : sel.value;
+        if (!className) return;
+
+        let config = {};
+        if (cfgRaw) {
+            try { config = JSON.parse(cfgRaw); } catch { config = {}; }
+        }
+        entries.push({ class: className, config });
+    });
+    return entries;
+}
+
+// ── Modal helpers ────────────────────────────────────────────────────────────
+
+function showCreateBotModal() {
+    document.getElementById('aiBotModalLabel').textContent = uiT('ui.admin.ai_bots.add_bot_title', 'Add AI Bot');
+    document.getElementById('aiBotForm').reset();
+    document.getElementById('aiBotId').value = '';
+    document.getElementById('aiBotUsername').readOnly = false;
+    document.getElementById('aiBotUsernameNote').style.display = '';
+    document.getElementById('aiBotActive').checked = true;
+    document.getElementById('actLocalChatEnabled').checked = true;
+    document.getElementById('actChatRespondDm').checked = true;
+    document.getElementById('actChatRespondRooms').checked = true;
+    _chatAllowedRoomIds = [];
+    _chatBlockedUserIds = [];
+    populateMiddleware([]);
+    new bootstrap.Modal(document.getElementById('aiBotModal')).show();
+}
+
+function editBot(botId) {
+    fetch(`/admin/api/ai-bots/${botId}`)
+        .then(r => r.json())
+        .then(bot => {
+            document.getElementById('aiBotModalLabel').textContent = uiT('ui.admin.ai_bots.edit_bot_title', 'Edit AI Bot');
+            document.getElementById('aiBotId').value = bot.id;
+            document.getElementById('aiBotName').value = bot.name;
+            document.getElementById('aiBotUsername').value = bot.username || '';
+            document.getElementById('aiBotUsername').readOnly = true;
+            document.getElementById('aiBotUsernameNote').style.display = 'none';
+            document.getElementById('aiBotDescription').value = bot.description || '';
+            document.getElementById('aiBotSystemPrompt').value = bot.system_prompt || '';
+            document.getElementById('aiBotProvider').value = bot.provider || '';
+            document.getElementById('aiBotModel').value = bot.model || '';
+            document.getElementById('aiBotBudget').value = bot.weekly_budget_usd ?? 1.00;
+            document.getElementById('aiBotContextMessages').value = bot.context_messages ?? 10;
+            document.getElementById('aiBotActive').checked = !!bot.is_active;
+
+            const chatAct   = bot.activities?.local_chat || {};
+            const chatCfg   = chatAct.config_json || {};
+            document.getElementById('actLocalChatEnabled').checked  = chatAct.is_enabled !== false;
+            document.getElementById('actChatRespondDm').checked     = chatCfg.respond_in_dm !== false;
+            document.getElementById('actChatRespondRooms').checked  = chatCfg.respond_in_rooms !== false;
+
+            // Preserve fields not shown in the UI so they survive a save.
+            _chatAllowedRoomIds = chatCfg.allowed_room_ids || [];
+            _chatBlockedUserIds = chatCfg.blocked_user_ids || [];
+
+            populateMiddleware(chatCfg.middleware || []);
+
+            new bootstrap.Modal(document.getElementById('aiBotModal')).show();
+        })
+        .catch(() => showAlert(uiT('ui.admin.ai_bots.load_single_failed', 'Error loading bot'), 'danger'));
+}
+
+function saveBot() {
+    const botId = document.getElementById('aiBotId').value;
+    const payload = {
+        name:              document.getElementById('aiBotName').value,
+        username:          document.getElementById('aiBotUsername').value,
+        description:       document.getElementById('aiBotDescription').value,
+        system_prompt:     document.getElementById('aiBotSystemPrompt').value,
+        provider:          document.getElementById('aiBotProvider').value || null,
+        model:             document.getElementById('aiBotModel').value || null,
+        weekly_budget_usd: parseFloat(document.getElementById('aiBotBudget').value),
+        context_messages:  parseInt(document.getElementById('aiBotContextMessages').value, 10),
+        is_active:         document.getElementById('aiBotActive').checked,
+        activities: {
+            local_chat: {
+                is_enabled: document.getElementById('actLocalChatEnabled').checked,
+                config_json: {
+                    respond_in_dm:    document.getElementById('actChatRespondDm').checked,
+                    respond_in_rooms: document.getElementById('actChatRespondRooms').checked,
+                    allowed_room_ids: _chatAllowedRoomIds,
+                    blocked_user_ids: _chatBlockedUserIds,
+                    middleware:       collectMiddleware(),
+                }
+            }
+        }
+    };
+
+    const url    = botId ? `/admin/api/ai-bots/${botId}` : '/admin/api/ai-bots';
+    const method = botId ? 'PUT' : 'POST';
+
+    fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success || data.id) {
+                const msg = botId
+                    ? uiT('ui.admin.ai_bots.updated_success', 'Bot updated successfully')
+                    : uiT('ui.admin.ai_bots.created_success', 'Bot created successfully');
+                showAlert(msg, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('aiBotModal')).hide();
+                loadBots();
+            } else {
+                showAlert(apiErr(data, uiT('ui.admin.ai_bots.save_failed', 'Error saving bot')), 'danger');
+            }
+        })
+        .catch(() => showAlert(uiT('ui.admin.ai_bots.save_failed', 'Error saving bot'), 'danger'));
+}
+
+function deleteBot(botId) {
+    if (!confirm(uiT('ui.admin.ai_bots.delete_confirm', 'Delete this bot and its system user? This cannot be undone.'))) return;
+
+    fetch(`/admin/api/ai-bots/${botId}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(uiT('ui.admin.ai_bots.deleted_success', 'Bot deleted successfully'), 'success');
+                loadBots();
+            } else {
+                showAlert(apiErr(data, uiT('ui.admin.ai_bots.delete_failed', 'Error deleting bot')), 'danger');
+            }
+        })
+        .catch(() => showAlert(uiT('ui.admin.ai_bots.delete_failed', 'Error deleting bot'), 'danger'));
+}
+</script>
+{% endblock %}

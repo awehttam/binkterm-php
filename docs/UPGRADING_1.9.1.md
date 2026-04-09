@@ -15,6 +15,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [User Guide](#summary-user-guide)
   - [Dashboard Layout Customization](#summary-dashboard-layout)
   - [Sysop Default Dashboard Layout](#summary-sysop-dashboard-layout)
+  - [AI Bots](#summary-ai-bots)
+  - [Chat Markdown Rendering](#summary-chat-markdown)
 - [Markdown WYSIWYG Compose Editor](#markdown-wysiwyg-compose-editor)
 - [Markdown Heading Rendering](#markdown-heading-rendering)
 - [Echomail Moderation](#echomail-moderation)
@@ -26,6 +28,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [User Guide](#user-guide)
 - [Dashboard Layout Customization](#dashboard-layout-customization)
 - [Sysop Default Dashboard Layout](#sysop-default-dashboard-layout)
+- [AI Bots](#ai-bots)
+- [Chat Markdown Rendering](#chat-markdown-rendering)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -96,6 +100,21 @@ Make sure you have a current backup of your database and files before upgrading.
 - Cards are arranged by drag-and-drop into three columns: Main Column, Sidebar Column, and Hidden by Default.
 - Cards labelled Admin Only or marked with a feature badge will still only appear for users with the appropriate access level, regardless of where the sysop places them.
 - No database migration is required. The layout is stored in `data/appearance.json`.
+
+### AI Bots {#summary-ai-bots}
+
+- Sysops can create AI-powered bot personas that participate in local chat.
+- Each bot has its own system user account, a configurable system prompt, a choice of AI provider and model, and a weekly API cost budget.
+- Bots appear in the chat online users list with a robot icon and respond to direct messages and @mentions in rooms.
+- Managed from **Admin → BBS Settings → AI Bots**.
+- Three database migrations are required. Run `php scripts/setup.php` to apply.
+- A new background daemon, `scripts/ai_bot_daemon.php`, must be started and kept running for bots to respond.
+
+### Chat Markdown Rendering {#summary-chat-markdown}
+
+- Chat messages are now rendered as Markdown, allowing bold, italic, inline code, code blocks, lists, and other formatting to display properly in the chat interface.
+- Rendering is performed server-side using the existing Markdown renderer, so no client-side library is required.
+- No configuration or database changes are required.
 - When enabled, the registration form accepts handles containing single spaces between word characters. Leading and trailing spaces are trimmed automatically, and consecutive spaces are collapsed to one before validation runs.
 - The admin terminal `finger` and `msg` commands now handle multi-word usernames correctly. The `msg` command accepts a quoted username syntax (`msg "Dark Knight" hello`) for names that contain spaces.
 - The `rename_user.php` script now also updates the `cwn_networks.submitted_by_username` column when a user is renamed.
@@ -364,6 +383,78 @@ Moving an Admin Only or feature-gated card to any column is harmless — the car
 Clicking **Reset to Defaults** removes the saved sysop layout and restores the built-in defaults from `src/DashboardCardRegistry.php`.
 
 No database migration is required. The layout is stored in `data/appearance.json` alongside other appearance settings.
+
+## AI Bots
+
+AI bots are chat personas driven by an external AI provider. Each bot has its own system user account and a configurable set of activities that determine when and how it responds. The first supported activity is local chat: responding to direct messages and to @mentions in chat rooms.
+
+**Creating and managing bots**
+
+Bots are managed under **Admin → BBS Settings → AI Bots**. The list shows all configured bots with their current-week API spend as a percentage of the weekly budget. Colour coding indicates budget headroom: green for under 75 %, amber for 75–99 %, and red when the budget has been reached.
+
+The create/edit form covers:
+
+| Field | Description |
+|---|---|
+| Username | The system username the bot appears under in chat |
+| Display Name | Human-readable name shown in the admin list |
+| Description | Optional internal note |
+| System Prompt | The AI instruction that shapes the bot's persona and behaviour |
+| Provider | AI provider: `openai` or `anthropic` |
+| Model | The specific model identifier to use (e.g. `gpt-4o`, `claude-sonnet-4-6`) |
+| Weekly Budget (USD) | Maximum spend per calendar week (Sunday–Saturday UTC). The bot stops responding when this limit is reached |
+| Context Messages | Number of preceding messages passed to the AI as conversation history |
+| Active | Whether the bot is enabled |
+
+**Local chat activity**
+
+The **Local Chat** section of the edit form controls where the bot participates:
+
+- **Respond to direct messages** — the bot replies to any DM sent to its system user.
+- **Respond to @mentions in rooms** — the bot replies when its username is @mentioned in a room message.
+- **Allowed rooms** — if left blank, the bot participates in all rooms; specify room IDs to restrict it to particular rooms.
+
+**System users**
+
+When a bot is created, a system user account is created in the `users` table with `is_system = TRUE` and a randomly generated locked password. This account cannot be logged into. If a system user with the same username already exists (e.g. from a previously deleted bot), it is reused rather than duplicated. When a bot is deleted, its system user is removed as well.
+
+**Bot presence in chat**
+
+Active bots always appear in the chat users list regardless of active sessions. Bot entries are shown with a robot icon to distinguish them from human users.
+
+**Bot daemon**
+
+Bots respond to messages via a long-running background daemon: `scripts/ai_bot_daemon.php`. It connects to PostgreSQL and listens for real-time chat events using `LISTEN/NOTIFY`. Start it alongside the other daemons:
+
+```bash
+php scripts/ai_bot_daemon.php --daemon --pid-file=data/ai_bot_daemon.pid
+```
+
+The daemon can be restarted from the admin panel under **Admin → System → Daemon Status → Restart AI Bot Daemon**. Its log is written to `data/logs/ai_bot_daemon.log`.
+
+**Database changes**
+
+Three migrations are required:
+
+- `v1.11.0.74` — creates the `ai_bots` table.
+- `v1.11.0.75` — creates the `ai_bot_activities` table.
+- `v1.11.0.76` — adds a `bot_id` column to `ai_requests` so per-bot API cost tracking is accurate even when multiple bots share a provider account.
+
+Run `php scripts/setup.php` to apply all three.
+
+**AI provider configuration**
+
+Bot API calls use the same provider credentials configured in `.env` for the rest of the AI features (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). No additional environment variables are required.
+
+## Chat Markdown Rendering
+
+Chat messages are now rendered as Markdown. This applies to all messages in local chat rooms and direct messages, including replies from AI bots.
+
+Supported formatting includes bold (`**text**`), italic (`*text*`), inline code (`` `code` ``), fenced code blocks, unordered and ordered lists, blockquotes, and headings. Raw HTML is not passed through — only Markdown constructs are rendered.
+
+Rendering is performed server-side by the same `MarkdownRenderer` used for echomail and netmail. The rendered HTML is delivered alongside the plain-text body in API responses and in real-time SSE events, so no client-side Markdown library is needed.
+
+No configuration or database changes are required.
 
 ## Upgrade Instructions
 

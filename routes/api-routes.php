@@ -1129,9 +1129,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 continue;
             }
             $filtered[] = [
-                'user_id' => (int)$onlineUser['user_id'],
+                'user_id'  => (int)$onlineUser['user_id'],
                 'username' => $onlineUser['username'],
-                'location' => $onlineUser['location'] ?? ''
+                'location' => $onlineUser['location'] ?? '',
+                'is_bot'   => false,
+            ];
+        }
+
+        // Active bots are always present regardless of session state
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $botStmt = $db->prepare("
+            SELECT b.user_id, u.username
+            FROM   ai_bots b
+            JOIN   users u ON u.id = b.user_id
+            WHERE  b.is_active = TRUE
+        ");
+        $botStmt->execute();
+        $onlineUserIds = array_column($filtered, 'user_id');
+        foreach ($botStmt->fetchAll(\PDO::FETCH_ASSOC) as $bot) {
+            $botUserId = (int)$bot['user_id'];
+            // Skip if already in list (shouldn't happen, but be safe)
+            if (in_array($botUserId, $onlineUserIds, true)) {
+                continue;
+            }
+            $filtered[] = [
+                'user_id'  => $botUserId,
+                'username' => $bot['username'],
+                'location' => '',
+                'is_bot'   => true,
             ];
         }
 
@@ -1218,6 +1243,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $rows = array_slice($rows, 0, $limit);
         }
         $rows = array_reverse($rows);
+
+        foreach ($rows as &$row) {
+            $row['markup_html'] = \BinktermPHP\MarkdownRenderer::toHtml((string)($row['body'] ?? ''));
+        }
+        unset($row);
 
         echo json_encode(['messages' => $rows, 'has_more' => $hasMore]);
     });
@@ -1476,6 +1506,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'from_username' => $user['username'],
                 'to_user_id'    => $toUserId,
                 'body'          => $body,
+                'markup_html'   => \BinktermPHP\MarkdownRenderer::toHtml($body),
                 'created_at'    => $result['created_at'],
             ],
         ]);

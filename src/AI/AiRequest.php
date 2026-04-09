@@ -16,7 +16,10 @@ class AiRequest
     private int $maxOutputTokens;
     private int $timeoutSeconds;
     private ?int $userId;
+    private ?int $botId;
     private array $metadata;
+    /** @var array<int, array{role: string, content: string}>|null */
+    private ?array $conversationHistory;
 
     public function __construct(
         string $feature,
@@ -28,7 +31,9 @@ class AiRequest
         int $maxOutputTokens = 4096,
         int $timeoutSeconds = 60,
         ?int $userId = null,
-        array $metadata = []
+        array $metadata = [],
+        ?int $botId = null,
+        ?array $conversationHistory = null
     ) {
         $this->provider = $provider !== null ? trim($provider) : null;
         $this->model = $model !== null ? trim($model) : null;
@@ -39,7 +44,9 @@ class AiRequest
         $this->maxOutputTokens = $maxOutputTokens;
         $this->timeoutSeconds = $timeoutSeconds;
         $this->userId = $userId;
+        $this->botId = $botId;
         $this->metadata = $metadata;
+        $this->conversationHistory = $conversationHistory;
     }
 
     public function getProvider(): ?string
@@ -87,9 +94,25 @@ class AiRequest
         return $this->userId;
     }
 
+    public function getBotId(): ?int
+    {
+        return $this->botId;
+    }
+
     public function getMetadata(): array
     {
         return $this->metadata;
+    }
+
+    /**
+     * Optional prior conversation turns to include between the system prompt
+     * and the final user message. Each element must have 'role' and 'content'.
+     *
+     * @return array<int, array{role: string, content: string}>|null
+     */
+    public function getConversationHistory(): ?array
+    {
+        return $this->conversationHistory;
     }
 
     public function withResolvedProviderAndModel(string $provider, string $model): self
@@ -104,7 +127,9 @@ class AiRequest
             $this->maxOutputTokens,
             $this->timeoutSeconds,
             $this->userId,
-            $this->metadata
+            $this->metadata,
+            $this->botId,
+            $this->conversationHistory
         );
     }
 }

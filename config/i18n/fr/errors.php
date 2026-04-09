@@ -589,6 +589,15 @@ return [
     // Echomail moderation
     'errors.admin.echomail_moderation.not_found' => 'Message introuvable ou n\'est pas en attente de modération.',
 
+    // AI Bots
+    'errors.admin.ai_bots.not_found'        => 'Bot introuvable.',
+    'errors.admin.ai_bots.name_invalid'     => 'Le nom du bot doit comporter entre 1 et 100 caracteres.',
+    'errors.admin.ai_bots.username_invalid' => 'Le nom d\'utilisateur doit comporter entre 1 et 50 caracteres alphanumeriques ou soulignements.',
+    'errors.admin.ai_bots.username_taken'   => 'Ce nom d\'utilisateur est deja pris.',
+    'errors.admin.ai_bots.create_failed'    => 'Echec de la creation du bot.',
+    'errors.admin.ai_bots.update_failed'    => 'Echec de la mise a jour du bot.',
+    'errors.admin.ai_bots.delete_failed'    => 'Echec de la suppression du bot.',
+
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'URL invalide.',
     'errors.url_preview.fetch_failed'  => 'Impossible d\'obtenir un aperçu de cette URL.',

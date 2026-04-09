@@ -632,6 +632,15 @@ return [
     // Echomail moderation
     'errors.admin.echomail_moderation.not_found' => 'Message not found or not pending moderation.',
 
+    // AI Bots
+    'errors.admin.ai_bots.not_found'        => 'Bot not found.',
+    'errors.admin.ai_bots.name_invalid'     => 'Bot name must be 1-100 characters.',
+    'errors.admin.ai_bots.username_invalid' => 'Username must be 1-50 alphanumeric or underscore characters.',
+    'errors.admin.ai_bots.username_taken'   => 'That username is already taken.',
+    'errors.admin.ai_bots.create_failed'    => 'Failed to create bot.',
+    'errors.admin.ai_bots.update_failed'    => 'Failed to update bot.',
+    'errors.admin.ai_bots.delete_failed'    => 'Failed to delete bot.',
+
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'Invalid URL.',
     'errors.url_preview.fetch_failed'  => 'Could not fetch a preview for that URL.',
