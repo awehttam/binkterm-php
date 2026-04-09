@@ -1641,6 +1641,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'from_username' => $row['from_username'],
                 'to_user_id' => $row['to_user_id'] ? (int)$row['to_user_id'] : null,
                 'body' => $row['body'],
+                'markup_html' => \BinktermPHP\MarkdownRenderer::toHtml((string)($row['body'] ?? '')),
                 'created_at' => $row['created_at']
             ];
         }
