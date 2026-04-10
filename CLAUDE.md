@@ -22,6 +22,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - camelCase for variables and functions
  - PascalCase for components and classes
  - 4 space indents
+ - **Markdown over HTML**: Prefer Markdown for any user-facing customizable text fields (admin settings, content panels, footers, etc.). Only use raw HTML when Markdown cannot express the needed formatting.
  - **Environment Variables**: Always use `Config::env('VAR_NAME', 'default')` to read from .env file. Do NOT use `getenv()` or `$_ENV` directly.
  - **Client-side storage**: Always use `UserStorage` (from `public_html/js/user-storage.js`) instead of `localStorage` directly. `UserStorage` automatically scopes keys by the logged-in user's ID so that different accounts on the same browser cannot share state. When not logged in it falls back to `sessionStorage` to avoid persisting anonymous state.
 

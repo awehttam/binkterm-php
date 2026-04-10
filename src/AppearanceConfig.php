@@ -112,9 +112,10 @@ class AppearanceConfig
                 'email_link_url' => '',
             ],
             'file_areas' => [
-                'sidebar_info_title' => '',
-                'sidebar_info_html' => '',
-                'footer_html' => '',
+                'sidebar_info_title'    => '',
+                'sidebar_info_markdown' => '',
+                'footer_markdown'       => '',
+            ],
             'dashboard' => [
                 'default_layout' => null,
             ],
@@ -453,11 +454,17 @@ class AppearanceConfig
     {
         self::load();
         $cfg = self::$config['file_areas'] ?? [];
+        $sidebarMd = (string)($cfg['sidebar_info_markdown'] ?? '');
+        $footerMd  = (string)($cfg['footer_markdown'] ?? '');
         return [
-            'sidebar_info_title' => trim((string)($cfg['sidebar_info_title'] ?? '')),
-            'sidebar_info_html'  => (string)($cfg['sidebar_info_html'] ?? ''),
-            'footer_html'        => (string)($cfg['footer_html'] ?? ''),
+            'sidebar_info_title'    => trim((string)($cfg['sidebar_info_title'] ?? '')),
+            'sidebar_info_markdown' => $sidebarMd,
+            'sidebar_info_html'     => $sidebarMd !== '' ? \BinktermPHP\MarkdownRenderer::toHtml($sidebarMd) : '',
+            'footer_markdown'       => $footerMd,
+            'footer_html'           => $footerMd !== '' ? \BinktermPHP\MarkdownRenderer::toHtml($footerMd) : '',
         ];
+    }
+
     // Dashboard
     // -------------------------------------------------------------------------
 

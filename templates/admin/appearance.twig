@@ -659,9 +659,13 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label" for="faInfoHtml">{{ t('ui.admin.appearance.file_areas.sidebar_info_html', {}, locale, ['common']) }}</label>
-                    <textarea class="form-control font-monospace" id="faInfoHtml" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.sidebar_info_html_placeholder', {}, locale, ['common']) }}"></textarea>
-                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.sidebar_info_html_help', {}, locale, ['common']) }}</div>
+                    <label class="form-label" for="faInfoMarkdown">{{ t('ui.admin.appearance.file_areas.sidebar_info_markdown', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control" id="faInfoMarkdown" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.sidebar_info_markdown_placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.sidebar_info_markdown_help', {}, locale, ['common']) }}</div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="previewMarkdown('sidebar', 'faInfoMarkdown', 'faInfoMarkdownPreview')">
+                        <i class="fas fa-eye me-1"></i> {{ t('ui.admin.appearance.preview', {}, locale, ['common']) }}
+                    </button>
+                    <div id="faInfoMarkdownPreview" class="border rounded p-3 mt-2 small" style="display:none;"></div>
                 </div>
 
                 <hr>
@@ -669,9 +673,13 @@
                 <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.file_areas.footer_section', {}, locale, ['common']) }}</h6>
 
                 <div class="mb-3">
-                    <label class="form-label" for="faFooterHtml">{{ t('ui.admin.appearance.file_areas.footer_html', {}, locale, ['common']) }}</label>
-                    <textarea class="form-control font-monospace" id="faFooterHtml" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.footer_html_placeholder', {}, locale, ['common']) }}"></textarea>
-                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.footer_html_help', {}, locale, ['common']) }}</div>
+                    <label class="form-label" for="faFooterMarkdown">{{ t('ui.admin.appearance.file_areas.footer_markdown', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control" id="faFooterMarkdown" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.footer_markdown_placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.footer_markdown_help', {}, locale, ['common']) }}</div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="previewMarkdown('footer', 'faFooterMarkdown', 'faFooterMarkdownPreview')">
+                        <i class="fas fa-eye me-1"></i> {{ t('ui.admin.appearance.preview', {}, locale, ['common']) }}
+                    </button>
+                    <div id="faFooterMarkdownPreview" class="border rounded p-3 mt-2 small" style="display:none;"></div>
                 </div>
 
                 <button type="button" class="btn btn-primary" onclick="saveFileAreas()">
@@ -906,8 +914,8 @@ function loadAppearanceConfig() {
             // File Areas
             const fa = config.file_areas || {};
             $('#faInfoTitle').val(fa.sidebar_info_title || '');
-            $('#faInfoHtml').val(fa.sidebar_info_html || '');
-            $('#faFooterHtml').val(fa.footer_html || '');
+            $('#faInfoMarkdown').val(fa.sidebar_info_markdown || '');
+            $('#faFooterMarkdown').val(fa.footer_markdown || '');
             // Dashboard default layout
             initAdminDashboardTab(config.dashboard || {});
 
@@ -1447,8 +1455,8 @@ function saveFileAreas() {
     const payload = {
         file_areas: {
             sidebar_info_title: $('#faInfoTitle').val().trim(),
-            sidebar_info_html: $('#faInfoHtml').val(),
-            footer_html: $('#faFooterHtml').val()
+            sidebar_info_markdown: $('#faInfoMarkdown').val(),
+            footer_markdown: $('#faFooterMarkdown').val()
         }
     };
     $.post('/admin/api/appearance/file-areas', JSON.stringify(payload), null, 'json')
@@ -1466,6 +1474,8 @@ function saveFileAreas() {
         .fail(function(xhr) {
             $('#fileAreasStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
         });
+}
+
 // ---- Admin Dashboard Default Layout ----
 const ADMIN_DASHBOARD_CARDS = {{ dashboard_cards | json_encode | raw }};
 

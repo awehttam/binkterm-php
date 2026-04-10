@@ -2047,14 +2047,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $payload = json_decode(file_get_contents('php://input'), true) ?? [];
                 $fa = $payload['file_areas'] ?? [];
 
-                $sidebarTitle = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
-                $sidebarHtml  = substr((string)($fa['sidebar_info_html'] ?? ''), 0, 10000);
-                $footerHtml   = substr((string)($fa['footer_html'] ?? ''), 0, 10000);
+                $sidebarTitle    = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
+                $sidebarMarkdown = substr((string)($fa['sidebar_info_markdown'] ?? ''), 0, 10000);
+                $footerMarkdown  = substr((string)($fa['footer_markdown'] ?? ''), 0, 10000);
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
-                $config['file_areas']['sidebar_info_title'] = $sidebarTitle;
-                $config['file_areas']['sidebar_info_html']  = $sidebarHtml;
-                $config['file_areas']['footer_html']        = $footerHtml;
+                $config['file_areas']['sidebar_info_title']    = $sidebarTitle;
+                $config['file_areas']['sidebar_info_markdown'] = $sidebarMarkdown;
+                $config['file_areas']['footer_markdown']       = $footerMarkdown;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);
