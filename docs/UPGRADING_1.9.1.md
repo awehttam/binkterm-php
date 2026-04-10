@@ -20,6 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Chat Markdown Rendering](#chat-markdown-rendering)
 - [BBS List and Nodelist Browser for Term Server](#bbs-list-and-nodelist-browser-for-term-server)
 - [File Areas Markdown Customization](#file-areas-markdown-customization)
+- [Redesigned Terminal Server Main Menu](#redesigned-terminal-server-main-menu)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -121,6 +122,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - The sidebar info panel and footer fields in **Admin → Appearance & Content → File Areas** now accept Markdown.
 - Both fields include a **Preview** button to render the Markdown before saving.
 - No database migration is required.
+
+### Redesigned Terminal Server Main Menu
+
+- The terminal server (Telnet/SSH) main menu has been reorganised into a two-column sectioned layout with category headers: **Messaging**, **Community**, **Explore**, **Files**, and **Settings**.
+- The menu box is wider to accommodate the two-column layout.
+- No configuration changes or database migration required.
 
 ### URL Link Open Graph Image Preview
 
@@ -498,6 +505,31 @@ Sysops can now add custom content to the file areas page from **Admin → Appear
 Both fields use Markdown and include a **Preview** button so the sysop can verify formatting before saving. Leave a field blank to hide that section entirely.
 
 No database migration is required.
+
+## Redesigned Terminal Server Main Menu
+
+The terminal server main menu has been reorganised from a flat list into a two-column sectioned layout with named category headers:
+
+```
+[Messaging]
+N) Netmail (n)       K) QWK Offline Mail
+E) Echomail (n)
+
+[Community]          [Explore]
+W) Who's Online      B) BBS Directory
+P) Polls             L) Node List
+S) Shoutbox
+D) Door Games
+
+[Files]              [Settings]
+F) Files             T) Settings
+                     I) Interests
+Q) Quit
+```
+
+The menu box is wider to accommodate the two-column layout. All existing key bindings are unchanged. Optional items (Polls, Shoutbox, Door Games, Files, QWK, BBS Directory, Node List, Interests) still only appear when their respective features are enabled.
+
+No configuration changes or database migration are required.
 
 ## Upgrade Instructions
 
