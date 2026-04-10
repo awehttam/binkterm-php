@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [AI Bots](#ai-bots)
 - [Chat Markdown Rendering](#chat-markdown-rendering)
 - [BBS List and Nodelist Browser for Term Server](#bbs-list-and-nodelist-browser-for-term-server)
+- [File Areas Markdown Customization](#file-areas-markdown-customization)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -113,6 +114,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - The terminal server (Telnet/SSH) now includes a **B) BBS Directory** menu option that displays the site's BBS directory as a paginated, browsable list. Selecting an entry shows full details including sysop, location, OS, telnet address, website, and notes.
 - A **L) Node List** menu option is also available when a nodelist has been imported. Users can search by system name, sysop name, location, or FTN address, and view full node details including flags.
 - Both options appear automatically when their respective features are available (BBS directory feature flag enabled; nodelist table populated). No configuration changes are required.
+- No database migration is required.
+
+### File Areas Markdown Customization
+
+- The sidebar info panel and footer fields in **Admin → Appearance & Content → File Areas** now accept Markdown.
+- Both fields include a **Preview** button to render the Markdown before saving.
 - No database migration is required.
 
 ### URL Link Open Graph Image Preview
@@ -480,6 +487,17 @@ When the nodelist table contains at least one imported entry, an **L) Node List*
 Results are displayed in a paginated table showing the FTN address, system name, and sysop. Entering a result number shows a full detail screen including address, sysop, location, phone, baud rate, node type, and capability flags.
 
 No database migration is required. The nodelist menu item appears automatically once a nodelist has been imported via the admin nodelist import tool.
+
+## File Areas Markdown Customization
+
+Sysops can now add custom content to the file areas page from **Admin → Appearance & Content → File Areas**. Two fields are available:
+
+- **Sidebar info panel** — displays a card in the right-hand sidebar with an optional heading. Useful for upload policies, ratio information, or any notes specific to the file area.
+- **Footer** — displays a card below the file list. Useful for DMCA contact information or other notices relevant to file downloads.
+
+Both fields use Markdown and include a **Preview** button so the sysop can verify formatting before saving. Leave a field blank to hide that section entirely.
+
+No database migration is required.
 
 ## Upgrade Instructions
 
