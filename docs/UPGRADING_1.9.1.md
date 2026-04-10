@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Sysop Default Dashboard Layout](#sysop-default-dashboard-layout)
 - [AI Bots](#ai-bots)
 - [Chat Markdown Rendering](#chat-markdown-rendering)
+- [BBS List and Nodelist Browser for Term Server](#bbs-list-and-nodelist-browser-for-term-server)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -105,6 +106,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - Chat messages are now rendered as Markdown, allowing bold, italic, inline code, code blocks, lists, and other formatting to display properly in the chat interface.
 - Rendering is performed server-side using the existing Markdown renderer, so no client-side library is required.
 - No configuration or database changes are required.
+- No database migration is required.
+
+### BBS List and Nodelist Browser for Term Server
+
+- The terminal server (Telnet/SSH) now includes a **B) BBS Directory** menu option that displays the site's BBS directory as a paginated, browsable list. Selecting an entry shows full details including sysop, location, OS, telnet address, website, and notes.
+- A **L) Node List** menu option is also available when a nodelist has been imported. Users can search by system name, sysop name, location, or FTN address, and view full node details including flags.
+- Both options appear automatically when their respective features are available (BBS directory feature flag enabled; nodelist table populated). No configuration changes are required.
 - No database migration is required.
 
 ### URL Link Open Graph Image Preview
@@ -442,6 +450,36 @@ Supported formatting includes bold (`**text**`), italic (`*text*`), inline code 
 Rendering is performed server-side by the same `MarkdownRenderer` used for echomail and netmail. The rendered HTML is delivered alongside the plain-text body in API responses and in real-time SSE events, so no client-side Markdown library is needed.
 
 No configuration or database changes are required.
+
+## BBS List and Nodelist Browser for Term Server
+
+The terminal server (Telnet and SSH) now exposes two new main-menu options for browsing network directory information.
+
+### BBS Directory (B)
+
+When the `bbs_directory` feature is enabled in `config/bbs.json`, a **B) BBS Directory** option appears in the main menu. Selecting it opens a paginated list of all active BBS directory entries, showing the BBS name, telnet address, and location on each line. Entering an entry number displays a detail screen with:
+
+- Sysop name
+- Location
+- Operating system
+- Telnet address and port
+- Website (if set)
+- Notes / description (if set)
+
+Navigation uses **N** (next page), **P** (previous page), a number to view details, and **Q** to return.
+
+### Node List (L)
+
+When the nodelist table contains at least one imported entry, an **L) Node List** option appears in the main menu. Selecting it presents a search prompt. Users can search by:
+
+- System name
+- Sysop name
+- Location
+- FTN address (e.g. `1:234/5`)
+
+Results are displayed in a paginated table showing the FTN address, system name, and sysop. Entering a result number shows a full detail screen including address, sysop, location, phone, baud rate, node type, and capability flags.
+
+No database migration is required. The nodelist menu item appears automatically once a nodelist has been imported via the admin nodelist import tool.
 
 ## Upgrade Instructions
 

@@ -388,14 +388,16 @@ class BbsSession
         $config = BinkpConfig::getInstance();
         $this->setTerminalTitle($conn, $config->getSystemName());
 
-        $netmailHandler    = new NetmailHandler($this, $this->apiBase);
-        $echomailHandler   = new EchomailHandler($this, $this->apiBase);
-        $shoutboxHandler   = new ShoutboxHandler($this, $this->apiBase);
-        $pollsHandler      = new PollsHandler($this, $this->apiBase);
-        $doorHandler       = new DoorHandler($this, $this->apiBase);
-        $fileHandler       = new FileHandler($this, $this->apiBase, $this->isSsh);
-        $interestsHandler  = new InterestsHandler($this, $this->apiBase);
-        $qwkHandler        = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
+        $netmailHandler       = new NetmailHandler($this, $this->apiBase);
+        $echomailHandler      = new EchomailHandler($this, $this->apiBase);
+        $shoutboxHandler      = new ShoutboxHandler($this, $this->apiBase);
+        $pollsHandler         = new PollsHandler($this, $this->apiBase);
+        $doorHandler          = new DoorHandler($this, $this->apiBase);
+        $fileHandler          = new FileHandler($this, $this->apiBase, $this->isSsh);
+        $interestsHandler     = new InterestsHandler($this, $this->apiBase);
+        $qwkHandler           = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
+        $bbsListHandler       = new BbsListHandler($this, $this->apiBase);
+        $nodelistHandler      = new NodelistBrowserHandler($this, $this->apiBase);
 
         // Load saved terminal settings and apply them to the session
         $terminalSettingsHandler = new TerminalSettingsHandler($this, $this->apiBase);
@@ -490,6 +492,8 @@ class BbsSession
                 $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
                 $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
                 $showQwk        = BbsConfig::isFeatureEnabled('qwk');
+                $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');
+                $showNodelist   = $this->nodelistHasEntries();
                 $locale         = $state['locale'];
 
                 $o = $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
@@ -504,6 +508,8 @@ class BbsSession
                 $filesOption      = null;
                 $interestsOption  = null;
                 $qwkOption        = null;
+                $bbsListOption    = null;
+                $nodelistOption   = null;
                 $whosOnlineOption = 'w';
 
                 $o = $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
@@ -539,6 +545,16 @@ class BbsSession
                     $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('F', $o, $menuWidth, $state));
                     $filesOption = 'f';
                 }
+                if ($showBbsList) {
+                    $o = $this->t('ui.terminalserver.server.menu.bbs_list', 'B) BBS Directory', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('B', $o, $menuWidth, $state));
+                    $bbsListOption = 'b';
+                }
+                if ($showNodelist) {
+                    $o = $this->t('ui.terminalserver.server.menu.nodelist', 'L) Node List', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('L', $o, $menuWidth, $state));
+                    $nodelistOption = 'l';
+                }
                 $o = $this->t('ui.terminalserver.server.menu.settings', 'T) Settings', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('T', $o, $menuWidth, $state));
 
@@ -573,7 +589,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d','f','t','i','k'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -607,6 +623,12 @@ class BbsSession
             } elseif (!empty($filesOption) && $choice === $filesOption) {
                 $this->log("Menu: {$username} -> Files");
                 $fileHandler->show($conn, $state, $session);
+            } elseif (!empty($bbsListOption) && $choice === $bbsListOption) {
+                $this->log("Menu: {$username} -> BBS Directory");
+                $bbsListHandler->show($conn, $state, $session);
+            } elseif (!empty($nodelistOption) && $choice === $nodelistOption) {
+                $this->log("Menu: {$username} -> Node List");
+                $nodelistHandler->show($conn, $state, $session);
             } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
                 $this->log("Menu: {$username} -> Who's Online");
                 $this->showWhosOnline($conn, $state, $session);
@@ -1345,6 +1367,20 @@ class BbsSession
     }
 
     // ===== WHO'S ONLINE =====
+
+    /**
+     * Returns true if the nodelist table contains at least one entry.
+     */
+    private function nodelistHasEntries(): bool
+    {
+        try {
+            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query("SELECT 1 FROM nodelist LIMIT 1");
+            return (bool)$stmt->fetch();
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
 
     /**
      * Show the who's-online list and wait for a keypress.

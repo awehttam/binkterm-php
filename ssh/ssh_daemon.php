@@ -28,6 +28,8 @@ require_once __DIR__ . '/../telnet/src/AnsiTabComponent.php';
 require_once __DIR__ . '/../telnet/src/SettingsHandler.php';
 require_once __DIR__ . '/../telnet/src/InterestsHandler.php';
 require_once __DIR__ . '/../telnet/src/QwkMenuHandler.php';
+require_once __DIR__ . '/../telnet/src/BbsListHandler.php';
+require_once __DIR__ . '/../telnet/src/NodelistBrowserHandler.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\SshServer\SshServer;
