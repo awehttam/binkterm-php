@@ -153,8 +153,13 @@ class LocalChatActivityHandler implements BotActivityHandler
                     conversationHistory: $ctx->conversationHistory,
                 );
 
-                $response      = $ai->generateText($request);
-                $ctx->response = trim($response->getContent());
+                $response = $ai->generateText($request);
+                $content  = trim($response->getContent());
+                if ($content === 'NO_RESPONSE') {
+                    $ctx->aborted = true;
+                    return;
+                }
+                $ctx->response = $content;
                 $costUsd       = $response->getUsage()->getEstimatedCostUsd();
 
                 $bot->addToCachedSpend($costUsd);
