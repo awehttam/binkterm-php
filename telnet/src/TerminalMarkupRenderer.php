@@ -268,12 +268,24 @@ class TerminalMarkupRenderer
             }
         }
 
-        // Trim trailing blank lines
-        while (!empty($output) && trim(self::stripAnsi($output[count($output) - 1])) === '') {
-            array_pop($output);
+        // Collapse consecutive blank lines into one
+        $collapsed = [];
+        $prevBlank = false;
+        foreach ($output as $line) {
+            $isBlank = trim(self::stripAnsi($line)) === '';
+            if ($isBlank && $prevBlank) {
+                continue;
+            }
+            $collapsed[] = $line;
+            $prevBlank   = $isBlank;
         }
 
-        return $output ?: [''];
+        // Trim trailing blank lines
+        while (!empty($collapsed) && trim(self::stripAnsi($collapsed[count($collapsed) - 1])) === '') {
+            array_pop($collapsed);
+        }
+
+        return $collapsed ?: [''];
     }
 
     /**
