@@ -162,6 +162,22 @@
         }
     }
 
+    function updateAdminModerationIcon(stats, clearTarget = null) {
+        const moderationLinks = document.querySelectorAll('.echomail-moderation-menu-link');
+        const areaManagementLinks = document.querySelectorAll('.area-management-menu-link');
+        const adminMenuLinks = document.querySelectorAll('.admin-menu-link');
+        let pendingModeration = parseInt(stats?.pending_echomail_moderation || 0, 10) || 0;
+
+        if (clearTarget === 'echomail-moderation' || isPathMatch('/admin/echomail-moderation')) {
+            pendingModeration = 0;
+        }
+
+        const hasModeration = pendingModeration > 0;
+        moderationLinks.forEach((link) => link.classList.toggle('unread', hasModeration));
+        areaManagementLinks.forEach((link) => link.classList.toggle('unread', hasModeration));
+        adminMenuLinks.forEach((link) => link.classList.toggle('unread', hasModeration));
+    }
+
     function updateFileIcon(stats, clearTarget = null) {
         const fileMenuIcons = document.querySelectorAll('.file-menu-icon');
         const fileMenuParentLinks = document.querySelectorAll('.file-menu-parent-link');
@@ -273,6 +289,7 @@
                 maybePlayNotificationSounds(data, suppressSounds);
                 updateMailIcons(data, clearTarget);
                 updateFileIcon(data, clearTarget);
+                updateAdminModerationIcon(data, clearTarget);
 
                 if (clearTarget === 'chat' || isPathMatch('/chat')) {
                     chatUnread = false;
@@ -342,11 +359,13 @@
         } else if (isPathMatch('/admin/file-approvals')) {
             await markSeen('file-approvals', stats.pending_files_max_id ?? 0);
             await refreshMailState('file-approvals', true);
+        } else if (isPathMatch('/admin/echomail-moderation')) {
+            await refreshMailState('echomail-moderation', true);
         }
         if (isPathMatch('/chat')) {
             await refreshMailState('chat', true);
         }
-        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files') && !isPathMatch('/admin/file-approvals') && !isPathMatch('/chat')) {
+        if (!isPathMatch('/netmail') && !isPathMatch('/echomail') && !isPathMatch('/echolist') && !isPathMatch('/files') && !isPathMatch('/admin/file-approvals') && !isPathMatch('/admin/echomail-moderation') && !isPathMatch('/chat')) {
             refreshMailState(null, true);
         }
 

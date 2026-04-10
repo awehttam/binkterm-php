@@ -1,7 +1,7 @@
 {
-    "name": "binkterm-php/fidonet-web",
-    "version": "1.9.0",
-    "description": "Modern web interface for Fidonet messaging with bink integration",
+    "name": "awehttam/binkterm-php",
+    "version": "1.9.1",
+    "description": "Modern web based public home point and BBS with FTN and bink integration",
     "type": "project",
     "require": {
         "php": ">=8.0",

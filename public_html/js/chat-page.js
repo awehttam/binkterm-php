@@ -191,7 +191,22 @@
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'chat-list-item text-muted';
-            item.textContent = user.username;
+            if (user.is_bot) {
+                const inner = document.createElement('span');
+                inner.style.display = 'flex';
+                inner.style.alignItems = 'center';
+                inner.style.gap = '6px';
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-robot small';
+                icon.style.flexShrink = '0';
+                const label = document.createElement('span');
+                label.textContent = user.username;
+                inner.appendChild(icon);
+                inner.appendChild(label);
+                item.appendChild(inner);
+            } else {
+                item.textContent = user.username;
+            }
             if (state.active.type === 'dm' && state.active.id === user.user_id) {
                 item.classList.add('active');
             }
@@ -294,7 +309,11 @@
 
         const body = document.createElement('div');
         body.className = 'chat-message-body';
-        body.innerHTML = escapeHtml(msg.body || '');
+        if (msg.markup_html) {
+            body.innerHTML = msg.markup_html;
+        } else {
+            body.innerHTML = escapeHtml(msg.body || '');
+        }
 
         wrapper.appendChild(header);
         wrapper.appendChild(body);

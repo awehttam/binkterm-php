@@ -149,20 +149,37 @@ SimpleRouter::get('/', function() {
     $onlineCount = $auth->getOnlineUserCount(15);
     $activeTodayCount = $auth->getActiveTodayCount();
     $adminTimezone = 'UTC';
+    $handler = new \BinktermPHP\MessageHandler();
+    $userId = (int)($user['user_id'] ?? $user['id']);
+    $userSettings = $handler->getUserSettings($userId);
     if (!empty($user['is_admin'])) {
-        try {
-            $handler = new \BinktermPHP\MessageHandler();
-            $adminSettings = $handler->getUserSettings((int)($user['user_id'] ?? $user['id']));
-            $tz = $adminSettings['timezone'] ?? '';
-            if ($tz !== '') {
+        $tz = $userSettings['timezone'] ?? '';
+        if ($tz !== '') {
+            try {
                 new \DateTimeZone($tz); // validate
                 $adminTimezone = $tz;
+            } catch (\Throwable $e) {
+                // fall back to UTC
             }
-        } catch (\Throwable $e) {
-            // fall back to UTC
         }
     }
     $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
+
+    // Build dashboard card registry and layout
+    $creditsConfig = $bbsConfig['credits'] ?? [];
+    $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
+    $cardConditions = ['referral_enabled' => $referralEnabled];
+    $availableCards = \BinktermPHP\DashboardCardRegistry::getAvailableCards($user, $cardConditions);
+    $savedLayoutRaw = $userSettings['dashboard_layout'] ?? null;
+    if ($savedLayoutRaw) {
+        $savedLayout = is_string($savedLayoutRaw) ? json_decode($savedLayoutRaw, true) : $savedLayoutRaw;
+        $dashboardLayout = \BinktermPHP\DashboardCardRegistry::mergeLayout(
+            is_array($savedLayout) ? $savedLayout : [],
+            $availableCards
+        );
+    } else {
+        $dashboardLayout = \BinktermPHP\DashboardCardRegistry::getDefaultLayout($availableCards);
+    }
 
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
@@ -173,6 +190,8 @@ SimpleRouter::get('/', function() {
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
         'todays_callers' => $todaysCallers,
+        'dashboard_layout' => $dashboardLayout,
+        'dashboard_available_cards' => $availableCards,
     ]);
 });
 
@@ -785,7 +804,7 @@ SimpleRouter::get('/profile/{username}', function($username) {
 
     $template = new Template();
     $template->renderResponse('user_profile.twig', $templateVars);
-});
+})->where(['username' => '[\w ]+']); // [\w ]+ allows spaces: default [\w-]+ rejects decoded spaces in path
 
 SimpleRouter::get('/settings', function() {
     $auth = new Auth();
@@ -1830,7 +1849,7 @@ SimpleRouter::get('/echomail-images/{username}/{slug}', function(string $usernam
     }
 
     serveMarkdownImage($file);
-});
+})->where(['username' => '[\w ]+']); // [\w ]+ allows spaces: default [\w-]+ rejects decoded spaces in path
 
 // Legacy route: serve by SHA-256 hash for URLs embedded in older posts.
 SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
@@ -1844,6 +1863,17 @@ SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
     }
 
     serveMarkdownImage($file);
+});
+
+// User guide
+SimpleRouter::get('/user-guide', function() {
+    $path = __DIR__ . '/../docs/userguide/index.md';
+    $content = null;
+    if (file_exists($path)) {
+        $content = \BinktermPHP\MarkdownRenderer::toHtml(file_get_contents($path), 0, true);
+    }
+    $template = new Template();
+    $template->renderResponse('userguide.twig', ['content' => $content]);
 });
 
 // Include local/custom routes if they exist

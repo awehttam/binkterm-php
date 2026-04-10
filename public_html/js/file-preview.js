@@ -1853,6 +1853,59 @@ function _fpEsc(str) {
  * @param {number} fileId
  * @param {Object} [shareParams]  Optional {share_area, share_filename} for shared file access
  */
+/**
+ * Render a URL link preview inside the file info modal's preview body.
+ * Shows the og:image if one can be fetched, then the visit button.
+ *
+ * @param {object} file      File record (must have url, short_description)
+ * @param {Element} previewEl The modal preview body element
+ */
+function renderUrlLinkInfoPreview(file, previewEl) {
+    const url       = _fpEsc(file.url || '');
+    const shortDesc = _fpEsc(file.short_description || '');
+    const visitLabel = _fpT('ui.files.visit_link', 'Visit');
+
+    previewEl.style.background = '';
+    previewEl.innerHTML = `
+        <div class="p-4 text-start">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="fas fa-link fa-lg text-info"></i>
+                <span class="fw-semibold">${shortDesc || url}</span>
+            </div>
+            <div id="fpUrlOgImage"></div>
+            <div class="mt-3">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+                    <i class="fas fa-external-link-alt me-1"></i>${visitLabel}
+                </a>
+                <div class="mt-2 small text-muted text-break">${url}</div>
+            </div>
+        </div>`;
+
+    // Fetch og:image via server-side proxy to avoid CORS
+    if (file.url) {
+        fetch('/api/files/fetch-url-meta', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: file.url }),
+        })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+            if (!data || !data.og_image_url) return;
+            const ogEl = document.getElementById('fpUrlOgImage');
+            if (!ogEl) return;
+            const img = document.createElement('img');
+            img.src = data.og_image_url;
+            img.alt = '';
+            img.style.cssText = 'max-width:100%;max-height:280px;border-radius:6px;display:block;margin-bottom:12px;';
+            img.onerror = function() { ogEl.remove(); };
+            ogEl.innerHTML = '';
+            ogEl.appendChild(img);
+        })
+        .catch(function() {});
+    }
+}
+
 function openFileInfoModal(fileId, shareParams) {
     const MODAL_ID = 'fpSharedFileModal';
 
@@ -1888,6 +1941,11 @@ function openFileInfoModal(fileId, shareParams) {
                 mediaEl.pause();
                 mediaEl.src = '';
             });
+            // Stop SID player (uses AudioContext/ScriptProcessor, not a media element)
+            if (window._sidPlayerReady) {
+                try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+            }
+            _stopSidViz();
             previewBody.innerHTML = '';
             document.getElementById('fpSharedMetaBody').innerHTML = '';
             document.getElementById('fpSharedModalTitle').textContent = '';
@@ -1925,13 +1983,24 @@ function openFileInfoModal(fileId, shareParams) {
 
             titleEl.textContent = filename;
 
-            // Download button
-            const dlUrl = shareParams
-                ? '/api/files/' + fileId + '/download?share_area=' + encodeURIComponent(shareParams.share_area || '') +
-                  '&share_filename=' + encodeURIComponent(shareParams.share_filename || '')
-                : '/api/files/' + fileId + '/download';
-            dlBtn.href = dlUrl;
-            dlBtn.setAttribute('download', filename);
+            // Download/Visit button — URL links open externally, files download
+            if (f.source_type === 'url' && f.url) {
+                dlBtn.href = f.url;
+                dlBtn.setAttribute('target', '_blank');
+                dlBtn.setAttribute('rel', 'noopener noreferrer');
+                dlBtn.removeAttribute('download');
+                dlBtn.innerHTML = '<i class="fas fa-external-link-alt me-1"></i>' + _fpT('ui.files.visit_link', 'Visit');
+            } else {
+                const dlUrl = shareParams
+                    ? '/api/files/' + fileId + '/download?share_area=' + encodeURIComponent(shareParams.share_area || '') +
+                      '&share_filename=' + encodeURIComponent(shareParams.share_filename || '')
+                    : '/api/files/' + fileId + '/download';
+                dlBtn.href = dlUrl;
+                dlBtn.removeAttribute('target');
+                dlBtn.removeAttribute('rel');
+                dlBtn.setAttribute('download', filename);
+                dlBtn.innerHTML = '<i class="fas fa-download me-1"></i>' + _fpT('ui.files.download', 'Download');
+            }
             dlBtn.classList.remove('d-none');
 
             // Metadata footer
@@ -1966,7 +2035,11 @@ function openFileInfoModal(fileId, shareParams) {
             metaEl.innerHTML = meta;
 
             // Render preview
-            renderPreviewContent(fileId, filename, $(previewEl), shareParams);
+            if (f.source_type === 'url' && f.url) {
+                renderUrlLinkInfoPreview(f, previewEl);
+            } else {
+                renderPreviewContent(fileId, filename, $(previewEl), shareParams);
+            }
         })
         .catch(function() {
             titleEl.textContent = _fpT('errors.files.not_found', 'File not found');

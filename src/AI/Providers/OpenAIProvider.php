@@ -50,12 +50,17 @@ class OpenAIProvider implements AiProviderInterface
 
     private function requestCompletion(AiRequest $request, bool $expectJson): AiResponse
     {
+        $messages = [['role' => 'system', 'content' => $request->getSystemPrompt()]];
+        if ($request->getConversationHistory() !== null) {
+            foreach ($request->getConversationHistory() as $turn) {
+                $messages[] = ['role' => (string)$turn['role'], 'content' => (string)$turn['content']];
+            }
+        }
+        $messages[] = ['role' => 'user', 'content' => $request->getUserPrompt()];
+
         $payload = [
             'model' => $request->getModel(),
-            'messages' => [
-                ['role' => 'system', 'content' => $request->getSystemPrompt()],
-                ['role' => 'user', 'content' => $request->getUserPrompt()],
-            ],
+            'messages' => $messages,
             'temperature' => $request->getTemperature(),
             'max_tokens' => $request->getMaxOutputTokens(),
         ];

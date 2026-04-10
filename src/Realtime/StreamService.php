@@ -3,6 +3,7 @@
 namespace BinktermPHP\Realtime;
 
 use BinktermPHP\Config;
+use BinktermPHP\MarkdownRenderer;
 use PDO;
 
 class StreamService
@@ -55,10 +56,22 @@ class StreamService
 
         $events = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $data = (string)$row['event_data'];
+
+            // Enrich chat_message events with server-rendered markdown so the
+            // client can display formatted output without a client-side renderer.
+            if ($row['event_type'] === 'chat_message') {
+                $payload = json_decode($data, true);
+                if (is_array($payload) && isset($payload['body']) && !isset($payload['markup_html'])) {
+                    $payload['markup_html'] = MarkdownRenderer::toHtml((string)$payload['body']);
+                    $data = json_encode($payload);
+                }
+            }
+
             $events[] = [
                 'id' => (int)$row['sse_id'],
                 'event' => (string)$row['event_type'],
-                'data' => (string)$row['event_data'],
+                'data' => $data,
             ];
         }
 

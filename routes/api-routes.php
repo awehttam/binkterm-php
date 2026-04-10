@@ -389,9 +389,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Validate username format
-        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
-            apiError('errors.register.invalid_username_format', apiLocalizedText('errors.register.invalid_username_format', 'Username must be 3-20 characters, letters, numbers, and underscores only'), 400);
+        // Normalize and validate username format. Spaces are allowed only when
+        // USERNAMES_ALLOW_SPACES=true is set in .env (defaults to false).
+        $username = \BinktermPHP\Config::normalizeUsername($username);
+        $usernameFormatKey = \BinktermPHP\Config::allowSpacesInUsernames()
+            ? 'errors.register.invalid_username_format_spaces'
+            : 'errors.register.invalid_username_format';
+        if (!preg_match(\BinktermPHP\Config::getUsernameRegex(), $username)) {
+            apiError($usernameFormatKey, apiLocalizedText($usernameFormatKey, 'Username must be 3-20 characters, letters, numbers, and underscores only'), 400);
             return;
         }
 
@@ -684,6 +689,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode((new \BinktermPHP\DashboardStatsService($db))->getStats($user));
     });
 
+    SimpleRouter::post('/dashboard/layout', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            apiError('errors.dashboard.invalid_layout', apiLocalizedText('errors.dashboard.invalid_layout', 'Invalid layout data.', $user), 400);
+            return;
+        }
+
+        $handler = new MessageHandler();
+
+        // Reset flag: clear saved layout so defaults are used on next load
+        if (!empty($body['reset'])) {
+            $handler->updateUserSettings($userId, ['dashboard_layout' => null]);
+            echo json_encode(['success' => true]);
+            return;
+        }
+
+        $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+        $creditsConfig = $bbsConfig['credits'] ?? [];
+        $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
+        $conditions = ['referral_enabled' => $referralEnabled];
+        $availableCards = \BinktermPHP\DashboardCardRegistry::getAvailableCards($user, $conditions);
+
+        $layout = \BinktermPHP\DashboardCardRegistry::validateLayout($body, $availableCards);
+        if ($layout === null) {
+            apiError('errors.dashboard.invalid_layout', apiLocalizedText('errors.dashboard.invalid_layout', 'Invalid layout data.', $user), 400);
+            return;
+        }
+
+        $handler->updateUserSettings($userId, ['dashboard_layout' => $layout]);
+
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/polls/active', function() {
         $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -695,7 +738,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             SELECT id, question
             FROM polls
             WHERE is_active = TRUE
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
         ");
         $pollStmt->execute();
         $polls = $pollStmt->fetchAll();
@@ -764,7 +807,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        $payload = [];
+        $unvoted = [];
+        $voted   = [];
         foreach ($polls as $poll) {
             $pollId = (int)$poll['id'];
             $hasVoted = isset($votedLookup[$pollId]);
@@ -777,11 +821,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($hasVoted) {
                 $entry['results'] = $resultsByPoll[$pollId] ?? [];
                 $entry['total_votes'] = $totalVotesByPoll[$pollId] ?? 0;
+                $voted[] = $entry;
+            } else {
+                $unvoted[] = $entry;
             }
-            $payload[] = $entry;
         }
 
-        echo json_encode(['polls' => $payload]);
+        echo json_encode(['polls' => array_merge($unvoted, $voted)]);
     });
 
     SimpleRouter::post('/polls/{id}/vote', function($id) {
@@ -1083,9 +1129,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 continue;
             }
             $filtered[] = [
-                'user_id' => (int)$onlineUser['user_id'],
+                'user_id'  => (int)$onlineUser['user_id'],
                 'username' => $onlineUser['username'],
-                'location' => $onlineUser['location'] ?? ''
+                'location' => $onlineUser['location'] ?? '',
+                'is_bot'   => false,
+            ];
+        }
+
+        // Active bots are always present regardless of session state
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $botStmt = $db->prepare("
+            SELECT b.user_id, u.username
+            FROM   ai_bots b
+            JOIN   users u ON u.id = b.user_id
+            WHERE  b.is_active = TRUE
+        ");
+        $botStmt->execute();
+        $onlineUserIds = array_column($filtered, 'user_id');
+        foreach ($botStmt->fetchAll(\PDO::FETCH_ASSOC) as $bot) {
+            $botUserId = (int)$bot['user_id'];
+            // Skip if already in list (shouldn't happen, but be safe)
+            if (in_array($botUserId, $onlineUserIds, true)) {
+                continue;
+            }
+            $filtered[] = [
+                'user_id'  => $botUserId,
+                'username' => $bot['username'],
+                'location' => '',
+                'is_bot'   => true,
             ];
         }
 
@@ -1172,6 +1243,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $rows = array_slice($rows, 0, $limit);
         }
         $rows = array_reverse($rows);
+
+        foreach ($rows as &$row) {
+            $row['markup_html'] = \BinktermPHP\MarkdownRenderer::toHtml((string)($row['body'] ?? ''));
+        }
+        unset($row);
 
         echo json_encode(['messages' => $rows, 'has_more' => $hasMore]);
     });
@@ -1430,6 +1506,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'from_username' => $user['username'],
                 'to_user_id'    => $toUserId,
                 'body'          => $body,
+                'markup_html'   => \BinktermPHP\MarkdownRenderer::toHtml($body),
                 'created_at'    => $result['created_at'],
             ],
         ]);
@@ -1564,6 +1641,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'from_username' => $row['from_username'],
                 'to_user_id' => $row['to_user_id'] ? (int)$row['to_user_id'] : null,
                 'body' => $row['body'],
+                'markup_html' => \BinktermPHP\MarkdownRenderer::toHtml((string)($row['body'] ?? '')),
                 'created_at' => $row['created_at']
             ];
         }
@@ -2983,6 +3061,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // URL-type links redirect to the external URL instead of streaming a file
+        if (($file['source_type'] ?? '') === 'url') {
+            $externalUrl = $file['url'] ?? '';
+            if ($externalUrl === '') {
+                http_response_code(404);
+                echo apiLocalizedText('errors.files.not_found', 'File not found', $user);
+                return;
+            }
+            header('Location: ' . $externalUrl, true, 302);
+            return;
+        }
+
         // Resolve path at request time (ISO-backed areas reconstruct from mount point)
         $storagePath = $manager->resolveFilePath($file);
         if (!file_exists($storagePath)) {
@@ -4296,6 +4386,250 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    /**
+     * POST /api/files/add-link
+     * Add an external URL link to a file area.
+     */
+    SimpleRouter::post('/files/add-link', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $ownerId          = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $uploadCostCharged = false;
+        $uploadCost       = 0;
+
+        try {
+            $body             = json_decode(file_get_contents('php://input'), true) ?? [];
+            $fileAreaId       = (int)($body['file_area_id'] ?? 0);
+            $url              = trim($body['url'] ?? '');
+            $shortDescription = trim($body['short_description'] ?? '');
+            $longDescription  = trim($body['long_description'] ?? '');
+
+            if (!$fileAreaId) {
+                throw new \Exception('File area ID is required');
+            }
+
+            if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+                throw new \Exception('A valid URL is required');
+            }
+
+            if (empty($shortDescription)) {
+                throw new \Exception('Short description is required');
+            }
+
+            $manager    = new \BinktermPHP\FileAreaManager();
+            $fileArea   = $manager->getFileAreaById($fileAreaId);
+
+            if (!$fileArea) {
+                throw new \Exception('File area not found');
+            }
+
+            $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+            $isAdmin          = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
+
+            if (!$manager->canAccessFileArea($fileAreaId, $ownerId, $isAdmin)) {
+                throw new \Exception('Access denied to this file area');
+            }
+
+            if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
+                throw new \Exception('This file area is read-only. Uploads are not permitted.');
+            } elseif ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_ADMIN_ONLY && !$isAdmin) {
+                throw new \Exception('Only administrators can upload files to this area.');
+            }
+
+            $uploadedBy    = $user['username'] ?? 'Unknown';
+            $uploadCost    = UserCredit::isEnabled() ? UserCredit::getCreditCost('file_upload', 0) : 0;
+            $uploadReward  = UserCredit::isEnabled() ? UserCredit::getRewardAmount('file_upload', 0) : 0;
+            $isOwnPrivateArea = !empty($fileArea['is_private']) && (string)($fileArea['tag'] ?? '') === ('PRIVATE_USER_' . $ownerId);
+            $initialStatus = ($isAdmin || $isOwnPrivateArea) ? 'approved' : 'pending';
+
+            if ($uploadCost > 0) {
+                $uploadCostCharged = UserCredit::debit(
+                    $ownerId,
+                    $uploadCost,
+                    'Added link: ' . $url,
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+                if (!$uploadCostCharged) {
+                    throw new \Exception('Insufficient credits for file upload');
+                }
+            }
+
+            $fileId = $manager->addUrlLink(
+                $fileAreaId,
+                $url,
+                $shortDescription,
+                $longDescription,
+                $uploadedBy,
+                $ownerId,
+                $initialStatus
+            );
+
+            if ($uploadReward > 0 && $initialStatus === 'approved') {
+                $creditSuccess = UserCredit::credit(
+                    $ownerId,
+                    $uploadReward,
+                    'Link reward: ' . $url,
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$creditSuccess) {
+                    getServerLogger()->error("Failed to award link upload credits for user {$ownerId} and file {$fileId}");
+                }
+            }
+
+            ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $url, ['file_area_id' => $fileAreaId]);
+
+            echo json_encode([
+                'success'          => true,
+                'file_id'          => $fileId,
+                'status'           => $initialStatus,
+                'approval_required' => $initialStatus === 'pending',
+                'message_code'     => $initialStatus === 'pending'
+                    ? 'ui.files.upload_pending_approval'
+                    : 'ui.files.link_added',
+            ]);
+
+        } catch (\Exception $e) {
+            if ($uploadCostCharged && $uploadCost > 0) {
+                UserCredit::credit(
+                    $ownerId,
+                    $uploadCost,
+                    'Refund: Link add failed',
+                    null,
+                    UserCredit::TYPE_REFUND
+                );
+            }
+
+            http_response_code(400);
+            $message = $e->getMessage();
+            if ($message === 'File area ID is required') {
+                apiError('errors.files.upload.area_id_required', apiLocalizedText('errors.files.upload.area_id_required', 'File area ID is required', $user));
+            } elseif ($message === 'A valid URL is required') {
+                apiError('errors.files.link.invalid_url', apiLocalizedText('errors.files.link.invalid_url', 'A valid URL is required', $user));
+            } elseif ($message === 'Short description is required') {
+                apiError('errors.files.upload.short_description_required', apiLocalizedText('errors.files.upload.short_description_required', 'Short description is required', $user));
+            } elseif ($message === 'File area not found') {
+                apiError('errors.files.upload.area_not_found', apiLocalizedText('errors.files.upload.area_not_found', 'File area not found', $user));
+            } elseif ($message === 'This file area is read-only. Uploads are not permitted.') {
+                apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
+            } elseif ($message === 'Only administrators can upload files to this area.') {
+                apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'Access denied to this file area') {
+                apiError('errors.files.access_denied', apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user), 403);
+            } elseif ($message === 'Insufficient credits for file upload') {
+                apiError('errors.files.upload.insufficient_credits', apiLocalizedText('errors.files.upload.insufficient_credits', 'Insufficient credits to upload this file', $user), 402);
+            } else {
+                getServerLogger()->error("Add link error: " . $message);
+                apiError('errors.files.link.add_failed', apiLocalizedText('errors.files.link.add_failed', 'Failed to add link', $user));
+            }
+        }
+    });
+
+    /**
+     * POST /api/files/fetch-url-meta
+     * Fetch title and description metadata for a URL (server-side to avoid CORS).
+     * Returns short_description (page title) and long_description (og:description).
+     */
+    SimpleRouter::post('/files/fetch-url-meta', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $url  = trim($body['url'] ?? '');
+
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            http_response_code(400);
+            apiError('errors.files.link.invalid_url', apiLocalizedText('errors.files.link.invalid_url', 'A valid URL is required', $user));
+            return;
+        }
+
+        // Fetch the URL with a short timeout
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout'         => 8,
+                'follow_location' => true,
+                'max_redirects'   => 5,
+                'user_agent'      => 'BinktermPHP/1.0 (URL metadata fetch)',
+                'method'          => 'GET',
+            ],
+            'ssl' => [
+                'verify_peer'      => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+
+        $html = @file_get_contents($url, false, $ctx);
+
+        if ($html === false || $html === '') {
+            echo json_encode(['success' => true, 'short_description' => '', 'long_description' => '']);
+            return;
+        }
+
+        // Parse HTML for title, og:description, and og:image
+        $shortDescription = '';
+        $longDescription  = '';
+        $ogImageUrl       = '';
+
+        $doc = new \DOMDocument();
+        @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+
+        // <title>
+        $titles = $doc->getElementsByTagName('title');
+        if ($titles->length > 0) {
+            $shortDescription = trim($titles->item(0)->textContent);
+        }
+
+        // <meta property="og:*"> or <meta name="og:*">
+        $metas = $doc->getElementsByTagName('meta');
+        foreach ($metas as $meta) {
+            $prop    = strtolower((string)$meta->getAttribute('property'));
+            $name    = strtolower((string)$meta->getAttribute('name'));
+            $content = trim((string)$meta->getAttribute('content'));
+
+            if ($content === '') {
+                continue;
+            }
+
+            if ($prop === 'og:description' || $name === 'og:description') {
+                $longDescription = $content;
+            } elseif ($name === 'description' && $longDescription === '') {
+                $longDescription = $content;
+            } elseif (($prop === 'og:image' || $name === 'og:image') && $ogImageUrl === '') {
+                // Validate it looks like a URL before returning it
+                if (filter_var($content, FILTER_VALIDATE_URL)) {
+                    $ogImageUrl = $content;
+                }
+            }
+        }
+
+        // Truncate to fit db columns
+        $shortDescription = mb_substr($shortDescription, 0, 255);
+        $longDescription  = mb_substr($longDescription, 0, 2000);
+
+        echo json_encode([
+            'success'           => true,
+            'short_description' => $shortDescription,
+            'long_description'  => $longDescription,
+            'og_image_url'      => $ogImageUrl,
+        ]);
+    });
+
     SimpleRouter::delete('/files/{id}/delete', function($id) {
         $user = RouteHelper::requireAuth();
 
@@ -4357,6 +4691,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $shortDesc     = isset($body['short_description']) ? trim($body['short_description']) : null;
         $longDesc      = isset($body['long_description'])  ? (trim($body['long_description']) ?: null) : null;
         $targetAreaId  = isset($body['file_area_id']) ? (int)$body['file_area_id'] : null;
+        $newUrl        = array_key_exists('url', $body) ? trim($body['url']) : null;
 
         // Validate: filename must not be blank if provided
         if ($newFilename !== null && $newFilename === '') {
@@ -4410,6 +4745,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($targetAreaId !== null) {
                 $manager->moveFile((int)$id, $targetAreaId, $isAdmin);
                 $response['file_area_id'] = $targetAreaId;
+            }
+
+            if ($newUrl !== null && $isAdmin) {
+                $manager->updateFileUrl((int)$id, $newUrl, $isAdmin);
+                $response['url'] = $newUrl;
             }
 
             echo json_encode($response);
@@ -6420,9 +6760,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 } elseif ($type === 'echomail') {
                     ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
                 }
+                $isPending = ($result === 'pending');
                 echo json_encode([
                     'success' => true,
-                    'message_code' => 'ui.api.messages.sent',
+                    'message_code' => $isPending ? 'ui.api.messages.pending_moderation' : 'ui.api.messages.sent',
+                    'pending_moderation' => $isPending,
                     'areas_posted' => $totalAreas
                 ]);
 
@@ -6542,6 +6884,120 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $html = \BinktermPHP\MarkdownRenderer::toHtml($text);
         echo json_encode(['html' => $html]);
+    });
+
+    // Fetch Open Graph / meta preview for a URL (used by the WYSIWYG unfurl prompt)
+    SimpleRouter::get('/url-preview', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $url = trim($_GET['url'] ?? '');
+
+        if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.invalid_url', 'error' => 'Invalid URL.']);
+            return;
+        }
+
+        // SSRF guard: block private/loopback ranges
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host === false || $host === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.invalid_url', 'error' => 'Invalid URL.']);
+            return;
+        }
+        $ip = @gethostbyname($host);
+        if ($ip !== false) {
+            $long = ip2long($ip);
+            $privateRanges = [
+                [ip2long('10.0.0.0'),     ip2long('10.255.255.255')],
+                [ip2long('172.16.0.0'),   ip2long('172.31.255.255')],
+                [ip2long('192.168.0.0'),  ip2long('192.168.255.255')],
+                [ip2long('127.0.0.0'),    ip2long('127.255.255.255')],
+                [ip2long('169.254.0.0'),  ip2long('169.254.255.255')],
+            ];
+            foreach ($privateRanges as [$start, $end]) {
+                if ($long >= $start && $long <= $end) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.fetch_failed', 'error' => 'URL not allowed.']);
+                    return;
+                }
+            }
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; BinktermBot/1.0; +https://lovelybits.org/binktermphp)',
+            CURLOPT_HTTPHEADER     => ['Accept: text/html,application/xhtml+xml'],
+            CURLOPT_ENCODING       => 'gzip, deflate',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_MAXFILESIZE    => 2 * 1024 * 1024, // 2 MB cap on download
+        ]);
+        $html = curl_exec($ch);
+        $errno = curl_errno($ch);
+        curl_close($ch);
+
+        if ($errno !== CURLE_OK || $html === false || $html === '') {
+            echo json_encode(['success' => false, 'error_code' => 'errors.url_preview.fetch_failed', 'error' => 'Could not fetch that URL.']);
+            return;
+        }
+
+        // Parse meta tags with libxml suppressing errors on real-world HTML
+        libxml_use_internal_errors(true);
+        $doc = new \DOMDocument();
+        $doc->loadHTML(mb_convert_encoding(substr($html, 0, 500000), 'HTML-ENTITIES', 'UTF-8'));
+        libxml_clear_errors();
+
+        $title       = '';
+        $description = '';
+        $image       = '';
+
+        // Prefer Open Graph, fall back to standard meta/title
+        $metas = $doc->getElementsByTagName('meta');
+        foreach ($metas as $meta) {
+            $prop    = strtolower($meta->getAttribute('property'));
+            $name    = strtolower($meta->getAttribute('name'));
+            $content = trim($meta->getAttribute('content'));
+            if ($prop === 'og:title'       && $title       === '') { $title       = $content; }
+            if ($prop === 'og:description' && $description === '') { $description = $content; }
+            if ($prop === 'og:image'       && $image       === '') { $image       = $content; }
+            if ($name  === 'description'   && $description === '') { $description = $content; }
+            if ($name  === 'twitter:title'       && $title === '') { $title       = $content; }
+            if ($name  === 'twitter:description' && $description === '') { $description = $content; }
+            if ($name  === 'twitter:image'       && $image === '') { $image       = $content; }
+        }
+        if ($title === '') {
+            $titles = $doc->getElementsByTagName('title');
+            if ($titles->length > 0) {
+                $title = trim($titles->item(0)->textContent);
+            }
+        }
+
+        // Sanitize: strip tags, truncate
+        $title       = htmlspecialchars_decode(strip_tags($title),       ENT_QUOTES);
+        $description = htmlspecialchars_decode(strip_tags($description), ENT_QUOTES);
+        $title       = mb_substr($title,       0, 200);
+        $description = mb_substr($description, 0, 400);
+
+        // Only pass through http(s) image URLs to avoid data: or javascript: schemes
+        if ($image !== '' && !preg_match('/^https?:\/\//i', $image)) {
+            $image = '';
+        }
+
+        echo json_encode([
+            'success'     => true,
+            'title'       => $title,
+            'description' => $description,
+            'image'       => $image,
+            'url'         => $url,
+        ]);
     });
 
     // Save message draft
@@ -7212,23 +7668,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
 
-        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
-        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
-        $netmailStmt->execute([$user['user_id']]);
-        $netmailCount = $netmailStmt->fetch()['count'];
-
-        // For echomail, we need to count by system address since users don't have individual addresses
+        // Count netmail composed by this user. Matches from_name (username or real_name) and
+        // from_address (local system addresses) so that pending/unspooled messages are included.
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
-
-            $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_address = ?");
-            $echomailStmt->execute([$systemAddress]);
-            $echomailCount = $echomailStmt->fetch()['count'];
+            $myAddresses = array_unique(array_merge(
+                $binkpConfig->getMyAddresses(),
+                [$binkpConfig->getSystemAddress()]
+            ));
         } catch (\Exception $e) {
-            $echomailCount = 0;
+            $myAddresses = [];
         }
+
+        if (!empty($myAddresses)) {
+            $addrPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $netmailParams = [$user['username'], $user['real_name']];
+            $netmailParams = array_merge($netmailParams, $myAddresses);
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addrPlaceholders)");
+            $netmailStmt->execute($netmailParams);
+        } else {
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))");
+            $netmailStmt->execute([$user['username'], $user['real_name']]);
+        }
+        $netmailCount = $netmailStmt->fetch()['count'];
+
+        $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE user_id = ?");
+        $echomailStmt->execute([$user['user_id']]);
+        $echomailCount = $echomailStmt->fetch()['count'];
 
         // File transfer counts from activity log (type 6 = download, 7 = upload)
         $fileStmt = $db->prepare("
@@ -7267,32 +7733,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         // Verify target user exists and is active
-        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt = $db->prepare("SELECT id, username, real_name FROM users WHERE id = ? AND is_active = TRUE");
         $userStmt->execute([$userId]);
-        if (!$userStmt->fetch()) {
+        $targetUser = $userStmt->fetch();
+        if (!$targetUser) {
             http_response_code(404);
             apiError('errors.user.stats.user_not_found', apiLocalizedText('errors.user.stats.user_not_found', 'User not found', $user));
             return;
         }
 
-        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
-        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
-        $netmailStmt->execute([$userId]);
+        // Count netmail composed by this user. Matches from_name (username or real_name) and
+        // from_address (local system addresses) so that pending/unspooled messages are included.
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = array_unique(array_merge(
+                $binkpConfig->getMyAddresses(),
+                [$binkpConfig->getSystemAddress()]
+            ));
+        } catch (\Exception $e) {
+            $myAddresses = [];
+        }
+
+        if (!empty($myAddresses)) {
+            $addrPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $netmailParams = [$targetUser['username'], $targetUser['real_name']];
+            $netmailParams = array_merge($netmailParams, $myAddresses);
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addrPlaceholders)");
+            $netmailStmt->execute($netmailParams);
+        } else {
+            $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE (LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))");
+            $netmailStmt->execute([$targetUser['username'], $targetUser['real_name']]);
+        }
         $netmailCount = $netmailStmt->fetch()['count'];
 
-        // For echomail, count messages from this user based on their username
-        // We need to get the user's real name to match echomail posts
-        $userInfoStmt = $db->prepare("SELECT real_name FROM users WHERE id = ?");
-        $userInfoStmt->execute([$userId]);
-        $userInfo = $userInfoStmt->fetch();
-
-        $echomailCount = 0;
-        if ($userInfo && !empty($userInfo['real_name'])) {
-            $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_name = ?");
-            $echomailStmt->execute([$userInfo['real_name']]);
-            $echomailCount = $echomailStmt->fetch()['count'];
-        }
+        $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE user_id = ?");
+        $echomailStmt->execute([$userId]);
+        $echomailCount = $echomailStmt->fetch()['count'];
 
         // File transfer counts from activity log (type 6 = download, 7 = upload)
         $fileStmt = $db->prepare("
@@ -9454,10 +9930,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            // Validate username format
-            if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+            // Normalize and validate username format
+            $username = \BinktermPHP\Config::normalizeUsername($username);
+            $usernameFormatKey = \BinktermPHP\Config::allowSpacesInUsernames()
+                ? 'errors.register.invalid_username_format_spaces'
+                : 'errors.register.invalid_username_format';
+            if (!preg_match(\BinktermPHP\Config::getUsernameRegex(), $username)) {
                 http_response_code(400);
-                apiError('', apiLocalizedText('', ''));
+                apiError($usernameFormatKey, apiLocalizedText($usernameFormatKey, 'Invalid username format'));
                 return;
             }
 

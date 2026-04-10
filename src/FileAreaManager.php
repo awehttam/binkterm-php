@@ -1832,6 +1832,115 @@ class FileAreaManager
     }
 
     /**
+     * Add an external URL link as a file record in a file area.
+     *
+     * Creates a files row with source_type='url' and no physical storage.
+     * The url column holds the target address.  The filename is derived from
+     * the URL path (last segment), or falls back to the raw host.
+     *
+     * @param int         $fileAreaId       File area ID
+     * @param string      $url              Full URL (https://...)
+     * @param string      $shortDescription Short description
+     * @param string      $longDescription  Long description (optional)
+     * @param string      $uploadedBy       Username of submitter
+     * @param int|null    $ownerId          User ID of submitter
+     * @param string      $initialStatus    'approved' or 'pending'
+     * @return int Inserted file ID
+     * @throws \Exception If the file area is not found/inactive
+     */
+    public function addUrlLink(
+        int $fileAreaId,
+        string $url,
+        string $shortDescription,
+        string $longDescription = '',
+        string $uploadedBy = '',
+        ?int $ownerId = null,
+        string $initialStatus = 'approved'
+    ): int {
+        $fileArea = $this->getFileAreaById($fileAreaId);
+        if (!$fileArea || !$fileArea['is_active']) {
+            throw new \Exception('File area not found or inactive');
+        }
+
+        // Derive a display name from the URL path
+        $parsed   = parse_url($url);
+        $pathPart = $parsed['path'] ?? '';
+        $name     = basename(rtrim($pathPart, '/'));
+        if ($name === '' || $name === '.') {
+            $name = $parsed['host'] ?? parse_url($url, PHP_URL_HOST) ?? 'link';
+        }
+
+        $status = strtolower(trim($initialStatus)) === 'pending' ? 'pending' : 'approved';
+
+        $stmt = $this->db->prepare("
+            INSERT INTO files (
+                file_area_id, filename, filesize, file_hash, storage_path,
+                uploaded_from_address, source_type, url,
+                short_description, long_description,
+                owner_id, status, virus_scanned, virus_scan_result, created_at
+            ) VALUES (
+                ?, ?, 0, NULL, NULL,
+                ?, 'url', ?,
+                ?, ?,
+                ?, ?, 'true', 'skipped', NOW()
+            ) RETURNING id
+        ");
+
+        $stmt->execute([
+            $fileAreaId,
+            $name,
+            $uploadedBy,
+            $url,
+            $shortDescription,
+            $longDescription ?: null,
+            $ownerId,
+            $status,
+        ]);
+
+        $row    = $stmt->fetch();
+        $fileId = (int)($row['id'] ?? 0);
+
+        if ($fileId && $status === 'approved') {
+            // Update file_count only (URL links have no size)
+            $this->db->prepare("
+                UPDATE file_areas
+                SET file_count = (SELECT COUNT(*) FROM files WHERE file_area_id = ? AND status = 'approved'),
+                    updated_at = NOW()
+                WHERE id = ?
+            ")->execute([$fileAreaId, $fileAreaId]);
+
+            $this->emitFileRealtimeEvent($status);
+        }
+
+        return $fileId;
+    }
+
+    /**
+     * Update the URL for a URL-type file record (admin only).
+     *
+     * @param int    $fileId  File ID
+     * @param string $url     New URL value
+     * @param bool   $isAdmin Must be true
+     * @throws \Exception If not admin or file not found
+     */
+    public function updateFileUrl(int $fileId, string $url, bool $isAdmin): bool
+    {
+        if (!$isAdmin) {
+            throw new \Exception('You do not have permission to edit this file');
+        }
+
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        $stmt = $this->db->prepare("UPDATE files SET url = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$url ?: null, $fileId]);
+
+        return true;
+    }
+
+    /**
      * List files awaiting sysop approval.
      *
      * @return array<int, array<string, mixed>>
@@ -1848,7 +1957,7 @@ class FileAreaManager
             JOIN file_areas fa ON fa.id = f.file_area_id
             LEFT JOIN users u ON u.id = f.owner_id
             WHERE f.status = 'pending'
-              AND f.source_type = 'user_upload'
+              AND f.source_type IN ('user_upload', 'url')
             ORDER BY f.created_at ASC
         ");
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -1860,7 +1969,7 @@ class FileAreaManager
             SELECT COUNT(*)
             FROM files
             WHERE status = 'pending'
-              AND source_type = 'user_upload'
+              AND source_type IN ('user_upload', 'url')
         ");
         return (int)$stmt->fetchColumn();
     }
@@ -1924,27 +2033,47 @@ class FileAreaManager
         if (!$file) {
             throw new \Exception('File not found');
         }
-        if (($file['status'] ?? '') !== 'pending' || ($file['source_type'] ?? '') !== 'user_upload') {
+        $sourceType = $file['source_type'] ?? '';
+        if (($file['status'] ?? '') !== 'pending' || !in_array($sourceType, ['user_upload', 'url'], true)) {
             throw new \Exception('File is not awaiting approval');
         }
 
-        [$filename, $storagePath] = $this->movePendingUploadToApprovedStorage($file);
+        if ($sourceType === 'url') {
+            // URL links have no physical file to move — just update status
+            $stmt = $this->db->prepare("
+                UPDATE files
+                SET status = 'approved',
+                    approved_by_user_id = ?,
+                    approved_at = NOW(),
+                    rejected_by_user_id = NULL,
+                    rejected_at = NULL,
+                    rejection_reason = NULL
+                WHERE id = ?
+            ");
+            $stmt->execute([$adminUserId, $fileId]);
+        } else {
+            [$filename, $storagePath] = $this->movePendingUploadToApprovedStorage($file);
 
-        $stmt = $this->db->prepare("
-            UPDATE files
-            SET status = 'approved',
-                filename = ?,
-                storage_path = ?,
-                approved_by_user_id = ?,
-                approved_at = NOW(),
-                rejected_by_user_id = NULL,
-                rejected_at = NULL,
-                rejection_reason = NULL
-            WHERE id = ?
-        ");
-        $stmt->execute([$filename, $storagePath, $adminUserId, $fileId]);
+            $stmt = $this->db->prepare("
+                UPDATE files
+                SET status = 'approved',
+                    filename = ?,
+                    storage_path = ?,
+                    approved_by_user_id = ?,
+                    approved_at = NOW(),
+                    rejected_by_user_id = NULL,
+                    rejected_at = NULL,
+                    rejection_reason = NULL
+                WHERE id = ?
+            ");
+            $stmt->execute([$filename, $storagePath, $adminUserId, $fileId]);
 
-        $this->finalizeApprovedUserUpload($fileId);
+            $this->finalizeApprovedUserUpload($fileId);
+        }
+
+        if ($sourceType === 'url') {
+            $this->updateFileAreaStats((int)$file['file_area_id']);
+        }
 
         $approvedFile = $this->getFileById($fileId);
         if ($approvedFile && UserCredit::isEnabled()) {
@@ -1973,7 +2102,7 @@ class FileAreaManager
         if (!$file) {
             throw new \Exception('File not found');
         }
-        if (($file['status'] ?? '') !== 'pending' || ($file['source_type'] ?? '') !== 'user_upload') {
+        if (($file['status'] ?? '') !== 'pending' || !in_array($file['source_type'] ?? '', ['user_upload', 'url'], true)) {
             throw new \Exception('File is not awaiting approval');
         }
 
@@ -1989,7 +2118,8 @@ class FileAreaManager
         ");
         $stmt->execute([$adminUserId, $reason, $fileId]);
 
-        if ($deletePhysicalFile) {
+        // URL links have no physical file to delete
+        if ($deletePhysicalFile && ($file['source_type'] ?? '') !== 'url') {
             $storagePath = (string)($file['storage_path'] ?? '');
             if ($storagePath !== '' && file_exists($storagePath)) {
                 @unlink($storagePath);

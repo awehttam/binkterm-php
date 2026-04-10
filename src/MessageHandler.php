@@ -419,6 +419,11 @@ class MessageHandler
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
         $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
         $filterClause .= $ignoreFilter['sql'];
+        $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
+        $filterClause .= $moderationFilter['sql'];
+        foreach ($moderationFilter['params'] as $p) {
+            $filterParams[] = $p;
+        }
 
         $dateField = $this->getEchomailDateField();
 
@@ -645,6 +650,11 @@ class MessageHandler
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
         $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
         $filterClause .= $ignoreFilter['sql'];
+        $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
+        $filterClause .= $moderationFilter['sql'];
+        foreach ($moderationFilter['params'] as $p) {
+            $filterParams[] = $p;
+        }
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -821,9 +831,10 @@ class MessageHandler
             $filterClause = ' AND sav.id IS NOT NULL';
         }
 
-        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
-        $sysopClause  = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
-        $echoPH       = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $ignoreFilter     = $this->buildEchomailIgnoreFilter($userId, 'em');
+        $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
+        $sysopClause      = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
+        $echoPH           = implode(',', array_fill(0, count($echoareaIds), '?'));
         $dateField    = $this->getEchomailDateField();
 
         // Only use UNION path when filter === 'all' and there are associated file areas
@@ -880,7 +891,7 @@ class MessageHandler
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                     LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}{$moderationFilter['sql']}
 
                     UNION ALL
 
@@ -925,6 +936,9 @@ class MessageHandler
             foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
             }
+            foreach ($moderationFilter['params'] as $param) {
+                $params[] = $param;
+            }
             $params = array_merge($params, $fileareaIds);
             $params[] = $limit;
             $params[] = $offset;
@@ -938,7 +952,7 @@ class MessageHandler
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}
+                    WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}{$moderationFilter['sql']}
                     UNION ALL
                     SELECT f.id
                     FROM files f
@@ -951,6 +965,9 @@ class MessageHandler
             $countParams = [$userId, $userId];
             $countParams = array_merge($countParams, $echoareaIds);
             foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($moderationFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countParams = array_merge($countParams, $fileareaIds);
@@ -981,7 +998,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}{$moderationFilter['sql']}
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
@@ -989,6 +1006,9 @@ class MessageHandler
             $params = [$userId, $userId, $userId];
             $params = array_merge($params, $echoareaIds, $filterParams);
             foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            foreach ($moderationFilter['params'] as $param) {
                 $params[] = $param;
             }
             $params[] = $limit;
@@ -1001,11 +1021,14 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}{$moderationFilter['sql']}
             ");
             $countParams = [$userId, $userId];
             $countParams = array_merge($countParams, $echoareaIds, $filterParams);
             foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($moderationFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
@@ -1144,7 +1167,8 @@ class MessageHandler
             }
         } else {
             // Echomail is public, so no user restriction needed
-            $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+            $ignoreFilter     = $this->buildEchomailIgnoreFilter($userId, 'em');
+            $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
             $stmt = $this->db->prepare("
                 SELECT em.*,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
@@ -1155,10 +1179,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                WHERE em.id = ?{$ignoreFilter['sql']}
+                WHERE em.id = ?{$ignoreFilter['sql']}{$moderationFilter['sql']}
             ");
             $params = [$userId, $userId, $messageId];
             foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            foreach ($moderationFilter['params'] as $param) {
                 $params[] = $param;
             }
             $stmt->execute($params);
@@ -1790,9 +1817,19 @@ class MessageHandler
         $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
+        // Determine whether this post needs to be held for moderation.
+        // Moderation only applies to networked areas when the threshold is > 0
+        // (threshold 0 = feature disabled). Admins always bypass.
+        $moderationThreshold = \BinktermPHP\BbsConfig::getEchomailModerationThreshold();
+        $needsModeration = false;
+        if ($moderationThreshold > 0 && !$isLocalArea && empty($user['is_admin'])) {
+            $needsModeration = empty($user['can_post_netecho_unmoderated']);
+        }
+        $moderationStatus = $needsModeration ? 'pending' : 'approved';
+
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges, tearline_component)
-            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id, :message_id, :origin_line, :kludge_lines, NULL, :tearline_component)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges, tearline_component, user_id, moderation_status)
+            VALUES (:echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id, :message_id, :origin_line, :kludge_lines, NULL, :tearline_component, :user_id, :moderation_status)
             RETURNING id
         ");
 
@@ -1810,6 +1847,8 @@ class MessageHandler
         $stmt->bindValue(':origin_line', null, \PDO::PARAM_NULL);
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':tearline_component', $tearlineComponent);
+        $stmt->bindValue(':user_id', $fromUserId, \PDO::PARAM_INT);
+        $stmt->bindValue(':moderation_status', $moderationStatus);
 
         $stmt->execute();
         $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -1838,10 +1877,140 @@ class MessageHandler
                 }
             }
             $this->incrementEchoareaCount($echoarea['id']);
+
+            if ($needsModeration) {
+                $this->logger->info("[ECHOMAIL] Message #{$messageId} held for moderation (user {$fromUserId}, area {$echoareaTag})");
+                return 'pending';
+            }
+
             $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
         }
 
         return $messageId > 0;
+    }
+
+    /**
+     * Approve a pending echomail message: mark it approved, spool it for
+     * transmission, and auto-promote the author if they have reached the
+     * configured moderation threshold.
+     *
+     * @param int $messageId
+     * @return bool True on success, false if the message was not found or not pending.
+     */
+    public function approveEchomail(int $messageId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT em.*, ea.tag AS echoarea_tag, ea.domain AS echoarea_domain, ea.is_local
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE em.id = ? AND em.moderation_status = 'pending'
+        ");
+        $stmt->execute([$messageId]);
+        $message = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$message) {
+            return false;
+        }
+
+        $updateStmt = $this->db->prepare("
+            UPDATE echomail SET moderation_status = 'approved' WHERE id = ?
+        ");
+        $updateStmt->execute([$messageId]);
+
+        $echoareaTag = $message['echoarea_tag'];
+        $domain      = $message['echoarea_domain'] ?? '';
+
+        $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+
+        // Check whether the author should be auto-promoted
+        $userId = $message['user_id'] ? (int)$message['user_id'] : null;
+        if ($userId) {
+            $this->checkAndPromoteEchomailUser($userId);
+        }
+
+        return true;
+    }
+
+    /**
+     * Reject a pending echomail message: mark it rejected so it is permanently
+     * suppressed and never transmitted.
+     *
+     * @param int $messageId
+     * @return bool True on success, false if not found or not pending.
+     */
+    public function rejectEchomail(int $messageId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE echomail SET moderation_status = 'rejected'
+            WHERE id = ? AND moderation_status = 'pending'
+        ");
+        $stmt->execute([$messageId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * If the user has accumulated at least the configured number of approved
+     * networked echomail posts, flip can_post_netecho_unmoderated to TRUE.
+     *
+     * @param int $userId
+     */
+    private function checkAndPromoteEchomailUser(int $userId): void
+    {
+        $threshold = \BinktermPHP\BbsConfig::getEchomailModerationThreshold();
+        if ($threshold <= 0) {
+            return;
+        }
+
+        // Check if already promoted
+        $flagStmt = $this->db->prepare("
+            SELECT can_post_netecho_unmoderated FROM users WHERE id = ?
+        ");
+        $flagStmt->execute([$userId]);
+        $flag = $flagStmt->fetchColumn();
+        if ($flag === true || $flag === 't' || $flag === '1') {
+            return;
+        }
+
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE em.user_id = ?
+              AND em.moderation_status = 'approved'
+              AND ea.is_local = FALSE
+        ");
+        $countStmt->execute([$userId]);
+        $approvedCount = (int)$countStmt->fetchColumn();
+
+        if ($approvedCount >= $threshold) {
+            $promoteStmt = $this->db->prepare("
+                UPDATE users SET can_post_netecho_unmoderated = TRUE WHERE id = ?
+            ");
+            $promoteStmt->execute([$userId]);
+            $this->logger->info("[MODERATION] User #{$userId} auto-promoted to unmoderated echomail posting ({$approvedCount} approved posts >= threshold {$threshold})");
+        }
+    }
+
+    /**
+     * Build a SQL fragment and parameter list to enforce echomail moderation
+     * visibility: approved messages are visible to all; pending messages are
+     * visible only to their author; rejected messages are never shown.
+     *
+     * @param int|null $userId  The current user's ID (0 or null = unauthenticated).
+     * @param string   $alias   The echomail table alias used in the query (default 'em').
+     * @return array{sql: string, params: array}
+     */
+    public function buildModerationVisibilityFilter(?int $userId, string $alias = 'em'): array
+    {
+        if ($userId) {
+            return [
+                'sql'    => " AND ({$alias}.moderation_status = 'approved' OR ({$alias}.moderation_status = 'pending' AND {$alias}.user_id = ?))",
+                'params' => [$userId],
+            ];
+        }
+        return [
+            'sql'    => " AND {$alias}.moderation_status = 'approved'",
+            'params' => [],
+        ];
     }
 
     private function applyUserSignatureAndTagline(string $messageText, int $userId, ?string $tagline = null): string
@@ -3142,7 +3311,8 @@ class MessageHandler
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE',
             'forward_netmail_email' => 'BOOLEAN',
-            'echomail_digest' => 'DIGEST_FREQUENCY'
+            'echomail_digest' => 'DIGEST_FREQUENCY',
+            'dashboard_layout' => 'DASHBOARD_LAYOUT',
         ];
 
         $updates = [];
@@ -3197,6 +3367,18 @@ class MessageHandler
                 case 'DIGEST_FREQUENCY':
                     $freq = trim((string)$value);
                     $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
+                    break;
+                case 'DASHBOARD_LAYOUT':
+                    if ($value === null) {
+                        $params[] = null;
+                    } elseif (is_array($value)) {
+                        $params[] = json_encode($value);
+                    } elseif (is_string($value)) {
+                        $decoded = json_decode($value, true);
+                        $params[] = is_array($decoded) ? $value : null;
+                    } else {
+                        $params[] = null;
+                    }
                     break;
                 default:
                     $params[] = $value;
@@ -4922,6 +5104,11 @@ class MessageHandler
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
         $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
         $filterClause .= $ignoreFilter['sql'];
+        $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
+        $filterClause .= $moderationFilter['sql'];
+        foreach ($moderationFilter['params'] as $p) {
+            $filterParams[] = $p;
+        }
 
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
@@ -5090,6 +5277,11 @@ class MessageHandler
         $filterClause .= " AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))";
         $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
         $filterClause .= $ignoreFilter['sql'];
+        $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
+        $filterClause .= $moderationFilter['sql'];
+        foreach ($moderationFilter['params'] as $p) {
+            $filterParams[] = $p;
+        }
 
         // First, get the total count of root messages (threads) for pagination
         $totalThreads = 0;
@@ -5282,8 +5474,9 @@ class MessageHandler
         $depth = 0;
 
         while (!empty($currentLevelIds) && $depth < $maxDepth) {
-            $placeholders = implode(',', array_fill(0, count($currentLevelIds), '?'));
-            $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+            $placeholders     = implode(',', array_fill(0, count($currentLevelIds), '?'));
+            $ignoreFilter     = $this->buildEchomailIgnoreFilter($userId, 'em');
+            $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
 
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
@@ -5299,12 +5492,15 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE em.reply_to_id IN ({$placeholders}){$ignoreFilter['sql']}
+                WHERE em.reply_to_id IN ({$placeholders}){$ignoreFilter['sql']}{$moderationFilter['sql']}
             ");
 
             $params = [$userId, $userId, $userId];
             $params = array_merge($params, $currentLevelIds);
             foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+            foreach ($moderationFilter['params'] as $param) {
                 $params[] = $param;
             }
             $stmt->execute($params);

@@ -841,6 +841,19 @@ a:hover {
     color: var(--text-color);
 }
 
+/* Markdown heading borders in message bodies */
+.message-text h1 {
+    border-bottom: 3px double var(--border-color);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.75em;
+}
+
+.message-text h2 {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.75em;
+}
+
 /* Legacy message text styles */
 .message-text pre {
     background-color: var(--cyber-dark);
@@ -1687,4 +1700,19 @@ tbody, td, tfoot, th, thead, tr {
 /* Today's Callers table */
 .callers-table th {
     border-bottom-color: var(--theme-border, var(--bs-border-color));
+}
+
+
+
+
+
+
+/* TUI WYSIWYG Editor — transparent backgrounds so page bg shows through */
+#tuiEditorEl .toastui-editor-dark.toastui-editor-defaultUI,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-ww-container,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-md-container,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch .tab-item,
+#tuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch .tab-item.active {
+    background-color: transparent !important;
 }

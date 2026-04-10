@@ -178,6 +178,55 @@ class Config
     }
 
     /**
+     * Whether usernames are allowed to contain single internal spaces.
+     *
+     * Controlled by the USERNAMES_ALLOW_SPACES environment variable.
+     * Defaults to false so existing deployments are unaffected.
+     *
+     * @return bool
+     */
+    public static function allowSpacesInUsernames(): bool
+    {
+        return self::env('USERNAMES_ALLOW_SPACES', 'false') === 'true';
+    }
+
+    /**
+     * Return the PCRE regex that validates a username under the current configuration.
+     *
+     * When spaces are allowed the pattern permits single internal spaces between
+     * word-character groups. Leading/trailing spaces are never matched.
+     *
+     * @return string PCRE pattern including delimiters
+     */
+    public static function getUsernameRegex(): string
+    {
+        if (self::allowSpacesInUsernames()) {
+            // 3-20 chars total; word groups separated by exactly one space
+            return '/^(?=.{3,20}$)[a-zA-Z0-9_]+( [a-zA-Z0-9_]+)*$/';
+        }
+        return '/^[a-zA-Z0-9_]{3,20}$/';
+    }
+
+    /**
+     * Normalize a candidate username before validation.
+     *
+     * Always trims leading and trailing whitespace. When spaces are allowed,
+     * also collapses consecutive internal spaces to a single space so that
+     * "Dark  Knight" becomes "Dark Knight" before the regex is applied.
+     *
+     * @param string $username Raw username input
+     * @return string Normalized username
+     */
+    public static function normalizeUsername(string $username): string
+    {
+        $username = trim($username);
+        if (self::allowSpacesInUsernames()) {
+            $username = preg_replace('/ {2,}/', ' ', $username);
+        }
+        return $username;
+    }
+
+    /**
      * Get the base site URL (without trailing slash)
      *
      * Uses SITE_URL environment variable first (important for apps behind HTTPS proxies),

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v741';
+const CACHE_NAME = 'binkcache-v771';
 
 // Static assets to precache
 const staticAssets = [
@@ -25,6 +25,9 @@ const staticAssets = [
     '/css/greenterm.css',
     '/css/cyberpunk.css',
     // Vendor libraries
+    '/vendor/toastui-editor-3.2.2/toastui-editor-all.min.js',
+    '/vendor/toastui-editor-3.2.2/toastui-editor.css',
+    '/vendor/toastui-editor-3.2.2/toastui-editor-dark.css',
     '/vendor/bootstrap-5.3.0/css/bootstrap.min.css',
     '/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js',
     '/vendor/jquery-3.7.1/jquery-3.7.1.min.js',

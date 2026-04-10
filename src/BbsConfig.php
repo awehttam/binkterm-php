@@ -125,6 +125,19 @@ class BbsConfig
      *
      * @return string Canonical charset name (e.g. "CP437", "UTF-8")
      */
+    /**
+     * Return the number of approved networked echomail posts required before
+     * a user is automatically promoted to unmoderated posting.
+     *
+     * @return int
+     */
+    public static function getEchomailModerationThreshold(): int
+    {
+        self::load();
+        $value = (int)(self::$config['echomail_moderation_threshold'] ?? 0);
+        return max(0, $value);
+    }
+
     public static function getOutgoingCharset(): string
     {
         self::load();

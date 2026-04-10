@@ -40,6 +40,7 @@ class AdminDaemonServer
         'binkp_scheduler.log',
         'admin_daemon.log',
         'mrc_daemon.log',
+        'ai_bot_daemon.log',
         'crashmail.log',
         'dosdoor.log',
     ];
@@ -301,7 +302,8 @@ class AdminDaemonServer
                         'binkp_server.log' => \BinktermPHP\Config::getLogPath('binkp_server.log'),
                         'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
                         'admin_daemon.log' => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
-                        'mrc_daemon.log' => \BinktermPHP\Config::getLogPath('mrc_daemon.log')
+                        'mrc_daemon.log' => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
+                        'ai_bot_daemon.log' => \BinktermPHP\Config::getLogPath('ai_bot_daemon.log')
                     ];
                     $logs = $this->logger->getRecentLogs($lines, $logFiles);
                     $this->writeResponse($client, ['ok' => true, 'result' => $logs]);
@@ -677,6 +679,30 @@ class AdminDaemonServer
                     $result = $this->runCommand([PHP_BINARY, 'scripts/mrc_daemon.php', '--daemon', "--pid-file=$pidFile"]);
                     $this->logCommandResult('restart_mrc_daemon', $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'restart_ai_bot_daemon':
+                    $defaultPidFile = __DIR__ . '/../../data/run/ai_bot_daemon.pid';
+                    $pidFile = \BinktermPHP\Config::env('AI_BOT_DAEMON_PID_FILE') ?: $defaultPidFile;
+
+                    // Stop daemon if running
+                    if (file_exists($pidFile)) {
+                        $pid = (int)trim(file_get_contents($pidFile));
+                        if ($pid > 0 && posix_kill($pid, 0)) {
+                            posix_kill($pid, SIGTERM);
+                            for ($i = 0; $i < 10; $i++) {
+                                usleep(100000);
+                                if (!posix_kill($pid, 0)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Start daemon
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/ai_bot_daemon.php', '--daemon', "--pid-file=$pidFile"]);
+                    $this->logCommandResult('restart_ai_bot_daemon', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 case 'get_appearance_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getAppearanceConfig()]);
                     break;

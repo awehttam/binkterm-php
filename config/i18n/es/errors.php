@@ -27,6 +27,7 @@ return [
     'errors.register.rate_limited' => 'Demasiados intentos de registro. Intentelo de nuevo mas tarde.',
     'errors.register.required_fields' => 'Se requieren nombre de usuario, contrasena y nombre real',
     'errors.register.invalid_username_format' => 'El nombre de usuario debe tener 3-20 caracteres, solo letras, numeros y guiones bajos',
+    'errors.register.invalid_username_format_spaces' => 'El nombre de usuario debe tener 3-20 caracteres, solo letras, numeros, guiones bajos y espacios simples entre palabras',
     'errors.register.restricted_name' => 'Este nombre de usuario o nombre real no esta permitido',
     'errors.register.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.register.user_exists' => 'Ya existe un usuario con ese nombre de usuario o nombre. Intente iniciar sesion o contacte al sysop para obtener ayuda.',
@@ -41,6 +42,7 @@ return [
     'errors.settings.invalid_input' => 'Entrada invalida',
     'errors.settings.update_failed' => 'No se pudo actualizar la configuracion',
     'errors.settings.exception' => 'No se pudo actualizar la configuracion',
+    'errors.dashboard.invalid_layout' => 'Datos de diseño no válidos.',
 
     // Messages
     'errors.messages.share_create_failed' => 'No se pudo crear el enlace compartido',
@@ -169,6 +171,8 @@ return [
     'errors.files.upload.virus_detected' => 'Archivo rechazado: virus detectado',
     'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
+    'errors.files.link.invalid_url' => 'Se requiere una URL válida',
+    'errors.files.link.add_failed' => 'No se pudo agregar el enlace',
     'errors.admin.file_approvals.load_failed' => 'No se pudieron cargar las aprobaciones de archivos pendientes',
     'errors.admin.file_approvals.not_found' => 'No se encontro el archivo pendiente',
     'errors.admin.file_approvals.not_pending' => 'El archivo no esta esperando aprobacion',
@@ -343,6 +347,7 @@ return [
     'errors.admin.appearance.term_server.upload.file_too_large' => 'El archivo de pantalla del servidor terminal supera el limite de tamano',
     'errors.admin.appearance.term_server.delete.failed' => 'No se pudo eliminar la pantalla del servidor terminal',
     'errors.admin.appearance.message_reader.save_failed' => 'No se pudo guardar la configuracion del lector de mensajes',
+    'errors.admin.appearance.dashboard.save_failed' => 'No se pudo guardar el diseno del panel',
     'errors.admin.appearance.markdown_preview.failed' => 'No se pudo renderizar la vista previa de markdown',
     'errors.admin.appearance.splash.license_required' => 'Se requiere una licencia valida para configurar las paginas de inicio',
     'errors.admin.appearance.splash.save_failed' => 'No se pudo guardar la configuracion de las paginas de inicio',
@@ -623,4 +628,20 @@ return [
     'errors.admin.msg.empty_message'     => 'El mensaje no puede estar vacio.',
     'errors.admin.msg.message_too_long'  => 'Mensaje demasiado largo (maximo 1000 caracteres).',
     'errors.admin.msg.user_not_found'    => 'Usuario no encontrado.',
+
+    // Echomail moderation
+    'errors.admin.echomail_moderation.not_found' => 'Mensaje no encontrado o no está pendiente de moderación.',
+
+    // AI Bots
+    'errors.admin.ai_bots.not_found'        => 'Bot no encontrado.',
+    'errors.admin.ai_bots.name_invalid'     => 'El nombre del bot debe tener entre 1 y 100 caracteres.',
+    'errors.admin.ai_bots.username_invalid' => 'El nombre de usuario debe tener entre 1 y 50 caracteres alfanumericos o guiones bajos.',
+    'errors.admin.ai_bots.username_taken'   => 'Ese nombre de usuario ya esta en uso.',
+    'errors.admin.ai_bots.create_failed'    => 'Error al crear el bot.',
+    'errors.admin.ai_bots.update_failed'    => 'Error al actualizar el bot.',
+    'errors.admin.ai_bots.delete_failed'    => 'Error al eliminar el bot.',
+
+    // URL preview (unfurl)
+    'errors.url_preview.invalid_url'   => 'URL no válida.',
+    'errors.url_preview.fetch_failed'  => 'No se pudo obtener una vista previa de esa URL.',
 ];

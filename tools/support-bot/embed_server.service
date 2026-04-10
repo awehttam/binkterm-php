@@ -1,0 +1,13 @@
+[Unit]
+Description=BinktermPHP embedding server (all-MiniLM-L6-v2)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/binktest/tools/support-bot
+ExecStart=%h/.local/share/virtualenvs/support-bot/bin/python3 embed_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

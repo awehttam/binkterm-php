@@ -115,6 +115,8 @@ class AppearanceConfig
                 'sidebar_info_title' => '',
                 'sidebar_info_html' => '',
                 'footer_html' => '',
+            'dashboard' => [
+                'default_layout' => null,
             ],
         ];
     }
@@ -456,5 +458,21 @@ class AppearanceConfig
             'sidebar_info_html'  => (string)($cfg['sidebar_info_html'] ?? ''),
             'footer_html'        => (string)($cfg['footer_html'] ?? ''),
         ];
+    // Dashboard
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the sysop-configured default dashboard layout, or null if none is set.
+     * The layout is an array with 'main', 'sidebar', and 'hidden' keys, each containing
+     * an ordered list of card IDs.
+     */
+    public static function getDefaultDashboardLayout(): ?array
+    {
+        self::load();
+        $layout = self::$config['dashboard']['default_layout'] ?? null;
+        if (!is_array($layout)) {
+            return null;
+        }
+        return $layout;
     }
 }
