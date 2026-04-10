@@ -481,6 +481,7 @@ return [
     'ui.admin.appearance.tab_file_areas' => 'Areas de archivos',
     'ui.admin.appearance.invalid_hex_color' => 'Color hex invalido',
     'ui.admin.appearance.no_content' => 'Sin contenido',
+    'ui.admin.appearance.preview' => 'Vista previa',
     'ui.admin.appearance.preview_failed' => 'Fallo la vista previa',
     'ui.admin.appearance.branding.title' => 'Marca',
     'ui.admin.appearance.branding.accent_color' => 'Color de acento',

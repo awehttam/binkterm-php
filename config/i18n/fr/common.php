@@ -416,6 +416,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.appearance.tab_file_areas' => 'Zones de fichiers',
     'ui.admin.appearance.invalid_hex_color' => 'Couleur hexadécimale invalide',
     'ui.admin.appearance.no_content' => 'Aucun contenu',
+    'ui.admin.appearance.preview' => 'Aperçu',
     'ui.admin.appearance.preview_failed' => 'Échec de l\'aperçu',
     'ui.admin.appearance.branding.title' => 'Identité visuelle',
     'ui.admin.appearance.branding.accent_color' => 'Couleur d\'accentuation',
