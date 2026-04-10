@@ -251,6 +251,7 @@ return [
     'errors.admin.appearance.message_reader.save_failed' => 'Échec de l\'enregistrement des paramètres du lecteur de messages',
     'errors.admin.appearance.dashboard.save_failed' => 'Échec de l\'enregistrement de la mise en page du tableau de bord',
     'errors.admin.appearance.markdown_preview.failed' => 'Échec du rendu de l\'aperçu Markdown',
+    'errors.admin.appearance.file_areas.save_failed' => 'Échec de l\'enregistrement des paramètres des zones de fichiers',
     'errors.admin.shell_art.list_failed' => 'Échec du listage des fichiers d\'art shell',
     'errors.admin.shell_art.upload.no_file' => 'Aucun fichier d\'art shell téléversé',
     'errors.admin.shell_art.upload.upload_error' => 'Échec du téléversement de l\'art shell',

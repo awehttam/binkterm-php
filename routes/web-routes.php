@@ -1105,7 +1105,8 @@ SimpleRouter::get('/files', function() {
 
     $template = new Template();
     $template->renderResponse('files.twig', [
-        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'virus_scan_disabled'   => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'file_areas_appearance' => \BinktermPHP\AppearanceConfig::getFileAreasConfig(),
     ]);
 });
 
@@ -1134,10 +1135,11 @@ SimpleRouter::get('/files/{tag}', function($tag) {
 
     $template = new Template();
     $template->renderResponse('files.twig', [
-        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
-        'initial_area_tag'    => strtoupper($tag),
-        'is_public_area'      => $isPublic,
-        'initial_area'        => $area ?: null,
+        'virus_scan_disabled'   => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'initial_area_tag'      => strtoupper($tag),
+        'is_public_area'        => $isPublic,
+        'initial_area'          => $area ?: null,
+        'file_areas_appearance' => \BinktermPHP\AppearanceConfig::getFileAreasConfig(),
     ]);
 });
 
@@ -1155,8 +1157,9 @@ SimpleRouter::get('/public-files', function() {
 
     $template = new Template();
     $template->renderResponse('files.twig', [
-        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
-        'is_public_index'     => true,
+        'virus_scan_disabled'   => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+        'is_public_index'       => true,
+        'file_areas_appearance' => \BinktermPHP\AppearanceConfig::getFileAreasConfig(),
     ]);
 });
 

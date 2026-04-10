@@ -108,6 +108,20 @@
                 </dl>
             </div>
         </div>
+
+        {% if file_areas_appearance is defined and file_areas_appearance.sidebar_info_html %}
+        <!-- Custom sidebar info panel (desktop only) -->
+        <div class="card mt-3 d-none d-lg-block">
+            {% if file_areas_appearance.sidebar_info_title %}
+            <div class="card-header">
+                <h6 class="mb-0">{{ file_areas_appearance.sidebar_info_title }}</h6>
+            </div>
+            {% endif %}
+            <div class="card-body small">
+                {{ file_areas_appearance.sidebar_info_html|raw }}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Statistics (mobile only - at bottom) -->
@@ -129,8 +143,33 @@
                 </dl>
             </div>
         </div>
+
+        {% if file_areas_appearance is defined and file_areas_appearance.sidebar_info_html %}
+        <!-- Custom sidebar info panel (mobile) -->
+        <div class="card mt-3">
+            {% if file_areas_appearance.sidebar_info_title %}
+            <div class="card-header">
+                <h6 class="mb-0">{{ file_areas_appearance.sidebar_info_title }}</h6>
+            </div>
+            {% endif %}
+            <div class="card-body small">
+                {{ file_areas_appearance.sidebar_info_html|raw }}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
+
+{% if file_areas_appearance is defined and file_areas_appearance.footer_html %}
+<!-- Custom file area footer -->
+<div class="mt-4">
+    <div class="card">
+        <div class="card-body small">
+            {{ file_areas_appearance.footer_html|raw }}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- File Preview Modal -->
 <div class="modal fade" id="filePreviewModal" tabindex="-1">

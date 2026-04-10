@@ -111,6 +111,10 @@ class AppearanceConfig
                 'scrollable_body' => true,
                 'email_link_url' => '',
             ],
+            'file_areas' => [
+                'sidebar_info_title' => '',
+                'sidebar_info_html' => '',
+                'footer_html' => '',
             'dashboard' => [
                 'default_layout' => null,
             ],
@@ -439,6 +443,21 @@ class AppearanceConfig
     }
 
     // -------------------------------------------------------------------------
+    // File Areas
+    // -------------------------------------------------------------------------
+
+    /**
+     * File areas appearance configuration (sidebar info panel and footer).
+     */
+    public static function getFileAreasConfig(): array
+    {
+        self::load();
+        $cfg = self::$config['file_areas'] ?? [];
+        return [
+            'sidebar_info_title' => trim((string)($cfg['sidebar_info_title'] ?? '')),
+            'sidebar_info_html'  => (string)($cfg['sidebar_info_html'] ?? ''),
+            'footer_html'        => (string)($cfg['footer_html'] ?? ''),
+        ];
     // Dashboard
     // -------------------------------------------------------------------------
 

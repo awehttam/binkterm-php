@@ -76,6 +76,11 @@
             <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.admin.appearance.tab_message_reader', {}, locale, ['common']) }}
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-file-areas-btn" data-bs-toggle="tab" data-bs-target="#tab-file-areas" type="button" role="tab">
+            <i class="fas fa-folder-open me-1"></i> {{ t('ui.admin.appearance.tab_file_areas', {}, locale, ['common']) }}
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="appearanceTabContent">
@@ -636,6 +641,47 @@
         </div>
     </div>
 
+    {# ====== TAB: FILE AREAS ====== #}
+    <div class="tab-pane fade" id="tab-file-areas" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-folder-open me-2"></i>{{ t('ui.admin.appearance.file_areas.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">{{ t('ui.admin.appearance.file_areas.help', {}, locale, ['common']) }}</p>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.file_areas.sidebar_section', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-3">
+                    <label class="form-label" for="faInfoTitle">{{ t('ui.admin.appearance.file_areas.sidebar_info_title', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="faInfoTitle" maxlength="200" placeholder="{{ t('ui.admin.appearance.file_areas.sidebar_info_title_placeholder', {}, locale, ['common']) }}">
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.sidebar_info_title_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label" for="faInfoHtml">{{ t('ui.admin.appearance.file_areas.sidebar_info_html', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control font-monospace" id="faInfoHtml" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.sidebar_info_html_placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.sidebar_info_html_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <hr>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.file_areas.footer_section', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-3">
+                    <label class="form-label" for="faFooterHtml">{{ t('ui.admin.appearance.file_areas.footer_html', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control font-monospace" id="faFooterHtml" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.footer_html_placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.footer_html_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveFileAreas()">
+                    <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.file_areas.save', {}, locale, ['common']) }}
+                </button>
+                <span id="fileAreasStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -857,6 +903,11 @@ function loadAppearanceConfig() {
             $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
             $('#mrEmailLinkUrl').val(mr.email_link_url || '');
 
+            // File Areas
+            const fa = config.file_areas || {};
+            $('#faInfoTitle').val(fa.sidebar_info_title || '');
+            $('#faInfoHtml').val(fa.sidebar_info_html || '');
+            $('#faFooterHtml').val(fa.footer_html || '');
             // Dashboard default layout
             initAdminDashboardTab(config.dashboard || {});
 
@@ -1392,6 +1443,29 @@ function saveMessageReader() {
         });
 }
 
+function saveFileAreas() {
+    const payload = {
+        file_areas: {
+            sidebar_info_title: $('#faInfoTitle').val().trim(),
+            sidebar_info_html: $('#faInfoHtml').val(),
+            footer_html: $('#faFooterHtml').val()
+        }
+    };
+    $.post('/admin/api/appearance/file-areas', JSON.stringify(payload), null, 'json')
+        .done(function(r) {
+            if (r.success) {
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved'))
+                    : uiT('ui.common.saved_short', 'Saved');
+                $('#fileAreasStatus').text(successMessage).removeClass('text-danger').addClass('text-success');
+                setTimeout(() => $('#fileAreasStatus').text(''), 3000);
+            } else {
+                $('#fileAreasStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(r, uiT('ui.common.unknown_error', 'Unknown error'))).addClass('text-danger');
+            }
+        })
+        .fail(function(xhr) {
+            $('#fileAreasStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
+        });
 // ---- Admin Dashboard Default Layout ----
 const ADMIN_DASHBOARD_CARDS = {{ dashboard_cards | json_encode | raw }};
 
