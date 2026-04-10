@@ -27,52 +27,62 @@ class BbsListHandler
     public function show($conn, array &$state, string $session): void
     {
         $locale  = $state['locale'];
-        $perPage = max(5, ($state['rows'] ?? 24) - 8);
-        $page    = 0;
+        $perPage = max(5, ($state['rows'] ?? 24) - 3);
+        $page    = 1;
 
         $entries = $this->fetchEntries();
 
-        while (true) {
-            $total     = count($entries);
-            $totalPages = $total > 0 ? (int)ceil($total / $perPage) : 1;
-            $page       = max(0, min($page, $totalPages - 1));
-            $slice      = array_slice($entries, $page * $perPage, $perPage);
-
+        if (empty($entries)) {
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->server->t(
                     'ui.terminalserver.bbslist.title',
                     'BBS Directory ({total} systems)',
-                    ['total' => $total],
+                    ['total' => 0],
                     $locale
                 ),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             ));
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                str_repeat('-', min(60, ($state['cols'] ?? 80) - 2)),
-                TelnetUtils::ANSI_DIM
+                $this->server->t('ui.terminalserver.bbslist.empty', 'No BBS listings available.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
             ));
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
 
-            if (empty($entries)) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.bbslist.empty', 'No BBS listings available.', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-                TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-                $this->server->readKeyWithIdleCheck($conn, $state);
-                return;
-            }
+        $total      = count($entries);
+        $totalPages = (int)ceil($total / $perPage);
+
+        $statusBar = [
+            ['text' => 'U/D',       'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Move  ',   'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',       'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Page  ',   'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Enter',     'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' View  ',   'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Q',         'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Quit',     'color' => TelnetUtils::ANSI_BLUE],
+        ];
+
+        $selectedIndex = 0;
+
+        while (true) {
+            $page  = max(1, min($page, $totalPages));
+            $slice = array_slice($entries, ($page - 1) * $perPage, $perPage);
 
             $cols      = max(40, (int)($state['cols'] ?? 80));
             $nameWidth = max(20, (int)floor($cols * 0.35));
             $hostWidth = max(20, (int)floor($cols * 0.30));
 
+            $rows = [];
             foreach ($slice as $idx => $entry) {
-                $num      = $page * $perPage + $idx + 1;
+                $num      = ($page - 1) * $perPage + $idx + 1;
                 $name     = $this->truncate((string)($entry['name'] ?? ''), $nameWidth);
                 $location = (string)($entry['location'] ?? '');
                 $host     = (string)($entry['telnet_host'] ?? '');
@@ -89,52 +99,42 @@ class BbsListHandler
                 if ($location !== '') {
                     $line .= '  ' . TelnetUtils::colorize($location, TelnetUtils::ANSI_DIM);
                 }
-                TelnetUtils::writeLine($conn, $line);
+                $rows[] = $line;
             }
 
-            TelnetUtils::writeLine($conn, '');
-            $pageLabel = $this->server->t(
-                'ui.terminalserver.bbslist.page',
-                'Page {page}/{total}',
-                ['page' => $page + 1, 'total' => $totalPages],
-                $locale
+            $title = TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.bbslist.title',
+                    'BBS Directory ({total} systems)',
+                    ['total' => $total],
+                    $locale
+                ),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($pageLabel, TelnetUtils::ANSI_DIM));
 
-            $promptParts = ['#=view'];
-            if ($page > 0) {
-                $promptParts[] = 'P=prev';
-            }
-            if ($page < $totalPages - 1) {
-                $promptParts[] = 'N=next';
-            }
-            $promptParts[] = 'Q=quit';
+            $result        = TelnetUtils::runSelectableList($conn, $state, $this->server, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
+            $selectedIndex = $result['selectedIndex'];
 
-            TelnetUtils::writeLine($conn, $this->server->t(
-                'ui.terminalserver.bbslist.prompt',
-                implode(', ', $promptParts),
-                [],
-                $locale
-            ));
-
-            $choice = $this->server->prompt($conn, $state, '> ', true);
-            if ($choice === null) {
-                return;
-            }
-            $choice = strtolower(trim($choice));
-
-            if ($choice === 'q' || $choice === '') {
-                return;
-            } elseif ($choice === 'n' && $page < $totalPages - 1) {
-                $page++;
-            } elseif ($choice === 'p' && $page > 0) {
-                $page--;
-            } elseif (ctype_digit($choice) && (int)$choice >= 1) {
-                $entryIndex = (int)$choice - 1;
-                if (isset($entries[$entryIndex])) {
-                    $this->server->logAction($state['username'] ?? 'unknown', 'BBS List: viewed "' . ($entries[$entryIndex]['name'] ?? '') . '"');
-                    $this->showDetail($conn, $state, $entries[$entryIndex]);
-                }
+            switch ($result['action']) {
+                case 'disconnect':
+                    return;
+                case 'quit':
+                    return;
+                case 'prev':
+                    $page--;
+                    $selectedIndex = 0;
+                    break;
+                case 'next':
+                    $page++;
+                    $selectedIndex = 0;
+                    break;
+                case 'select':
+                    $entryIndex = ($page - 1) * $perPage + $result['index'];
+                    if (isset($entries[$entryIndex])) {
+                        $this->server->logAction($state['username'] ?? 'unknown', 'BBS List: viewed "' . ($entries[$entryIndex]['name'] ?? '') . '"');
+                        $this->showDetail($conn, $state, $entries[$entryIndex]);
+                    }
+                    break;
             }
         }
     }
