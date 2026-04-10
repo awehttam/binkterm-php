@@ -1953,8 +1953,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $fa = $payload['file_areas'] ?? [];
 
                 $sidebarTitle = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
-                $sidebarHtml  = substr(trim((string)($fa['sidebar_info_html'] ?? '')), 0, 10000);
-                $footerHtml   = substr(trim((string)($fa['footer_html'] ?? '')), 0, 10000);
+                $sidebarHtml  = substr((string)($fa['sidebar_info_html'] ?? ''), 0, 10000);
+                $footerHtml   = substr((string)($fa['footer_html'] ?? ''), 0, 10000);
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['file_areas']['sidebar_info_title'] = $sidebarTitle;
