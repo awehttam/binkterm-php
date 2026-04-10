@@ -5,19 +5,6 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-  - [Markdown WYSIWYG Compose Editor](#summary-markdown-editor)
-  - [Markdown Heading Rendering](#summary-markdown-headings)
-  - [Echomail Moderation](#summary-echomail-moderation)
-  - [Polls](#summary-polls)
-  - [File Area URL Links](#summary-file-area-url-links)
-  - [URL Link Open Graph Image Preview](#summary-og-image)
-  - [Optional Spaces in Usernames](#summary-spaces-in-usernames)
-  - [User Guide](#summary-user-guide)
-  - [Dashboard Layout Customization](#summary-dashboard-layout)
-  - [Sysop Default Dashboard Layout](#summary-sysop-dashboard-layout)
-  - [AI Bots](#summary-ai-bots)
-  - [Chat Markdown Rendering](#summary-chat-markdown)
-  - [MCP Server Dependency Updates](#summary-mcp-server-deps)
 - [Markdown WYSIWYG Compose Editor](#markdown-wysiwyg-compose-editor)
 - [Markdown Heading Rendering](#markdown-heading-rendering)
 - [Echomail Moderation](#echomail-moderation)
@@ -31,7 +18,6 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Sysop Default Dashboard Layout](#sysop-default-dashboard-layout)
 - [AI Bots](#ai-bots)
 - [Chat Markdown Rendering](#chat-markdown-rendering)
-- [MCP Server Dependency Updates](#mcp-server-dependency-updates)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -42,19 +28,19 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-### Markdown WYSIWYG Compose Editor {#summary-markdown-editor}
+### Markdown WYSIWYG Compose Editor
 
 - When composing a Markdown message, the plain textarea is replaced by a rich editor with a formatting toolbar and side-by-side Edit/Preview tabs.
 - Toolbar buttons cover bold, italic, H1–H3, inline code, code block, link, image, unordered and ordered lists, blockquote, and horizontal rule. Keyboard shortcuts Ctrl+B, Ctrl+I, and Ctrl+K are supported.
 - Pasting a bare URL into the editor prompts the user to fetch an Open Graph preview and insert a formatted link card in place of the raw URL.
 - The Preview tab renders a close approximation of how the message will appear to recipients.
 
-### Markdown Heading Rendering {#summary-markdown-headings}
+### Markdown Heading Rendering
 
 - H1 headings in rendered Markdown messages now display with a double underline; H2 headings display with a single underline, matching the visual convention used by the compose editor's preview.
 - Heading font sizes now scale proportionally with the user's configured message font size instead of being collapsed to the same size as body text.
 
-### Echomail Moderation {#summary-echomail-moderation}
+### Echomail Moderation
 
 - New users' echomail posts can be held for admin review before being distributed to the network. This feature is disabled by default and must be enabled by the sysop.
 - An admin-configurable approval threshold automatically promotes users to unmoderated posting once they have accumulated a sufficient number of approved posts.
@@ -63,39 +49,41 @@ Make sure you have a current backup of your database and files before upgrading.
 - Existing users who have previously logged in are grandfathered in and bypass moderation automatically.
 - Admins always bypass moderation regardless of post count.
 
-### Polls {#summary-polls}
+### Polls
 
 - The poll list now shows unvoted polls before polls the user has already voted on, so newly created polls always appear at the top.
 - Within each group, polls are ordered newest first.
 
-### File Area URL Links {#summary-file-area-url-links}
+### File Area URL Links
 
 - File areas now support external URL links in addition to uploaded files.
 - URL link entries display a link icon, show a dash for file size, and present a Visit button instead of a download button throughout all file listing views (area files, recent uploads, My Uploads, and file search results).
 - The file information modal on the echomail page shows a Visit button for URL link entries.
 
-### MCP Server {#summary-mcp-server}
+### MCP Server
 
 - The MCP server (`mcp-server/server.js`) had a memory leak where each request allocated a new `McpServer` instance that was never explicitly closed, causing memory to grow steadily over time. The server is now properly closed when the HTTP response ends.
 
-### Optional Spaces in Usernames {#summary-spaces-in-usernames}
+### Optional Spaces in Usernames
 
 - A new `.env` setting, `USERNAMES_ALLOW_SPACES`, controls whether usernames may contain single internal spaces (e.g. `Phantom of Doom`). The setting defaults to `false`; existing behaviour is unchanged unless you opt in.
+- When enabled, the registration form accepts handles containing single spaces between word characters. Leading and trailing spaces are trimmed automatically, and consecutive spaces are collapsed to one before validation runs.
+- The admin terminal `finger` and `msg` commands now handle multi-word usernames correctly. The `msg` command accepts a quoted username syntax (`msg "Dark Knight" hello`) for names that contain spaces.
 
-### User Guide {#summary-user-guide}
+### User Guide
 
 - A built-in User Guide is now available at `/user-guide`, covering the dashboard, echomail, netmail, doors, file areas, and exploring BBS networks.
 - The guide is linked from the user dropdown menu under **User Guide**, grouped with a divider above the Logout option.
 - No configuration or database changes are required.
 
-### Dashboard Layout Customization {#summary-dashboard-layout}
+### Dashboard Layout Customization
 
 - Users can now reorder and rearrange dashboard cards to suit their preferences using a **Customize Dashboard** button at the top of the dashboard.
 - Cards can be dragged between the main column and the sidebar, reordered within each column, and individually shown or hidden. The "Unread Mail" card is always visible and cannot be hidden.
 - Layout preferences are saved per user and persist across sessions. A **Reset to Default** option restores the original layout.
 - A database migration adds a `dashboard_layout` column to `user_settings`. Run `php scripts/setup.php` to apply.
 
-### Sysop Default Dashboard Layout {#summary-sysop-dashboard-layout}
+### Sysop Default Dashboard Layout
 
 - Sysops can now configure the default card layout that users see before they have saved a custom layout of their own.
 - The setting is in **Admin → Appearance & Content** on a new **Dashboard** tab, which appears first in the tab list.
@@ -103,7 +91,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Cards labelled Admin Only or marked with a feature badge will still only appear for users with the appropriate access level, regardless of where the sysop places them.
 - No database migration is required. The layout is stored in `data/appearance.json`.
 
-### AI Bots {#summary-ai-bots}
+### AI Bots
 
 - Sysops can create AI-powered bot personas that participate in local chat.
 - Each bot has its own system user account, a configurable system prompt, a choice of AI provider and model, and a weekly API cost budget.
@@ -112,23 +100,14 @@ Make sure you have a current backup of your database and files before upgrading.
 - Three database migrations are required. Run `php scripts/setup.php` to apply.
 - A new background daemon, `scripts/ai_bot_daemon.php`, must be started and kept running for bots to respond.
 
-### MCP Server Dependency Updates {#summary-mcp-server-deps}
-
-- The `@hono/node-server` package in `mcp-server/` has been updated from 1.19.11 to 1.19.13.
-- The `hono` package in `mcp-server/` has been updated from 4.12.9 to 4.12.12.
-- These are transitive dependencies pulled in by `@modelcontextprotocol/sdk`. No code changes are required; restart the MCP server daemon to pick up the updated packages.
-
-### Chat Markdown Rendering {#summary-chat-markdown}
+### Chat Markdown Rendering
 
 - Chat messages are now rendered as Markdown, allowing bold, italic, inline code, code blocks, lists, and other formatting to display properly in the chat interface.
 - Rendering is performed server-side using the existing Markdown renderer, so no client-side library is required.
 - No configuration or database changes are required.
-- When enabled, the registration form accepts handles containing single spaces between word characters. Leading and trailing spaces are trimmed automatically, and consecutive spaces are collapsed to one before validation runs.
-- The admin terminal `finger` and `msg` commands now handle multi-word usernames correctly. The `msg` command accepts a quoted username syntax (`msg "Dark Knight" hello`) for names that contain spaces.
-- The `rename_user.php` script now also updates the `cwn_networks.submitted_by_username` column when a user is renamed.
 - No database migration is required.
 
-### URL Link Open Graph Image Preview {#summary-og-image}
+### URL Link Open Graph Image Preview
 
 - When a URL link's preview is opened, the system fetches the linked page's `og:image` meta tag server-side and displays the image above the description.
 - The upload modal has a new **Add Link** tab where a URL can be submitted with a short and long description.
@@ -463,17 +442,6 @@ Supported formatting includes bold (`**text**`), italic (`*text*`), inline code 
 Rendering is performed server-side by the same `MarkdownRenderer` used for echomail and netmail. The rendered HTML is delivered alongside the plain-text body in API responses and in real-time SSE events, so no client-side Markdown library is needed.
 
 No configuration or database changes are required.
-
-## MCP Server Dependency Updates
-
-The `mcp-server/` directory's lock file has been updated to pull in newer patch releases of two packages used by `@modelcontextprotocol/sdk`:
-
-| Package | Previous | Updated |
-|---|---|---|
-| `@hono/node-server` | 1.19.11 | 1.19.13 |
-| `hono` | 4.12.9 | 4.12.12 |
-
-Both are transitive dependencies; neither is listed directly in `mcp-server/package.json`. No code changes are required. If you are running the MCP server daemon, restart it after updating to ensure the new packages are loaded.
 
 ## Upgrade Instructions
 
