@@ -84,7 +84,6 @@ Make sure you have a current backup of your database and files before upgrading.
 - Users can now reorder and rearrange dashboard cards to suit their preferences using a **Customize Dashboard** button at the top of the dashboard.
 - Cards can be dragged between the main column and the sidebar, reordered within each column, and individually shown or hidden. The "Unread Mail" card is always visible and cannot be hidden.
 - Layout preferences are saved per user and persist across sessions. A **Reset to Default** option restores the original layout.
-- A database migration adds a `dashboard_layout` column to `user_settings`. Run `php scripts/setup.php` to apply.
 
 ### Sysop Default Dashboard Layout
 
@@ -92,7 +91,6 @@ Make sure you have a current backup of your database and files before upgrading.
 - The setting is in **Admin → Appearance & Content** on a new **Dashboard** tab, which appears first in the tab list.
 - Cards are arranged by drag-and-drop into three columns: Main Column, Sidebar Column, and Hidden by Default.
 - Cards labelled Admin Only or marked with a feature badge will still only appear for users with the appropriate access level, regardless of where the sysop places them.
-- No database migration is required. The layout is stored in `data/appearance.json`.
 
 ### AI Bots
 
@@ -100,34 +98,28 @@ Make sure you have a current backup of your database and files before upgrading.
 - Each bot has its own system user account, a configurable system prompt, a choice of AI provider and model, and a weekly API cost budget.
 - Bots appear in the chat online users list with a robot icon and respond to direct messages and @mentions in rooms.
 - Managed from **Admin → Community → AI Bots**.
-- Three database migrations are required. Run `php scripts/setup.php` to apply.
 - A new background daemon, `scripts/ai_bot_daemon.php`, must be started and kept running for bots to respond.
 
 ### Chat Markdown Rendering
 
 - Chat messages are now rendered as Markdown, allowing bold, italic, inline code, code blocks, lists, and other formatting to display properly in the chat interface.
 - Rendering is performed server-side using the existing Markdown renderer, so no client-side library is required.
-- No configuration or database changes are required.
-- No database migration is required.
 
 ### BBS List and Nodelist Browser for Term Server
 
 - The terminal server (Telnet/SSH) now includes a **B) BBS Directory** menu option that displays the site's BBS directory as a paginated, browsable list. Selecting an entry shows full details including sysop, location, OS, telnet address, website, and notes.
 - A **L) Node List** menu option is also available when a nodelist has been imported. Users can search by system name, sysop name, location, or FTN address, and view full node details including flags.
 - Both options appear automatically when their respective features are available (BBS directory feature flag enabled; nodelist table populated). No configuration changes are required.
-- No database migration is required.
 
 ### File Areas Markdown Customization
 
 - The sidebar info panel and footer fields in **Admin → Appearance & Content → File Areas** now accept Markdown.
 - Both fields include a **Preview** button to render the Markdown before saving.
-- No database migration is required.
 
 ### Redesigned Terminal Server Main Menu
 
 - The terminal server (Telnet/SSH) main menu has been reorganised into a two-column sectioned layout with category headers: **Messaging**, **Community**, **Explore**, **Files**, and **Settings**.
 - The menu box is wider to accommodate the two-column layout.
-- No configuration changes or database migration required.
 
 ### URL Link Open Graph Image Preview
 
@@ -137,7 +129,6 @@ Make sure you have a current backup of your database and files before upgrading.
 - URL links appear in file listings alongside regular files, marked with a link icon. Clicking the filename opens a preview card showing the descriptions and a Visit button.
 - URL links go through the same approval workflow and credit system as file uploads.
 - Admins can edit the URL of a link record from the file edit dialog.
-- The database migration relaxes the `NOT NULL` constraints on `file_hash` and `storage_path` in the `files` table, as URL records have no physical file. Run `php scripts/setup.php` to apply.
 
 ## Markdown WYSIWYG Compose Editor
 
@@ -219,10 +210,6 @@ Once a user accumulates enough approved posts to meet the configured threshold, 
 
 The approval threshold is set under **Admin → BBS Settings**. The default value is `0`, which disables moderation — all users post without moderation. Set it to `N` to require each new user to have `N` echomail posts approved on non-local echoareas before bypassing the queue.
 
-**Upgrading**
-
-The database migration adds `moderation_status` and `user_id` columns to the `echomail` table, and a `can_post_netecho_unmoderated` column to the `users` table. All users who have previously logged in are marked as unmoderated automatically so existing community members are not affected. Run `php scripts/setup.php` to apply the migration.
-
 ## Polls
 
 The order in which polls appear has changed. Previously all polls were returned oldest-first regardless of voting status. Now:
@@ -262,8 +249,6 @@ Migration `v1.11.0.72` makes the following schema changes to the `files` table:
 
 The existing unique constraint on `(file_area_id, file_hash)` continues to work correctly — PostgreSQL treats `NULL` values as distinct in unique indexes, so multiple link records in the same area do not conflict with each other.
 
-Run `php scripts/setup.php` to apply the migration.
-
 ## URL Link Open Graph Image Preview
 
 When a URL link entry's preview card is opened — either in the file area preview modal or the file information modal on the echomail page — the system fetches the linked page server-side and parses the `og:image` meta tag. If an image URL is found, it is displayed above the description as a preview thumbnail. The fetch is performed server-side, so no browser CORS restrictions apply. If no OG image is present or the image cannot be loaded, the preview displays only the description and Visit button.
@@ -288,7 +273,7 @@ Add the following line to your `.env` file:
 USERNAMES_ALLOW_SPACES=true
 ```
 
-Restart the web server and the telnet/SSH daemons after making this change. No database migration is required.
+Restart the web server and the telnet/SSH daemons after making this change.
 
 **Validation rules when enabled**
 
@@ -355,10 +340,6 @@ The default card layout can be configured by the sysop from **Admin → Appearan
 
 Cards that are gated behind BBS features (shoutbox, voting booth, advertising) or the referral credits system only appear in the customize modal when those features are active. The admin-only "Today's Callers" card is only shown to admin users.
 
-**Database changes**
-
-Migration `v1.11.0.73` adds a `dashboard_layout` column of type `jsonb` to the `user_settings` table. Run `php scripts/setup.php` to apply.
-
 ## Sysop Default Dashboard Layout
 
 Sysops can now define the card layout that users see when they first visit the dashboard — or after clicking Reset to Default — without editing PHP source files.
@@ -390,8 +371,6 @@ Moving an Admin Only or feature-gated card to any column is harmless — the car
 **Reset to Defaults**
 
 Clicking **Reset to Defaults** removes the saved sysop layout and restores the built-in defaults from `src/DashboardCardRegistry.php`.
-
-No database migration is required. The layout is stored in `data/appearance.json` alongside other appearance settings.
 
 ## AI Bots
 
@@ -441,16 +420,6 @@ php scripts/ai_bot_daemon.php --daemon --pid-file=data/ai_bot_daemon.pid
 
 The daemon can be restarted from the admin panel under **Admin → System → Daemon Status → Restart AI Bot Daemon**. Its log is written to `data/logs/ai_bot_daemon.log`.
 
-**Database changes**
-
-Three migrations are required:
-
-- `v1.11.0.74` — creates the `ai_bots` table.
-- `v1.11.0.75` — creates the `ai_bot_activities` table.
-- `v1.11.0.76` — adds a `bot_id` column to `ai_requests` so per-bot API cost tracking is accurate even when multiple bots share a provider account.
-
-Run `php scripts/setup.php` to apply all three.
-
 **AI provider configuration**
 
 Bot API calls use the same provider credentials configured in `.env` for the rest of the AI features (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). No additional environment variables are required.
@@ -493,8 +462,6 @@ When the nodelist table contains at least one imported entry, an **L) Node List*
 
 Results are displayed in a paginated table showing the FTN address, system name, and sysop. Entering a result number shows a full detail screen including address, sysop, location, phone, baud rate, node type, and capability flags.
 
-No database migration is required. The nodelist menu item appears automatically once a nodelist has been imported via the admin nodelist import tool.
-
 ## File Areas Markdown Customization
 
 Sysops can now add custom content to the file areas page from **Admin → Appearance & Content → File Areas**. Two fields are available:
@@ -503,8 +470,6 @@ Sysops can now add custom content to the file areas page from **Admin → Appear
 - **Footer** — displays a card below the file list. Useful for DMCA contact information or other notices relevant to file downloads.
 
 Both fields use Markdown and include a **Preview** button so the sysop can verify formatting before saving. Leave a field blank to hide that section entirely.
-
-No database migration is required.
 
 ## Redesigned Terminal Server Main Menu
 
@@ -528,8 +493,6 @@ Q) Quit
 ```
 
 The menu box is wider to accommodate the two-column layout. All existing key bindings are unchanged. Optional items (Polls, Shoutbox, Door Games, Files, QWK, BBS Directory, Node List, Interests) still only appear when their respective features are enabled.
-
-No configuration changes or database migration are required.
 
 ## Upgrade Instructions
 
