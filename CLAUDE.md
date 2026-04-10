@@ -8,6 +8,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - **GitHub repo**: https://github.com/awehttam/binkterm-php
  - **Support BBS**: https://claudes.lovelybits.org
  - **Default PR target branch**: `claudesbbs` — all pull requests must target this branch, not `main`
+ - **New development branches**: When creating a new branch, always ask the user whether to branch from `claudesbbs` (main staging) or another development branch. Never assume `main`.
 
 ## Tech Stack
 
