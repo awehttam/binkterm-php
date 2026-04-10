@@ -4308,6 +4308,13 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.terminalserver.server.menu.interests' => 'I) Interets',
     'ui.terminalserver.server.menu.qwk'       => 'K) Courrier QWK hors ligne',
 
+    // Telnet server — main menu section headers
+    'ui.terminalserver.server.menu.section.messaging'  => 'Messagerie',
+    'ui.terminalserver.server.menu.section.community'  => 'Communauté',
+    'ui.terminalserver.server.menu.section.explore'    => 'Explorer',
+    'ui.terminalserver.server.menu.section.files'      => 'Fichiers',
+    'ui.terminalserver.server.menu.section.settings'   => 'Paramètres',
+
     // Telnet server — Interests handler
     'ui.terminalserver.interests.title'              => 'Interets',
     'ui.terminalserver.interests.none'               => 'Aucun interet disponible.',

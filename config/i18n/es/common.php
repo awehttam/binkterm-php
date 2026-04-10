@@ -4404,6 +4404,13 @@ return [
     'ui.terminalserver.server.menu.interests' => 'I) Intereses',
     'ui.terminalserver.server.menu.qwk'       => 'K) Correo QWK sin conexión',
 
+    // Telnet server — main menu section headers
+    'ui.terminalserver.server.menu.section.messaging'  => 'Mensajería',
+    'ui.terminalserver.server.menu.section.community'  => 'Comunidad',
+    'ui.terminalserver.server.menu.section.explore'    => 'Explorar',
+    'ui.terminalserver.server.menu.section.files'      => 'Archivos',
+    'ui.terminalserver.server.menu.section.settings'   => 'Configuración',
+
     // Telnet server — Interests handler
     'ui.terminalserver.interests.title'              => 'Intereses',
     'ui.terminalserver.interests.none'               => 'No hay intereses disponibles.',
