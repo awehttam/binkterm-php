@@ -476,6 +476,7 @@ return [
     'ui.admin.appearance.tab_login' => 'Login',
     'ui.admin.appearance.tab_term_server' => 'Term Server',
     'ui.admin.appearance.tab_message_reader' => 'Message Reader',
+    'ui.admin.appearance.tab_file_areas' => 'File Areas',
     'ui.admin.appearance.invalid_hex_color' => 'Invalid hex color',
     'ui.admin.appearance.no_content' => 'No content',
     'ui.admin.appearance.preview_failed' => 'Preview failed',
@@ -660,6 +661,22 @@ return [
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Optional link shown in the Messaging menu directly under Echomail.',
     'ui.admin.appearance.message_reader.save' => 'Save Message Reader Settings',
+
+    // Appearance - File Areas tab
+    'ui.admin.appearance.file_areas.title' => 'File Areas',
+    'ui.admin.appearance.file_areas.help' => 'Add custom information to the file area pages. HTML is supported. Leave blank to show nothing.',
+    'ui.admin.appearance.file_areas.sidebar_section' => 'Sidebar Info Panel',
+    'ui.admin.appearance.file_areas.sidebar_info_title' => 'Panel title',
+    'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'e.g. Upload Policy',
+    'ui.admin.appearance.file_areas.sidebar_info_title_help' => 'Optional heading shown at the top of the sidebar info panel. Leave blank to display no heading.',
+    'ui.admin.appearance.file_areas.sidebar_info_html' => 'Sidebar content (HTML)',
+    'ui.admin.appearance.file_areas.sidebar_info_html_placeholder' => '<p>Upload ratio: 1:3 — for every 1 MB uploaded you may download 3 MB.</p>',
+    'ui.admin.appearance.file_areas.sidebar_info_html_help' => 'HTML shown in a card on the right-hand sidebar of the file area. Leave blank to hide the panel.',
+    'ui.admin.appearance.file_areas.footer_section' => 'Footer',
+    'ui.admin.appearance.file_areas.footer_html' => 'Footer content (HTML)',
+    'ui.admin.appearance.file_areas.footer_html_placeholder' => '<p>DMCA contact: dmca@example.com</p>',
+    'ui.admin.appearance.file_areas.footer_html_help' => 'HTML shown in a card below the file list. Useful for DMCA notices, upload ratio policies, or other notices. Leave blank to hide the footer.',
+    'ui.admin.appearance.file_areas.save' => 'Save File Areas Settings',
 
     // Appearance - Splash Pages tab
     'ui.admin.appearance.tab_splash' => 'Splash Pages',

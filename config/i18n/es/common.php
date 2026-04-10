@@ -476,6 +476,7 @@ return [
     'ui.admin.appearance.tab_login' => 'Inicio',
     'ui.admin.appearance.tab_term_server' => 'Servidor Terminal',
     'ui.admin.appearance.tab_message_reader' => 'Lector de mensajes',
+    'ui.admin.appearance.tab_file_areas' => 'Areas de archivos',
     'ui.admin.appearance.invalid_hex_color' => 'Color hex invalido',
     'ui.admin.appearance.no_content' => 'Sin contenido',
     'ui.admin.appearance.preview_failed' => 'Fallo la vista previa',
@@ -660,6 +661,22 @@ return [
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Enlace opcional que se muestra en el menu Mensajeria justo debajo de Echomail.',
     'ui.admin.appearance.message_reader.save' => 'Guardar ajustes del lector de mensajes',
+
+    // Appearance - File Areas tab
+    'ui.admin.appearance.file_areas.title' => 'Areas de archivos',
+    'ui.admin.appearance.file_areas.help' => 'Agrega informacion personalizada a las paginas de areas de archivos. Se admite HTML. Deja en blanco para no mostrar nada.',
+    'ui.admin.appearance.file_areas.sidebar_section' => 'Panel lateral',
+    'ui.admin.appearance.file_areas.sidebar_info_title' => 'Titulo del panel',
+    'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'p. ej. Politica de subida',
+    'ui.admin.appearance.file_areas.sidebar_info_title_help' => 'Encabezado opcional que se muestra en la parte superior del panel lateral. Deja en blanco para no mostrar encabezado.',
+    'ui.admin.appearance.file_areas.sidebar_info_html' => 'Contenido lateral (HTML)',
+    'ui.admin.appearance.file_areas.sidebar_info_html_placeholder' => '<p>Ratio de subida: 1:3 — por cada 1 MB subido puedes descargar 3 MB.</p>',
+    'ui.admin.appearance.file_areas.sidebar_info_html_help' => 'HTML que se muestra en una tarjeta en la barra lateral derecha del area de archivos. Deja en blanco para ocultar el panel.',
+    'ui.admin.appearance.file_areas.footer_section' => 'Pie de pagina',
+    'ui.admin.appearance.file_areas.footer_html' => 'Contenido del pie de pagina (HTML)',
+    'ui.admin.appearance.file_areas.footer_html_placeholder' => '<p>Contacto DMCA: dmca@example.com</p>',
+    'ui.admin.appearance.file_areas.footer_html_help' => 'HTML que se muestra en una tarjeta debajo de la lista de archivos. Util para avisos DMCA, politicas de ratio de subida u otros avisos. Deja en blanco para ocultar el pie de pagina.',
+    'ui.admin.appearance.file_areas.save' => 'Guardar ajustes de areas de archivos',
 
     // Appearance - Splash Pages tab
     'ui.admin.appearance.tab_splash' => 'Paginas de inicio',

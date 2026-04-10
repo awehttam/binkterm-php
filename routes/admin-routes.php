@@ -1944,6 +1944,37 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/file-areas', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $fa = $payload['file_areas'] ?? [];
+
+                $sidebarTitle = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
+                $sidebarHtml  = substr(trim((string)($fa['sidebar_info_html'] ?? '')), 0, 10000);
+                $footerHtml   = substr(trim((string)($fa['footer_html'] ?? '')), 0, 10000);
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['file_areas']['sidebar_info_title'] = $sidebarTitle;
+                $config['file_areas']['sidebar_info_html']  = $sidebarHtml;
+                $config['file_areas']['footer_html']        = $footerHtml;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved_short'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.file_areas.save_failed', apiLocalizedText('errors.admin.appearance.file_areas.save_failed', 'Failed to save file areas settings'));
+            }
+        });
+
         SimpleRouter::post('/appearance/preview-markdown', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');
