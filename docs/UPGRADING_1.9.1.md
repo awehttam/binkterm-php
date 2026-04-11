@@ -21,6 +21,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [BBS List and Nodelist Browser for Term Server](#bbs-list-and-nodelist-browser-for-term-server)
 - [File Areas Markdown Customization](#file-areas-markdown-customization)
 - [Redesigned Terminal Server Main Menu](#redesigned-terminal-server-main-menu)
+- [Blackjack WebDoor: Play Chips](#blackjack-webdoor-play-chips)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -120,6 +121,13 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The terminal server (Telnet/SSH) main menu has been reorganised into a two-column sectioned layout with category headers: **Messaging**, **Community**, **Explore**, **Files**, and **Settings**.
 - The menu box is wider to accommodate the two-column layout.
+
+### Blackjack WebDoor: Play Chips
+
+- The Blackjack WebDoor no longer wagers real BBS credits. It now uses a session-based play chip count with no monetary value.
+- Players start each session with 1,000 play chips (configurable by the sysop). Running out of chips automatically resets the count to the starting amount.
+- The credits system is no longer required to play Blackjack. The game is available regardless of whether the BBS credits feature is enabled.
+- The leaderboard score reflects chips won during the session rather than credits earned.
 
 ### URL Link Open Graph Image Preview
 
@@ -493,6 +501,24 @@ Q) Quit
 ```
 
 The menu box is wider to accommodate the two-column layout. All existing key bindings are unchanged. Optional items (Polls, Shoutbox, Door Games, Files, QWK, BBS Directory, Node List, Interests) still only appear when their respective features are enabled.
+
+## Blackjack WebDoor: Play Chips
+
+The Blackjack WebDoor previously wagered real BBS credits — a player who won hands gained credits and a player who lost hands had credits deducted. Because credits might be purchased for money, allowing them to be wagered in a game of chance could raise legal concerns around online gambling. Blackjack has been changed to remove BBS credits from play entirely.
+
+**What changed**
+
+Blackjack now uses a session-based play chip count. Play chips exist only for the duration of the game session, have no monetary value, cannot be purchased or transferred, and cannot be converted back to BBS credits. The credits system is no longer required — Blackjack is available to all users regardless of whether the BBS credits feature is enabled on the BBS.
+
+**Starting chips and auto-rebuy**
+
+Players start each session with 1,000 play chips. This value is configurable by the sysop in the Blackjack door manifest (`public_html/webdoors/blackjack/webdoor.json`) under the `config.starting_chips` key. If a player runs out of chips, their chip count is automatically reset to the starting amount so play can continue immediately.
+
+**Leaderboard**
+
+The monthly leaderboard continues to track the highest chip total won within a single session. Existing leaderboard scores recorded as credit amounts remain in the database but are not comparable to chip-based scores going forward; sysops may wish to clear the `blackjack_bankroll` leaderboard board if a clean slate is preferred.
+
+No configuration or database changes are required. Existing user save slots are preserved and will continue to load hand statistics (hands played, hands won, hands lost) correctly.
 
 ## Upgrade Instructions
 

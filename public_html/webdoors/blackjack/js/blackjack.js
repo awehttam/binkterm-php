@@ -14,7 +14,6 @@ let lastRoundProcessed = 0;
 
 let state = {
   bankroll: 0,
-  symbol: "",
   player: [],
   dealer: [],
   bet: 10,
@@ -76,7 +75,7 @@ function render() {
   renderHand(document.getElementById("dealer"), state.dealer, state.inRound && !state.revealDealer);
   renderHand(document.getElementById("player"), state.player, false);
 
-  document.getElementById("bankroll").textContent = `Bankroll: ${state.symbol}${state.bankroll}`;
+  document.getElementById("bankroll").textContent = `Chips: ${state.bankroll}`;
 
   const pv = state.player.length ? handValue(state.player) : 0;
   const dv = state.dealer.length ? handValue(state.dealer) : 0;
@@ -135,10 +134,8 @@ async function apiAction(action, payload = {}) {
 function applyServerState(data) {
   if (!data || !data.state) return;
 
-  const oldBankroll = state.bankroll;
   state = { ...state, ...data.state };
   if (Number.isFinite(data.balance)) state.bankroll = data.balance;
-  if (data.symbol) state.symbol = data.symbol;
   if (data.error) {
     setStatus(data.error);
   } else if (state.lastMessage) {
@@ -156,13 +153,6 @@ function applyServerState(data) {
     lastRoundProcessed = state.roundId;
     autosaveAndMaybeScore(state.lastOutcome);
     refreshLeaderboardBestEffort();
-
-    // Update parent window credit display if balance changed
-    if (oldBankroll !== state.bankroll && Number.isFinite(state.bankroll)) {
-      if (typeof WebDoorCredits !== 'undefined') {
-        WebDoorCredits.updateDisplay(state.bankroll);
-      }
-    }
   }
 }
 
@@ -177,7 +167,7 @@ async function refreshLeaderboardBestEffort() {
     lb.entries.forEach((e) => {
       const li = document.createElement("li");
       const name = e.display_name ?? e.user ?? e.name ?? "Player";
-      li.textContent = `${name} - ${state.symbol}${e.score}`;
+      li.textContent = `${name} - ${e.score} chips`;
       ul.appendChild(li);
     });
   } catch (e) {}
@@ -187,7 +177,7 @@ document.getElementById("deal").onclick = async () => {
   const betInput = document.getElementById("bet");
   const bet = parseInt(betInput.value, 10);
   if (!canAffordBet(bet)) {
-    setStatus(`Invalid bet. It must be between ${state.symbol}1 and your bankroll.`);
+    setStatus(`Invalid bet. Must be between 1 and your chip count.`);
     render();
     return;
   }
@@ -223,9 +213,6 @@ document.getElementById("save").onclick = async () => {
 
 (async () => {
   try { sessionInfo = await WebDoor.session(); } catch (e) {}
-  if (sessionInfo && sessionInfo.credits && sessionInfo.credits.symbol) {
-    state.symbol = sessionInfo.credits.symbol;
-  }
   const data = await apiAction("init");
   applyServerState(data);
 })();

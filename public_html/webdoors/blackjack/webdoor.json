@@ -3,9 +3,9 @@
   "game": {
     "id": "blackjack",
     "name": "Blackjack",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "author": "ChatGPT",
-    "description": "Single-player Blackjack with bankroll + WebDoor storage + leaderboard",
+    "description": "Single-player Blackjack with play chips, WebDoor storage, and leaderboard",
     "entry_point": "index.php",
     "icon": "icon.svg"
   },
@@ -13,8 +13,7 @@
     "min_host_version": "1.0",
     "features": [
       "storage",
-      "leaderboard",
-      "credits"
+      "leaderboard"
     ],
     "permissions": [
       "user_display_name"
@@ -25,6 +24,7 @@
     "save_slots": 1
   },
   "config": {
-    "start_bet": 10
+    "start_bet": 10,
+    "starting_chips": 1000
   }
 }
