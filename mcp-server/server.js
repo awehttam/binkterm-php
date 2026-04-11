@@ -800,7 +800,10 @@ app.post('/mcp', async (req, res) => {
 
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     const server    = createServer(userCtx);
-    res.on('close', () => transport.close());
+    res.on('close', () => {
+        transport.close();
+        server.close();
+    });
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
 });
@@ -811,7 +814,10 @@ app.get('/mcp', async (req, res) => {
 
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     const server    = createServer(userCtx);
-    res.on('close', () => transport.close());
+    res.on('close', () => {
+        transport.close();
+        server.close();
+    });
     await server.connect(transport);
     await transport.handleRequest(req, res);
 });

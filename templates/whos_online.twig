@@ -33,7 +33,7 @@
                             {% for user in online_users %}
                             <tr>
                                 <td>
-                                    <a href="/profile/{{ user.username }}" class="text-decoration-none">{{ user.username }}</a>
+                                    <a href="/profile/{{ user.username|url_encode }}" class="text-decoration-none">{{ user.username }}</a>
                                 </td>
                                 <td>{{ user.location ?: t('ui.common.unknown', {}, locale, ['common']) }}</td>
                                 {% if current_user and current_user.is_admin %}

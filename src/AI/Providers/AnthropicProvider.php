@@ -55,14 +55,20 @@ class AnthropicProvider implements AiProviderInterface
             $systemPrompt .= "\nReturn only valid JSON. Do not add markdown or commentary.";
         }
 
+        $messages = [];
+        if ($request->getConversationHistory() !== null) {
+            foreach ($request->getConversationHistory() as $turn) {
+                $messages[] = ['role' => (string)$turn['role'], 'content' => (string)$turn['content']];
+            }
+        }
+        $messages[] = ['role' => 'user', 'content' => $request->getUserPrompt()];
+
         $payload = [
             'model' => $request->getModel(),
             'max_tokens' => $request->getMaxOutputTokens(),
             'temperature' => $request->getTemperature(),
             'system' => $systemPrompt,
-            'messages' => [
-                ['role' => 'user', 'content' => $request->getUserPrompt()],
-            ],
+            'messages' => $messages,
         ];
 
         try {

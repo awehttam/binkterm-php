@@ -4,10 +4,8 @@
 require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
-use BinktermPHP\BbsConfig;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
-use BinktermPHP\UserCredit;
 
 $auth = new Auth();
 $user = $auth->getCurrentUser();
@@ -25,27 +23,23 @@ if (!GameConfig::isGameSystemEnabled() || !GameConfig::isEnabled('blackjack')) {
     exit;
 }
 
-$creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
-if (empty($creditsConfig['enabled'])) {
-    $template = new Template();
-    $template->renderResponse('error.twig', [
-        'error' => 'Credits system is currently disabled.'
-    ]);
-    exit;
-}
-
 $gameConfig = GameConfig::getGameConfig('blackjack') ?? [];
 $startBet = isset($gameConfig['start_bet']) ? (int)$gameConfig['start_bet'] : 10;
 if ($startBet <= 0) {
     $startBet = 10;
 }
+$startingChips = isset($gameConfig['starting_chips']) ? (int)$gameConfig['starting_chips'] : 1000;
+if ($startingChips <= 0) {
+    $startingChips = 1000;
+}
 
-$userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
-$symbol = $creditsConfig['symbol'] ?? '$';
-
-function blackjack_default_state(int $startBet): array
+/**
+ * Build the initial game state for a new session.
+ */
+function blackjack_default_state(int $startBet, int $startingChips): array
 {
     return [
+        'bankroll' => $startingChips,
         'deck' => [],
         'player' => [],
         'dealer' => [],
@@ -56,7 +50,7 @@ function blackjack_default_state(int $startBet): array
         'handsPlayed' => 0,
         'handsWon' => 0,
         'handsLost' => 0,
-        'sessionWinnings' => 0,  // credits won from blackjack hands this session (losses never subtract)
+        'sessionWinnings' => 0,
         'roundId' => 0,
         'lastOutcome' => null
     ];
@@ -117,13 +111,19 @@ function blackjack_draw(array &$state, string $handKey): void
     $state[$handKey][] = $card;
 }
 
-function blackjack_get_state(int $startBet): array
+function blackjack_get_state(int $startBet, int $startingChips): array
 {
     if (!isset($_SESSION['blackjack_state']) || !is_array($_SESSION['blackjack_state'])) {
-        $_SESSION['blackjack_state'] = blackjack_default_state($startBet);
+        $_SESSION['blackjack_state'] = blackjack_default_state($startBet, $startingChips);
     }
 
     $state = $_SESSION['blackjack_state'];
+
+    // Ensure bankroll is present (upgrade from older sessions that had no bankroll)
+    if (!isset($state['bankroll']) || (int)$state['bankroll'] <= 0) {
+        $state['bankroll'] = $startingChips;
+    }
+
     $previousStart = isset($state['startBet']) ? (int)$state['startBet'] : null;
     $currentBet = isset($state['bet']) ? (int)$state['bet'] : null;
 
@@ -152,14 +152,15 @@ function blackjack_store_state(array $state): void
     $_SESSION['blackjack_state'] = $state;
 }
 
-function blackjack_response(array $state, int $balance, string $symbol, bool $ok = true, ?string $error = null, int $code = 200): void
+/**
+ * Send a JSON response. Balance is read directly from the session chip count in state.
+ */
+function blackjack_response(array $state, bool $ok = true, ?string $error = null, int $code = 200): void
 {
-    $state['deck'] = [];
     $payload = [
         'success' => $ok,
-        'balance' => $balance,
-        'symbol' => $symbol,
-        'state' => $state
+        'balance' => (int)$state['bankroll'],
+        'state' => array_merge($state, ['deck' => []])
     ];
     if ($error !== null) {
         $payload['error'] = $error;
@@ -170,7 +171,13 @@ function blackjack_response(array $state, int $balance, string $symbol, bool $ok
     echo json_encode($payload);
 }
 
-function blackjack_end_round(array $state, string $outcome, int $userId, int $balance, string $symbol): array
+/**
+ * Settle a round, adjust the session chip count, and compose the outcome message.
+ * If the player runs out of chips they are automatically rebought to $startingChips.
+ *
+ * @return array Modified game state.
+ */
+function blackjack_end_round(array $state, string $outcome, int $startingChips): array
 {
     $state['revealDealer'] = true;
     $state['inRound'] = false;
@@ -192,19 +199,9 @@ function blackjack_end_round(array $state, string $outcome, int $userId, int $ba
         $delta = (int)floor($bet * 1.5);
     }
 
-    if ($delta !== 0) {
-        $txType = $delta > 0 ? UserCredit::TYPE_SYSTEM_REWARD : UserCredit::TYPE_PAYMENT;
-        UserCredit::transact(
-            $userId,
-            $delta,
-            "Blackjack hand ({$outcome})",
-            null,
-            $txType
-        );
-        $balance = UserCredit::getBalance($userId);
-    }
+    $state['bankroll'] = (int)$state['bankroll'] + $delta;
 
-    // Accumulate only winnings (losses never subtract from this total)
+    // Accumulate only chip gains (losses never subtract from session score)
     if ($delta > 0) {
         $state['sessionWinnings'] = ($state['sessionWinnings'] ?? 0) + $delta;
     }
@@ -213,19 +210,25 @@ function blackjack_end_round(array $state, string $outcome, int $userId, int $ba
     $dv = blackjack_hand_value($state['dealer']);
 
     if ($outcome === 'blackjack') {
-        $state['lastMessage'] = "Blackjack! You win {$symbol}{$delta}. (You: {$pv}, Dealer: {$dv})";
+        $state['lastMessage'] = "Blackjack! You win {$delta} chips. (You: {$pv}, Dealer: {$dv})";
     } elseif ($outcome === 'win') {
-        $state['lastMessage'] = "You win {$symbol}{$delta}. (You: {$pv}, Dealer: {$dv})";
+        $state['lastMessage'] = "You win {$delta} chips. (You: {$pv}, Dealer: {$dv})";
     } elseif ($outcome === 'lose') {
-        $state['lastMessage'] = "Dealer wins. You lose {$symbol}" . abs($delta) . ". (You: {$pv}, Dealer: {$dv})";
+        $state['lastMessage'] = "Dealer wins. You lose " . abs($delta) . " chips. (You: {$pv}, Dealer: {$dv})";
     } else {
-        $state['lastMessage'] = "Push. No change. (You: {$pv}, Dealer: {$dv})";
+        $state['lastMessage'] = "Push. No chips exchanged. (You: {$pv}, Dealer: {$dv})";
+    }
+
+    // Auto-rebuy if the player has run out of chips
+    if ($state['bankroll'] <= 0) {
+        $state['bankroll'] = $startingChips;
+        $state['lastMessage'] .= " You're out of chips — restarting with {$startingChips}.";
     }
 
     $state['roundId'] += 1;
     $state['lastOutcome'] = $outcome;
 
-    return [$state, $balance];
+    return $state;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -235,40 +238,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $action = strtolower(trim((string)($input['action'] ?? '')));
-    $state = blackjack_get_state($startBet);
+    $state = blackjack_get_state($startBet, $startingChips);
     $state['lastOutcome'] = null;
-
-    try {
-        $balance = UserCredit::getBalance($userId);
-    } catch (\Throwable $e) {
-        blackjack_response($state, 0, $symbol, false, 'Unable to load balance', 500);
-        exit;
-    }
 
     if ($action === '' || $action === 'init') {
         blackjack_store_state($state);
-        blackjack_response($state, $balance, $symbol);
+        blackjack_response($state);
         exit;
     }
 
     if ($action === 'deal') {
         if ($state['inRound']) {
-            blackjack_response($state, $balance, $symbol, false, 'Round already in progress', 400);
+            blackjack_response($state, false, 'Round already in progress', 400);
             exit;
         }
 
         $bet = (int)($input['bet'] ?? 0);
         if ($bet <= 0) {
-            $state['lastMessage'] = 'Invalid bet. It must be at least 1 credit.';
+            $state['lastMessage'] = 'Invalid bet. It must be at least 1 chip.';
             blackjack_store_state($state);
-            blackjack_response($state, $balance, $symbol, false, $state['lastMessage'], 400);
+            blackjack_response($state, false, $state['lastMessage'], 400);
             exit;
         }
 
-        if ($bet > $balance) {
-            $state['lastMessage'] = 'Invalid bet. It must not exceed your balance.';
+        if ($bet > (int)$state['bankroll']) {
+            $state['lastMessage'] = 'Invalid bet. It must not exceed your chip count.';
             blackjack_store_state($state);
-            blackjack_response($state, $balance, $symbol, false, $state['lastMessage'], 400);
+            blackjack_response($state, false, $state['lastMessage'], 400);
             exit;
         }
 
@@ -293,20 +289,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $playerBJ = ($pv === 21 && count($state['player']) === 2);
         $dealerBJ = ($dv === 21 && count($state['dealer']) === 2);
 
-        try {
-            if ($playerBJ && $dealerBJ) {
-                [$state, $balance] = blackjack_end_round($state, 'push', $userId, $balance, $symbol);
-            } elseif ($playerBJ) {
-                [$state, $balance] = blackjack_end_round($state, 'blackjack', $userId, $balance, $symbol);
-            } elseif ($dealerBJ) {
-                [$state, $balance] = blackjack_end_round($state, 'lose', $userId, $balance, $symbol);
-            }
-        } catch (\Throwable $e) {
-            $state['lastMessage'] = 'Credit transaction failed.';
-            $state['inRound'] = false;
-            blackjack_store_state($state);
-            blackjack_response($state, $balance, $symbol, false, $state['lastMessage'], 400);
-            exit;
+        if ($playerBJ && $dealerBJ) {
+            $state = blackjack_end_round($state, 'push', $startingChips);
+        } elseif ($playerBJ) {
+            $state = blackjack_end_round($state, 'blackjack', $startingChips);
+        } elseif ($dealerBJ) {
+            $state = blackjack_end_round($state, 'lose', $startingChips);
         }
 
         if (!$playerBJ && !$dealerBJ) {
@@ -314,40 +302,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         blackjack_store_state($state);
-        blackjack_response($state, $balance, $symbol);
+        blackjack_response($state);
         exit;
     }
 
     if ($action === 'hit') {
         if (!$state['inRound']) {
-            blackjack_response($state, $balance, $symbol, false, 'No active round', 400);
+            blackjack_response($state, false, 'No active round', 400);
             exit;
         }
 
         blackjack_draw($state, 'player');
         $pv = blackjack_hand_value($state['player']);
         if ($pv > 21) {
-            try {
-                [$state, $balance] = blackjack_end_round($state, 'lose', $userId, $balance, $symbol);
-            } catch (\Throwable $e) {
-                $state['lastMessage'] = 'Credit transaction failed.';
-                $state['inRound'] = false;
-                blackjack_store_state($state);
-                blackjack_response($state, $balance, $symbol, false, $state['lastMessage'], 400);
-                exit;
-            }
+            $state = blackjack_end_round($state, 'lose', $startingChips);
         } else {
             $state['lastMessage'] = "Hit. Your total is {$pv}.";
         }
 
         blackjack_store_state($state);
-        blackjack_response($state, $balance, $symbol);
+        blackjack_response($state);
         exit;
     }
 
     if ($action === 'stand') {
         if (!$state['inRound']) {
-            blackjack_response($state, $balance, $symbol, false, 'No active round', 400);
+            blackjack_response($state, false, 'No active round', 400);
             exit;
         }
 
@@ -358,37 +338,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pv = blackjack_hand_value($state['player']);
         $dv = blackjack_hand_value($state['dealer']);
 
-        try {
-            if ($dv > 21) {
-                [$state, $balance] = blackjack_end_round($state, 'win', $userId, $balance, $symbol);
-            } elseif ($pv > $dv) {
-                [$state, $balance] = blackjack_end_round($state, 'win', $userId, $balance, $symbol);
-            } elseif ($pv < $dv) {
-                [$state, $balance] = blackjack_end_round($state, 'lose', $userId, $balance, $symbol);
-            } else {
-                [$state, $balance] = blackjack_end_round($state, 'push', $userId, $balance, $symbol);
-            }
-        } catch (\Throwable $e) {
-            $state['lastMessage'] = 'Credit transaction failed.';
-            $state['inRound'] = false;
-            blackjack_store_state($state);
-            blackjack_response($state, $balance, $symbol, false, $state['lastMessage'], 400);
-            exit;
+        if ($dv > 21) {
+            $state = blackjack_end_round($state, 'win', $startingChips);
+        } elseif ($pv > $dv) {
+            $state = blackjack_end_round($state, 'win', $startingChips);
+        } elseif ($pv < $dv) {
+            $state = blackjack_end_round($state, 'lose', $startingChips);
+        } else {
+            $state = blackjack_end_round($state, 'push', $startingChips);
         }
 
         blackjack_store_state($state);
-        blackjack_response($state, $balance, $symbol);
+        blackjack_response($state);
         exit;
     }
 
-    blackjack_response($state, $balance, $symbol, false, 'Unknown action', 400);
+    blackjack_response($state, false, 'Unknown action', 400);
     exit;
-}
-
-try {
-    $balance = UserCredit::getBalance($userId);
-} catch (\Throwable $e) {
-    $balance = 0;
 }
 
 ?><!DOCTYPE html>
@@ -402,7 +368,7 @@ try {
 <body>
   <header>
     <h1>Blackjack</h1>
-    <div id="bankroll">Bankroll: <?php echo htmlspecialchars($symbol . $balance); ?></div>
+    <div id="bankroll">Chips: <?php echo htmlspecialchars((string)$startingChips); ?></div>
   </header>
 
   <section id="statusbar">
@@ -436,7 +402,6 @@ try {
 
   <!-- WebDoor SDK -->
   <script src="../_doorsdk/js/api.js"></script>
-  <script src="../_doorsdk/js/credits.js"></script>
   <script src="../_doorsdk/js/messaging.js"></script>
 
   <!-- Game Scripts -->

@@ -363,7 +363,7 @@ function handleHomePage($socket, string $geminiHost): void
             $lines[] = 'No capsules have been published yet.';
         } else {
             foreach ($users as $username) {
-                $lines[] = "=> gemini://{$geminiHost}/home/{$username}/ {$username}";
+                $lines[] = "=> gemini://{$geminiHost}/home/" . rawurlencode($username) . "/ {$username}";
             }
         }
 
@@ -537,7 +537,7 @@ function handleUserIndex($socket, string $username, string $geminiHost): void
             '',
         ];
         foreach ($files as $filename) {
-            $lines[] = "=> /home/{$username}/{$filename} {$filename}";
+            $lines[] = "=> /home/" . rawurlencode($username) . "/{$filename} {$filename}";
         }
 
         geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
@@ -1198,9 +1198,9 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
     } elseif ($path === '/bbs-directory/' || $path === '/bbs-directory') {
         handleBbsDirectoryList($socket, $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/$#', $path, $m)) {
-        handleUserIndex($socket, $m[1], $geminiHost);
+        handleUserIndex($socket, rawurldecode($m[1]), $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/([^/]+)$#', $path, $m)) {
-        handleUserFile($socket, $m[1], $m[2]);
+        handleUserFile($socket, rawurldecode($m[1]), rawurldecode($m[2]));
     } elseif ($path === '/echomail/' || $path === '/echomail') {
         handleEchoAreaList($socket, $geminiHost);
     } elseif (preg_match('#^/echomail/([A-Za-z0-9._-]+)@([A-Za-z0-9._-]+)/$#', $path, $m)) {

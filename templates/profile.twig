@@ -8,7 +8,7 @@
         <i class="fas fa-user"></i>
         {{ t('ui.profile.my_profile', {}, 'common') }}
     </h2>
-    <a href="/profile/{{ user_username }}" class="btn btn-sm btn-outline-secondary">
+    <a href="/profile/{{ user_username|url_encode }}" class="btn btn-sm btn-outline-secondary">
         <i class="fas fa-id-card me-1"></i>
         {{ t('ui.profile.view_profile', {}, 'common') }}
     </a>

@@ -89,6 +89,7 @@ This index lists documents in operational priority order — essentials first, a
 ## AI & Integrations
 
 - [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
+- [AI Bots](AIBots.md) — Configuring AI chat bots, the middleware pipeline, writing custom middleware, and cost management
 - [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail
 - [MCP Client Help](MCPClientHelp.md) — configure Claude, Anything LLM, OpenAI, and other MCP clients
 
@@ -106,6 +107,7 @@ This index lists documents in operational priority order — essentials first, a
 
 Release-specific upgrade notes, listed newest-first.
 
+- [Upgrading to 1.9.1](UPGRADING_1.9.1.md)
 - [Upgrading to 1.9.0](UPGRADING_1.9.0.md)
 - [Upgrading to 1.8.9](UPGRADING_1.8.9.md)
 - [Upgrading to 1.8.8](UPGRADING_1.8.8.md)

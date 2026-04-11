@@ -108,6 +108,20 @@
                 </dl>
             </div>
         </div>
+
+        {% if file_areas_appearance is defined and file_areas_appearance.sidebar_info_html %}
+        <!-- Custom sidebar info panel (desktop only) -->
+        <div class="card mt-3 d-none d-lg-block">
+            {% if file_areas_appearance.sidebar_info_title %}
+            <div class="card-header">
+                <h6 class="mb-0">{{ file_areas_appearance.sidebar_info_title }}</h6>
+            </div>
+            {% endif %}
+            <div class="card-body small">
+                {{ file_areas_appearance.sidebar_info_html|raw }}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Statistics (mobile only - at bottom) -->
@@ -129,8 +143,33 @@
                 </dl>
             </div>
         </div>
+
+        {% if file_areas_appearance is defined and file_areas_appearance.sidebar_info_html %}
+        <!-- Custom sidebar info panel (mobile) -->
+        <div class="card mt-3">
+            {% if file_areas_appearance.sidebar_info_title %}
+            <div class="card-header">
+                <h6 class="mb-0">{{ file_areas_appearance.sidebar_info_title }}</h6>
+            </div>
+            {% endif %}
+            <div class="card-body small">
+                {{ file_areas_appearance.sidebar_info_html|raw }}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
+
+{% if file_areas_appearance is defined and file_areas_appearance.footer_html %}
+<!-- Custom file area footer -->
+<div class="mt-4">
+    <div class="card">
+        <div class="card-body small">
+            {{ file_areas_appearance.footer_html|raw }}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- File Preview Modal -->
 <div class="modal fade" id="filePreviewModal" tabindex="-1">
@@ -256,6 +295,9 @@
                         {% endif %}
                     </dd>
 
+                    <dt class="col-sm-3" id="detailUrlLabel" style="display:none;">{{ t('ui.files.link_url', {}, 'common') }}:</dt>
+                    <dd class="col-sm-9" id="detailUrl" style="display:none;"></dd>
+
                     <dt class="col-sm-3">{{ t('ui.common.description', {}, 'common') }}:</dt>
                     <dd class="col-sm-9" id="detailDescription"></dd>
                 </dl>
@@ -355,6 +397,12 @@
                     <label for="editMoveAreaSelect" class="form-label">{{ t('ui.files.move_to_area', {}, 'common') }}</label>
                     <select class="form-select" id="editMoveAreaSelect"></select>
                 </div>
+                {% if current_user.is_admin %}
+                <div class="mb-3" id="editUrlGroup" style="display:none;">
+                    <label for="editUrlInput" class="form-label">{{ t('ui.files.link_url_edit', {}, 'common') }}</label>
+                    <input type="url" class="form-control" id="editUrlInput" maxlength="2000">
+                </div>
+                {% endif %}
                 <div id="renameErrorMsg" class="alert alert-danger" style="display:none;"></div>
             </div>
             <div class="modal-footer">
@@ -441,52 +489,96 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="uploadFileForm" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="uploadFile" class="form-label">{{ t('ui.files.select_file_required', {}, 'common') }}</label>
-                        <input type="file" class="form-control" id="uploadFile" name="file" required multiple>
-                        <div class="form-text">{{ t('ui.files.maximum_file_size', {}, 'common') }}: <span id="maxFileSize">10 MB</span></div>
+                <!-- Tab nav -->
+                <ul class="nav nav-tabs mb-3" id="uploadModalTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="uploadFileTab" data-bs-toggle="tab" data-bs-target="#uploadFilePane" type="button">
+                            <i class="fas fa-upload me-1"></i>{{ t('ui.files.upload_file_tab', {}, 'common') }}
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="addLinkTab" data-bs-toggle="tab" data-bs-target="#addLinkPane" type="button">
+                            <i class="fas fa-link me-1"></i>{{ t('ui.files.add_link_tab', {}, 'common') }}
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Upload File pane -->
+                    <div class="tab-pane fade show active" id="uploadFilePane">
+                        <form id="uploadFileForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="uploadFile" class="form-label">{{ t('ui.files.select_file_required', {}, 'common') }}</label>
+                                <input type="file" class="form-control" id="uploadFile" name="file" required multiple>
+                                <div class="form-text">{{ t('ui.files.maximum_file_size', {}, 'common') }}: <span id="maxFileSize">10 MB</span></div>
+                            </div>
+
+                            <div id="uploadTorrentPreviewContainer"></div>
+
+                            <div class="mb-3" id="uploadDescriptionGroup">
+                                <label for="uploadDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
+                                <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
+                                <div class="form-text">{{ t('ui.files.short_description_help', {}, 'common') }}</div>
+                            </div>
+
+                            <div class="mb-3 d-none" id="uploadBatchDescriptionsGroup">
+                                <label class="form-label">{{ t('ui.files.upload_descriptions', {}, 'common') }}</label>
+                                <div class="table-responsive border rounded">
+                                    <table class="table table-sm mb-0 align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>{{ t('ui.common.filename') }}</th>
+                                                <th>{{ t('ui.files.short_description_required', {}, 'common') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="uploadBatchDescriptionsBody"></tbody>
+                                    </table>
+                                </div>
+                                <div class="form-text">{{ t('ui.files.upload_descriptions_help', {}, 'common') }}</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="uploadLongDescription" class="form-label">{{ t('ui.files.long_description', {}, 'common') }}</label>
+                                <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
+                                <div class="form-text">{{ t('ui.files.long_description_help', {}, 'common') }}</div>
+                            </div>
+
+                            <div id="uploadProgress" class="progress" style="display: none;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </form>
                     </div>
 
-                    <div id="uploadTorrentPreviewContainer"></div>
-
-                    <div class="mb-3" id="uploadDescriptionGroup">
-                        <label for="uploadDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
-                        <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
-                        <div class="form-text">{{ t('ui.files.short_description_help', {}, 'common') }}</div>
-                    </div>
-
-                    <div class="mb-3 d-none" id="uploadBatchDescriptionsGroup">
-                        <label class="form-label">{{ t('ui.files.upload_descriptions', {}, 'common') }}</label>
-                        <div class="table-responsive border rounded">
-                            <table class="table table-sm mb-0 align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>{{ t('ui.common.filename') }}</th>
-                                        <th>{{ t('ui.files.short_description_required', {}, 'common') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="uploadBatchDescriptionsBody"></tbody>
-                            </table>
+                    <!-- Add Link pane -->
+                    <div class="tab-pane fade" id="addLinkPane">
+                        <div class="mb-3">
+                            <label for="linkUrl" class="form-label">{{ t('ui.files.link_url_required', {}, 'common') }}</label>
+                            <div class="input-group">
+                                <input type="url" class="form-control" id="linkUrl" placeholder="https://" maxlength="2000">
+                                <button class="btn btn-outline-secondary" type="button" id="fetchUrlMetaBtn" onclick="fetchUrlMeta()">
+                                    <i class="fas fa-search me-1"></i>{{ t('ui.files.fetch_info', {}, 'common') }}
+                                </button>
+                            </div>
+                            <div class="form-text">{{ t('ui.files.link_url_help', {}, 'common') }}</div>
                         </div>
-                        <div class="form-text">{{ t('ui.files.upload_descriptions_help', {}, 'common') }}</div>
+                        <div class="mb-3">
+                            <label for="linkShortDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="linkShortDescription" maxlength="255">
+                            <div class="form-text">{{ t('ui.files.short_description_help', {}, 'common') }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="linkLongDescription" class="form-label">{{ t('ui.files.long_description', {}, 'common') }}</label>
+                            <textarea class="form-control" id="linkLongDescription" rows="4" maxlength="2000"></textarea>
+                            <div class="form-text">{{ t('ui.files.long_description_help', {}, 'common') }}</div>
+                        </div>
+                        <div id="linkAddError" class="alert alert-danger d-none"></div>
                     </div>
-
-                    <div class="mb-3">
-                        <label for="uploadLongDescription" class="form-label">{{ t('ui.files.long_description', {}, 'common') }}</label>
-                        <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
-                        <div class="form-text">{{ t('ui.files.long_description_help', {}, 'common') }}</div>
-                    </div>
-
-                    <div id="uploadProgress" class="progress" style="display: none;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                    </div>
-                </form>
+                </div>
             </div>
             <div class="modal-footer">
                 <div id="uploadErrorBox" class="alert alert-danger w-100 mb-2 d-none"></div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
-                <button type="button" class="btn btn-primary" onclick="uploadFile()">
+                <button type="button" class="btn btn-primary" id="uploadModalSubmitBtn" onclick="uploadModalSubmit()">
                     <i class="fas fa-upload"></i> {{ t('ui.files.upload', {}, 'common') }}
                 </button>
             </div>
@@ -740,16 +832,24 @@ function displayRecentFiles(files) {
             return;
         }
 
-        let scanIcon = '<i class="fas fa-file me-2"></i>';
-        if (file.virus_scanned) {
-            if (file.virus_scan_result === 'clean') {
-                scanIcon = `<i class="fas fa-shield-alt text-success me-2" title="${uiT('ui.files.virus_scan_clean', 'Virus scan: Clean')}"></i>`;
-            } else if (file.virus_scan_result === 'infected') {
-                scanIcon = `<i class="fas fa-shield-alt text-danger me-2" title="${uiT('ui.files.virus_detected_prefix', 'Virus detected: ')}${escapeHtml(file.virus_signature || uiT('ui.common.unknown', 'Unknown'))}"></i>`;
-            } else if (file.virus_scan_result === 'error') {
-                scanIcon = `<i class="fas fa-shield-alt text-warning me-2" title="${uiT('ui.files.virus_scan_error', 'Virus scan: Error')}"></i>`;
-            } else if (file.virus_scan_result === 'skipped') {
-                scanIcon = `<i class="fas fa-shield-alt text-muted me-2" title="${uiT('ui.files.virus_scan_skipped', 'Virus scan: Skipped')}"></i>`;
+        const isUrlLink = file.source_type === 'url';
+
+        // Icon for the filename column
+        let scanIcon;
+        if (isUrlLink) {
+            scanIcon = '<i class="fas fa-link text-info me-2"></i>';
+        } else {
+            scanIcon = '<i class="fas fa-file me-2"></i>';
+            if (file.virus_scanned) {
+                if (file.virus_scan_result === 'clean') {
+                    scanIcon = `<i class="fas fa-shield-alt text-success me-2" title="${uiT('ui.files.virus_scan_clean', 'Virus scan: Clean')}"></i>`;
+                } else if (file.virus_scan_result === 'infected') {
+                    scanIcon = `<i class="fas fa-shield-alt text-danger me-2" title="${uiT('ui.files.virus_detected_prefix', 'Virus detected: ')}${escapeHtml(file.virus_signature || uiT('ui.common.unknown', 'Unknown'))}"></i>`;
+                } else if (file.virus_scan_result === 'error') {
+                    scanIcon = `<i class="fas fa-shield-alt text-warning me-2" title="${uiT('ui.files.virus_scan_error', 'Virus scan: Error')}"></i>`;
+                } else if (file.virus_scan_result === 'skipped') {
+                    scanIcon = `<i class="fas fa-shield-alt text-muted me-2" title="${uiT('ui.files.virus_scan_skipped', 'Virus scan: Skipped')}"></i>`;
+                }
             }
         }
 
@@ -760,6 +860,15 @@ function displayRecentFiles(files) {
             ? `<a href="#" class="badge bg-secondary ms-1 text-decoration-none" onclick="showFileDetails(${file.id}); return false;" title="${uiT('ui.files.comments', 'Comments')}"><i class="fas fa-comment me-1"></i>${commentCount0}</a>`
             : '';
 
+        // Action buttons: URL links get a "Visit" link, files get download button
+        const primaryAction0 = isUrlLink
+            ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}">
+                   <i class="fas fa-external-link-alt"></i>
+               </a>`
+            : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                   <i class="fas fa-download"></i>
+               </a>`;
+
         html += `
             <tr>
                 <td style="word-break: break-all;">
@@ -767,15 +876,13 @@ function displayRecentFiles(files) {
                     <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge0}
                 </td>
                 <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
-                <td>${fileSize}</td>
+                <td>${isUrlLink ? '—' : fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
                         <i class="fas fa-info-circle"></i>
                     </button>
-                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
-                        <i class="fas fa-download"></i>
-                    </a>
+                    ${primaryAction0}
                     ${canDelete ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
                         <i class="fas fa-trash"></i>
@@ -856,13 +963,22 @@ function displayMyUploads(files) {
     files.forEach(function(file) {
         const uploadDate = formatDate(file.created_at);
         const canDelete = canDeleteFileRecord(file);
+        const isUrlLink = file.source_type === 'url';
         const areaTag = file.area_tag
             ? escapeHtml(file.area_tag) + (file.domain ? `<span class="text-muted">@${escapeHtml(file.domain)}</span>` : '')
             : '&mdash;';
+        const fileIcon = isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : '';
+        const primaryAction = isUrlLink
+            ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}">
+                   <i class="fas fa-external-link-alt"></i>
+               </a>`
+            : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                   <i class="fas fa-download"></i>
+               </a>`;
         html += `
             <tr>
                 <td style="word-break: break-all;">
-                    <a href="#" class="file-preview-link fw-bold" onclick="showFileDetails(${file.id}); return false;">${escapeHtml(file.filename)}</a>
+                    ${fileIcon}<a href="#" class="file-preview-link fw-bold" onclick="showFileDetails(${file.id}); return false;">${escapeHtml(file.filename)}</a>
                     <div class="small text-muted">${escapeHtml(file.short_description || '')}</div>
                 </td>
                 <td>${areaTag}</td>
@@ -872,9 +988,7 @@ function displayMyUploads(files) {
                     <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
                         <i class="fas fa-info-circle"></i>
                     </button>
-                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
-                        <i class="fas fa-download"></i>
-                    </a>
+                    ${primaryAction}
                     ${canDelete ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
                         <i class="fas fa-trash"></i>
@@ -1293,18 +1407,24 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
         const fileSize = formatBytes(file.filesize);
         const uploadDate = formatDate(file.created_at);
         const canDelete = canDeleteFileRecord(file);
+        const isUrlLink = file.source_type === 'url';
 
-        // Virus scan status icon
-        let scanIcon = '<i class="fas fa-file me-2"></i>';
-        if (file.virus_scanned) {
-            if (file.virus_scan_result === 'clean') {
-                scanIcon = `<i class="fas fa-shield-alt text-success me-2" title="${uiT('ui.files.virus_scan_clean', 'Virus scan: Clean')}"></i>`;
-            } else if (file.virus_scan_result === 'infected') {
-                scanIcon = `<i class="fas fa-shield-alt text-danger me-2" title="${uiT('ui.files.virus_detected_prefix', 'Virus detected: ')}${escapeHtml(file.virus_signature || uiT('ui.common.unknown', 'Unknown'))}"></i>`;
-            } else if (file.virus_scan_result === 'error') {
-                scanIcon = `<i class="fas fa-shield-alt text-warning me-2" title="${uiT('ui.files.virus_scan_error', 'Virus scan: Error')}"></i>`;
-            } else if (file.virus_scan_result === 'skipped') {
-                scanIcon = `<i class="fas fa-shield-alt text-muted me-2" title="${uiT('ui.files.virus_scan_skipped', 'Virus scan: Skipped')}"></i>`;
+        // Icon for the filename column
+        let scanIcon;
+        if (isUrlLink) {
+            scanIcon = '<i class="fas fa-link text-info me-2"></i>';
+        } else {
+            scanIcon = '<i class="fas fa-file me-2"></i>';
+            if (file.virus_scanned) {
+                if (file.virus_scan_result === 'clean') {
+                    scanIcon = `<i class="fas fa-shield-alt text-success me-2" title="${uiT('ui.files.virus_scan_clean', 'Virus scan: Clean')}"></i>`;
+                } else if (file.virus_scan_result === 'infected') {
+                    scanIcon = `<i class="fas fa-shield-alt text-danger me-2" title="${uiT('ui.files.virus_detected_prefix', 'Virus detected: ')}${escapeHtml(file.virus_signature || uiT('ui.common.unknown', 'Unknown'))}"></i>`;
+                } else if (file.virus_scan_result === 'error') {
+                    scanIcon = `<i class="fas fa-shield-alt text-warning me-2" title="${uiT('ui.files.virus_scan_error', 'Virus scan: Error')}"></i>`;
+                } else if (file.virus_scan_result === 'skipped') {
+                    scanIcon = `<i class="fas fa-shield-alt text-muted me-2" title="${uiT('ui.files.virus_scan_skipped', 'Virus scan: Skipped')}"></i>`;
+                }
             }
         }
 
@@ -1315,22 +1435,32 @@ function displayFiles(files, subfolders, subfolder, subfolderDisplayLabel) {
             ? `<a href="#" class="badge bg-secondary ms-1 text-decoration-none" onclick="showFileDetails(${file.id}); return false;" title="${uiT('ui.files.comments', 'Comments')}"><i class="fas fa-comment me-1"></i>${commentCount1}</a>`
             : '';
 
+        // Filename cell: both URL links and files open the preview modal
+        const filenameCell = `<a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge1}`;
+
+        // Action buttons: URL links get a "Visit" link, files get download button
+        const primaryAction = isUrlLink
+            ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}">
+                   <i class="fas fa-external-link-alt"></i>
+               </a>`
+            : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                   <i class="fas fa-download"></i>
+               </a>`;
+
         html += `
             <tr>
                 <td style="word-break: break-all;">
                     ${scanIcon}${shareIcon}
-                    <a href="#" class="file-preview-link fw-bold" onclick="previewFile(${file.id}); return false;">${escapeHtml(file.filename)}</a>${commentBadge1}
+                    ${filenameCell}
                 </td>
                 <td style="word-break: break-all;"><small class="text-muted">${shortDesc}</small></td>
-                <td>${fileSize}</td>
+                <td>${isUrlLink ? '—' : fileSize}</td>
                 <td><small>${uploadDate}</small></td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
                         <i class="fas fa-info-circle"></i>
                     </button>
-                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
-                        <i class="fas fa-download"></i>
-                    </a>
+                    ${primaryAction}
                     ${canDelete ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
                         <i class="fas fa-trash"></i>
@@ -1422,7 +1552,7 @@ function showFileDetails(fileId) {
             currentFile = file;
 
             $('#detailFilename').text(file.filename);
-            $('#detailSize').text(formatBytes(file.filesize));
+            $('#detailSize').text(file.source_type === 'url' ? '—' : formatBytes(file.filesize));
             $('#detailUploaded').text(formatDate(file.created_at));
             $('#detailFrom').text(file.display_from || uiT('ui.common.unknown', 'Unknown'));
 
@@ -1453,6 +1583,17 @@ function showFileDetails(fileId) {
                 $('#scanStatusEditor').removeClass('d-none');
             }
 
+            // URL row (shown for url-type links only)
+            if (file.source_type === 'url' && file.url) {
+                $('#detailUrlLabel').show();
+                $('#detailUrl').show().html(
+                    `<a href="${escapeHtml(file.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(file.url)}</a>`
+                );
+            } else {
+                $('#detailUrlLabel').hide();
+                $('#detailUrl').hide().html('');
+            }
+
             $('#detailDescription').text(file.short_description || uiT('ui.files.no_description', 'No description'));
 
             if (file.long_description) {
@@ -1464,7 +1605,22 @@ function showFileDetails(fileId) {
                 $('#detailLongDescription').html('');
             }
 
-            $('#downloadFileBtn').attr('href', `/api/files/${fileId}/download`);
+            // Download/Visit button
+            if (file.source_type === 'url' && file.url) {
+                $('#downloadFileBtn')
+                    .attr('href', file.url)
+                    .attr('target', '_blank')
+                    .attr('rel', 'noopener noreferrer')
+                    .attr('download', null)
+                    .html(`<i class="fas fa-external-link-alt"></i> ${uiT('ui.files.visit_link', 'Visit')}`);
+            } else {
+                $('#downloadFileBtn')
+                    .attr('href', `/api/files/${fileId}/download`)
+                    .attr('target', null)
+                    .attr('rel', null)
+                    .attr('download', '')
+                    .html(`<i class="fas fa-download"></i> ${uiT('ui.files.download', 'Download')}`);
+            }
 
             // Update title with position indicator
             const position = displayedFiles.length > 1 && currentFileIndex >= 0
@@ -1474,11 +1630,13 @@ function showFileDetails(fileId) {
 
             updateFileNavButtons();
 
+            const isUrlLink = file.source_type === 'url';
             const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
             $('#renameFileBtn').toggle(canEdit);
-            $('#virusScanBtn').toggle(isAdmin).data('file-id', fileId);
-            $('#shareFileBtn').toggle((file.status || 'approved') === 'approved');
-            const canRehatch = isAdmin && !file.is_local && !file.is_private;
+            // Virus scan button not applicable for URL links
+            $('#virusScanBtn').toggle(isAdmin && !isUrlLink).data('file-id', fileId);
+            $('#shareFileBtn').toggle((file.status || 'approved') === 'approved' && !isUrlLink);
+            const canRehatch = isAdmin && !file.is_local && !file.is_private && !isUrlLink;
             $('#rehatchFileBtn').toggle(canRehatch);
 
             // Reset and load comments
@@ -1543,6 +1701,60 @@ function getPreviewPositionHtml(fileIndex) {
  * @param {number} fileId
  * @param {string} [filename] - Optional; resolved from displayedFiles when omitted
  */
+/**
+ * Render a URL link record's preview card into the preview modal body.
+ * Shows the short description, long description, and a prominent link button.
+ *
+ * @param {object} file     File record (must have url, short_description, long_description)
+ * @param {jQuery} $target  The modal body element to render into
+ */
+function renderUrlLinkPreview(file, $target) {
+    const url       = escapeHtml(file.url || '');
+    const shortDesc = escapeHtml(file.short_description || '');
+    const longDesc  = file.long_description
+        ? `<pre class="mt-3 mb-0 text-start text-wrap" style="white-space:pre-wrap;word-break:break-word;">${escapeHtml(file.long_description)}</pre>`
+        : '';
+
+    const visitBtn = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+        <i class="fas fa-external-link-alt me-2"></i>${uiT('ui.files.visit_link', 'Visit')}
+    </a>`;
+
+    $target.css('background', '').html(`
+        <div class="p-4 text-start">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="fas fa-link fa-lg text-info"></i>
+                <span class="fw-semibold fs-5">${shortDesc || url}</span>
+            </div>
+            <div id="urlLinkOgImage"></div>
+            ${longDesc}
+            <div class="mt-4">
+                ${visitBtn}
+                <div class="mt-2 small text-muted text-break">${url}</div>
+            </div>
+        </div>
+    `);
+
+    // Fetch og:image from the server-side meta endpoint (avoids CORS)
+    if (file.url) {
+        $.ajax({
+            url: '/api/files/fetch-url-meta',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ url: file.url }),
+            timeout: 10000,
+        }).done(function(data) {
+            if (data.og_image_url) {
+                const img = $('<img>')
+                    .attr('src', data.og_image_url)
+                    .attr('alt', '')
+                    .css({ maxWidth: '100%', maxHeight: '300px', borderRadius: '6px', display: 'block', marginBottom: '12px' })
+                    .on('error', function() { $(this).parent().remove(); });
+                $('#urlLinkOgImage').html('').append(img);
+            }
+        });
+    }
+}
+
 function previewFile(fileId, filename) {
     if (window._modPlayer) {
         try { window._modPlayer.unload(); } catch (e) {}
@@ -1562,12 +1774,34 @@ function previewFile(fileId, filename) {
     currentPreviewFileId = fileId;
     currentFileIndex = fileIndex;
 
+    const fileRecord = fileIndex >= 0 ? previewNavigationFiles[fileIndex] : null;
+    const isUrlLink = fileRecord && fileRecord.source_type === 'url';
+
     const position = getPreviewPositionHtml(fileIndex);
     $('#previewModalTitle').html(escapeHtml(filename) + position);
-    $('#previewDownloadBtn').attr('href', `/api/files/${fileId}/download`);
     $('#previewMagnetBtn').addClass('d-none').removeData('magnet');
+
+    if (isUrlLink && fileRecord.url) {
+        $('#previewDownloadBtn')
+            .attr('href', fileRecord.url)
+            .attr('target', '_blank')
+            .attr('rel', 'noopener noreferrer')
+            .attr('download', null)
+            .attr('title', uiT('ui.files.visit_link', 'Visit'))
+            .html('<i class="fas fa-external-link-alt"></i>');
+        renderUrlLinkPreview(fileRecord, $('#previewModalBody'));
+    } else {
+        $('#previewDownloadBtn')
+            .attr('href', `/api/files/${fileId}/download`)
+            .attr('target', null)
+            .attr('rel', null)
+            .attr('download', '')
+            .attr('title', uiT('ui.files.download', 'Download'))
+            .html('<i class="fas fa-download"></i>');
+        renderPreviewContent(fileId, filename, $('#previewModalBody'));
+    }
+
     updatePreviewNavButtons();
-    renderPreviewContent(fileId, filename, $('#previewModalBody'));
 
     commentCtxPrefix = 'preview';
     currentCommentFileId = fileId;
@@ -1604,10 +1838,30 @@ function navigatePreview(direction) {
     currentPreviewFileId = file.id;
     const position = getPreviewPositionHtml(currentFileIndex);
     $('#previewModalTitle').html(escapeHtml(file.filename) + position);
-    $('#previewDownloadBtn').attr('href', `/api/files/${file.id}/download`);
     $('#previewMagnetBtn').addClass('d-none').removeData('magnet');
+
+    const isUrlLinkNav = file.source_type === 'url';
+    if (isUrlLinkNav && file.url) {
+        $('#previewDownloadBtn')
+            .attr('href', file.url)
+            .attr('target', '_blank')
+            .attr('rel', 'noopener noreferrer')
+            .attr('download', null)
+            .attr('title', uiT('ui.files.visit_link', 'Visit'))
+            .html('<i class="fas fa-external-link-alt"></i>');
+        renderUrlLinkPreview(file, $('#previewModalBody'));
+    } else {
+        $('#previewDownloadBtn')
+            .attr('href', `/api/files/${file.id}/download`)
+            .attr('target', null)
+            .attr('rel', null)
+            .attr('download', '')
+            .attr('title', uiT('ui.files.download', 'Download'))
+            .html('<i class="fas fa-download"></i>');
+        renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
+    }
+
     updatePreviewNavButtons();
-    renderPreviewContent(file.id, file.filename, $('#previewModalBody'));
 
     // Reload comments for the new file
     commentCtxPrefix = 'preview';
@@ -1682,7 +1936,116 @@ function showUploadModal() {
     $('#uploadProgress').hide();
     $('#uploadProgress .progress-bar').css('width', '0%');
     $('#uploadErrorBox').addClass('d-none').text('');
+    // Reset link tab
+    $('#linkUrl').val('');
+    $('#linkShortDescription').val('');
+    $('#linkLongDescription').val('');
+    $('#linkAddError').addClass('d-none').text('');
+    // Always start on the Upload File tab
+    const uploadTab = document.getElementById('uploadFileTab');
+    if (uploadTab) { bootstrap.Tab.getOrCreateInstance(uploadTab).show(); }
+    // Update submit button label for the active tab
+    updateUploadModalSubmitLabel();
     new bootstrap.Modal('#uploadFileModal').show();
+}
+
+/** Update the modal submit button label based on active tab. */
+function updateUploadModalSubmitLabel() {
+    const isLinkTab = document.getElementById('addLinkPane')?.classList.contains('active');
+    const btn = document.getElementById('uploadModalSubmitBtn');
+    if (!btn) return;
+    if (isLinkTab) {
+        btn.innerHTML = `<i class="fas fa-link"></i> ${uiT('ui.files.add_link', 'Add Link')}`;
+    } else {
+        btn.innerHTML = `<i class="fas fa-upload"></i> ${uiT('ui.files.upload', 'Upload')}`;
+    }
+}
+
+/** Route the modal submit to the correct handler based on the active tab. */
+function uploadModalSubmit() {
+    const isLinkTab = document.getElementById('addLinkPane')?.classList.contains('active');
+    if (isLinkTab) {
+        submitAddLink();
+    } else {
+        uploadFile();
+    }
+}
+
+/** Fetch URL metadata (title + og:description) and populate the link form fields. */
+function fetchUrlMeta() {
+    const url = $('#linkUrl').val().trim();
+    if (!url) return;
+
+    const btn = $('#fetchUrlMetaBtn');
+    btn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-1"></i>${uiT('ui.files.fetching_info', 'Fetching…')}`);
+
+    $.ajax({
+        url: '/api/files/fetch-url-meta',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ url }),
+    }).done(function(data) {
+        if (data.short_description) {
+            $('#linkShortDescription').val(data.short_description);
+        }
+        if (data.long_description) {
+            $('#linkLongDescription').val(data.long_description);
+        }
+    }).fail(function() {
+        $('#linkAddError').removeClass('d-none').text(uiT('ui.files.fetch_info_failed', 'Could not fetch URL metadata'));
+    }).always(function() {
+        btn.prop('disabled', false).html(
+            `<i class="fas fa-search me-1"></i>${uiT('ui.files.fetch_info', 'Fetch Info')}`
+        );
+    });
+}
+
+/** Submit an external URL link to the current file area. */
+function submitAddLink() {
+    const url       = $('#linkUrl').val().trim();
+    const shortDesc = $('#linkShortDescription').val().trim();
+    const longDesc  = $('#linkLongDescription').val().trim();
+
+    $('#linkAddError').addClass('d-none').text('');
+
+    if (!url) {
+        $('#linkAddError').removeClass('d-none').text(uiT('errors.files.link.invalid_url', 'A valid URL is required'));
+        return;
+    }
+    if (!shortDesc) {
+        $('#linkAddError').removeClass('d-none').text(uiT('errors.files.upload.short_description_required', 'Short description is required'));
+        return;
+    }
+
+    const btn = document.getElementById('uploadModalSubmitBtn');
+    if (btn) btn.disabled = true;
+
+    $.ajax({
+        url: '/api/files/add-link',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            file_area_id:      currentAreaId,
+            url,
+            short_description: shortDesc,
+            long_description:  longDesc || null,
+        }),
+    }).done(function(data) {
+        bootstrap.Modal.getInstance('#uploadFileModal')?.hide();
+        const isPending = data.approval_required;
+        showSuccess(isPending
+            ? uiT('ui.files.upload_pending_approval', 'File uploaded and queued for approval')
+            : uiT('ui.files.link_added', 'Link added successfully')
+        );
+        loadFiles(currentAreaId);
+        loadStats();
+        loadFileAreas();
+    }).fail(function(xhr) {
+        const msg = apiError(xhr.responseJSON, uiT('errors.files.link.add_failed', 'Failed to add link'));
+        $('#linkAddError').removeClass('d-none').text(msg);
+    }).always(function() {
+        if (btn) btn.disabled = false;
+    });
 }
 
 function escapeAttribute(value) {
@@ -1898,6 +2261,13 @@ async function uploadFile() {
 }
 
 $('#uploadFile').on('change', rebuildUploadDescriptions);
+
+// Keep the submit button label in sync with the active tab
+document.addEventListener('shown.bs.tab', function(e) {
+    if (e.target && (e.target.id === 'uploadFileTab' || e.target.id === 'addLinkTab')) {
+        updateUploadModalSubmitLabel();
+    }
+});
 
 $('#previewMagnetBtn').on('click', function () {
     const magnet = $(this).data('magnet');
@@ -2185,9 +2555,18 @@ function openSubdirEdit(subdirId) {
 function showEditDialog() {
     const currentFilename = currentFile ? currentFile.filename : $('#detailFilename').text();
     const isIso = currentFile && (currentFile.source_type === 'iso_import' || currentFile.source_type === 'iso_subdir');
-    $('#renameFilenameInput').val(currentFilename).prop('disabled', isIso);
+    const isUrlLink = currentFile && currentFile.source_type === 'url';
+    $('#renameFilenameInput').val(currentFilename).prop('disabled', isIso || isUrlLink);
     $('#editShortDescInput').val(currentFile ? (currentFile.short_description || '') : '');
     $('#editLongDescInput').val(currentFile ? (currentFile.long_description || '') : '');
+    if ($('#editUrlGroup').length) {
+        if (isAdmin && isUrlLink) {
+            $('#editUrlInput').val(currentFile ? (currentFile.url || '') : '');
+            $('#editUrlGroup').show();
+        } else {
+            $('#editUrlGroup').hide();
+        }
+    }
     $('#renameErrorMsg').hide();
 
     // Admin-only: populate and show the Move to Area dropdown
@@ -2220,6 +2599,7 @@ function submitEdit() {
     const newFilename  = $('#renameFilenameInput').val().trim();
     const shortDesc    = $('#editShortDescInput').val().trim();
     const longDesc     = $('#editLongDescInput').val().trim();
+    const newUrl       = $('#editUrlGroup').is(':visible') ? ($('#editUrlInput').val().trim() || null) : undefined;
 
     if (!newFilename && !$('#renameFilenameInput').prop('disabled')) {
         $('#renameErrorMsg').text(uiT('errors.files.rename_filename_required', 'New filename is required'));
@@ -2249,6 +2629,10 @@ function submitEdit() {
     // Only send file_area_id if admin moved it to a different area
     if (isAdmin && selectedAreaId && selectedAreaId !== originalAreaId) {
         payload.file_area_id = selectedAreaId;
+    }
+    // Only send url if the admin URL field is visible and has changed
+    if (newUrl !== undefined) {
+        payload.url = newUrl;
     }
 
     $.ajax({
@@ -2564,20 +2948,25 @@ function displaySearchResults(results, query) {
     `;
 
     results.forEach(function(file) {
+        const isUrlLink  = file.source_type === 'url';
         const filename   = escapeHtml(file.filename);
         const desc       = escapeHtml(file.short_description || '');
         const areaTag    = escapeHtml(file.area_tag || '');
-        const size       = formatBytes(file.filesize || 0);
+        const size       = isUrlLink ? '—' : formatBytes(file.filesize || 0);
         const uploaded   = formatDate(file.created_at);
         const subfolder  = file.subfolder ? escapeHtml(file.subfolder) : null;
         const areaOnclick = subfolder
             ? `selectFileArea(${file.area_id}, '${subfolder}'); clearFileSearch();`
             : `selectFileArea(${file.area_id}, null); clearFileSearch();`;
+        const fileIcon = isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : '';
+        const primaryAction = isUrlLink
+            ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}"><i class="fas fa-external-link-alt"></i></a>`
+            : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}"><i class="fas fa-download"></i></a>`;
 
         html += `
             <tr>
                 <td class="font-monospace small">
-                    <a href="#" onclick="previewFile(${file.id}, ${escapeHtml(JSON.stringify(file.filename))}); return false;">${filename}</a>
+                    ${fileIcon}<a href="#" onclick="previewFile(${file.id}, ${escapeHtml(JSON.stringify(file.filename))}); return false;">${filename}</a>
                 </td>
                 <td class="small">
                     <a href="#" onclick="${areaOnclick} return false;" class="text-muted">${areaTag}</a>
@@ -2589,9 +2978,7 @@ function displaySearchResults(results, query) {
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="showFileDetails(${file.id})" title="${uiT('ui.files.file_info', 'File info')}">
                         <i class="fas fa-info-circle"></i>
                     </button>
-                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}">
-                        <i class="fas fa-download"></i>
-                    </a>
+                    ${primaryAction}
                 </td>
             </tr>
         `;

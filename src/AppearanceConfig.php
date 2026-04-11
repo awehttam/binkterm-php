@@ -111,6 +111,14 @@ class AppearanceConfig
                 'scrollable_body' => true,
                 'email_link_url' => '',
             ],
+            'file_areas' => [
+                'sidebar_info_title'    => '',
+                'sidebar_info_markdown' => '',
+                'footer_markdown'       => '',
+            ],
+            'dashboard' => [
+                'default_layout' => null,
+            ],
         ];
     }
 
@@ -433,5 +441,45 @@ class AppearanceConfig
     {
         self::load();
         return trim((string)(self::$config['message_reader']['email_link_url'] ?? ''));
+    }
+
+    // -------------------------------------------------------------------------
+    // File Areas
+    // -------------------------------------------------------------------------
+
+    /**
+     * File areas appearance configuration (sidebar info panel and footer).
+     */
+    public static function getFileAreasConfig(): array
+    {
+        self::load();
+        $cfg = self::$config['file_areas'] ?? [];
+        $sidebarMd = (string)($cfg['sidebar_info_markdown'] ?? '');
+        $footerMd  = (string)($cfg['footer_markdown'] ?? '');
+        return [
+            'sidebar_info_title'    => trim((string)($cfg['sidebar_info_title'] ?? '')),
+            'sidebar_info_markdown' => $sidebarMd,
+            'sidebar_info_html'     => $sidebarMd !== '' ? \BinktermPHP\MarkdownRenderer::toHtml($sidebarMd) : '',
+            'footer_markdown'       => $footerMd,
+            'footer_html'           => $footerMd !== '' ? \BinktermPHP\MarkdownRenderer::toHtml($footerMd) : '',
+        ];
+    }
+
+    // Dashboard
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the sysop-configured default dashboard layout, or null if none is set.
+     * The layout is an array with 'main', 'sidebar', and 'hidden' keys, each containing
+     * an ordered list of card IDs.
+     */
+    public static function getDefaultDashboardLayout(): ?array
+    {
+        self::load();
+        $layout = self::$config['dashboard']['default_layout'] ?? null;
+        if (!is_array($layout)) {
+            return null;
+        }
+        return $layout;
     }
 }

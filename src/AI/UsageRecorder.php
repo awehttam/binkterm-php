@@ -22,6 +22,7 @@ class UsageRecorder
 
         $this->insertRow([
             'user_id' => $request->getUserId(),
+            'bot_id' => $request->getBotId(),
             'provider' => $response->getProvider(),
             'model' => $response->getModel(),
             'feature' => $request->getFeature(),
@@ -65,6 +66,7 @@ class UsageRecorder
 
         $this->insertRow([
             'user_id' => $request->getUserId(),
+            'bot_id' => $request->getBotId(),
             'provider' => $provider,
             'model' => $model,
             'feature' => $request->getFeature(),
@@ -90,6 +92,7 @@ class UsageRecorder
         $stmt = $this->db->prepare("
             INSERT INTO ai_requests (
                 user_id,
+                bot_id,
                 provider,
                 model,
                 feature,
@@ -107,7 +110,7 @@ class UsageRecorder
                 error_code,
                 error_message,
                 metadata_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
         ");
 
         $json = json_encode($row['metadata_json'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -117,6 +120,7 @@ class UsageRecorder
 
         $stmt->execute([
             $row['user_id'],
+            $row['bot_id'] ?? null,
             $row['provider'],
             $row['model'],
             $row['feature'],

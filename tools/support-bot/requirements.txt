@@ -1,0 +1,3 @@
+requests>=2.31.0
+fastembed>=0.3.0
+sqlite-vec>=0.1.6

@@ -151,6 +151,7 @@ class DashboardStatsService
 
         $pendingFileApprovals = 0;
         $pendingFilesMaxId = 0;
+        $pendingEchomailModeration = 0;
         if ($isAdmin) {
             $lastPendingFilesMaxId = $meta->getValue($userId, 'last_pending_files_max_id');
 
@@ -170,6 +171,9 @@ class DashboardStatsService
                 $pendingFileApprovals = (int)($pendingRow['new_count'] ?? 0);
                 $pendingFilesMaxId = (int)($pendingRow['max_id'] ?? $lastPendingFilesMaxId);
             }
+
+            $moderationStmt = $this->db->query("SELECT COUNT(*) AS count FROM echomail WHERE moderation_status = 'pending'");
+            $pendingEchomailModeration = (int)($moderationStmt->fetch()['count'] ?? 0);
         }
 
         return [
@@ -185,6 +189,7 @@ class DashboardStatsService
             'credit_balance' => $creditBalance,
             'pending_file_approvals' => $pendingFileApprovals,
             'pending_files_max_id' => $pendingFilesMaxId,
+            'pending_echomail_moderation' => $pendingEchomailModeration,
         ];
     }
 }

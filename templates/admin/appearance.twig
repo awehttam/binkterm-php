@@ -2,6 +2,27 @@
 
 {% block title %}{{ t('ui.admin.appearance.page_title', {}, locale, ['common']) }}{% endblock %}
 
+{% block head %}
+<style>
+.dash-chip {
+    cursor: grab;
+    user-select: none;
+    transition: opacity 0.15s;
+    font-size: 0.875rem;
+}
+.dash-chip.opacity-50 { cursor: grabbing; }
+.dash-drop-zone {
+    border: 2px dashed transparent;
+    border-radius: 6px;
+    transition: border-color 0.15s;
+}
+.dash-drop-zone.drag-active {
+    border-color: var(--bs-primary);
+    background-color: var(--bs-light);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-palette me-2"></i>{{ t('ui.admin.appearance.heading', {}, locale, ['common']) }}</h2>
@@ -11,7 +32,12 @@
 
 <ul class="nav nav-tabs mb-3" id="appearanceTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="tab-branding-btn" data-bs-toggle="tab" data-bs-target="#tab-branding" type="button" role="tab">
+        <button class="nav-link active" id="tab-dashboard-btn" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" role="tab">
+            <i class="fas fa-th-large me-1"></i> {{ t('ui.admin.appearance.tab_dashboard', {}, locale, ['common']) }}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-branding-btn" data-bs-toggle="tab" data-bs-target="#tab-branding" type="button" role="tab">
             <i class="fas fa-brush me-1"></i> {{ t('ui.admin.appearance.tab_branding', {}, locale, ['common']) }}
         </button>
     </li>
@@ -50,12 +76,53 @@
             <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.admin.appearance.tab_message_reader', {}, locale, ['common']) }}
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-file-areas-btn" data-bs-toggle="tab" data-bs-target="#tab-file-areas" type="button" role="tab">
+            <i class="fas fa-folder-open me-1"></i> {{ t('ui.admin.appearance.tab_file_areas', {}, locale, ['common']) }}
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="appearanceTabContent">
 
+    {# ====== TAB: DASHBOARD ====== #}
+    <div class="tab-pane fade show active" id="tab-dashboard" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-th-large me-2"></i>{{ t('ui.admin.appearance.dashboard.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.appearance.dashboard.description', {}, locale, ['common']) }}</p>
+                <p class="text-muted small mb-4"><i class="fas fa-grip-vertical me-1"></i>{{ t('ui.admin.appearance.dashboard.drag_hint', {}, locale, ['common']) }}</p>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <h6 class="fw-semibold mb-2"><i class="fas fa-columns me-1 text-primary"></i>{{ t('ui.admin.appearance.dashboard.main_column', {}, locale, ['common']) }}</h6>
+                        <div id="adminDashMainList" class="dash-drop-zone border rounded p-2" style="min-height:80px;"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="fw-semibold mb-2"><i class="fas fa-sidebar me-1 text-secondary"></i>{{ t('ui.admin.appearance.dashboard.sidebar_column', {}, locale, ['common']) }}</h6>
+                        <div id="adminDashSidebarList" class="dash-drop-zone border rounded p-2" style="min-height:80px;"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="fw-semibold mb-2"><i class="fas fa-eye-slash me-1 text-muted"></i>{{ t('ui.admin.appearance.dashboard.hidden_column', {}, locale, ['common']) }}</h6>
+                        <div id="adminDashHiddenList" class="dash-drop-zone border rounded p-2" style="min-height:80px;"></div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary me-2" onclick="saveAdminDashboardLayout()">
+                    <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.dashboard.save', {}, locale, ['common']) }}
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="resetAdminDashboardLayout()">
+                    <i class="fas fa-undo me-1"></i> {{ t('ui.admin.appearance.dashboard.reset', {}, locale, ['common']) }}
+                </button>
+                <span id="adminDashboardStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
     {# ====== TAB: BRANDING ====== #}
-    <div class="tab-pane fade show active" id="tab-branding" role="tabpanel">
+    <div class="tab-pane fade" id="tab-branding" role="tabpanel">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">{{ t('ui.admin.appearance.branding.title', {}, locale, ['common']) }}</h5>
@@ -574,6 +641,55 @@
         </div>
     </div>
 
+    {# ====== TAB: FILE AREAS ====== #}
+    <div class="tab-pane fade" id="tab-file-areas" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-folder-open me-2"></i>{{ t('ui.admin.appearance.file_areas.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">{{ t('ui.admin.appearance.file_areas.help', {}, locale, ['common']) }}</p>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.file_areas.sidebar_section', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-3">
+                    <label class="form-label" for="faInfoTitle">{{ t('ui.admin.appearance.file_areas.sidebar_info_title', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="faInfoTitle" maxlength="200" placeholder="{{ t('ui.admin.appearance.file_areas.sidebar_info_title_placeholder', {}, locale, ['common']) }}">
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.sidebar_info_title_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label" for="faInfoMarkdown">{{ t('ui.admin.appearance.file_areas.sidebar_info_markdown', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control" id="faInfoMarkdown" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.sidebar_info_markdown_placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.sidebar_info_markdown_help', {}, locale, ['common']) }}</div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="previewMarkdown('sidebar', 'faInfoMarkdown', 'faInfoMarkdownPreview')">
+                        <i class="fas fa-eye me-1"></i> {{ t('ui.admin.appearance.preview', {}, locale, ['common']) }}
+                    </button>
+                    <div id="faInfoMarkdownPreview" class="border rounded p-3 mt-2 small" style="display:none;"></div>
+                </div>
+
+                <hr>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.file_areas.footer_section', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-3">
+                    <label class="form-label" for="faFooterMarkdown">{{ t('ui.admin.appearance.file_areas.footer_markdown', {}, locale, ['common']) }}</label>
+                    <textarea class="form-control" id="faFooterMarkdown" rows="8" maxlength="10000" placeholder="{{ t('ui.admin.appearance.file_areas.footer_markdown_placeholder', {}, locale, ['common']) }}"></textarea>
+                    <div class="form-text">{{ t('ui.admin.appearance.file_areas.footer_markdown_help', {}, locale, ['common']) }}</div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="previewMarkdown('footer', 'faFooterMarkdown', 'faFooterMarkdownPreview')">
+                        <i class="fas fa-eye me-1"></i> {{ t('ui.admin.appearance.preview', {}, locale, ['common']) }}
+                    </button>
+                    <div id="faFooterMarkdownPreview" class="border rounded p-3 mt-2 small" style="display:none;"></div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveFileAreas()">
+                    <i class="fas fa-save me-1"></i> {{ t('ui.admin.appearance.file_areas.save', {}, locale, ['common']) }}
+                </button>
+                <span id="fileAreasStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -794,6 +910,14 @@ function loadAppearanceConfig() {
             const mr = config.message_reader || {};
             $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
             $('#mrEmailLinkUrl').val(mr.email_link_url || '');
+
+            // File Areas
+            const fa = config.file_areas || {};
+            $('#faInfoTitle').val(fa.sidebar_info_title || '');
+            $('#faInfoMarkdown').val(fa.sidebar_info_markdown || '');
+            $('#faFooterMarkdown').val(fa.footer_markdown || '');
+            // Dashboard default layout
+            initAdminDashboardTab(config.dashboard || {});
 
             // Login
             if (d.login_splash !== null && d.login_splash !== undefined) {
@@ -1325,6 +1449,233 @@ function saveMessageReader() {
         .fail(function(xhr) {
             $('#messageReaderStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
         });
+}
+
+function saveFileAreas() {
+    const payload = {
+        file_areas: {
+            sidebar_info_title: $('#faInfoTitle').val().trim(),
+            sidebar_info_markdown: $('#faInfoMarkdown').val(),
+            footer_markdown: $('#faFooterMarkdown').val()
+        }
+    };
+    $.post('/admin/api/appearance/file-areas', JSON.stringify(payload), null, 'json')
+        .done(function(r) {
+            if (r.success) {
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved'))
+                    : uiT('ui.common.saved_short', 'Saved');
+                $('#fileAreasStatus').text(successMessage).removeClass('text-danger').addClass('text-success');
+                setTimeout(() => $('#fileAreasStatus').text(''), 3000);
+            } else {
+                $('#fileAreasStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(r, uiT('ui.common.unknown_error', 'Unknown error'))).addClass('text-danger');
+            }
+        })
+        .fail(function(xhr) {
+            $('#fileAreasStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
+        });
+}
+
+// ---- Admin Dashboard Default Layout ----
+const ADMIN_DASHBOARD_CARDS = {{ dashboard_cards | json_encode | raw }};
+
+// Built-in defaults (zone assignments from card definitions)
+function getAdminDashBuiltinDefault() {
+    const layout = { main: [], sidebar: [], hidden: [] };
+    Object.entries(ADMIN_DASHBOARD_CARDS).forEach(([id, card]) => {
+        if (card.default_zone === 'main') {
+            layout.main.push(id);
+        } else {
+            layout.sidebar.push(id);
+        }
+    });
+    return layout;
+}
+
+let adminDragSrcId = null;
+
+function initAdminDashboardTab(dashConfig) {
+    const layout = (dashConfig && dashConfig.default_layout)
+        ? dashConfig.default_layout
+        : getAdminDashBuiltinDefault();
+    buildAdminDashZone('adminDashMainList',    layout.main    || []);
+    buildAdminDashZone('adminDashSidebarList', layout.sidebar || []);
+    buildAdminDashZone('adminDashHiddenList',  layout.hidden  || []);
+
+    // Cards in main/sidebar but not in any list should be appended to their default zone
+    const allIds = Object.keys(ADMIN_DASHBOARD_CARDS);
+    const placed = new Set([...(layout.main || []), ...(layout.sidebar || []), ...(layout.hidden || [])]);
+    allIds.forEach(function(id) {
+        if (!placed.has(id)) {
+            const zone = ADMIN_DASHBOARD_CARDS[id].default_zone === 'main' ? 'adminDashMainList' : 'adminDashSidebarList';
+            appendAdminDashChip(document.getElementById(zone), id);
+        }
+    });
+}
+
+function buildAdminDashZone(containerId, cardIds) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    cardIds.forEach(function(id) {
+        if (ADMIN_DASHBOARD_CARDS[id]) {
+            appendAdminDashChip(container, id);
+        }
+    });
+    container.addEventListener('dragover',  onAdminDashZoneDragOver);
+    container.addEventListener('dragleave', onAdminDashZoneDragLeave);
+    container.addEventListener('drop',      onAdminDashZoneDrop);
+}
+
+function appendAdminDashChip(container, cardId) {
+    const card = ADMIN_DASHBOARD_CARDS[cardId];
+    if (!card) return;
+    const label = window.t ? window.t(card.label_key || '', {}, cardId) : cardId;
+
+    let badges = '';
+    if (card.required) {
+        badges += ` <span class="badge bg-secondary ms-1">${escHtml(uiT('ui.admin.appearance.dashboard.required_badge', 'Required'))}</span>`;
+    }
+    if (card.admin_only) {
+        badges += ` <span class="badge bg-warning text-dark ms-1">${escHtml(uiT('ui.admin.appearance.dashboard.admin_badge', 'Admin Only'))}</span>`;
+    }
+    if (card.feature) {
+        badges += ` <span class="badge bg-info text-dark ms-1">${escHtml(card.feature)}</span>`;
+    }
+
+    const chip = document.createElement('div');
+    chip.className = 'dash-chip d-flex align-items-center border rounded px-2 py-1 mb-1 bg-light';
+    chip.setAttribute('data-card-id', cardId);
+    chip.setAttribute('draggable', 'true');
+    chip.innerHTML = `<i class="fas fa-grip-vertical text-muted me-2"></i><span class="flex-grow-1">${escHtml(label)}</span>${badges}`;
+
+    chip.addEventListener('dragstart', onAdminDashChipDragStart);
+    chip.addEventListener('dragend',   onAdminDashChipDragEnd);
+    chip.addEventListener('dragover',  onAdminDashChipDragOver);
+    chip.addEventListener('drop',      onAdminDashChipDrop);
+
+    container.appendChild(chip);
+}
+
+function onAdminDashChipDragStart(e) {
+    adminDragSrcId = this.getAttribute('data-card-id');
+    this.classList.add('opacity-50');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', adminDragSrcId);
+}
+
+function onAdminDashChipDragEnd() {
+    this.classList.remove('opacity-50');
+    document.querySelectorAll('#tab-dashboard .dash-drop-zone.drag-active').forEach(el => el.classList.remove('drag-active'));
+}
+
+function onAdminDashChipDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function onAdminDashChipDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const srcId = e.dataTransfer.getData('text/plain');
+    if (srcId === this.getAttribute('data-card-id')) return;
+    const srcChip = document.querySelector(`#tab-dashboard .dash-chip[data-card-id="${srcId}"]`);
+    if (!srcChip) return;
+
+    // Required cards cannot be moved to hidden
+    const targetZone = this.closest('.dash-drop-zone');
+    if (targetZone && targetZone.id === 'adminDashHiddenList') {
+        const srcCard = ADMIN_DASHBOARD_CARDS[srcId] || {};
+        if (srcCard.required) return;
+    }
+
+    this.closest('.dash-drop-zone').insertBefore(srcChip, this);
+}
+
+function onAdminDashZoneDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('drag-active');
+}
+
+function onAdminDashZoneDragLeave(e) {
+    if (!this.contains(e.relatedTarget)) {
+        this.classList.remove('drag-active');
+    }
+}
+
+function onAdminDashZoneDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-active');
+    const srcId = e.dataTransfer.getData('text/plain');
+    const srcChip = document.querySelector(`#tab-dashboard .dash-chip[data-card-id="${srcId}"]`);
+    if (!srcChip) return;
+
+    // Required cards cannot be moved to hidden
+    if (this.id === 'adminDashHiddenList') {
+        const srcCard = ADMIN_DASHBOARD_CARDS[srcId] || {};
+        if (srcCard.required) return;
+    }
+
+    this.appendChild(srcChip);
+}
+
+function readAdminDashboardLayout() {
+    const layout = { main: [], sidebar: [], hidden: [] };
+    [['adminDashMainList', 'main'], ['adminDashSidebarList', 'sidebar'], ['adminDashHiddenList', 'hidden']].forEach(function([listId, zone]) {
+        const el = document.getElementById(listId);
+        if (!el) return;
+        el.querySelectorAll('.dash-chip[data-card-id]').forEach(function(chip) {
+            layout[zone].push(chip.getAttribute('data-card-id'));
+        });
+    });
+    return layout;
+}
+
+function saveAdminDashboardLayout() {
+    const layout = readAdminDashboardLayout();
+    showStatus('adminDashboardStatus', 'info', uiT('ui.admin.appearance.dashboard.saving', 'Saving...'));
+    $.ajax({
+        url: '/admin/api/appearance/dashboard',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ layout: layout }),
+        success: function(r) {
+            if (r.success) {
+                const msg = window.getApiMessage ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved')) : uiT('ui.common.saved_short', 'Saved');
+                showStatus('adminDashboardStatus', 'success', msg);
+            } else {
+                showStatus('adminDashboardStatus', 'danger', apiError(r, uiT('ui.common.unknown_error', 'Unknown error')));
+            }
+        },
+        error: function(xhr) {
+            showStatus('adminDashboardStatus', 'danger', apiError(xhr.responseJSON, uiT('errors.admin.appearance.dashboard.save_failed', 'Failed to save dashboard layout')));
+        }
+    });
+}
+
+function resetAdminDashboardLayout() {
+    if (!confirm(uiT('ui.admin.appearance.dashboard.reset_confirm', 'Reset dashboard layout to system defaults?'))) return;
+    showStatus('adminDashboardStatus', 'info', uiT('ui.admin.appearance.dashboard.saving', 'Saving...'));
+    $.ajax({
+        url: '/admin/api/appearance/dashboard',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ reset: true }),
+        success: function(r) {
+            if (r.success) {
+                const defaultLayout = getAdminDashBuiltinDefault();
+                initAdminDashboardTab({ default_layout: null });
+                const msg = window.getApiMessage ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved')) : uiT('ui.common.saved_short', 'Saved');
+                showStatus('adminDashboardStatus', 'success', msg);
+            } else {
+                showStatus('adminDashboardStatus', 'danger', apiError(r, uiT('ui.common.unknown_error', 'Unknown error')));
+            }
+        },
+        error: function(xhr) {
+            showStatus('adminDashboardStatus', 'danger', apiError(xhr.responseJSON, uiT('errors.admin.appearance.dashboard.save_failed', 'Failed to save dashboard layout')));
+        }
+    });
 }
 
 function showAppearanceAlert(type, msg) {

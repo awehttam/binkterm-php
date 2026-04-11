@@ -331,6 +331,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/users.twig');
     });
 
+    // AI bots management page
+    SimpleRouter::get('/ai-bots', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/ai_bots.twig');
+    });
+
     // Chat rooms management page
     SimpleRouter::get('/chat-rooms', function() {
         $user = RouteHelper::requireAdmin();
@@ -465,7 +473,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/appearance.twig', [
-            'available_themes' => \BinktermPHP\Config::getThemes(),
+            'available_themes'  => \BinktermPHP\Config::getThemes(),
+            'dashboard_cards'   => \BinktermPHP\DashboardCardRegistry::getAllCards(),
         ]);
     });
 
@@ -837,7 +846,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         });
 
         // Finger a user by username — used by the admin terminal
-        SimpleRouter::get('/finger/{username}', function($username) {
+        SimpleRouter::get('/finger', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
 
@@ -845,6 +854,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $adminController->requireAdmin($user);
 
             header('Content-Type: application/json');
+
+            $username = trim($_GET['username'] ?? '');
+            if ($username === '') {
+                http_response_code(400);
+                echo json_encode(['error' => 'username parameter required']);
+                return;
+            }
 
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare("
@@ -1505,6 +1521,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                // Validate echomail_moderation_threshold if provided
+                if (array_key_exists('echomail_moderation_threshold', $config)) {
+                    $threshold = (int)$config['echomail_moderation_threshold'];
+                    if ($threshold < 0) {
+                        throw new Exception('Echomail moderation threshold must be a non-negative integer');
+                    }
+                    $config['echomail_moderation_threshold'] = $threshold;
+                }
+
                 // Validate max_cross_post_areas if provided
                 if (array_key_exists('max_cross_post_areas', $config)) {
                     $maxCrossPost = (int)$config['max_cross_post_areas'];
@@ -1918,6 +1943,76 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/dashboard', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+
+                // Support explicit reset to built-in defaults
+                if (!empty($payload['reset'])) {
+                    $config = \BinktermPHP\AppearanceConfig::getConfig();
+                    $config['dashboard']['default_layout'] = null;
+                    $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                    $client->setAppearanceConfig($config);
+                    \BinktermPHP\AppearanceConfig::reload();
+                    echo json_encode(['success' => true, 'message_code' => 'ui.common.saved_short']);
+                    return;
+                }
+
+                $layout = $payload['layout'] ?? null;
+                if (!is_array($layout) || !isset($layout['main'], $layout['sidebar'], $layout['hidden'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.dashboard.save_failed', apiLocalizedText('errors.admin.appearance.dashboard.save_failed', 'Failed to save dashboard layout'));
+                    return;
+                }
+
+                // Validate card IDs against the full card catalogue
+                $allCards = \BinktermPHP\DashboardCardRegistry::getAllCards();
+                $allIds = array_keys($allCards);
+
+                $main    = array_values(array_filter((array)$layout['main'],    fn($id) => is_string($id) && in_array($id, $allIds, true)));
+                $sidebar = array_values(array_filter((array)$layout['sidebar'], fn($id) => is_string($id) && in_array($id, $allIds, true)));
+                $hidden  = array_values(array_filter((array)$layout['hidden'],  fn($id) => is_string($id) && in_array($id, $allIds, true)));
+
+                // Required cards cannot be hidden
+                foreach ($allCards as $id => $card) {
+                    if (!empty($card['required'])) {
+                        $hidden = array_values(array_filter($hidden, fn($h) => $h !== $id));
+                    }
+                }
+
+                // Every card must appear in exactly one of main/sidebar
+                $placed = array_merge($main, $sidebar);
+                foreach ($allIds as $id) {
+                    if (!in_array($id, $placed, true)) {
+                        if ($allCards[$id]['default_zone'] === 'main') {
+                            $main[] = $id;
+                        } else {
+                            $sidebar[] = $id;
+                        }
+                    }
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['dashboard']['default_layout'] = [
+                    'main'    => $main,
+                    'sidebar' => $sidebar,
+                    'hidden'  => $hidden,
+                ];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true, 'message_code' => 'ui.common.saved_short']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.dashboard.save_failed', apiLocalizedText('errors.admin.appearance.dashboard.save_failed', 'Failed to save dashboard layout'));
+            }
+        });
+
         SimpleRouter::post('/appearance/message-reader', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');
@@ -1941,6 +2036,37 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.message_reader.save_failed', apiLocalizedText('errors.admin.appearance.message_reader.save_failed', 'Failed to save message reader settings'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/file-areas', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $fa = $payload['file_areas'] ?? [];
+
+                $sidebarTitle    = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
+                $sidebarMarkdown = substr((string)($fa['sidebar_info_markdown'] ?? ''), 0, 10000);
+                $footerMarkdown  = substr((string)($fa['footer_markdown'] ?? ''), 0, 10000);
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['file_areas']['sidebar_info_title']    = $sidebarTitle;
+                $config['file_areas']['sidebar_info_markdown'] = $sidebarMarkdown;
+                $config['file_areas']['footer_markdown']       = $footerMarkdown;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved_short'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.file_areas.save_failed', apiLocalizedText('errors.admin.appearance.file_areas.save_failed', 'Failed to save file areas settings'));
             }
         });
 
@@ -3294,6 +3420,244 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         })->where(['id' => '[0-9]+']);
 
+
+        // -------------------------------------------------------
+        // AI Bots
+        // -------------------------------------------------------
+
+        SimpleRouter::get('/ai-bots', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $repo = new \BinktermPHP\AiBot\AiBotRepository($db);
+            $bots = $repo->getAllBotsWithSpend();
+
+            $result = [];
+            foreach ($bots as $bot) {
+                $activities = $repo->getActivitiesForBot((int)$bot['id']);
+                $activityMap = [];
+                foreach ($activities as $act) {
+                    $activityMap[$act['activity_type']] = [
+                        'is_enabled'  => (bool)$act['is_enabled'],
+                        'config_json' => $act['config_json']
+                            ? json_decode($act['config_json'], true)
+                            : (object)[],
+                    ];
+                }
+                $result[] = [
+                    'id'                => (int)$bot['id'],
+                    'user_id'           => (int)$bot['user_id'],
+                    'username'          => $bot['username'],
+                    'name'              => $bot['name'],
+                    'description'       => $bot['description'],
+                    'system_prompt'     => $bot['system_prompt'],
+                    'provider'          => $bot['provider'],
+                    'model'             => $bot['model'],
+                    'weekly_budget_usd' => (float)$bot['weekly_budget_usd'],
+                    'weekly_spend_usd'  => (float)$bot['weekly_spend_usd'],
+                    'context_messages'  => (int)$bot['context_messages'],
+                    'is_active'         => (bool)$bot['is_active'],
+                    'created_at'        => $bot['created_at'],
+                    'activities'        => $activityMap,
+                ];
+            }
+
+            echo json_encode(['bots' => $result]);
+        });
+
+        SimpleRouter::get('/ai-bots/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $repo = new \BinktermPHP\AiBot\AiBotRepository($db);
+            $bot = $repo->findById((int)$id);
+
+            if (!$bot) {
+                apiError('errors.admin.ai_bots.not_found', apiLocalizedText('errors.admin.ai_bots.not_found', 'Bot not found'), 404);
+                return;
+            }
+
+            $activities = $repo->getActivitiesForBot($bot->id);
+            $activityMap = [];
+            foreach ($activities as $act) {
+                $activityMap[$act['activity_type']] = [
+                    'is_enabled'  => (bool)$act['is_enabled'],
+                    'config_json' => $act['config_json']
+                        ? json_decode($act['config_json'], true)
+                        : (object)[],
+                ];
+            }
+
+            // Fetch username from users table
+            $uStmt = $db->prepare("SELECT username FROM users WHERE id = ?");
+            $uStmt->execute([$bot->userId]);
+            $username = (string)($uStmt->fetchColumn() ?: '');
+
+            echo json_encode([
+                'id'                => $bot->id,
+                'user_id'           => $bot->userId,
+                'username'          => $username,
+                'name'              => $bot->name,
+                'description'       => $bot->description,
+                'system_prompt'     => $bot->systemPrompt,
+                'provider'          => $bot->provider,
+                'model'             => $bot->model,
+                'weekly_budget_usd' => $bot->weeklyBudgetUsd,
+                'context_messages'  => $bot->contextMessages,
+                'is_active'         => $bot->isActive,
+                'activities'        => $activityMap,
+            ]);
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::post('/ai-bots', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input    = json_decode(file_get_contents('php://input'), true) ?? [];
+                $name     = trim((string)($input['name'] ?? ''));
+                $username = trim((string)($input['username'] ?? ''));
+
+                if ($name === '' || strlen($name) > 100) {
+                    throw new \InvalidArgumentException('name_invalid');
+                }
+                if ($username === '' || strlen($username) > 50 || !preg_match('/^[A-Za-z0-9_]+$/', $username)) {
+                    throw new \InvalidArgumentException('username_invalid');
+                }
+
+                // Block only if a non-system user already has this username.
+                // A system user with the same username is mapped over by createBot().
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $chk = $db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND is_system = FALSE");
+                $chk->execute([$username]);
+                if ($chk->fetchColumn()) {
+                    throw new \InvalidArgumentException('username_taken');
+                }
+
+                $repo  = new \BinktermPHP\AiBot\AiBotRepository($db);
+                $botId = $repo->createBot(array_merge($input, [
+                    'name'     => $name,
+                    'username' => $username,
+                ]));
+
+                echo json_encode([
+                    'success'      => true,
+                    'id'           => $botId,
+                    'message_code' => 'ui.admin.ai_bots.created_success',
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                http_response_code(400);
+                $code = $e->getMessage();
+                $map  = [
+                    'name_invalid'    => ['errors.admin.ai_bots.name_invalid',    'Bot name must be 1–100 characters'],
+                    'username_invalid'=> ['errors.admin.ai_bots.username_invalid', 'Username must be 1–50 alphanumeric/underscore characters'],
+                    'username_taken'  => ['errors.admin.ai_bots.username_taken',   'Username is already taken'],
+                ];
+                [$errCode, $fallback] = $map[$code] ?? ['errors.admin.ai_bots.create_failed', 'Failed to create bot'];
+                apiError($errCode, apiLocalizedText($errCode, $fallback));
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                apiError('errors.admin.ai_bots.create_failed', apiLocalizedText('errors.admin.ai_bots.create_failed', 'Failed to create bot'));
+            }
+        });
+
+        SimpleRouter::put('/ai-bots/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $db    = \BinktermPHP\Database::getInstance()->getPdo();
+                $repo  = new \BinktermPHP\AiBot\AiBotRepository($db);
+                $bot   = $repo->findById((int)$id);
+
+                if (!$bot) {
+                    apiError('errors.admin.ai_bots.not_found', apiLocalizedText('errors.admin.ai_bots.not_found', 'Bot not found'), 404);
+                    return;
+                }
+
+                $input = json_decode(file_get_contents('php://input'), true) ?? [];
+                $name  = trim((string)($input['name'] ?? $bot->name));
+                if ($name === '' || strlen($name) > 100) {
+                    throw new \InvalidArgumentException('name_invalid');
+                }
+                $input['name'] = $name;
+
+                $repo->updateBot((int)$id, $input);
+
+                // Update activity settings if provided
+                if (isset($input['activities']) && is_array($input['activities'])) {
+                    foreach ($input['activities'] as $activityType => $actData) {
+                        $repo->upsertActivity(
+                            (int)$id,
+                            (string)$activityType,
+                            (bool)($actData['is_enabled'] ?? true),
+                            is_array($actData['config_json'] ?? null) ? $actData['config_json'] : []
+                        );
+                    }
+                }
+
+                echo json_encode([
+                    'success'      => true,
+                    'message_code' => 'ui.admin.ai_bots.updated_success',
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                http_response_code(400);
+                apiError('errors.admin.ai_bots.name_invalid', apiLocalizedText('errors.admin.ai_bots.name_invalid', 'Bot name must be 1–100 characters'));
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                apiError('errors.admin.ai_bots.update_failed', apiLocalizedText('errors.admin.ai_bots.update_failed', 'Failed to update bot'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        SimpleRouter::delete('/ai-bots/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $db   = \BinktermPHP\Database::getInstance()->getPdo();
+                $repo = new \BinktermPHP\AiBot\AiBotRepository($db);
+                $bot  = $repo->findById((int)$id);
+
+                if (!$bot) {
+                    apiError('errors.admin.ai_bots.not_found', apiLocalizedText('errors.admin.ai_bots.not_found', 'Bot not found'), 404);
+                    return;
+                }
+
+                $repo->deleteBot((int)$id);
+
+                echo json_encode([
+                    'success'      => true,
+                    'message_code' => 'ui.admin.ai_bots.deleted_success',
+                ]);
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                apiError('errors.admin.ai_bots.delete_failed', apiLocalizedText('errors.admin.ai_bots.delete_failed', 'Failed to delete bot'));
+            }
+        })->where(['id' => '[0-9]+']);
+
+        // -------------------------------------------------------
+        // Chat Rooms
+        // -------------------------------------------------------
 
         SimpleRouter::post('/chat-rooms', function() {
             $auth = new Auth();
@@ -4967,6 +5331,12 @@ SimpleRouter::get('/admin/echomail-robots', function() {
     $template->renderResponse('admin/echomail_robots.twig');
 });
 
+SimpleRouter::get('/admin/echomail-moderation', function() {
+    RouteHelper::requireAdmin();
+    $template = new Template();
+    $template->renderResponse('admin/echomail_moderation.twig');
+});
+
 // BBS Directory API - list entries (paged + search)
 SimpleRouter::get('/admin/api/bbs-directory/entries', function() {
     RouteHelper::requireAdmin();
@@ -5354,6 +5724,64 @@ SimpleRouter::post('/admin/api/bbs-directory/robots/{id}/run', function($id) {
         http_response_code(500);
         apiError('errors.admin.bbs_directory.run_failed', $e->getMessage());
     }
+});
+
+// -----------------------------------------------------------------------
+// Echomail Moderation Queue API
+// -----------------------------------------------------------------------
+
+SimpleRouter::get('/admin/api/echomail-moderation', function() {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $stmt = $db->prepare("
+        SELECT em.id, em.subject, em.from_name, em.date_written, em.date_received,
+               em.message_text,
+               ea.tag AS echoarea_tag,
+               u.username AS author_username
+        FROM echomail em
+        JOIN echoareas ea ON em.echoarea_id = ea.id
+        LEFT JOIN users u ON em.user_id = u.id
+        WHERE em.moderation_status = 'pending'
+        ORDER BY em.date_received ASC
+    ");
+    $stmt->execute();
+    $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode(['success' => true, 'messages' => $messages]);
+});
+
+SimpleRouter::post('/admin/api/echomail/{id}/approve', function($id) {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $handler = new \BinktermPHP\MessageHandler();
+    $result  = $handler->approveEchomail((int)$id);
+
+    if (!$result) {
+        http_response_code(404);
+        apiError('errors.admin.echomail_moderation.not_found', apiLocalizedText('errors.admin.echomail_moderation.not_found', 'Message not found or not pending'));
+        return;
+    }
+
+    echo json_encode(['success' => true]);
+});
+
+SimpleRouter::post('/admin/api/echomail/{id}/reject', function($id) {
+    RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $handler = new \BinktermPHP\MessageHandler();
+    $result  = $handler->rejectEchomail((int)$id);
+
+    if (!$result) {
+        http_response_code(404);
+        apiError('errors.admin.echomail_moderation.not_found', apiLocalizedText('errors.admin.echomail_moderation.not_found', 'Message not found or not pending'));
+        return;
+    }
+
+    echo json_encode(['success' => true]);
 });
 
 // BBS Directory API - get registered processor types

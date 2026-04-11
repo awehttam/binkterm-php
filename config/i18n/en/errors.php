@@ -27,6 +27,7 @@ return [
     'errors.register.rate_limited' => 'Too many registration attempts. Please try again later.',
     'errors.register.required_fields' => 'Username, password, and real name are required',
     'errors.register.invalid_username_format' => 'Username must be 3-20 characters, letters, numbers, and underscores only',
+    'errors.register.invalid_username_format_spaces' => 'Username must be 3-20 characters, letters, numbers, underscores, and single spaces between words only',
     'errors.register.restricted_name' => 'This username or real name is not allowed',
     'errors.register.weak_password' => 'Password must be at least 8 characters long',
     'errors.register.user_exists' => 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.',
@@ -41,6 +42,7 @@ return [
     'errors.settings.invalid_input' => 'Invalid input',
     'errors.settings.update_failed' => 'Failed to update settings',
     'errors.settings.exception' => 'Failed to update settings',
+    'errors.dashboard.invalid_layout' => 'Invalid layout data.',
 
     // Messages
     'errors.messages.share_create_failed' => 'Failed to create share link',
@@ -169,6 +171,8 @@ return [
     'errors.files.upload.virus_detected' => 'File rejected: virus detected',
     'errors.files.upload.insufficient_credits' => 'Insufficient credits to upload this file',
     'errors.files.upload.failed' => 'Failed to upload file',
+    'errors.files.link.invalid_url' => 'A valid URL is required',
+    'errors.files.link.add_failed' => 'Failed to add link',
     'errors.admin.file_approvals.load_failed' => 'Failed to load pending file approvals',
     'errors.admin.file_approvals.not_found' => 'Pending file not found',
     'errors.admin.file_approvals.not_pending' => 'File is not awaiting approval',
@@ -343,9 +347,11 @@ return [
     'errors.admin.appearance.term_server.upload.file_too_large' => 'Terminal screen file exceeds size limit',
     'errors.admin.appearance.term_server.delete.failed' => 'Failed to delete terminal screen',
     'errors.admin.appearance.message_reader.save_failed' => 'Failed to save message reader settings',
+    'errors.admin.appearance.dashboard.save_failed' => 'Failed to save dashboard layout',
     'errors.admin.appearance.markdown_preview.failed' => 'Failed to render markdown preview',
     'errors.admin.appearance.splash.license_required' => 'A valid license is required to configure splash pages',
     'errors.admin.appearance.splash.save_failed' => 'Failed to save splash settings',
+    'errors.admin.appearance.file_areas.save_failed' => 'Failed to save file areas settings',
     'errors.admin.dashboard.ram_usage_unavailable' => 'RAM usage details are not available on this system.',
     'errors.admin.shell_art.list_failed' => 'Failed to list shell art files',
     'errors.admin.shell_art.upload.no_file' => 'No shell art file uploaded',
@@ -623,4 +629,20 @@ return [
     'errors.admin.msg.empty_message'     => 'Message cannot be empty.',
     'errors.admin.msg.message_too_long'  => 'Message too long (max 1000 characters).',
     'errors.admin.msg.user_not_found'    => 'User not found.',
+
+    // Echomail moderation
+    'errors.admin.echomail_moderation.not_found' => 'Message not found or not pending moderation.',
+
+    // AI Bots
+    'errors.admin.ai_bots.not_found'        => 'Bot not found.',
+    'errors.admin.ai_bots.name_invalid'     => 'Bot name must be 1-100 characters.',
+    'errors.admin.ai_bots.username_invalid' => 'Username must be 1-50 alphanumeric or underscore characters.',
+    'errors.admin.ai_bots.username_taken'   => 'That username is already taken.',
+    'errors.admin.ai_bots.create_failed'    => 'Failed to create bot.',
+    'errors.admin.ai_bots.update_failed'    => 'Failed to update bot.',
+    'errors.admin.ai_bots.delete_failed'    => 'Failed to delete bot.',
+
+    // URL preview (unfurl)
+    'errors.url_preview.invalid_url'   => 'Invalid URL.',
+    'errors.url_preview.fetch_failed'  => 'Could not fetch a preview for that URL.',
 ];

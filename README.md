@@ -933,6 +933,7 @@ The easiest way to customize your BBS is through **Admin → Appearance**, which
 - **System News** — Write dashboard content in Markdown, managed through the admin panel.
 - **Navigation** — Add custom links to the navigation bar.
 - **SEO** — Set a site description and Open Graph image for search engine and social sharing metadata.
+- **File Areas** — Add custom HTML to the file area sidebar and footer (e.g. DMCA contact info, upload ratio policy).
 
 All appearance settings are stored in `data/appearance.json` and take effect immediately.
 

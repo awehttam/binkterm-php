@@ -22,6 +22,7 @@ return [
     'errors.register.rate_limited' => 'Trop de tentatives d\'inscription. Veuillez réessayer plus tard.',
     'errors.register.required_fields' => 'Le nom d\'utilisateur, le mot de passe et le nom réel sont requis',
     'errors.register.invalid_username_format' => 'Le nom d\'utilisateur doit comporter entre 3 et 20 caractères, lettres, chiffres et underscores uniquement',
+    'errors.register.invalid_username_format_spaces' => 'Le nom d\'utilisateur doit comporter entre 3 et 20 caractères, lettres, chiffres, underscores et espaces simples entre les mots uniquement',
     'errors.register.restricted_name' => 'Ce nom d\'utilisateur ou nom réel n\'est pas autorisé',
     'errors.register.weak_password' => 'Le mot de passe doit comporter au moins 8 caractères',
     'errors.register.user_exists' => 'Un utilisateur avec ce nom d\'utilisateur ou ce nom existe déjà. Veuillez vous connecter ou contacter le sysop pour obtenir de l\'aide.',
@@ -32,6 +33,7 @@ return [
     'errors.settings.invalid_input' => 'Entrée invalide',
     'errors.settings.update_failed' => 'Échec de la mise à jour des paramètres',
     'errors.settings.exception' => 'Échec de la mise à jour des paramètres',
+    'errors.dashboard.invalid_layout' => 'Données de disposition invalides.',
     'errors.messages.share_create_failed' => 'Échec de la création du lien de partage',
     'errors.messages.share_lookup_failed' => 'Échec du chargement des liens de partage',
     'errors.messages.share_revoke_failed' => 'Échec de la révocation du lien de partage',
@@ -121,6 +123,8 @@ return [
     'errors.files.upload.virus_detected' => 'Fichier rejeté : virus détecté',
     'errors.files.upload.insufficient_credits' => 'Crédits insuffisants pour téléverser ce fichier',
     'errors.files.upload.failed' => 'Échec du téléversement du fichier',
+    'errors.files.link.invalid_url' => 'Une URL valide est requise',
+    'errors.files.link.add_failed' => 'Impossible d\'ajouter le lien',
     'errors.admin.file_approvals.load_failed' => 'Échec du chargement des approbations de fichiers en attente',
     'errors.admin.file_approvals.not_found' => 'Fichier en attente introuvable',
     'errors.admin.file_approvals.not_pending' => 'Le fichier n\'est pas en attente d\'approbation',
@@ -245,7 +249,9 @@ return [
     'errors.admin.appearance.login.save_failed' => 'Échec de l\'enregistrement des paramètres d\'apparence de connexion',
     'errors.admin.appearance.login.ansi_too_large' => 'Le contenu ANSI de connexion doit comporter 200000 caractères ou moins',
     'errors.admin.appearance.message_reader.save_failed' => 'Échec de l\'enregistrement des paramètres du lecteur de messages',
+    'errors.admin.appearance.dashboard.save_failed' => 'Échec de l\'enregistrement de la mise en page du tableau de bord',
     'errors.admin.appearance.markdown_preview.failed' => 'Échec du rendu de l\'aperçu Markdown',
+    'errors.admin.appearance.file_areas.save_failed' => 'Échec de l\'enregistrement des paramètres des zones de fichiers',
     'errors.admin.shell_art.list_failed' => 'Échec du listage des fichiers d\'art shell',
     'errors.admin.shell_art.upload.no_file' => 'Aucun fichier d\'art shell téléversé',
     'errors.admin.shell_art.upload.upload_error' => 'Échec du téléversement de l\'art shell',
@@ -580,6 +586,22 @@ return [
     'errors.admin.msg.empty_message'     => 'Le message ne peut pas etre vide.',
     'errors.admin.msg.message_too_long'  => 'Message trop long (maximum 1000 caracteres).',
     'errors.admin.msg.user_not_found'    => 'Utilisateur introuvable.',
+
+    // Echomail moderation
+    'errors.admin.echomail_moderation.not_found' => 'Message introuvable ou n\'est pas en attente de modération.',
+
+    // AI Bots
+    'errors.admin.ai_bots.not_found'        => 'Bot introuvable.',
+    'errors.admin.ai_bots.name_invalid'     => 'Le nom du bot doit comporter entre 1 et 100 caracteres.',
+    'errors.admin.ai_bots.username_invalid' => 'Le nom d\'utilisateur doit comporter entre 1 et 50 caracteres alphanumeriques ou soulignements.',
+    'errors.admin.ai_bots.username_taken'   => 'Ce nom d\'utilisateur est deja pris.',
+    'errors.admin.ai_bots.create_failed'    => 'Echec de la creation du bot.',
+    'errors.admin.ai_bots.update_failed'    => 'Echec de la mise a jour du bot.',
+    'errors.admin.ai_bots.delete_failed'    => 'Echec de la suppression du bot.',
+
+    // URL preview (unfurl)
+    'errors.url_preview.invalid_url'   => 'URL invalide.',
+    'errors.url_preview.fetch_failed'  => 'Impossible d\'obtenir un aperçu de cette URL.',
 ];
 
 
