@@ -1,6 +1,6 @@
 {
     "name": "awehttam/binkterm-php",
-    "version": "1.9.1",
+    "version": "1.9.2",
     "description": "Modern web based public home point and BBS with FTN and bink integration",
     "type": "project",
     "require": {
