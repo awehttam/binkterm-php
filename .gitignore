@@ -52,6 +52,9 @@ public_html/jsdos-doors/*/*
 !public_html/jsdos-doors/*/jsdosdoor.json
 !public_html/jsdos-doors/*/icon.png
 !public_html/jsdos-doors/*/README.md
+!public_html/jsdos-doors/*/assets/
+public_html/jsdos-doors/*/assets/*
+!public_html/jsdos-doors/*/assets/.gitkeep
 
 # DOS Door files - only track manifests
 dosbox-bridge/dos/DOORS/*

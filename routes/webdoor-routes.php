@@ -948,6 +948,7 @@ SimpleRouter::get('/games/{game}', function($game) {
             'player_url' => $playerUrl,
             'secondary_url' => $secondaryUrl,
             'secondary_label_key' => $secondaryLabelKey,
+            'show_fullscreen_button' => false,
         ]);
         return;
     }

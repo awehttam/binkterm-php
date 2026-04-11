@@ -134,6 +134,7 @@
     var initialWritableFiles = {};
     var discoveredWritablePaths = [];
     var warnedAboutWildcardSync = false;
+    var exitMarkerPollTimer = null;
 
     function installAudioContextTracking() {
         if (audioTrackingInstalled) {
@@ -204,6 +205,10 @@
         return Array.from(new Set(values));
     }
 
+    function textToUint8Array(value) {
+        return new TextEncoder().encode(String(value || ''));
+    }
+
     function uint8ArrayToBase64(data) {
         var bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
         var chunkSize = 0x8000;
@@ -239,6 +244,8 @@
     var autoLock = {{ (mode.emulator_config.autolock ?? true) | json_encode | raw }};
     var writablePatterns = {{ (mode.saves.save_paths ?? []) | json_encode | raw }};
     var writableSyncEnabled = {{ (mode.saves.enabled ?? false) | json_encode | raw }};
+    var launchBatchPath = 'C:/BTPLAY.BAT';
+    var exitMarkerPath = 'C:/BTEXIT.FLG';
 
     var sessionId = null;
     var dosPlayer = null;
@@ -290,6 +297,24 @@
         }
     }
 
+    function notifyParentExit() {
+        try {
+            if (window.top && window.top !== window && window.top.location.origin === window.location.origin) {
+                window.top.location.href = '/games';
+                return true;
+            }
+        } catch (error) {
+            // Fall back to postMessage below if direct top navigation is not available.
+        }
+
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({type: 'jsdos-exit'}, window.location.origin);
+            return true;
+        }
+
+        return false;
+    }
+
     function simulateKeyOnElement(target, keyCode) {
         if (!target || typeof target.dispatchEvent !== 'function') {
             return;
@@ -332,6 +357,10 @@
         var lines = autoexec.slice();
         var lastCommand = '';
 
+        if (!keepOpen) {
+            return ['C:', 'BTPLAY.BAT'];
+        }
+
         for (var index = lines.length - 1; index >= 0; index--) {
             var candidate = String(lines[index] || '').trim();
             if (candidate !== '') {
@@ -345,6 +374,34 @@
         }
 
         return lines;
+    }
+
+    function getLaunchBatchContents() {
+        var lines = ['@echo off'];
+        var commands = autoexec.slice();
+
+        while (commands.length > 0) {
+            var tail = String(commands[commands.length - 1] || '').trim().toLowerCase();
+            if (tail === '') {
+                commands.pop();
+                continue;
+            }
+            if (tail === 'exit') {
+                commands.pop();
+            }
+            break;
+        }
+
+        commands.forEach(function (command) {
+            if (String(command || '').trim() !== '') {
+                lines.push(command);
+            }
+        });
+
+        lines.push('echo done > C:\\BTEXIT.FLG');
+        lines.push('exit');
+
+        return lines.join('\r\n') + '\r\n';
     }
 
     function buildDosboxConf() {
@@ -444,6 +501,7 @@
     }
 
     function resetPlayerCanvas() {
+        clearExitMarkerPoll();
         var nextCanvas = document.createElement('canvas');
         nextCanvas.id = 'jsdos-canvas';
         nextCanvas.tabIndex = 0;
@@ -453,7 +511,12 @@
         nextCanvas.style.maxHeight = '100%';
         nextCanvas.style.display = 'block';
         nextCanvas.style.imageRendering = 'pixelated';
-        playerStage.replaceChild(nextCanvas, playerCanvas);
+        if (playerCanvas && playerCanvas.parentNode === playerStage) {
+            playerStage.replaceChild(nextCanvas, playerCanvas);
+        } else {
+            playerStage.innerHTML = '';
+            playerStage.appendChild(nextCanvas);
+        }
         playerCanvas = nextCanvas;
         sizeHostCanvas();
         activeFs = null;
@@ -462,6 +525,7 @@
     }
 
     function stopPlayer() {
+        clearExitMarkerPoll();
         var player = dosPlayer;
         dosPlayer = null;
 
@@ -548,6 +612,62 @@
         }
 
         return fs.createFile(dosPath, contents);
+    }
+
+    function removeDosFile(fs, dosPath) {
+        var internalFs = getInternalFs(fs);
+        var fsPath = dosPathToFsPath(dosPath);
+
+        if (!internalFs || typeof internalFs.analyzePath !== 'function' || typeof internalFs.unlink !== 'function') {
+            return;
+        }
+
+        try {
+            if (internalFs.analyzePath(fsPath).exists) {
+                internalFs.unlink(fsPath);
+            }
+        } catch (error) {
+            return;
+        }
+    }
+
+    function dosFileExists(fs, dosPath) {
+        var internalFs = getInternalFs(fs);
+        if (!internalFs || typeof internalFs.analyzePath !== 'function') {
+            return false;
+        }
+
+        try {
+            return !!internalFs.analyzePath(dosPathToFsPath(dosPath)).exists;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function clearExitMarkerPoll() {
+        if (exitMarkerPollTimer) {
+            window.clearInterval(exitMarkerPollTimer);
+            exitMarkerPollTimer = null;
+        }
+    }
+
+    function startExitMarkerPoll(fs) {
+        clearExitMarkerPoll();
+
+        if (keepOpen) {
+            return;
+        }
+
+        exitMarkerPollTimer = window.setInterval(function () {
+            if (isExiting || !activeFs) {
+                return;
+            }
+
+            if (dosFileExists(fs, exitMarkerPath)) {
+                clearExitMarkerPoll();
+                exitGame({fromEmulator: true});
+            }
+        }, 500);
     }
 
     function readWritableFile(fs, dosPath, snapshot) {
@@ -652,12 +772,52 @@
         }
 
         var readableFs = getReadableFs(fs);
+        var directoryFs = getDirectoryFs(fs);
         if (!readableFs || typeof readableFs.readFile !== 'function') {
             return {};
         }
 
         var snapshot = {};
         var trackedPaths = uniqueArray(getExplicitWritablePaths().concat(discoveredWritablePaths));
+
+        function walkSync(path) {
+            if (!directoryFs || typeof directoryFs.readdir !== 'function') {
+                return;
+            }
+
+            var entries;
+            try {
+                entries = directoryFs.readdir(path);
+            } catch (error) {
+                return;
+            }
+
+            if (!Array.isArray(entries)) {
+                return;
+            }
+
+            entries.forEach(function (entry) {
+                if (entry === '.' || entry === '..') {
+                    return;
+                }
+
+                var childPath = path === '/' ? ('/' + entry) : (path + '/' + entry);
+                try {
+                    directoryFs.readdir(childPath);
+                    walkSync(childPath);
+                } catch (error) {
+                    var dosPath = normalizeDosPath('C:' + childPath);
+                    if (matchesWritablePattern(dosPath)) {
+                        trackedPaths.push(dosPath);
+                    }
+                }
+            });
+        }
+
+        getWritableRoots().forEach(walkSync);
+        trackedPaths = uniqueArray(trackedPaths);
+        discoveredWritablePaths = uniqueArray(discoveredWritablePaths.concat(trackedPaths.filter(matchesWritablePattern)));
+
         trackedPaths.forEach(function (dosPath) {
             try {
                 var data = readableFs.readFile(dosPathToFsPath(dosPath));
@@ -707,6 +867,24 @@
         return navigator.sendBeacon('/api/jsdoor/files/' + encodeURIComponent(gameId), blob);
     }
 
+    function saveOnExitViaBeacon() {
+        if (!sessionId) {
+            return false;
+        }
+
+        if (activeFs && writableSyncEnabled && writablePatterns.length > 0) {
+            var exitSnapshot = snapshotWritableFilesSync(activeFs);
+            var exitChangedFiles = buildChangedFiles(exitSnapshot);
+            if (sendSaveBeacon(exitChangedFiles, true)) {
+                initialWritableFiles = exitSnapshot;
+                sessionId = null;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     function saveModifiedFiles() {
         if (!sessionId || !activeFs || !writableSyncEnabled || writablePatterns.length === 0) {
             return Promise.resolve();
@@ -739,26 +917,50 @@
         });
     }
 
-    function exitGame() {
+    function exitGame(options) {
+        options = options || {};
+        var fromEmulator = !!options.fromEmulator;
+
         if (isExiting) {
             return;
         }
 
         isExiting = true;
+        if (saveOnExitViaBeacon()) {
+            if (fromEmulator && notifyParentExit()) {
+                return;
+            }
+
+            stopPlayer().finally(function () {
+                if (!notifyParentExit()) {
+                    leavePlayer();
+                }
+            });
+            return;
+        }
+
         saveModifiedFiles().catch(function (error) {
             console.error('jsdos file sync error', error);
             showError(error.message || fileSyncErrorMsg);
             return null;
         }).then(function () {
+            if (fromEmulator && notifyParentExit()) {
+                return null;
+            }
+
             return stopPlayer();
         }).then(function () {
             return endSession(false);
-        }).finally(leavePlayer);
+        }).finally(function () {
+            if (!notifyParentExit()) {
+                leavePlayer();
+            }
+        });
     }
 
     function handlePlayerEvent(event) {
         if (event === 'exit' || event === 'stop') {
-            exitGame();
+            exitGame({fromEmulator: true});
         }
     }
 
@@ -828,6 +1030,18 @@
             dosPlayer.ready(function (fs, main) {
                 activeFs = fs;
                 focusPlayerCanvas();
+
+                if (fs && fs.dos && typeof fs.dos.registerTerminateListener === 'function') {
+                    fs.dos.registerTerminateListener(function () {
+                        exitGame({fromEmulator: true});
+                    });
+                }
+
+                if (!keepOpen) {
+                    removeDosFile(fs, exitMarkerPath);
+                    writeDosFile(fs, launchBatchPath, textToUint8Array(getLaunchBatchContents()));
+                }
+
                 writeDosFile(fs, 'C:/dosbox.conf', dosboxConf);
 
                 assets.forEach(function (asset) {
@@ -843,6 +1057,7 @@
                     return {};
                 }).then(function (snapshot) {
                     initialWritableFiles = snapshot;
+                    startExitMarkerPoll(fs);
                     main(['-conf', 'dosbox.conf']);
                     window.setTimeout(focusPlayerCanvas, 50);
                     setStatus('');
@@ -908,13 +1123,8 @@
     });
 
     window.addEventListener('beforeunload', function () {
-        if (sessionId && activeFs && writableSyncEnabled && writablePatterns.length > 0) {
-            var unloadSnapshot = snapshotWritableFilesSync(activeFs);
-            var unloadChangedFiles = buildChangedFiles(unloadSnapshot);
-            if (sendSaveBeacon(unloadChangedFiles, true)) {
-                sessionId = null;
-                return;
-            }
+        if (saveOnExitViaBeacon()) {
+            return;
         }
 
         endSession(true);
