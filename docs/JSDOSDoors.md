@@ -17,7 +17,6 @@
 - [Configuration File](#configuration-file)
 - [Activation and Admin Interface](#activation-and-admin-interface)
 - [Adding a Game: Doom Example](#adding-a-game-doom-example)
-- [Installing the js-dos Library](#installing-the-js-dos-library)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -353,18 +352,6 @@ A complete working manifest for Doom shareware looks like this:
 7. If you are an admin, open **Admin Config** from the wrapper page to enter the config mode and run `SETUP.EXE` from the DOS prompt. Changes to `DEFAULT.CFG` are saved back as shared defaults.
 
 > **Note:** Game asset files in `public_html/` are publicly accessible without authentication. Only place files you are licensed to distribute there. The Doom shareware release (`DOOM1.WAD`) is freely distributable; the commercial `DOOM.WAD` is not.
-
----
-
-## Installing the js-dos Library
-
-The js-dos library files (`js-dos.js`, `wdosbox.js`, `wdosbox.wasm.js`) are required and must be present at `public_html/js/jsdos/`. They are committed to the repository for convenience, but can be refreshed at any time by running:
-
-```bash
-php scripts/download_jsdos.php
-```
-
-This script downloads the files from the official js-dos 6.22 CDN and patches `wdosbox.js` with a `Module.locateFile` override. The patch is necessary because js-dos loads `wdosbox.js` into a Blob worker — without an explicit base path, the browser resolves the companion WASM file relative to the current page URL instead of `/js/jsdos/`, resulting in a 404.
 
 ---
 
