@@ -277,6 +277,17 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Échec du chargement de la configuration des portes web',
     'errors.admin.webdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes web',
     'errors.admin.webdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes web',
+    'errors.admin.jsdosdoors_config.load_failed' => 'Échec du chargement de la configuration des portes JS-DOS',
+    'errors.admin.jsdosdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes JS-DOS',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes JS-DOS',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Jeu introuvable',
+    'errors.jsdosdoor.session_create_failed' => 'Impossible de créer la session de jeu',
+    'errors.jsdosdoor.session_end_failed' => 'Impossible de terminer la session de jeu',
+    'errors.jsdosdoor.asset_load_failed' => 'Impossible de charger les fichiers du jeu',
+    'errors.jsdosdoor.file_sync_failed' => 'Impossible de synchroniser les fichiers JS-DOS',
+
     'errors.admin.filearea_rules.load_failed' => 'Échec du chargement des règles de zone de fichiers',
     'errors.admin.filearea_rules.save_failed' => 'Échec de l\'enregistrement des règles de zone de fichiers',
     'errors.admin.ads.list_failed' => 'Échec du chargement des publicités',

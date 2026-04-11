@@ -89,6 +89,8 @@
                                 <span class="badge bg-info text-white" style="font-size: 0.65rem;">DOS</span>
                             {% elseif game.type == 'nativedoor' %}
                                 <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">NATIVE</span>
+                            {% elseif game.type == 'jsdosdoor' %}
+                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">{{ t('ui.webdoors.type_jsdos', {}, locale, ['common']) }}</span>
                             {% else %}
                                 <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
                             {% endif %}

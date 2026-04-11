@@ -20,6 +20,8 @@ use BinktermPHP\Binkp\Logger;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
+use BinktermPHP\JsdosDoorSupport;
+use BinktermPHP\FileAreaManager;
 
 class AdminDaemonServer
 {
@@ -512,6 +514,27 @@ class AdminDaemonServer
                     $this->activateWebdoorsConfig();
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;
+                case 'get_jsdosdoors_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getJsdosdoorsConfig()]);
+                    break;
+                case 'save_jsdosdoors_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeJsdosdoorsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getJsdosdoorsConfig()]);
+                    break;
+                case 'activate_jsdosdoors_config':
+                    $this->activateJsdosdoorsConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getJsdosdoorsConfig()]);
+                    break;
                 case 'get_dosdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getDosdoorsConfig()]);
                     break;
@@ -893,6 +916,15 @@ class AdminDaemonServer
                     }
                     $this->saveWeatherConfig($decoded);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWeatherConfig()]);
+                    break;
+                case 'save_jsdos_shared_file':
+                    $result = $this->saveJsdosSharedFile(
+                        (string)($data['game_id'] ?? ''),
+                        (string)($data['dos_path'] ?? ''),
+                        (string)($data['content_b64'] ?? ''),
+                        !empty($data['deleted'])
+                    );
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
@@ -1542,6 +1574,68 @@ class AdminDaemonServer
     private function getWebdoorsExamplePath(): string
     {
         return __DIR__ . '/../../config/webdoors.json.example';
+    }
+
+    private function getJsdosdoorsConfig(): array
+    {
+        $configPath = $this->getJsdosdoorsConfigPath();
+        $examplePath = $this->getJsdosdoorsExamplePath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active'      => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson
+        ];
+    }
+
+    private function writeJsdosdoorsConfig(array $config): void
+    {
+        $configPath = $this->getJsdosdoorsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode jsdosdoors config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function activateJsdosdoorsConfig(): void
+    {
+        $configPath = $this->getJsdosdoorsConfigPath();
+        if (file_exists($configPath)) {
+            return;
+        }
+
+        $examplePath = $this->getJsdosdoorsExamplePath();
+        if (!file_exists($examplePath)) {
+            throw new \RuntimeException('jsdosdoors.json.example not found');
+        }
+
+        $json = file_get_contents($examplePath);
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            throw new \RuntimeException('jsdosdoors.json.example is invalid');
+        }
+        $this->writeJsdosdoorsConfig($decoded);
+    }
+
+    private function getJsdosdoorsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/jsdosdoors.json';
+    }
+
+    private function getJsdosdoorsExamplePath(): string
+    {
+        return __DIR__ . '/../../config/jsdosdoors.json.example';
     }
 
     private function applyWebdoorManifestConfig(array $config): array
@@ -2419,6 +2513,110 @@ class AdminDaemonServer
         if (file_exists($path) && !@unlink($path)) {
             throw new \RuntimeException('Failed to remove license file');
         }
+    }
+
+    /**
+     * Write (or delete) a file in the shared JS-DOS storage for a game.
+     *
+     * Security policy enforced here in the daemon:
+     * - game_id is validated as a safe basename with no path separators
+     * - Manifest is loaded from disk; dos_path must match at least one
+     *   admin_only + scope:shared mode's save_paths
+     * - Real path containment check prevents any traversal outside
+     *   data/jsdos-shared/{gameId}/
+     * - Content size is capped by the manifest's max_size_kb setting
+     */
+    private function saveJsdosSharedFile(string $gameId, string $dosPath, string $contentB64, bool $deleted): array
+    {
+        $safeId = basename($gameId);
+        if ($safeId === '' || $safeId !== $gameId || !preg_match('/^[A-Za-z0-9_-]+$/', $safeId)) {
+            throw new \RuntimeException('Invalid game ID');
+        }
+
+        $manifestPath = __DIR__ . '/../../public_html/jsdos-doors/' . $safeId . '/jsdosdoor.json';
+        if (!is_file($manifestPath)) {
+            throw new \RuntimeException('Game manifest not found');
+        }
+
+        $raw = @file_get_contents($manifestPath);
+        if ($raw === false) {
+            throw new \RuntimeException('Could not read game manifest');
+        }
+
+        $manifestData = json_decode($raw, true);
+        if (!is_array($manifestData)) {
+            throw new \RuntimeException('Invalid game manifest');
+        }
+
+        $manifest = JsdosDoorSupport::normalizeManifest($manifestData);
+
+        $maxSizeKb = 0;
+        $pathAllowed = false;
+        foreach (JsdosDoorSupport::listModes($manifest) as $mode) {
+            if (empty($mode['admin_only'])) {
+                continue;
+            }
+            $saveConfig = JsdosDoorSupport::getSaveConfig($mode);
+            if (!$saveConfig['enabled'] || $saveConfig['scope'] !== 'shared') {
+                continue;
+            }
+            if (JsdosDoorSupport::matchesAllowedPath($dosPath, $saveConfig['save_paths'])) {
+                $pathAllowed = true;
+                $maxSizeKb = max($maxSizeKb, (int)$saveConfig['max_size_kb']);
+            }
+        }
+
+        if (!$pathAllowed) {
+            throw new \RuntimeException('Path is not in any admin shared save_paths');
+        }
+
+        $baseDir = JsdosDoorSupport::getSharedStorageDirectory($safeId);
+        FileAreaManager::ensureDirectoryExists($baseDir);
+
+        $relativePath = JsdosDoorSupport::dosPathToRelative(
+            JsdosDoorSupport::normalizeDosPattern($dosPath)
+        );
+        $targetPath = rtrim($baseDir, '/\\') . '/' . $relativePath;
+        $targetDir  = dirname($targetPath);
+        FileAreaManager::ensureDirectoryExists($targetDir);
+
+        $baseRealRaw      = realpath($baseDir);
+        $targetDirRealRaw = realpath($targetDir);
+
+        if ($baseRealRaw === false || $targetDirRealRaw === false) {
+            throw new \RuntimeException('Path traversal detected');
+        }
+
+        // Normalize to forward slashes so comparison works on Windows and Linux.
+        $baseReal      = rtrim(str_replace('\\', '/', $baseRealRaw), '/');
+        $targetDirReal = rtrim(str_replace('\\', '/', $targetDirRealRaw), '/');
+
+        if (strpos($targetDirReal . '/', $baseReal . '/') !== 0) {
+            throw new \RuntimeException('Path traversal detected');
+        }
+
+        if ($deleted) {
+            if (is_file($targetPath) && !@unlink($targetPath)) {
+                throw new \RuntimeException('Failed to delete JS-DOS shared file');
+            }
+            return ['success' => true, 'deleted' => true];
+        }
+
+        $contents = base64_decode($contentB64, true);
+        if ($contents === false) {
+            throw new \RuntimeException('Invalid base64 content');
+        }
+
+        $maxBytes = $maxSizeKb * 1024;
+        if (strlen($contents) > $maxBytes) {
+            throw new \RuntimeException('File exceeds allowed size limit');
+        }
+
+        if (@file_put_contents($targetPath, $contents, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write JS-DOS shared file');
+        }
+
+        return ['success' => true];
     }
 
 }
