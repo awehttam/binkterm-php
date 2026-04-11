@@ -139,6 +139,21 @@ class AdminDaemonClient
         return $this->sendCommand('activate_webdoors_config');
     }
 
+    public function getJsdosdoorsConfig(): array
+    {
+        return $this->sendCommand('get_jsdosdoors_config');
+    }
+
+    public function saveJsdosdoorsConfig(string $json): array
+    {
+        return $this->sendCommand('save_jsdosdoors_config', ['json' => $json]);
+    }
+
+    public function activateJsdosdoorsConfig(): array
+    {
+        return $this->sendCommand('activate_jsdosdoors_config');
+    }
+
     public function getDosdoorsConfig(): array
     {
         return $this->sendCommand('get_dosdoors_config');

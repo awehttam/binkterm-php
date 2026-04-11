@@ -378,6 +378,16 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Failed to load webdoors configuration',
     'errors.admin.webdoors_config.save_failed' => 'Failed to save webdoors configuration',
     'errors.admin.webdoors_config.activate_failed' => 'Failed to activate webdoors configuration',
+    'errors.admin.jsdosdoors_config.load_failed' => 'Failed to load JS-DOS doors configuration',
+    'errors.admin.jsdosdoors_config.save_failed' => 'Failed to save JS-DOS doors configuration',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Game not found',
+    'errors.jsdosdoor.session_create_failed' => 'Failed to create game session',
+    'errors.jsdosdoor.session_end_failed' => 'Failed to end game session',
+    'errors.jsdosdoor.asset_load_failed' => 'Failed to load game assets',
+
     'errors.admin.filearea_rules.load_failed' => 'Failed to load file area rules',
     'errors.admin.filearea_rules.save_failed' => 'Failed to save file area rules',
     'errors.admin.ads.list_failed' => 'Failed to load advertisements',

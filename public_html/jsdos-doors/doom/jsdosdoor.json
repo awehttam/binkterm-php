@@ -1,0 +1,39 @@
+{
+    "id": "doom",
+    "name": "Doom",
+    "version": "1.9",
+    "author": "id Software",
+    "description": "The classic first-person shooter. Fight through the demon-infested UAC base.",
+    "icon": "icon.png",
+    "emulator": "jsdos",
+    "emulator_config": {
+        "cpu_cycles": "max 90%",
+        "memory_mb": 16,
+        "machine": "svga_s3",
+        "game_files": [
+            {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"}
+        ],
+        "autoexec": [
+            "C:",
+            "cd DOOM",
+            "DOOM.EXE -nomusic"
+        ]
+    },
+    "network": {
+        "enabled": true,
+        "protocol": "ipx",
+        "max_players": 4,
+        "max_rooms": 10
+    },
+    "saves": {
+        "enabled": true,
+        "save_paths": [
+            "C:/DOOM/DOOMSAV*.DSG",
+            "C:/DOOM/DOOM.CFG"
+        ],
+        "max_size_kb": 512
+    },
+    "credits": {
+        "session_cost": 0
+    }
+}

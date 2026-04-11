@@ -1,0 +1,274 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ game.name }} - {{ t('ui.jsdosdoor.page_title_suffix', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
+
+{% block content %}
+{# Pre-launch panel #}
+<div id="jsdos-prelauncher" class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <a href="/games" class="btn btn-outline-secondary btn-sm mb-3">
+                <i class="fas fa-arrow-left"></i> {{ t('ui.webdoor_play.back_to_doors', {}, locale, ['common']) }}
+            </a>
+
+            <div class="card shadow">
+                <div class="card-body text-center p-5">
+                    <img src="/jsdos-doors/{{ game_path }}/{{ game.icon ?? 'icon.png' }}"
+                         alt="{{ game.name }}"
+                         class="rounded mb-4"
+                         style="width: 96px; height: 96px; object-fit: cover;"
+                         onerror="this.src='/favicon.svg'">
+
+                    <h2 class="mb-1">{{ game.name }}</h2>
+
+                    {% if game.author %}
+                        <p class="text-muted mb-3">
+                            {{ t('ui.webdoors.by_author', {'author': game.author}, locale, ['common']) }}
+                            {% if game.version %} &mdash; v{{ game.version }}{% endif %}
+                        </p>
+                    {% endif %}
+
+                    {% if game.description %}
+                        <p class="lead mb-4">{{ game.description }}</p>
+                    {% endif %}
+
+                    <div id="jsdos-launch-error" class="alert alert-danger d-none mb-3" role="alert"></div>
+
+                    <button id="jsdos-launch-btn" class="btn btn-success btn-lg">
+                        <i class="fas fa-play me-2"></i>
+                        {{ t('ui.jsdosdoor.launch_game', {}, locale, ['common']) }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Full-screen game player, hidden until launched #}
+<div id="jsdos-player"
+     class="d-none"
+     style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999;">
+
+    <div id="jsdos-toolbar"
+         style="position: absolute; top: 0; right: 0; z-index: 10000; padding: 6px 8px; display: flex; gap: 4px;">
+        <button id="jsdos-fullscreen-btn"
+                class="btn btn-sm btn-secondary"
+                title="{{ t('ui.jsdosdoor.fullscreen', {}, locale, ['common']) }}">
+            <i class="fas fa-expand"></i>
+        </button>
+        <button id="jsdos-exit-btn" class="btn btn-sm btn-danger">
+            <i class="fas fa-times me-1"></i>{{ t('ui.jsdosdoor.exit_game', {}, locale, ['common']) }}
+        </button>
+    </div>
+
+    <div id="jsdos-status"
+         style="position: absolute; bottom: 0; left: 0; right: 0; text-align: center; color: #aaa; padding: 8px; font-size: 0.85rem; pointer-events: none;">
+    </div>
+
+    <canvas id="jsdos-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+</div>
+
+<script src="/js/jsdos/js-dos.js"></script>
+
+<script>
+(function () {
+    'use strict';
+
+    var gameId     = {{ game_id | json_encode | raw }};
+    var gamePath   = {{ game_path | json_encode | raw }};
+    var gameFiles  = {{ (game.emulator_config.game_files ?? []) | json_encode | raw }};
+    var autoexec   = {{ (game.emulator_config.autoexec ?? []) | json_encode | raw }};
+    var cpuCycles  = {{ (game.emulator_config.cpu_cycles ?? 'auto') | json_encode | raw }};
+    var machine    = {{ (game.emulator_config.machine ?? 'svga_s3') | json_encode | raw }};
+    var memoryMb   = {{ (game.emulator_config.memory_mb ?? 16) | json_encode | raw }};
+
+    var sessionId  = null;
+
+    var loadingAssetsMsg  = {{ t('ui.jsdosdoor.loading_assets', {}, locale, ['common']) | json_encode | raw }};
+    var loadingEmulatorMsg = {{ t('ui.jsdosdoor.loading_emulator', {}, locale, ['common']) | json_encode | raw }};
+    var sessionErrorMsg   = {{ t('errors.jsdosdoor.session_create_failed', {}, locale, ['errors']) | json_encode | raw }};
+    var assetErrorMsg     = {{ t('errors.jsdosdoor.asset_load_failed', {}, locale, ['errors']) | json_encode | raw }};
+
+    var launchBtn      = document.getElementById('jsdos-launch-btn');
+    var errorPanel     = document.getElementById('jsdos-launch-error');
+    var playerDiv      = document.getElementById('jsdos-player');
+    var preLaunchDiv   = document.getElementById('jsdos-prelauncher');
+    var statusEl       = document.getElementById('jsdos-status');
+
+    function setStatus(msg) {
+        statusEl.textContent = msg;
+    }
+
+    function showError(msg) {
+        errorPanel.textContent = msg;
+        errorPanel.classList.remove('d-none');
+    }
+
+    function hideError() {
+        errorPanel.classList.add('d-none');
+    }
+
+    /**
+     * Build a dosbox.conf string from the manifest values.
+     */
+    function buildDosboxConf() {
+        var lines = [
+            '[cpu]',
+            'cycles=' + cpuCycles,
+            'machine=' + machine,
+            '',
+            '[dos]',
+            'xms=true',
+            'ems=true',
+            '',
+            '[autoexec]',
+            'mount c .'
+        ];
+        for (var i = 0; i < autoexec.length; i++) {
+            lines.push(autoexec[i]);
+        }
+        return lines.join('\n');
+    }
+
+    /**
+     * Create a jsdos session on the server.
+     * Returns a Promise that resolves to the session_id string.
+     */
+    function createSession() {
+        return fetch('/api/jsdoor/session', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({game_id: gameId})
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                return data.session_id;
+            }
+            var msg = (window.getApiErrorMessage)
+                ? window.getApiErrorMessage(data, sessionErrorMsg)
+                : (data.error || sessionErrorMsg);
+            throw new Error(msg);
+        });
+    }
+
+    /**
+     * End the session on the server. Uses sendBeacon on unload so the request
+     * is not cancelled when the page closes.
+     */
+    function endSession() {
+        if (!sessionId) {
+            return;
+        }
+        var sid = sessionId;
+        sessionId = null;
+        navigator.sendBeacon('/api/jsdoor/session/' + encodeURIComponent(sid) + '/end');
+    }
+
+    /**
+     * Tear down the player and return to the pre-launch panel.
+     */
+    function exitGame() {
+        endSession();
+        playerDiv.classList.add('d-none');
+        preLaunchDiv.classList.remove('d-none');
+        launchBtn.disabled = false;
+        // Reload so js-dos state is cleanly reset on next launch.
+        window.location.reload();
+    }
+
+    /**
+     * Fetch a single game asset and write it into the js-dos virtual filesystem.
+     * createFile() accepts an ArrayBuffer and strips the DOS drive letter from
+     * the path automatically (e.g. "C:/DOOM/DOOM.WAD" → "/DOOM/DOOM.WAD").
+     */
+    function fetchAsset(dosPath, assetUrl) {
+        return fetch(assetUrl).then(function (response) {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status + ' fetching ' + assetUrl);
+            }
+            return response.arrayBuffer();
+        });
+    }
+
+    /**
+     * Initialise js-dos 6.22, load game files, and start DOSBox.
+     */
+    function startEmulator() {
+        var canvas = document.getElementById('jsdos-canvas');
+        var dosboxConf = buildDosboxConf();
+
+        // Pre-fetch all game assets before initialising the emulator so we can
+        // report progress and bail out cleanly if a file is missing.
+        setStatus(loadingAssetsMsg);
+
+        var assetFetches = gameFiles.map(function (f) {
+            var assetUrl = '/jsdos-doors/' + gamePath + '/' + f.asset_path;
+            return fetchAsset(f.dos_path, assetUrl).then(function (buf) {
+                return {dosPath: f.dos_path, data: buf};
+            });
+        });
+
+        Promise.all(assetFetches).then(function (assets) {
+            setStatus(loadingEmulatorMsg);
+
+            Dos(canvas, {
+                wdosboxUrl: '/js/jsdos/wdosbox.js'
+            }).ready(function (fs, main) {
+                // Write dosbox.conf (string content)
+                fs.createFile('dosbox.conf', dosboxConf);
+
+                // Write each game file (ArrayBuffer; createFile strips drive letter)
+                assets.forEach(function (asset) {
+                    fs.createFile(asset.dosPath, asset.data);
+                });
+
+                main(['-conf', 'dosbox.conf']);
+                setStatus('');
+            });
+        }).catch(function (err) {
+            console.error('jsdos asset load error', err);
+            endSession();
+            playerDiv.classList.add('d-none');
+            preLaunchDiv.classList.remove('d-none');
+            launchBtn.disabled = false;
+            showError(assetErrorMsg);
+        });
+    }
+
+    function launchGame() {
+        launchBtn.disabled = true;
+        hideError();
+
+        createSession().then(function (sid) {
+            sessionId = sid;
+            preLaunchDiv.classList.add('d-none');
+            playerDiv.classList.remove('d-none');
+            startEmulator();
+        }).catch(function (err) {
+            launchBtn.disabled = false;
+            showError(err.message || sessionErrorMsg);
+        });
+    }
+
+    // Button handlers
+    launchBtn.addEventListener('click', launchGame);
+
+    document.getElementById('jsdos-exit-btn').addEventListener('click', exitGame);
+
+    document.getElementById('jsdos-fullscreen-btn').addEventListener('click', function () {
+        var el = playerDiv;
+        if (el.requestFullscreen) {
+            el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+            el.webkitRequestFullscreen();
+        } else if (el.msRequestFullscreen) {
+            el.msRequestFullscreen();
+        }
+    });
+
+    // End session if the user navigates away
+    window.addEventListener('beforeunload', endSession);
+}());
+</script>
+{% endblock %}

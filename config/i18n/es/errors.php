@@ -378,6 +378,16 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'No se pudo cargar la configuracion de webdoors',
     'errors.admin.webdoors_config.save_failed' => 'No se pudo guardar la configuracion de webdoors',
     'errors.admin.webdoors_config.activate_failed' => 'No se pudo activar la configuracion de webdoors',
+    'errors.admin.jsdosdoors_config.load_failed' => 'No se pudo cargar la configuracion de puertas JS-DOS',
+    'errors.admin.jsdosdoors_config.save_failed' => 'No se pudo guardar la configuracion de puertas JS-DOS',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'No se pudo activar la configuracion de puertas JS-DOS',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Juego no encontrado',
+    'errors.jsdosdoor.session_create_failed' => 'No se pudo crear la sesion de juego',
+    'errors.jsdosdoor.session_end_failed' => 'No se pudo terminar la sesion de juego',
+    'errors.jsdosdoor.asset_load_failed' => 'No se pudieron cargar los archivos del juego',
+
     'errors.admin.filearea_rules.load_failed' => 'No se pudieron cargar las reglas del area de archivos',
     'errors.admin.filearea_rules.save_failed' => 'No se pudieron guardar las reglas del area de archivos',
     'errors.admin.ads.list_failed' => 'No se pudieron cargar los anuncios',

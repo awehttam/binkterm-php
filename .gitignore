@@ -47,6 +47,12 @@ tests/playwright-report/
 test-results/
 scripts/dosbox-bridge/package-lock.json
 
+# JS-DOS Door files - only track manifests
+public_html/jsdos-doors/*/*
+!public_html/jsdos-doors/*/jsdosdoor.json
+!public_html/jsdos-doors/*/icon.png
+!public_html/jsdos-doors/*/README.md
+
 # DOS Door files - only track manifests
 dosbox-bridge/dos/DOORS/*
 !dosbox-bridge/dos/DOORS/*/dosdoor.jsn

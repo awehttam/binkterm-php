@@ -512,6 +512,27 @@ class AdminDaemonServer
                     $this->activateWebdoorsConfig();
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;
+                case 'get_jsdosdoors_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getJsdosdoorsConfig()]);
+                    break;
+                case 'save_jsdosdoors_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeJsdosdoorsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getJsdosdoorsConfig()]);
+                    break;
+                case 'activate_jsdosdoors_config':
+                    $this->activateJsdosdoorsConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getJsdosdoorsConfig()]);
+                    break;
                 case 'get_dosdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getDosdoorsConfig()]);
                     break;
@@ -1542,6 +1563,68 @@ class AdminDaemonServer
     private function getWebdoorsExamplePath(): string
     {
         return __DIR__ . '/../../config/webdoors.json.example';
+    }
+
+    private function getJsdosdoorsConfig(): array
+    {
+        $configPath = $this->getJsdosdoorsConfigPath();
+        $examplePath = $this->getJsdosdoorsExamplePath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active'      => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson
+        ];
+    }
+
+    private function writeJsdosdoorsConfig(array $config): void
+    {
+        $configPath = $this->getJsdosdoorsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode jsdosdoors config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function activateJsdosdoorsConfig(): void
+    {
+        $configPath = $this->getJsdosdoorsConfigPath();
+        if (file_exists($configPath)) {
+            return;
+        }
+
+        $examplePath = $this->getJsdosdoorsExamplePath();
+        if (!file_exists($examplePath)) {
+            throw new \RuntimeException('jsdosdoors.json.example not found');
+        }
+
+        $json = file_get_contents($examplePath);
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            throw new \RuntimeException('jsdosdoors.json.example is invalid');
+        }
+        $this->writeJsdosdoorsConfig($decoded);
+    }
+
+    private function getJsdosdoorsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/jsdosdoors.json';
+    }
+
+    private function getJsdosdoorsExamplePath(): string
+    {
+        return __DIR__ . '/../../config/jsdosdoors.json.example';
     }
 
     private function applyWebdoorManifestConfig(array $config): array
