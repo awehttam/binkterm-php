@@ -10,14 +10,54 @@
         "cpu_cycles": "max 90%",
         "memory_mb": 16,
         "machine": "svga_s3",
+        "output": "openglnb",
+        "scaler": "normal3x forced",
+        "autolock": true,
         "game_files": [
-            {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"}
+            {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"},
+            {"asset_path": "assets/DOOM.EXE", "dos_path": "C:/DOOM/DOOM.EXE"},
+            {"asset_path": "assets/SB16/DEFAULT.CFG", "dos_path": "C:/DOOM/DEFAULT.CFG"}
         ],
         "autoexec": [
             "C:",
             "cd DOOM",
-            "DOOM.EXE -nomusic"
+            "SET BLASTER=A220 I7 D1 T4",
+            "DOOM.EXE"
         ]
+    },
+    "modes": {
+        "config": {
+            "label": "Admin Setup",
+            "description": "Admin-only configuration mode. Launches to a DOS prompt so you can run SETUP.EXE and update shared defaults.",
+            "admin_only": true,
+            "keep_open": true,
+            "emulator_config": {
+                "cpu_cycles": "max 90%",
+                "memory_mb": 16,
+                "machine": "svga_s3",
+                "output": "surface",
+                "autolock": true,
+                "game_files": [
+                    {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"},
+                    {"asset_path": "assets/DOOM.EXE", "dos_path": "C:/DOOM/DOOM.EXE"},
+                    {"asset_path": "assets/SB16/DEFAULT.CFG", "dos_path": "C:/DOOM/DEFAULT.CFG"},
+                    {"asset_path": "assets/SETUP.EXE", "dos_path": "C:/DOOM/SETUP.EXE"}
+                ],
+                "autoexec": [
+                    "C:",
+                    "cd DOOM",
+                    "SET BLASTER=A220 I7 D1 T4"
+                ]
+            },
+            "saves": {
+                "enabled": true,
+                "scope": "shared",
+                "save_paths": [
+                    "C:/DOOM/DEFAULT.CFG"
+                ],
+                "max_size_kb": 512
+            }
+        }
     },
     "network": {
         "enabled": true,
@@ -28,8 +68,7 @@
     "saves": {
         "enabled": true,
         "save_paths": [
-            "C:/DOOM/DOOMSAV*.DSG",
-            "C:/DOOM/DOOM.CFG"
+            "C:/DOOM/DOOMSAV*.DSG"
         ],
         "max_size_kb": 512
     },

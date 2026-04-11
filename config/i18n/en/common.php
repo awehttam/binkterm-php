@@ -1695,8 +1695,12 @@ return [
     'ui.jsdosdoor.coming_soon_heading' => 'Coming Soon',
     'ui.jsdosdoor.coming_soon_body' => 'Browser-side emulation for this game is not yet available.',
     'ui.jsdosdoor.launch_game' => 'Launch Game',
+    'ui.jsdosdoor.launch_config' => 'Launch Config Mode',
     'ui.jsdosdoor.exit_game' => 'Exit',
     'ui.jsdosdoor.fullscreen' => 'Fullscreen',
+    'ui.jsdosdoor.send_escape' => 'Send Escape to the game',
+    'ui.jsdosdoor.send_escape_short' => 'Esc',
+    'ui.jsdosdoor.escape_unlock_hint' => 'Mouse unlocked. Click Esc to send Escape to the game.',
     'ui.jsdosdoor.loading_assets' => 'Loading game assets...',
     'ui.jsdosdoor.loading_emulator' => 'Starting emulator...',
 
@@ -3286,7 +3290,9 @@ return [
     'ui.webdoors.errors.requirements_not_met' => 'This game requires features that are not currently enabled on this system.',
     'ui.webdoor_play.page_title_suffix' => 'Doors and Games',
     'ui.webdoor_play.back_to_doors' => 'Back to Doors',
+    'ui.webdoor_play.admin_config' => 'Admin Config',
     'ui.webdoor_play.fullscreen' => 'Fullscreen',
+    'ui.webdoor_play.play_mode' => 'Play Mode',
 
     // Shared File Page
     'ui.shared_file.shared_file' => 'Shared File',

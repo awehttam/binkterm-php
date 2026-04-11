@@ -387,6 +387,7 @@ return [
     'errors.jsdosdoor.session_create_failed' => 'No se pudo crear la sesion de juego',
     'errors.jsdosdoor.session_end_failed' => 'No se pudo terminar la sesion de juego',
     'errors.jsdosdoor.asset_load_failed' => 'No se pudieron cargar los archivos del juego',
+    'errors.jsdosdoor.file_sync_failed' => 'No se pudieron sincronizar los archivos de JS-DOS',
 
     'errors.admin.filearea_rules.load_failed' => 'No se pudieron cargar las reglas del area de archivos',
     'errors.admin.filearea_rules.save_failed' => 'No se pudieron guardar las reglas del area de archivos',

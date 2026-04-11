@@ -13,6 +13,7 @@ use BinktermPHP\DoorManager;
 use BinktermPHP\GameConfig;
 use BinktermPHP\JsdosDoorConfig;
 use BinktermPHP\JsdosDoorManifest;
+use BinktermPHP\JsdosDoorSupport;
 use BinktermPHP\Template;
 use BinktermPHP\WebDoorController;
 use BinktermPHP\WebDoorManifest;
@@ -69,6 +70,74 @@ function checkManifestRequirements(array $manifest): bool {
     }
 
     return true;
+}
+
+/**
+ * Resolve a JS-DOS game + mode request with access checks and normalized manifest data.
+ *
+ * @param array<string, mixed>|null $user
+ * @return array<string, mixed>|null
+ */
+function resolveJsdosDoorRequest(string $gameId, string $modeId = 'play', ?array $user = null): ?array
+{
+    $entry = JsdosDoorManifest::getManifest($gameId);
+    if (!$entry || !JsdosDoorConfig::isEnabled($entry['id'])) {
+        return null;
+    }
+
+    $manifest = JsdosDoorSupport::normalizeManifest($entry['manifest']);
+    $mode = JsdosDoorSupport::getMode($manifest, $modeId);
+    if (!$mode || !JsdosDoorSupport::canUserAccessMode($mode, $user)) {
+        return null;
+    }
+
+    return [
+        'entry' => $entry,
+        'manifest' => $manifest,
+        'mode' => $mode,
+        'mode_id' => $modeId,
+    ];
+}
+
+/**
+ * Load a JS-DOS session for the current user.
+ *
+ * @return array<string, mixed>|null
+ */
+function loadJsdosSessionForUser(string $sessionId, int $userId): ?array
+{
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare("
+        SELECT session_id, door_id, user_id, door_type, user_data, ended_at, expires_at
+          FROM door_sessions
+         WHERE session_id = ?
+            AND user_id = ?
+            AND door_type = 'jsdos'
+            AND ended_at IS NULL
+          LIMIT 1
+    ");
+    $stmt->execute([$sessionId, $userId]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+
+    $userData = [];
+    if (!empty($row['user_data'])) {
+        if (is_array($row['user_data'])) {
+            $userData = $row['user_data'];
+        } elseif (is_string($row['user_data'])) {
+            $decoded = json_decode($row['user_data'], true);
+            if (is_array($decoded)) {
+                $userData = $decoded;
+            }
+        }
+    }
+
+    $row['user_data'] = $userData;
+    $row['mode'] = (string)($userData['mode'] ?? 'play');
+
+    return $row;
 }
 
 /**
@@ -207,7 +276,7 @@ SimpleRouter::get('/games', function() {
                 'description' => $description,
                 'author'      => $manifest['author'] ?? null,
                 'version'     => $manifest['version'] ?? null,
-                'path'        => 'jsdos/' . $gameId,
+                'path'        => $gameId,
                 'icon_url'    => $iconUrl,
                 'type'        => 'jsdosdoor',
             ];
@@ -404,6 +473,11 @@ SimpleRouter::get('/games/jsdos/{gameId}', function(string $gameId) {
         exit;
     }
 
+    $requestedMode = trim((string)($_GET['mode'] ?? 'play'));
+    if ($requestedMode === '') {
+        $requestedMode = 'play';
+    }
+
     $entry = JsdosDoorManifest::getManifest($gameId);
     if (!$entry || !JsdosDoorConfig::isEnabled($entry['id'])) {
         http_response_code(404);
@@ -414,13 +488,26 @@ SimpleRouter::get('/games/jsdos/{gameId}', function(string $gameId) {
         return;
     }
 
-    $manifest = $entry['manifest'];
+    $resolved = resolveJsdosDoorRequest($gameId, $requestedMode, $user);
+    if (!$resolved) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
+        ]);
+        return;
+    }
+
+    $entry = $resolved['entry'];
+    $manifest = $resolved['manifest'];
+    $mode = $resolved['mode'];
     $gameConfig = JsdosDoorConfig::getGameConfig($entry['id']);
     $name = $gameConfig['display_name'] ?? $manifest['name'] ?? $entry['id'];
     $description = $gameConfig['display_description'] ?? $manifest['description'] ?? '';
     $gameData = array_merge($manifest, ['name' => $name, 'description' => $description]);
 
-    $emulator = $manifest['emulator'] ?? 'jsdos';
+    $emulator = $mode['emulator'] ?? ($manifest['emulator'] ?? 'jsdos');
     $template = new Template();
 
     if ($emulator === 'jsdos') {
@@ -428,6 +515,8 @@ SimpleRouter::get('/games/jsdos/{gameId}', function(string $gameId) {
             'game'      => $gameData,
             'game_id'   => $entry['id'],
             'game_path' => $entry['path'],
+            'mode'      => $mode,
+            'mode_id'   => $requestedMode,
         ]);
     } else {
         // Phase 5: custom emulator support — show placeholder for now
@@ -456,11 +545,16 @@ SimpleRouter::post('/api/jsdoor/session', function() {
 
     $body = json_decode(file_get_contents('php://input'), true);
     $gameId = trim((string)($body['game_id'] ?? ''));
+    $requestedMode = trim((string)($body['mode'] ?? 'play'));
 
     if ($gameId === '') {
         http_response_code(400);
         webdoorApiError('errors.jsdosdoor.game_not_found', 'Game ID required', 400);
         return;
+    }
+
+    if ($requestedMode === '') {
+        $requestedMode = 'play';
     }
 
     $entry = JsdosDoorManifest::getManifest($gameId);
@@ -470,7 +564,15 @@ SimpleRouter::post('/api/jsdoor/session', function() {
         return;
     }
 
-    $manifest = $entry['manifest'];
+    $resolved = resolveJsdosDoorRequest($gameId, $requestedMode, $user);
+    if (!$resolved) {
+        http_response_code(403);
+        webdoorApiError('errors.door.admin_only', 'This door is restricted to administrators', 403);
+        return;
+    }
+
+    $entry = $resolved['entry'];
+    $manifest = $resolved['manifest'];
     $sessionCost = (int)($manifest['credits']['session_cost'] ?? 0);
     if ($sessionCost > 0) {
         http_response_code(400);
@@ -498,15 +600,17 @@ SimpleRouter::post('/api/jsdoor/session', function() {
 
         // Create new session record
         $stmt = $db->prepare("
-            INSERT INTO door_sessions (session_id, user_id, door_id, expires_at, door_type)
-            VALUES (?, ?, ?, ?, 'jsdos')
+            INSERT INTO door_sessions (session_id, user_id, door_id, expires_at, door_type, user_data)
+            VALUES (?, ?, ?, ?, 'jsdos', ?::jsonb)
         ");
-        $stmt->execute([$sessionId, $userId, $entry['id'], $expiresAt]);
+        $userDataJson = json_encode(['mode' => $requestedMode]);
+        $stmt->execute([$sessionId, $userId, $entry['id'], $expiresAt, $userDataJson]);
 
         echo json_encode([
             'success'    => true,
             'session_id' => $sessionId,
             'expires_at' => $expiresAt,
+            'mode'       => $requestedMode,
         ]);
     } catch (\Throwable $e) {
         getServerLogger()->error('Failed to create jsdos session: ' . $e->getMessage());
@@ -546,6 +650,185 @@ SimpleRouter::post('/api/jsdoor/session/{sessionId}/end', function(string $sessi
         getServerLogger()->error('Failed to end jsdos session: ' . $e->getMessage());
         http_response_code(500);
         webdoorApiError('errors.jsdosdoor.session_end_failed', 'Failed to end session', 500);
+    }
+});
+
+// GET /api/jsdoor/files/{gameId} - Load JS-DOS synced files for the active session
+SimpleRouter::get('/api/jsdoor/files/{gameId}', function(string $gameId) {
+    header('Content-Type: application/json');
+
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    if (!$user) {
+        http_response_code(401);
+        webdoorApiError('errors.auth.authentication_required', 'Authentication required', 401);
+        return;
+    }
+
+    $sessionId = trim((string)($_GET['session_id'] ?? ''));
+    if ($sessionId === '') {
+        http_response_code(400);
+        webdoorApiError('errors.jsdosdoor.session_create_failed', 'Session ID required', 400);
+        return;
+    }
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $session = loadJsdosSessionForUser($sessionId, $userId);
+    if (!$session || (string)$session['door_id'] !== $gameId) {
+        http_response_code(404);
+        webdoorApiError('errors.jsdosdoor.game_not_found', 'Active session not found', 404);
+        return;
+    }
+
+    $resolved = resolveJsdosDoorRequest($gameId, (string)$session['mode'], $user);
+    if (!$resolved) {
+        http_response_code(403);
+        webdoorApiError('errors.door.admin_only', 'This door is restricted to administrators', 403);
+        return;
+    }
+
+    $manifest = $resolved['manifest'];
+    $mode = $resolved['mode'];
+    $modeSaveConfig = JsdosDoorSupport::getSaveConfig($mode);
+    $files = [];
+
+    foreach (JsdosDoorSupport::getSharedSaveModes($manifest) as $sharedMode) {
+        $sharedFiles = JsdosDoorSupport::loadStoredFiles(
+            JsdosDoorSupport::getSharedStorageDirectory($gameId),
+            $sharedMode['saves']
+        );
+        foreach ($sharedFiles as $dosPath => $contents) {
+            $files[$dosPath] = $contents;
+        }
+    }
+
+    if (!empty($modeSaveConfig['enabled'])) {
+        $baseDir = $modeSaveConfig['scope'] === 'shared'
+            ? JsdosDoorSupport::getSharedStorageDirectory($gameId)
+            : JsdosDoorSupport::getUserStorageDirectory($userId, $gameId);
+        $modeFiles = JsdosDoorSupport::loadStoredFiles($baseDir, $modeSaveConfig);
+        foreach ($modeFiles as $dosPath => $contents) {
+            $files[$dosPath] = $contents;
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'files' => array_map(static function(string $dosPath, string $contents): array {
+            return [
+                'dos_path' => $dosPath,
+                'content_b64' => base64_encode($contents),
+            ];
+        }, array_keys($files), array_values($files)),
+    ]);
+});
+
+// POST /api/jsdoor/files/{gameId} - Save modified JS-DOS files for the active session
+SimpleRouter::post('/api/jsdoor/files/{gameId}', function(string $gameId) {
+    header('Content-Type: application/json');
+
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    if (!$user) {
+        http_response_code(401);
+        webdoorApiError('errors.auth.authentication_required', 'Authentication required', 401);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $sessionId = trim((string)($input['session_id'] ?? ''));
+    $payloadFiles = is_array($input['files'] ?? null) ? $input['files'] : [];
+    $endSession = !empty($input['end_session']);
+
+    if ($sessionId === '') {
+        http_response_code(400);
+        webdoorApiError('errors.jsdosdoor.session_create_failed', 'Session ID required', 400);
+        return;
+    }
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $session = loadJsdosSessionForUser($sessionId, $userId);
+    if (!$session || (string)$session['door_id'] !== $gameId) {
+        http_response_code(404);
+        webdoorApiError('errors.jsdosdoor.game_not_found', 'Active session not found', 404);
+        return;
+    }
+
+    $resolved = resolveJsdosDoorRequest($gameId, (string)$session['mode'], $user);
+    if (!$resolved) {
+        http_response_code(403);
+        webdoorApiError('errors.door.admin_only', 'This door is restricted to administrators', 403);
+        return;
+    }
+
+    $modeSaveConfig = JsdosDoorSupport::getSaveConfig($resolved['mode']);
+    if (empty($modeSaveConfig['enabled'])) {
+        if ($endSession) {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                UPDATE door_sessions
+                   SET ended_at = NOW()
+                 WHERE session_id = ?
+                   AND user_id = ?
+                   AND door_type = 'jsdos'
+                   AND ended_at IS NULL
+            ");
+            $stmt->execute([$sessionId, $userId]);
+        }
+        echo json_encode(['success' => true, 'saved' => 0]);
+        return;
+    }
+
+    $baseDir = $modeSaveConfig['scope'] === 'shared'
+        ? JsdosDoorSupport::getSharedStorageDirectory($gameId)
+        : JsdosDoorSupport::getUserStorageDirectory($userId, $gameId);
+
+    try {
+        $saved = 0;
+        foreach ($payloadFiles as $payloadFile) {
+            if (!is_array($payloadFile)) {
+                continue;
+            }
+
+            $dosPath = trim((string)($payloadFile['dos_path'] ?? ''));
+            if ($dosPath === '') {
+                continue;
+            }
+
+            if (!empty($payloadFile['deleted'])) {
+                JsdosDoorSupport::deleteStoredFile($baseDir, $modeSaveConfig, $dosPath);
+                $saved++;
+                continue;
+            }
+
+            $contentB64 = (string)($payloadFile['content_b64'] ?? '');
+            $contents = base64_decode($contentB64, true);
+            if ($contents === false) {
+                throw new \RuntimeException('Invalid base64 file payload');
+            }
+
+            JsdosDoorSupport::writeStoredFile($baseDir, $modeSaveConfig, $dosPath, $contents);
+            $saved++;
+        }
+
+        if ($endSession) {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                UPDATE door_sessions
+                   SET ended_at = NOW()
+                 WHERE session_id = ?
+                   AND user_id = ?
+                   AND door_type = 'jsdos'
+                   AND ended_at IS NULL
+            ");
+            $stmt->execute([$sessionId, $userId]);
+        }
+
+        echo json_encode(['success' => true, 'saved' => $saved]);
+    } catch (\Throwable $e) {
+        getServerLogger()->error('Failed to save jsdos files: ' . $e->getMessage());
+        http_response_code(400);
+        webdoorApiError('errors.jsdosdoor.session_end_failed', 'Failed to save files', 400);
     }
 });
 
@@ -612,6 +895,59 @@ SimpleRouter::get('/games/{game}', function($game) {
             'door' => $nativeDoor,
             'door_id' => $game,
             'player_url' => "/games/nativedoors/{$game}"
+        ]);
+        return;
+    }
+
+    // Check if this is a JS-DOS door
+    $jsdosEntry = JsdosDoorManifest::getManifest($game);
+    if ($jsdosEntry && JsdosDoorConfig::isEnabled($jsdosEntry['id'])) {
+        $requestedMode = trim((string)($_GET['mode'] ?? 'play'));
+        if ($requestedMode === '') {
+            $requestedMode = 'play';
+        }
+
+        $resolved = resolveJsdosDoorRequest($game, $requestedMode, $user);
+        if (!$resolved) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('error.twig', [
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
+            ]);
+            return;
+        }
+
+        $manifest = $resolved['manifest'];
+        $mode = $resolved['mode'];
+        $gameConfig = JsdosDoorConfig::getGameConfig($jsdosEntry['id']);
+        $name = $gameConfig['display_name'] ?? $manifest['name'] ?? $jsdosEntry['id'];
+        $description = $gameConfig['display_description'] ?? $manifest['description'] ?? '';
+        $modeLabel = (string)($mode['label'] ?? '');
+        $playerUrl = "/games/jsdos/{$jsdosEntry['id']}" . ($requestedMode !== 'play' ? ('?mode=' . urlencode($requestedMode)) : '');
+        $secondaryUrl = null;
+        $secondaryLabelKey = null;
+
+        if (!empty($user['is_admin']) && JsdosDoorSupport::hasMode($manifest, 'config')) {
+            if ($requestedMode === 'config') {
+                $secondaryUrl = "/games/{$game}";
+                $secondaryLabelKey = 'ui.webdoor_play.play_mode';
+            } else {
+                $secondaryUrl = "/games/{$game}?mode=config";
+                $secondaryLabelKey = 'ui.webdoor_play.admin_config';
+            }
+        }
+
+        $template = new Template();
+        $template->renderResponse('dosdoor_play.twig', [
+            'door' => [
+                'name' => $requestedMode === 'play' || $modeLabel === '' ? $name : ($name . ' - ' . $modeLabel),
+                'description' => $description,
+            ],
+            'door_id' => $game,
+            'player_url' => $playerUrl,
+            'secondary_url' => $secondaryUrl,
+            'secondary_label_key' => $secondaryLabelKey,
         ]);
         return;
     }

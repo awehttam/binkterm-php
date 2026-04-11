@@ -1748,8 +1748,12 @@ return [
     'ui.jsdosdoor.coming_soon_heading' => 'Proximamente',
     'ui.jsdosdoor.coming_soon_body' => 'La emulacion en el navegador para este juego aun no esta disponible.',
     'ui.jsdosdoor.launch_game' => 'Iniciar juego',
+    'ui.jsdosdoor.launch_config' => 'Iniciar modo de configuracion',
     'ui.jsdosdoor.exit_game' => 'Salir',
     'ui.jsdosdoor.fullscreen' => 'Pantalla completa',
+    'ui.jsdosdoor.send_escape' => 'Enviar Escape al juego',
+    'ui.jsdosdoor.send_escape_short' => 'Esc',
+    'ui.jsdosdoor.escape_unlock_hint' => 'Mouse desbloqueado. Haz clic en Esc para enviar Escape al juego.',
     'ui.jsdosdoor.loading_assets' => 'Cargando archivos del juego...',
     'ui.jsdosdoor.loading_emulator' => 'Iniciando emulador...',
 
@@ -3292,7 +3296,9 @@ return [
     'ui.webdoors.errors.requirements_not_met' => 'Este juego requiere funciones que actualmente no estan habilitadas en este sistema.',
     'ui.webdoor_play.page_title_suffix' => 'Puertas y juegos',
     'ui.webdoor_play.back_to_doors' => 'Volver a puertas',
+    'ui.webdoor_play.admin_config' => 'Configuracion admin',
     'ui.webdoor_play.fullscreen' => 'Pantalla completa',
+    'ui.webdoor_play.play_mode' => 'Modo de juego',
 
     // Shared File Page
     'ui.shared_file.shared_file' => 'Archivo compartido',

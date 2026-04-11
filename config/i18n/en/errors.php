@@ -387,6 +387,7 @@ return [
     'errors.jsdosdoor.session_create_failed' => 'Failed to create game session',
     'errors.jsdosdoor.session_end_failed' => 'Failed to end game session',
     'errors.jsdosdoor.asset_load_failed' => 'Failed to load game assets',
+    'errors.jsdosdoor.file_sync_failed' => 'Failed to sync JS-DOS files',
 
     'errors.admin.filearea_rules.load_failed' => 'Failed to load file area rules',
     'errors.admin.filearea_rules.save_failed' => 'Failed to save file area rules',
