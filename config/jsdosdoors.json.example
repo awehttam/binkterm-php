@@ -1,0 +1,7 @@
+{
+    "doomsw": {
+        "enabled": false,
+        "display_name": "Doom",
+        "display_description": "The classic first-person shooter. Fight through the demon-infested UAC base."
+    }
+}
