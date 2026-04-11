@@ -47,12 +47,12 @@ Game assets are served as ordinary static files — no PHP processing, no authen
 
 ```
 public_html/jsdos-doors/
-└── doom/
+└── doomsw/
     ├── jsdosdoor.json     ← required manifest
     ├── icon.png           ← optional game icon (96×96 recommended)
     └── assets/
         ├── DOOM.EXE
-        ├── DOOM.WAD
+        ├── DOOM1.WAD
         └── ...            ← any other files the game needs
 ```
 
@@ -71,7 +71,7 @@ Each game declares its capabilities in a `jsdosdoor.json` file at the root of it
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `id` | string | yes | Unique game identifier, e.g. `"doom"`. Must match the key used in `config/jsdosdoors.json`. |
+| `id` | string | yes | Unique game identifier, e.g. `"doomsw"`. Must match the key used in `config/jsdosdoors.json`. |
 | `name` | string | yes | Display name shown in the games listing. |
 | `version` | string | no | Game version string, shown next to the author. |
 | `author` | string | no | Game author/publisher. |
@@ -147,14 +147,15 @@ An array of objects, each mapping a static asset file to a path inside the DOS v
 ```json
 "game_files": [
     {"asset_path": "assets/DOOM.EXE", "dos_path": "C:/DOOM/DOOM.EXE"},
-    {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"}
+    {"asset_path": "assets/DOOM1.WAD", "dos_path": "C:/DOOM/DOOM1.WAD"}
 ]
 ```
 
 | Field | Description |
 |---|---|
-| `asset_path` | Path to the file relative to the game directory (e.g. `assets/DOOM.WAD`). This is fetched as a static URL from the browser. |
+| `asset_path` | Path to the file relative to the game directory (e.g. `assets/DOOM1.WAD`). This is fetched as a static URL from the browser. |
 | `dos_path` | Where the file should appear inside DOSBox. The drive letter (e.g. `C:`) is stripped and the rest becomes the path in the virtual FS root, which is mounted as `C:`. |
+| `optional` | Optional boolean. When `true`, a missing static asset (`404`) is skipped instead of aborting launch. This helps with staged installs and first-time setup flows. |
 
 Every file the game needs to run must be listed here. Files in `assets/` that are not listed are not available inside DOSBox.
 
@@ -195,7 +196,16 @@ Controls save file sync between the browser and the server.
 | `save_paths` | array | `[]` | Allowed DOS paths or globs. Only matching files are loaded or written back. |
 | `max_size_kb` | integer | `512` | Maximum size per synced file. |
 
-For `scope: "user"`, files are stored under the user's private file area. For `scope: "shared"`, files are stored in a shared JS-DOS defaults directory outside `public_html`.
+For `scope: "user"`, files are stored under the user's private file area.
+
+For `scope: "shared"`, files are stored in a shared JS-DOS defaults directory outside `public_html` and are **read by all players** when the game launches. However, writes to a shared scope are **only permitted from `admin_only` modes** for admin users. The write is routed through the admin daemon, which enforces:
+
+- The caller is authenticated as admin by the web layer before the daemon is contacted
+- The manifest's `save_paths` allowlist is re-validated inside the daemon (the daemon loads the manifest itself)
+- A `realpath()` containment check prevents any path traversal outside `data/jsdos-shared/{gameId}/`
+- The `max_size_kb` cap is enforced per-file
+
+Setting `scope: "shared"` on a mode that is **not** `admin_only` has no effect — the write will be rejected at the route layer with a 403.
 
 ### network
 
@@ -238,7 +248,7 @@ Example:
 
 ```json
 {
-    "doom": {
+    "doomsw": {
         "enabled": true,
         "display_name": "Doom",
         "display_description": "The classic first-person shooter. Fight through the demon-infested UAC base."
@@ -263,13 +273,13 @@ The door list on the left sidebar of the admin page shows all discovered manifes
 
 ## Adding a Game: Doom Example
 
-The Doom shareware manifest is included at `public_html/jsdos-doors/doom/jsdosdoor.json`. It demonstrates both normal play mode and an admin-only `config` mode.
+The Doom shareware manifest is included at `public_html/jsdos-doors/doomsw/jsdosdoor.json`. It demonstrates both normal play mode and an admin-only `config` mode.
 
 A complete working manifest for Doom shareware looks like this:
 
 ```json
 {
-    "id": "doom",
+    "id": "doomsw",
     "name": "Doom",
     "version": "1.9",
     "author": "id Software",
@@ -282,8 +292,7 @@ A complete working manifest for Doom shareware looks like this:
         "machine": "svga_s3",
         "game_files": [
             {"asset_path": "assets/DOOM.EXE", "dos_path": "C:/DOOM/DOOM.EXE"},
-            {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"},
-            {"asset_path": "assets/SB16/DEFAULT.CFG", "dos_path": "C:/DOOM/DEFAULT.CFG"}
+            {"asset_path": "assets/DOOM1.WAD", "dos_path": "C:/DOOM/DOOM1.WAD"}
         ],
         "autoexec": [
             "C:",
@@ -299,9 +308,8 @@ A complete working manifest for Doom shareware looks like this:
             "keep_open": true,
             "emulator_config": {
                 "game_files": [
-                    {"asset_path": "assets/DOOM.EXE", "dos_path": "C:/DOOM/DOOM.EXE"},
-                    {"asset_path": "assets/DOOM.WAD", "dos_path": "C:/DOOM/DOOM.WAD"},
-                    {"asset_path": "assets/SB16/DEFAULT.CFG", "dos_path": "C:/DOOM/DEFAULT.CFG"},
+                    {"asset_path": "assets/DOOM.EXE", "dos_path": "C:/DOOM/DOOM.EXE", "optional": true},
+                    {"asset_path": "assets/DOOM1.WAD", "dos_path": "C:/DOOM/DOOM1.WAD", "optional": true},
                     {"asset_path": "assets/SETUP.EXE", "dos_path": "C:/DOOM/SETUP.EXE"}
                 ],
                 "autoexec": [
@@ -324,8 +332,7 @@ A complete working manifest for Doom shareware looks like this:
         "enabled": true,
         "scope": "user",
         "save_paths": [
-            "C:/DOOM/DOOMSAV*.DSG",
-            "C:/DOOM/DEFAULT.CFG"
+            "C:/DOOM/DOOMSAV*.DSG"
         ],
         "max_size_kb": 512
     },
@@ -343,13 +350,14 @@ A complete working manifest for Doom shareware looks like this:
 
 **Step-by-step setup:**
 
-1. Place game files in `public_html/jsdos-doors/doom/assets/`. At minimum you need `DOOM.EXE` and `DOOM.WAD`.
-2. Create or update `public_html/jsdos-doors/doom/jsdosdoor.json` with the manifest above.
-3. Place a 96×96 `icon.png` in `public_html/jsdos-doors/doom/` (optional but recommended).
-4. Ensure `config/jsdosdoors.json` exists and has `"doom": {"enabled": true}`. Use `/admin/jsdosdoors` to create and edit it.
+1. Place game files in `public_html/jsdos-doors/doomsw/assets/`. For play mode you need `DOOM.EXE` and `DOOM1.WAD`. For first-time admin setup, `SETUP.EXE` can be present by itself; the optional gameplay assets are skipped until you add them.
+2. Create or update `public_html/jsdos-doors/doomsw/jsdosdoor.json` with the manifest above.
+3. Place a 96×96 `icon.png` in `public_html/jsdos-doors/doomsw/` (optional but recommended).
+4. Ensure `config/jsdosdoors.json` exists and has `"doomsw": {"enabled": true}`. Use `/admin/jsdosdoors` to create and edit it.
 5. Visit `/games` — Doom should appear with the `[JSDOS]` badge.
-6. Click **Launch Game**. The browser will download the play-mode files and boot DOSBox.
-7. If you are an admin, open **Admin Config** from the wrapper page to enter the config mode and run `SETUP.EXE` from the DOS prompt. Changes to `DEFAULT.CFG` are saved back as shared defaults.
+6. If you are an admin on a first-time install, open **Admin Config** from the wrapper page and run `SETUP.EXE` to generate `DEFAULT.CFG`.
+7. When you exit the `SETUP.EXE` session, `DEFAULT.CFG` is synced back to the server via the admin daemon and stored as a shared default for all players.
+8. Click **Launch Game**. The browser will download the play-mode files and boot DOSBox, loading the shared `DEFAULT.CFG` if one has already been created.
 
 > **Note:** Game asset files in `public_html/` are publicly accessible without authentication. Only place files you are licensed to distribute there. The Doom shareware release (`DOOM1.WAD`) is freely distributable; the commercial `DOOM.WAD` is not.
 
@@ -365,7 +373,8 @@ A complete working manifest for Doom shareware looks like this:
 **"Failed to load game assets" error on launch**
 - Open the browser developer console and check which asset URL returned a 404.
 - Verify the file listed in `game_files[].asset_path` exists under `public_html/jsdos-doors/{game-id}/`.
-- Asset paths in the manifest are relative to the game directory, not `assets/` — the `assets/` prefix must be included explicitly (e.g. `"asset_path": "assets/DOOM.WAD"`).
+- Asset paths in the manifest are relative to the game directory, not `assets/` — the `assets/` prefix must be included explicitly (e.g. `"asset_path": "assets/DOOM1.WAD"`).
+- If a file is intentionally absent during initial setup, mark that `game_files[]` entry with `"optional": true` so launch can continue without it.
 
 **DOSBox boots but the game does not start**
 - Check the `autoexec` commands in the manifest. The first `game_files` entry determines where the executable lives; the autoexec must navigate to that directory and run the correct filename.

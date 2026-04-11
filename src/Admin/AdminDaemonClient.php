@@ -154,6 +154,20 @@ class AdminDaemonClient
         return $this->sendCommand('activate_jsdosdoors_config');
     }
 
+    /**
+     * Save a file to the shared JS-DOS storage for a game via the admin daemon.
+     * Only succeeds when the dos_path matches an admin_only+shared mode's save_paths.
+     */
+    public function saveJsdosSharedFile(string $gameId, string $dosPath, string $contentB64, bool $deleted = false): array
+    {
+        return $this->sendCommand('save_jsdos_shared_file', [
+            'game_id'     => $gameId,
+            'dos_path'    => $dosPath,
+            'content_b64' => $contentB64,
+            'deleted'     => $deleted,
+        ]);
+    }
+
     public function getDosdoorsConfig(): array
     {
         return $this->sendCommand('get_dosdoors_config');

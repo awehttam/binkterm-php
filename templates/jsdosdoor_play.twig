@@ -135,6 +135,8 @@
     var discoveredWritablePaths = [];
     var warnedAboutWildcardSync = false;
     var exitMarkerPollTimer = null;
+    var autosaveTimer = null;
+    var saveInFlight = false;
 
     function installAudioContextTracking() {
         if (audioTrackingInstalled) {
@@ -502,6 +504,7 @@
 
     function resetPlayerCanvas() {
         clearExitMarkerPoll();
+        clearAutosaveTimer();
         var nextCanvas = document.createElement('canvas');
         nextCanvas.id = 'jsdos-canvas';
         nextCanvas.tabIndex = 0;
@@ -526,6 +529,7 @@
 
     function stopPlayer() {
         clearExitMarkerPoll();
+        clearAutosaveTimer();
         var player = dosPlayer;
         dosPlayer = null;
 
@@ -597,9 +601,58 @@
         return fs || null;
     }
 
+    function ensureDosParentDirectory(fs, dosPath) {
+        var internalFs = getInternalFs(fs);
+        var fsPath = dosPathToFsPath(dosPath);
+        var lastSlash = fsPath.lastIndexOf('/');
+
+        if (!internalFs || lastSlash <= 0) {
+            return;
+        }
+
+        var parentPath = fsPath.slice(0, lastSlash);
+        if (!parentPath || parentPath === '/') {
+            return;
+        }
+
+        if (typeof internalFs.mkdirTree === 'function') {
+            try {
+                internalFs.mkdirTree(parentPath);
+                return;
+            } catch (error) {
+                // Fall through to manual creation below.
+            }
+        }
+
+        var segments = parentPath.split('/').filter(Boolean);
+        var currentPath = '';
+
+        segments.forEach(function (segment) {
+            currentPath += '/' + segment;
+
+            try {
+                if (typeof internalFs.analyzePath === 'function' && internalFs.analyzePath(currentPath).exists) {
+                    return;
+                }
+            } catch (error) {
+                // Ignore analyze errors and attempt mkdir directly.
+            }
+
+            if (typeof internalFs.mkdir === 'function') {
+                try {
+                    internalFs.mkdir(currentPath);
+                } catch (error) {
+                    // Ignore EEXIST-style failures from races or partial state.
+                }
+            }
+        });
+    }
+
     function writeDosFile(fs, dosPath, contents) {
         var internalFs = getInternalFs(fs);
         var fsPath = dosPathToFsPath(dosPath);
+
+        ensureDosParentDirectory(fs, dosPath);
 
         if (internalFs && typeof internalFs.analyzePath === 'function') {
             try {
@@ -607,11 +660,19 @@
                     internalFs.unlink(fsPath);
                 }
             } catch (error) {
-                return fs.createFile(dosPath, contents);
+                try {
+                    return fs.createFile(dosPath, contents);
+                } catch (createError) {
+                    throw new Error('Failed to write DOS file ' + dosPath + ': ' + (createError.message || createError));
+                }
             }
         }
 
-        return fs.createFile(dosPath, contents);
+        try {
+            return fs.createFile(dosPath, contents);
+        } catch (error) {
+            throw new Error('Failed to write DOS file ' + dosPath + ': ' + (error.message || error));
+        }
     }
 
     function removeDosFile(fs, dosPath) {
@@ -651,6 +712,38 @@
         }
     }
 
+    function clearAutosaveTimer() {
+        if (autosaveTimer) {
+            window.clearInterval(autosaveTimer);
+            autosaveTimer = null;
+        }
+    }
+
+    function flushModifiedFiles() {
+        if (saveInFlight) {
+            return Promise.resolve();
+        }
+        saveInFlight = true;
+        return saveModifiedFiles().finally(function () {
+            saveInFlight = false;
+        });
+    }
+
+    function startAutosaveLoop() {
+        clearAutosaveTimer();
+        if (!writableSyncEnabled || writablePatterns.length === 0) {
+            return;
+        }
+        autosaveTimer = window.setInterval(function () {
+            if (isExiting || !activeFs || !sessionId) {
+                return;
+            }
+            flushModifiedFiles().catch(function (error) {
+                console.error('jsdos autosave error', error);
+            });
+        }, 2000);
+    }
+
     function startExitMarkerPoll(fs) {
         clearExitMarkerPoll();
 
@@ -676,7 +769,9 @@
             return Promise.resolve();
         }
 
-        return Promise.resolve(readableFs.readFile(dosPathToFsPath(dosPath))).then(function (data) {
+        return Promise.resolve().then(function () {
+            return readableFs.readFile(dosPathToFsPath(dosPath));
+        }).then(function (data) {
             snapshot[dosPath] = uint8ArrayToBase64(data);
         }).catch(function () {
             return null;
@@ -710,7 +805,9 @@
             return Promise.resolve();
         }
 
-        return Promise.resolve(directoryFs.readdir(path)).then(function (entries) {
+        return Promise.resolve().then(function () {
+            return directoryFs.readdir(path);
+        }).then(function (entries) {
             if (!Array.isArray(entries)) {
                 return null;
             }
@@ -719,7 +816,9 @@
                 return entry !== '.' && entry !== '..';
             }).map(function (entry) {
                 var childPath = path === '/' ? ('/' + entry) : (path + '/' + entry);
-                return Promise.resolve(directoryFs.readdir(childPath)).then(function () {
+                return Promise.resolve().then(function () {
+                    return directoryFs.readdir(childPath);
+                }).then(function () {
                     return walkFsDirectory(fs, childPath, discoveredPaths);
                 }).catch(function () {
                     var dosPath = normalizeDosPath('C:' + childPath);
@@ -939,7 +1038,7 @@
             return;
         }
 
-        saveModifiedFiles().catch(function (error) {
+        flushModifiedFiles().catch(function (error) {
             console.error('jsdos file sync error', error);
             showError(error.message || fileSyncErrorMsg);
             return null;
@@ -964,13 +1063,28 @@
         }
     }
 
-    function fetchAsset(dosPath, assetUrl) {
+    function handleLaunchFailure(error) {
+        console.error('jsdos launch error', error);
+        stopPlayer().then(function () {
+            return endSession(false);
+        }).finally(leavePlayer);
+        showError(error && error.message ? error.message : assetErrorMsg);
+    }
+
+    function fetchAsset(dosPath, assetUrl, optional) {
         return fetch(assetUrl).then(function (response) {
             if (!response.ok) {
+                if (optional && response.status === 404) {
+                    console.warn('Skipping optional jsdos asset', assetUrl);
+                    return null;
+                }
                 throw new Error('HTTP ' + response.status + ' fetching ' + assetUrl);
             }
             return response.arrayBuffer();
         }).then(function (buffer) {
+            if (buffer === null) {
+                return null;
+            }
             return {
                 dosPath: normalizeDosPath(dosPath),
                 data: new Uint8Array(buffer)
@@ -985,11 +1099,13 @@
 
         var assetFetches = gameFiles.map(function (file) {
             var assetUrl = '/jsdos-doors/' + gamePath + '/' + file.asset_path;
-            return fetchAsset(file.dos_path, assetUrl);
+            return fetchAsset(file.dos_path, assetUrl, !!file.optional);
         });
 
         Promise.all([Promise.all(assetFetches), fetchSyncedFiles()]).then(function (results) {
-            var assets = results[0];
+            var assets = results[0].filter(function (asset) {
+                return asset !== null;
+            });
             var syncedFiles = results[1];
             discoveredWritablePaths = uniqueArray(syncedFiles.map(function (file) {
                 return normalizeDosPath(file.dos_path);
@@ -1028,48 +1144,45 @@
             }
 
             dosPlayer.ready(function (fs, main) {
-                activeFs = fs;
-                focusPlayerCanvas();
+                Promise.resolve().then(function () {
+                    activeFs = fs;
+                    focusPlayerCanvas();
 
-                if (fs && fs.dos && typeof fs.dos.registerTerminateListener === 'function') {
-                    fs.dos.registerTerminateListener(function () {
-                        exitGame({fromEmulator: true});
+                    if (fs && fs.dos && typeof fs.dos.registerTerminateListener === 'function') {
+                        fs.dos.registerTerminateListener(function () {
+                            exitGame({fromEmulator: true});
+                        });
+                    }
+
+                    if (!keepOpen) {
+                        removeDosFile(fs, exitMarkerPath);
+                        writeDosFile(fs, launchBatchPath, textToUint8Array(getLaunchBatchContents()));
+                    }
+
+                    writeDosFile(fs, 'C:/dosbox.conf', dosboxConf);
+
+                    assets.forEach(function (asset) {
+                        writeDosFile(fs, asset.dosPath, asset.data);
                     });
-                }
 
-                if (!keepOpen) {
-                    removeDosFile(fs, exitMarkerPath);
-                    writeDosFile(fs, launchBatchPath, textToUint8Array(getLaunchBatchContents()));
-                }
+                    syncedFiles.forEach(function (file) {
+                        writeDosFile(fs, file.dos_path, base64ToUint8Array(file.content_b64));
+                    });
 
-                writeDosFile(fs, 'C:/dosbox.conf', dosboxConf);
-
-                assets.forEach(function (asset) {
-                    writeDosFile(fs, asset.dosPath, asset.data);
-                });
-
-                syncedFiles.forEach(function (file) {
-                    writeDosFile(fs, file.dos_path, base64ToUint8Array(file.content_b64));
-                });
-
-                snapshotWritableFiles(fs).catch(function (error) {
-                    console.error('jsdos initial snapshot error', error);
-                    return {};
-                }).then(function (snapshot) {
-                    initialWritableFiles = snapshot;
-                    startExitMarkerPoll(fs);
-                    main(['-conf', 'dosbox.conf']);
-                    window.setTimeout(focusPlayerCanvas, 50);
-                    setStatus('');
-                });
+                    return snapshotWritableFiles(fs).catch(function (error) {
+                        console.error('jsdos initial snapshot error', error);
+                        return {};
+                    }).then(function (snapshot) {
+                        initialWritableFiles = snapshot;
+                        startExitMarkerPoll(fs);
+                        startAutosaveLoop();
+                        main(['-conf', 'dosbox.conf']);
+                        window.setTimeout(focusPlayerCanvas, 50);
+                        setStatus('');
+                    });
+                }).catch(handleLaunchFailure);
             });
-        }).catch(function (error) {
-            console.error('jsdos asset load error', error);
-            stopPlayer().then(function () {
-                return endSession(false);
-            }).finally(leavePlayer);
-            showError(error.message || assetErrorMsg);
-        });
+        }).catch(handleLaunchFailure);
     }
 
     function launchGame() {
@@ -1083,6 +1196,7 @@
             playerDiv.classList.remove('d-none');
             startEmulator();
         }).catch(function (error) {
+            console.error('jsdos session error', error);
             launchBtn.disabled = false;
             showError(error.message || sessionErrorMsg);
         });

@@ -779,12 +779,23 @@ SimpleRouter::post('/api/jsdoor/files/{gameId}', function(string $gameId) {
         return;
     }
 
-    $baseDir = $modeSaveConfig['scope'] === 'shared'
-        ? JsdosDoorSupport::getSharedStorageDirectory($gameId)
+    $isSharedScope = $modeSaveConfig['scope'] === 'shared';
+
+    // Shared saves may only come from admin users operating an admin_only mode.
+    // Non-admin callers or non-admin modes are blocked regardless of the scope value.
+    if ($isSharedScope && (empty($resolved['mode']['admin_only']) || empty($user['is_admin']))) {
+        http_response_code(403);
+        webdoorApiError('errors.door.admin_only', 'Shared saves require an admin mode', 403);
+        return;
+    }
+
+    $baseDir = $isSharedScope
+        ? ''
         : JsdosDoorSupport::getUserStorageDirectory($userId, $gameId);
 
     try {
         $saved = 0;
+        $daemonClient = $isSharedScope ? new \BinktermPHP\Admin\AdminDaemonClient() : null;
         foreach ($payloadFiles as $payloadFile) {
             if (!is_array($payloadFile)) {
                 continue;
@@ -792,6 +803,13 @@ SimpleRouter::post('/api/jsdoor/files/{gameId}', function(string $gameId) {
 
             $dosPath = trim((string)($payloadFile['dos_path'] ?? ''));
             if ($dosPath === '') {
+                continue;
+            }
+
+            if ($isSharedScope) {
+                $contentB64 = (string)($payloadFile['content_b64'] ?? '');
+                $daemonClient->saveJsdosSharedFile($gameId, $dosPath, $contentB64, !empty($payloadFile['deleted']));
+                $saved++;
                 continue;
             }
 
