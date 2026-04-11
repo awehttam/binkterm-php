@@ -37,7 +37,8 @@ JS-DOS Doors appear in the `/games` listing alongside WebDoors, DOS Doors, and N
 4. The player pre-fetches all game files listed in the manifest from their static asset paths under `public_html/jsdos-doors/{game-id}/assets/`.
 5. The fetched files are written into the js-dos virtual filesystem using `fs.createFile()`.
 6. DOSBox boots inside the browser using the autoexec commands from the manifest.
-7. When the user exits (or navigates away), `POST /api/jsdoor/session/{id}/end` closes the session.
+7. The browser creates a session, downloads game assets, and boots DOSBox. Modified files matching the mode's `save_paths` are synced back to the server every ~2 seconds and again on exit.
+8. When the user exits (or navigates away), the session is closed and a final file sync is attempted.
 
 Game assets are served as ordinary static files — no PHP processing, no authentication. Sysops are responsible for only placing files they are licensed to distribute in `public_html/`.
 
@@ -103,19 +104,18 @@ Example:
         "keep_open": true,
         "emulator_config": {
             "game_files": [
-                {"asset_path": "assets/SETUP.EXE", "dos_path": "C:/DOOM/SETUP.EXE"},
-                {"asset_path": "assets/SB16/DEFAULT.CFG", "dos_path": "C:/DOOM/DEFAULT.CFG"}
+                {"asset_path": "assets/SETUP.EXE", "dos_path": "C:/GAME/SETUP.EXE"}
             ],
             "autoexec": [
                 "C:",
-                "cd DOOM"
+                "cd GAME"
             ]
         },
         "saves": {
             "enabled": true,
             "scope": "shared",
             "save_paths": [
-                "C:/DOOM/DEFAULT.CFG"
+                "C:/GAME/DEFAULT.CFG"
             ],
             "max_size_kb": 512
         }
@@ -356,7 +356,7 @@ A complete working manifest for Doom shareware looks like this:
 4. Ensure `config/jsdosdoors.json` exists and has `"doomsw": {"enabled": true}`. Use `/admin/jsdosdoors` to create and edit it.
 5. Visit `/games` — Doom should appear with the `[JSDOS]` badge.
 6. If you are an admin on a first-time install, open **Admin Config** from the wrapper page and run `SETUP.EXE` to generate `DEFAULT.CFG`.
-7. When you exit the `SETUP.EXE` session, `DEFAULT.CFG` is synced back to the server via the admin daemon and stored as a shared default for all players.
+7. `DEFAULT.CFG` syncs to the server automatically every ~2 seconds while the session is active (and again on exit), via the admin daemon. It is stored as a shared default for all players.
 8. Click **Launch Game**. The browser will download the play-mode files and boot DOSBox, loading the shared `DEFAULT.CFG` if one has already been created.
 
 > **Note:** Game asset files in `public_html/` are publicly accessible without authentication. Only place files you are licensed to distribute there. The Doom shareware release (`DOOM1.WAD`) is freely distributable; the commercial `DOOM.WAD` is not.
