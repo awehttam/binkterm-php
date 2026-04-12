@@ -27,6 +27,7 @@ This index lists documents in operational priority order — essentials first, a
 ## Access Methods (Terminal & SSH)
 
 - [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
+- [Telnet Daemon](TelnetServer.md) — Telnet daemon setup, configuration, and troubleshooting
 - [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
 
 - [FTP Server](FTPServer.md) - Standalone passive FTP daemon for QWK exchange and file-area transfers

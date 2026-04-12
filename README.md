@@ -23,7 +23,7 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
-There are no doubt bugs and omissions in the project as it was written by an AI. "Your Mileage May Vary".  This code is released under the terms of a [BSD License](LICENSE.md).
+This code is released under the terms of a [BSD License](LICENSE.md).
 
 awehttam operates a full instance of BinktermPHP over at https://claudes.lovelybits.org - Claude's very own BBS, and a point system @ https://mypoint.lovelybits.org.
 
@@ -218,7 +218,7 @@ The Telnet daemon is one access method for the shared Terminal Server.
 - **Multi-Platform** - Works with PuTTY, SyncTERM, ZOC, and standard telnet clients
 - **Optional TLS Listener** - Encrypted telnet access available when enabled
 
-See **[telnet/README.md](telnet/README.md)** for daemon setup, configuration, and troubleshooting.
+See **[TelnetServer.md](docs/TelnetServer.md)** for daemon setup, configuration, and troubleshooting.
 
 ### Terminal Access via SSH
 

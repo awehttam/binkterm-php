@@ -217,4 +217,4 @@ SSH crypto inline so `BbsSession` runs in the same process.
 
 ## See Also
 
-- [Telnet Daemon](../telnet/README.md) — unencrypted / TLS telnet alternative
+- [Telnet Daemon](TelnetServer.md) — unencrypted / TLS telnet alternative
