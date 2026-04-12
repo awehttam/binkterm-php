@@ -305,6 +305,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
+- **libsixel** (`libsixel-bin`) - Optional, enables Sixel image rendering in the telnet/SSH terminal reader
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
 - **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
@@ -316,6 +317,8 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 sudo apt-get update
 sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom postgresql composer 
 sudo apt-get install -y unzip p7zip-full
+# Optional: Sixel image rendering in telnet/SSH terminal reader
+sudo apt-get install -y libsixel-bin
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
