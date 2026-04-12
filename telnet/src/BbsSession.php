@@ -723,7 +723,15 @@ class BbsSession
         if (!is_resource($conn)) { return; }
         $prev = error_reporting();
         error_reporting($prev & ~E_NOTICE);
-        @fwrite($conn, $data);
+        $total  = strlen($data);
+        $offset = 0;
+        while ($offset < $total) {
+            $written = @fwrite($conn, substr($data, $offset));
+            if ($written === false || $written === 0) {
+                break;  // connection closed or unrecoverable error
+            }
+            $offset += $written;
+        }
         @fflush($conn);
         error_reporting($prev);
     }
