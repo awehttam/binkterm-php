@@ -186,15 +186,15 @@ class BbsSession
             $this->negotiateTelnet($conn);
             // TLS telnet clients commonly delay TELNET option replies until after
             // they see visible output. Blocking on TTYPE before the banner causes
-            // a blank-screen stall on port 8023. Start TLS sessions optimistically
-            // in UTF-8 + ANSI mode and let later TELNET parsing record TTYPE when
-            // the client eventually sends it.
+            // a blank-screen stall on port 8023. Skip the TTYPE probe for TLS and
+            // proceed immediately: charset stays at the conservative ASCII default
+            // until saved settings are applied post-login (or the detection wizard
+            // runs for new users). ANSI color is assumed because virtually all TLS
+            // telnet clients are modern and color-capable.
             if ($this->isTls) {
-                $this->terminalCharset = 'utf8';
-                $this->asciiTextMode = false;
                 $this->ansiColorEnabled = true;
                 TelnetUtils::setAnsiColorEnabled(true);
-                if ($this->debug) { $this->log('TLS startup: optimistic ANSI/UTF-8 enabled; skipping pre-banner TTYPE probe'); }
+                if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
                 $this->probeSixelSupport($conn, $state);
             } else {
                 // Probe ANSI support before showing the banner by doing the TTYPE
@@ -2529,6 +2529,13 @@ class BbsSession
         }
         $state['terminal_type'] = $normalized;
         $this->asciiTextMode = $this->shouldUseAsciiFallback($state);
+        // Keep terminalCharset in sync: if it was set to 'utf8' (e.g. by saved
+        // settings from a previous session) but TTYPE now reveals the terminal
+        // can't handle UTF-8, downgrade to ascii. cp437 is only set via the
+        // interactive detection wizard, never inferred from TTYPE alone.
+        if ($this->terminalCharset === 'utf8' && $this->asciiTextMode) {
+            $this->terminalCharset = 'ascii';
+        }
         $this->log("TTYPE detected: {$normalized}");
     }
 
