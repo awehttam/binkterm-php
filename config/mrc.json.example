@@ -1,0 +1,44 @@
+{
+    "enabled": false,
+
+    "server": {
+        "host": "mrc.bottomlessabyss.net",
+
+        "port": 50000,
+        "use_ssl": true,
+
+        "ssl_port": 50001
+    },
+
+    "bbs": {
+        "name": "My BBS",
+        "platform": "BINKTERMPHP/Linux64/1.3.0",
+        "sysop": "Sysop"
+    },
+
+    "connection": {
+        "auto_reconnect": true,
+        "reconnect_delay": 30,
+        "ping_interval": 60,
+        "handshake_timeout": 1,
+        "keepalive_timeout": 125
+    },
+
+    "rooms": {
+        "default": "lobby",
+        "auto_join": ["lobby"]
+    },
+
+    "messages": {
+        "max_length": 140,
+        "history_limit": 1000,
+        "prune_after_days": 30
+    },
+
+    "info": {
+        "website": "https://mybbs.example.com",
+        "telnet": "mybbs.example.com:23",
+        "ssh": "mybbs.example.com:22",
+        "description": "A BinktermPHP BBS"
+    }
+}
