@@ -155,13 +155,17 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
-- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
+- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator, SID music, torrent metadata), URL link entries alongside uploaded files, and ISO-backed virtual areas (see `docs/FileAreas.md`)
 - **Advertising & Broadcasts** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and a Broadcast Manager for scheduled echomail posts including ads, weather reports, and automated bulletins (see [docs/Advertising.md](docs/Advertising.md))
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
 - **Activity Analytics** - Full activity viewer, webshare link access tracking, credits economy viewer, and referral analytics; sysops see a Today's Callers list on the dashboard; user profiles show message counts, file transfer stats, and a download/upload ratio
+- **Echomail Moderation** - New users' echomail posts can optionally be held in a review queue before network distribution. Configurable auto-promotion threshold; admins always bypass. Managed from **Admin → Area Management → Echomail Moderation**
+- **AI Bots** - Create AI-powered chat personas that respond to direct messages and @mentions in local chat rooms. Each bot has its own system user, configurable system prompt, AI provider and model selection, and a weekly cost budget. Managed from **Admin → Community → AI Bots**; requires `scripts/ai_bot_daemon.php` to be running
+- **Dashboard Customization** - Users can drag and reorder dashboard cards between the main column and sidebar, show or hide individual cards, and save their layout. Sysops can configure the default layout from **Admin → Appearance & Content → Dashboard**
+- **Chat Markdown** - Local chat messages are rendered as Markdown, supporting bold, italic, inline code, code blocks, lists, blockquotes, and headings
 - **Nodelist Browsers** - Integrated nodelist updater and browser
 - **BBS Directory** - Public directory of known BBS systems, automatically populated from echomail announcements and supplementable with manual or user-submitted entries reviewed by the sysop
 - **Echomail Robots** - Generic rule-based framework that watches echo areas for matching messages and dispatches them to configurable processors. Ships with a built-in processor for FSXNet `ibbslastcall-data` announcements that auto-populates the BBS Directory. Custom processors can be added in `src/Robots/Processors/`. See [docs/Robots.md](docs/Robots.md).
@@ -195,10 +199,14 @@ BinktermPHP provides a shared terminal server experience for text-mode access.
 After login, Telnet and SSH users get the same core functionality:
 
 - **Netmail + Echomail** - Browse, read, compose, and reply in terminal mode
+- **QWK Offline Mail** - Download and upload QWK/QWKE packets from the terminal for reading messages in offline readers
 - **File Areas** - Browse file areas and transfer files via ZMODEM
 - **Doors, Polls, Shoutbox** - Access enabled interactive features from the menu
 - **Full-Screen Editor** - Cursor-aware editing with message quoting and shortcuts
 - **Screen-Aware ANSI UI** - Terminal-dimension-aware rendering and ANSI color support
+- **Inline Image Rendering** - Messages containing Markdown images can be viewed as Sixel graphics inline; press `I` to open the image viewer. Requires `img2sixel` (`libsixel-bin`) and a Sixel-capable terminal (xterm, mlterm, WezTerm, SyncTERM). Non-Sixel terminals see text placeholders.
+- **BBS Directory & Nodelist Browser** - Main menu includes a **B) BBS Directory** option for browsing known BBS systems and an **L) Node List** option for searching the imported nodelist by name, sysop, location, or FTN address
+- **User Settings** - Users can change preferences, profile details, and account password directly from the terminal. The login screen also provides a lost-password reset path matching the web form's email flow
 
 See **[docs/TerminalServer.md](docs/TerminalServer.md)** for full terminal feature documentation.
 
@@ -715,7 +723,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [1.9.0](docs/UPGRADING_1.9.0.md)       | Mar 2026    | Security release for the optional MCP server: updates `path-to-regexp` to 8.4.0 and addresses `CVE-2026-4926` / `GHSA-j3q9-mxjg-w52f` and `CVE-2026-4923` / `GHSA-27v5-c462-wpq7` |
+| [1.9.0](docs/UPGRADING_1.9.0.md)       | Mar 2026    | SID music file previewer; torrent file preview with magnet links; CP437 default outgoing charset with per-uplink override; individual BBS info pages; terminal server settings screen and lost-password reset; draft state fully preserved (charset, markup, tagline, cross-posts); archive listing size limit; MCP server CVE fixes (`CVE-2026-4926`, `CVE-2026-4923`) |
 | [1.8.9](docs/UPGRADING_1.8.9.md)       | Mar 2026    | Interests: admin-defined topic groups that auto-subscribe users to bundled echo areas; interest picker, echomail reader integration, multi-interest source tracking |
 | [1.8.8](docs/UPGRADING_1.8.8.md)       | Mar 2026    | TIC incoming processor `FILE_ID.DIZ` lookup fix for ZIP archives; root-level and single-top-directory handling only |
 | [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | Registration/premium features; ISO-backed file areas; global file search; outbound FREQ; echomail digest emails; netmail forwarding to email; in-browser artwork encoding editor; enhanced message search; nodelist map; page position memory; file preview improvements; QWK/QWKE offline mail |
@@ -752,6 +760,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `scripts/gemini_daemon.php` | Gemini capsule server daemon |
 | `mrc/mrc_daemon.php` | MRC chat relay daemon |
 | `scripts/dosbox-bridge/multiplexing-server.js` | DOS door multiplexing bridge |
+| `scripts/ai_bot_daemon.php` | AI bot daemon — drives AI chat personas via LISTEN/NOTIFY |
 
 **Utility Scripts** — run on demand or via cron:
 
@@ -938,7 +947,7 @@ The easiest way to customize your BBS is through **Admin → Appearance**, which
 - **System News** — Write dashboard content in Markdown, managed through the admin panel.
 - **Navigation** — Add custom links to the navigation bar.
 - **SEO** — Set a site description and Open Graph image for search engine and social sharing metadata.
-- **File Areas** — Add custom HTML to the file area sidebar and footer (e.g. DMCA contact info, upload ratio policy).
+- **File Areas** — Add custom Markdown to the file area sidebar and footer (e.g. DMCA contact info, upload ratio policy). Both fields include a Preview button.
 
 All appearance settings are stored in `data/appearance.json` and take effect immediately.
 
@@ -1108,7 +1117,9 @@ Files uploaded or received via TIC are stored under a directory specific to the 
 
 **Subfolder navigation** — File areas support hierarchical subfolder browsing. The web interface and terminal server both allow navigating into subdirectories within an area.
 
-**File preview** — Files can be previewed in the browser without downloading: ANSI art renders inline, PETSCII files are decoded and displayed, D64 disk images show a gallery of PRG files found on the disk, and C64 PRG/SEQ files can be run in a built-in C64 emulator.
+**File preview** — Files can be previewed in the browser without downloading: ANSI art renders inline, PETSCII files are decoded and displayed, D64 disk images show a gallery of PRG files found on the disk, C64 PRG/SEQ files can be run in a built-in C64 emulator, SID music files play in a browser-based C64 SID player with visualizer and multi-subtune support, and torrent files display a metadata card with file listing and a copyable magnet link.
+
+**URL link entries** — File areas support external URL links alongside uploaded files. Sysops and users can submit a URL with a short and long description (auto-filled from the page's Open Graph metadata). URL entries appear throughout file listings with a link icon and a Visit button instead of a download button. URL links use the same approval and credits workflow as file uploads.
 
 **ISO-backed file areas** — A file area can be backed by a read-only ISO 9660 image instead of a regular directory. The ISO is mounted virtually; its contents are browsable and downloadable without extracting the archive. This is useful for distributing large CD-ROM archives or nodelist compilations. See [docs/FileAreas.md](docs/FileAreas.md) for setup details.
 
