@@ -84,6 +84,41 @@ class TerminalMarkupRenderer
     }
 
     /**
+     * Extract all Markdown image references from a message body, in document order.
+     *
+     * Only meaningful for format 'markdown'; all other formats return an empty array.
+     * Each entry has:
+     *   - 'index' (int)    1-based image number, matching the [Image N: …] placeholder
+     *   - 'alt'   (string) alt text from the image syntax
+     *   - 'url'   (string) image URL or path
+     *
+     * @param string $format Markup format identifier (e.g. 'markdown')
+     * @param string $text   Raw message body (may contain kludge lines)
+     * @return array<int, array{index:int, alt:string, url:string}>
+     */
+    public static function extractImageRefs(string $format, string $text): array
+    {
+        if (strtolower($format) !== 'markdown') {
+            return [];
+        }
+
+        $clean = self::stripKludgeLines($text);
+        $refs  = [];
+
+        if (preg_match_all('/!\[([^\]]*)\]\(([^\)]+)\)/', $clean, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $i => $m) {
+                $refs[] = [
+                    'index' => $i + 1,
+                    'alt'   => $m[1],
+                    'url'   => $m[2],
+                ];
+            }
+        }
+
+        return $refs;
+    }
+
+    /**
      * Strip SOH-prefixed kludge lines from message text, preserving blank lines.
      *
      * @param string $text Raw message body
@@ -124,6 +159,19 @@ class TerminalMarkupRenderer
      */
     private static function renderMarkdown(string $text, int $width): array
     {
+        // Replace image references with numbered placeholders before any other processing.
+        // The numbering matches extractImageRefs() so callers can correlate by index.
+        $imageNum = 0;
+        $text = preg_replace_callback(
+            '/!\[([^\]]*)\]\(([^\)]+)\)/',
+            static function (array $m) use (&$imageNum): string {
+                $imageNum++;
+                $label = $m[1] !== '' ? $m[1] : $m[2];
+                return "\x00IMAGE{$imageNum}:" . $label . "\x00";
+            },
+            $text
+        ) ?? $text;
+
         $lines  = preg_split('/\r?\n/', $text);
         $output = [];
         $i      = 0;
@@ -296,6 +344,17 @@ class TerminalMarkupRenderer
      */
     private static function inlineMarkdown(string $text): string
     {
+        // Render image placeholders (set during renderMarkdown pre-pass) in magenta+dim
+        $text = preg_replace_callback(
+            '/\x00IMAGE(\d+):([^\x00]*)\x00/',
+            static function (array $m): string {
+                $num   = $m[1];
+                $label = $m[2];
+                return self::MAG . self::DIM . '[Image ' . $num . ': ' . $label . ']' . self::R;
+            },
+            $text
+        ) ?? $text;
+
         // Protect inline code spans first
         $codeMap = [];
         $text = preg_replace_callback('/`([^`]+)`/', function ($m) use (&$codeMap) {

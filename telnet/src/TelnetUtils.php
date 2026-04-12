@@ -417,6 +417,8 @@ class TelnetUtils
      * @param bool          $allowDownloadAction Whether to return 'download' on Z key
      * @param array         $kludgeLines         Raw kludge lines for the H viewer
      * @param callable|null $rebuildFn           Optional resize callback: fn(array $state): array
+     * @param array         $imageRefs           Image refs from TerminalMarkupRenderer::extractImageRefs()
+     * @param callable|null $imageFn             Called with (int $zeroBasedIndex) to show an image
      * @return array{action: string, offset: int}
      *   action: 'quit' | 'prev' | 'next' | 'reply' | 'download'
      *   offset: scroll position at time of exit (unused for quit/reply)
@@ -432,7 +434,9 @@ class TelnetUtils
         int $initialOffset = 0,
         bool $allowDownloadAction = false,
         array $kludgeLines = [],
-        ?callable $rebuildFn = null
+        ?callable $rebuildFn = null,
+        array $imageRefs = [],
+        ?callable $imageFn = null
     ): array {
         $headerCount = count($headerLines);
         $lastRows    = $state['rows'] ?? $rows;
@@ -492,6 +496,24 @@ class TelnetUtils
                 self::runKludgeViewer($conn, $state, $server, $kludgeLines, $lastRows);
                 $fullRedraw = true;
                 continue;
+            }
+
+            // Image viewer — I shows image 1; digit keys 1-9 show that numbered image
+            if ($imageFn !== null && !empty($imageRefs)) {
+                $imgIdx = null;
+                if ($key === 'CHAR:i' || $key === 'CHAR:I') {
+                    $imgIdx = 0;
+                } elseif (preg_match('/^CHAR:([1-9])$/', $key, $km)) {
+                    $candidate = (int)$km[1] - 1;
+                    if ($candidate < count($imageRefs)) {
+                        $imgIdx = $candidate;
+                    }
+                }
+                if ($imgIdx !== null) {
+                    ($imageFn)($imgIdx);
+                    $fullRedraw = true;
+                    continue;
+                }
             }
 
             // Navigation / action keys — return to caller
@@ -556,6 +578,85 @@ class TelnetUtils
             if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);              }
             if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);     }
         }
+    }
+
+    /**
+     * Display a single inline image as Sixel graphics on a full-screen viewer.
+     *
+     * Clears the screen, fetches the image (downloading to a temp file), converts
+     * it with img2sixel, writes the Sixel data, then waits for any keypress before
+     * returning. The caller should set fullRedraw = true after this returns.
+     *
+     * @param resource $conn       Terminal socket
+     * @param array    $state      Session state (cols, rows, locale, etc.)
+     * @param object   $server     BbsSession instance
+     * @param array    $imageRef   Entry from TerminalMarkupRenderer::extractImageRefs()
+     *                             {index:int, alt:string, url:string}
+     * @param int      $totalImages Total image count in this message (for "N of M" display)
+     * @param string   $apiBase    API base URL for resolving relative paths
+     */
+    public static function showSixelImageViewer(
+        $conn,
+        array &$state,
+        $server,
+        array $imageRef,
+        int $totalImages,
+        string $apiBase
+    ): void {
+        $cols   = $state['cols'] ?? 80;
+        $width  = max(10, $cols - 2);
+        $locale = $state['locale'] ?? 'en';
+
+        self::safeWrite($conn, "\033[2J\033[H");
+
+        $num   = (int)($imageRef['index'] ?? 1);
+        $alt   = (string)($imageRef['alt'] ?? '');
+        $url   = (string)($imageRef['url'] ?? '');
+        $label = $alt !== '' ? $alt : $url;
+
+        // Header
+        self::writeLine($conn, self::colorize(
+            'Image ' . $num . ' of ' . $totalImages . ': ' . $label,
+            self::ANSI_CYAN . self::ANSI_BOLD
+        ));
+        self::writeLine($conn, self::colorize($url, self::ANSI_DIM));
+        self::writeLine($conn, '');
+
+        $renderer = new SixelImageRenderer($apiBase);
+
+        if (!$renderer->isAvailable()) {
+            self::writeLine($conn, self::colorize(
+                'img2sixel is not installed on this server.',
+                self::ANSI_RED
+            ));
+        } else {
+            self::writeLine($conn, self::colorize('Fetching image...', self::ANSI_YELLOW));
+
+            // Calculate pixel width from terminal columns
+            $pixelsPerCol = (int)\BinktermPHP\Config::env('SIXEL_PIXELS_PER_COL', '9');
+            $maxWidth     = min(1600, $cols * $pixelsPerCol);
+
+            $fetchError = '';
+            $sixelData  = $renderer->fetchAndConvert($url, $maxWidth, $fetchError);
+
+            if ($sixelData === null) {
+                // Overwrite the "Fetching..." line
+                self::safeWrite($conn, "\033[A\033[2K");
+                self::writeLine($conn, self::colorize('Error: ' . $fetchError, self::ANSI_RED));
+            } else {
+                // Overwrite the "Fetching..." line then render the image
+                self::safeWrite($conn, "\033[A\033[2K");
+                $renderer->writeSixel($conn, $sixelData);
+            }
+        }
+
+        self::writeLine($conn, '');
+        self::writeLine($conn, self::colorize(
+            $server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+            self::ANSI_YELLOW
+        ));
+
+        $server->readKeyWithIdleCheck($conn, $state);
     }
 
     /**

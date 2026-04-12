@@ -8,6 +8,7 @@ require_once __DIR__ . '/src/SshServer.php';
 require_once __DIR__ . '/../telnet/src/BbsSession.php';
 require_once __DIR__ . '/../telnet/src/TelnetUtils.php';
 require_once __DIR__ . '/../telnet/src/TerminalMarkupRenderer.php';
+require_once __DIR__ . '/../telnet/src/SixelImageRenderer.php';
 require_once __DIR__ . '/../telnet/src/TerminalBoxRenderer.php';
 require_once __DIR__ . '/../telnet/src/MailUtils.php';
 require_once __DIR__ . '/../telnet/src/NetmailHandler.php';
