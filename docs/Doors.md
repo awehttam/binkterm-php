@@ -37,6 +37,7 @@ DOSBox-X runs on the server as a headless process, connected to the user's brows
 
 - **Drop file support.** Door games expect a `DOOR.SYS` (or similar) drop file containing the caller's name, baud rate, node number, and time remaining. The bridge generates this file server-side before launching DOSBox, where the values are authoritative and cannot be tampered with.
 - **Multi-user node management.** Traditional door games assign each concurrent user a node number and may write to shared inter-node communication files. The bridge allocates node numbers server-side, manages the full pool, and ensures no two sessions collide.
+- **Shared real filesystem.** All DOSBox-X instances on the server mount the same real host directories. This is how multi-node door games work: LORD's inter-player messages, TradeWars 2002's game database, and similar shared state are just files on disk that every node reads and writes concurrently. Because the filesystem is real and shared, no special synchronization layer is needed — it works exactly the same as it did on a physical BBS.
 - **Terminal I/O only.** Door games communicate via text/ANSI over a serial-like connection — exactly what the bridge multiplexes. No graphics hardware, no WebAssembly, no browser GPU involved.
 - **Controlled execution environment.** The server controls the filesystem, clock, and process. The game cannot be influenced by anything the user does outside the terminal window.
 
@@ -60,6 +61,7 @@ js-dos is a WebAssembly build of DOSBox that runs entirely inside the user's bro
 
 **Trade-offs:**
 
+- **Isolated virtual filesystem.** Each js-dos session gets its own in-memory virtual filesystem inside the browser. There is no mechanism for two browser sessions to share files directly — multi-user coordination requires an explicit server-side relay or API. This rules out the shared-file inter-node patterns that classic door games depend on.
 - The execution environment is the user's browser. A technically skilled user can inspect or modify the JavaScript running the emulator. For door games where server-enforced rules matter (time limits, credits, inter-node state), this is a significant concern.
 - Game assets served from `public_html/jsdos-doors/` are publicly downloadable without authentication. Sysops must only place files they are licensed to distribute there.
 - Browser performance varies. A low-end device may struggle with CPU-intensive 3D titles.
@@ -78,7 +80,8 @@ DOSBox-X doors avoid this entirely: the bridge generates the drop file on the se
 |---|---|---|
 | Execution location | Server | Browser |
 | Drop file / node management | Yes — server-authoritative | Not applicable |
-| Multi-user inter-node comms | Yes | Relay only (multiplayer games) |
+| Filesystem | Shared real host filesystem | Isolated per-session virtual FS |
+| Multi-user inter-node comms | Yes — via shared files on disk | Relay only (multiplayer games) |
 | Graphical/3D output | No (ANSI/text only) | Yes (canvas/WebGL) |
 | Server resource cost | ~60–100 MB RAM per session | Near zero |
 | Tamper risk | None (server controls env) | Moderate (JS is inspectable) |
