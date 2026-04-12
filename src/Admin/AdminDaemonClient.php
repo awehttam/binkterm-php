@@ -349,6 +349,30 @@ class AdminDaemonClient
         return $this->sendCommand('delete_terminal_screen', ['key' => $key]);
     }
 
+    public function listSixelScreens(): array
+    {
+        return $this->sendCommand('list_sixel_screens');
+    }
+
+    public function getSixelScreen(string $key): array
+    {
+        return $this->sendCommand('get_sixel_screen', ['key' => $key]);
+    }
+
+    public function uploadSixelScreen(string $key, string $contentBase64, string $originalName = ''): array
+    {
+        return $this->sendCommand('upload_sixel_screen', [
+            'key'            => $key,
+            'content_base64' => $contentBase64,
+            'original_name'  => $originalName,
+        ]);
+    }
+
+    public function deleteSixelScreen(string $key): array
+    {
+        return $this->sendCommand('delete_sixel_screen', ['key' => $key]);
+    }
+
     /**
      * Write a license payload to data/license.json via the daemon.
      *

@@ -2268,6 +2268,69 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/appearance/sixel-screens', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screens = $client->listSixelScreens();
+                echo json_encode(['success' => true, 'screens' => $screens]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.sixel.list_failed', apiLocalizedText('errors.admin.appearance.sixel.list_failed', 'Failed to load sixel screens'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/sixel-screens/{key}/upload', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                if (empty($_FILES['file'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.sixel.upload.no_file', apiLocalizedText('errors.admin.appearance.sixel.upload.no_file', 'No sixel file uploaded'));
+                    return;
+                }
+                $file = $_FILES['file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.sixel.upload.failed', apiLocalizedText('errors.admin.appearance.sixel.upload.failed', 'Sixel upload failed'));
+                    return;
+                }
+                if ($file['size'] > 5 * 1048576) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.sixel.upload.file_too_large', apiLocalizedText('errors.admin.appearance.sixel.upload.file_too_large', 'Sixel file exceeds size limit (5MB)'));
+                    return;
+                }
+                $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->uploadSixelScreen($key, $contentBase64, basename((string)$file['name']));
+                echo json_encode([
+                    'success' => true,
+                    'screen' => $screen,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.sixel.upload.failed', apiLocalizedText('errors.admin.appearance.sixel.upload.failed', 'Failed to upload sixel screen'));
+            }
+        });
+
+        SimpleRouter::delete('/appearance/sixel-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteSixelScreen($key);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.sixel.delete.failed', apiLocalizedText('errors.admin.appearance.sixel.delete.failed', 'Failed to delete sixel screen'));
+            }
+        });
+
         SimpleRouter::get('/taglines', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();

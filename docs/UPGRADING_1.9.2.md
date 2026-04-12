@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [JS-DOS Doors](#js-dos-doors)
 - [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
+- [Sixel Login and Menu Screens](#sixel-login-and-menu-screens)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -28,6 +29,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - When a message contains images, an **`I` — Image** keybinding appears in the message viewer status bar. Press `I` to open the image picker, type a number (1–99), and press Enter. For single-image messages, pressing `I` opens it immediately. You can also press a digit key (`1`–`9`) directly to jump to that image without the picker.
 - Image rendering requires `img2sixel` (from the `libsixel` package) to be installed on the server. Without it, a placeholder label is shown instead.
 - The terminal must support Sixel graphics (e.g. xterm with `-ti 340`, mlterm, WezTerm, SyncTERM). Non-Sixel terminals gracefully see `[Image N: alt text]` placeholders in the message body.
+
+### Sixel Login and Menu Screens
+
+- The terminal server's Welcome, Main Menu, and Goodbye screens now support **Sixel graphics** as an alternative to ANSI art files.
+- Sixel images are displayed only on clients that advertise Sixel support during the connection handshake. Clients that do not support Sixel continue to see the existing ANSI screen or the built-in text banner.
+- Sixel screen files are managed from **Admin → Appearance → Terminal Server → Sixel Graphics**. Upload a `.sixel` file for any of the three slots (Welcome, Main Menu, Goodbye). The filename for each slot is shown in the dropdown so it is clear which file is being managed.
+- No database migration is required. Sixel screens are optional; the system falls back to ANSI if no sixel file is installed for a given slot.
 
 ## JS-DOS Doors
 
@@ -92,6 +100,30 @@ If `img2sixel` is not installed or the terminal does not support Sixel, the imag
 
 No database migration is required for this feature.
 
+## Sixel Login and Menu Screens
+
+The terminal server can now display Sixel graphics at the Welcome screen (shown at connection before login), the Main Menu screen (shown behind the menu after login), and the Goodbye screen (shown on disconnect). These supplement the existing ANSI art support rather than replacing it.
+
+### How it works
+
+During the connection handshake, the terminal server sends a Primary Device Attributes request (`ESC [ c`) and reads the client's response. If the response includes attribute `4`, the client is considered Sixel-capable. This detection takes place before the banner is displayed, so the correct screen type is known by the time anything is shown.
+
+When a Sixel file is installed for a slot and the client supports Sixel, the Sixel file is sent raw to the terminal. If no Sixel file is installed for that slot, or the client does not support Sixel, the system falls back to the ANSI file for that slot (if one is installed), and then to the built-in text banner.
+
+### Managing Sixel screens
+
+Sixel screens are managed from **Admin → Appearance → Terminal Server**. The existing ANSI/Text Screens section is unchanged. Below it, a new **Sixel Graphics** section provides a slot dropdown, an upload button, and a remove button.
+
+The slot dropdown for both sections now shows the filename alongside the slot name (for example, `Welcome (login.ans)` and `Welcome (login.sixel)`), so it is clear which file on disk corresponds to each slot.
+
+Supported file extensions are `.sixel` and `.six`. The maximum file size is 5 MB. Files are stored in `telnet/screens/` alongside the existing ANSI files.
+
+The admin daemon (`scripts/admin_daemon.php`) handles all file writes. Restart it after upgrading so the new sixel screen commands are available.
+
+### Terminal compatibility
+
+Sixel graphics are supported by terminals including mlterm, WezTerm, xterm (compiled with Sixel support, or launched as `xterm -ti 340`), and SyncTERM. Terminals that do not advertise Sixel support receive the ANSI screen or text banner as before — no configuration is needed to maintain compatibility with non-Sixel clients.
+
 ## Upgrade Instructions
 
 ### From Git
@@ -101,10 +133,17 @@ git pull
 composer install
 ```
 
-No database migration is required specifically for JS-DOS Doors. The feature is optional and remains inactive until you enable it and add game assets.
+No database migration is required for this release.
 
-After upgrading, restart `admin_daemon.php` so the admin-side JS-DOS configuration tooling is running the new code.
+After upgrading, restart `admin_daemon.php` so the new admin-side commands (JS-DOS configuration and Sixel screen management) are available:
+
+```bash
+# restart the admin daemon (adjust to your init system)
+php scripts/admin_daemon.php &
+```
+
+JS-DOS Doors are optional and remain inactive until you enable the feature and add game assets. Sixel screens are also optional; the terminal server falls back to ANSI or the built-in text banner if no Sixel files are installed.
 
 ### Using the Installer
 
-If you upgrade using the web installer or your normal packaged deployment flow, no special migration step is required for JS-DOS Doors. After the upgrade, enable the feature from the admin interface, add the desired game assets, and restart `admin_daemon.php`.
+If you upgrade using the web installer or your normal packaged deployment flow, no special migration step is required. After the upgrade, restart `admin_daemon.php`, then optionally enable JS-DOS Doors from the admin interface and upload Sixel screen files from **Admin → Appearance → Terminal Server → Sixel Graphics**.

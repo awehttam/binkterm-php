@@ -638,6 +638,25 @@ class AdminDaemonServer
                     $this->deleteTerminalScreen($key);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'list_sixel_screens':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listSixelScreens()]);
+                    break;
+                case 'get_sixel_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getSixelScreen($key)]);
+                    break;
+                case 'upload_sixel_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $contentBase64 = (string)($data['content_base64'] ?? '');
+                    $originalName = (string)($data['original_name'] ?? '');
+                    $this->uploadSixelScreen($key, $contentBase64, $originalName);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getSixelScreen($key)]);
+                    break;
+                case 'delete_sixel_screen':
+                    $key = (string)($data['key'] ?? '');
+                    $this->deleteSixelScreen($key);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'list_custom_templates':
                     $templates = $this->listCustomTemplates();
                     $this->writeResponse($client, ['ok' => true, 'result' => $templates]);
@@ -2096,6 +2115,143 @@ class AdminDaemonServer
 
         if (!@unlink($path)) {
             throw new \RuntimeException('Failed to delete terminal screen');
+        }
+    }
+
+    // ===== SIXEL SCREENS =====
+
+    /**
+     * @return array<string,array{filename:string,label:string,description:string}>
+     */
+    private function getSupportedSixelScreens(): array
+    {
+        return [
+            'welcome' => [
+                'filename' => 'login.sixel',
+                'label' => 'Welcome',
+                'description' => 'Shown when a user first connects (sixel-capable clients only).',
+            ],
+            'main_menu' => [
+                'filename' => 'mainmenu.sixel',
+                'label' => 'Main Menu',
+                'description' => 'Shown behind the terminal main menu after login (sixel-capable clients only).',
+            ],
+            'goodbye' => [
+                'filename' => 'bye.sixel',
+                'label' => 'Goodbye',
+                'description' => 'Shown when a user disconnects (sixel-capable clients only).',
+            ],
+        ];
+    }
+
+    /**
+     * @return array{filename:string,label:string,description:string}|null
+     */
+    private function resolveSixelScreen(string $key): ?array
+    {
+        return $this->getSupportedSixelScreens()[$key] ?? null;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function listSixelScreens(): array
+    {
+        $dir = $this->getTerminalScreensDir();
+        $result = [];
+
+        foreach ($this->getSupportedSixelScreens() as $key => $meta) {
+            $path = $dir . DIRECTORY_SEPARATOR . $meta['filename'];
+            $exists = is_file($path);
+            $result[] = [
+                'key'      => $key,
+                'filename' => $meta['filename'],
+                'label'    => $meta['label'],
+                'exists'   => $exists,
+                'size'     => $exists ? filesize($path) : 0,
+                'updated_at' => $exists ? date('Y-m-d H:i', filemtime($path)) : null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function getSixelScreen(string $key): array
+    {
+        $meta = $this->resolveSixelScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported sixel screen');
+        }
+
+        $path = $this->getTerminalScreensDir() . DIRECTORY_SEPARATOR . $meta['filename'];
+        $exists = is_file($path);
+
+        return [
+            'key'        => $key,
+            'filename'   => $meta['filename'],
+            'label'      => $meta['label'],
+            'description'=> $meta['description'],
+            'exists'     => $exists,
+            'size'       => $exists ? filesize($path) : 0,
+            'updated_at' => $exists ? date('Y-m-d H:i', filemtime($path)) : null,
+        ];
+    }
+
+    private function uploadSixelScreen(string $key, string $contentBase64, string $originalName): void
+    {
+        $meta = $this->resolveSixelScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported sixel screen');
+        }
+
+        if ($contentBase64 === '') {
+            throw new \RuntimeException('Missing content');
+        }
+
+        $content = base64_decode($contentBase64, true);
+        if ($content === false) {
+            throw new \RuntimeException('Invalid content encoding');
+        }
+
+        if (strlen($content) > 5 * 1024 * 1024) {
+            throw new \RuntimeException('File is too large (max 5MB)');
+        }
+
+        if ($originalName !== '') {
+            $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['sixel', 'six'], true)) {
+                throw new \RuntimeException('Invalid file extension (expected .sixel or .six)');
+            }
+        }
+
+        $dir = $this->getTerminalScreensDir();
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            throw new \RuntimeException('Failed to create terminal screens directory');
+        }
+
+        $path = $dir . DIRECTORY_SEPARATOR . $meta['filename'];
+        if (@file_put_contents($path, $content) === false) {
+            throw new \RuntimeException('Failed to save sixel screen');
+        }
+    }
+
+    private function deleteSixelScreen(string $key): void
+    {
+        $meta = $this->resolveSixelScreen($key);
+        if ($meta === null) {
+            throw new \RuntimeException('Unsupported sixel screen');
+        }
+
+        $path = $this->getTerminalScreensDir() . DIRECTORY_SEPARATOR . $meta['filename'];
+        if (!is_file($path)) {
+            return;
+        }
+
+        if (!@unlink($path)) {
+            throw new \RuntimeException('Failed to delete sixel screen');
         }
     }
 
