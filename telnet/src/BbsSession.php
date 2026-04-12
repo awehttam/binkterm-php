@@ -212,6 +212,10 @@ class BbsSession
                     if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
                 }
             }
+        } else {
+            // SSH clients are assumed ANSI/UTF-8; probe for sixel support the same
+            // way telnet does — send a Primary DA request and check for attribute 4.
+            $this->probeSixelSupport($conn, $state);
         }
 
         if (!$this->peerName || !$this->peerIp) {
@@ -450,7 +454,8 @@ class BbsSession
                 break;
             }
 
-            if (TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
+            if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
+                || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
             } else {
@@ -669,7 +674,9 @@ class BbsSession
                 $this->log("Menu: {$username} -> Settings");
                 $settingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
-                TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+                if (!($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("bye.sixel", $this, $conn))) {
+                    TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+                }
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize(
                     $this->t('ui.terminalserver.server.farewell', 'Thank you for visiting, have a great day!', [], $state['locale']),
@@ -1240,6 +1247,23 @@ class BbsSession
      */
     private function probeSixelSupport($conn, array &$state): void
     {
+        // Check the pushback buffer first: probeAnsiSupport drains all non-IAC
+        // bytes (including ESC sequences) into state['pushback'].  If the
+        // terminal sent a proactive DA1 response during the TTYPE exchange we
+        // will find it there without needing to send a second ESC[c request.
+        $existing = $state['pushback'] ?? '';
+        if ($this->debug && $existing !== '') {
+            $this->log('Sixel probe pushback: ' . bin2hex($existing));
+        }
+        if (preg_match('/\033\[\?([0-9;]+)c/', $existing, $m)) {
+            $attrs = explode(';', $m[1]);
+            $this->sixelSupported = in_array('4', $attrs, true);
+            if ($this->debug) {
+                $this->log('Sixel probe (from pushback): ' . ($this->sixelSupported ? 'supported' : 'not supported'));
+            }
+            return;
+        }
+
         // Primary Device Attributes request: CSI c
         $this->safeWrite($conn, "\033[c");
 
@@ -1264,10 +1288,17 @@ class BbsSession
             }
             $buf .= $chunk;
 
-            // DA response ends with 'c'; stop as soon as we have it
-            if (strpos($buf, 'c') !== false) {
+            // Only break early when the full DA response pattern is present.
+            // Breaking on any 'c' could fire prematurely on late telnet
+            // negotiation data or other terminal responses arriving in the
+            // same read window before the DA reply comes through.
+            if (preg_match('/\033\[\?[0-9;]*c/', $buf)) {
                 break;
             }
+        }
+
+        if ($this->debug) {
+            $this->log('Sixel probe raw: ' . bin2hex($buf));
         }
 
         // Parse Primary DA response: ESC [ ? <params> c
@@ -1282,9 +1313,13 @@ class BbsSession
                 $state['pushback'] = $leftover . ($state['pushback'] ?? '');
             }
         } else {
-            // No DA response received — push everything back
-            if ($buf !== '') {
-                $state['pushback'] = $buf . ($state['pushback'] ?? '');
+            // No DA1 response (ESC[?...c) received. Strip any other device
+            // attribute responses (DA2 ESC[>...c, DA3 ESC[=...c) before
+            // pushing back — they are terminal protocol replies to our probe,
+            // not user input, and must not be injected into the input stream.
+            $leftover = preg_replace('/\033\[[?>=]?[0-9;]*c/', '', $buf);
+            if ($leftover !== '') {
+                $state['pushback'] = $leftover . ($state['pushback'] ?? '');
             }
         }
 
@@ -1369,6 +1404,10 @@ class BbsSession
             ));
         }
         $this->writeLine($conn, '');
+
+        if ($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("login.sixel", $this, $conn)) {
+            return;
+        }
 
         if (TelnetUtils::showScreenIfExists("login.ans", $this, $conn)) {
             return;

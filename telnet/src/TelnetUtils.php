@@ -1431,4 +1431,24 @@ class TelnetUtils
         }
         return false;
     }
+
+    /**
+     * Send a sixel graphics file raw to the client if it exists.
+     * Sixel data is binary and must not have line endings normalized.
+     *
+     * @return bool True if the file existed and was sent.
+     */
+    public static function showSixelScreenIfExists(string $screenFile, BbsSession &$server, $conn): bool
+    {
+        $screenFile = __DIR__ . '/../screens/' . $screenFile;
+
+        if (is_file($screenFile)) {
+            $content = @file_get_contents($screenFile);
+            if ($content !== false && $content !== '') {
+                $server->safeWrite($conn, $content);
+                return true;
+            }
+        }
+        return false;
+    }
 }
