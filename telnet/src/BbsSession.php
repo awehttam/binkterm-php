@@ -1085,6 +1085,13 @@ class BbsSession
         // LINEMODE MODE … IAC SE) that never comes, producing a blank-screen hang
         // until the user presses a key.  A BBS needs character-at-a-time mode;
         // WILL ECHO + WILL SUPPRESS-GA already establish that without linemode.
+        //
+        // WILL ECHO + DONT ECHO must be sent early so the client disables its own
+        // local echo (pty ECHO flag) before the sixel probe sends ESC[c.  Without
+        // this, the terminal generates the DA1 response and the telnet client echoes
+        // it back to the screen as visible text (^[[?63;...c) before the banner.
+        $this->sendTelnetCommand($conn, self::WILL,      self::OPT_ECHO);
+        $this->sendTelnetCommand($conn, self::DONT,      self::OPT_ECHO);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
         $this->sendTelnetCommand($conn, self::WILL,      self::OPT_SUPPRESS_GA);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_TTYPE);
