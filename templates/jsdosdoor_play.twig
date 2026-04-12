@@ -1072,7 +1072,7 @@
     }
 
     function fetchAsset(dosPath, assetUrl, optional) {
-        return fetch(assetUrl).then(function (response) {
+        return fetch(assetUrl, {cache: 'no-cache'}).then(function (response) {
             if (!response.ok) {
                 if (optional && response.status === 404) {
                     console.warn('Skipping optional jsdos asset', assetUrl);
