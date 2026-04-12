@@ -7,12 +7,14 @@ BinktermPHP supports three types of door games, each suited to different use cas
 | **DOS Doors** | Classic DOS games (LORD, TradeWars, etc.) running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
 | **Native Doors** | Linux/Windows binaries or scripts running via PTY | [NativeDoors.md](NativeDoors.md) |
 | **WebDoors** | Browser-based HTML5/PHP games embedded in an iframe | [WebDoors.md](WebDoors.md) |
+| **JS-DOS Doors** | 3D/graphical DOS games running in the browser via js-dos (DOSBox WASM) | [JSDOSDoors.md](JSDOSDoors.md) |
 | **C64 Doors** | Commodore 64 PRG/D64/ROM programs running in the jsc64 emulator | [C64Doors.md](C64Doors.md) |
 
-C64 Doors and WebDoors run entirely in the browser and require no additional server-side components. DOS Doors and Native Doors both require the **multiplexing bridge** described below.
+C64 Doors, WebDoors, and JS-DOS Doors run entirely in the browser and require no additional server-side components. DOS Doors and Native Doors both require the **multiplexing bridge** described below.
 
 ## Table of Contents
 
+- [Choosing a Door Type: DOSBox-X vs JS-DOS](#choosing-a-door-type-dosbox-x-vs-js-dos)
 - [Multiplexing Bridge](#multiplexing-bridge)
 - [Prerequisites](#prerequisites)
 - [File Structure](#file-structure)
@@ -20,6 +22,67 @@ C64 Doors and WebDoors run entirely in the browser and require no additional ser
 - [Running the Bridge](#running-the-bridge)
 - [Reverse Proxy](#reverse-proxy)
 - [Door Type Details](#door-type-details)
+
+---
+
+## Choosing a Door Type: DOSBox-X vs JS-DOS
+
+BinktermPHP supports two ways to run DOS software: **DOSBox-X** (server-side, used by DOS Doors) and **js-dos** (browser-side, used by JS-DOS Doors). Both emulate a DOS environment, but they are suited to very different categories of software.
+
+### DOSBox-X — Server-Side (Best for Classic BBS Doors)
+
+DOSBox-X runs on the server as a headless process, connected to the user's browser via a WebSocket terminal. This is the right choice for traditional BBS door games like LORD, TradeWars 2002, and BRE.
+
+**Why DOSBox-X works well for door games:**
+
+- **Drop file support.** Door games expect a `DOOR.SYS` (or similar) drop file containing the caller's name, baud rate, node number, and time remaining. The bridge generates this file server-side before launching DOSBox, where the values are authoritative and cannot be tampered with.
+- **Multi-user node management.** Traditional door games assign each concurrent user a node number and may write to shared inter-node communication files. The bridge allocates node numbers server-side, manages the full pool, and ensures no two sessions collide.
+- **Terminal I/O only.** Door games communicate via text/ANSI over a serial-like connection — exactly what the bridge multiplexes. No graphics hardware, no WebAssembly, no browser GPU involved.
+- **Controlled execution environment.** The server controls the filesystem, clock, and process. The game cannot be influenced by anything the user does outside the terminal window.
+
+**Trade-offs:**
+
+- Every session spawns a DOSBox-X process on the server (60–100 MB RAM each on x64).
+- Requires DOSBox-X installed on the server and the multiplexing bridge running.
+- Output is ANSI/CP437 text — no graphical display.
+
+### js-dos — Browser-Side (Best for Graphical/3D Games)
+
+js-dos is a WebAssembly build of DOSBox that runs entirely inside the user's browser. No server process is spawned. This is the right choice for graphical and 3D games like Doom, Duke Nukem 3D, and Heretic.
+
+**Why js-dos works well for graphical games:**
+
+- **GPU and CPU offloaded to the client.** 3D games are computationally expensive. Running them server-side would require a dedicated CPU core (or more) per session. With js-dos, the user's own hardware does the work.
+- **No per-session server process.** The server only handles session tracking and save file sync — the emulator itself never runs on the server.
+- **Full graphical output.** js-dos renders to a `<canvas>` element with full VGA/SVGA support. Sound runs in the browser via the Web Audio API.
+- **Save state sync.** The browser uploads save files to the user's private file area on the server so progress persists across sessions.
+- **Multiplayer via relay.** IPX-based network play (Doom, Duke3D, etc.) is supported via an IPX-over-WebSocket relay in the bridge — no server-side DOSBox needed.
+
+**Trade-offs:**
+
+- The execution environment is the user's browser. A technically skilled user can inspect or modify the JavaScript running the emulator. For door games where server-enforced rules matter (time limits, credits, inter-node state), this is a significant concern.
+- Game assets served from `public_html/jsdos-doors/` are publicly downloadable without authentication. Sysops must only place files they are licensed to distribute there.
+- Browser performance varies. A low-end device may struggle with CPU-intensive 3D titles.
+
+### Security: Why Drop Files Must Not Run Client-Side
+
+Classic BBS door games depend on the drop file to establish the player's identity, remaining time, and node number. If a door game ran in the user's browser (as js-dos does), the drop file would either have to be generated client-side or fetched and injected into the virtual filesystem by JavaScript running in the user's browser.
+
+In either case, a user who can modify the JavaScript — or intercept the asset delivery — could alter the drop file contents: grant themselves unlimited time, change their username, or impersonate another user. Because door game data (scores, resources, credits) is often stored in shared files on a per-node basis, this could corrupt the game state for all players.
+
+DOSBox-X doors avoid this entirely: the bridge generates the drop file on the server before the DOSBox process starts, using session data stored in the database. The DOS environment never sees user-controlled input until the game is already running inside the terminal.
+
+**Summary: use the right tool for the job.**
+
+| Consideration | DOSBox-X (DOS Doors) | js-dos (JS-DOS Doors) |
+|---|---|---|
+| Execution location | Server | Browser |
+| Drop file / node management | Yes — server-authoritative | Not applicable |
+| Multi-user inter-node comms | Yes | Relay only (multiplayer games) |
+| Graphical/3D output | No (ANSI/text only) | Yes (canvas/WebGL) |
+| Server resource cost | ~60–100 MB RAM per session | Near zero |
+| Tamper risk | None (server controls env) | Moderate (JS is inspectable) |
+| Best for | LORD, TradeWars, BRE, DOOR games | Doom, Duke3D, Heretic, Wolf3D |
 
 ---
 
@@ -327,4 +390,5 @@ SSLProxyEngine on
 - [DOS Doors](DOSDoors.md) — Setup, DOSBox configuration, adding door games, drop file format, troubleshooting
 - [Native Doors](NativeDoors.md) — Manifest format, environment variables, platform notes, test doors
 - [WebDoors](WebDoors.md) — Manifest format, iframe integration, BBS API, credits system
+- [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation, manifest format, save state sync, multiplayer
 - [C64 Doors](C64Doors.md) — PRG/D64/ROM support, shared engine, configuration reference
