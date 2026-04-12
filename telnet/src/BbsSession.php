@@ -243,12 +243,12 @@ class BbsSession
 
         $this->showLoginBanner($conn, $state);
 
-        if (!$this->isSsh && !$this->requireEscapeKey($conn, $state)) {
-            $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
-            fclose($conn);
-            if ($forked) { exit(0); }
-            return;
-        }
+        // if (!$this->isSsh && !$this->requireEscapeKey($conn, $state)) {
+        //     $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
+        //     fclose($conn);
+        //     if ($forked) { exit(0); }
+        //     return;
+        // }
 
         // ===== LOGIN / REGISTER =====
 
