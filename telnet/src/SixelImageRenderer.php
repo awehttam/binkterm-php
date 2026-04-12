@@ -90,6 +90,11 @@ class SixelImageRenderer
     public function writeSixel($conn, string $sixelData): void
     {
         TelnetUtils::safeWrite($conn, $sixelData);
+        // Explicitly terminate DCS/sixel mode before emitting any plain-text bytes.
+        // img2sixel normally ends its output with ST (ESC \), but sending it again is
+        // a no-op for terminals already in normal mode, while protecting against
+        // terminals (e.g. SyncTERM) that may still be parsing sixel data.
+        TelnetUtils::safeWrite($conn, "\033\\");
         // Move cursor to a clean line below the image
         TelnetUtils::safeWrite($conn, "\r\n");
     }

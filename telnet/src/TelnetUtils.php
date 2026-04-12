@@ -650,27 +650,29 @@ class TelnetUtils
             }
         }
 
-        // Safety: send explicit String Terminator in case the terminal is still in DCS/sixel mode.
-        // This is a no-op for terminals already in normal mode.
+        // Extra ST: belt-and-suspenders for terminals (e.g. SyncTERM) that may still
+        // be in DCS/sixel mode.  writeSixel() already emits one; a second is harmless.
         self::safeWrite($conn, "\033\\");
 
-        // Position the prompt at a fixed row near the bottom of the terminal so it is always
-        // visible regardless of how tall the sixel image is.
-        $rows = $state['rows'] ?? 24;
-        self::safeWrite($conn, "\033[" . ($rows - 1) . ";1H\033[K");
+        // Print the prompt at the current cursor position — directly below wherever the
+        // image ended up after rendering.  Do NOT use absolute row positioning here:
+        // sixel images scroll the terminal when they extend below the viewport, which
+        // pushes any pre-positioned text off-screen before the user can read it.
+        // writeSixel() already emitted \r\n after the ST, so cursor is at column 1.
+        self::safeWrite($conn, "\r\n");
         self::safeWrite($conn, self::colorize(
             $server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
             self::ANSI_YELLOW
         ));
 
-        // Loop until a real keypress is received. readKeyWithIdleCheck can return '' for
-        // unrecognised/spurious bytes (e.g. telnet negotiation bytes the terminal sent in
-        // response to the sixel image). Ignoring those keeps us waiting for actual input.
+        // Loop until a recognised keypress is received. readKeyWithIdleCheck returns ''
+        // for bytes that readTelnetKeyWithTimeout does not recognise (control codes,
+        // spurious telnet negotiation bytes the terminal sends in response to the sixel
+        // image, etc.).  Ignoring those keeps us waiting for real input.
         while (true) {
             $key = $server->readKeyWithIdleCheck($conn, $state);
-            if ($key === null) { break; }  // idle disconnect
-            if ($key !== '') { break; }    // real keypress — exit viewer
-            // $key === '' — unrecognised byte, keep waiting
+            if ($key === null) { break; }   // idle disconnect
+            if ($key !== '') { break; }     // recognised keypress — exit viewer
         }
     }
 
