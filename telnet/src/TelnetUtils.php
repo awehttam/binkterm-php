@@ -640,12 +640,19 @@ class TelnetUtils
         } else {
             self::writeLine($conn, self::colorize('Fetching image...', self::ANSI_YELLOW));
 
-            // Calculate pixel width from terminal columns
+            // Calculate pixel dimensions from terminal size.
+            // Cap height to avoid overwhelming terminals (e.g. SyncTERM) that freeze
+            // when the sixel stream is too large.  One character cell is approximately
+            // pixelsPerCol wide by pixelsPerRow tall; the screen height in pixels gives
+            // a natural upper bound for the image.
             $pixelsPerCol = (int)\BinktermPHP\Config::env('SIXEL_PIXELS_PER_COL', '9');
+            $pixelsPerRow = (int)\BinktermPHP\Config::env('SIXEL_PIXELS_PER_ROW', '16');
+            $rows         = $state['rows'] ?? 24;
             $maxWidth     = min(1600, $cols * $pixelsPerCol);
+            $maxHeight    = min(1200, $rows * $pixelsPerRow);
 
             $fetchError = '';
-            $sixelData  = $renderer->fetchAndConvert($url, $maxWidth, $fetchError);
+            $sixelData  = $renderer->fetchAndConvert($url, $maxWidth, $fetchError, $maxHeight);
 
             if ($sixelData === null) {
                 // Overwrite the "Fetching..." line
@@ -658,9 +665,20 @@ class TelnetUtils
             }
         }
 
-        // Extra ST: belt-and-suspenders for terminals (e.g. SyncTERM) that may still
-        // be in DCS/sixel mode.  writeSixel() already emits one; a second is harmless.
+        // Belt-and-suspenders: send a second ST plus a DECSTR soft terminal reset
+        // (ESC [ ! p) to force any terminal still stuck in DCS/sixel mode back to
+        // normal mode before we emit plain text.  ST alone is sometimes not enough
+        // for SyncTERM when the sixel stream was large or ended mid-parse.
         self::safeWrite($conn, "\033\\");
+        self::safeWrite($conn, "\033[!p");
+
+        // Drain any automatic escape sequences the terminal may have sent in response
+        // to the DCS block (e.g. cursor-position reports, DA responses).  These arrive
+        // within a few milliseconds; 150 ms is generous.  We discard up to 4 KB.
+        $read = [$conn]; $w = $e = null;
+        if (@stream_select($read, $w, $e, 0, 150000) > 0) {
+            @fread($conn, 4096);
+        }
 
         // Print the prompt at the current cursor position — directly below wherever the
         // image ended up after rendering.  Do NOT use absolute row positioning here:

@@ -57,12 +57,13 @@ class SixelImageRenderer
      * The temporary file is created, passed to img2sixel by path, and deleted before
      * this method returns — regardless of success or failure.
      *
-     * @param  string $url      Image URL or absolute-path reference (e.g. /echomail-images/…)
-     * @param  int    $maxWidth Maximum pixel width passed to img2sixel --width
-     * @param  string $error    Set to a human-readable message on failure
-     * @return string|null      Sixel byte string ready to write to the terminal, or null on failure
+     * @param  string   $url       Image URL or absolute-path reference (e.g. /echomail-images/…)
+     * @param  int      $maxWidth  Maximum pixel width passed to img2sixel --width
+     * @param  string   $error     Set to a human-readable message on failure
+     * @param  int|null $maxHeight Maximum pixel height passed to img2sixel --height (null = no limit)
+     * @return string|null         Sixel byte string ready to write to the terminal, or null on failure
      */
-    public function fetchAndConvert(string $url, int $maxWidth, string &$error): ?string
+    public function fetchAndConvert(string $url, int $maxWidth, string &$error, ?int $maxHeight = null): ?string
     {
         if ($this->binaryPath === null) {
             $error = 'img2sixel binary not found (install libsixel-bin)';
@@ -75,7 +76,7 @@ class SixelImageRenderer
         }
 
         try {
-            return $this->convertFile($tmpFile, $maxWidth, $error);
+            return $this->convertFile($tmpFile, $maxWidth, $error, $maxHeight);
         } finally {
             @unlink($tmpFile);
         }
@@ -84,12 +85,41 @@ class SixelImageRenderer
     /**
      * Write Sixel data to the terminal connection followed by a cursor newline reset.
      *
+     * Uses a non-blocking write with a timeout for the sixel payload so that a
+     * terminal that stops reading mid-stream (e.g. SyncTERM hitting its internal
+     * sixel buffer limit) cannot cause the server process to hang indefinitely.
+     *
      * @param resource $conn      Terminal socket
      * @param string   $sixelData Sixel byte string from fetchAndConvert()
      */
     public function writeSixel($conn, string $sixelData): void
     {
-        TelnetUtils::safeWrite($conn, $sixelData);
+        $timeout  = (int)\BinktermPHP\Config::env('SIXEL_WRITE_TIMEOUT', '15');
+        $deadline = time() + $timeout;
+        $total    = strlen($sixelData);
+        $offset   = 0;
+
+        // Write the sixel payload in non-blocking mode with a per-chunk timeout.
+        // Blocking mode can stall indefinitely if the remote terminal fills its
+        // receive buffer (SyncTERM freezes when its sixel renderer hits its limit).
+        stream_set_blocking($conn, false);
+        while ($offset < $total) {
+            if (time() >= $deadline) {
+                break;  // terminal stopped reading — abort remainder
+            }
+            $write = [$conn]; $read = $except = null;
+            $ready = @stream_select($read, $write, $except, 1, 0);
+            if ($ready === false || $ready === 0) {
+                continue;
+            }
+            $written = @fwrite($conn, substr($sixelData, $offset));
+            if ($written === false || $written === 0) {
+                break;
+            }
+            $offset += $written;
+        }
+        stream_set_blocking($conn, true);
+
         // Explicitly terminate DCS/sixel mode before emitting any plain-text bytes.
         // img2sixel normally ends its output with ST (ESC \), but sending it again is
         // a no-op for terminals already in normal mode, while protecting against
@@ -210,12 +240,13 @@ class SixelImageRenderer
     /**
      * Run img2sixel on a file path and return the Sixel output.
      *
-     * @param  string $imagePath Absolute path to an image file on disk
-     * @param  int    $maxWidth  Pixel width cap for img2sixel --width
-     * @param  string $error     Set to a human-readable message on failure
-     * @return string|null       Sixel byte string, or null on failure
+     * @param  string   $imagePath Absolute path to an image file on disk
+     * @param  int      $maxWidth  Pixel width cap for img2sixel --width
+     * @param  string   $error     Set to a human-readable message on failure
+     * @param  int|null $maxHeight Pixel height cap for img2sixel --height (null = no limit)
+     * @return string|null         Sixel byte string, or null on failure
      */
-    private function convertFile(string $imagePath, int $maxWidth, string &$error): ?string
+    private function convertFile(string $imagePath, int $maxWidth, string &$error, ?int $maxHeight = null): ?string
     {
         $timeout = (int)Config::env('SIXEL_CONVERT_TIMEOUT', '15');
 
@@ -223,8 +254,13 @@ class SixelImageRenderer
             $this->binaryPath,
             '--width=' . max(1, $maxWidth),
             '--colors=256',
-            $imagePath,
         ];
+
+        if ($maxHeight !== null && $maxHeight > 0) {
+            $cmd[] = '--height=' . $maxHeight;
+        }
+
+        $cmd[] = $imagePath;
 
         $descriptors = [
             0 => ['pipe', 'rb'],
@@ -241,13 +277,58 @@ class SixelImageRenderer
         // stdin not needed — img2sixel reads from the file path argument
         fclose($pipes[0]);
 
-        stream_set_timeout($pipes[1], $timeout);
-        stream_set_timeout($pipes[2], $timeout);
+        // Read stdout and stderr concurrently using non-blocking reads to avoid
+        // deadlock: if img2sixel fills the stderr pipe buffer and we're waiting for
+        // stdout EOF, the process hangs because nobody is draining stderr.
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
 
-        $output = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        $output    = '';
+        $stderr    = '';
+        $deadline  = time() + $timeout;
+        $stdoutEof = false;
+        $stderrEof = false;
+
+        while (!$stdoutEof || !$stderrEof) {
+            if (time() > $deadline) {
+                proc_terminate($proc);
+                if (!$stdoutEof) { fclose($pipes[1]); }
+                if (!$stderrEof) { fclose($pipes[2]); }
+                proc_close($proc);
+                $error = 'img2sixel timed out after ' . $timeout . 's';
+                return null;
+            }
+
+            $read = [];
+            if (!$stdoutEof) { $read[] = $pipes[1]; }
+            if (!$stderrEof) { $read[] = $pipes[2]; }
+
+            $write = $except = null;
+            $ready = @stream_select($read, $write, $except, 1, 0);
+
+            if ($ready === false) {
+                break;
+            }
+
+            foreach ($read as $pipe) {
+                $chunk = @fread($pipe, 65536);
+                if ($chunk === false || $chunk === '') {
+                    if ($pipe === $pipes[1]) {
+                        fclose($pipes[1]);
+                        $stdoutEof = true;
+                    } else {
+                        fclose($pipes[2]);
+                        $stderrEof = true;
+                    }
+                } else {
+                    if ($pipe === $pipes[1]) {
+                        $output .= $chunk;
+                    } else {
+                        $stderr .= $chunk;
+                    }
+                }
+            }
+        }
 
         $exitCode = proc_close($proc);
 
