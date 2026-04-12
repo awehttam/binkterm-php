@@ -1,6 +1,6 @@
 # BinktermPHP
 
-BinktermPHP is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server.
+[BinktermPHP](https://www.lovelybits.org/binktermphp) is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server.
 
 BinktermPHP's mobile-responsive interface makes netmail and echomail comfortably accessible from phones and tablets while preserving the familiar feel of a classic BBS. ANSI art renders inline, links are detected and hyperlinked automatically, messages are full-text searchable, and built-in address books help users track their contacts. Users can also share individual messages via secure, expiring web links — with public or private access controls and revocation — making it easy to point someone at a great thread without requiring a login. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
 
@@ -242,7 +242,7 @@ BinktermPHP supports rich text formatting in echomail and netmail messages on ne
 
 **How it works:**
 
-Markup support is opt-in per uplink via the `allow_markup` flag in the Binkp configuration. When a user sends a message with a markup format selected, BinktermPHP adds a `\x01MARKUP: <Format> 1.0` kludge line to the outbound packet per LSC-001 Draft 2. Readers that recognise the kludge render the message body with formatting. Readers that don't see the raw text, which remains human-readable as plain text.
+Markup support is opt-in per uplink via the `allow_markup` flag in the Binkp configuration. When a user sends a message with a markup format selected, BinktermPHP adds a `^AMARKUP: Markdown 1.0` or `^AMARKUP: StyleCodes 1.0` kludge line to the outbound packet per LSC-001 Draft 2. Readers that recognise the kludge render the message body with formatting. Readers that don't see the raw text, which remains human-readable as plain text.
 
 **Enabling markup for an uplink:**
 
@@ -265,7 +265,7 @@ In your Binkp configuration, add `"allow_markup": true` to the uplink definition
 When a user composes a message to a markup-enabled network, a **Markup Format** selector appears below the message body with three options:
 
 - **Plain text** — no markup kludge added (default)
-- **Markdown** — activates the split-pane Markdown editor with toolbar and live preview
+- **Markdown** — adds the `^AMARKUP: Markdown 1.0` kludge; activates the split-pane Markdown editor with toolbar and live preview
 - **StyleCodes** — adds the `^AMARKUP: StyleCodes 1.0` kludge; use inline codes directly in the plain text editor
 
 **Markdown editor features:**
@@ -273,6 +273,7 @@ When a user composes a message to a markup-enabled network, a **Markup Format** 
 - **Formatting toolbar** — buttons for bold, italic, headings (H1–H3), inline code, code blocks, links, bullet lists, ordered lists, blockquotes, and horizontal rules
 - **Keyboard shortcuts** — Ctrl+B (bold), Ctrl+I (italic), Ctrl+K (link), Tab (indent)
 - **Edit / Preview tabs** — switch between raw Markdown editing and a rendered preview that uses the same server-side renderer as the message reader
+- **Image upload** — paste an image from the clipboard or drag-and-drop a file into the editor; BinktermPHP hosts the image and inserts the Markdown reference automatically
 
 **Supported Markdown syntax:**
 
