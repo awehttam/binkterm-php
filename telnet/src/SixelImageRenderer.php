@@ -277,6 +277,58 @@ class SixelImageRenderer
         // stdin not needed — img2sixel reads from the file path argument
         fclose($pipes[0]);
 
+        // On Windows, stream_select() does not work for proc_open pipes.
+        // Use sequential blocking reads instead. img2sixel's stderr output is
+        // always tiny (error messages only), so reading stdout first cannot
+        // deadlock — stderr will never fill its pipe buffer.
+        if (PHP_OS_FAMILY === 'Windows') {
+            $output   = '';
+            $stderr   = '';
+            $deadline = time() + $timeout;
+
+            stream_set_blocking($pipes[1], true);
+            stream_set_blocking($pipes[2], true);
+
+            while (!feof($pipes[1])) {
+                if (time() > $deadline) {
+                    proc_terminate($proc);
+                    fclose($pipes[1]);
+                    fclose($pipes[2]);
+                    proc_close($proc);
+                    $error = 'img2sixel timed out after ' . $timeout . 's';
+                    return null;
+                }
+                $chunk = @fread($pipes[1], 65536);
+                if ($chunk !== false && $chunk !== '') {
+                    $output .= $chunk;
+                }
+            }
+            fclose($pipes[1]);
+
+            while (!feof($pipes[2])) {
+                $chunk = @fread($pipes[2], 65536);
+                if ($chunk !== false && $chunk !== '') {
+                    $stderr .= $chunk;
+                }
+            }
+            fclose($pipes[2]);
+
+            $exitCode = proc_close($proc);
+
+            if ($exitCode !== 0) {
+                $stderrTrim = trim($stderr);
+                $error = 'img2sixel failed (exit ' . $exitCode . ')' . ($stderrTrim !== '' ? ': ' . $stderrTrim : '');
+                return null;
+            }
+
+            if ($output === '') {
+                $error = 'img2sixel produced no output';
+                return null;
+            }
+
+            return $output;
+        }
+
         // Read stdout and stderr concurrently using non-blocking reads to avoid
         // deadlock: if img2sixel fills the stderr pipe buffer and we're waiting for
         // stdout EOF, the process hangs because nobody is draining stderr.
