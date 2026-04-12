@@ -25,7 +25,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Image Rendering in Terminal Services
 
 - Echomail and netmail messages containing inline images (Markdown `![alt](url)` syntax) can now be rendered as **Sixel graphics** directly in the telnet and SSH terminal readers.
-- When a message contains images, an **`I` — Image** keybinding appears in the message viewer status bar. Press `I` to view image 1, or press a digit key (`1`–`9`) to jump directly to a numbered image.
+- When a message contains images, an **`I` — Image** keybinding appears in the message viewer status bar. Press `I` to open the image picker, type a number (1–99), and press Enter. For single-image messages, pressing `I` opens it immediately. You can also press a digit key (`1`–`9`) directly to jump to that image without the picker.
 - Image rendering requires `img2sixel` (from the `libsixel` package) to be installed on the server. Without it, a placeholder label is shown instead.
 - The terminal must support Sixel graphics (e.g. xterm with `-ti 340`, mlterm, WezTerm, SyncTERM). Non-Sixel terminals gracefully see `[Image N: alt text]` placeholders in the message body.
 
@@ -67,8 +67,8 @@ Echomail and netmail messages that include inline images (written using Markdown
 ### How it works
 
 1. When a message is opened in the terminal viewer, the server scans the message body for Markdown image references.
-2. If any are found, an **`I` — Image** prompt appears in the status bar at the bottom of the viewer. For messages with more than one image, the prompt shows `I Image (1-N)`.
-3. Press `I` to view the first image, or press a digit key (`1`–`9`) to jump to a specific numbered image.
+2. If any are found, an **`I` — Image** or **`I` — Images** prompt appears in the status bar at the bottom of the viewer.
+3. For a single image, press `I` to open it immediately. For multiple images, press `I` to open the number picker — type a number (supports 1–99) and press Enter. You can also press a digit key (`1`–`9`) directly from the message view to jump straight to that image.
 4. The image viewer clears the screen, downloads the image, converts it to Sixel, and renders it inline. Press any key to return to the message.
 
 If `img2sixel` is not installed or the terminal does not support Sixel, the image references are shown as styled `[Image N: alt text]` placeholders in the message body — no configuration is required to fall back gracefully.
