@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [JS-DOS Doors](#js-dos-doors)
+- [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -20,6 +21,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - Games are defined by `jsdosdoor.json` manifests under `public_html/jsdos-doors/{game-id}/`.
 - Save files can be synchronized back to the server, allowing users to keep their game progress between sessions.
 - JS-DOS Doors also support multiple modes, including an optional admin-only configuration mode for running setup tools and saving shared defaults for all players.
+
+### Image Rendering in Terminal Services
+
+- Echomail and netmail messages containing inline images (Markdown `![alt](url)` syntax) can now be rendered as **Sixel graphics** directly in the telnet and SSH terminal readers.
+- When a message contains images, an **`I` — Image** keybinding appears in the message viewer status bar. Press `I` to view image 1, or press a digit key (`1`–`9`) to jump directly to a numbered image.
+- Image rendering requires `img2sixel` (from the `libsixel` package) to be installed on the server. Without it, a placeholder label is shown instead.
+- The terminal must support Sixel graphics (e.g. xterm with `-ti 340`, mlterm, WezTerm, SyncTERM). Non-Sixel terminals gracefully see `[Image N: alt text]` placeholders in the message body.
 
 ## JS-DOS Doors
 
@@ -51,6 +59,38 @@ This release includes Doom as the reference JS-DOS door example. It demonstrates
 - launch through the standard `/games/{game}` wrapper flow
 
 See `docs/JSDOSDoors.md` for the full manifest format and admin workflow.
+
+## Image Rendering in Terminal Services
+
+Echomail and netmail messages that include inline images (written using Markdown `![alt](url)` syntax) can now display those images as **Sixel graphics** inside the telnet and SSH terminal readers.
+
+### How it works
+
+1. When a message is opened in the terminal viewer, the server scans the message body for Markdown image references.
+2. If any are found, an **`I` — Image** prompt appears in the status bar at the bottom of the viewer. For messages with more than one image, the prompt shows `I Image (1-N)`.
+3. Press `I` to view the first image, or press a digit key (`1`–`9`) to jump to a specific numbered image.
+4. The image viewer clears the screen, downloads the image, converts it to Sixel, and renders it inline. Press any key to return to the message.
+
+If `img2sixel` is not installed or the terminal does not support Sixel, the image references are shown as styled `[Image N: alt text]` placeholders in the message body — no configuration is required to fall back gracefully.
+
+### Requirements
+
+- **`img2sixel`** must be installed on the server (provided by the `libsixel-bin` package on Debian/Ubuntu). Without it, images are shown as text placeholders.
+- The connecting terminal must support Sixel graphics (e.g. xterm compiled with Sixel support, mlterm, WezTerm, SyncTERM).
+
+### Optional `.env` tuning
+
+| Variable | Default | Description |
+|---|---|---|
+| `IMG2SIXEL_PATH` | *(auto-detected)* | Absolute path to the `img2sixel` binary. Set this if `img2sixel` is installed in a non-standard location. |
+| `SIXEL_FETCH_TIMEOUT` | `10` | Seconds to wait when downloading an external image URL. |
+| `SIXEL_CONVERT_TIMEOUT` | `15` | Seconds to allow `img2sixel` to run before timing out. |
+| `SIXEL_WRITE_TIMEOUT` | `15` | Seconds to allow writing the Sixel data stream to the terminal. |
+| `SIXEL_IMAGE_MAX_BYTES` | `5242880` (5 MB) | Maximum image file size to download. |
+| `SIXEL_PIXELS_PER_COL` | `9` | Estimated pixel width of one terminal column, used to calculate maximum image width. |
+| `SIXEL_PIXELS_PER_ROW` | `16` | Estimated pixel height of one terminal row, used to calculate maximum image height. |
+
+No database migration is required for this feature.
 
 ## Upgrade Instructions
 
