@@ -2307,14 +2307,33 @@ class BbsSession
 
         // ANSI escape sequences (arrow keys, etc.)
         if ($byte === 27) {
+            // Use a non-blocking peek (50 ms) before each follow-up fread so that a
+            // standalone ESC keypress (0x1B with no following bytes) does not block the
+            // session indefinitely on a blocking socket.
+            $r = [$conn]; $w = $ex = null;
+            if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
+                return chr(27);  // standalone ESC — nothing followed within 50 ms
+            }
             $next1 = fread($conn, 1);
             if ($next1 === false || $next1 === '') { return chr(27); }
             if ($next1 === '[') {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
+                    return chr(27);
+                }
                 $next2 = fread($conn, 1);
                 if ($next2 === false) { return chr(27); }
                 if (ord($next2) >= ord('0') && ord($next2) <= ord('9')) {
-                    $tilde = fread($conn, 1);
-                    if ($tilde === '~') { return chr(27) . '[' . $next2 . '~'; }
+                    $r = [$conn]; $w = $ex = null;
+                    if (@stream_select($r, $w, $ex, 0, 50000) > 0) {
+                        $tilde = fread($conn, 1);
+                        if ($tilde === '~') { return chr(27) . '[' . $next2 . '~'; }
+                        // Not a tilde — push the byte back rather than silently discarding it,
+                        // so multi-byte sequences like CPR (ESC[row;colR) are not corrupted.
+                        if ($tilde !== false && $tilde !== '') {
+                            $state['pushback'] = ($state['pushback'] ?? '') . $tilde;
+                        }
+                    }
                 }
                 return chr(27) . '[' . $next2;
             }
