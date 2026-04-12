@@ -650,13 +650,28 @@ class TelnetUtils
             }
         }
 
-        self::writeLine($conn, '');
-        self::writeLine($conn, self::colorize(
+        // Safety: send explicit String Terminator in case the terminal is still in DCS/sixel mode.
+        // This is a no-op for terminals already in normal mode.
+        self::safeWrite($conn, "\033\\");
+
+        // Position the prompt at a fixed row near the bottom of the terminal so it is always
+        // visible regardless of how tall the sixel image is.
+        $rows = $state['rows'] ?? 24;
+        self::safeWrite($conn, "\033[" . ($rows - 1) . ";1H\033[K");
+        self::safeWrite($conn, self::colorize(
             $server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
             self::ANSI_YELLOW
         ));
 
-        $server->readKeyWithIdleCheck($conn, $state);
+        // Loop until a real keypress is received. readKeyWithIdleCheck can return '' for
+        // unrecognised/spurious bytes (e.g. telnet negotiation bytes the terminal sent in
+        // response to the sixel image). Ignoring those keeps us waiting for actual input.
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null) { break; }  // idle disconnect
+            if ($key !== '') { break; }    // real keypress — exit viewer
+            // $key === '' — unrecognised byte, keep waiting
+        }
     }
 
     /**
