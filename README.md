@@ -79,6 +79,8 @@ awehttam operates a full instance of BinktermPHP over at https://claudes.lovelyb
     - [Native Doors](#native-doors---native-linux--windows-door-programs)
     - [DOS Doors](#dos-doors---classic-bbs-door-games)
     - [WebDoors](#webdoors---web-based-door-games)
+    - [JS-DOS Doors](#js-dos-doors---browser-side-dos-emulation)
+    - [C64 Doors](#c64-doors---commodore-64-browser-emulation)
   - [Gemini Support](#gemini-support)
     - [Gemini Browser](#gemini-browser)
     - [Gemini Capsule Hosting](#gemini-capsule-hosting)
@@ -1288,6 +1290,66 @@ Games interact with the BBS through REST endpoints:
 #### Documentation
 
 For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
+
+---
+
+### JS-DOS Doors - Browser-Side DOS Emulation
+
+JS-DOS Doors run classic DOS games entirely in the user's browser using [js-dos](https://js-dos.com/) — a WebAssembly port of DOSBox. Unlike server-side DOS Doors, no DOSBox process is spawned on the server per session; all emulation happens client-side. The server manages session tracking and mode-aware file sync for per-user saves and shared admin-configured defaults.
+
+JS-DOS Doors appear in the `/games` listing alongside WebDoors, DOS Doors, and Native Doors with a `[JSDOS]` badge.
+
+#### Key Features
+
+- **No Server Process** — emulation is fully client-side via WebAssembly; the server only tracks sessions and syncs save files
+- **Per-User Saves** — save state is stored server-side and restored on next play
+- **Shared Defaults** — admin can run a configuration mode to set up shared default save files (e.g., sound card setup) that are copied to each new user session
+- **Credits Integration** — optional per-session credit cost
+
+#### Included JS-DOS Doors
+
+BinktermPHP ships with the following JS-DOS Door out of the box (game files not included):
+
+- **Doom** — the classic first-person shooter by id Software; supports per-user saves
+
+#### Getting Started
+
+See **[docs/JSDOSDoors.md](docs/JSDOSDoors.md)** for complete documentation including:
+- Directory structure and manifest format
+- Adding new JS-DOS doors
+- Save file sync modes (per-user, shared)
+- Troubleshooting
+
+---
+
+### C64 Doors - Commodore 64 Browser Emulation
+
+C64 Doors are WebDoors that run Commodore 64 programs inside a jsc64 JavaScript emulator embedded directly in the browser. They require no additional server-side components beyond PHP — no bridge, no DOSBox, no Node.js. The server base64-encodes the game file and injects it into the page; the emulator boots it entirely client-side.
+
+C64 Doors are a subtype of WebDoor and appear in the games listing with the standard WebDoor UI. They integrate with the credits economy and the WebDoor session system.
+
+#### Key Features
+
+- **Pure Client-Side** — no bridge or emulator process on the server
+- **Multiple File Formats** — supports PRG, ROM, BIN, and D64 disk images
+- **WebDoor Integration** — full credits, session, and leaderboard support via the WebDoor SDK
+- **Shared Engine** — all C64 Doors use the shared `_c64engine/player.php` template; individual doors supply only their game file and `webdoor.json`
+
+#### Included C64 Doors
+
+BinktermPHP ships with the following C64 Doors:
+
+- **C64 Tic Tac Toe** — a classic Tic Tac Toe game running in the C64 emulator
+
+#### Getting Started
+
+See **[docs/C64Doors.md](docs/C64Doors.md)** for complete documentation including:
+- File structure for a C64 Door
+- Supported file formats (PRG, ROM, BIN, D64)
+- `webdoor.json` configuration reference
+- Enabling and managing C64 Doors from the admin interface
+
+---
 
 ## Gemini Support
 
