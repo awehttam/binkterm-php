@@ -1255,9 +1255,14 @@ class BbsSession
         if ($this->debug && $existing !== '') {
             $this->log('Sixel probe pushback: ' . bin2hex($existing));
         }
-        if (preg_match('/\033\[\?([0-9;]+)c/', $existing, $m)) {
-            $attrs = explode(';', $m[1]);
+        if (preg_match('/\033\[\?([0-9;]+)c/', $existing, $m, PREG_OFFSET_CAPTURE)) {
+            $attrs = explode(';', $m[1][0]);
             $this->sixelSupported = in_array('4', $attrs, true);
+            // Strip the DA1 response from pushback so it is not echoed back
+            // to the terminal as if it were user input.
+            $daStart = $m[0][1];
+            $daEnd   = $daStart + strlen($m[0][0]);
+            $state['pushback'] = substr($existing, 0, $daStart) . substr($existing, $daEnd);
             if ($this->debug) {
                 $this->log('Sixel probe (from pushback): ' . ($this->sixelSupported ? 'supported' : 'not supported'));
             }
