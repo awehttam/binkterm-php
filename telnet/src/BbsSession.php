@@ -78,6 +78,8 @@ class BbsSession
     private string $terminalCharset = 'ascii';
     /** @var bool Whether ANSI color is enabled for this terminal */
     private bool $ansiColorEnabled = true;
+    /** @var bool Whether the terminal supports Sixel graphics (Primary DA attribute 4) */
+    private bool $sixelSupported = false;
     private array $failedLoginAttempts = [];
     private Translator $translator;
     private string $systemLocale;
@@ -193,6 +195,7 @@ class BbsSession
                 $this->ansiColorEnabled = true;
                 TelnetUtils::setAnsiColorEnabled(true);
                 if ($this->debug) { $this->log('TLS startup: optimistic ANSI/UTF-8 enabled; skipping pre-banner TTYPE probe'); }
+                $this->probeSixelSupport($conn, $state);
             } else {
                 // Probe ANSI support before showing the banner by doing the TTYPE
                 // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
@@ -204,6 +207,7 @@ class BbsSession
                     $this->ansiColorEnabled = true;
                     TelnetUtils::setAnsiColorEnabled(true);
                     if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                    $this->probeSixelSupport($conn, $state);
                 } else {
                     if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
                 }
@@ -1213,6 +1217,72 @@ class BbsSession
         // ANSI color: enabled for any recognised terminal type except DUMB / empty
         $ttypeUpper = strtoupper(trim($ttype));
         return $ttypeUpper !== '' && $ttypeUpper !== 'DUMB' && $ttypeUpper !== 'UNKNOWN';
+    }
+
+    /**
+     * Query the terminal for Sixel graphics support via Primary Device Attributes (ESC[c).
+     *
+     * Sends the DA1 request and waits briefly for the response (ESC[?<params>c).
+     * If attribute 4 appears in the parameter list the terminal supports Sixels.
+     * Any non-DA bytes received are pushed back into $state['pushback'] so
+     * subsequent reads are not disrupted.
+     *
+     * @param resource $conn
+     * @param array    &$state Session state
+     */
+    private function probeSixelSupport($conn, array &$state): void
+    {
+        // Primary Device Attributes request: CSI c
+        $this->safeWrite($conn, "\033[c");
+
+        $deadline = microtime(true) + 1.5;
+        $buf      = '';
+
+        while (microtime(true) < $deadline) {
+            if (!is_resource($conn) || feof($conn)) {
+                break;
+            }
+            $read  = [$conn];
+            $write = $except = null;
+            $usec  = max(0, (int)(($deadline - microtime(true)) * 1_000_000));
+            if (@stream_select($read, $write, $except, 0, $usec) < 1) {
+                break;
+            }
+
+            $chunk = @fread($conn, 256);
+            if ($chunk === false || $chunk === '') {
+                if (feof($conn)) { break; }
+                continue;
+            }
+            $buf .= $chunk;
+
+            // DA response ends with 'c'; stop as soon as we have it
+            if (strpos($buf, 'c') !== false) {
+                break;
+            }
+        }
+
+        // Parse Primary DA response: ESC [ ? <params> c
+        if (preg_match('/\033\[\?([0-9;]+)c/', $buf, $matches)) {
+            $attrs = explode(';', $matches[1]);
+            $this->sixelSupported = in_array('4', $attrs, true);
+
+            // Push back any bytes that follow the DA response
+            $daEnd    = strpos($buf, $matches[0]) + strlen($matches[0]);
+            $leftover = substr($buf, $daEnd);
+            if ($leftover !== '') {
+                $state['pushback'] = $leftover . ($state['pushback'] ?? '');
+            }
+        } else {
+            // No DA response received — push everything back
+            if ($buf !== '') {
+                $state['pushback'] = $buf . ($state['pushback'] ?? '');
+            }
+        }
+
+        if ($this->debug) {
+            $this->log('Sixel probe: ' . ($this->sixelSupported ? 'supported' : 'not supported'));
+        }
     }
 
     /**
@@ -2394,22 +2464,23 @@ class BbsSession
         }
         $state['terminal_info_logged'] = true;
 
+        $sixel = $this->sixelSupported ? 'yes' : 'no';
         $ttype = strtoupper((string)($state['terminal_type'] ?? ''));
         if ($ttype !== '') {
             $ascii = $this->shouldUseAsciiFallback($state) ? 'yes' : 'no';
             $this->asciiTextMode = ($ascii === 'yes');
-            $this->log("Client terminal profile: TTYPE={$ttype}, ascii_fallback={$ascii}");
+            $this->log("Client terminal profile: TTYPE={$ttype}, ascii_fallback={$ascii}, sixel={$sixel}");
             return;
         }
 
         if ($this->isSsh) {
             $this->asciiTextMode = false;
-            $this->log("Client terminal profile: SSH session, assumed utf8-capable");
+            $this->log("Client terminal profile: SSH session, assumed utf8-capable, sixel={$sixel}");
             return;
         }
 
         $this->asciiTextMode = true;
-        $this->log("Client terminal profile: TTYPE not received, ascii_fallback=yes");
+        $this->log("Client terminal profile: TTYPE not received, ascii_fallback=yes, sixel={$sixel}");
     }
 
     /**
