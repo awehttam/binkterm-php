@@ -506,11 +506,19 @@ class TelnetUtils
                 continue;
             }
 
-            // Image viewer — I shows image 1; digit keys 1-9 show that numbered image
+            // Image viewer — I shows image 1 (or prompts for number when multiple exist);
+            // digit keys 1-9 jump directly to that numbered image
             if ($imageFn !== null && !empty($imageRefs)) {
                 $imgIdx = null;
                 if ($key === 'CHAR:i' || $key === 'CHAR:I') {
-                    $imgIdx = 0;
+                    if (count($imageRefs) === 1) {
+                        $imgIdx = 0;
+                    } else {
+                        $imgIdx = self::promptImageNumber(
+                            $conn, $state, $server, count($imageRefs), $lastRows, $statusLine
+                        );
+                        $fullRedraw = true;
+                    }
                 } elseif (preg_match('/^CHAR:([1-9])$/', $key, $km)) {
                     $candidate = (int)$km[1] - 1;
                     if ($candidate < count($imageRefs)) {
@@ -520,6 +528,10 @@ class TelnetUtils
                 if ($imgIdx !== null) {
                     ($imageFn)($imgIdx);
                     $fullRedraw = true;
+                    continue;
+                }
+                if ($key === 'CHAR:i' || $key === 'CHAR:I') {
+                    // Prompt was shown but cancelled — fullRedraw already set above
                     continue;
                 }
             }
@@ -1040,6 +1052,101 @@ class TelnetUtils
                 self::safeWrite($conn, $char);
             }
         }
+    }
+
+    /**
+     * Show an inline image-number prompt on the status bar and read a number (1–99).
+     *
+     * Overwrites the status line with "View image [1-N]: ", echoes each digit as the
+     * user types (up to 2 digits), and confirms on Enter or a second digit. Restores
+     * the original status line on ESC, Q, or an out-of-range entry. Returns the
+     * 0-based image index chosen by the user, or null if cancelled.
+     *
+     * @param  resource $conn
+     * @param  array    &$state
+     * @param  object   $server
+     * @param  int      $total      Total number of images in this message
+     * @param  int      $rows       Current terminal row count
+     * @param  string   $statusLine The existing status line (restored on cancel/return)
+     * @return int|null             0-based image index, or null if cancelled
+     */
+    private static function promptImageNumber($conn, array &$state, $server, int $total, int $rows, string $statusLine): ?int
+    {
+        $maxDigits = strlen((string)$total); // 1 digit for ≤9, 2 for ≤99
+        $prompt    = ' View image [1-' . $total . ']: ';
+
+        $renderPrompt = function (string $typed) use ($conn, $rows, $prompt): void {
+            if (self::$ansiColorEnabled) {
+                $line = "\033[" . $rows . ";1H\033[K"
+                    . self::ANSI_BG_WHITE . self::ANSI_BLUE . self::ANSI_BOLD
+                    . $prompt . self::ANSI_RESET
+                    . self::ANSI_BG_WHITE . self::ANSI_BLUE
+                    . $typed
+                    . self::ANSI_RESET;
+            } else {
+                $line = "\033[" . $rows . ";1H\033[K" . $prompt . $typed;
+            }
+            self::safeWrite($conn, $line);
+        };
+
+        $restore = function () use ($conn, $rows, $statusLine): void {
+            self::setCursorVisible($conn, false);
+            self::safeWrite($conn, "\033[" . $rows . ";1H\033[K" . $statusLine . "\r");
+            self::safeWrite($conn, "\033[H");
+        };
+
+        $renderPrompt('');
+        self::setCursorVisible($conn, true);
+
+        $digits = '';
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            if ($key === null || $key === 'ESC' || $key === 'CHAR:q' || $key === 'CHAR:Q') {
+                $restore();
+                return null;
+            }
+
+            if ($key === 'BACKSPACE' || $key === 'CHAR:\x7f') {
+                if ($digits !== '') {
+                    $digits = substr($digits, 0, -1);
+                    $renderPrompt($digits);
+                }
+                continue;
+            }
+
+            if ($key === 'ENTER') {
+                break;
+            }
+
+            if (preg_match('/^CHAR:([0-9])$/', $key, $m)) {
+                // Don't allow leading zero
+                if ($digits === '' && $m[1] === '0') {
+                    continue;
+                }
+                $digits .= $m[1];
+                $renderPrompt($digits);
+
+                // Auto-confirm when max digits reached
+                if (strlen($digits) >= $maxDigits) {
+                    break;
+                }
+                continue;
+            }
+        }
+
+        $restore();
+
+        if ($digits === '') {
+            return null;
+        }
+
+        $num = (int)$digits;
+        if ($num >= 1 && $num <= $total) {
+            return $num - 1;
+        }
+
+        return null;
     }
 
     /**

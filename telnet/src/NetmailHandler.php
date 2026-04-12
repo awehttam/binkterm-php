@@ -349,7 +349,7 @@ class NetmailHandler
                     $segments[] = ['text' => ' Download  ', 'color' => TelnetUtils::ANSI_BLUE];
                 }
                 if (!empty($imageRefs)) {
-                    $imageHint  = count($imageRefs) === 1 ? ' Image  ' : ' Image (1-' . count($imageRefs) . ')  ';
+                    $imageHint  = count($imageRefs) === 1 ? ' Image  ' : ' Images  ';
                     $segments[] = ['text' => 'I',        'color' => TelnetUtils::ANSI_RED];
                     $segments[] = ['text' => $imageHint, 'color' => TelnetUtils::ANSI_BLUE];
                 }
