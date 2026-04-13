@@ -609,6 +609,41 @@
         </div>
     </div>
 
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.admin.appearance.sixel.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.appearance.sixel.help', {}, locale, ['common']) }}</p>
+
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label class="form-label" for="sixelScreenSelect">{{ t('ui.admin.appearance.term_server.screen_slot', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="sixelScreenSelect"></select>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="d-flex flex-wrap gap-2">
+                            <label class="btn btn-outline-secondary btn-sm mb-0" for="sixelScreenUploadInput">
+                                <i class="fas fa-upload me-1"></i> {{ t('ui.admin.appearance.sixel.upload', {}, locale, ['common']) }}
+                            </label>
+                            <input type="file" id="sixelScreenUploadInput" accept=".sixel,.six" style="display:none;" onchange="uploadSixelScreen(this)">
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="deleteSixelScreenBtn" onclick="deleteSixelScreen()" style="display:none;">
+                                <i class="fas fa-trash me-1"></i> {{ t('ui.admin.appearance.sixel.delete', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <div class="small text-muted mb-1" id="sixelScreenDescription"></div>
+                    <div class="small text-muted" id="sixelScreenMeta"></div>
+                </div>
+
+                <span id="sixelScreenStatus" class="mt-2 d-block small"></span>
+            </div>
+        </div>
+    </div>
+
     {# ====== TAB: MESSAGE READER ====== #}
     <div class="tab-pane fade" id="tab-message-reader" role="tabpanel">
         <div class="card">
@@ -720,13 +755,38 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+const termScreenFilenames = {
+    welcome: 'login.ans',
+    main_menu: 'mainmenu.ans',
+    goodbye: 'bye.ans'
+};
+
+const sixelScreenFilenames = {
+    welcome: 'login.sixel',
+    main_menu: 'mainmenu.sixel',
+    goodbye: 'bye.sixel'
+};
+
 function getTerminalScreenLabel(key) {
-    const map = {
+    const labels = {
         welcome: uiT('ui.admin.appearance.term_server.screen.welcome', 'Welcome'),
         main_menu: uiT('ui.admin.appearance.term_server.screen.main_menu', 'Main Menu'),
         goodbye: uiT('ui.admin.appearance.term_server.screen.goodbye', 'Goodbye')
     };
-    return map[key] || key;
+    const label = labels[key] || key;
+    const filename = termScreenFilenames[key];
+    return filename ? label + ' (' + filename + ')' : label;
+}
+
+function getSixelScreenLabel(key) {
+    const labels = {
+        welcome: uiT('ui.admin.appearance.term_server.screen.welcome', 'Welcome'),
+        main_menu: uiT('ui.admin.appearance.term_server.screen.main_menu', 'Main Menu'),
+        goodbye: uiT('ui.admin.appearance.term_server.screen.goodbye', 'Goodbye')
+    };
+    const label = labels[key] || key;
+    const filename = sixelScreenFilenames[key];
+    return filename ? label + ' (' + filename + ')' : label;
 }
 
 function getTerminalScreenDescription(key) {
@@ -924,6 +984,7 @@ function loadAppearanceConfig() {
                 $('#loginSplash').val(d.login_splash);
             }
             loadTerminalScreenList();
+            loadSixelScreenList();
             setSettingsLoading('#appearanceTabContent', false);
         })
         .fail(function(xhr) {
@@ -1414,6 +1475,107 @@ function deleteTerminalScreen() {
         }
     });
 }
+
+// ---- Sixel Screens ----
+let currentSixelScreenKey = '';
+
+function loadSixelScreenList(selectedKey) {
+    $.get('/admin/api/appearance/sixel-screens', function(data) {
+        const screens = data.screens || [];
+        const $sel = $('#sixelScreenSelect');
+        const preferred = selectedKey || currentSixelScreenKey || (screens[0] ? screens[0].key : '');
+        $sel.empty();
+        screens.forEach(function(screen) {
+            const suffix = screen.exists ? '' : ' [' + uiT('ui.admin.appearance.sixel.not_installed', 'not installed') + ']';
+            $sel.append($('<option>').val(screen.key).text(getSixelScreenLabel(screen.key) + suffix));
+        });
+        $sel.val(preferred);
+        currentSixelScreenKey = $sel.val() || '';
+        if (currentSixelScreenKey) {
+            loadSixelScreen(currentSixelScreenKey, screens);
+        } else {
+            $('#sixelScreenDescription').text('');
+            $('#sixelScreenMeta').text('');
+            $('#deleteSixelScreenBtn').hide();
+        }
+    }).fail(function(xhr) {
+        showStatus('sixelScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.sixel.list_failed', 'Failed to load sixel screens')));
+    });
+}
+
+function loadSixelScreen(key, cachedScreens) {
+    const screens = cachedScreens || [];
+    const screen = screens.find(s => s.key === key) || {};
+    currentSixelScreenKey = key;
+    const descriptions = {
+        welcome: uiT('ui.admin.appearance.term_server.screen.welcome_help', 'Shown when a user first connects to the terminal server.'),
+        main_menu: uiT('ui.admin.appearance.term_server.screen.main_menu_help', 'Shown behind the terminal main menu after login.'),
+        goodbye: uiT('ui.admin.appearance.term_server.screen.goodbye_help', 'Shown when a user disconnects from the terminal server.')
+    };
+    $('#sixelScreenDescription').text(
+        (descriptions[key] || '') + ' ' + uiT('ui.admin.appearance.sixel.sixel_clients_only', '(Sixel-capable clients only.)')
+    );
+    const metaParts = [];
+    if (screen.filename) metaParts.push(screen.filename);
+    if (screen.exists && screen.size) metaParts.push(formatBytes(screen.size));
+    if (screen.updated_at) metaParts.push(screen.updated_at);
+    if (!screen.exists) metaParts.push(uiT('ui.admin.appearance.sixel.not_installed', 'not installed'));
+    $('#sixelScreenMeta').text(metaParts.join(' \u2022 '));
+    $('#deleteSixelScreenBtn').toggle(!!screen.exists);
+    $('#sixelScreenStatus').text('');
+}
+
+function uploadSixelScreen(input) {
+    if (!currentSixelScreenKey || !input.files || !input.files[0]) return;
+    showStatus('sixelScreenStatus', 'info', uiT('ui.admin.appearance.term_server.uploading', 'Uploading...'));
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    $.ajax({
+        url: '/admin/api/appearance/sixel-screens/' + encodeURIComponent(currentSixelScreenKey) + '/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('sixelScreenStatus', 'success', successMessage);
+            loadSixelScreenList(currentSixelScreenKey);
+            input.value = '';
+        },
+        error: function(xhr) {
+            showStatus('sixelScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.sixel.upload_failed', 'Failed to upload sixel screen')));
+            input.value = '';
+        }
+    });
+}
+
+function deleteSixelScreen() {
+    if (!currentSixelScreenKey) return;
+    if (!confirm(uiT('ui.admin.appearance.sixel.delete_confirm', 'Remove this sixel screen?'))) return;
+    $.ajax({
+        url: '/admin/api/appearance/sixel-screens/' + encodeURIComponent(currentSixelScreenKey),
+        method: 'DELETE',
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('sixelScreenStatus', 'success', successMessage);
+            loadSixelScreenList(currentSixelScreenKey);
+        },
+        error: function(xhr) {
+            showStatus('sixelScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.sixel.delete_failed', 'Failed to delete sixel screen')));
+        }
+    });
+}
+
+$('#sixelScreenSelect').on('change', function() {
+    currentSixelScreenKey = $(this).val() || '';
+    if (currentSixelScreenKey) {
+        loadSixelScreen(currentSixelScreenKey);
+    }
+});
 
 // ---- Helpers ----
 function showStatus(id, type, msg) {

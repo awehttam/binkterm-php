@@ -1,0 +1,331 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.jsdosdoors_config.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.jsdosdoors_config.heading', {}, locale, ['common']) }}</h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        {{ t('ui.admin.jsdosdoors_config.info_text_prefix', {}, locale, ['common']) }} <code>config/jsdosdoors.json</code> {{ t('ui.admin.jsdosdoors_config.info_text_suffix', {}, locale, ['common']) }}
+    </div>
+
+    <div id="jsdoorsStatusAlert"></div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{{ t('ui.admin.jsdosdoors_config.status', {}, locale, ['common']) }}</h6>
+            <div>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="activateJsdoors()" id="activateJsdoorsBtn">
+                    {{ t('ui.admin.jsdosdoors_config.activate_jsdoors', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2"><strong>{{ t('ui.admin.jsdosdoors_config.config_file', {}, locale, ['common']) }}</strong> <span id="jsdoorsConfigStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</span></div>
+                    <div class="mb-2 text-muted">{{ t('ui.admin.jsdosdoors_config.config_never_deleted', {}, locale, ['common']) }}</div>
+                </div>
+                <div class="col-md-6 text-md-end text-muted">
+                    <small>{{ t('ui.admin.jsdosdoors_config.json_controls_help', {}, locale, ['common']) }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4" id="jsdoorsEditorRow">
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.jsdosdoors_config.doors', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body" id="jsdoorsList">
+                    <div class="text-muted">{{ t('ui.admin.jsdosdoors_config.no_config_loaded', {}, locale, ['common']) }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ t('ui.admin.jsdosdoors_config.config_filename', {}, locale, ['common']) }}</h6>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatJsdoorsJson()">{{ t('ui.admin.jsdosdoors_config.format_json', {}, locale, ['common']) }}</button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveJsdoorsConfig()" id="saveJsdoorsBtn">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="jsdoorsEditorAlert"></div>
+                    <textarea id="jsdoorsJsonEditor" class="form-control" rows="20" spellcheck="false"
+                        style="font-family: Consolas, 'Courier New', monospace;"></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="jsdoorsJsonStatus">{{ t('ui.admin.jsdosdoors_config.waiting_for_config', {}, locale, ['common']) }}</small>
+                        <small class="text-muted">{{ t('ui.admin.jsdosdoors_config.json_validation_before_save', {}, locale, ['common']) }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let jsdoorsConfigState = {
+    active: false,
+    configJson: null,
+    exampleJson: null,
+    availableDoors: []
+};
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadJsdoorsConfig();
+        loadAvailableDoors();
+    });
+    document.getElementById('jsdoorsJsonEditor').addEventListener('input', () => {
+        updateJsonStatus();
+        renderDoorList();
+    });
+});
+
+function loadJsdoorsConfig() {
+    fetch('/admin/api/jsdosdoors-config')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.jsdosdoors_config.load_failed', 'Failed to load jsdoors config')));
+            }
+            const cfg = data.config || {};
+            jsdoorsConfigState.active = !!cfg.active;
+            jsdoorsConfigState.configJson = cfg.config_json || null;
+            jsdoorsConfigState.exampleJson = cfg.example_json || null;
+
+            const editorValue = jsdoorsConfigState.configJson || jsdoorsConfigState.exampleJson || '{}';
+            document.getElementById('jsdoorsJsonEditor').value = editorValue;
+            updateStatus();
+            updateJsonStatus();
+            renderDoorList();
+        })
+        .catch(error => {
+            showStatusAlert(error.message || uiT('ui.admin.jsdosdoors_config.load_failed', 'Failed to load config'), 'danger');
+        });
+}
+
+function loadAvailableDoors() {
+    fetch('/admin/api/jsdosdoors-available')
+        .then(response => response.json())
+        .then(data => {
+            jsdoorsConfigState.availableDoors = Array.isArray(data.doors) ? data.doors : [];
+            renderDoorList();
+        })
+        .catch(() => {});
+}
+
+function updateStatus() {
+    const statusText = jsdoorsConfigState.active
+        ? uiT('ui.admin.jsdosdoors_config.active_present', 'Active (jsdosdoors.json present)')
+        : uiT('ui.admin.jsdosdoors_config.not_active_using_example', 'Not active (using example)');
+    document.getElementById('jsdoorsConfigStatus').textContent = statusText;
+    document.getElementById('activateJsdoorsBtn').disabled = jsdoorsConfigState.active;
+    document.getElementById('saveJsdoorsBtn').disabled = !jsdoorsConfigState.active;
+    document.getElementById('jsdoorsEditorRow').style.display = jsdoorsConfigState.active ? '' : 'none';
+}
+
+function updateJsonStatus() {
+    const editor = document.getElementById('jsdoorsJsonEditor');
+    const status = document.getElementById('jsdoorsJsonStatus');
+    const { valid } = parseEditorJson(editor.value);
+    status.textContent = valid
+        ? uiT('ui.admin.jsdosdoors_config.json_valid', 'JSON is valid')
+        : uiT('ui.admin.jsdosdoors_config.json_has_errors', 'JSON has errors');
+    status.className = valid ? 'text-success' : 'text-danger';
+}
+
+function parseEditorJson(value) {
+    try {
+        return { valid: true, data: JSON.parse(value) };
+    } catch (err) {
+        return { valid: false, error: err };
+    }
+}
+
+function renderDoorList() {
+    const list = document.getElementById('jsdoorsList');
+    const editorValue = document.getElementById('jsdoorsJsonEditor').value;
+    const parsed = parseEditorJson(editorValue);
+
+    if (!parsed.valid || !parsed.data || typeof parsed.data !== 'object') {
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.jsdosdoors_config.invalid_json', 'Invalid JSON.')}</div>`;
+        return;
+    }
+
+    const configKeys = Object.keys(parsed.data);
+    const availableKeys = jsdoorsConfigState.availableDoors.map(door => door.id);
+    const mergedKeys = Array.from(new Set([...configKeys, ...availableKeys])).sort();
+
+    if (mergedKeys.length === 0) {
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.jsdosdoors_config.no_doors_defined', 'No doors defined.')}</div>`;
+        return;
+    }
+
+    const items = mergedKeys.map((key) => {
+        const value = parsed.data[key];
+        const enabled = value && typeof value === 'object' ? !!value.enabled : false;
+        const isMissing = !(key in parsed.data);
+        const doorInfo = jsdoorsConfigState.availableDoors.find(door => door.id === key);
+        const displayName = doorInfo?.name ? `${doorInfo.name}` : key;
+        const encodedKey = encodeURIComponent(key);
+        return `
+            <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                <div>
+                    <div class="fw-semibold">${escapeHtml(displayName)}</div>
+                    <small class="text-muted">${uiT('ui.admin.jsdosdoors_config.enabled_label', 'enabled')}: ${enabled ? uiT('ui.admin.jsdosdoors_config.true', 'true') : uiT('ui.admin.jsdosdoors_config.false', 'false')}${isMissing ? ' ' + uiT('ui.admin.jsdosdoors_config.not_in_config', '(not in config)') : ''}</small>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" data-door-key="${encodedKey}" ${enabled ? 'checked' : ''} onchange="toggleDoorEnabled(this)">
+                </div>
+            </div>
+        `;
+    });
+
+    list.innerHTML = items.join('');
+}
+
+function toggleDoorEnabled(input) {
+    const key = decodeURIComponent(input.dataset.doorKey || '');
+    const enabled = input.checked;
+    const editor = document.getElementById('jsdoorsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        return;
+    }
+
+    if (!parsed.data[key] || typeof parsed.data[key] !== 'object') {
+        parsed.data[key] = {};
+    }
+
+    parsed.data[key].enabled = enabled;
+    editor.value = JSON.stringify(parsed.data, null, 2);
+    updateJsonStatus();
+}
+
+function formatJsdoorsJson() {
+    const editor = document.getElementById('jsdoorsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        showEditorAlert(uiT('ui.admin.jsdosdoors_config.cannot_format_invalid_json', 'Cannot format: invalid JSON'), 'danger');
+        return;
+    }
+    editor.value = JSON.stringify(parsed.data, null, 2);
+    updateJsonStatus();
+}
+
+function saveJsdoorsConfig() {
+    const editor = document.getElementById('jsdoorsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        showEditorAlert(uiT('ui.admin.jsdosdoors_config.fix_json_before_save', 'Please fix JSON errors before saving.'), 'danger');
+        return;
+    }
+
+    fetch('/admin/api/jsdosdoors-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: editor.value })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.jsdosdoors_config.save_failed', 'Failed to save config')));
+        }
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.jsdosdoors_config.saved_success', 'JS-DOS doors config saved.'))
+            : uiT('ui.admin.jsdosdoors_config.saved_success', 'JS-DOS doors config saved.');
+        showEditorAlert(successMessage, 'success');
+        const cfg = data.config || {};
+        jsdoorsConfigState.active = !!cfg.active;
+        jsdoorsConfigState.configJson = cfg.config_json || editor.value;
+        updateStatus();
+    })
+    .catch(error => {
+        showEditorAlert(error.message || uiT('ui.admin.jsdosdoors_config.save_failed', 'Failed to save config'), 'danger');
+    });
+}
+
+function activateJsdoors() {
+    fetch('/admin/api/jsdosdoors-activate', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.jsdosdoors_config.activate_failed', 'Failed to activate JS-DOS doors')));
+            }
+            const cfg = data.config || {};
+            jsdoorsConfigState.active = !!cfg.active;
+            jsdoorsConfigState.configJson = cfg.config_json || jsdoorsConfigState.configJson;
+            if (cfg.config_json) {
+                document.getElementById('jsdoorsJsonEditor').value = cfg.config_json;
+            }
+            updateStatus();
+            updateJsonStatus();
+            renderDoorList();
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.jsdosdoors_config.activated_success', 'JS-DOS doors activated.'))
+                : uiT('ui.admin.jsdosdoors_config.activated_success', 'JS-DOS doors activated.');
+            showStatusAlert(successMessage, 'success');
+        })
+        .catch(error => {
+            showStatusAlert(error.message || uiT('ui.admin.jsdosdoors_config.activate_failed', 'Failed to activate JS-DOS doors'), 'danger');
+        });
+}
+
+function showStatusAlert(message, type) {
+    const container = document.getElementById('jsdoorsStatusAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showEditorAlert(message, type) {
+    const container = document.getElementById('jsdoorsEditorAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+</script>
+{% endblock %}

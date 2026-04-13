@@ -397,6 +397,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/nativedoors_config.twig');
     });
 
+    // JS-DOS Doors config page
+    SimpleRouter::get('/jsdosdoors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/jsdosdoors_config.twig');
+    });
+
     // File area rules page
     SimpleRouter::get('/filearea-rules', function() {
         $user = RouteHelper::requireAdmin();
@@ -2260,6 +2268,69 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/appearance/sixel-screens', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screens = $client->listSixelScreens();
+                echo json_encode(['success' => true, 'screens' => $screens]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.sixel.list_failed', apiLocalizedText('errors.admin.appearance.sixel.list_failed', 'Failed to load sixel screens'));
+            }
+        });
+
+        SimpleRouter::post('/appearance/sixel-screens/{key}/upload', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                if (empty($_FILES['file'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.sixel.upload.no_file', apiLocalizedText('errors.admin.appearance.sixel.upload.no_file', 'No sixel file uploaded'));
+                    return;
+                }
+                $file = $_FILES['file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.sixel.upload.failed', apiLocalizedText('errors.admin.appearance.sixel.upload.failed', 'Sixel upload failed'));
+                    return;
+                }
+                if ($file['size'] > 5 * 1048576) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.sixel.upload.file_too_large', apiLocalizedText('errors.admin.appearance.sixel.upload.file_too_large', 'Sixel file exceeds size limit (5MB)'));
+                    return;
+                }
+                $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->uploadSixelScreen($key, $contentBase64, basename((string)$file['name']));
+                echo json_encode([
+                    'success' => true,
+                    'screen' => $screen,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.sixel.upload.failed', apiLocalizedText('errors.admin.appearance.sixel.upload.failed', 'Failed to upload sixel screen'));
+            }
+        });
+
+        SimpleRouter::delete('/appearance/sixel-screens/{key}', function(string $key) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteSixelScreen($key);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.sixel.delete.failed', apiLocalizedText('errors.admin.appearance.sixel.delete.failed', 'Failed to delete sixel screen'));
+            }
+        });
+
         SimpleRouter::get('/taglines', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -2592,6 +2663,96 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.webdoors_config.activate_failed', apiLocalizedText('errors.admin.webdoors_config.activate_failed', 'Failed to activate webdoors configuration'));
+            }
+        });
+
+        // JS-DOS Doors API endpoints
+        SimpleRouter::get('/jsdosdoors-config', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getJsdosdoorsConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.jsdosdoors_config.load_failed', apiLocalizedText('errors.admin.jsdosdoors_config.load_failed', 'Failed to load JS-DOS doors configuration'));
+            }
+        });
+
+        SimpleRouter::get('/jsdosdoors-available', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $doors = [];
+            foreach (\BinktermPHP\JsdosDoorManifest::listManifests() as $entry) {
+                $manifest = $entry['manifest'];
+                $doors[] = [
+                    'id'   => $entry['id'],
+                    'name' => $manifest['name'] ?? $entry['id'],
+                    'path' => $entry['path'],
+                ];
+            }
+
+            echo json_encode(['doors' => $doors]);
+        });
+
+        SimpleRouter::post('/jsdosdoors-config', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $json = $payload['json'] ?? '';
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->saveJsdosdoorsConfig((string)$json);
+                echo json_encode([
+                    'success'      => true,
+                    'config'       => $updated,
+                    'message_code' => 'ui.admin.jsdosdoors_config.saved_success'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.jsdosdoors_config.save_failed', apiLocalizedText('errors.admin.jsdosdoors_config.save_failed', 'Failed to save JS-DOS doors configuration'));
+            }
+        });
+
+        SimpleRouter::post('/jsdosdoors-activate', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->activateJsdosdoorsConfig();
+                echo json_encode([
+                    'success'      => true,
+                    'config'       => $updated,
+                    'message_code' => 'ui.admin.jsdosdoors_config.activated_success'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.jsdosdoors_config.activate_failed', apiLocalizedText('errors.admin.jsdosdoors_config.activate_failed', 'Failed to activate JS-DOS doors configuration'));
             }
         });
 

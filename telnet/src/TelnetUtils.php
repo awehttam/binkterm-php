@@ -168,7 +168,15 @@ class TelnetUtils
         }
         $prev = error_reporting();
         error_reporting($prev & ~E_NOTICE);
-        @fwrite($conn, $data);
+        $total  = strlen($data);
+        $offset = 0;
+        while ($offset < $total) {
+            $written = @fwrite($conn, substr($data, $offset));
+            if ($written === false || $written === 0) {
+                break;  // connection closed or unrecoverable error
+            }
+            $offset += $written;
+        }
         @fflush($conn);
         error_reporting($prev);
     }
@@ -417,6 +425,8 @@ class TelnetUtils
      * @param bool          $allowDownloadAction Whether to return 'download' on Z key
      * @param array         $kludgeLines         Raw kludge lines for the H viewer
      * @param callable|null $rebuildFn           Optional resize callback: fn(array $state): array
+     * @param array         $imageRefs           Image refs from TerminalMarkupRenderer::extractImageRefs()
+     * @param callable|null $imageFn             Called with (int $zeroBasedIndex) to show an image
      * @return array{action: string, offset: int}
      *   action: 'quit' | 'prev' | 'next' | 'reply' | 'download'
      *   offset: scroll position at time of exit (unused for quit/reply)
@@ -432,7 +442,9 @@ class TelnetUtils
         int $initialOffset = 0,
         bool $allowDownloadAction = false,
         array $kludgeLines = [],
-        ?callable $rebuildFn = null
+        ?callable $rebuildFn = null,
+        array $imageRefs = [],
+        ?callable $imageFn = null
     ): array {
         $headerCount = count($headerLines);
         $lastRows    = $state['rows'] ?? $rows;
@@ -492,6 +504,36 @@ class TelnetUtils
                 self::runKludgeViewer($conn, $state, $server, $kludgeLines, $lastRows);
                 $fullRedraw = true;
                 continue;
+            }
+
+            // Image viewer — I shows image 1 (or prompts for number when multiple exist);
+            // digit keys 1-9 jump directly to that numbered image
+            if ($imageFn !== null && !empty($imageRefs)) {
+                $imgIdx = null;
+                if ($key === 'CHAR:i' || $key === 'CHAR:I') {
+                    if (count($imageRefs) === 1) {
+                        $imgIdx = 0;
+                    } else {
+                        $imgIdx = self::promptImageNumber(
+                            $conn, $state, $server, count($imageRefs), $lastRows, $statusLine
+                        );
+                        $fullRedraw = true;
+                    }
+                } elseif (preg_match('/^CHAR:([1-9])$/', $key, $km)) {
+                    $candidate = (int)$km[1] - 1;
+                    if ($candidate < count($imageRefs)) {
+                        $imgIdx = $candidate;
+                    }
+                }
+                if ($imgIdx !== null) {
+                    ($imageFn)($imgIdx);
+                    $fullRedraw = true;
+                    continue;
+                }
+                if ($key === 'CHAR:i' || $key === 'CHAR:I') {
+                    // Prompt was shown but cancelled — fullRedraw already set above
+                    continue;
+                }
             }
 
             // Navigation / action keys — return to caller
@@ -555,6 +597,120 @@ class TelnetUtils
             if ($key === 'END')    { $offset = $maxOffset;                                 }
             if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);              }
             if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);     }
+        }
+    }
+
+    /**
+     * Display a single inline image as Sixel graphics on a full-screen viewer.
+     *
+     * Clears the screen, fetches the image (downloading to a temp file), converts
+     * it with img2sixel, writes the Sixel data, then waits for any keypress before
+     * returning. The caller should set fullRedraw = true after this returns.
+     *
+     * @param resource $conn       Terminal socket
+     * @param array    $state      Session state (cols, rows, locale, etc.)
+     * @param object   $server     BbsSession instance
+     * @param array    $imageRef   Entry from TerminalMarkupRenderer::extractImageRefs()
+     *                             {index:int, alt:string, url:string}
+     * @param int      $totalImages Total image count in this message (for "N of M" display)
+     * @param string   $apiBase    API base URL for resolving relative paths
+     */
+    public static function showSixelImageViewer(
+        $conn,
+        array &$state,
+        $server,
+        array $imageRef,
+        int $totalImages,
+        string $apiBase
+    ): void {
+        $cols   = $state['cols'] ?? 80;
+        $width  = max(10, $cols - 2);
+        $locale = $state['locale'] ?? 'en';
+
+        self::safeWrite($conn, "\033[2J\033[H");
+
+        $num   = (int)($imageRef['index'] ?? 1);
+        $alt   = (string)($imageRef['alt'] ?? '');
+        $url   = (string)($imageRef['url'] ?? '');
+        $label = $alt !== '' ? $alt : $url;
+
+        // Header
+        self::writeLine($conn, self::colorize(
+            'Image ' . $num . ' of ' . $totalImages . ': ' . $label,
+            self::ANSI_CYAN . self::ANSI_BOLD
+        ));
+        self::writeLine($conn, self::colorize($url, self::ANSI_DIM));
+        self::writeLine($conn, '');
+
+        $renderer = new SixelImageRenderer($apiBase);
+
+        if (!$renderer->isAvailable()) {
+            self::writeLine($conn, self::colorize(
+                'img2sixel is not installed on this server.',
+                self::ANSI_RED
+            ));
+        } else {
+            self::writeLine($conn, self::colorize('Fetching image...', self::ANSI_YELLOW));
+
+            // Calculate pixel dimensions from terminal size.
+            // Cap height to avoid overwhelming terminals (e.g. SyncTERM) that freeze
+            // when the sixel stream is too large.  One character cell is approximately
+            // pixelsPerCol wide by pixelsPerRow tall; the screen height in pixels gives
+            // a natural upper bound for the image.
+            $pixelsPerCol = (int)\BinktermPHP\Config::env('SIXEL_PIXELS_PER_COL', '9');
+            $pixelsPerRow = (int)\BinktermPHP\Config::env('SIXEL_PIXELS_PER_ROW', '16');
+            $rows         = $state['rows'] ?? 24;
+            $maxWidth     = min(1600, $cols * $pixelsPerCol);
+            $maxHeight    = min(1200, $rows * $pixelsPerRow);
+
+            $fetchError = '';
+            $sixelData  = $renderer->fetchAndConvert($url, $maxWidth, $fetchError, $maxHeight);
+
+            if ($sixelData === null) {
+                // Overwrite the "Fetching..." line
+                self::safeWrite($conn, "\033[A\033[2K");
+                self::writeLine($conn, self::colorize('Error: ' . $fetchError, self::ANSI_RED));
+            } else {
+                // Overwrite the "Fetching..." line then render the image
+                self::safeWrite($conn, "\033[A\033[2K");
+                $renderer->writeSixel($conn, $sixelData);
+            }
+        }
+
+        // Belt-and-suspenders: send a second ST plus a DECSTR soft terminal reset
+        // (ESC [ ! p) to force any terminal still stuck in DCS/sixel mode back to
+        // normal mode before we emit plain text.  ST alone is sometimes not enough
+        // for SyncTERM when the sixel stream was large or ended mid-parse.
+        self::safeWrite($conn, "\033\\");
+        self::safeWrite($conn, "\033[!p");
+
+        // Drain any automatic escape sequences the terminal may have sent in response
+        // to the DCS block (e.g. cursor-position reports, DA responses).  These arrive
+        // within a few milliseconds; 150 ms is generous.  We discard up to 4 KB.
+        $read = [$conn]; $w = $e = null;
+        if (@stream_select($read, $w, $e, 0, 150000) > 0) {
+            @fread($conn, 4096);
+        }
+
+        // Print the prompt at the current cursor position — directly below wherever the
+        // image ended up after rendering.  Do NOT use absolute row positioning here:
+        // sixel images scroll the terminal when they extend below the viewport, which
+        // pushes any pre-positioned text off-screen before the user can read it.
+        // writeSixel() already emitted \r\n after the ST, so cursor is at column 1.
+        self::safeWrite($conn, "\r\n");
+        self::safeWrite($conn, self::colorize(
+            $server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+            self::ANSI_YELLOW
+        ));
+
+        // Loop until a recognised keypress is received. readKeyWithIdleCheck returns ''
+        // for bytes that readTelnetKeyWithTimeout does not recognise (control codes,
+        // spurious telnet negotiation bytes the terminal sends in response to the sixel
+        // image, etc.).  Ignoring those keeps us waiting for real input.
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null) { break; }   // idle disconnect
+            if ($key !== '') { break; }     // recognised keypress — exit viewer
         }
     }
 
@@ -899,6 +1055,101 @@ class TelnetUtils
     }
 
     /**
+     * Show an inline image-number prompt on the status bar and read a number (1–99).
+     *
+     * Overwrites the status line with "View image [1-N]: ", echoes each digit as the
+     * user types (up to 2 digits), and confirms on Enter or a second digit. Restores
+     * the original status line on ESC, Q, or an out-of-range entry. Returns the
+     * 0-based image index chosen by the user, or null if cancelled.
+     *
+     * @param  resource $conn
+     * @param  array    &$state
+     * @param  object   $server
+     * @param  int      $total      Total number of images in this message
+     * @param  int      $rows       Current terminal row count
+     * @param  string   $statusLine The existing status line (restored on cancel/return)
+     * @return int|null             0-based image index, or null if cancelled
+     */
+    private static function promptImageNumber($conn, array &$state, $server, int $total, int $rows, string $statusLine): ?int
+    {
+        $maxDigits = strlen((string)$total); // 1 digit for ≤9, 2 for ≤99
+        $prompt    = ' View image [1-' . $total . ']: ';
+
+        $renderPrompt = function (string $typed) use ($conn, $rows, $prompt): void {
+            if (self::$ansiColorEnabled) {
+                $line = "\033[" . $rows . ";1H\033[K"
+                    . self::ANSI_BG_WHITE . self::ANSI_BLUE . self::ANSI_BOLD
+                    . $prompt . self::ANSI_RESET
+                    . self::ANSI_BG_WHITE . self::ANSI_BLUE
+                    . $typed
+                    . self::ANSI_RESET;
+            } else {
+                $line = "\033[" . $rows . ";1H\033[K" . $prompt . $typed;
+            }
+            self::safeWrite($conn, $line);
+        };
+
+        $restore = function () use ($conn, $rows, $statusLine): void {
+            self::setCursorVisible($conn, false);
+            self::safeWrite($conn, "\033[" . $rows . ";1H\033[K" . $statusLine . "\r");
+            self::safeWrite($conn, "\033[H");
+        };
+
+        $renderPrompt('');
+        self::setCursorVisible($conn, true);
+
+        $digits = '';
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            if ($key === null || $key === 'ESC' || $key === 'CHAR:q' || $key === 'CHAR:Q') {
+                $restore();
+                return null;
+            }
+
+            if ($key === 'BACKSPACE' || $key === 'CHAR:\x7f') {
+                if ($digits !== '') {
+                    $digits = substr($digits, 0, -1);
+                    $renderPrompt($digits);
+                }
+                continue;
+            }
+
+            if ($key === 'ENTER') {
+                break;
+            }
+
+            if (preg_match('/^CHAR:([0-9])$/', $key, $m)) {
+                // Don't allow leading zero
+                if ($digits === '' && $m[1] === '0') {
+                    continue;
+                }
+                $digits .= $m[1];
+                $renderPrompt($digits);
+
+                // Auto-confirm when max digits reached
+                if (strlen($digits) >= $maxDigits) {
+                    break;
+                }
+                continue;
+            }
+        }
+
+        $restore();
+
+        if ($digits === '') {
+            return null;
+        }
+
+        $num = (int)$digits;
+        if ($num >= 1 && $num <= $total) {
+            return $num - 1;
+        }
+
+        return null;
+    }
+
+    /**
      * Show or hide the cursor.
      *
      * @param resource $conn
@@ -1175,6 +1426,26 @@ class TelnetUtils
                 $content = str_replace("\r\n", "\n", $content);
                 $content = str_replace("\n", "\r\n", $content);
                 $server->safeWrite($conn, $content . "\r\n");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Send a sixel graphics file raw to the client if it exists.
+     * Sixel data is binary and must not have line endings normalized.
+     *
+     * @return bool True if the file existed and was sent.
+     */
+    public static function showSixelScreenIfExists(string $screenFile, BbsSession &$server, $conn): bool
+    {
+        $screenFile = __DIR__ . '/../screens/' . $screenFile;
+
+        if (is_file($screenFile)) {
+            $content = @file_get_contents($screenFile);
+            if ($content !== false && $content !== '') {
+                $server->safeWrite($conn, $content);
                 return true;
             }
         }

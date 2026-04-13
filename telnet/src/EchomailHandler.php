@@ -622,17 +622,40 @@ class EchomailHandler
             $markupFormat = $detail['data']['markup_format'] ?? null;
             $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
+            $imageRefs    = $markupFormat !== null
+                ? TerminalMarkupRenderer::extractImageRefs($markupFormat, $body)
+                : [];
 
             $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
 
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress): array {
-                $cols    = $s['cols'] ?? 80;
-                $width   = max(10, $cols - 2);
-                $charset = $s['terminal_charset'] ?? 'ascii';
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs): array {
+                $cols     = $s['cols'] ?? 80;
+                $width    = max(10, $cols - 2);
+                $charset  = $s['terminal_charset'] ?? 'ascii';
                 $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
+
+                $segments = [
+                    ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'PgUp/PgDn',    'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Page  ',      'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'H',            'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Headers  ',   'color' => TelnetUtils::ANSI_BLUE],
+                ];
+                if (!empty($imageRefs)) {
+                    $imageHint = count($imageRefs) === 1 ? ' Image  ' : ' Images  ';
+                    $segments[] = ['text' => 'I',         'color' => TelnetUtils::ANSI_RED];
+                    $segments[] = ['text' => $imageHint,  'color' => TelnetUtils::ANSI_BLUE];
+                }
+                $segments[] = ['text' => 'Q',    'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
 
                 return [
                     'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
@@ -645,25 +668,25 @@ class EchomailHandler
                     'wrappedLines' => $markupFormat !== null
                         ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
                         : TelnetUtils::wrapTextLines($body, $width),
-                    'statusLine'   => TelnetUtils::buildStatusBar([
-                        ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
-                        ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
-                        ['text' => 'PgUp/PgDn',    'color' => TelnetUtils::ANSI_RED],
-                        ['text' => ' Page  ',      'color' => TelnetUtils::ANSI_BLUE],
-                        ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
-                        ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                        ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
-                        ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
-                        ['text' => 'H',            'color' => TelnetUtils::ANSI_RED],
-                        ['text' => ' Headers  ',   'color' => TelnetUtils::ANSI_BLUE],
-                        ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
-                        ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
-                    ], $width),
+                    'statusLine'   => TelnetUtils::buildStatusBar($segments, $width),
                 ];
             };
 
+            $apiBase   = $this->apiBase;
+            $server    = $this->server;
+            $imageFn   = !empty($imageRefs)
+                ? static function(int $idx) use ($conn, &$state, $server, $imageRefs, $apiBase): void {
+                    TelnetUtils::showSixelImageViewer($conn, $state, $server, $imageRefs[$idx], count($imageRefs), $apiBase);
+                }
+                : null;
+
             $view   = $buildView($state);
-            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $view['headerLines'], $view['wrappedLines'], $view['statusLine'], $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView);
+            $result = TelnetUtils::runMessageViewer(
+                $conn, $state, $this->server,
+                $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
+                $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
+                $imageRefs, $imageFn
+            );
 
             switch ($result['action']) {
                 case 'quit':

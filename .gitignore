@@ -1,8 +1,8 @@
 composer.lock
 config/*.json
-!config/*.example
 config/i18n/overrides/
 config/*.json.*
+!config/*.example
 config/taglines.txt
 config/welcome.txt
 config/terminal_welcome.txt
@@ -46,6 +46,15 @@ tests/playwright/.csrf-token.json
 tests/playwright-report/
 test-results/
 scripts/dosbox-bridge/package-lock.json
+
+# JS-DOS Door files - only track manifests
+public_html/jsdos-doors/*/*
+!public_html/jsdos-doors/*/jsdosdoor.json
+!public_html/jsdos-doors/*/icon.png
+!public_html/jsdos-doors/*/README.md
+!public_html/jsdos-doors/*/assets/
+public_html/jsdos-doors/*/assets/*
+!public_html/jsdos-doors/*/assets/.gitkeep
 
 # DOS Door files - only track manifests
 dosbox-bridge/dos/DOORS/*

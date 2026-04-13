@@ -139,6 +139,35 @@ class AdminDaemonClient
         return $this->sendCommand('activate_webdoors_config');
     }
 
+    public function getJsdosdoorsConfig(): array
+    {
+        return $this->sendCommand('get_jsdosdoors_config');
+    }
+
+    public function saveJsdosdoorsConfig(string $json): array
+    {
+        return $this->sendCommand('save_jsdosdoors_config', ['json' => $json]);
+    }
+
+    public function activateJsdosdoorsConfig(): array
+    {
+        return $this->sendCommand('activate_jsdosdoors_config');
+    }
+
+    /**
+     * Save a file to the shared JS-DOS storage for a game via the admin daemon.
+     * Only succeeds when the dos_path matches an admin_only+shared mode's save_paths.
+     */
+    public function saveJsdosSharedFile(string $gameId, string $dosPath, string $contentB64, bool $deleted = false): array
+    {
+        return $this->sendCommand('save_jsdos_shared_file', [
+            'game_id'     => $gameId,
+            'dos_path'    => $dosPath,
+            'content_b64' => $contentB64,
+            'deleted'     => $deleted,
+        ]);
+    }
+
     public function getDosdoorsConfig(): array
     {
         return $this->sendCommand('get_dosdoors_config');
@@ -318,6 +347,30 @@ class AdminDaemonClient
     public function deleteTerminalScreen(string $key): array
     {
         return $this->sendCommand('delete_terminal_screen', ['key' => $key]);
+    }
+
+    public function listSixelScreens(): array
+    {
+        return $this->sendCommand('list_sixel_screens');
+    }
+
+    public function getSixelScreen(string $key): array
+    {
+        return $this->sendCommand('get_sixel_screen', ['key' => $key]);
+    }
+
+    public function uploadSixelScreen(string $key, string $contentBase64, string $originalName = ''): array
+    {
+        return $this->sendCommand('upload_sixel_screen', [
+            'key'            => $key,
+            'content_base64' => $contentBase64,
+            'original_name'  => $originalName,
+        ]);
+    }
+
+    public function deleteSixelScreen(string $key): array
+    {
+        return $this->sendCommand('delete_sixel_screen', ['key' => $key]);
     }
 
     /**

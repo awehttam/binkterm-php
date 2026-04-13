@@ -31,7 +31,7 @@ class Version
      * This should be updated when releasing new versions.
      * Format: MAJOR.MINOR.PATCH
      */
-    private const VERSION = '1.9.1';
+    private const VERSION = '1.9.2';
     
     /**
      * Get the current application version

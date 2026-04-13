@@ -1,0 +1,45 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ game.name }} - {{ t('ui.jsdosdoor.page_title_suffix', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <a href="/games" class="btn btn-outline-secondary btn-sm mb-3">
+                <i class="fas fa-arrow-left"></i> {{ t('ui.webdoor_play.back_to_doors', {}, locale, ['common']) }}
+            </a>
+
+            <div class="card shadow">
+                <div class="card-body text-center p-5">
+                    <img src="/jsdos-doors/{{ game_path }}/{{ game.icon ?? 'icon.png' }}"
+                         alt="{{ game.name }}"
+                         class="rounded mb-4"
+                         style="width: 96px; height: 96px; object-fit: cover;"
+                         onerror="this.src='/favicon.svg'">
+
+                    <h2 class="mb-1">{{ game.name }}</h2>
+
+                    {% if game.author %}
+                        <p class="text-muted mb-3">
+                            {{ t('ui.webdoors.by_author', {'author': game.author}, locale, ['common']) }}
+                            {% if game.version %} &mdash; v{{ game.version }}{% endif %}
+                        </p>
+                    {% endif %}
+
+                    {% if game.description %}
+                        <p class="lead mb-4">{{ game.description }}</p>
+                    {% endif %}
+
+                    <div class="alert alert-info d-inline-block">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>{{ t('ui.jsdosdoor.coming_soon_heading', {}, locale, ['common']) }}</strong>
+                        <br>
+                        <span class="text-muted">{{ t('ui.jsdosdoor.coming_soon_body', {}, locale, ['common']) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

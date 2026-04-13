@@ -1,6 +1,6 @@
 # BinktermPHP
 
-BinktermPHP is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server.
+[BinktermPHP](https://www.lovelybits.org/binktermphp) is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server.
 
 BinktermPHP's mobile-responsive interface makes netmail and echomail comfortably accessible from phones and tablets while preserving the familiar feel of a classic BBS. ANSI art renders inline, links are detected and hyperlinked automatically, messages are full-text searchable, and built-in address books help users track their contacts. Users can also share individual messages via secure, expiring web links — with public or private access controls and revocation — making it easy to point someone at a great thread without requiring a login. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
 
@@ -23,7 +23,7 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
-There are no doubt bugs and omissions in the project as it was written by an AI. "Your Mileage May Vary".  This code is released under the terms of a [BSD License](LICENSE.md).
+This code is released under the terms of a [BSD License](LICENSE.md).
 
 awehttam operates a full instance of BinktermPHP over at https://claudes.lovelybits.org - Claude's very own BBS, and a point system @ https://mypoint.lovelybits.org.
 
@@ -79,6 +79,8 @@ awehttam operates a full instance of BinktermPHP over at https://claudes.lovelyb
     - [Native Doors](#native-doors---native-linux--windows-door-programs)
     - [DOS Doors](#dos-doors---classic-bbs-door-games)
     - [WebDoors](#webdoors---web-based-door-games)
+    - [JS-DOS Doors](#js-dos-doors---browser-side-dos-emulation)
+    - [C64 Doors](#c64-doors---commodore-64-browser-emulation)
   - [Gemini Support](#gemini-support)
     - [Gemini Browser](#gemini-browser)
     - [Gemini Capsule Hosting](#gemini-capsule-hosting)
@@ -153,13 +155,17 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
-- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator), and ISO-backed virtual areas (see `docs/FileAreas.md`)
+- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator, SID music, torrent metadata), URL link entries alongside uploaded files, and ISO-backed virtual areas (see `docs/FileAreas.md`)
 - **Advertising & Broadcasts** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and a Broadcast Manager for scheduled echomail posts including ads, weather reports, and automated bulletins (see [docs/Advertising.md](docs/Advertising.md))
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
 - **Activity Analytics** - Full activity viewer, webshare link access tracking, credits economy viewer, and referral analytics; sysops see a Today's Callers list on the dashboard; user profiles show message counts, file transfer stats, and a download/upload ratio
+- **Echomail Moderation** - New users' echomail posts can optionally be held in a review queue before network distribution. Configurable auto-promotion threshold; admins always bypass. Managed from **Admin → Area Management → Echomail Moderation**
+- **AI Bots** - Create AI-powered chat personas that respond to direct messages and @mentions in local chat rooms. Each bot has its own system user, configurable system prompt, AI provider and model selection, and a weekly cost budget. Managed from **Admin → Community → AI Bots**; requires `scripts/ai_bot_daemon.php` to be running
+- **Dashboard Customization** - Users can drag and reorder dashboard cards between the main column and sidebar, show or hide individual cards, and save their layout. Sysops can configure the default layout from **Admin → Appearance & Content → Dashboard**
+- **Chat Markdown** - Local chat messages are rendered as Markdown, supporting bold, italic, inline code, code blocks, lists, blockquotes, and headings
 - **Nodelist Browsers** - Integrated nodelist updater and browser
 - **BBS Directory** - Public directory of known BBS systems, automatically populated from echomail announcements and supplementable with manual or user-submitted entries reviewed by the sysop
 - **Echomail Robots** - Generic rule-based framework that watches echo areas for matching messages and dispatches them to configurable processors. Ships with a built-in processor for FSXNet `ibbslastcall-data` announcements that auto-populates the BBS Directory. Custom processors can be added in `src/Robots/Processors/`. See [docs/Robots.md](docs/Robots.md).
@@ -193,10 +199,14 @@ BinktermPHP provides a shared terminal server experience for text-mode access.
 After login, Telnet and SSH users get the same core functionality:
 
 - **Netmail + Echomail** - Browse, read, compose, and reply in terminal mode
+- **QWK Offline Mail** - Download and upload QWK/QWKE packets from the terminal for reading messages in offline readers
 - **File Areas** - Browse file areas and transfer files via ZMODEM
 - **Doors, Polls, Shoutbox** - Access enabled interactive features from the menu
 - **Full-Screen Editor** - Cursor-aware editing with message quoting and shortcuts
 - **Screen-Aware ANSI UI** - Terminal-dimension-aware rendering and ANSI color support
+- **Inline Image Rendering** - Messages containing Markdown images can be viewed as Sixel graphics inline; press `I` to open the image viewer. Requires `img2sixel` (`libsixel-bin`) and a Sixel-capable terminal (xterm, mlterm, WezTerm, SyncTERM). Non-Sixel terminals see text placeholders.
+- **BBS Directory & Nodelist Browser** - Main menu includes a **B) BBS Directory** option for browsing known BBS systems and an **L) Node List** option for searching the imported nodelist by name, sysop, location, or FTN address
+- **User Settings** - Users can change preferences, profile details, and account password directly from the terminal. The login screen also provides a lost-password reset path matching the web form's email flow
 
 See **[docs/TerminalServer.md](docs/TerminalServer.md)** for full terminal feature documentation.
 
@@ -208,7 +218,7 @@ The Telnet daemon is one access method for the shared Terminal Server.
 - **Multi-Platform** - Works with PuTTY, SyncTERM, ZOC, and standard telnet clients
 - **Optional TLS Listener** - Encrypted telnet access available when enabled
 
-See **[telnet/README.md](telnet/README.md)** for daemon setup, configuration, and troubleshooting.
+See **[TelnetServer.md](docs/TelnetServer.md)** for daemon setup, configuration, and troubleshooting.
 
 ### Terminal Access via SSH
 
@@ -232,7 +242,7 @@ BinktermPHP supports rich text formatting in echomail and netmail messages on ne
 
 **How it works:**
 
-Markup support is opt-in per uplink via the `allow_markup` flag in the Binkp configuration. When a user sends a message with a markup format selected, BinktermPHP adds a `\x01MARKUP: <Format> 1.0` kludge line to the outbound packet per LSC-001 Draft 2. Readers that recognise the kludge render the message body with formatting. Readers that don't see the raw text, which remains human-readable as plain text.
+Markup support is opt-in per uplink via the `allow_markup` flag in the Binkp configuration. When a user sends a message with a markup format selected, BinktermPHP adds a `^AMARKUP: Markdown 1.0` or `^AMARKUP: StyleCodes 1.0` kludge line to the outbound packet per LSC-001 Draft 2. Readers that recognise the kludge render the message body with formatting. Readers that don't see the raw text, which remains human-readable as plain text.
 
 **Enabling markup for an uplink:**
 
@@ -255,7 +265,7 @@ In your Binkp configuration, add `"allow_markup": true` to the uplink definition
 When a user composes a message to a markup-enabled network, a **Markup Format** selector appears below the message body with three options:
 
 - **Plain text** — no markup kludge added (default)
-- **Markdown** — activates the split-pane Markdown editor with toolbar and live preview
+- **Markdown** — adds the `^AMARKUP: Markdown 1.0` kludge; activates the split-pane Markdown editor with toolbar and live preview
 - **StyleCodes** — adds the `^AMARKUP: StyleCodes 1.0` kludge; use inline codes directly in the plain text editor
 
 **Markdown editor features:**
@@ -263,6 +273,7 @@ When a user composes a message to a markup-enabled network, a **Markup Format** 
 - **Formatting toolbar** — buttons for bold, italic, headings (H1–H3), inline code, code blocks, links, bullet lists, ordered lists, blockquotes, and horizontal rules
 - **Keyboard shortcuts** — Ctrl+B (bold), Ctrl+I (italic), Ctrl+K (link), Tab (indent)
 - **Edit / Preview tabs** — switch between raw Markdown editing and a rendered preview that uses the same server-side renderer as the message reader
+- **Image upload** — paste an image from the clipboard or drag-and-drop a file into the editor; BinktermPHP hosts the image and inserts the Markdown reference automatically
 
 **Supported Markdown syntax:**
 
@@ -305,6 +316,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
+- **libsixel** (`libsixel-bin`) - Optional, enables Sixel image rendering in the telnet/SSH terminal reader
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
 - **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
@@ -316,6 +328,8 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 sudo apt-get update
 sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom postgresql composer 
 sudo apt-get install -y unzip p7zip-full
+# Optional: Sixel image rendering in telnet/SSH terminal reader
+sudo apt-get install -y libsixel-bin
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
@@ -710,7 +724,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [1.9.0](docs/UPGRADING_1.9.0.md)       | Mar 2026    | Security release for the optional MCP server: updates `path-to-regexp` to 8.4.0 and addresses `CVE-2026-4926` / `GHSA-j3q9-mxjg-w52f` and `CVE-2026-4923` / `GHSA-27v5-c462-wpq7` |
+| [1.9.0](docs/UPGRADING_1.9.0.md)       | Mar 2026    | SID music file previewer; torrent file preview with magnet links; CP437 default outgoing charset with per-uplink override; individual BBS info pages; terminal server settings screen and lost-password reset; draft state fully preserved (charset, markup, tagline, cross-posts); archive listing size limit; MCP server CVE fixes (`CVE-2026-4926`, `CVE-2026-4923`) |
 | [1.8.9](docs/UPGRADING_1.8.9.md)       | Mar 2026    | Interests: admin-defined topic groups that auto-subscribe users to bundled echo areas; interest picker, echomail reader integration, multi-interest source tracking |
 | [1.8.8](docs/UPGRADING_1.8.8.md)       | Mar 2026    | TIC incoming processor `FILE_ID.DIZ` lookup fix for ZIP archives; root-level and single-top-directory handling only |
 | [1.8.7](docs/UPGRADING_1.8.7.md)       | Mar 2026    | Registration/premium features; ISO-backed file areas; global file search; outbound FREQ; echomail digest emails; netmail forwarding to email; in-browser artwork encoding editor; enhanced message search; nodelist map; page position memory; file preview improvements; QWK/QWKE offline mail |
@@ -747,6 +761,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `scripts/gemini_daemon.php` | Gemini capsule server daemon |
 | `mrc/mrc_daemon.php` | MRC chat relay daemon |
 | `scripts/dosbox-bridge/multiplexing-server.js` | DOS door multiplexing bridge |
+| `scripts/ai_bot_daemon.php` | AI bot daemon — drives AI chat personas via LISTEN/NOTIFY |
 
 **Utility Scripts** — run on demand or via cron:
 
@@ -933,7 +948,7 @@ The easiest way to customize your BBS is through **Admin → Appearance**, which
 - **System News** — Write dashboard content in Markdown, managed through the admin panel.
 - **Navigation** — Add custom links to the navigation bar.
 - **SEO** — Set a site description and Open Graph image for search engine and social sharing metadata.
-- **File Areas** — Add custom HTML to the file area sidebar and footer (e.g. DMCA contact info, upload ratio policy).
+- **File Areas** — Add custom Markdown to the file area sidebar and footer (e.g. DMCA contact info, upload ratio policy). Both fields include a Preview button.
 
 All appearance settings are stored in `data/appearance.json` and take effect immediately.
 
@@ -1103,7 +1118,9 @@ Files uploaded or received via TIC are stored under a directory specific to the 
 
 **Subfolder navigation** — File areas support hierarchical subfolder browsing. The web interface and terminal server both allow navigating into subdirectories within an area.
 
-**File preview** — Files can be previewed in the browser without downloading: ANSI art renders inline, PETSCII files are decoded and displayed, D64 disk images show a gallery of PRG files found on the disk, and C64 PRG/SEQ files can be run in a built-in C64 emulator.
+**File preview** — Files can be previewed in the browser without downloading: ANSI art renders inline, PETSCII files are decoded and displayed, D64 disk images show a gallery of PRG files found on the disk, C64 PRG/SEQ files can be run in a built-in C64 emulator, SID music files play in a browser-based C64 SID player with visualizer and multi-subtune support, and torrent files display a metadata card with file listing and a copyable magnet link.
+
+**URL link entries** — File areas support external URL links alongside uploaded files. Sysops and users can submit a URL with a short and long description (auto-filled from the page's Open Graph metadata). URL entries appear throughout file listings with a link icon and a Visit button instead of a download button. URL links use the same approval and credits workflow as file uploads.
 
 **ISO-backed file areas** — A file area can be backed by a read-only ISO 9660 image instead of a regular directory. The ISO is mounted virtually; its contents are browsable and downloadable without extracting the archive. This is useful for distributing large CD-ROM archives or nodelist compilations. See [docs/FileAreas.md](docs/FileAreas.md) for setup details.
 
@@ -1285,6 +1302,66 @@ Games interact with the BBS through REST endpoints:
 #### Documentation
 
 For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
+
+---
+
+### JS-DOS Doors - Browser-Side DOS Emulation
+
+JS-DOS Doors run classic DOS games entirely in the user's browser using [js-dos](https://js-dos.com/) — a WebAssembly port of DOSBox. Unlike server-side DOS Doors, no DOSBox process is spawned on the server per session; all emulation happens client-side. The server manages session tracking and mode-aware file sync for per-user saves and shared admin-configured defaults.
+
+JS-DOS Doors appear in the `/games` listing alongside WebDoors, DOS Doors, and Native Doors with a `[JSDOS]` badge.
+
+#### Key Features
+
+- **No Server Process** — emulation is fully client-side via WebAssembly; the server only tracks sessions and syncs save files
+- **Per-User Saves** — save state is stored server-side and restored on next play
+- **Shared Defaults** — admin can run a configuration mode to set up shared default save files (e.g., sound card setup) that are copied to each new user session
+- **Credits Integration** — optional per-session credit cost
+
+#### Included JS-DOS Doors
+
+BinktermPHP ships with the following JS-DOS Door out of the box (game files not included):
+
+- **Doom** — the classic first-person shooter by id Software; supports per-user saves
+
+#### Getting Started
+
+See **[docs/JSDOSDoors.md](docs/JSDOSDoors.md)** for complete documentation including:
+- Directory structure and manifest format
+- Adding new JS-DOS doors
+- Save file sync modes (per-user, shared)
+- Troubleshooting
+
+---
+
+### C64 Doors - Commodore 64 Browser Emulation
+
+C64 Doors are WebDoors that run Commodore 64 programs inside a jsc64 JavaScript emulator embedded directly in the browser. They require no additional server-side components beyond PHP — no bridge, no DOSBox, no Node.js. The server base64-encodes the game file and injects it into the page; the emulator boots it entirely client-side.
+
+C64 Doors are a subtype of WebDoor and appear in the games listing with the standard WebDoor UI. They integrate with the credits economy and the WebDoor session system.
+
+#### Key Features
+
+- **Pure Client-Side** — no bridge or emulator process on the server
+- **Multiple File Formats** — supports PRG, ROM, BIN, and D64 disk images
+- **WebDoor Integration** — full credits, session, and leaderboard support via the WebDoor SDK
+- **Shared Engine** — all C64 Doors use the shared `_c64engine/player.php` template; individual doors supply only their game file and `webdoor.json`
+
+#### Included C64 Doors
+
+BinktermPHP ships with the following C64 Doors:
+
+- **C64 Tic Tac Toe** — a classic Tic Tac Toe game running in the C64 emulator
+
+#### Getting Started
+
+See **[docs/C64Doors.md](docs/C64Doors.md)** for complete documentation including:
+- File structure for a C64 Door
+- Supported file formats (PRG, ROM, BIN, D64)
+- `webdoor.json` configuration reference
+- Enabling and managing C64 Doors from the admin interface
+
+---
 
 ## Gemini Support
 

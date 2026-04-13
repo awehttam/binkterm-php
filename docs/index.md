@@ -27,6 +27,7 @@ This index lists documents in operational priority order — essentials first, a
 ## Access Methods (Terminal & SSH)
 
 - [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
+- [Telnet Daemon](TelnetServer.md) — Telnet daemon setup, configuration, and troubleshooting
 - [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
 
 - [FTP Server](FTPServer.md) - Standalone passive FTP daemon for QWK exchange and file-area transfers
@@ -39,6 +40,7 @@ This index lists documents in operational priority order — essentials first, a
 - [DOS Doors](DOSDoors.md) — Running classic DOS door games
 - [Native Doors](NativeDoors.md) — Native Linux/Unix door games
 - [Web Doors](WebDoors.md) — HTML5/JavaScript web-based door games
+- [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation via js-dos/DOSBox WASM
 - [C64 Doors](C64Doors.md) — Commodore 64 door games
 - [DOSBox Headless Mode](DOSBox_Headless_Mode.md) — Running DOSBox without a display for DOS doors
 
@@ -107,6 +109,7 @@ This index lists documents in operational priority order — essentials first, a
 
 Release-specific upgrade notes, listed newest-first.
 
+- [Upgrading to 1.9.2](UPGRADING_1.9.2.md)
 - [Upgrading to 1.9.1](UPGRADING_1.9.1.md)
 - [Upgrading to 1.9.0](UPGRADING_1.9.0.md)
 - [Upgrading to 1.8.9](UPGRADING_1.8.9.md)

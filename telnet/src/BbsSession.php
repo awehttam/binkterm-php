@@ -78,6 +78,8 @@ class BbsSession
     private string $terminalCharset = 'ascii';
     /** @var bool Whether ANSI color is enabled for this terminal */
     private bool $ansiColorEnabled = true;
+    /** @var bool Whether the terminal supports Sixel graphics (Primary DA attribute 4) */
+    private bool $sixelSupported = false;
     private array $failedLoginAttempts = [];
     private Translator $translator;
     private string $systemLocale;
@@ -184,15 +186,16 @@ class BbsSession
             $this->negotiateTelnet($conn);
             // TLS telnet clients commonly delay TELNET option replies until after
             // they see visible output. Blocking on TTYPE before the banner causes
-            // a blank-screen stall on port 8023. Start TLS sessions optimistically
-            // in UTF-8 + ANSI mode and let later TELNET parsing record TTYPE when
-            // the client eventually sends it.
+            // a blank-screen stall on port 8023. Skip the TTYPE probe for TLS and
+            // proceed immediately: charset stays at the conservative ASCII default
+            // until saved settings are applied post-login (or the detection wizard
+            // runs for new users). ANSI color is assumed because virtually all TLS
+            // telnet clients are modern and color-capable.
             if ($this->isTls) {
-                $this->terminalCharset = 'utf8';
-                $this->asciiTextMode = false;
                 $this->ansiColorEnabled = true;
                 TelnetUtils::setAnsiColorEnabled(true);
-                if ($this->debug) { $this->log('TLS startup: optimistic ANSI/UTF-8 enabled; skipping pre-banner TTYPE probe'); }
+                if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
+                $this->probeSixelSupport($conn, $state);
             } else {
                 // Probe ANSI support before showing the banner by doing the TTYPE
                 // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
@@ -204,10 +207,15 @@ class BbsSession
                     $this->ansiColorEnabled = true;
                     TelnetUtils::setAnsiColorEnabled(true);
                     if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                    $this->probeSixelSupport($conn, $state);
                 } else {
                     if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
                 }
             }
+        } else {
+            // SSH clients are assumed ANSI/UTF-8; probe for sixel support the same
+            // way telnet does — send a Primary DA request and check for attribute 4.
+            $this->probeSixelSupport($conn, $state);
         }
 
         if (!$this->peerName || !$this->peerIp) {
@@ -235,12 +243,12 @@ class BbsSession
 
         $this->showLoginBanner($conn, $state);
 
-        if (!$this->isSsh && !$this->requireEscapeKey($conn, $state)) {
-            $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
-            fclose($conn);
-            if ($forked) { exit(0); }
-            return;
-        }
+        // if (!$this->isSsh && !$this->requireEscapeKey($conn, $state)) {
+        //     $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
+        //     fclose($conn);
+        //     if ($forked) { exit(0); }
+        //     return;
+        // }
 
         // ===== LOGIN / REGISTER =====
 
@@ -446,7 +454,8 @@ class BbsSession
                 break;
             }
 
-            if (TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
+            if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
+                || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
             } else {
@@ -665,7 +674,9 @@ class BbsSession
                 $this->log("Menu: {$username} -> Settings");
                 $settingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
-                TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+                if (!($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("bye.sixel", $this, $conn))) {
+                    TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+                }
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize(
                     $this->t('ui.terminalserver.server.farewell', 'Thank you for visiting, have a great day!', [], $state['locale']),
@@ -719,7 +730,15 @@ class BbsSession
         if (!is_resource($conn)) { return; }
         $prev = error_reporting();
         error_reporting($prev & ~E_NOTICE);
-        @fwrite($conn, $data);
+        $total  = strlen($data);
+        $offset = 0;
+        while ($offset < $total) {
+            $written = @fwrite($conn, substr($data, $offset));
+            if ($written === false || $written === 0) {
+                break;  // connection closed or unrecoverable error
+            }
+            $offset += $written;
+        }
         @fflush($conn);
         error_reporting($prev);
     }
@@ -1066,6 +1085,13 @@ class BbsSession
         // LINEMODE MODE … IAC SE) that never comes, producing a blank-screen hang
         // until the user presses a key.  A BBS needs character-at-a-time mode;
         // WILL ECHO + WILL SUPPRESS-GA already establish that without linemode.
+        //
+        // WILL ECHO + DONT ECHO must be sent early so the client disables its own
+        // local echo (pty ECHO flag) before the sixel probe sends ESC[c.  Without
+        // this, the terminal generates the DA1 response and the telnet client echoes
+        // it back to the screen as visible text (^[[?63;...c) before the banner.
+        $this->sendTelnetCommand($conn, self::WILL,      self::OPT_ECHO);
+        $this->sendTelnetCommand($conn, self::DONT,      self::OPT_ECHO);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
         $this->sendTelnetCommand($conn, self::WILL,      self::OPT_SUPPRESS_GA);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_TTYPE);
@@ -1216,6 +1242,105 @@ class BbsSession
     }
 
     /**
+     * Query the terminal for Sixel graphics support via Primary Device Attributes (ESC[c).
+     *
+     * Sends the DA1 request and waits briefly for the response (ESC[?<params>c).
+     * If attribute 4 appears in the parameter list the terminal supports Sixels.
+     * Any non-DA bytes received are pushed back into $state['pushback'] so
+     * subsequent reads are not disrupted.
+     *
+     * @param resource $conn
+     * @param array    &$state Session state
+     */
+    private function probeSixelSupport($conn, array &$state): void
+    {
+        // Check the pushback buffer first: probeAnsiSupport drains all non-IAC
+        // bytes (including ESC sequences) into state['pushback'].  If the
+        // terminal sent a proactive DA1 response during the TTYPE exchange we
+        // will find it there without needing to send a second ESC[c request.
+        $existing = $state['pushback'] ?? '';
+        if ($this->debug && $existing !== '') {
+            $this->log('Sixel probe pushback: ' . bin2hex($existing));
+        }
+        if (preg_match('/\033\[\?([0-9;]+)c/', $existing, $m, PREG_OFFSET_CAPTURE)) {
+            $attrs = explode(';', $m[1][0]);
+            $this->sixelSupported = in_array('4', $attrs, true);
+            // Strip the DA1 response from pushback so it is not echoed back
+            // to the terminal as if it were user input.
+            $daStart = $m[0][1];
+            $daEnd   = $daStart + strlen($m[0][0]);
+            $state['pushback'] = substr($existing, 0, $daStart) . substr($existing, $daEnd);
+            if ($this->debug) {
+                $this->log('Sixel probe (from pushback): ' . ($this->sixelSupported ? 'supported' : 'not supported'));
+            }
+            return;
+        }
+
+        // Primary Device Attributes request: CSI c
+        $this->safeWrite($conn, "\033[c");
+
+        $deadline = microtime(true) + 1.5;
+        $buf      = '';
+
+        while (microtime(true) < $deadline) {
+            if (!is_resource($conn) || feof($conn)) {
+                break;
+            }
+            $read  = [$conn];
+            $write = $except = null;
+            $usec  = max(0, (int)(($deadline - microtime(true)) * 1_000_000));
+            if (@stream_select($read, $write, $except, 0, $usec) < 1) {
+                break;
+            }
+
+            $chunk = @fread($conn, 256);
+            if ($chunk === false || $chunk === '') {
+                if (feof($conn)) { break; }
+                continue;
+            }
+            $buf .= $chunk;
+
+            // Only break early when the full DA response pattern is present.
+            // Breaking on any 'c' could fire prematurely on late telnet
+            // negotiation data or other terminal responses arriving in the
+            // same read window before the DA reply comes through.
+            if (preg_match('/\033\[\?[0-9;]*c/', $buf)) {
+                break;
+            }
+        }
+
+        if ($this->debug) {
+            $this->log('Sixel probe raw: ' . bin2hex($buf));
+        }
+
+        // Parse Primary DA response: ESC [ ? <params> c
+        if (preg_match('/\033\[\?([0-9;]+)c/', $buf, $matches)) {
+            $attrs = explode(';', $matches[1]);
+            $this->sixelSupported = in_array('4', $attrs, true);
+
+            // Push back any bytes that follow the DA response
+            $daEnd    = strpos($buf, $matches[0]) + strlen($matches[0]);
+            $leftover = substr($buf, $daEnd);
+            if ($leftover !== '') {
+                $state['pushback'] = $leftover . ($state['pushback'] ?? '');
+            }
+        } else {
+            // No DA1 response (ESC[?...c) received. Strip any other device
+            // attribute responses (DA2 ESC[>...c, DA3 ESC[=...c) before
+            // pushing back — they are terminal protocol replies to our probe,
+            // not user input, and must not be injected into the input stream.
+            $leftover = preg_replace('/\033\[[?>=]?[0-9;]*c/', '', $buf);
+            if ($leftover !== '') {
+                $state['pushback'] = $leftover . ($state['pushback'] ?? '');
+            }
+        }
+
+        if ($this->debug) {
+            $this->log('Sixel probe: ' . ($this->sixelSupported ? 'supported' : 'not supported'));
+        }
+    }
+
+    /**
      * Multibyte-aware str_pad. Pads $str to $length visual columns using mb_strlen
      * so that UTF-8 strings with accented characters align correctly in the terminal.
      */
@@ -1291,6 +1416,10 @@ class BbsSession
             ));
         }
         $this->writeLine($conn, '');
+
+        if ($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("login.sixel", $this, $conn)) {
+            return;
+        }
 
         if (TelnetUtils::showScreenIfExists("login.ans", $this, $conn)) {
             return;
@@ -2237,14 +2366,33 @@ class BbsSession
 
         // ANSI escape sequences (arrow keys, etc.)
         if ($byte === 27) {
+            // Use a non-blocking peek (50 ms) before each follow-up fread so that a
+            // standalone ESC keypress (0x1B with no following bytes) does not block the
+            // session indefinitely on a blocking socket.
+            $r = [$conn]; $w = $ex = null;
+            if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
+                return chr(27);  // standalone ESC — nothing followed within 50 ms
+            }
             $next1 = fread($conn, 1);
             if ($next1 === false || $next1 === '') { return chr(27); }
             if ($next1 === '[') {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
+                    return chr(27);
+                }
                 $next2 = fread($conn, 1);
                 if ($next2 === false) { return chr(27); }
                 if (ord($next2) >= ord('0') && ord($next2) <= ord('9')) {
-                    $tilde = fread($conn, 1);
-                    if ($tilde === '~') { return chr(27) . '[' . $next2 . '~'; }
+                    $r = [$conn]; $w = $ex = null;
+                    if (@stream_select($r, $w, $ex, 0, 50000) > 0) {
+                        $tilde = fread($conn, 1);
+                        if ($tilde === '~') { return chr(27) . '[' . $next2 . '~'; }
+                        // Not a tilde — push the byte back rather than silently discarding it,
+                        // so multi-byte sequences like CPR (ESC[row;colR) are not corrupted.
+                        if ($tilde !== false && $tilde !== '') {
+                            $state['pushback'] = ($state['pushback'] ?? '') . $tilde;
+                        }
+                    }
                 }
                 return chr(27) . '[' . $next2;
             }
@@ -2381,6 +2529,13 @@ class BbsSession
         }
         $state['terminal_type'] = $normalized;
         $this->asciiTextMode = $this->shouldUseAsciiFallback($state);
+        // Keep terminalCharset in sync: if it was set to 'utf8' (e.g. by saved
+        // settings from a previous session) but TTYPE now reveals the terminal
+        // can't handle UTF-8, downgrade to ascii. cp437 is only set via the
+        // interactive detection wizard, never inferred from TTYPE alone.
+        if ($this->terminalCharset === 'utf8' && $this->asciiTextMode) {
+            $this->terminalCharset = 'ascii';
+        }
         $this->log("TTYPE detected: {$normalized}");
     }
 
@@ -2394,22 +2549,23 @@ class BbsSession
         }
         $state['terminal_info_logged'] = true;
 
+        $sixel = $this->sixelSupported ? 'yes' : 'no';
         $ttype = strtoupper((string)($state['terminal_type'] ?? ''));
         if ($ttype !== '') {
             $ascii = $this->shouldUseAsciiFallback($state) ? 'yes' : 'no';
             $this->asciiTextMode = ($ascii === 'yes');
-            $this->log("Client terminal profile: TTYPE={$ttype}, ascii_fallback={$ascii}");
+            $this->log("Client terminal profile: TTYPE={$ttype}, ascii_fallback={$ascii}, sixel={$sixel}");
             return;
         }
 
         if ($this->isSsh) {
             $this->asciiTextMode = false;
-            $this->log("Client terminal profile: SSH session, assumed utf8-capable");
+            $this->log("Client terminal profile: SSH session, assumed utf8-capable, sixel={$sixel}");
             return;
         }
 
         $this->asciiTextMode = true;
-        $this->log("Client terminal profile: TTYPE not received, ascii_fallback=yes");
+        $this->log("Client terminal profile: TTYPE not received, ascii_fallback=yes, sixel={$sixel}");
     }
 
     /**

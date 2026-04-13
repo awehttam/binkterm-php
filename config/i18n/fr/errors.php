@@ -277,6 +277,17 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Échec du chargement de la configuration des portes web',
     'errors.admin.webdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes web',
     'errors.admin.webdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes web',
+    'errors.admin.jsdosdoors_config.load_failed' => 'Échec du chargement de la configuration des portes JS-DOS',
+    'errors.admin.jsdosdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes JS-DOS',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes JS-DOS',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Jeu introuvable',
+    'errors.jsdosdoor.session_create_failed' => 'Impossible de créer la session de jeu',
+    'errors.jsdosdoor.session_end_failed' => 'Impossible de terminer la session de jeu',
+    'errors.jsdosdoor.asset_load_failed' => 'Impossible de charger les fichiers du jeu',
+    'errors.jsdosdoor.file_sync_failed' => 'Impossible de synchroniser les fichiers JS-DOS',
+
     'errors.admin.filearea_rules.load_failed' => 'Échec du chargement des règles de zone de fichiers',
     'errors.admin.filearea_rules.save_failed' => 'Échec de l\'enregistrement des règles de zone de fichiers',
     'errors.admin.ads.list_failed' => 'Échec du chargement des publicités',
@@ -571,6 +582,11 @@ return [
     'errors.admin.appearance.term_server.upload.failed' => 'Impossible de téléverser l\'écran du serveur terminal',
     'errors.admin.appearance.term_server.upload.file_too_large' => 'Le fichier d\'écran du serveur terminal dépasse la limite de taille',
     'errors.admin.appearance.term_server.delete.failed' => 'Impossible de supprimer l\'écran du serveur terminal',
+    'errors.admin.appearance.sixel.list_failed' => 'Échec du chargement des écrans sixel',
+    'errors.admin.appearance.sixel.upload.no_file' => 'Aucun fichier sixel téléversé',
+    'errors.admin.appearance.sixel.upload.failed' => 'Échec du téléversement de l\'écran sixel',
+    'errors.admin.appearance.sixel.upload.file_too_large' => 'Le fichier sixel dépasse la limite de taille (5 Mo)',
+    'errors.admin.appearance.sixel.delete.failed' => 'Impossible de supprimer l\'écran sixel',
 
     // Markdown image upload
     'errors.markdown_images.upload_failed' => 'Echec du telechargement de l\'image. Veuillez reessayer.',
