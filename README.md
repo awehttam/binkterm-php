@@ -204,7 +204,7 @@ After login, Telnet and SSH users get the same core functionality:
 - **Doors, Polls, Shoutbox** - Access enabled interactive features from the menu
 - **Full-Screen Editor** - Cursor-aware editing with message quoting and shortcuts
 - **Screen-Aware ANSI UI** - Terminal-dimension-aware rendering and ANSI color support
-- **Inline Image Rendering** - Messages containing Markdown images can be viewed as Sixel graphics inline; press `I` to open the image viewer. Requires `img2sixel` (`libsixel-bin`) and a Sixel-capable terminal (xterm, mlterm, WezTerm, SyncTERM). Non-Sixel terminals see text placeholders.
+- **Image Rendering** - Messages containing Markdown image tags can be opened as Sixel graphics in a full-screen viewer; press `I` to open the image viewer. Requires `img2sixel` (`libsixel-bin`) and a Sixel-capable terminal (xterm, mlterm, WezTerm, SyncTERM). Non-Sixel terminals see text placeholders.
 - **BBS Directory & Nodelist Browser** - Main menu includes a **B) BBS Directory** option for browsing known BBS systems and an **L) Node List** option for searching the imported nodelist by name, sysop, location, or FTN address
 - **User Settings** - Users can change preferences, profile details, and account password directly from the terminal. The login screen also provides a lost-password reset path matching the web form's email flow
 
@@ -442,7 +442,7 @@ php scripts/upgrade.php
 ## Configure Web Server
 
 ### Caddy
-Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and requires no extra buffering configuration for SSE.
+Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and does not buffer SSE responses by default. The example config below excludes the SSE endpoint from compression, which would otherwise buffer the stream.
 
 ```caddyfile
 yourdomain.com {
