@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [JS-DOS Doors](#js-dos-doors)
 - [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
 - [Sixel Login and Menu Screens](#sixel-login-and-menu-screens)
+- [Door Session Expiry Enforcement](#door-session-expiry-enforcement)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -33,9 +34,14 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Sixel Login and Menu Screens
 
 - The terminal server's Welcome, Main Menu, and Goodbye screens now support **Sixel graphics** as an alternative to ANSI art files.
+
 - Sixel images are displayed only on clients that advertise Sixel support during the connection handshake. Clients that do not support Sixel continue to see the existing ANSI screen or the built-in text banner.
 - Sixel screen files are managed from **Admin → Appearance → Terminal Server → Sixel Graphics**. Upload a `.sixel` file for any of the three slots (Welcome, Main Menu, Goodbye). The filename for each slot is shown in the dropdown so it is clear which file is being managed.
 - No database migration is required. Sixel screens are optional; the system falls back to ANSI if no sixel file is installed for a given slot.
+
+### Door Session Expiry Enforcement
+
+- Door game sessions (DOS Doors, Native Doors including Public Terminal) now have their expiry time actively enforced. Sessions that were left open because a user closed the browser tab or the underlying process exited without calling the end-session API no longer accumulate and block new connections. Stale sessions are automatically cleared before each new session is started, and periodically during normal web requests.
 
 ## JS-DOS Doors
 
@@ -123,6 +129,27 @@ The admin daemon (`scripts/admin_daemon.php`) handles all file writes. Restart i
 ### Terminal compatibility
 
 Sixel graphics are supported by terminals including mlterm, WezTerm, xterm (compiled with Sixel support, or launched as `xterm -ti 340`), and SyncTERM. Terminals that do not advertise Sixel support receive the ANSI screen or text banner as before — no configuration is needed to maintain compatibility with non-Sixel clients.
+
+## Door Session Expiry Enforcement
+
+Door game sessions are stored in the `door_sessions` table and carry an `expires_at` timestamp set to two hours after the session starts. Previously, the code that checks whether a door has available node slots only tested whether a session's `ended_at` column was null — it never checked `expires_at`. A session left open because the user closed the browser without using the End Session button, or because the underlying process exited abnormally, would remain indefinitely in the table and count against the door's node limit. On a door configured with a small number of nodes (such as Public Terminal, which defaults to 5), a handful of abandoned sessions could prevent any new connections.
+
+The expiry timestamp is now enforced in every place that counts active sessions:
+
+- All capacity checks — per-door max node limit, per-door guest concurrency limit — exclude sessions whose `expires_at` is in the past.
+- The node allocation query used when a new session is starting excludes expired sessions from the set of occupied nodes.
+- The `getActiveSessions()` and `getUserSession()` methods in `DoorSessionManager` exclude expired sessions, so the admin sessions list and the "resume existing session" check also reflect reality.
+- A new `cleanExpiredSessions()` method on `DoorSessionManager` writes `ended_at` and `exit_status = 'expired'` for any session that has passed its expiry time. This is called automatically each time a new session is started, and also runs during the periodic maintenance that already fires on roughly 5% of web requests (alongside the existing auth session cleanup).
+
+No database migration is required. Stale sessions already present in your database will be cleaned up the first time a new door session is started after upgrading.
+
+If you want to clear them immediately without waiting for a new session, run the following directly against your database:
+
+```sql
+UPDATE door_sessions
+SET ended_at = NOW(), exit_status = 'expired'
+WHERE ended_at IS NULL AND expires_at < NOW();
+```
 
 ## Upgrade Instructions
 

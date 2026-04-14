@@ -82,6 +82,10 @@ class DoorSessionManager
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'cli';
         $this->logger->info("[StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType, IP: $remoteAddr");
 
+        // Reap expired sessions before allocating a node so stale records don't
+        // block new connections when users close the browser without ending the session.
+        $this->cleanExpiredSessions();
+
         // Get door information from manifest to get the display name
         if ($doorType === 'native') {
             $doorManager = new NativeDoorManager();
@@ -244,6 +248,30 @@ class DoorSessionManager
     }
 
     /**
+     * Mark all sessions that have passed their expiry time as ended.
+     *
+     * This is called automatically at the start of every new session request so
+     * that sessions left open by browser-closes or crashes do not permanently
+     * consume node slots.
+     *
+     * @return int Number of sessions expired
+     */
+    public function cleanExpiredSessions(): int
+    {
+        $stmt = $this->db->prepare("
+            UPDATE door_sessions
+            SET ended_at = NOW(), exit_status = 'expired'
+            WHERE ended_at IS NULL AND expires_at < NOW()
+        ");
+        $stmt->execute();
+        $count = $stmt->rowCount();
+        if ($count > 0) {
+            $this->logger->info("[CleanExpired] Marked $count expired session(s) as ended");
+        }
+        return $count;
+    }
+
+    /**
      * Get door display name from manifest
      *
      * @param string $doorId Door ID
@@ -306,7 +334,7 @@ class DoorSessionManager
     {
         $stmt = $this->db->query("
             SELECT * FROM door_sessions
-            WHERE ended_at IS NULL
+            WHERE ended_at IS NULL AND expires_at > NOW()
             ORDER BY started_at DESC
         ");
 
@@ -344,7 +372,7 @@ class DoorSessionManager
         if ($doorId !== null) {
             $stmt = $this->db->prepare("
                 SELECT * FROM door_sessions
-                WHERE user_id = ? AND door_id = ? AND ended_at IS NULL
+                WHERE user_id = ? AND door_id = ? AND ended_at IS NULL AND expires_at > NOW()
                 ORDER BY started_at DESC
                 LIMIT 1
             ");
@@ -352,7 +380,7 @@ class DoorSessionManager
         } else {
             $stmt = $this->db->prepare("
                 SELECT * FROM door_sessions
-                WHERE user_id = ? AND ended_at IS NULL
+                WHERE user_id = ? AND ended_at IS NULL AND expires_at > NOW()
                 ORDER BY started_at DESC
                 LIMIT 1
             ");
@@ -655,7 +683,7 @@ class DoorSessionManager
             // FOR UPDATE locks the rows, preventing other transactions from modifying them
             $stmt = $this->db->query("
                 SELECT node_number FROM door_sessions
-                WHERE ended_at IS NULL
+                WHERE ended_at IS NULL AND expires_at > NOW()
                 ORDER BY node_number
                 FOR UPDATE
             ");
