@@ -155,7 +155,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
-- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator, SID music, torrent metadata), URL link entries alongside uploaded files, and ISO-backed virtual areas (see `docs/FileAreas.md`)
+- **File Areas** - Networked and local file areas with optional automation rules, subfolder navigation, inline file preview (ANSI art, PETSCII, D64 disk images, C64 PRG/SEQ via emulator, SID music, torrent metadata), URL link entries alongside uploaded files, and ISO-backed virtual areas (see [docs/FileAreas.md](docs/FileAreas.md))
 - **Advertising & Broadcasts** - Built-in ANSI ad library with dashboard rotation, browser-based ANSI editing, and a Broadcast Manager for scheduled echomail posts including ads, weather reports, and automated bulletins (see [docs/Advertising.md](docs/Advertising.md))
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards ([details](docs/CreditSystem.md))
@@ -852,7 +852,7 @@ Generate ANSI ads from current system settings:
 php scripts/generate_ad.php --stdout
 ```
 
-For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
+For extended usage and examples, see [docs/ANSI_Ads_Generator.md](docs/ANSI_Ads_Generator.md).
 
 ## Cron Job Setup
 The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use FTP, telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
