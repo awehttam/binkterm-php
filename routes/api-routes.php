@@ -314,6 +314,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $registrationSource = strtolower(trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_SOURCE'] ?? 'web')));
         $registrationToken = trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? ''));
+        $terminalClientIpHeader = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
         $expectedRegistrationToken = trim((string)\BinktermPHP\Config::env(
             'TERMINAL_REGISTRATION_SECRET',
             'Chang3Me'
@@ -321,6 +322,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $isTerminalRegistration = in_array($registrationSource, ['telnet', 'ssh'], true)
             && $expectedRegistrationToken !== ''
             && hash_equals($expectedRegistrationToken, $registrationToken);
+        $registrationIpAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+        if ($isTerminalRegistration && filter_var($terminalClientIpHeader, FILTER_VALIDATE_IP) !== false) {
+            $registrationIpAddress = $terminalClientIpHeader;
+        }
 
         // Terminal clients cannot satisfy browser-only anti-spam challenges, so allow
         // authenticated terminal-origin requests to skip those checks.
@@ -351,7 +356,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         // Anti-spam validation 4: Rate limiting by IP
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ipAddress = $registrationIpAddress;
         try {
             $db = Database::getInstance()->getPdo();
 
@@ -443,7 +448,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
             // Get client info
-            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+            $ipAddress = $registrationIpAddress;
             $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
             // Check for referral code in session

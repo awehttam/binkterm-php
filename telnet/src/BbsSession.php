@@ -2447,6 +2447,9 @@ class BbsSession
             if ($path === '/api/register') {
                 $terminalSource = $this->isSsh ? 'ssh' : 'telnet';
                 $headers[] = 'X-Binkterm-Registration-Source: ' . $terminalSource;
+                if ($this->peerIp !== null && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
+                    $headers[] = 'X-Binkterm-Client-IP: ' . $this->peerIp;
+                }
 
                 $registrationSecret = trim((string) Config::env(
                     'TERMINAL_REGISTRATION_SECRET',
