@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [JS-DOS Doors](#js-dos-doors)
+- [Terminal Registration Handling](#terminal-registration-handling)
 - [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
 - [Sixel Login and Menu Screens](#sixel-login-and-menu-screens)
 - [Door Session Expiry Enforcement](#door-session-expiry-enforcement)
@@ -23,6 +24,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - Games are defined by `jsdosdoor.json` manifests under `public_html/jsdos-doors/{game-id}/`.
 - Save files can be synchronized back to the server, allowing users to keep their game progress between sessions.
 - JS-DOS Doors also support multiple modes, including an optional admin-only configuration mode for running setup tools and saving shared defaults for all players.
+
+### Terminal Registration Handling
+
+- Telnet and SSH registrations no longer place a transport label such as `Telnet registration` into the applicant's **Reason for Joining** field.
+- Terminal registrations now submit the applicant's actual reason text, so the Pending Users admin screen and sysop registration notifications show the same kind of information that web registrations already provided.
+- Browser-only anti-spam checks on `/api/register` are now bypassed only for authenticated terminal-origin requests. The transport is identified separately from the applicant's reason text.
+- Fresh installs work without extra setup because `TERMINAL_REGISTRATION_SECRET` now defaults to `Chang3Me`. Existing installations can leave the variable unset, but should change it to a site-specific value for production use.
 
 ### Image Rendering in Terminal Services
 
@@ -73,6 +81,36 @@ This release includes Doom as the reference JS-DOS door example. It demonstrates
 - launch through the standard `/games/{game}` wrapper flow
 
 See `docs/JSDOSDoors.md` for the full manifest format and admin workflow.
+
+## Terminal Registration Handling
+
+Terminal and SSH users can register without opening the web form, but the terminal client cannot satisfy browser-only anti-spam checks such as the hidden honeypot field or the registration-page timing check. In earlier 1.9.2 builds, the terminal registration flow reused the visible `reason` field as an internal bypass signal by sending values like `Telnet registration`. That had two side effects:
+
+- the applicant's real reason for joining was discarded from terminal registrations
+- the bypass decision depended on a user-submitted field instead of a dedicated transport signal
+
+This release changes that behavior.
+
+### What changed
+
+- The telnet and SSH registration prompts now include **Reason for joining (optional)**.
+- The terminal client sends the applicant's answer as the normal `reason` value stored with the pending registration.
+- The web API now uses dedicated terminal-origin headers for the anti-spam bypass instead of inspecting the `reason` field.
+- SSH and Telnet registrations now follow the same bypass path instead of relying on different literal reason text.
+
+### Operational impact
+
+If your sysop or admin workflow reviews registrations from **Admin → Pending Users** or from the automatic registration netmail notice, terminal applicants now appear with their actual stated reason for joining instead of a transport placeholder.
+
+### Configuration
+
+The terminal registration bypass uses `TERMINAL_REGISTRATION_SECRET`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `TERMINAL_REGISTRATION_SECRET` | `Chang3Me` | Shared secret used by telnet/SSH registration requests when bypassing browser-only anti-spam checks. Change this to a site-specific value for production deployments. |
+
+If you already have live telnet or SSH service enabled, update both the web environment and the terminal daemon environment together if you decide to change this value from the default.
 
 ## Image Rendering in Terminal Services
 
@@ -162,6 +200,8 @@ composer install
 
 No database migration is required for this release.
 
+If you run telnet or SSH registration, review `TERMINAL_REGISTRATION_SECRET`. New installs work without setting it because the default is `Chang3Me`, but production systems should replace that default with a site-specific secret value before exposing terminal registration publicly.
+
 After upgrading, restart `admin_daemon.php` so the new admin-side commands (JS-DOS configuration and Sixel screen management) are available:
 
 ```bash
@@ -173,4 +213,4 @@ JS-DOS Doors are optional and remain inactive until you enable the feature and a
 
 ### Using the Installer
 
-If you upgrade using the web installer or your normal packaged deployment flow, no special migration step is required. After the upgrade, restart `admin_daemon.php`, then optionally enable JS-DOS Doors from the admin interface and upload Sixel screen files from **Admin → Appearance → Terminal Server → Sixel Graphics**.
+If you upgrade using the web installer or your normal packaged deployment flow, no special migration step is required. After the upgrade, restart `admin_daemon.php`, review `TERMINAL_REGISTRATION_SECRET` if you allow terminal-side registration, then optionally enable JS-DOS Doors from the admin interface and upload Sixel screen files from **Admin → Appearance → Terminal Server → Sixel Graphics**.

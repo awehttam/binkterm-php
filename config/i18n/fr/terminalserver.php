@@ -35,6 +35,7 @@ return [
     'ui.terminalserver.server.registration.realname' => 'Nom réel : ',
     'ui.terminalserver.server.registration.email' => 'E-mail (facultatif) : ',
     'ui.terminalserver.server.registration.location' => 'Localisation (facultatif) : ',
+    'ui.terminalserver.server.registration.reason' => 'Motif de l\'inscription (facultatif) : ',
     'ui.terminalserver.server.registration.submitting' => 'Envoi de l\'inscription...',
     'ui.terminalserver.server.registration.success' => 'Inscription réussie !',
     'ui.terminalserver.server.registration.pending' => 'Votre compte a été créé et est en attente d\'approbation.',

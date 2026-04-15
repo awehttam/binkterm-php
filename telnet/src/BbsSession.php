@@ -1688,6 +1688,7 @@ class BbsSession
             ['key' => 'ui.terminalserver.server.registration.realname', 'fallback' => 'Real Name: ',          'var' => 'realname'],
             ['key' => 'ui.terminalserver.server.registration.email',    'fallback' => 'Email (optional): ',    'var' => 'email'],
             ['key' => 'ui.terminalserver.server.registration.location', 'fallback' => 'Location (optional): ','var' => 'location'],
+            ['key' => 'ui.terminalserver.server.registration.reason',   'fallback' => 'Reason for joining (optional): ', 'var' => 'reason'],
         ] as $f) {
             $val = $this->prompt($conn, $state, $this->t($f['key'], $f['fallback'], [], $state['locale']), true);
             if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
@@ -1698,14 +1699,13 @@ class BbsSession
         $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.submitting', 'Submitting registration...', [], $state['locale']));
 
         try {
-            $transport = $this->isSsh ? 'SSH' : 'Telnet';
             $result = $this->apiRequest('POST', '/api/register', [
                 'username'  => $data['username'],
                 'password'  => $data['password'],
                 'real_name' => $data['realname'],
                 'email'     => $data['email'],
                 'location'  => $data['location'],
-                'reason'    => "{$transport} registration",
+                'reason'    => $data['reason'],
             ], null);
 
             if ($result['status'] === 200 || $result['status'] === 201) {
@@ -2443,6 +2443,18 @@ class BbsSession
             if ($payload !== null) {
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
                 $headers[] = 'Content-Type: application/json';
+            }
+            if ($path === '/api/register') {
+                $terminalSource = $this->isSsh ? 'ssh' : 'telnet';
+                $headers[] = 'X-Binkterm-Registration-Source: ' . $terminalSource;
+
+                $registrationSecret = trim((string) Config::env(
+                    'TERMINAL_REGISTRATION_SECRET',
+                    'Chang3Me'
+                ));
+                if ($registrationSecret !== '') {
+                    $headers[] = 'X-Binkterm-Registration-Token: ' . $registrationSecret;
+                }
             }
             if ($session) {
                 curl_setopt($ch, CURLOPT_COOKIE, 'binktermphp_session=' . $session);

@@ -312,18 +312,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $data = $_POST;
         }
 
-        // Check if this is a telnet registration
-        $isTelnetRegistration = ($data['reason'] ?? '') === 'Telnet registration';
+        $registrationSource = strtolower(trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_SOURCE'] ?? 'web')));
+        $registrationToken = trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? ''));
+        $expectedRegistrationToken = trim((string)\BinktermPHP\Config::env(
+            'TERMINAL_REGISTRATION_SECRET',
+            'Chang3Me'
+        ));
+        $isTerminalRegistration = in_array($registrationSource, ['telnet', 'ssh'], true)
+            && $expectedRegistrationToken !== ''
+            && hash_equals($expectedRegistrationToken, $registrationToken);
 
-        // Anti-spam validation 1: Honeypot field (skip for telnet)
-        if (!$isTelnetRegistration && !empty($data['website'])) {
+        // Terminal clients cannot satisfy browser-only anti-spam challenges, so allow
+        // authenticated terminal-origin requests to skip those checks.
+        // Anti-spam validation 1: Honeypot field
+        if (!$isTerminalRegistration && !empty($data['website'])) {
             // Silent rejection - don't tell bots why they failed
             apiError('errors.register.invalid_submission', apiLocalizedText('errors.register.invalid_submission', 'Invalid submission'), 400);
             return;
         }
 
-        // Anti-spam validation 2: Time-based check (skip for telnet)
-        if (!$isTelnetRegistration) {
+        // Anti-spam validation 2: Time-based check
+        if (!$isTerminalRegistration) {
             $registrationTime = $_SESSION['registration_time'] ?? 0;
             $currentTime = time();
             $timeTaken = $currentTime - $registrationTime;

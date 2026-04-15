@@ -46,6 +46,7 @@ return [
     'ui.terminalserver.server.registration.realname'       => 'Real Name: ',
     'ui.terminalserver.server.registration.email'          => 'Email (optional): ',
     'ui.terminalserver.server.registration.location'       => 'Location (optional): ',
+    'ui.terminalserver.server.registration.reason'         => 'Reason for joining (optional): ',
     'ui.terminalserver.server.registration.submitting'     => 'Submitting registration...',
     'ui.terminalserver.server.registration.success'        => 'Registration successful!',
     'ui.terminalserver.server.registration.pending'        => 'Your account has been created and is pending approval.',
