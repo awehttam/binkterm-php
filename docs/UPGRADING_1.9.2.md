@@ -192,6 +192,8 @@ That page renders the newer `templates/admin/users.twig` implementation without 
 ### Bug Fixes
 
 - **Select mode checkboxes disappear on background refresh** — In the echomail and netmail message lists, clicking **Select** to enter bulk-selection mode and then waiting for a background update (triggered by a new-message notification) caused the selection checkboxes to vanish. The message list was being rebuilt in the background and all checkboxes were hidden in the fresh HTML. Select mode, checkbox visibility, and previously checked rows are now restored correctly after any background refresh.
+- **Phantom unread counts in echomail sidebar** — Echo areas could show a non-zero unread badge even though clicking Unread showed no messages. The sidebar's unread count query was including future-dated messages (received from remote nodes with incorrect clocks), while the message list correctly hid them. Both queries now apply the same future-date guard.
+- **"Go to next unread echo" showing only Close** — After reading all messages in an echo, the end-of-echo prompt sometimes offered only a Close button even when other echo areas had unread messages. This was caused by two separate issues: the echo area list was not refreshed after reading messages (so unread counts were stale), and the search for the next unread echo did not wrap around past the end of the list. Both are now fixed.
 
 ## JS-DOS Doors
 
@@ -374,6 +376,26 @@ WHERE ended_at IS NULL AND expires_at < NOW();
 In the echomail and netmail message lists, clicking **Select** reveals a checkbox column for bulk operations. If a background message refresh ran while select mode was active — triggered by a new-message notification from the BinkStream event stream or by the page becoming visible again after being hidden — the message list was rebuilt from scratch and all checkboxes were hidden in the new HTML. Select mode appeared to turn itself off.
 
 The fix restores select mode state immediately after each background re-render: the checkbox column and all row checkboxes are made visible again, and any rows that were already checked are re-checked if those messages are still present in the refreshed list.
+
+No database migration or configuration change is required.
+
+### Phantom Unread Counts in Echomail Sidebar
+
+Echo areas in the sidebar displayed a non-zero unread badge even though switching to that area and clicking Unread showed no messages. The cause was a mismatch between two queries: the message list hides messages whose `date_written` is in the future (which can occur when messages arrive from a remote node with an incorrect clock), but the subquery that computes per-area unread counts for the sidebar did not apply the same filter. Future-dated messages were counted as unread in the badge but were invisible in the list.
+
+The `unread_count` and `message_count` subqueries in the echoareas API now apply the same future-date guard used by the message list. Sidebar counts will only reflect messages that are currently visible.
+
+No database migration or configuration change is required.
+
+### "Go to Next Unread Echo" Showing Only Close
+
+After reading all messages in an echo area and reaching the end, the navigation prompt sometimes offered only a Close button even when other subscribed echo areas had unread messages.
+
+Two separate issues contributed to this:
+
+1. **Stale echo area data.** The list of echo areas and their unread counts was fetched once at page load and not refreshed as messages were read. By the time the end-of-echo prompt appeared, the unread counts were out of date. The echo area list is now refreshed at the moment the end-of-echo prompt is triggered, so the navigation decision is always based on current data. The list is also refreshed when background new-message events arrive, when the page becomes visible again after being hidden, and after bulk mark-as-read or bulk delete operations.
+
+2. **No wrap-around.** The search for the next unread echo only looked at areas that appeared after the current one in the sidebar list. If the current area was last in the list, or all remaining unread areas appeared above it, the search returned nothing. The search now wraps around to the top of the list so no unread echo is missed regardless of position.
 
 No database migration or configuration change is required.
 

@@ -176,6 +176,7 @@ $(document).ready(function() {
             if (Date.now() - _hiddenAt >= 30000) {
                 loadMessages(null, true);
                 loadStats();
+                loadEchoareas();
             }
             _hiddenAt = null;
         }
@@ -190,6 +191,7 @@ $(document).ready(function() {
             _dashboardRefreshTimer = setTimeout(function() {
                 loadMessages(null, true);
                 loadStats();
+                loadEchoareas();
             }, 2000);
         });
 
@@ -209,16 +211,18 @@ $(document).ready(function() {
     bindMessageListTouchContextMenu();
 });
 
-function loadEchoareas() {
+function loadEchoareas(callback) {
     $.get('/api/echoareas?subscribed_only=true')
         .done(function(data) {
             allEchoareas = data.echoareas;
             applyEchoareaFilter();
             updateEchoInfoBar();
+            if (typeof callback === 'function') callback();
         })
         .fail(function() {
             $('#echoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
             $('#mobileEchoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
+            if (typeof callback === 'function') callback();
         });
 }
 
@@ -2600,6 +2604,7 @@ function markSelectedAsRead() {
                 clearSelection();
                 loadMessages();
                 loadStats();
+                loadEchoareas();
             } else {
                 showError(apiError(response, uiT('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read')));
             }
@@ -2674,6 +2679,7 @@ function deleteSelectedMessages() {
                 clearSelection();
                 loadMessages(); // Reload messages
                 loadStats(); // Update statistics
+                loadEchoareas(); // Update sidebar unread badges
             } else {
                 showError(apiError(response, uiT('ui.echomail.bulk_delete.failed', 'Failed to delete messages')));
             }
@@ -2839,19 +2845,35 @@ function findNextUnreadEcho() {
     // currentEchoarea may be "TAG@domain"; area.tag from the API is bare "TAG".
     // Normalise both to bare tag for comparison.
     const bareCurrentTag = currentEchoarea ? currentEchoarea.split('@')[0] : null;
-    let foundCurrent = (bareCurrentTag === null); // if "All Messages", start from beginning
 
-    for (let i = 0; i < allEchoareas.length; i++) {
-        const area = allEchoareas[i];
-        const bareAreaTag = (area.tag || '').split('@')[0];
-        if (!foundCurrent) {
-            if (bareAreaTag === bareCurrentTag) foundCurrent = true;
-            continue;
-        }
-        if ((area.unread_count || 0) > 0 && (area.message_count || 0) > 0) {
-            return area;
-        }
+    /**
+     * Check if an area qualifies as "has unread messages".
+     * @param {object} area
+     * @returns {boolean}
+     */
+    function hasUnread(area) {
+        return (area.unread_count || 0) > 0 && (area.message_count || 0) > 0;
     }
+
+    if (bareCurrentTag === null) {
+        // "All Messages" view — return the first area with unread
+        return allEchoareas.find(hasUnread) || null;
+    }
+
+    const currentIndex = allEchoareas.findIndex(
+        area => (area.tag || '').split('@')[0] === bareCurrentTag
+    );
+
+    // Search from the echo after the current one to the end of the list
+    for (let i = currentIndex + 1; i < allEchoareas.length; i++) {
+        if (hasUnread(allEchoareas[i])) return allEchoareas[i];
+    }
+
+    // Wrap around: search from the beginning up to (but not including) the current echo
+    for (let i = 0; i < currentIndex; i++) {
+        if (hasUnread(allEchoareas[i])) return allEchoareas[i];
+    }
+
     return null;
 }
 
@@ -3010,9 +3032,12 @@ function navigateMessage(direction) {
                 return;
             }
 
-            // No more pages — show end-of-echo prompt
-            const nextEcho = findNextUnreadEcho();
-            showEndOfEchoPrompt(nextEcho);
+            // No more pages — refresh echo list so findNextUnreadEcho has current
+            // unread counts, then show the end-of-echo prompt.
+            loadEchoareas(function() {
+                const nextEcho = findNextUnreadEcho();
+                showEndOfEchoPrompt(nextEcho);
+            });
         }
         return;
     }

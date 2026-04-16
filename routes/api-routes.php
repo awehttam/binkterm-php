@@ -1918,7 +1918,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sql .= " LEFT JOIN (
                     SELECT em.echoarea_id, COUNT(*) as message_count
                     FROM echomail em
-                    WHERE 1=1{$ignoreFilter['sql']}
+                    WHERE 1=1
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
                     GROUP BY em.echoarea_id
                 ) total_counts ON e.id = total_counts.echoarea_id
                 LEFT JOIN (
@@ -1927,7 +1928,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                         COUNT(*) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE mrs.read_at IS NULL{$ignoreFilter['sql']}
+                    WHERE mrs.read_at IS NULL
+                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
                     GROUP BY em.echoarea_id
                 ) unread_counts ON e.id = unread_counts.echoarea_id
                 LEFT JOIN (
