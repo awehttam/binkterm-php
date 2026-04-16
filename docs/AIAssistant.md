@@ -183,7 +183,7 @@ Examples:
 
 The estimate is based on token usage and the AI pricing values configured in `.env`. If the computed charge is greater than zero, the assistant debits the user's balance before completing successfully. If the user cannot afford the request, the API returns an insufficient credits error.
 
-For the broader credits system, see `docs/CreditSystem.md`. For AI pricing inputs, see `docs/AIProviders.md`.
+For the broader credits system, see [docs/CreditSystem.md](CreditSystem.md). For AI pricing inputs, see [docs/AIProviders.md](AIProviders.md).
 
 ---
 
@@ -247,7 +247,7 @@ Typical failure cases:
 
 ## Related Documentation
 
-- `docs/AIProviders.md` — provider keys, pricing, and usage accounting
-- `docs/MCPServer.md` — MCP server setup and authentication model
-- `docs/CreditSystem.md` — BBS credit economy and charging model
-- `docs/UPGRADING_1.9.2.md` — release notes for the reader assistant introduction
+- [docs/AIProviders.md](AIProviders.md) — provider keys, pricing, and usage accounting
+- [docs/MCPServer.md](MCPServer.md) — MCP server setup and authentication model
+- [docs/CreditSystem.md](CreditSystem.md) — BBS credit economy and charging model
+- [docs/UPGRADING_1.9.2.md](UPGRADING_1.9.2.md) — release notes for the reader assistant introduction
