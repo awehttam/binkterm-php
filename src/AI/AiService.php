@@ -39,6 +39,26 @@ class AiService
     }
 
     /**
+     * Resolve the provider and model for a request without executing it.
+     *
+     * @return array{provider: AiProviderInterface, provider_name: string, model: string}
+     */
+    public function resolveRequest(AiRequest $request): array
+    {
+        [$providerName, $model] = $this->resolveProviderAndModel($request);
+
+        if (!isset($this->providers[$providerName])) {
+            throw new \RuntimeException("AI provider '{$providerName}' is not configured.");
+        }
+
+        return [
+            'provider' => $this->providers[$providerName],
+            'provider_name' => $providerName,
+            'model' => $model,
+        ];
+    }
+
+    /**
      * @return array<int, string>
      */
     public function getConfiguredProviders(): array

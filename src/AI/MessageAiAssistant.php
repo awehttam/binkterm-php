@@ -2,8 +2,6 @@
 
 namespace BinktermPHP\AI;
 
-use BinktermPHP\AI\Providers\AnthropicProvider;
-use BinktermPHP\AI\AiPricing;
 use BinktermPHP\Config;
 use BinktermPHP\UserCredit;
 use BinktermPHP\UserMeta;
@@ -50,14 +48,26 @@ PROMPT;
         $mcpUrl    = (string)Config::env('MCP_SERVER_URL', 'http://localhost:3740');
         $mcpClient = new McpClient($mcpUrl, $mcpKey);
 
-        $provider = self::buildProvider();
-        $agent    = new AgentService($provider);
-
         // Prepend message context hint so the AI knows where to start
         $fullPrompt = $userPrompt;
         if ($messageId !== null) {
             $fullPrompt = "[Context: the user is viewing {$messageType} message ID {$messageId}]\n\n{$userPrompt}";
         }
+
+        $request = new AiRequest(
+            'message_ai_assistant',
+            self::SYSTEM_PROMPT,
+            $fullPrompt,
+            null,
+            null,
+            0.2,
+            4096,
+            60,
+            $userId
+        );
+
+        $resolved = self::buildResolvedProvider($request);
+        $agent = new AgentService($resolved['provider'], $resolved['model']);
 
         $result = $agent->run(
             self::SYSTEM_PROMPT,
@@ -110,19 +120,24 @@ PROMPT;
     }
 
     /**
-     * Build and return a configured AnthropicProvider.
+     * Resolve a configured tool-capable provider and model for the assistant.
      *
-     * @throws \RuntimeException if Anthropic is not configured
+     * @return array{provider: AiProviderInterface, model: string}
+     * @throws \RuntimeException if no configured tool-capable provider is available
      */
-    private static function buildProvider(): AnthropicProvider
+    private static function buildResolvedProvider(AiRequest $request): array
     {
-        $apiKey  = (string)Config::env('ANTHROPIC_API_KEY', '');
-        $apiBase = (string)Config::env('ANTHROPIC_API_BASE', 'https://api.anthropic.com/v1');
+        $service = AiService::create();
+        $resolved = $service->resolveRequest($request);
+        $provider = $resolved['provider'];
 
-        if ($apiKey === '') {
-            throw new \RuntimeException('Anthropic API key is not configured.');
+        if (!$provider->supportsTools()) {
+            throw new \RuntimeException("AI provider '{$provider->getName()}' does not support tool use.");
         }
 
-        return new AnthropicProvider($apiKey, $apiBase, new AiPricing());
+        return [
+            'provider' => $provider,
+            'model' => $resolved['model'],
+        ];
     }
 }

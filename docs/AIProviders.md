@@ -10,6 +10,7 @@ The current AI system is used by:
 
 - `src/InterestGenerator.php` for AI-assisted interest suggestion generation
 - `scripts/create_translation_catalog.php` for AI-assisted i18n catalog translation
+- `src/AI/MessageAiAssistant.php` for the message-reader assistant
 
 The shared layer supports:
 
@@ -105,6 +106,7 @@ AI_INTEREST_GENERATION_MODEL=claude-haiku-4-5-20251001
 
 These match the current consumers:
 
+- `message_ai_assistant`
 - `translation_catalog`
 - `interest_generation`
 
@@ -218,6 +220,18 @@ translation_catalog
 ```
 
 The script still supports explicit `--provider` and `--model` arguments, but requests now flow through the shared provider layer and accounting ledger.
+
+### Message Reader Assistant
+
+`src/AI/MessageAiAssistant.php` resolves its provider through `AiService` and then runs an MCP-backed tool loop.
+
+Relevant feature id:
+
+```text
+message_ai_assistant
+```
+
+This feature requires a provider that supports tools, plus a reachable MCP server.
 
 ---
 

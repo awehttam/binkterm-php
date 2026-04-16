@@ -54,17 +54,34 @@ The AI assistant depends on four pieces being in place:
 
 1. The `.env` feature flag must enable the reader assistant.
 2. The BBS configuration must enable the assistant in `bbs.json`.
-3. Anthropic must be configured.
+3. At least one AI provider with tool support must be configured.
 4. The MCP server must be reachable.
 
-### Current provider requirement
+### Provider requirement
 
-Although BinktermPHP has a broader AI provider abstraction layer, the current reader assistant implementation in `src/AI/MessageAiAssistant.php` directly builds an `AnthropicProvider`. That means the message-reader assistant currently requires:
+The reader assistant now resolves its provider through the shared AI provider layer. That means it can use either OpenAI or Anthropic, following the normal feature-level provider selection rules.
 
+At minimum, configure one of:
+
+- `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
-- optionally `ANTHROPIC_API_BASE`
 
-If `ANTHROPIC_API_KEY` is missing, the API returns a configuration error and the assistant cannot run.
+Optional base URLs:
+
+- `OPENAI_API_BASE`
+- `ANTHROPIC_API_BASE`
+
+Optional feature-specific overrides:
+
+- `AI_MESSAGE_AI_ASSISTANT_PROVIDER=openai|anthropic`
+- `AI_MESSAGE_AI_ASSISTANT_MODEL=<model-name>`
+
+If no assistant-specific provider is set, normal AI resolution applies:
+
+1. `AI_MESSAGE_AI_ASSISTANT_PROVIDER`
+2. `AI_DEFAULT_PROVIDER`
+3. `openai` if configured
+4. otherwise the first configured provider
 
 ### MCP server requirement
 
@@ -80,18 +97,32 @@ If you already use the MCP server for external AI clients, this is the same serv
 
 ## Enabling The Assistant
 
-### 1. Configure Anthropic
+### 1. Configure an AI provider
 
 Set at minimum:
 
 ```ini
-ANTHROPIC_API_KEY=your-key-here
+OPENAI_API_KEY=your-key-here
 ```
 
 Optional:
 
 ```ini
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+Or use Anthropic instead:
+
+```ini
+ANTHROPIC_API_KEY=your-key-here
 ANTHROPIC_API_BASE=https://api.anthropic.com/v1
+```
+
+If you want to pin the reader assistant to a specific provider or model:
+
+```ini
+AI_MESSAGE_AI_ASSISTANT_PROVIDER=openai
+AI_MESSAGE_AI_ASSISTANT_MODEL=gpt-4o-mini
 ```
 
 ### 2. Make sure the MCP server is running
@@ -194,7 +225,7 @@ Rules enforced by the API:
 - prompt length limited to 500 characters
 - message type must be `echomail` or `netmail`
 - feature must be enabled in both `.env` and BBS config
-- Anthropic must be configured
+- at least one supported AI provider must be configured
 
 Typical failure cases:
 

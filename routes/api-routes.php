@@ -9421,7 +9421,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        if (!\BinktermPHP\Config::env('ANTHROPIC_API_KEY', '')) {
+        if (!\BinktermPHP\Config::env('OPENAI_API_KEY', '') && !\BinktermPHP\Config::env('ANTHROPIC_API_KEY', '')) {
             apiError(
                 'errors.ai_assistant.not_configured',
                 apiLocalizedText('errors.ai_assistant.not_configured', 'AI assistant is not configured', $user),

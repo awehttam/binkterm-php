@@ -2,8 +2,6 @@
 
 namespace BinktermPHP\AI;
 
-use BinktermPHP\AI\Providers\AnthropicProvider;
-
 /**
  * Reusable agentic tool-use loop.
  *
@@ -19,7 +17,8 @@ use BinktermPHP\AI\Providers\AnthropicProvider;
 class AgentService
 {
     public function __construct(
-        private AnthropicProvider $provider,
+        private AiProviderInterface $provider,
+        private string $model,
         private UsageRecorder $usageRecorder = new UsageRecorder()
     ) {}
 
@@ -43,6 +42,10 @@ class AgentService
         string $feature = 'agent',
         ?int $userId = null
     ): AgentResult {
+        if (!$this->provider->supportsTools()) {
+            throw new \RuntimeException("AI provider '{$this->provider->getName()}' does not support tool use.");
+        }
+
         $tools = $mcpClient->listTools();
 
         $messages = [
@@ -64,7 +67,7 @@ class AgentService
             $currentTools = ($rounds >= $maxRounds) ? [] : $tools;
 
             $roundStart = microtime(true);
-            $turn = $this->provider->generateWithTools($messages, $currentTools, $systemPrompt);
+            $turn = $this->provider->generateWithTools($messages, $currentTools, $systemPrompt, $this->model);
             $roundMs = (int)round((microtime(true) - $roundStart) * 1000);
 
             $usage = $turn['usage'];
@@ -94,7 +97,7 @@ class AgentService
                 $userId ?? 0,
                 $feature,
                 $this->provider->getName(),
-                $this->provider->getDefaultModel(),
+                $this->model,
                 $rounds,
                 $roundToolCalls,
                 $usage,

@@ -73,10 +73,9 @@ class AnthropicProvider implements AiProviderInterface
         array $messages,
         array $tools,
         string $systemPrompt,
+        string $model,
         int $maxTokens = 4096
     ): array {
-        $model = $this->getDefaultModel();
-
         $payload = [
             'model'      => $model,
             'max_tokens' => $maxTokens,
