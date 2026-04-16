@@ -34,8 +34,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Admins can now add credits directly to a user's account with an explicit note recorded in the ledger.
 - Manual grants are stored as `admin_adjustment` transactions, so they remain auditable alongside the normal credit history.
-- The current production admin users screen at `/admin/users` includes a **Grant Credits** section in the edit-user modal.
-- A separate preview endpoint, `/admin/users-new`, renders the newer in-progress admin users interface against the newer `/admin/api/users/...` backend.
+- The **Grant Credits** section is available in the edit-user modal at **Admin → Users**.
 
 ### JS-DOS Doors
 
@@ -70,6 +69,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - Door session expiry is now enforced when checking capacity, allocating nodes, listing active sessions, and resuming existing sessions.
 - Stale abandoned sessions are cleaned automatically when new door sessions start and during periodic web-request maintenance.
 - No database migration is required, and existing stale sessions are cleaned up automatically after upgrade.
+
+### Bug Fixes
+
+- **Select mode checkboxes disappear on background refresh** — Entering bulk-select mode in the echomail or netmail message list and then waiting for a background refresh caused all checkboxes to vanish. Select mode state and previously checked rows are now restored after every background re-render.
+- **Phantom unread counts in echomail sidebar** — Echo areas could show a non-zero unread badge while the message list showed nothing. The sidebar's unread count query was including future-dated messages that the list correctly hid. Both queries now apply the same future-date filter.
+- **"Go to next unread echo" showing only Close** — The end-of-echo prompt sometimes showed only a Close button even when other echo areas had unread messages. The echo area list is now refreshed before the prompt appears, and the unread-echo search now wraps around the end of the list.
 
 ## AI Assistant
 
@@ -152,16 +157,6 @@ The grant will be rejected if:
 - the credits system is disabled
 - the amount is not a positive integer
 - no note is provided
-
-### Preview route for the newer admin users interface
-
-This release branch also exposes a separate preview route:
-
-```text
-/admin/users-new
-```
-
-That page renders the newer `templates/admin/users.twig` implementation without replacing the existing `/admin/users` screen yet. It is intended for side-by-side evaluation while both admin user-management interfaces still exist in the codebase.
 
 ### Terminal Registration Handling
 
