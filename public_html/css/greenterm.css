@@ -1626,3 +1626,11 @@ tbody, td, tfoot, th, thead, tr {
 #tuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch .tab-item {
     color: var(--text-color) !important;
 }
+
+/* AI Assistant response — rendered markdown */
+.ai-response-text > *:last-child { margin-bottom: 0; }
+.ai-response-text p { margin-bottom: 0.5rem; }
+.ai-response-text ul, .ai-response-text ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+.ai-response-text pre { background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
+.ai-response-text code { font-size: 0.85em; }
+.ai-response-text h1, .ai-response-text h2, .ai-response-text h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
