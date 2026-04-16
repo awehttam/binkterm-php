@@ -9412,11 +9412,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
-        $aiAssistantEnvEnabled = filter_var(
-            \BinktermPHP\Config::env('AI_ASSISTANT_ENABLED', 'false'),
-            FILTER_VALIDATE_BOOLEAN
-        );
-        if (!$aiAssistantEnvEnabled || empty($bbsConfig['ai_assistant']['enabled'])) {
+        if (empty($bbsConfig['ai_assistant']['enabled'])) {
             apiError(
                 'errors.ai_assistant.disabled',
                 apiLocalizedText('errors.ai_assistant.disabled', 'AI assistant is not enabled on this system', $user),

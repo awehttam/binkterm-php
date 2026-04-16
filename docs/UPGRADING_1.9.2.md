@@ -24,7 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - BinktermPHP 1.9.2 introduces an optional **AI Assistant** for the web message readers.
 - In echomail, users can open the assistant from the area toolbar or directly from the message reader modal, where the current message is pre-selected as context.
 - The assistant can summarize a message, explain terminology, suggest replies, and summarize the surrounding thread by retrieving real message data through the built-in MCP server integration.
-- Enablement is intentionally two-stage: `AI_ASSISTANT_ENABLED=true` in `.env`, plus `ai_assistant.enabled=true` in BBS settings.
+- Enablement is controlled by `ai_assistant.enabled` in BBS settings.
 - The current reader assistant implementation requires an Anthropic API key and a reachable MCP server URL.
 - A new credits setting, `credits.ai_credits_per_milli_usd`, lets sysops optionally charge BBS credits based on estimated AI request cost.
 
@@ -58,15 +58,7 @@ When opened from a message, the assistant receives the current message ID as con
 
 ### How to enable it
 
-The AI assistant is only active when both of these are true:
-
-1. `.env` enables the feature:
-
-```ini
-AI_ASSISTANT_ENABLED=true
-```
-
-2. BBS configuration enables the feature:
+The AI assistant is only active when BBS configuration enables the feature:
 
 ```json
 {
@@ -76,7 +68,9 @@ AI_ASSISTANT_ENABLED=true
 }
 ```
 
-You can manage the second setting from **Admin → BBS Settings → Features**.
+You can manage this setting from **Admin → BBS Settings → Features**.
+
+The default setting is off until you enable it.
 
 ### Current configuration requirements
 
@@ -85,7 +79,7 @@ The current 1.9.2 implementation requires:
 - `ANTHROPIC_API_KEY` to be configured
 - the MCP server to be reachable at `MCP_SERVER_URL`
 
-If the environment flag is off, the UI hides the assistant controls. If the feature is enabled but Anthropic is not configured, the API returns a configuration error when the user tries to run a request.
+If the feature is disabled in BBS settings, the UI hides the assistant controls. If the feature is enabled but Anthropic is not configured, the API returns a configuration error when the user tries to run a request.
 
 ### Optional credit charging
 

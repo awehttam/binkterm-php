@@ -342,7 +342,7 @@ function loadBbsSettings() {
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
-            document.getElementById('bbsAiAssistantEnabled').checked = data.config?.ai_assistant?.enabled !== false;
+            document.getElementById('bbsAiAssistantEnabled').checked = data.config?.ai_assistant?.enabled === true;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);

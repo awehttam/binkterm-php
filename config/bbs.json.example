@@ -21,7 +21,7 @@
         "max_messages_per_download": 2500
     },
     "ai_assistant": {
-        "enabled": true
+        "enabled": false
     },
     "credits": {
         "enabled": true,

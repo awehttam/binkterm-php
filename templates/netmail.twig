@@ -13,9 +13,11 @@
             <i class="fas fa-plus"></i>
             {{ t('ui.netmail.compose', {}, locale, ['common']) }}
         </button>
+        {% if ai_assistant_enabled %}
         {# <button class="btn btn-outline-secondary" onclick="openAiAssistant(typeof currentMessageId !== 'undefined' ? currentMessageId : null, 'netmail')">
             <i class="fas fa-robot me-1"></i>{{ t('ui.ai_assistant.button', {}, locale, ['common']) }}
         </button> #}
+        {% endif %}
     </div>
 </div>
 
@@ -451,7 +453,9 @@
     </div>
 </div>
 
+{% if ai_assistant_enabled %}
 {% include 'partials/ai_assistant_modal.twig' %}
+{% endif %}
 
 {% endblock %}
 

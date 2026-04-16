@@ -80,17 +80,7 @@ If you already use the MCP server for external AI clients, this is the same serv
 
 ## Enabling The Assistant
 
-### 1. Enable the feature flag in `.env`
-
-Uncomment or add:
-
-```ini
-AI_ASSISTANT_ENABLED=true
-```
-
-If this flag is `false`, the reader UI hides the assistant controls and the API rejects requests.
-
-### 2. Configure Anthropic
+### 1. Configure Anthropic
 
 Set at minimum:
 
@@ -104,7 +94,7 @@ Optional:
 ANTHROPIC_API_BASE=https://api.anthropic.com/v1
 ```
 
-### 3. Make sure the MCP server is running
+### 2. Make sure the MCP server is running
 
 Set the URL if needed:
 
@@ -114,7 +104,7 @@ MCP_SERVER_URL=http://localhost:3740
 
 Then start or restart the MCP server process you use for BinktermPHP.
 
-### 4. Enable the BBS-side feature toggle
+### 3. Enable the BBS-side feature toggle
 
 The assistant must also be enabled in BBS configuration:
 
@@ -130,7 +120,9 @@ You can manage this from:
 
 - **Admin → BBS Settings → Features**
 
-If either the `.env` flag or the BBS config flag is off, the assistant is disabled.
+The default BBS setting is disabled until you turn it on.
+
+If the BBS config flag is off, the assistant is disabled.
 
 ---
 
@@ -173,7 +165,7 @@ On the echomail page:
 
 Opening the assistant from the message reader modal pre-selects the current message as context. The modal then offers context-aware quick prompts such as summarizing the message or summarizing the thread.
 
-When the assistant is disabled by `AI_ASSISTANT_ENABLED=false`, the echomail UI hides those controls entirely.
+When the assistant is disabled in BBS settings, the message reader UI hides those controls entirely.
 
 ---
 
