@@ -13,6 +13,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
 - [Sixel Login and Menu Screens](#sixel-login-and-menu-screens)
 - [Door Session Expiry Enforcement](#door-session-expiry-enforcement)
+- [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -24,6 +25,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - BinktermPHP 1.9.2 introduces an optional **AI Assistant** for the web message readers.
 - In echomail, users can open the assistant from the area toolbar or directly from the message reader modal, where the current message is pre-selected as context.
 - The assistant can summarize a message, explain terminology, and summarize the surrounding thread by retrieving real message data through the built-in MCP server integration.
+- MCP server logs now record which authenticated user invoked each MCP tool, along with the tool name and client IP, making AI-assisted message access easier to audit operationally.
 - Enablement is controlled by `ai_assistant.enabled` in BBS settings.
 - The current reader assistant implementation requires an Anthropic API key and a reachable MCP server URL.
 - A new credits setting, `credits.ai_credits_per_milli_usd`, lets sysops optionally charge BBS credits based on estimated AI request cost.
@@ -105,6 +107,17 @@ The current 1.9.2 implementation requires:
 
 If the feature is disabled in BBS settings, the UI hides the assistant controls. If the feature is enabled but Anthropic is not configured, the API returns a configuration error when the user tries to run a request.
 
+### MCP audit logging
+
+The MCP server now writes an additional audit-style log entry whenever a client invokes a tool. Each entry includes:
+
+- the authenticated BBS user ID
+- the username and, when available, the real name
+- the MCP tool name that was used
+- the client IP address
+
+These entries are written to `data/logs/mcp-server.log` alongside the existing HTTP request and error logs. No migration or configuration change is required; the behavior begins as soon as the updated MCP server code is deployed.
+
 ### Optional credit charging
 
 This release also adds `credits.ai_credits_per_milli_usd` to BBS credit settings. This allows AI usage to debit BBS credits based on the request's estimated USD cost.
@@ -175,6 +188,10 @@ That page renders the newer `templates/admin/users.twig` implementation without 
 ### Door Session Expiry Enforcement
 
 - Door game sessions (DOS Doors, Native Doors including Public Terminal) now have their expiry time actively enforced. Sessions that were left open because a user closed the browser tab or the underlying process exited without calling the end-session API no longer accumulate and block new connections. Stale sessions are automatically cleared before each new session is started, and periodically during normal web requests.
+
+### Bug Fixes
+
+- **Select mode checkboxes disappear on background refresh** — In the echomail and netmail message lists, clicking **Select** to enter bulk-selection mode and then waiting for a background update (triggered by a new-message notification) caused the selection checkboxes to vanish. The message list was being rebuilt in the background and all checkboxes were hidden in the fresh HTML. Select mode, checkbox visibility, and previously checked rows are now restored correctly after any background refresh.
 
 ## JS-DOS Doors
 
@@ -349,6 +366,16 @@ UPDATE door_sessions
 SET ended_at = NOW(), exit_status = 'expired'
 WHERE ended_at IS NULL AND expires_at < NOW();
 ```
+
+## Bug Fixes
+
+### Select Mode Checkboxes Disappear on Background Refresh
+
+In the echomail and netmail message lists, clicking **Select** reveals a checkbox column for bulk operations. If a background message refresh ran while select mode was active — triggered by a new-message notification from the BinkStream event stream or by the page becoming visible again after being hidden — the message list was rebuilt from scratch and all checkboxes were hidden in the new HTML. Select mode appeared to turn itself off.
+
+The fix restores select mode state immediately after each background re-render: the checkbox column and all row checkboxes are made visible again, and any rows that were already checked are re-checked if those messages are still present in the refreshed list.
+
+No database migration or configuration change is required.
 
 ## Upgrade Instructions
 
