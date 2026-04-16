@@ -23,7 +23,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - BinktermPHP 1.9.2 introduces an optional **AI Assistant** for the web message readers.
 - In echomail, users can open the assistant from the area toolbar or directly from the message reader modal, where the current message is pre-selected as context.
-- The assistant can summarize a message, explain terminology, suggest replies, and summarize the surrounding thread by retrieving real message data through the built-in MCP server integration.
+- The assistant can summarize a message, explain terminology, and summarize the surrounding thread by retrieving real message data through the built-in MCP server integration.
 - Enablement is controlled by `ai_assistant.enabled` in BBS settings.
 - The current reader assistant implementation requires an Anthropic API key and a reachable MCP server URL.
 - A new credits setting, `credits.ai_credits_per_milli_usd`, lets sysops optionally charge BBS credits based on estimated AI request cost.
@@ -54,7 +54,7 @@ In the echomail reader, the assistant appears in two places:
 - as an **AI Assistant** button in the page toolbar
 - as an AI button in the message reader modal header
 
-When opened from a message, the assistant receives the current message ID as context. It can then summarize the message, explain jargon, suggest a reply, or summarize the full thread. The implementation does not hand raw database access to the model. Instead, it routes requests through the built-in MCP server so the model can fetch only the message, thread, and echomail data it needs while staying within the user's normal access scope.
+When opened from a message, the assistant receives the current message ID as context. It can then summarize the message, explain jargon, or summarize the full thread. The implementation does not hand raw database access to the model. Instead, it routes requests through the built-in MCP server so the model can fetch only the message, thread, and echomail data it needs while staying within the user's normal access scope.
 
 ### How to enable it
 
