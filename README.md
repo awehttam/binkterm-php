@@ -232,7 +232,7 @@ See **[docs/SSHServer.md](docs/SSHServer.md)** for daemon setup, configuration, 
 
 ## Credits System
 
-BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience. Configuration is done in `config/bbs.json` under the `credits` section, or via **Admin → BBS Settings → Credits System Configuration**. Current built-in actions include login bonuses, message costs/rewards, poll creation cost, and configurable file upload/download costs and rewards.
+BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience. Configuration is done in `config/bbs.json` under the `credits` section, or via **Admin → BBS Settings → Credits System Configuration**. Current built-in actions include login bonuses, message costs/rewards, poll creation cost, configurable file upload/download costs and rewards, and AI usage charges (credits per $0.001 of AI provider spend).
 
 See **[docs/CreditSystem.md](docs/CreditSystem.md)** for default values, configuration options, transaction types, and the developer API.
 

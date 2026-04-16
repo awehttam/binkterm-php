@@ -1421,7 +1421,7 @@ function viewMessage(messageId) {
 
 function displayMessageContent(message) {
     // Re-enable toolbar buttons that may have been disabled by the end-of-echo prompt
-    $('#editMessageButton, #toggleHeaders, #printMessageButton').prop('disabled', false);
+    $('#editMessageButton, #toggleHeaders, #modalAiAssistantButton, #printMessageButton').prop('disabled', false);
 
     updateModalTitle(message.subject);
 
@@ -1710,6 +1710,18 @@ function printMessage() {
     win.focus();
     win.onafterprint = function() { win.close(); };
     win.print();
+}
+
+function openAiAssistantFromMessageModal() {
+    if (!currentMessageId || typeof openAiAssistant !== 'function') {
+        return;
+    }
+
+    const messageId = currentMessageId;
+    $('#messageModal').one('hidden.bs.modal', function() {
+        openAiAssistant(messageId, 'echomail');
+    });
+    $('#messageModal').modal('hide');
 }
 
 function downloadCurrentMessage() {
@@ -2788,7 +2800,7 @@ function showEndOfEchoPrompt(nextEcho) {
     // Disable nav and toolbar buttons — no message is displayed
     $('#prevMessageBtn').prop('disabled', true);
     $('#nextMessageBtn').prop('disabled', true);
-    $('#editMessageButton, #toggleHeaders, #printMessageButton').prop('disabled', true);
+    $('#editMessageButton, #toggleHeaders, #modalAiAssistantButton, #printMessageButton').prop('disabled', true);
 }
 
 /**

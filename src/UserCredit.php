@@ -357,7 +357,8 @@ class UserCredit
             'return_14days' => 50,
             'transfer_fee_percent' => 0.05,
             'referral_enabled' => false,
-            'referral_bonus' => 25
+            'referral_bonus' => 25,
+            'ai_credits_per_milli_usd' => 0
         ];
 
         $merged = array_merge($defaults, $credits);
@@ -382,6 +383,7 @@ class UserCredit
         $merged['transfer_fee_percent'] = max(0, min(1, (float)$merged['transfer_fee_percent']));
         $merged['referral_enabled'] = !empty($merged['referral_enabled']);
         $merged['referral_bonus'] = max(0, (int)$merged['referral_bonus']);
+        $merged['ai_credits_per_milli_usd'] = max(0, (int)$merged['ai_credits_per_milli_usd']);
 
         return $merged;
     }
@@ -418,6 +420,27 @@ class UserCredit
         $config = self::getCreditsConfig();
         $key = $name . '_reward';
         return max(0, (int)($config[$key] ?? $default));
+    }
+
+    /**
+     * Calculate the credit cost for a given AI provider spend.
+     *
+     * The rate is configured as credits per $0.001 (one millidollar) of spend.
+     * Fractional millidollars are rounded up so that even tiny charges incur at
+     * least one unit of the configured rate.
+     *
+     * @param float $spendInDollars Amount spent with the AI provider, in USD
+     * @return int Credits to charge the user (0 if the feature is not configured)
+     */
+    public static function calculateAiUsageCost(float $spendInDollars): int
+    {
+        $config = self::getCreditsConfig();
+        $rate = (int)$config['ai_credits_per_milli_usd'];
+        if ($rate <= 0 || $spendInDollars <= 0) {
+            return 0;
+        }
+        $milliDollars = (int)ceil($spendInDollars / 0.001);
+        return $milliDollars * $rate;
     }
 
     /**

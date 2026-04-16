@@ -795,6 +795,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/economy.twig');
     });
 
+    SimpleRouter::get('/users-new', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/users.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -851,6 +858,80 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(404);
                 apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found'));
             }
+        });
+
+        // Grant credits to a user
+        SimpleRouter::post('/users/{id}/credits', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $targetUser = $adminController->getUser($id);
+            if (!$targetUser) {
+                http_response_code(404);
+                apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found'));
+                return;
+            }
+
+            if (!\BinktermPHP\UserCredit::isEnabled()) {
+                http_response_code(400);
+                apiError(
+                    'errors.admin.users.credits_disabled',
+                    apiLocalizedText('errors.admin.users.credits_disabled', 'The credits system is disabled', $user)
+                );
+                return;
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $amount = (int)($input['amount'] ?? 0);
+            $note = trim((string)($input['note'] ?? ''));
+
+            if ($amount <= 0) {
+                http_response_code(400);
+                apiError(
+                    'errors.admin.users.invalid_credit_amount',
+                    apiLocalizedText('errors.admin.users.invalid_credit_amount', 'Credit amount must be a positive integer', $user)
+                );
+                return;
+            }
+
+            if ($note === '') {
+                http_response_code(400);
+                apiError(
+                    'errors.admin.users.credit_note_required',
+                    apiLocalizedText('errors.admin.users.credit_note_required', 'A note is required for manual credit grants', $user)
+                );
+                return;
+            }
+
+            $adminUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $description = 'Admin credit grant: ' . $note;
+            $granted = \BinktermPHP\UserCredit::credit(
+                (int)$id,
+                $amount,
+                $description,
+                $adminUserId,
+                \BinktermPHP\UserCredit::TYPE_ADMIN_ADJUSTMENT
+            );
+
+            if (!$granted) {
+                http_response_code(500);
+                apiError(
+                    'errors.admin.users.credit_grant_failed',
+                    apiLocalizedText('errors.admin.users.credit_grant_failed', 'Failed to grant credits', $user)
+                );
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'balance' => \BinktermPHP\UserCredit::getBalance((int)$id),
+                'message_code' => 'ui.admin.users.credit_grant_success'
+            ]);
         });
 
         // Finger a user by username — used by the admin terminal
@@ -1499,6 +1580,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['file_download_reward'] ?? 0) || (int)($credits['file_download_reward'] ?? 0) < 0) {
                         throw new Exception('File download reward must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['ai_credits_per_milli_usd'] ?? 0) || (int)($credits['ai_credits_per_milli_usd'] ?? 0) < 0) {
+                        throw new Exception('AI credits per $0.001 must be a non-negative integer');
+                    }
                     if (!is_numeric($credits['return_14days'] ?? null) || (int)$credits['return_14days'] < 0) {
                         throw new Exception('14-day return bonus must be a non-negative integer');
                     }
@@ -1522,6 +1606,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'file_upload_reward' => (int)($credits['file_upload_reward'] ?? 0),
                         'file_download_cost' => (int)($credits['file_download_cost'] ?? 0),
                         'file_download_reward' => (int)($credits['file_download_reward'] ?? 0),
+                        'ai_credits_per_milli_usd' => (int)($credits['ai_credits_per_milli_usd'] ?? 0),
                         'return_14days' => (int)$credits['return_14days'],
                         'transfer_fee_percent' => (float)$credits['transfer_fee_percent'],
                         'referral_enabled' => !empty($credits['referral_enabled']),
@@ -1568,6 +1653,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         throw new Exception('Invalid outgoing charset');
                     }
                     $config['outgoing_charset'] = $charset;
+                }
+
+                if (array_key_exists('ai_assistant', $config)) {
+                    $config['ai_assistant'] = [
+                        'enabled' => !empty($config['ai_assistant']['enabled']),
+                    ];
                 }
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();

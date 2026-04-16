@@ -13,4 +13,6 @@ interface AiProviderInterface
     public function generateText(AiRequest $request): AiResponse;
 
     public function generateJson(AiRequest $request): AiResponse;
+
+    public function supportsTools(): bool;
 }

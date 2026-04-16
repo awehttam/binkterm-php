@@ -320,6 +320,10 @@ return [
     'errors.admin.users.reminder_not_allowed' => 'User is not eligible for reminder',
     'errors.admin.users.reminder_send_failed' => 'Failed to send reminder',
     'errors.admin.users.need_reminders_failed' => 'Failed to load reminder candidates',
+    'errors.admin.users.credits_disabled' => 'The credits system is disabled',
+    'errors.admin.users.invalid_credit_amount' => 'Credit amount must be a positive integer',
+    'errors.admin.users.credit_note_required' => 'A note is required for manual credit grants',
+    'errors.admin.users.credit_grant_failed' => 'Failed to grant credits',
 
     // Admin Debug
     'errors.admin.debug_failed' => 'Failed to load admin debug information',
@@ -661,4 +665,11 @@ return [
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'Invalid URL.',
     'errors.url_preview.fetch_failed'  => 'Could not fetch a preview for that URL.',
+
+    // AI Assistant
+    'errors.ai_assistant.disabled'             => 'AI assistant is not enabled on this system.',
+    'errors.ai_assistant.not_configured'       => 'AI assistant is not configured.',
+    'errors.ai_assistant.prompt_too_long'      => 'Prompt exceeds the 500 character limit.',
+    'errors.ai_assistant.insufficient_credits' => 'Insufficient credits for AI assistant.',
+    'errors.ai_assistant.failed'               => 'AI request failed. Please try again.',
 ];

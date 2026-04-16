@@ -233,6 +233,10 @@ return [
     'errors.admin.users.reminder_not_allowed' => 'L\'utilisateur n\'est pas éligible au rappel',
     'errors.admin.users.reminder_send_failed' => 'Échec de l\'envoi du rappel',
     'errors.admin.users.need_reminders_failed' => 'Échec du chargement des candidats aux rappels',
+    'errors.admin.users.credits_disabled' => 'Le système de crédits est désactivé',
+    'errors.admin.users.invalid_credit_amount' => 'Le montant des crédits doit être un entier positif',
+    'errors.admin.users.credit_note_required' => 'Une note est requise pour les attributions manuelles de crédits',
+    'errors.admin.users.credit_grant_failed' => 'Échec de l’attribution des crédits',
     'errors.admin.debug_failed' => 'Échec du chargement des informations de débogage administrateur',
     'errors.admin.bbs_settings.load_failed' => 'Échec du chargement des paramètres BBS',
     'errors.admin.bbs_settings.invalid_payload' => 'Charge utile de configuration invalide',
@@ -618,6 +622,13 @@ return [
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'URL invalide.',
     'errors.url_preview.fetch_failed'  => 'Impossible d\'obtenir un aperçu de cette URL.',
+
+    // AI Assistant
+    'errors.ai_assistant.disabled'             => 'L\'assistant IA n\'est pas active sur ce systeme.',
+    'errors.ai_assistant.not_configured'       => 'L\'assistant IA n\'est pas configure.',
+    'errors.ai_assistant.prompt_too_long'      => 'La demande depasse la limite de 500 caracteres.',
+    'errors.ai_assistant.insufficient_credits' => 'Credits insuffisants pour l\'assistant IA.',
+    'errors.ai_assistant.failed'               => 'La requete IA a echoue. Veuillez reessayer.',
 ];
 
 

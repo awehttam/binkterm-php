@@ -38,6 +38,11 @@ class AnthropicProvider implements AiProviderInterface
         return $this->apiKey !== '';
     }
 
+    public function supportsTools(): bool
+    {
+        return true;
+    }
+
     public function generateText(AiRequest $request): AiResponse
     {
         return $this->requestMessage($request, false);
@@ -46,6 +51,87 @@ class AnthropicProvider implements AiProviderInterface
     public function generateJson(AiRequest $request): AiResponse
     {
         return $this->requestMessage($request, true);
+    }
+
+    /**
+     * Send a messages request with tool definitions and return the raw response
+     * for use in an agentic tool-use loop.
+     *
+     * Returns an array with:
+     *   'content'     => array of Anthropic content blocks (text and/or tool_use)
+     *   'stop_reason' => 'tool_use' | 'end_turn' | string
+     *   'usage'       => AiUsage with token counts and estimated cost
+     *
+     * @param array<int, array{role: string, content: mixed}> $messages         Conversation history
+     * @param array<int, array{name: string, description: string, input_schema: array<string, mixed>}> $tools Tool definitions in Anthropic format
+     * @param string $systemPrompt System prompt
+     * @param int    $maxTokens    Max output tokens (default 4096)
+     * @return array{content: array<int, mixed>, stop_reason: string, usage: AiUsage}
+     * @throws AiException on API error
+     */
+    public function generateWithTools(
+        array $messages,
+        array $tools,
+        string $systemPrompt,
+        int $maxTokens = 4096
+    ): array {
+        $model = $this->getDefaultModel();
+
+        $payload = [
+            'model'      => $model,
+            'max_tokens' => $maxTokens,
+            'system'     => $systemPrompt,
+            'messages'   => $messages,
+        ];
+
+        if (!empty($tools)) {
+            $payload['tools'] = $tools;
+        }
+
+        try {
+            $response = HttpClient::postJson(
+                $this->apiBase . '/messages',
+                $payload,
+                [
+                    'Content-Type: application/json',
+                    'x-api-key: ' . $this->apiKey,
+                    'anthropic-version: 2023-06-01',
+                ],
+                60
+            );
+        } catch (\Throwable $exception) {
+            throw new AiException($this->getName(), $exception->getMessage(), null, 'network_error', null, $exception);
+        }
+
+        $body = $response['body'];
+        if ($response['status'] >= 400) {
+            $message = $body['error']['message'] ?? 'Anthropic API request failed.';
+            $code    = $body['error']['type'] ?? 'api_error';
+            throw new AiException($this->getName(), (string)$message, $response['status'], (string)$code, $response['raw']);
+        }
+
+        $contentBlocks = $body['content'] ?? [];
+        if (!is_array($contentBlocks)) {
+            $contentBlocks = [];
+        }
+
+        $stopReason = (string)($body['stop_reason'] ?? 'end_turn');
+
+        $usage = new AiUsage(
+            (int)($body['usage']['input_tokens'] ?? 0),
+            (int)($body['usage']['output_tokens'] ?? 0),
+            (int)($body['usage']['cache_read_input_tokens'] ?? 0),
+            (int)($body['usage']['cache_creation_input_tokens'] ?? 0)
+        );
+        $usage = $usage->withEstimatedCostUsd(
+            $this->pricing->estimateCost($this->getName(), $model, $usage)
+        );
+
+        return [
+            'content'     => $contentBlocks,
+            'stop_reason' => $stopReason,
+            'usage'       => $usage,
+        ];
     }
 
     private function requestMessage(AiRequest $request, bool $expectJson): AiResponse

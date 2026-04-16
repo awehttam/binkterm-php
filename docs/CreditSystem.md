@@ -25,6 +25,7 @@ BinktermPHP includes an integrated credits economy that rewards user participati
 | File Upload                            | 0      | Reward | Optional reward applied after a successful upload |
 | File Download                          | 0      | Cost   | Optional charge applied before a file download    |
 | File Download                          | 0      | Reward | Optional reward applied after a successful download |
+| AI Usage                               | 0      | Cost   | Credits per $0.001 of AI provider spend (configurable rate) |
 
 ## Configuration
 
@@ -45,7 +46,8 @@ Credits are configured in `config/bbs.json` under the `credits` section. All val
     "file_upload_cost": 0,
     "file_upload_reward": 0,
     "file_download_cost": 0,
-    "file_download_reward": 0
+    "file_download_reward": 0,
+    "ai_credits_per_milli_usd": 0
   }
 }
 ```

@@ -20,6 +20,9 @@
         "bbs_id": "",
         "max_messages_per_download": 2500
     },
+    "ai_assistant": {
+        "enabled": true
+    },
     "credits": {
         "enabled": true,
         "symbol": "CR",
@@ -37,6 +40,7 @@
         "return_14days": 50,
         "transfer_fee_percent": 0.05,
         "referral_enabled": false,
-        "referral_bonus": 25
+        "referral_bonus": 25,
+        "ai_credits_per_milli_usd": 0
     }
 }

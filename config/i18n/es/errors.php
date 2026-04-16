@@ -320,6 +320,10 @@ return [
     'errors.admin.users.reminder_not_allowed' => 'El usuario no es elegible para recordatorio',
     'errors.admin.users.reminder_send_failed' => 'No se pudo enviar el recordatorio',
     'errors.admin.users.need_reminders_failed' => 'No se pudieron cargar los candidatos a recordatorio',
+    'errors.admin.users.credits_disabled' => 'El sistema de créditos está deshabilitado',
+    'errors.admin.users.invalid_credit_amount' => 'La cantidad de créditos debe ser un entero positivo',
+    'errors.admin.users.credit_note_required' => 'Se requiere una nota para las asignaciones manuales de créditos',
+    'errors.admin.users.credit_grant_failed' => 'No se pudieron otorgar los créditos',
 
     // Admin Debug
     'errors.admin.debug_failed' => 'No se pudo cargar la informacion de depuracion de administrador',
@@ -661,4 +665,11 @@ return [
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'URL no válida.',
     'errors.url_preview.fetch_failed'  => 'No se pudo obtener una vista previa de esa URL.',
+
+    // AI Assistant
+    'errors.ai_assistant.disabled'             => 'El asistente IA no esta habilitado en este sistema.',
+    'errors.ai_assistant.not_configured'       => 'El asistente IA no esta configurado.',
+    'errors.ai_assistant.prompt_too_long'      => 'La consulta supera el limite de 500 caracteres.',
+    'errors.ai_assistant.insufficient_credits' => 'Creditos insuficientes para el asistente IA.',
+    'errors.ai_assistant.failed'               => 'La solicitud IA fallo. Por favor, intentelo de nuevo.',
 ];

@@ -38,6 +38,11 @@ class OpenAIProvider implements AiProviderInterface
         return $this->apiKey !== '';
     }
 
+    public function supportsTools(): bool
+    {
+        return false;
+    }
+
     public function generateText(AiRequest $request): AiResponse
     {
         return $this->requestCompletion($request, false);

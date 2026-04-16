@@ -9405,6 +9405,80 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // AI assistant endpoint (echomail + netmail readers)
+    SimpleRouter::post('/messages/ai-assist', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+        $aiAssistantEnvEnabled = filter_var(
+            \BinktermPHP\Config::env('AI_ASSISTANT_ENABLED', 'false'),
+            FILTER_VALIDATE_BOOLEAN
+        );
+        if (!$aiAssistantEnvEnabled || empty($bbsConfig['ai_assistant']['enabled'])) {
+            apiError(
+                'errors.ai_assistant.disabled',
+                apiLocalizedText('errors.ai_assistant.disabled', 'AI assistant is not enabled on this system', $user),
+                403
+            );
+            return;
+        }
+
+        if (!\BinktermPHP\Config::env('ANTHROPIC_API_KEY', '')) {
+            apiError(
+                'errors.ai_assistant.not_configured',
+                apiLocalizedText('errors.ai_assistant.not_configured', 'AI assistant is not configured', $user),
+                503
+            );
+            return;
+        }
+
+        $payload     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $userPrompt  = trim((string)($payload['prompt'] ?? ''));
+        $messageId   = isset($payload['message_id']) ? (int)$payload['message_id'] : null;
+        $messageType = in_array($payload['message_type'] ?? '', ['echomail', 'netmail'], true)
+            ? (string)$payload['message_type']
+            : 'echomail';
+
+        if ($userPrompt === '') {
+            http_response_code(400);
+            apiError('errors.ai_assistant.prompt_too_long', apiLocalizedText('errors.ai_assistant.prompt_too_long', 'Prompt exceeds the 500 character limit', $user));
+            return;
+        }
+
+        if (mb_strlen($userPrompt) > 500) {
+            http_response_code(400);
+            apiError('errors.ai_assistant.prompt_too_long', apiLocalizedText('errors.ai_assistant.prompt_too_long', 'Prompt exceeds the 500 character limit', $user));
+            return;
+        }
+
+        try {
+            $result = \BinktermPHP\AI\MessageAiAssistant::execute(
+                $userPrompt,
+                $messageId,
+                $messageType,
+                $userId
+            );
+            echo json_encode(['success' => true] + $result);
+        } catch (\BinktermPHP\AI\InsufficientCreditsException $e) {
+            http_response_code(402);
+            apiError(
+                'errors.ai_assistant.insufficient_credits',
+                apiLocalizedText('errors.ai_assistant.insufficient_credits', 'Insufficient credits for AI assistant', $user),
+                402
+            );
+        } catch (\Throwable $e) {
+            getServerLogger()->error('AI assistant error: ' . $e->getMessage());
+            http_response_code(500);
+            apiError(
+                'errors.ai_assistant.failed',
+                apiLocalizedText('errors.ai_assistant.failed', 'AI request failed. Please try again.', $user),
+                500
+            );
+        }
+    });
+
     // Terminal settings API endpoints
     SimpleRouter::get('/user/terminal-settings', function() {
         $user = RouteHelper::requireAuth();
@@ -9780,7 +9854,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, is_active, is_admin, is_system, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -9794,6 +9868,74 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (Exception $e) {
             http_response_code(500);
             apiError('', apiLocalizedText('', ''));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/admin/users/{id}/credits', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            apiError('', apiLocalizedText('', ''));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
+            $stmt->execute([$id]);
+            if (!$stmt->fetch()) {
+                http_response_code(404);
+                apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found', $user));
+                return;
+            }
+
+            if (!UserCredit::isEnabled()) {
+                http_response_code(400);
+                apiError('errors.admin.users.credits_disabled', apiLocalizedText('errors.admin.users.credits_disabled', 'The credits system is disabled', $user));
+                return;
+            }
+
+            $amount = isset($_POST['amount']) ? (int)$_POST['amount'] : 0;
+            $note = trim((string)($_POST['note'] ?? ''));
+
+            if ($amount <= 0) {
+                http_response_code(400);
+                apiError('errors.admin.users.invalid_credit_amount', apiLocalizedText('errors.admin.users.invalid_credit_amount', 'Credit amount must be a positive integer', $user));
+                return;
+            }
+
+            if ($note === '') {
+                http_response_code(400);
+                apiError('errors.admin.users.credit_note_required', apiLocalizedText('errors.admin.users.credit_note_required', 'A note is required for manual credit grants', $user));
+                return;
+            }
+
+            $adminUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $granted = UserCredit::credit(
+                (int)$id,
+                $amount,
+                'Admin credit grant: ' . $note,
+                $adminUserId,
+                UserCredit::TYPE_ADMIN_ADJUSTMENT
+            );
+
+            if (!$granted) {
+                http_response_code(500);
+                apiError('errors.admin.users.credit_grant_failed', apiLocalizedText('errors.admin.users.credit_grant_failed', 'Failed to grant credits', $user));
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'balance' => UserCredit::getBalance((int)$id),
+                'message_code' => 'ui.admin.users.credit_grant_success'
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError('errors.admin.users.credit_grant_failed', apiLocalizedText('errors.admin.users.credit_grant_failed', 'Failed to grant credits', $user));
         }
     })->where(['id' => '[0-9]+']);
 

@@ -5,7 +5,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [AI Assistant](#ai-assistant)
+- [Admin Credit Grants](#admin-credit-grants)
 - [JS-DOS Doors](#js-dos-doors)
+  - [Manifest Creator Script](#manifest-creator-script)
 - [Terminal Registration Handling](#terminal-registration-handling)
 - [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
 - [Sixel Login and Menu Screens](#sixel-login-and-menu-screens)
@@ -16,6 +19,22 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
+### AI Assistant
+
+- BinktermPHP 1.9.2 introduces an optional **AI Assistant** for the web message readers.
+- In echomail, users can open the assistant from the area toolbar or directly from the message reader modal, where the current message is pre-selected as context.
+- The assistant can summarize a message, explain terminology, suggest replies, and summarize the surrounding thread by retrieving real message data through the built-in MCP server integration.
+- Enablement is intentionally two-stage: `AI_ASSISTANT_ENABLED=true` in `.env`, plus `ai_assistant.enabled=true` in BBS settings.
+- The current reader assistant implementation requires an Anthropic API key and a reachable MCP server URL.
+- A new credits setting, `credits.ai_credits_per_milli_usd`, lets sysops optionally charge BBS credits based on estimated AI request cost.
+
+### Admin Credit Grants
+
+- Admins can now add credits directly to a user's account with an explicit note recorded in the ledger.
+- Manual grants are stored as `admin_adjustment` transactions, so they remain auditable alongside the normal credit history.
+- The current production admin users screen at `/admin/users` includes a **Grant Credits** section in the edit-user modal.
+- A separate preview endpoint, `/admin/users-new`, renders the newer in-progress admin users interface against the newer `/admin/api/users/...` backend.
+
 ### JS-DOS Doors
 
 - BinktermPHP now supports **JS-DOS Doors**, a new browser-side door type for classic DOS games such as Doom.
@@ -24,6 +43,94 @@ Make sure you have a current backup of your database and files before upgrading.
 - Games are defined by `jsdosdoor.json` manifests under `public_html/jsdos-doors/{game-id}/`.
 - Save files can be synchronized back to the server, allowing users to keep their game progress between sessions.
 - JS-DOS Doors also support multiple modes, including an optional admin-only configuration mode for running setup tools and saving shared defaults for all players.
+- A new interactive command-line wizard, `scripts/jsdosdoor_createmanifest.php`, guides you through creating a `jsdosdoor.json` for any DOS game. It scans the `assets/` directory, prompts for title and executable, suggests AI-generated author and description metadata, and produces a ready-to-use manifest including an admin setup mode and a placeholder `icon.png`.
+
+## AI Assistant
+
+This release adds a new optional AI assistant to the web message readers. The feature is intended as a reading and comprehension aid for echomail and netmail rather than an automated posting system.
+
+In the echomail reader, the assistant appears in two places:
+
+- as an **AI Assistant** button in the page toolbar
+- as an AI button in the message reader modal header
+
+When opened from a message, the assistant receives the current message ID as context. It can then summarize the message, explain jargon, suggest a reply, or summarize the full thread. The implementation does not hand raw database access to the model. Instead, it routes requests through the built-in MCP server so the model can fetch only the message, thread, and echomail data it needs while staying within the user's normal access scope.
+
+### How to enable it
+
+The AI assistant is only active when both of these are true:
+
+1. `.env` enables the feature:
+
+```ini
+AI_ASSISTANT_ENABLED=true
+```
+
+2. BBS configuration enables the feature:
+
+```json
+{
+  "ai_assistant": {
+    "enabled": true
+  }
+}
+```
+
+You can manage the second setting from **Admin → BBS Settings → Features**.
+
+### Current configuration requirements
+
+The current 1.9.2 implementation requires:
+
+- `ANTHROPIC_API_KEY` to be configured
+- the MCP server to be reachable at `MCP_SERVER_URL`
+
+If the environment flag is off, the UI hides the assistant controls. If the feature is enabled but Anthropic is not configured, the API returns a configuration error when the user tries to run a request.
+
+### Optional credit charging
+
+This release also adds `credits.ai_credits_per_milli_usd` to BBS credit settings. This allows AI usage to debit BBS credits based on the request's estimated USD cost.
+
+Set it to `0` to allow the assistant without charging credits, or to a positive integer to convert AI usage cost into your local credit economy.
+
+See `docs/AIAssistant.md` for the full operational documentation.
+
+## Admin Credit Grants
+
+This release adds a direct admin workflow for manually increasing a user's credit balance. The goal is to cover operational cases that do not fit the automated reward and debit rules, such as contest prizes, goodwill adjustments, reimbursement, migration cleanup, or support corrections.
+
+Manual grants are not silent balance edits. Each change is written through the normal `UserCredit` transaction path and recorded as an `admin_adjustment` entry with the administrator's note attached to the ledger description.
+
+### Where to use it
+
+In the currently active admin users screen:
+
+- open **Admin → Users**
+- click **Edit** on the target user
+- use the **Grant Credits** section in the edit modal
+
+That section shows:
+
+- the user's current credit balance
+- an amount field
+- a required reason or note field
+- an **Add Credits** action button
+
+The grant will be rejected if:
+
+- the credits system is disabled
+- the amount is not a positive integer
+- no note is provided
+
+### Preview route for the newer admin users interface
+
+This release branch also exposes a separate preview route:
+
+```text
+/admin/users-new
+```
+
+That page renders the newer `templates/admin/users.twig` implementation without replacing the existing `/admin/users` screen yet. It is intended for side-by-side evaluation while both admin user-management interfaces still exist in the codebase.
 
 ### Terminal Registration Handling
 
@@ -81,6 +188,42 @@ This release includes Doom as the reference JS-DOS door example. It demonstrates
 - launch through the standard `/games/{game}` wrapper flow
 
 See `docs/JSDOSDoors.md` for the full manifest format and admin workflow.
+
+### Manifest Creator Script
+
+`scripts/jsdosdoor_createmanifest.php` is an interactive CLI wizard that generates a `jsdosdoor.json` manifest for a DOS game. Authoring a manifest by hand requires understanding the emulator configuration fields, mapping every asset file to a DOS path, and writing both a play mode and an admin setup mode. The wizard automates all of that so you can set up a new game in a few minutes without editing JSON directly.
+
+**How to use it:**
+
+Run the script from within the game's door directory — the directory that contains the `assets/` folder — or pass the directory as an argument:
+
+```bash
+cd public_html/jsdos-doors/mygame
+php scripts/jsdosdoor_createmanifest.php
+
+# or from anywhere:
+php scripts/jsdosdoor_createmanifest.php public_html/jsdos-doors/mygame
+```
+
+The wizard prompts for:
+
+- Game title and the executable path relative to `assets/` (e.g. `QUAKE.EXE` or `QUAKE/QUAKE.EXE`)
+- CPU cycles, machine type, and emulated memory
+- Whether to include a Sound Blaster environment variable
+- Per-user save file paths (glob patterns, with sensible defaults if left blank)
+- The shared config file path used by the admin setup mode
+
+It then:
+
+1. Scans every file in `assets/` and maps each one to a DOS filesystem path automatically.
+2. Detects common setup executables (`SETUP.EXE`, `INSTALL.EXE`, etc.) and adds them to the admin config mode autoexec.
+3. Calls the configured AI provider (Anthropic or OpenAI, whichever is set up in `.env`) to suggest the game's original author, a short description, and a version string. All three can be edited before the file is written.
+4. Shows a preview of the complete JSON and asks for confirmation before writing `jsdosdoor.json`.
+5. Offers to generate a placeholder `icon.png` (96×96, requires the PHP GD extension).
+
+The generated manifest includes a `config` admin-only mode with `keep_open: true` and `scope: shared` saves, matching the pattern used by the Doom example. After writing the file, the wizard prints the next steps needed to activate the door in `config/jsdosdoors.json`.
+
+AI metadata lookup is optional. If no AI provider is configured the wizard skips that step and leaves the author and description fields blank for manual entry.
 
 ## Terminal Registration Handling
 

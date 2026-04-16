@@ -87,6 +87,60 @@ class UsageRecorder
         ]);
     }
 
+    /**
+     * Record one round of an agentic tool-use loop.
+     *
+     * Used by AgentService, which calls generateWithTools() directly on a
+     * provider (bypassing AiService) and accumulates usage across rounds.
+     *
+     * @param int         $userId
+     * @param string      $feature     e.g. 'message_ai_assistant'
+     * @param string      $provider    e.g. 'anthropic'
+     * @param string      $model
+     * @param int         $round       1-based round number (stored in metadata)
+     * @param int         $toolCalls   number of tool calls executed this round
+     * @param AiUsage     $usage       token counts and estimated cost for this round
+     * @param int         $durationMs
+     * @param string|null $stopReason  'tool_use', 'end_turn', etc.
+     */
+    public function recordAgentRound(
+        int $userId,
+        string $feature,
+        string $provider,
+        string $model,
+        int $round,
+        int $toolCalls,
+        AiUsage $usage,
+        int $durationMs,
+        ?string $stopReason = null
+    ): void {
+        $this->insertRow([
+            'user_id'              => $userId,
+            'bot_id'               => null,
+            'provider'             => $provider,
+            'model'                => $model,
+            'feature'              => $feature,
+            'operation'            => 'generate_with_tools',
+            'status'               => 'success',
+            'request_id'           => null,
+            'input_tokens'         => $usage->getInputTokens(),
+            'output_tokens'        => $usage->getOutputTokens(),
+            'cached_input_tokens'  => $usage->getCachedInputTokens(),
+            'cache_write_tokens'   => $usage->getCacheWriteTokens(),
+            'total_tokens'         => $usage->getTotalTokens(),
+            'estimated_cost_usd'   => $usage->getEstimatedCostUsd(),
+            'duration_ms'          => $durationMs,
+            'http_status'          => null,
+            'error_code'           => null,
+            'error_message'        => null,
+            'metadata_json'        => [
+                'agent_round'       => $round,
+                'tool_calls'        => $toolCalls,
+                'stop_reason'       => $stopReason,
+            ],
+        ]);
+    }
+
     private function insertRow(array $row): void
     {
         $stmt = $this->db->prepare("

@@ -90,6 +90,7 @@ This index lists documents in operational priority order — essentials first, a
 
 ## AI & Integrations
 
+- [AI Assistant](AIAssistant.md) — Web message-reader assistant for echomail and netmail, including enablement, MCP usage, and credit charging
 - [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
 - [AI Bots](AIBots.md) — Configuring AI chat bots, the middleware pipeline, writing custom middleware, and cost management
 - [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail

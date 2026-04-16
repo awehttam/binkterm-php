@@ -12,9 +12,16 @@
         </div>
         <div class="d-flex flex-column gap-1 flex-shrink-0">
             <button class="btn btn-sm" id="echoSubscribeBtn" onclick="toggleSubscription()"></button>
+            <div class="d-flex gap-1">
             <button class="btn btn-sm btn-outline-primary" onclick="composeMessage('echomail')">
                 {{ t('ui.echomail.post_message', {}, locale, ['common']) }}
             </button>
+            {% if ai_assistant_enabled %}
+                <button class="btn btn-sm btn-outline-secondary" onclick="openAiAssistant(typeof currentMessageId !== 'undefined' ? currentMessageId : null, 'echomail')">
+                    <i class="fas fa-robot me-1"></i>{{ t('ui.ai_assistant.button', {}, locale, ['common']) }}
+                </button>
+            {% endif %}
+            </div>
         </div>
     </div>
 </div>
@@ -444,6 +451,11 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleHeaders" onclick="toggleKludgeLines()" title="{{ t('ui.common.show_kludge_lines', {}, locale, ['common']) }}">
                         <i class="fas fa-code" id="toggleIcon"></i>
                     </button>
+                    {% if ai_assistant_enabled %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="modalAiAssistantButton" onclick="openAiAssistantFromMessageModal()" title="{{ t('ui.ai_assistant.button', {}, locale, ['common']) }}">
+                        <i class="fas fa-robot"></i>
+                    </button>
+                    {% endif %}
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="printMessageButton" onclick="printMessage()" title="{{ t('ui.common.print', {}, locale, ['common']) }}">
                         <i class="fas fa-print"></i>
                     </button>
@@ -723,6 +735,10 @@
 </div>
 {% endif %}
 
+{% if ai_assistant_enabled %}
+{% include 'partials/ai_assistant_modal.twig' %}
+{% endif %}
+
 {% endblock %}
 
 {% block styles %}
@@ -778,6 +794,10 @@ window.echomailDateField = '{{ echomail_date_field|default("received") }}';
 <script src="/js/file-preview.js"></script>
 {% endif %}
 <script src="/js/echomail.js"></script>
+<script src="/vendor/marked.min.js"></script>
+{% if ai_assistant_enabled %}
+<script src="/js/ai-assistant.js?v=1"></script>
+{% endif %}
 {% if interests_enabled and has_interests %}
 <script>
 $(document).ready(function() {

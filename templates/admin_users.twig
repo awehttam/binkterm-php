@@ -281,6 +281,31 @@
                         <input type="password" class="form-control" id="edit-new-password" minlength="8">
                         <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, locale, ['common']) }}</div>
                     </div>
+
+                    <hr>
+                    <div class="row">
+                        <div class="col-12">
+                            <h6>{{ t('ui.admin.users.grant_credits_heading', {}, locale, ['common']) }}</h6>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="edit-credit-balance" class="form-label">{{ t('ui.admin.users.credit_balance', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="edit-credit-balance" readonly>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="edit-grant-credits-amount" class="form-label">{{ t('ui.admin.users.grant_credits_amount', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="edit-grant-credits-amount" min="1" step="1">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit-grant-credits-note" class="form-label">{{ t('ui.admin.users.grant_credits_note', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="edit-grant-credits-note" maxlength="255" placeholder="{{ t('ui.admin.users.grant_credits_note_placeholder', {}, locale, ['common']) }}">
+                        </div>
+                        <div class="col-12 d-flex justify-content-between align-items-center">
+                            <div class="form-text">{{ t('ui.admin.users.grant_credits_help', {}, locale, ['common']) }}</div>
+                            <button type="button" class="btn btn-success" onclick="grantCreditsFromEditModal()">
+                                <i class="fas fa-coins me-2"></i>{{ t('ui.admin.users.grant_credits_action', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -685,6 +710,9 @@ function editUser(userId) {
                 $('#edit-is-active').prop('checked', !!user.is_active);
                 $('#edit-is-admin').prop('checked', !!user.is_admin);
                 $('#edit-is-system').prop('checked', !!user.is_system);
+                $('#edit-credit-balance').val(user.credit_balance || 0);
+                $('#edit-grant-credits-amount').val('');
+                $('#edit-grant-credits-note').val('');
                 $('#edit-new-password').val('');
                 
                 // Show modal
@@ -747,6 +775,58 @@ function saveUserChanges() {
         error: function(xhr) {
             console.error('AJAX error for save user:', xhr.status, xhr.statusText, xhr.responseText);
             showError(uiT('ui.admin_users.user_update_failed_prefix', 'Failed to update user: ') + xhr.status + ' ' + xhr.statusText);
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalText);
+        }
+    });
+}
+
+function grantCreditsFromEditModal() {
+    const userId = $('#edit-user-id').val();
+    const amount = parseInt($('#edit-grant-credits-amount').val(), 10);
+    const note = ($('#edit-grant-credits-note').val() || '').trim();
+
+    if (Number.isNaN(amount) || amount <= 0) {
+        showError(uiT('ui.admin.users.grant_credits_amount_invalid', 'Enter a positive credit amount.'));
+        return;
+    }
+
+    if (!note) {
+        showError(uiT('ui.admin.users.grant_credits_note_missing', 'Enter a note for this credit grant.'));
+        return;
+    }
+
+    const btn = $('button[onclick="grantCreditsFromEditModal()"]');
+    const originalText = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.common.processing', 'Processing...'));
+
+    $.ajax({
+        url: '/api/admin/users/' + userId + '/credits',
+        method: 'POST',
+        data: {
+            amount: amount,
+            note: note
+        },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                $('#edit-credit-balance').val(response.balance || 0);
+                $('#edit-grant-credits-amount').val('');
+                $('#edit-grant-credits-note').val('');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin.users.credit_grant_success', 'Credits added successfully'))
+                    : uiT('ui.admin.users.credit_grant_success', 'Credits added successfully');
+                showSuccess(successMessage);
+                loadAllUsers();
+            } else {
+                showError(apiError(response, uiT('ui.admin.users.credit_grant_failed', 'Failed to add credits')));
+            }
+        },
+        error: function(xhr) {
+            let payload = {};
+            try { payload = JSON.parse(xhr.responseText); } catch (_) {}
+            showError(apiError(payload, uiT('ui.admin.users.credit_grant_failed', 'Failed to add credits')));
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
