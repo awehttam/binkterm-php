@@ -429,6 +429,21 @@ function displayMessages(messages, isThreaded = false) {
     }
 
     container.html(html);
+
+    // If select mode was active before the re-render, restore it
+    if (selectMode) {
+        $('#selectAllColumn').removeClass('d-none');
+        $('.message-checkbox').removeClass('d-none');
+        // Re-check any previously selected messages that are still in the new list
+        if (selectedMessages.size > 0) {
+            $('.message-select').each(function() {
+                if (selectedMessages.has(parseInt($(this).val()))) {
+                    $(this).prop('checked', true);
+                }
+            });
+            updateSelection();
+        }
+    }
 }
 
 // ── Node address popover ──────────────────────────────────────────────────────
