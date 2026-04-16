@@ -12,7 +12,6 @@ const AI_ASSISTANT_PROMPTS_WITH_CONTEXT = [
     { label: 'Summarize',     prompt: 'Summarize the key points of this message in 2-3 sentences.' },
     { label: 'Key Points',    prompt: 'What are the main topics being discussed in this message?' },
     { label: 'Explain Terms', prompt: 'Explain any technical or jargon terms used in this message.' },
-    { label: 'Suggest Reply', prompt: 'Suggest a thoughtful reply to this message.' },
     { label: 'Thread Context', prompt: 'Summarize the full conversation thread this message belongs to.' },
 ];
 
