@@ -399,8 +399,9 @@ The server logs to `data/logs/mcp-server.log`. Each line is timestamped and tagg
 [2026-03-24T03:00:00.012Z] [INFO]  Listening on 127.0.0.1:3740
 [2026-03-24T03:00:00.013Z] [INFO]  PID 12345 written to data/run/mcp-server.pid
 [2026-03-24T03:00:01.500Z] [INFO]  POST /mcp 200 (42ms) [127.0.0.1]
+[2026-03-24T03:00:01.501Z] [INFO]  MCP tool invoked: user_id=7 user="sysop (Matt)" tool=list_echoareas ip=127.0.0.1
 [2026-03-24T03:00:01.501Z] [WARN]  Encoding error — retrying query with SQL_ASCII client encoding
 [2026-03-24T03:00:02.000Z] [ERROR] DB query error: ...
 ```
 
-Every HTTP request is logged with method, path, status code, response time, and client IP. Database errors are logged at `ERROR` level with the PostgreSQL error message. Log output is also written to stdout when running in the foreground.
+Every HTTP request is logged with method, path, status code, response time, and client IP. Each MCP tool invocation is also logged with the resolved user ID, username, optional real name, tool name, and client IP. Database errors are logged at `ERROR` level with the PostgreSQL error message. Log output is also written to stdout when running in the foreground.
