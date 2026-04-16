@@ -45,6 +45,30 @@ Make sure you have a current backup of your database and files before upgrading.
 - JS-DOS Doors also support multiple modes, including an optional admin-only configuration mode for running setup tools and saving shared defaults for all players.
 - A new interactive command-line wizard, `scripts/jsdosdoor_createmanifest.php`, guides you through creating a `jsdosdoor.json` for any DOS game. It scans the `assets/` directory, prompts for title and executable, suggests AI-generated author and description metadata, and produces a ready-to-use manifest including an admin setup mode and a placeholder `icon.png`.
 
+### Terminal Registration Handling
+
+- Telnet and SSH registrations now preserve the applicant's real reason for joining instead of replacing it with a transport label.
+- Browser-only anti-spam bypass for terminal-origin registrations now uses dedicated transport signaling rather than overloading the visible reason field.
+- `TERMINAL_REGISTRATION_SECRET` now defaults to `Chang3Me`, so fresh installs work without extra setup, but production systems should replace it with a site-specific value.
+
+### Image Rendering in Terminal Services
+
+- Telnet and SSH message readers can now render inline Markdown images as Sixel graphics when both the server and client support it.
+- Messages with images expose an `I` keybinding and direct number shortcuts so users can open embedded images from the terminal reader.
+- Systems without `img2sixel` or clients without Sixel support fall back gracefully to text placeholders.
+
+### Sixel Login and Menu Screens
+
+- The terminal server now supports optional Sixel Welcome, Main Menu, and Goodbye screens in addition to the existing ANSI art workflow.
+- Sixel files are managed from **Admin → Appearance → Terminal Server → Sixel Graphics** and are shown only to clients that advertise Sixel support.
+- No database migration is required; systems without Sixel files continue using ANSI or the built-in text banner.
+
+### Door Session Expiry Enforcement
+
+- Door session expiry is now enforced when checking capacity, allocating nodes, listing active sessions, and resuming existing sessions.
+- Stale abandoned sessions are cleaned automatically when new door sessions start and during periodic web-request maintenance.
+- No database migration is required, and existing stale sessions are cleaned up automatically after upgrade.
+
 ## AI Assistant
 
 This release adds a new optional AI assistant to the web message readers. The feature is intended as a reading and comprehension aid for echomail and netmail rather than an automated posting system.
