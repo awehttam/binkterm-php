@@ -24,10 +24,13 @@
                     <textarea
                         id="aiPromptText"
                         class="form-control"
-                        rows="3"
+                        rows="5"
                         maxlength="500"
                         placeholder="{{ t('ui.ai_assistant.prompt_placeholder', {}, locale, ['common']) }}"
                     ></textarea>
+                </div>
+                <div class="alert alert-warning small mb-3" role="alert">
+                    <i class="fas fa-triangle-exclamation me-2"></i>{{ t('ui.ai_assistant.usage_warning', {}, locale, ['common']) }}
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <small id="aiCharCount" class="text-muted">500 {{ t('ui.ai_assistant.chars_remaining', {remaining: 500}, locale, ['common']) }}</small>

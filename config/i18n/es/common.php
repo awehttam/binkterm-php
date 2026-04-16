@@ -4607,4 +4607,5 @@ return [
     'ui.ai_assistant.context_message'          => 'El mensaje #{id} esta cargado como contexto — las indicaciones rapidas haran referencia a el.',
     'ui.ai_assistant.context_none'             => 'No hay ningun mensaje abierto. Abre un mensaje primero para indicaciones con contexto, o haz una pregunta general.',
     'ui.ai_assistant.prompt_placeholder_ctx'   => 'Pregunta sobre este mensaje...',
+    'ui.ai_assistant.usage_warning'            => 'La asistencia de IA es solo para interpretacion. No esta pensada para redactar respuestas ni mensajes nuevos. Revise todo con cuidado para evitar publicar informacion incorrecta o contenido IA de baja calidad.',
 ];

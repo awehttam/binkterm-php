@@ -4603,4 +4603,5 @@ return [
     'ui.ai_assistant.context_message'          => 'Message #{id} is loaded as context — quick prompts will refer to it.',
     'ui.ai_assistant.context_none'             => 'No message is open. Open a message first for context-aware prompts, or ask a general question.',
     'ui.ai_assistant.prompt_placeholder_ctx'   => 'Ask about this message...',
+    'ui.ai_assistant.usage_warning'            => 'AI assistance is for interpretation only. It is not intended for composing replies or new messages. Review everything carefully to avoid posting incorrect information or AI slop.',
 ];

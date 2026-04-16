@@ -4517,4 +4517,5 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.ai_assistant.context_message'          => 'Le message #{id} est charge comme contexte — les invites rapides y feront reference.',
     'ui.ai_assistant.context_none'             => 'Aucun message n\'est ouvert. Ouvrez d\'abord un message pour des invites avec contexte, ou posez une question generale.',
     'ui.ai_assistant.prompt_placeholder_ctx'   => 'Posez une question sur ce message...',
+    'ui.ai_assistant.usage_warning'            => 'L\'assistant IA sert uniquement a l\'interpretation. Il n\'est pas prevu pour rediger des reponses ou de nouveaux messages. Verifiez tout avec soin afin d\'eviter de publier des informations incorrectes ou du contenu IA de mauvaise qualite.',
 ];
