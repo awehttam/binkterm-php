@@ -253,15 +253,34 @@ class LocalChatActivityHandler implements BotActivityHandler
     }
 
     /**
-     * Insert a chat message from the bot into chat_messages.
-     * The INSERT trigger fires pg_notify('binkstream', ...) automatically.
+     * Insert a chat message from the bot into chat_messages and pre-render
+     * markup_html into the sse_events row the INSERT trigger creates.
+     *
+     * Without this, BinkStream clients rely on StreamService::fetchEventsSince()
+     * to enrich markup_html at poll time.  That enrichment is theoretically
+     * correct but can miss in edge cases (timing, Apache buffering, JSON
+     * encoding hiccups), causing the bot response to arrive as raw markdown.
+     * Pre-rendering here guarantees the payload is ready before any SSE client
+     * reads it.
      */
     private function postBotMessage(int $botUserId, ?int $roomId, ?int $toUserId, string $body): void
     {
         $stmt = $this->db->prepare("
             INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
             VALUES (?, ?, ?, ?)
+            RETURNING id
         ");
         $stmt->execute([$roomId, $botUserId, $toUserId, $body]);
+        $chatId = (int)$stmt->fetchColumn();
+
+        // Enrich the sse_events row the trigger just created with pre-rendered HTML.
+        $markupHtml = \BinktermPHP\MarkdownRenderer::toHtml($body);
+        $enrichStmt = $this->db->prepare("
+            UPDATE sse_events
+            SET payload = payload || jsonb_build_object('markup_html', ?::text)
+            WHERE event_type = 'chat_message'
+              AND (payload->>'id')::bigint = ?
+        ");
+        $enrichStmt->execute([$markupHtml, $chatId]);
     }
 }
