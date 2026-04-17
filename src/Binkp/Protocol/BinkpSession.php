@@ -1270,7 +1270,9 @@ class BinkpSession
         $timestamp = filemtime($filePath);
 
         // Get packet destination for logging (only for .pkt files, not TIC or data files)
-        $uplinkAddr = $this->currentUplink['address'] ?? 'unknown';
+        // Use the actual remote address (authenticated peer), not the routed-uplink address,
+        // so that direct FREQ sessions to non-uplink nodes log the correct destination.
+        $remoteAddr = $this->remoteAddress ?? $this->currentUplink['address'] ?? 'unknown';
         $destAddr = null;
 
         // Only try to parse packet destination for actual FidoNet packet files
@@ -1288,9 +1290,9 @@ class BinkpSession
         $frame->writeToSocket($this->socket);
 
         if ($destAddr) {
-            $this->log("Sending packet {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+            $this->log("Sending packet {$wireName} ({$fileSize} bytes) to {$remoteAddr}, packet dest: {$destAddr}", 'INFO');
         } else {
-            $this->log("Sending file {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
+            $this->log("Sending file {$wireName} ({$fileSize} bytes) to {$remoteAddr}", 'INFO');
         }
 
         $handle = fopen($filePath, 'rb');
@@ -1317,7 +1319,7 @@ class BinkpSession
                 $this->sessionLogger->incrementStat('files_sent', 1);
                 $this->sessionLogger->incrementStat('bytes_sent', $bytesSent);
             }
-            $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
+            $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$remoteAddr}", 'INFO');
         } else {
             $this->log("Packet send incomplete: {$wireName} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
         }
