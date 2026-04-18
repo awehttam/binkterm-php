@@ -288,6 +288,12 @@ class MarkdownRenderer
                 // Restore any inline-code tokens that appear inside the label
                 // (e.g. [The `foo` Table](#anchor)) so they render as <code> not %%CODE0%%.
                 $label = !empty($codeSpans) ? strtr($m[1], $codeSpans) : $m[1];
+                // Resolve any image tokens already in the label so that linked images
+                // ([![alt](imgUrl)](href)) produce proper nested HTML rather than a
+                // literal %%LINK0%% token — strtr won't re-process substituted text.
+                if (!empty($links)) {
+                    $label = strtr($label, $links);
+                }
                 $url   = $m[2];
                 $token = '%%LINK' . count($links) . '%%';
 

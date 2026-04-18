@@ -955,7 +955,7 @@ function updateNetmailGuidelinesPostingName(policy) {
  * @returns {string}
  */
 function sanitizeTuiMarkdown(md) {
-    const placeholderPrefix = '%%TUIESC%%';
+    const placeholderPrefix = '%%TUIESC';
     const protectedSegments = [];
 
     // Protect code fences, inline code, and markdown links/images before
@@ -1593,8 +1593,12 @@ function insertUnfurledPreview() {
         richMd += '\n> ' + desc.substring(0, 200);
     }
 
-    // Try to swap the bare URL; fall back to appending if not found as plain text
-    const replaced = currentMd.replace(url, richMd);
+    // Try to swap the bare URL; also handle TUI WYSIWYG auto-linking [url](url);
+    // fall back to appending if neither form is found.
+    let replaced = currentMd.replace(url, richMd);
+    if (replaced === currentMd) {
+        replaced = currentMd.replace('[' + url + '](' + url + ')', richMd);
+    }
     tuiEditor.setMarkdown(replaced !== currentMd ? replaced : currentMd + '\n\n' + richMd, false);
 
     unfurlHandled = true;
