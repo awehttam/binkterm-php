@@ -13,6 +13,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Image Rendering in Terminal Services](#image-rendering-in-terminal-services)
 - [Sixel Login and Menu Screens](#sixel-login-and-menu-screens)
 - [Door Session Expiry Enforcement](#door-session-expiry-enforcement)
+- [Insecure FREQ Support](#insecure-freq-support)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -69,6 +70,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - Door session expiry is now enforced when checking capacity, allocating nodes, listing active sessions, and resuming existing sessions.
 - Stale abandoned sessions are cleaned automatically when new door sessions start and during periodic web-request maintenance.
 - No database migration is required, and existing stale sessions are cleaned up automatically after upgrade.
+
+### Insecure FREQ Support
+
+- The binkp security option **Insecure Receive Only** previously blocked all outbound sending during unauthenticated sessions, including responses to file requests (FREQs).
+- A new option, `insecure_allow_freq`, lets sysops allow FREQ responses during insecure sessions while still preventing mail packets and hold files from being delivered to unauthenticated callers.
+- The option is `false` by default, preserving the existing behavior for installations that do not need anonymous FREQs.
+- The toggle is available in **Admin → BinkP Config → Security**.
 
 ### Bug Fixes
 
@@ -393,6 +401,40 @@ Two separate issues contributed to this:
 2. **No wrap-around.** The search for the next unread echo only looked at areas that appeared after the current one in the sidebar list. If the current area was last in the list, or all remaining unread areas appeared above it, the search returned nothing. The search now wraps around to the top of the list so no unread echo is missed regardless of position.
 
 No database migration or configuration change is required.
+
+## Insecure FREQ Support
+
+The binkp server has a security option called **Insecure Receive Only** (`security.insecure_inbound_receive_only` in `binkp.json`). When enabled, binkp accepts connections from unauthenticated callers but withholds all outbound data — no mail packets and no files — so that an impostor claiming to be a trusted uplink cannot collect mail that belongs to it.
+
+The previous implementation withheld everything indiscriminately, including responses to file requests (FREQs). FREQs are inherently public: a caller requests a specific file by name, and the server either serves it or does not. There is no mail or sensitive content involved. Blocking FREQ responses in insecure sessions was overly broad and prevented systems from offering anonymous file distribution.
+
+A new configuration key, `security.insecure_allow_freq`, separates FREQ responses from hold-mail delivery. When set to `true`, the binkp server will:
+
+- respond to incoming M_GET frames (binkp-style file requests) from unauthenticated callers
+- serve Bark-style `.req` files received from unauthenticated callers
+- deliver any pre-queued `freq_outbound` rows for the requesting address
+
+Mail packets and hold files are still withheld regardless of this setting.
+
+The FREQ resolver continues to enforce any per-area password protection already configured. Files in password-protected areas are not accessible to callers that do not supply the correct password, even when `insecure_allow_freq` is enabled.
+
+### Configuration
+
+Add `insecure_allow_freq` to the `security` section of `config/binkp.json`:
+
+```json
+"security": {
+    "allow_insecure_inbound": true,
+    "insecure_inbound_receive_only": true,
+    "insecure_allow_freq": true
+}
+```
+
+The key is `false` by default. Systems that do not enable it are unaffected.
+
+The setting can also be toggled from **Admin → BinkP Config → Security** using the new **Allow FREQs During Insecure Sessions** checkbox.
+
+No database migration is required.
 
 ## Upgrade Instructions
 

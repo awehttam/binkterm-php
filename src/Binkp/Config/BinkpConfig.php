@@ -777,6 +777,15 @@ class BinkpConfig
     }
 
     /**
+     * Check if insecure sessions are allowed to respond to FREQ requests.
+     * Only meaningful when insecure_inbound_receive_only is true.
+     */
+    public function getInsecureAllowFreq(): bool
+    {
+        return $this->config['security']['insecure_allow_freq'] ?? false;
+    }
+
+    /**
      * Check if insecure sessions require node to be in allowlist
      */
     public function getRequireAllowlistForInsecure(): bool

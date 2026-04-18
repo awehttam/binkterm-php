@@ -666,6 +666,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.binkp_config.security.title' => 'Sécurité',
     'ui.admin.binkp_config.security.allow_insecure_inbound' => 'Autoriser les connexions entrantes non sécurisées',
     'ui.admin.binkp_config.security.insecure_receive_only' => 'Réception uniquement en mode non sécurisé',
+    'ui.admin.binkp_config.security.insecure_allow_freq' => 'Autoriser les FREQ lors des sessions non sécurisées',
     'ui.admin.binkp_config.security.require_allowlist_for_insecure' => 'Exiger la liste d\'autorisation pour les connexions non sécurisées',
     'ui.admin.binkp_config.security.max_insecure_sessions_per_hour' => 'Sessions non sécurisées max / heure',
     'ui.admin.binkp_config.security.allow_plaintext_fallback' => 'Autoriser le repli en texte clair',

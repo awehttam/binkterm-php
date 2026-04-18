@@ -64,6 +64,7 @@ class BinkpSession
     // Insecure session support
     private $isInsecureSession = false;
     private $insecureReceiveOnly = true;
+    private bool $insecureAllowFreq = false;
     private $sessionType = 'secure';  // 'secure', 'insecure', 'crash_outbound'
     private $sessionLogger = null;
 
@@ -307,9 +308,16 @@ class BinkpSession
 
             $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
 
-            // In insecure receive-only mode, suppress all outbound file sending.
-            if ($this->isInsecureSession && $this->insecureReceiveOnly) {
-                $this->log("Insecure receive-only session — skipping all outbound file delivery", 'INFO');
+            // In insecure receive-only mode, suppress mail/hold delivery but optionally allow FREQs.
+            $suppressAll = $this->isInsecureSession && $this->insecureReceiveOnly;
+            if ($suppressAll) {
+                if ($this->insecureAllowFreq) {
+                    // Serve pre-queued FREQ responses but withhold mail packets and hold files.
+                    $this->log("Insecure receive-only session — delivering FREQ files only", 'INFO');
+                    $this->sendFreqFiles();
+                } else {
+                    $this->log("Insecure receive-only session — skipping all outbound file delivery", 'INFO');
+                }
             } else {
                 // Send any FREQ files queued for this node (runs for both originator and answerer)
                 $this->sendFreqFiles();
@@ -1720,7 +1728,7 @@ class BinkpSession
     {
         $this->log("Remote FREQ request: {$data}", 'DEBUG');
 
-        if ($this->isInsecureSession && $this->insecureReceiveOnly) {
+        if ($this->isInsecureSession && $this->insecureReceiveOnly && !$this->insecureAllowFreq) {
             $this->log("FREQ request ignored — insecure receive-only session", 'INFO');
             return;
         }
@@ -1894,6 +1902,7 @@ class BinkpSession
 
         $this->isInsecureSession = true;
         $this->insecureReceiveOnly = $this->config->getInsecureReceiveOnly();
+        $this->insecureAllowFreq = $this->config->getInsecureAllowFreq();
         $this->sessionType = 'insecure';
         if ($this->sessionLogger) {
             $this->sessionLogger->setSessionType($this->sessionType);

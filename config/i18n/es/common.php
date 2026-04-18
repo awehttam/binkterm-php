@@ -753,6 +753,7 @@ return [
     'ui.admin.binkp_config.security.title' => 'Seguridad',
     'ui.admin.binkp_config.security.allow_insecure_inbound' => 'Permitir entrada insegura',
     'ui.admin.binkp_config.security.insecure_receive_only' => 'Inseguro solo recepcion',
+    'ui.admin.binkp_config.security.insecure_allow_freq' => 'Permitir FREQ en sesiones inseguras',
     'ui.admin.binkp_config.security.require_allowlist_for_insecure' => 'Requerir allowlist para inseguro',
     'ui.admin.binkp_config.security.max_insecure_sessions_per_hour' => 'Max sesiones inseguras por hora',
     'ui.admin.binkp_config.security.allow_plaintext_fallback' => 'Permitir fallback en texto plano',

@@ -53,6 +53,7 @@
     "security": {
               "allow_insecure_inbound": false,
               "insecure_inbound_receive_only": true,
+              "insecure_allow_freq": false,
               "require_allowlist_for_insecure": false,
               "max_insecure_sessions_per_hour": 10,
               "allow_plaintext_fallback": true
