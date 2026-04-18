@@ -113,6 +113,13 @@
 
 </div>
 
+<div class="mt-3 d-flex justify-content-end">
+    <button class="btn btn-fidonet" id="saveRulesBtnBottom" disabled>
+        <i class="fas fa-save"></i>
+        {{ t('ui.admin.filearea_rules.save_rules', {}, locale, ['common']) }}
+    </button>
+</div>
+
 <!-- Rule Edit/Add Modal -->
 <div class="modal fade" id="ruleModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -577,6 +584,7 @@ function setStatus(msg) {
 function setDirty(val) {
     dirty = val;
     document.getElementById('saveRulesBtn').disabled = !val;
+    document.getElementById('saveRulesBtnBottom').disabled = !val;
 }
 
 function loadRulesConfig() {
@@ -776,6 +784,7 @@ function resetTester() {
 document.addEventListener('DOMContentLoaded', () => {
     loadI18nNamespaces(['common', 'errors']).then(() => loadRulesConfig());
     document.getElementById('saveRulesBtn').addEventListener('click', saveRules);
+    document.getElementById('saveRulesBtnBottom').addEventListener('click', saveRules);
     document.getElementById('resetRulesBtn').addEventListener('click', resetRules);
     document.getElementById('patternTestToggle').addEventListener('click', openTesterPanel);
     document.getElementById('ruleFieldPattern').addEventListener('input', updateTester);
